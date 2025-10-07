@@ -63,7 +63,10 @@ export default function CreateGroup() {
   });
 
   const createGroupMutation = useMutation({
-    mutationFn: async (data: FormValues & { members: MemberInput[] }) => {
+    mutationFn: async (data: FormValues & { 
+      availability: any;
+      members: MemberInput[];
+    }) => {
       const res = await apiRequest("POST", "/api/groups", data);
       return await res.json();
     },
