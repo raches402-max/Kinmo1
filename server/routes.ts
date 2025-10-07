@@ -237,6 +237,8 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
             aiReasoning: suggestion.reasoning,
             suggestedDate: null,
             suggestedTime: null,
+            priceEstimate: suggestion.priceEstimate || null,
+            timeConstraints: suggestion.timeConstraints || null,
           };
         } else {
           // If no Google Places result, use AI suggestion directly
@@ -253,6 +255,8 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
             aiReasoning: suggestion.reasoning,
             suggestedDate: null,
             suggestedTime: null,
+            priceEstimate: suggestion.priceEstimate || null,
+            timeConstraints: suggestion.timeConstraints || null,
           };
         }
       })
