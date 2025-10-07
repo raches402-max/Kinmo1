@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles } from "lucide-react";
+import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -84,6 +84,26 @@ export default function GroupDetail() {
     onError: (error: Error) => {
       toast({
         title: "Error retrying",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const feedbackMutation = useMutation({
+    mutationFn: async ({ activityId, feedback }: { activityId: string; feedback: string }) => {
+      return await apiRequest("PATCH", `/api/activities/${activityId}/feedback`, { feedback });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "activities"] });
+      toast({
+        title: "Feedback saved",
+        description: "Your preference has been recorded",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error saving feedback",
         description: error.message,
         variant: "destructive",
       });
@@ -374,33 +394,89 @@ export default function GroupDetail() {
                         <CardDescription className="line-clamp-2">{activity.description}</CardDescription>
                       </div>
                       
-                      <div className="flex flex-wrap gap-2">
-                        {activity.rating && (
-                          <Badge variant="secondary" className="gap-1">
-                            <Star className="h-3 w-3 fill-current" />
-                            {activity.rating}
-                          </Badge>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex flex-wrap gap-2">
+                          {activity.rating && (
+                            <Badge variant="secondary" className="gap-1">
+                              <Star className="h-3 w-3 fill-current" />
+                              {activity.rating}
+                            </Badge>
+                          )}
+                          {activity.priceLevel && (
+                            <Badge variant="secondary" className="gap-1">
+                              <DollarSign className="h-3 w-3" />
+                              {priceDisplay(activity.priceLevel)}
+                            </Badge>
+                          )}
+                          <Badge variant="outline">{activity.venueType}</Badge>
+                        </div>
+                        {activity.googlePlaceId && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            asChild
+                            data-testid={`button-google-link-${activity.id}`}
+                          >
+                            <a
+                              href={`https://www.google.com/maps/search/?api=1&query=Google&query_place_id=${activity.googlePlaceId}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="gap-1"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              Google
+                            </a>
+                          </Button>
                         )}
-                        {activity.priceLevel && (
-                          <Badge variant="secondary" className="gap-1">
-                            <DollarSign className="h-3 w-3" />
-                            {priceDisplay(activity.priceLevel)}
-                          </Badge>
-                        )}
-                        <Badge variant="outline">{activity.venueType}</Badge>
                       </div>
 
-                      <div className="text-sm text-muted-foreground flex items-start gap-2 pt-2">
+                      <div className="text-sm text-muted-foreground flex items-start gap-2">
                         <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
                         <span className="line-clamp-2">{activity.venueAddress}</span>
                       </div>
 
                       {activity.aiReasoning && (
-                        <div className="text-sm bg-primary/5 rounded-md p-3 mt-2">
+                        <div className="text-sm bg-primary/5 rounded-md p-3">
                           <p className="text-primary font-medium mb-1">Why we suggest this:</p>
                           <p className="text-muted-foreground line-clamp-3">{activity.aiReasoning}</p>
                         </div>
                       )}
+
+                      <div className="pt-2 border-t">
+                        <p className="text-xs font-medium text-muted-foreground mb-2">Your feedback:</p>
+                        <div className="flex gap-2">
+                          <Button
+                            variant={activity.feedback === "love" ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => feedbackMutation.mutate({ activityId: activity.id, feedback: "love" })}
+                            className="flex-1 gap-1"
+                            data-testid={`button-love-${activity.id}`}
+                          >
+                            <Flame className="h-3 w-3" />
+                            YAS THIS
+                          </Button>
+                          <Button
+                            variant={activity.feedback === "more" ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => feedbackMutation.mutate({ activityId: activity.id, feedback: "more" })}
+                            className="flex-1 gap-1"
+                            data-testid={`button-more-${activity.id}`}
+                          >
+                            <ThumbsUp className="h-3 w-3" />
+                            More like this
+                          </Button>
+                          <Button
+                            variant={activity.feedback === "less" ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => feedbackMutation.mutate({ activityId: activity.id, feedback: "less" })}
+                            className="flex-1 gap-1"
+                            data-testid={`button-less-${activity.id}`}
+                          >
+                            <ThumbsDown className="h-3 w-3" />
+                            Less like this
+                          </Button>
+                        </div>
+                      </div>
                     </CardHeader>
                   </Card>
                 ))}
