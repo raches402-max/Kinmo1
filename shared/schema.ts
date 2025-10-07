@@ -78,6 +78,9 @@ export const activitiesRelations = relations(activities, ({ one }) => ({
 export const insertGroupSchema = createInsertSchema(groups).omit({
   id: true,
   createdAt: true,
+  shareableLink: true,
+  activityGenerationStatus: true,
+  activityGenerationError: true,
 });
 
 export const insertMemberSchema = createInsertSchema(members).omit({
