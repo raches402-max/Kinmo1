@@ -64,7 +64,8 @@ export default function CreateGroup() {
 
   const createGroupMutation = useMutation({
     mutationFn: async (data: FormValues & { members: MemberInput[] }) => {
-      return await apiRequest("POST", "/api/groups", data);
+      const res = await apiRequest("POST", "/api/groups", data);
+      return await res.json();
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/groups"] });
