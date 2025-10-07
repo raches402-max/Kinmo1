@@ -546,7 +546,7 @@ export default function GroupDetail() {
                             data-testid={`button-less-${activity.id}`}
                           >
                             <ThumbsDown className="h-3 w-3" />
-                            Less like this
+                            X Not this
                           </Button>
                         </div>
                       </div>
