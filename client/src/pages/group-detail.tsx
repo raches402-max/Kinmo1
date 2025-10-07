@@ -420,8 +420,7 @@ export default function GroupDetail() {
                             </Badge>
                           )}
                           {activity.priceLevel && (
-                            <Badge variant="secondary" className="gap-1">
-                              <DollarSign className="h-3 w-3" />
+                            <Badge variant="secondary">
                               {priceDisplay(activity.priceLevel)}
                             </Badge>
                           )}
