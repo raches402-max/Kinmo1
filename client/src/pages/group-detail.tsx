@@ -6,7 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -18,6 +22,14 @@ export default function GroupDetail() {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
   const [tempInstructions, setTempInstructions] = useState("");
+  const [editGroupOpen, setEditGroupOpen] = useState(false);
+  const [editGroupData, setEditGroupData] = useState({
+    name: "",
+    locationBase: "",
+    budgetMin: "",
+    budgetMax: "",
+    meetingFrequency: ""
+  });
 
   const { data: group, isLoading: groupLoading } = useQuery<Group>({
     queryKey: ["/api/groups", groupId],
@@ -115,6 +127,71 @@ export default function GroupDetail() {
     },
   });
 
+  const updateGroupMutation = useMutation({
+    mutationFn: async (updates: any) => {
+      return await apiRequest("PATCH", `/api/groups/${groupId}`, updates);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId] });
+      setEditGroupOpen(false);
+      toast({
+        title: "Group updated",
+        description: "Your group details have been saved",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error updating group",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteMemberMutation = useMutation({
+    mutationFn: async (memberId: string) => {
+      return await apiRequest("DELETE", `/api/members/${memberId}`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "members"] });
+      toast({
+        title: "Member removed",
+        description: "The member has been removed from the group",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error removing member",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const openEditGroup = () => {
+    if (group) {
+      setEditGroupData({
+        name: group.name,
+        locationBase: group.locationBase,
+        budgetMin: group.budgetMin.toString(),
+        budgetMax: group.budgetMax.toString(),
+        meetingFrequency: group.meetingFrequency
+      });
+      setEditGroupOpen(true);
+    }
+  };
+
+  const handleUpdateGroup = () => {
+    const updates = {
+      name: editGroupData.name,
+      locationBase: editGroupData.locationBase,
+      budgetMin: parseInt(editGroupData.budgetMin),
+      budgetMax: parseInt(editGroupData.budgetMax),
+      meetingFrequency: editGroupData.meetingFrequency
+    };
+    updateGroupMutation.mutate(updates);
+  };
+
   const copyShareLink = () => {
     if (group?.shareableLink) {
       const fullUrl = `${window.location.origin}/join/${group.shareableLink}`;
@@ -209,7 +286,17 @@ export default function GroupDetail() {
             {/* Group Details Card */}
             <Card>
               <CardHeader>
-                <CardTitle>Group Details</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Group Details</CardTitle>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={openEditGroup}
+                    data-testid="button-edit-group"
+                  >
+                    <Settings className="h-4 w-4" />
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
@@ -302,8 +389,38 @@ export default function GroupDetail() {
                             <p className="text-xs text-muted-foreground truncate">{member.email}</p>
                           )}
                         </div>
-                        {member.isOrganizer && (
+                        {member.isOrganizer ? (
                           <Badge variant="secondary" className="text-xs">Organizer</Badge>
+                        ) : (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8"
+                                data-testid={`button-delete-member-${member.id}`}
+                              >
+                                <Trash2 className="h-4 w-4 text-muted-foreground" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Remove Member</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to remove {member.name || member.email || "this member"} from the group?
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel data-testid="button-cancel-delete-member">Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => deleteMemberMutation.mutate(member.id)}
+                                  data-testid="button-confirm-delete-member"
+                                >
+                                  Remove
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         )}
                       </div>
                     ))}
@@ -593,6 +710,72 @@ export default function GroupDetail() {
           </div>
         </div>
       </div>
+
+      {/* Edit Group Dialog */}
+      <Dialog open={editGroupOpen} onOpenChange={setEditGroupOpen}>
+        <DialogContent data-testid="dialog-edit-group">
+          <DialogHeader>
+            <DialogTitle>Edit Group Details</DialogTitle>
+            <DialogDescription>
+              Update your group's information and preferences
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-group-name">Group Name</Label>
+              <Input
+                id="edit-group-name"
+                value={editGroupData.name}
+                onChange={(e) => setEditGroupData({ ...editGroupData, name: e.target.value })}
+                data-testid="input-edit-group-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-location">Location</Label>
+              <Input
+                id="edit-location"
+                value={editGroupData.locationBase}
+                onChange={(e) => setEditGroupData({ ...editGroupData, locationBase: e.target.value })}
+                data-testid="input-edit-location"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-budget-min">Min Budget ($)</Label>
+                <Input
+                  id="edit-budget-min"
+                  type="number"
+                  value={editGroupData.budgetMin}
+                  onChange={(e) => setEditGroupData({ ...editGroupData, budgetMin: e.target.value })}
+                  data-testid="input-edit-budget-min"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-budget-max">Max Budget ($)</Label>
+                <Input
+                  id="edit-budget-max"
+                  type="number"
+                  value={editGroupData.budgetMax}
+                  onChange={(e) => setEditGroupData({ ...editGroupData, budgetMax: e.target.value })}
+                  data-testid="input-edit-budget-max"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditGroupOpen(false)} data-testid="button-cancel-edit">
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleUpdateGroup} 
+              disabled={updateGroupMutation.isPending}
+              data-testid="button-save-group"
+            >
+              {updateGroupMutation.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
