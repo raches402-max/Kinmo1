@@ -274,12 +274,16 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       suggestions.map(async (suggestion) => {
         const places = await searchPlaces(suggestion.searchQuery, groupData.locationBase);
         
-        // Also search for complementary food place if suggested
+        // Also search for complementary food places if suggested
         let complementaryPlace = null;
+        let complementaryPlace2 = null;
         if (suggestion.complementaryFoodPlace) {
           const foodPlaces = await searchPlaces(suggestion.complementaryFoodPlace, groupData.locationBase);
           if (foodPlaces.length > 0) {
             complementaryPlace = foodPlaces[0];
+          }
+          if (foodPlaces.length > 1) {
+            complementaryPlace2 = foodPlaces[1];
           }
         }
         
@@ -305,6 +309,11 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
             complementaryPlaceId: complementaryPlace?.placeId || null,
             complementaryPlacePhotoUrl: complementaryPlace?.photoUrl || null,
             complementaryPlaceRating: complementaryPlace?.rating || null,
+            complementaryPlaceName2: complementaryPlace2?.name || null,
+            complementaryPlaceAddress2: complementaryPlace2?.address || null,
+            complementaryPlaceId2: complementaryPlace2?.placeId || null,
+            complementaryPlacePhotoUrl2: complementaryPlace2?.photoUrl || null,
+            complementaryPlaceRating2: complementaryPlace2?.rating || null,
           };
         } else {
           // If no Google Places result, use AI suggestion directly
@@ -328,6 +337,11 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
             complementaryPlaceId: complementaryPlace?.placeId || null,
             complementaryPlacePhotoUrl: complementaryPlace?.photoUrl || null,
             complementaryPlaceRating: complementaryPlace?.rating || null,
+            complementaryPlaceName2: complementaryPlace2?.name || null,
+            complementaryPlaceAddress2: complementaryPlace2?.address || null,
+            complementaryPlaceId2: complementaryPlace2?.placeId || null,
+            complementaryPlacePhotoUrl2: complementaryPlace2?.photoUrl || null,
+            complementaryPlaceRating2: complementaryPlace2?.rating || null,
           };
         }
       })

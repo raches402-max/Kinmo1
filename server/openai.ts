@@ -111,9 +111,10 @@ Requirements:
 7. FOR EVENTS ONLY (festivals, concerts, shows, sporting events, etc.): 
    - Include a realistic "priceEstimate" (e.g., "$25-50 per person", "$15 tickets", "Free")
    - Include "timeConstraints" if applicable (e.g., "Only on Friday afternoons", "Weekends in summer", "Saturday evenings")
+   - Include a "complementaryFoodPlace" search query for 2 nearby food places (e.g., "restaurants near [event venue]" or "food near [festival location]")
 8. For restaurants/cafes/bars: leave priceEstimate and timeConstraints empty (pricing comes from Google)
 9. FOR OUTDOOR VENUES (parks, beaches, hiking trails, outdoor spaces without food):
-   - Include a "complementaryFoodPlace" search query for a nearby food place (e.g., "sandwich shops near Central Park" or "coffee shops near Golden Gate Park")
+   - Include a "complementaryFoodPlace" search query for nearby food places (e.g., "sandwich shops near Central Park" or "coffee shops near Golden Gate Park")
    - This helps groups know where to grab food for their outdoor activity
 10. IMPORTANT - Use previous feedback to guide suggestions:
    - If activities were "LOVED", suggest very similar venues/types

@@ -78,11 +78,16 @@ export const activities = pgTable("activities", {
   priceEstimate: text("price_estimate"), // For events: "$25-50 per person", "Free", etc.
   timeConstraints: text("time_constraints"), // For events: "Only on Friday afternoons", "Weekends only", etc.
   feedback: text("feedback"), // love, more, less, null
-  complementaryPlaceName: text("complementary_place_name"), // For outdoor venues: nearby food place
+  complementaryPlaceName: text("complementary_place_name"), // For outdoor venues/events: nearby food place
   complementaryPlaceAddress: text("complementary_place_address"),
   complementaryPlaceId: text("complementary_place_id"), // Google Place ID
   complementaryPlacePhotoUrl: text("complementary_place_photo_url"),
   complementaryPlaceRating: text("complementary_place_rating"),
+  complementaryPlaceName2: text("complementary_place_name_2"), // Second food option
+  complementaryPlaceAddress2: text("complementary_place_address_2"),
+  complementaryPlaceId2: text("complementary_place_id_2"),
+  complementaryPlacePhotoUrl2: text("complementary_place_photo_url_2"),
+  complementaryPlaceRating2: text("complementary_place_rating_2"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
