@@ -12,7 +12,7 @@ export const groups = pgTable("groups", {
   budgetMin: integer("budget_min").notNull(),
   budgetMax: integer("budget_max").notNull(),
   meetingFrequency: text("meeting_frequency").notNull(), // weekly, biweekly, monthly
-  availability: text("availability").notNull(), // weekdays, weekends, evenings, etc.
+  availability: jsonb("availability").notNull(), // Grid: {day: {morning: bool, afternoon: bool, evening: bool}}
   closenessLevel: integer("closeness_level").notNull(), // 1-5 scale
   noveltyPreference: integer("novelty_preference").notNull(), // 1-5 scale (1=familiar, 5=new)
   pastPreferences: text("past_preferences"), // comma-separated or text description
