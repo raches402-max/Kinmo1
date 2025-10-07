@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check } from "lucide-react";
+import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -293,7 +293,19 @@ export default function GroupDetail() {
           {/* Main Content - Activities */}
           <div className="lg:col-span-2">
             <div className="mb-6">
-              <h2 className="text-2xl font-bold mb-2" data-testid="text-activities-title">AI-Suggested Activities</h2>
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+                <h2 className="text-2xl font-bold" data-testid="text-activities-title">AI-Suggested Activities</h2>
+                <Button
+                  onClick={() => retryGenerationMutation.mutate()}
+                  disabled={retryGenerationMutation.isPending || group?.activityGenerationStatus === "generating" || group?.activityGenerationStatus === "pending"}
+                  variant="default"
+                  size="sm"
+                  data-testid="button-generate-suggestions"
+                >
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  {retryGenerationMutation.isPending ? "Generating..." : "Generate New Ideas"}
+                </Button>
+              </div>
               <p className="text-muted-foreground">
                 Personalized recommendations based on your group's preferences
               </p>
