@@ -119,6 +119,12 @@ Requirements:
    - If activities were "LOVED", suggest very similar venues/types
    - If activities got "more", increase that type of suggestion
    - If activities got "less", avoid or minimize that type
+11. FOR REASONING: Be direct and concise. NO flowery language or fluff. Just state why it fits this group based on their specific preferences.
+   Examples:
+   - Good: "Fits your budget and love for casual Asian dining with shareable plates"
+   - Bad: "This wonderful venue will delight your senses with an amazing array of flavors and create memorable moments"
+12. When suggesting something NEW (outside their usual range/novelty preference), explicitly say "NEW:" at the start of the reasoning to highlight it's a departure from their typical choices.
+   Example: "NEW: Outside your typical Asian food preferences, but fits your budget and group size"
 
 Return your response as a JSON object with this structure:
 {

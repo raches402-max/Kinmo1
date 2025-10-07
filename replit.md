@@ -17,6 +17,10 @@ The platform enables users to create groups, invite members, and receive tailore
 
 Preferred communication style: Simple, everyday language.
 
+AI suggestion preferences:
+- Reasoning should be direct and concise - no flowery descriptions or fluff
+- Clearly highlight when suggestions are "NEW" (outside the group's typical range)
+
 ## System Architecture
 
 ### Frontend Architecture
