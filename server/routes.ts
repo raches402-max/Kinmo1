@@ -231,7 +231,20 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
     console.log(`[AI Generation] Starting for group ${groupId}`);
     console.log(`[AI Generation] Group data:`, JSON.stringify(groupData, null, 2));
 
-    // Generate AI suggestions
+    // Get existing activities with feedback for this group
+    const existingActivities = await storage.getGroupActivities(groupId);
+    const previousFeedback = existingActivities
+      .filter(a => a.feedback)
+      .map(a => ({
+        venueName: a.venueName,
+        venueType: a.venueType,
+        feedback: a.feedback!,
+        description: a.description
+      }));
+
+    console.log(`[AI Generation] Found ${previousFeedback.length} activities with feedback`);
+
+    // Generate AI suggestions with feedback
     const suggestions = await generateActivitySuggestions({
       locationBase: groupData.locationBase,
       budgetMin: groupData.budgetMin,
@@ -242,6 +255,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       noveltyPreference: groupData.noveltyPreference,
       pastPreferences: groupData.pastPreferences,
       additionalInstructions: groupData.additionalInstructions,
+      previousFeedback: previousFeedback.length > 0 ? previousFeedback : undefined,
     });
 
     console.log(`[AI Generation] Received ${suggestions.length} suggestions from OpenAI`);
@@ -250,6 +264,15 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
     const activitiesData = await Promise.all(
       suggestions.map(async (suggestion) => {
         const places = await searchPlaces(suggestion.searchQuery, groupData.locationBase);
+        
+        // Also search for complementary food place if suggested
+        let complementaryPlace = null;
+        if (suggestion.complementaryFoodPlace) {
+          const foodPlaces = await searchPlaces(suggestion.complementaryFoodPlace, groupData.locationBase);
+          if (foodPlaces.length > 0) {
+            complementaryPlace = foodPlaces[0];
+          }
+        }
         
         if (places.length > 0) {
           const place = places[0];
@@ -268,6 +291,11 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
             suggestedTime: null,
             priceEstimate: suggestion.priceEstimate || null,
             timeConstraints: suggestion.timeConstraints || null,
+            complementaryPlaceName: complementaryPlace?.name || null,
+            complementaryPlaceAddress: complementaryPlace?.address || null,
+            complementaryPlaceId: complementaryPlace?.placeId || null,
+            complementaryPlacePhotoUrl: complementaryPlace?.photoUrl || null,
+            complementaryPlaceRating: complementaryPlace?.rating || null,
           };
         } else {
           // If no Google Places result, use AI suggestion directly
@@ -286,6 +314,11 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
             suggestedTime: null,
             priceEstimate: suggestion.priceEstimate || null,
             timeConstraints: suggestion.timeConstraints || null,
+            complementaryPlaceName: complementaryPlace?.name || null,
+            complementaryPlaceAddress: complementaryPlace?.address || null,
+            complementaryPlaceId: complementaryPlace?.placeId || null,
+            complementaryPlacePhotoUrl: complementaryPlace?.photoUrl || null,
+            complementaryPlaceRating: complementaryPlace?.rating || null,
           };
         }
       })

@@ -78,6 +78,11 @@ export const activities = pgTable("activities", {
   priceEstimate: text("price_estimate"), // For events: "$25-50 per person", "Free", etc.
   timeConstraints: text("time_constraints"), // For events: "Only on Friday afternoons", "Weekends only", etc.
   feedback: text("feedback"), // love, more, less, null
+  complementaryPlaceName: text("complementary_place_name"), // For outdoor venues: nearby food place
+  complementaryPlaceAddress: text("complementary_place_address"),
+  complementaryPlaceId: text("complementary_place_id"), // Google Place ID
+  complementaryPlacePhotoUrl: text("complementary_place_photo_url"),
+  complementaryPlaceRating: text("complementary_place_rating"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

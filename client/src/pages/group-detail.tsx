@@ -461,6 +461,44 @@ export default function GroupDetail() {
                         </div>
                       )}
 
+                      {activity.complementaryPlaceName && (
+                        <div className="bg-accent/20 rounded-md p-3">
+                          <p className="text-sm font-medium mb-2 flex items-center gap-2">
+                            <MapPin className="h-4 w-4" />
+                            Grab food nearby:
+                          </p>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium">{activity.complementaryPlaceName}</p>
+                              {activity.complementaryPlaceRating && (
+                                <div className="flex items-center gap-1 mt-1">
+                                  <Star className="h-3 w-3 fill-current text-yellow-500" />
+                                  <span className="text-xs text-muted-foreground">{activity.complementaryPlaceRating}</span>
+                                </div>
+                              )}
+                            </div>
+                            {activity.complementaryPlaceId && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                asChild
+                                data-testid={`button-complementary-link-${activity.id}`}
+                              >
+                                <a
+                                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activity.complementaryPlaceName)}&query_place_id=${activity.complementaryPlaceId}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="gap-1"
+                                >
+                                  <ExternalLink className="h-3 w-3" />
+                                  View
+                                </a>
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       <div className="pt-2 border-t">
                         <p className="text-xs font-medium text-muted-foreground mb-2">Your feedback:</p>
                         <div className="flex gap-2">

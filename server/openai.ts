@@ -11,6 +11,7 @@ export interface ActivitySuggestion {
   searchQuery: string; // For Google Places search
   priceEstimate?: string; // For events: "$25-50 per person", "Free", etc.
   timeConstraints?: string; // For events: "Only on Friday afternoons", "Weekends only", etc.
+  complementaryFoodPlace?: string; // For outdoor venues: search query for nearby food place
 }
 
 export async function generateActivitySuggestions(groupData: {
@@ -23,6 +24,7 @@ export async function generateActivitySuggestions(groupData: {
   noveltyPreference: number;
   pastPreferences?: string;
   additionalInstructions?: string;
+  previousFeedback?: { venueName: string; venueType: string; feedback: string; description: string }[];
 }): Promise<ActivitySuggestion[]> {
   try {
     const closenessDescriptions = [
@@ -69,6 +71,25 @@ export async function generateActivitySuggestions(groupData: {
 
     const availabilityText = formatAvailabilityForPrompt(groupData.availability);
 
+    // Format previous feedback for the prompt
+    let feedbackContext = '';
+    if (groupData.previousFeedback && groupData.previousFeedback.length > 0) {
+      const lovedActivities = groupData.previousFeedback.filter(f => f.feedback === 'love').map(f => `${f.venueName} (${f.venueType})`);
+      const moreActivities = groupData.previousFeedback.filter(f => f.feedback === 'more').map(f => `${f.venueName} (${f.venueType})`);
+      const lessActivities = groupData.previousFeedback.filter(f => f.feedback === 'less').map(f => `${f.venueName} (${f.venueType})`);
+      
+      feedbackContext = '\nPrevious Feedback:';
+      if (lovedActivities.length > 0) {
+        feedbackContext += `\n- LOVED (suggest more like these): ${lovedActivities.join(', ')}`;
+      }
+      if (moreActivities.length > 0) {
+        feedbackContext += `\n- Want more like: ${moreActivities.join(', ')}`;
+      }
+      if (lessActivities.length > 0) {
+        feedbackContext += `\n- Want less like: ${lessActivities.join(', ')}`;
+      }
+    }
+
     const prompt = `You are an expert activity planner. Generate 6 diverse activity suggestions for a group with these preferences:
 
 Location: ${groupData.locationBase}
@@ -78,7 +99,7 @@ Usual Availability: ${availabilityText}
 Group Closeness: ${closenessDescriptions[groupData.closenessLevel - 1]}
 Experience Preference: ${noveltyDescriptions[groupData.noveltyPreference - 1]}
 ${groupData.pastPreferences ? `Past Preferences: ${groupData.pastPreferences}` : ''}
-${groupData.additionalInstructions ? `Additional Instructions: ${groupData.additionalInstructions}` : ''}
+${groupData.additionalInstructions ? `Additional Instructions: ${groupData.additionalInstructions}` : ''}${feedbackContext}
 
 Requirements:
 1. Suggest 6 specific types of venues/activities (not specific business names)
@@ -91,6 +112,13 @@ Requirements:
    - Include a realistic "priceEstimate" (e.g., "$25-50 per person", "$15 tickets", "Free")
    - Include "timeConstraints" if applicable (e.g., "Only on Friday afternoons", "Weekends in summer", "Saturday evenings")
 8. For restaurants/cafes/bars: leave priceEstimate and timeConstraints empty (pricing comes from Google)
+9. FOR OUTDOOR VENUES (parks, beaches, hiking trails, outdoor spaces without food):
+   - Include a "complementaryFoodPlace" search query for a nearby food place (e.g., "sandwich shops near Central Park" or "coffee shops near Golden Gate Park")
+   - This helps groups know where to grab food for their outdoor activity
+10. IMPORTANT - Use previous feedback to guide suggestions:
+   - If activities were "LOVED", suggest very similar venues/types
+   - If activities got "more", increase that type of suggestion
+   - If activities got "less", avoid or minimize that type
 
 Return your response as a JSON object with this structure:
 {
@@ -102,7 +130,8 @@ Return your response as a JSON object with this structure:
       "reasoning": "why this is a good fit for this specific group based on their preferences",
       "searchQuery": "search terms for Google Places API (e.g., 'Italian restaurants in San Francisco')",
       "priceEstimate": "ONLY for events: realistic price estimate",
-      "timeConstraints": "ONLY for events: date/time constraints if any"
+      "timeConstraints": "ONLY for events: date/time constraints if any",
+      "complementaryFoodPlace": "ONLY for outdoor venues: search query for nearby food place"
     }
   ]
 }`;

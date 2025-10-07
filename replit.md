@@ -6,6 +6,13 @@ Kinmo.ai is an AI-powered group activity planning application that helps users d
 
 The platform enables users to create groups, invite members, and receive tailored activity recommendations that consider factors like group closeness, novelty preferences, budget ranges, and meeting frequency. Each suggestion includes venue details, photos, ratings, and practical information to help groups make informed decisions.
 
+## Recent Changes
+
+### October 7, 2025
+- **Complementary Food Suggestions**: For outdoor venues like parks and beaches, the AI now suggests nearby food places (e.g., "pick up sandwiches at ____ near this park"). This helps groups plan complete outdoor experiences with food options.
+- **Feedback Integration**: Activity feedback (love/more/less) is now fed back into the AI when generating new suggestions. The AI learns from previous feedback to suggest more of what the group loves and less of what they don't prefer.
+- **Enhanced AI Context**: OpenAI prompts now include previous activity feedback and complementary food place recommendations for outdoor venues.
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
