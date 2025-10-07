@@ -25,6 +25,7 @@ export interface IStorage {
   getGroupActivities(groupId: string): Promise<Activity[]>;
   createActivity(activity: InsertActivity): Promise<Activity>;
   createActivities(activities: InsertActivity[]): Promise<Activity[]>;
+  updateActivityFeedback(activityId: string, feedback: string): Promise<Activity>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -112,6 +113,15 @@ export class DatabaseStorage implements IStorage {
       .update(members)
       .set({ invitationSent: true })
       .where(eq(members.groupId, groupId));
+  }
+
+  async updateActivityFeedback(activityId: string, feedback: string): Promise<Activity> {
+    const [activity] = await db
+      .update(activities)
+      .set({ feedback })
+      .where(eq(activities.id, activityId))
+      .returning();
+    return activity;
   }
 }
 

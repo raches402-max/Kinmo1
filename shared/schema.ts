@@ -52,6 +52,7 @@ export const activities = pgTable("activities", {
   aiReasoning: text("ai_reasoning"), // Why AI suggested this
   suggestedDate: timestamp("suggested_date"),
   suggestedTime: text("suggested_time"),
+  feedback: text("feedback"), // love, more, less, null
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
