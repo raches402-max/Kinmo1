@@ -9,6 +9,8 @@ export interface ActivitySuggestion {
   description: string;
   reasoning: string;
   searchQuery: string; // For Google Places search
+  priceEstimate?: string; // For events: "$25-50 per person", "Free", etc.
+  timeConstraints?: string; // For events: "Only on Friday afternoons", "Weekends only", etc.
 }
 
 export async function generateActivitySuggestions(groupData: {
@@ -85,16 +87,22 @@ Requirements:
 4. Balance familiar and novel based on their novelty preference
 5. Ensure variety across the 6 suggestions
 6. Provide a search query that can be used with Google Places API
+7. FOR EVENTS ONLY (festivals, concerts, shows, sporting events, etc.): 
+   - Include a realistic "priceEstimate" (e.g., "$25-50 per person", "$15 tickets", "Free")
+   - Include "timeConstraints" if applicable (e.g., "Only on Friday afternoons", "Weekends in summer", "Saturday evenings")
+8. For restaurants/cafes/bars: leave priceEstimate and timeConstraints empty (pricing comes from Google)
 
 Return your response as a JSON object with this structure:
 {
   "suggestions": [
     {
       "venueName": "suggested venue type or activity name",
-      "venueType": "category (restaurant, museum, park, etc)",
+      "venueType": "category (restaurant, museum, park, event, festival, concert, etc)",
       "description": "brief description of the activity and why it suits this group",
       "reasoning": "why this is a good fit for this specific group based on their preferences",
-      "searchQuery": "search terms for Google Places API (e.g., 'Italian restaurants in San Francisco')"
+      "searchQuery": "search terms for Google Places API (e.g., 'Italian restaurants in San Francisco')",
+      "priceEstimate": "ONLY for events: realistic price estimate",
+      "timeConstraints": "ONLY for events: date/time constraints if any"
     }
   ]
 }`;
