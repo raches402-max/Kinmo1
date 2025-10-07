@@ -78,10 +78,11 @@ Preferred communication style: Simple, everyday language.
 ### External Dependencies
 
 **OpenAI Integration**
-- GPT-5 model for activity suggestion generation
+- GPT-4o-mini model for activity suggestion generation
 - Structured prompt engineering based on group preferences
-- Preference-aware reasoning (closeness level, novelty preference, budget)
+- Preference-aware reasoning (closeness level, novelty preference, budget, additional instructions)
 - Returns 6 diverse activity suggestions with search queries
+- Error handling for empty or malformed responses
 
 **Google Places API**
 - Text search for venue discovery based on AI-generated queries

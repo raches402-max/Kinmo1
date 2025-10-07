@@ -185,6 +185,9 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
     // Update status to generating
     await storage.updateGroupStatus(groupId, "generating");
 
+    console.log(`[AI Generation] Starting for group ${groupId}`);
+    console.log(`[AI Generation] Group data:`, JSON.stringify(groupData, null, 2));
+
     // Generate AI suggestions
     const suggestions = await generateActivitySuggestions({
       locationBase: groupData.locationBase,
@@ -197,6 +200,8 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       pastPreferences: groupData.pastPreferences,
       additionalInstructions: groupData.additionalInstructions,
     });
+
+    console.log(`[AI Generation] Received ${suggestions.length} suggestions from OpenAI`);
 
     // For each suggestion, search Google Places
     const activitiesData = await Promise.all(
@@ -239,8 +244,12 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       })
     );
 
+    console.log(`[AI Generation] Created ${activitiesData.length} activities to store`);
+    
     // Store all activities
     await storage.createActivities(activitiesData);
+    
+    console.log(`[AI Generation] Successfully stored activities for group ${groupId}`);
     
     // Update status to completed
     await storage.updateGroupStatus(groupId, "completed");

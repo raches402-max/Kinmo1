@@ -1,7 +1,6 @@
 // Reference: javascript_openai blueprint
 import OpenAI from "openai";
 
-// the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export interface ActivitySuggestion {
@@ -100,8 +99,10 @@ Return your response as a JSON object with this structure:
   ]
 }`;
 
+    console.log(`[OpenAI] Sending prompt with availability: ${availabilityText}`);
+    
     const response = await openai.chat.completions.create({
-      model: "gpt-5",
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
@@ -117,7 +118,14 @@ Return your response as a JSON object with this structure:
     });
 
     const result = JSON.parse(response.choices[0].message.content || '{}');
-    return result.suggestions || [];
+    console.log(`[OpenAI] Received response with ${result.suggestions?.length || 0} suggestions`);
+    console.log(`[OpenAI] Raw response:`, JSON.stringify(result, null, 2));
+    
+    if (!result.suggestions || result.suggestions.length === 0) {
+      throw new Error("OpenAI returned no activity suggestions. The response may be empty or malformed.");
+    }
+    
+    return result.suggestions;
   } catch (error) {
     console.error("Error generating activity suggestions:", error);
     throw new Error("Failed to generate activity suggestions: " + (error as Error).message);
