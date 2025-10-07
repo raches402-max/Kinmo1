@@ -69,6 +69,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update group details
+  app.patch("/api/groups/:id", async (req, res) => {
+    try {
+      const group = await storage.getGroup(req.params.id);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      const updates = req.body;
+      const updatedGroup = await storage.updateGroup(req.params.id, updates);
+      res.json(updatedGroup);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Get group by shareable link
   app.get("/api/groups/by-link/:shareableLink", async (req, res) => {
     try {
@@ -136,6 +152,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(member);
     } catch (error: any) {
       res.status(400).json({ message: error.message });
+    }
+  });
+
+  // Update member
+  app.patch("/api/members/:id", async (req, res) => {
+    try {
+      const updates = req.body;
+      const member = await storage.updateMember(req.params.id, updates);
+      res.json(member);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Delete member
+  app.delete("/api/members/:id", async (req, res) => {
+    try {
+      await storage.deleteMember(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
     }
   });
 

@@ -21,11 +21,14 @@ export interface IStorage {
   getGroup(id: string): Promise<Group | undefined>;
   getGroupByShareableLink(link: string): Promise<Group | undefined>;
   getUserGroups(userId: string): Promise<Group[]>;
+  updateGroup(id: string, updates: Partial<InsertGroup>): Promise<Group>;
   updateGroupStatus(id: string, status: string, error?: string): Promise<void>;
   
   // Members
   getGroupMembers(groupId: string): Promise<Member[]>;
   createMember(member: InsertMember): Promise<Member>;
+  updateMember(id: string, updates: Partial<InsertMember>): Promise<Member>;
+  deleteMember(id: string): Promise<void>;
   markInvitationsSent(groupId: string): Promise<void>;
   
   // Activities
@@ -155,6 +158,30 @@ export class DatabaseStorage implements IStorage {
       .where(eq(activities.id, activityId))
       .returning();
     return activity;
+  }
+
+  async updateGroup(id: string, updates: Partial<InsertGroup>): Promise<Group> {
+    const [group] = await db
+      .update(groups)
+      .set(updates)
+      .where(eq(groups.id, id))
+      .returning();
+    return group;
+  }
+
+  async updateMember(id: string, updates: Partial<InsertMember>): Promise<Member> {
+    const [member] = await db
+      .update(members)
+      .set(updates)
+      .where(eq(members.id, id))
+      .returning();
+    return member;
+  }
+
+  async deleteMember(id: string): Promise<void> {
+    await db
+      .delete(members)
+      .where(eq(members.id, id));
   }
 }
 
