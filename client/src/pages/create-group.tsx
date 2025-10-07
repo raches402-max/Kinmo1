@@ -27,6 +27,7 @@ const formSchema = z.object({
   closenessLevel: z.number().min(1).max(5),
   noveltyPreference: z.number().min(1).max(5),
   pastPreferences: z.string().optional(),
+  additionalInstructions: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -59,6 +60,7 @@ export default function CreateGroup() {
       closenessLevel: 3,
       noveltyPreference: 3,
       pastPreferences: "",
+      additionalInstructions: "",
     },
   });
 
@@ -281,6 +283,25 @@ export default function CreateGroup() {
                           className="resize-none h-24"
                           {...field}
                           data-testid="textarea-past-preferences"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="additionalInstructions"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Additional Instructions for AI (Optional)</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="e.g., Must be accessible by public transit, prefer venues with outdoor seating, avoid crowded places..."
+                          className="resize-none h-24"
+                          {...field}
+                          data-testid="textarea-additional-instructions"
                         />
                       </FormControl>
                       <FormMessage />
