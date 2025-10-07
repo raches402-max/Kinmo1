@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -325,10 +325,26 @@ export default function GroupDetail() {
             {/* Members Card */}
             <Card>
               <CardHeader>
-                <CardTitle>Members</CardTitle>
-                <CardDescription>
-                  {members.length} {members.length === 1 ? "member" : "members"}
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Members</CardTitle>
+                    <CardDescription>
+                      {members.length} {members.length === 1 ? "member" : "members"}
+                    </CardDescription>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={copyShareLink}
+                    data-testid="button-copy-link"
+                  >
+                    {copied ? (
+                      <Check className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <UserPlus className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent className="space-y-3">
                 {membersLoading ? (
@@ -391,23 +407,8 @@ export default function GroupDetail() {
                   <p className="text-sm text-muted-foreground">No members yet</p>
                 )}
 
-                <div className="pt-3 border-t space-y-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full justify-start"
-                    onClick={copyShareLink}
-                    data-testid="button-copy-link"
-                  >
-                    {copied ? (
-                      <Check className="mr-2 h-4 w-4 text-green-600" />
-                    ) : (
-                      <Copy className="mr-2 h-4 w-4" />
-                    )}
-                    {copied ? "Copied!" : "Copy Invite Link"}
-                  </Button>
-                  
-                  {members.some(m => m.email && !m.invitationSent) && (
+                {members.some(m => m.email && !m.invitationSent) && (
+                  <div className="pt-3 border-t">
                     <Button
                       variant="default"
                       size="sm"
@@ -419,8 +420,8 @@ export default function GroupDetail() {
                       <Mail className="mr-2 h-4 w-4" />
                       {sendInvitationsMutation.isPending ? "Sending..." : "Send Email Invitations"}
                     </Button>
-                  )}
-                </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
