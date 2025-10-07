@@ -16,6 +16,7 @@ export const groups = pgTable("groups", {
   closenessLevel: integer("closeness_level").notNull(), // 1-5 scale
   noveltyPreference: integer("novelty_preference").notNull(), // 1-5 scale (1=familiar, 5=new)
   pastPreferences: text("past_preferences"), // comma-separated or text description
+  additionalInstructions: text("additional_instructions"), // Custom AI instructions from user
   shareableLink: text("shareable_link").notNull().unique(),
   activityGenerationStatus: text("activity_generation_status").default("pending").notNull(), // pending, generating, completed, failed
   activityGenerationError: text("activity_generation_error"),

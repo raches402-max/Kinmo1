@@ -116,6 +116,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         closenessLevel: group.closenessLevel,
         noveltyPreference: group.noveltyPreference,
         pastPreferences: group.pastPreferences,
+        additionalInstructions: group.additionalInstructions,
       });
 
       res.json({ success: true, message: "Activity generation restarted" });
@@ -194,6 +195,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       closenessLevel: groupData.closenessLevel,
       noveltyPreference: groupData.noveltyPreference,
       pastPreferences: groupData.pastPreferences,
+      additionalInstructions: groupData.additionalInstructions,
     });
 
     // For each suggestion, search Google Places
