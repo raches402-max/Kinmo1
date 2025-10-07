@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown } from "lucide-react";
+import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -439,6 +439,25 @@ export default function GroupDetail() {
                         <div className="text-sm bg-primary/5 rounded-md p-3">
                           <p className="text-primary font-medium mb-1">Why we suggest this:</p>
                           <p className="text-muted-foreground line-clamp-3">{activity.aiReasoning}</p>
+                        </div>
+                      )}
+
+                      {(activity.priceEstimate || activity.timeConstraints) && (
+                        <div className="space-y-2">
+                          {activity.priceEstimate && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Ticket className="h-4 w-4 text-muted-foreground" />
+                              <span className="font-medium">Price:</span>
+                              <span className="text-muted-foreground">{activity.priceEstimate}</span>
+                            </div>
+                          )}
+                          {activity.timeConstraints && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Clock className="h-4 w-4 text-muted-foreground" />
+                              <span className="font-medium">When:</span>
+                              <span className="text-muted-foreground">{activity.timeConstraints}</span>
+                            </div>
+                          )}
                         </div>
                       )}
 
