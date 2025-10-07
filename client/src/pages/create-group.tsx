@@ -44,7 +44,7 @@ export default function CreateGroup() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const [members, setMembers] = useState<MemberInput[]>([{ name: "", email: "" }]);
-  const [budgetRange, setBudgetRange] = useState<number[]>([50, 200]);
+  const [budgetRange, setBudgetRange] = useState<number[]>([50, 250]);
   const [closeness, setCloseness] = useState(3);
   const [novelty, setNovelty] = useState(3);
   const [availability, setAvailability] = useState(createEmptyAvailability());
@@ -55,7 +55,7 @@ export default function CreateGroup() {
       name: "",
       locationBase: "",
       budgetMin: 50,
-      budgetMax: 200,
+      budgetMax: 250,
       meetingFrequency: "",
       closenessLevel: 3,
       noveltyPreference: 3,
@@ -176,7 +176,7 @@ export default function CreateGroup() {
                   <div className="space-y-4">
                     <Slider
                       min={0}
-                      max={500}
+                      max={250}
                       step={10}
                       value={budgetRange}
                       onValueChange={setBudgetRange}
@@ -185,7 +185,9 @@ export default function CreateGroup() {
                     />
                     <div className="flex justify-between text-sm">
                       <span className="font-medium" data-testid="text-budget-min">${budgetRange[0]}</span>
-                      <span className="font-medium" data-testid="text-budget-max">${budgetRange[1]}</span>
+                      <span className="font-medium" data-testid="text-budget-max">
+                        {budgetRange[1] >= 250 ? "$250+" : `$${budgetRange[1]}`}
+                      </span>
                     </div>
                   </div>
                 </div>
