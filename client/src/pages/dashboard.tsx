@@ -34,7 +34,7 @@ export default function Dashboard() {
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <Sparkles className="h-6 w-6 text-primary" />
-            <h1 className="text-xl font-bold">GroupSync</h1>
+            <h1 className="text-xl font-bold">Kinmo.ai</h1>
           </div>
           <div className="flex items-center gap-4">
             <Link href="/create-group">

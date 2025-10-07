@@ -11,7 +11,7 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Sparkles className="h-6 w-6 text-primary" />
-            <h1 className="text-xl font-bold">GroupSync</h1>
+            <h1 className="text-xl font-bold">Kinmo.ai</h1>
           </div>
           <Button 
             onClick={() => window.location.href = "/api/login"}
@@ -26,7 +26,7 @@ export default function Landing() {
       <div className="max-w-7xl mx-auto px-6 py-20">
         <div className="text-center space-y-6 mb-16">
           <h1 className="text-4xl md:text-6xl font-bold tracking-tight">
-            AI-Powered Group Activity Planning
+            Using AI to take the friction out of seeing your kin, more
           </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             Never struggle to plan group activities again. Get personalized AI suggestions 

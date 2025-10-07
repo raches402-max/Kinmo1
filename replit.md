@@ -1,8 +1,8 @@
-# GroupSync - AI Group Activity Planner
+# Kinmo.ai - AI Group Activity Planner
 
 ## Overview
 
-GroupSync is an AI-powered group activity planning application that helps users discover and organize group activities based on collective preferences, budget constraints, and location. The application generates personalized venue and activity suggestions using OpenAI's GPT model and enriches them with real-world data from Google Places API.
+Kinmo.ai is an AI-powered group activity planning application that helps users discover and organize group activities based on collective preferences, budget constraints, and location. Using AI to take the friction out of seeing your kin, more. The application generates personalized venue and activity suggestions using OpenAI's GPT model and enriches them with real-world data from Google Places API.
 
 The platform enables users to create groups, invite members, and receive tailored activity recommendations that consider factors like group closeness, novelty preferences, budget ranges, and meeting frequency. Each suggestion includes venue details, photos, ratings, and practical information to help groups make informed decisions.
 
