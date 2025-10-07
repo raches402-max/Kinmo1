@@ -1,21 +1,50 @@
+// Reference: javascript_log_in_with_replit blueprint
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertGroupSchema, insertMemberSchema } from "@shared/schema";
 import { generateActivitySuggestions } from "./openai";
 import { searchPlaces } from "./google-places";
+import { setupAuth, isAuthenticated } from "./replitAuth";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Create group with AI suggestions
-  app.post("/api/groups", async (req, res) => {
+  // Set up authentication
+  await setupAuth(app);
+
+  // Auth routes
+  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      res.json(user);
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // Get user's groups
+  app.get("/api/user/groups", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const groups = await storage.getUserGroups(userId);
+      res.json(groups);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Create group with AI suggestions (protected)
+  app.post("/api/groups", isAuthenticated, async (req: any, res) => {
     try {
       const { members, ...groupData } = req.body;
+      const userId = req.user.claims.sub;
       
       // Validate group data
       const validatedGroup = insertGroupSchema.parse(groupData);
       
       // Create group with members
-      const group = await storage.createGroup(validatedGroup, members || []);
+      const group = await storage.createGroup(validatedGroup, userId, members || []);
       
       // Generate AI activity suggestions in background
       generateAndStoreActivities(group.id, validatedGroup);

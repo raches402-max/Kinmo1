@@ -1,6 +1,8 @@
 // Reference: javascript_database blueprint
+// Reference: javascript_log_in_with_replit blueprint
 import { 
-  groups, members, activities,
+  users, groups, members, activities,
+  type User, type UpsertUser,
   type Group, type InsertGroup,
   type Member, type InsertMember,
   type Activity, type InsertActivity
@@ -10,10 +12,15 @@ import { eq } from "drizzle-orm";
 import { randomBytes } from "crypto";
 
 export interface IStorage {
+  // User operations (required for Replit Auth)
+  getUser(id: string): Promise<User | undefined>;
+  upsertUser(user: UpsertUser): Promise<User>;
+  
   // Groups
-  createGroup(group: InsertGroup, memberInputs: Array<{name: string, email: string}>): Promise<Group>;
+  createGroup(group: InsertGroup, userId: string, memberInputs: Array<{name: string, email: string}>): Promise<Group>;
   getGroup(id: string): Promise<Group | undefined>;
   getGroupByShareableLink(link: string): Promise<Group | undefined>;
+  getUserGroups(userId: string): Promise<Group[]>;
   updateGroupStatus(id: string, status: string, error?: string): Promise<void>;
   
   // Members
@@ -29,13 +36,35 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
-  async createGroup(insertGroup: InsertGroup, memberInputs: Array<{name: string, email: string}>): Promise<Group> {
+  // User operations (required for Replit Auth)
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          ...userData,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return user;
+  }
+
+  // Group operations
+  async createGroup(insertGroup: InsertGroup, userId: string, memberInputs: Array<{name: string, email: string}>): Promise<Group> {
     // Generate unique shareable link
     const shareableLink = randomBytes(16).toString('hex');
     
     const [group] = await db
       .insert(groups)
-      .values({ ...insertGroup, shareableLink })
+      .values({ ...insertGroup, userId, shareableLink })
       .returning();
     
     // Create members if provided
@@ -53,6 +82,10 @@ export class DatabaseStorage implements IStorage {
     }
     
     return group;
+  }
+
+  async getUserGroups(userId: string): Promise<Group[]> {
+    return await db.select().from(groups).where(eq(groups.userId, userId));
   }
 
   async getGroup(id: string): Promise<Group | undefined> {
