@@ -17,10 +17,11 @@ export async function generateActivitySuggestions(groupData: {
   budgetMin: number;
   budgetMax: number;
   meetingFrequency: string;
-  availability: string;
+  availability: any;
   closenessLevel: number;
   noveltyPreference: number;
   pastPreferences?: string;
+  additionalInstructions?: string;
 }): Promise<ActivitySuggestion[]> {
   try {
     const closenessDescriptions = [
@@ -39,15 +40,44 @@ export async function generateActivitySuggestions(groupData: {
       "always seeking novel, unique, and adventurous experiences"
     ];
 
+    // Format availability for display
+    const formatAvailabilityForPrompt = (availability: any): string => {
+      if (typeof availability === 'string') {
+        return availability;
+      }
+      
+      if (typeof availability === 'object' && availability !== null) {
+        const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        const times = ['morning', 'afternoon', 'evening'];
+        const selectedSlots: string[] = [];
+        
+        days.forEach(day => {
+          if (availability[day]) {
+            const dayTimes = times.filter(time => availability[day][time]);
+            if (dayTimes.length > 0) {
+              selectedSlots.push(`${day}: ${dayTimes.join(', ')}`);
+            }
+          }
+        });
+        
+        return selectedSlots.length > 0 ? selectedSlots.join('; ') : 'Flexible';
+      }
+      
+      return 'Flexible';
+    };
+
+    const availabilityText = formatAvailabilityForPrompt(groupData.availability);
+
     const prompt = `You are an expert activity planner. Generate 6 diverse activity suggestions for a group with these preferences:
 
 Location: ${groupData.locationBase}
 Budget Range: $${groupData.budgetMin}-${groupData.budgetMax} per person
 Meeting Frequency: ${groupData.meetingFrequency}
-Usual Availability: ${groupData.availability}
+Usual Availability: ${availabilityText}
 Group Closeness: ${closenessDescriptions[groupData.closenessLevel - 1]}
 Experience Preference: ${noveltyDescriptions[groupData.noveltyPreference - 1]}
 ${groupData.pastPreferences ? `Past Preferences: ${groupData.pastPreferences}` : ''}
+${groupData.additionalInstructions ? `Additional Instructions: ${groupData.additionalInstructions}` : ''}
 
 Requirements:
 1. Suggest 6 specific types of venues/activities (not specific business names)
