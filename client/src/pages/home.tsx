@@ -17,10 +17,10 @@ export default function Home() {
         {/* Content */}
         <div className="relative z-10 max-w-5xl mx-auto px-6 text-center text-white">
           <h1 className="text-5xl md:text-6xl font-bold mb-6" data-testid="text-hero-title">
-            Plan Perfect Group Activities with AI
+            Using AI to take the friction out of seeing your kin, more
           </h1>
           <p className="text-xl md:text-2xl mb-8 text-white/90 max-w-3xl mx-auto" data-testid="text-hero-subtitle">
-            Get personalized suggestions for real venues and events based on your group's preferences, budget, and location
+            Get personalized activity suggestions for real venues and events based on your group's preferences, budget, and location
           </p>
           <div className="flex flex-wrap gap-4 justify-center">
             <Link href="/create-group">
