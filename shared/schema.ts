@@ -52,6 +52,8 @@ export const activities = pgTable("activities", {
   aiReasoning: text("ai_reasoning"), // Why AI suggested this
   suggestedDate: timestamp("suggested_date"),
   suggestedTime: text("suggested_time"),
+  priceEstimate: text("price_estimate"), // For events: "$25-50 per person", "Free", etc.
+  timeConstraints: text("time_constraints"), // For events: "Only on Friday afternoons", "Weekends only", etc.
   feedback: text("feedback"), // love, more, less, null
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
