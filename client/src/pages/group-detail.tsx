@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -16,6 +17,7 @@ export default function GroupDetail() {
   const groupId = params?.id;
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
+  const [tempInstructions, setTempInstructions] = useState("");
 
   const { data: group, isLoading: groupLoading } = useQuery<Group>({
     queryKey: ["/api/groups", groupId],
@@ -71,13 +73,16 @@ export default function GroupDetail() {
 
   const retryGenerationMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest("POST", `/api/groups/${groupId}/retry-generation`, {});
+      return await apiRequest("POST", `/api/groups/${groupId}/retry-generation`, {
+        tempInstructions: tempInstructions.trim() || undefined
+      });
     },
     onSuccess: () => {
       toast({
         title: "Retrying generation",
         description: "AI is creating new activity suggestions...",
       });
+      setTempInstructions(""); // Clear the temp instructions after use
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId] });
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "activities"] });
     },
@@ -315,20 +320,32 @@ export default function GroupDetail() {
             <div className="mb-6">
               <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
                 <h2 className="text-2xl font-bold" data-testid="text-activities-title">AI-Suggested Activities</h2>
+              </div>
+              <p className="text-muted-foreground mb-4">
+                Personalized recommendations based on your group's preferences
+              </p>
+              
+              <div className="flex gap-3 items-end">
+                <div className="flex-1">
+                  <Textarea
+                    placeholder="Tell the AI what you want to see... (e.g., 'more outdoor activities' or 'include live music venues')"
+                    value={tempInstructions}
+                    onChange={(e) => setTempInstructions(e.target.value)}
+                    className="resize-none"
+                    rows={2}
+                    data-testid="input-temp-instructions"
+                  />
+                </div>
                 <Button
                   onClick={() => retryGenerationMutation.mutate()}
                   disabled={retryGenerationMutation.isPending || group?.activityGenerationStatus === "generating" || group?.activityGenerationStatus === "pending"}
                   variant="default"
-                  size="sm"
                   data-testid="button-generate-suggestions"
                 >
                   <Sparkles className="mr-2 h-4 w-4" />
                   {retryGenerationMutation.isPending ? "Generating..." : "Generate New Ideas"}
                 </Button>
               </div>
-              <p className="text-muted-foreground">
-                Personalized recommendations based on your group's preferences
-              </p>
             </div>
 
             {activitiesLoading ? (

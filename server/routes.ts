@@ -147,6 +147,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Group not found" });
       }
 
+      // Accept temporary instructions from the request body
+      const { tempInstructions } = req.body;
+      
+      // Combine permanent and temporary instructions
+      const combinedInstructions = [
+        group.additionalInstructions,
+        tempInstructions
+      ].filter(Boolean).join('\n');
+
       // Reset status and trigger regeneration
       await storage.updateGroupStatus(req.params.id, "pending");
       
@@ -159,7 +168,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         closenessLevel: group.closenessLevel,
         noveltyPreference: group.noveltyPreference,
         pastPreferences: group.pastPreferences,
-        additionalInstructions: group.additionalInstructions,
+        additionalInstructions: combinedInstructions || group.additionalInstructions,
       });
 
       res.json({ success: true, message: "Activity generation restarted" });
