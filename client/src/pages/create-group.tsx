@@ -24,11 +24,6 @@ const formSchema = z.object({
   budgetMin: z.number().min(0),
   budgetMax: z.number().min(0),
   meetingFrequency: z.string().min(1, "Meeting frequency is required"),
-  availability: z.record(z.object({
-    morning: z.boolean(),
-    afternoon: z.boolean(),
-    evening: z.boolean()
-  })),
   closenessLevel: z.number().min(1).max(5),
   noveltyPreference: z.number().min(1).max(5),
   pastPreferences: z.string().optional(),
@@ -61,7 +56,6 @@ export default function CreateGroup() {
       budgetMin: 50,
       budgetMax: 200,
       meetingFrequency: "",
-      availability: createEmptyAvailability(),
       closenessLevel: 3,
       noveltyPreference: 3,
       pastPreferences: "",

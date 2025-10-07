@@ -103,6 +103,31 @@ export default function GroupDetail() {
     }
   };
 
+  const formatAvailability = (availability: any): string => {
+    if (typeof availability === 'string') {
+      return availability.replace("-", " ");
+    }
+    
+    if (typeof availability === 'object' && availability !== null) {
+      const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      const times = ['morning', 'afternoon', 'evening'];
+      const selectedSlots: string[] = [];
+      
+      days.forEach(day => {
+        if (availability[day]) {
+          const dayTimes = times.filter(time => availability[day][time]);
+          if (dayTimes.length > 0) {
+            selectedSlots.push(`${day}: ${dayTimes.join(', ')}`);
+          }
+        }
+      });
+      
+      return selectedSlots.length > 0 ? selectedSlots.join(' • ') : 'Not specified';
+    }
+    
+    return 'Not specified';
+  };
+
   if (groupLoading) {
     return (
       <div className="min-h-screen bg-background">
@@ -179,7 +204,7 @@ export default function GroupDetail() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">Availability</p>
-                  <p className="font-medium capitalize">{group.availability.replace("-", " ")}</p>
+                  <p className="text-sm">{formatAvailability(group.availability)}</p>
                 </div>
               </CardContent>
             </Card>
