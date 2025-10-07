@@ -298,25 +298,26 @@ export default function GroupDetail() {
                   </Button>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Location</p>
-                  <p className="font-medium flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-primary" />
-                    {group.locationBase}
-                  </p>
+              <CardContent className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{group.locationBase}</p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex-1">
+                    <p className="text-xs text-muted-foreground">Budget</p>
+                    <p className="text-sm font-medium">${group.budgetMin}-${group.budgetMax}</p>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs text-muted-foreground">Frequency</p>
+                    <p className="text-sm font-medium capitalize">{group.meetingFrequency.replace("-", " ")}</p>
+                  </div>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground mb-1">Budget Range</p>
-                  <p className="font-medium">${group.budgetMin} - ${group.budgetMax}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Meeting Frequency</p>
-                  <p className="font-medium capitalize">{group.meetingFrequency.replace("-", " ")}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Availability</p>
-                  <p className="text-sm">{formatAvailability(group.availability)}</p>
+                  <p className="text-xs text-muted-foreground mb-1">Availability</p>
+                  <p className="text-xs leading-relaxed">{formatAvailability(group.availability)}</p>
                 </div>
               </CardContent>
             </Card>
