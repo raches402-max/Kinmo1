@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { ArrowLeft, Plus, X, Users } from "lucide-react";
 import { Link } from "wouter";
+import { AvailabilityGrid, createEmptyAvailability } from "@/components/AvailabilityGrid";
 
 const formSchema = z.object({
   name: z.string().min(1, "Group name is required"),
@@ -23,7 +24,11 @@ const formSchema = z.object({
   budgetMin: z.number().min(0),
   budgetMax: z.number().min(0),
   meetingFrequency: z.string().min(1, "Meeting frequency is required"),
-  availability: z.string().min(1, "Availability is required"),
+  availability: z.record(z.object({
+    morning: z.boolean(),
+    afternoon: z.boolean(),
+    evening: z.boolean()
+  })),
   closenessLevel: z.number().min(1).max(5),
   noveltyPreference: z.number().min(1).max(5),
   pastPreferences: z.string().optional(),
@@ -46,6 +51,7 @@ export default function CreateGroup() {
   const [budgetRange, setBudgetRange] = useState<number[]>([50, 200]);
   const [closeness, setCloseness] = useState(3);
   const [novelty, setNovelty] = useState(3);
+  const [availability, setAvailability] = useState(createEmptyAvailability());
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -55,7 +61,7 @@ export default function CreateGroup() {
       budgetMin: 50,
       budgetMax: 200,
       meetingFrequency: "",
-      availability: "",
+      availability: createEmptyAvailability(),
       closenessLevel: 3,
       noveltyPreference: 3,
       pastPreferences: "",
@@ -92,6 +98,7 @@ export default function CreateGroup() {
       budgetMax: budgetRange[1],
       closenessLevel: closeness,
       noveltyPreference: novelty,
+      availability,
       members: validMembers,
     });
   };
@@ -208,30 +215,13 @@ export default function CreateGroup() {
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name="availability"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Usual Availability</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-availability">
-                            <SelectValue placeholder="Select availability" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="weekday-evenings">Weekday Evenings</SelectItem>
-                          <SelectItem value="weekends">Weekends</SelectItem>
-                          <SelectItem value="weekend-mornings">Weekend Mornings</SelectItem>
-                          <SelectItem value="weekend-afternoons">Weekend Afternoons</SelectItem>
-                          <SelectItem value="any-time">Flexible / Any Time</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <div className="space-y-3">
+                  <Label>Group Availability</Label>
+                  <AvailabilityGrid 
+                    value={availability} 
+                    onChange={setAvailability}
+                  />
+                </div>
               </CardContent>
             </Card>
 
