@@ -73,6 +73,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update activity feedback
+  app.patch("/api/activities/:activityId/feedback", async (req, res) => {
+    try {
+      const { feedback } = req.body;
+      if (!["love", "more", "less"].includes(feedback)) {
+        return res.status(400).json({ message: "Invalid feedback value" });
+      }
+      const activity = await storage.updateActivityFeedback(req.params.activityId, feedback);
+      res.json(activity);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Join a group
   app.post("/api/groups/:id/join", async (req, res) => {
     try {
