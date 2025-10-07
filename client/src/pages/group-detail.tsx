@@ -377,7 +377,7 @@ export default function GroupDetail() {
               </Card>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {activities.map((activity) => (
+                {activities.filter(activity => activity.feedback !== "less").map((activity) => (
                   <Card key={activity.id} className="overflow-hidden hover-elevate transition-all" data-testid={`activity-${activity.id}`}>
                     {activity.photoUrl && (
                       <div className="aspect-video w-full overflow-hidden bg-muted">
