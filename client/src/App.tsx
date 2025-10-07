@@ -1,3 +1,4 @@
+// Reference: javascript_log_in_with_replit blueprint
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -5,7 +6,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
-import Home from "@/pages/home";
+import { useAuth } from "@/hooks/useAuth";
+import Landing from "@/pages/landing";
+import Dashboard from "@/pages/dashboard";
 import CreateGroup from "@/pages/create-group";
 import GroupDetail from "@/pages/group-detail";
 import JoinEntry from "@/pages/join-entry";
@@ -13,13 +16,25 @@ import JoinGroup from "@/pages/join-group";
 import NotFound from "@/pages/not-found";
 
 function Router() {
+  const { isAuthenticated, isLoading } = useAuth();
+
   return (
     <Switch>
-      <Route path="/" component={Home} />
-      <Route path="/create-group" component={CreateGroup} />
-      <Route path="/group/:id" component={GroupDetail} />
-      <Route path="/join-entry" component={JoinEntry} />
-      <Route path="/join/:shareableLink" component={JoinGroup} />
+      {isLoading || !isAuthenticated ? (
+        <>
+          <Route path="/" component={Landing} />
+          <Route path="/join-entry" component={JoinEntry} />
+          <Route path="/join/:shareableLink" component={JoinGroup} />
+        </>
+      ) : (
+        <>
+          <Route path="/" component={Dashboard} />
+          <Route path="/create-group" component={CreateGroup} />
+          <Route path="/group/:id" component={GroupDetail} />
+          <Route path="/join-entry" component={JoinEntry} />
+          <Route path="/join/:shareableLink" component={JoinGroup} />
+        </>
+      )}
       <Route component={NotFound} />
     </Switch>
   );
