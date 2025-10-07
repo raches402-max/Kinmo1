@@ -3,8 +3,8 @@
 import { 
   users, groups, members, activities,
   type User, type UpsertUser,
-  type Group, type InsertGroup,
-  type Member, type InsertMember,
+  type Group, type InsertGroup, type UpdateGroup,
+  type Member, type InsertMember, type UpdateMember,
   type Activity, type InsertActivity
 } from "@shared/schema";
 import { db } from "./db";
@@ -21,13 +21,14 @@ export interface IStorage {
   getGroup(id: string): Promise<Group | undefined>;
   getGroupByShareableLink(link: string): Promise<Group | undefined>;
   getUserGroups(userId: string): Promise<Group[]>;
-  updateGroup(id: string, updates: Partial<InsertGroup>): Promise<Group>;
+  updateGroup(id: string, updates: UpdateGroup): Promise<Group>;
   updateGroupStatus(id: string, status: string, error?: string): Promise<void>;
   
   // Members
   getGroupMembers(groupId: string): Promise<Member[]>;
+  getMember(id: string): Promise<Member | undefined>;
   createMember(member: InsertMember): Promise<Member>;
-  updateMember(id: string, updates: Partial<InsertMember>): Promise<Member>;
+  updateMember(id: string, updates: UpdateMember): Promise<Member>;
   deleteMember(id: string): Promise<void>;
   markInvitationsSent(groupId: string): Promise<void>;
   
@@ -160,7 +161,7 @@ export class DatabaseStorage implements IStorage {
     return activity;
   }
 
-  async updateGroup(id: string, updates: Partial<InsertGroup>): Promise<Group> {
+  async updateGroup(id: string, updates: UpdateGroup): Promise<Group> {
     const [group] = await db
       .update(groups)
       .set(updates)
@@ -169,7 +170,12 @@ export class DatabaseStorage implements IStorage {
     return group;
   }
 
-  async updateMember(id: string, updates: Partial<InsertMember>): Promise<Member> {
+  async getMember(id: string): Promise<Member | undefined> {
+    const [member] = await db.select().from(members).where(eq(members.id, id));
+    return member || undefined;
+  }
+
+  async updateMember(id: string, updates: UpdateMember): Promise<Member> {
     const [member] = await db
       .update(members)
       .set(updates)
@@ -179,6 +185,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteMember(id: string): Promise<void> {
+    // First check if the member is an organizer
+    const member = await this.getMember(id);
+    if (member?.isOrganizer) {
+      throw new Error("Cannot delete organizer member");
+    }
+    
     await db
       .delete(members)
       .where(eq(members.id, id));

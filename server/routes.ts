@@ -2,7 +2,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertGroupSchema, insertMemberSchema } from "@shared/schema";
+import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema } from "@shared/schema";
 import { generateActivitySuggestions } from "./openai";
 import { searchPlaces } from "./google-places";
 import { setupAuth, isAuthenticated } from "./replitAuth";
@@ -77,11 +77,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Group not found" });
       }
 
-      const updates = req.body;
-      const updatedGroup = await storage.updateGroup(req.params.id, updates);
+      const validatedUpdates = updateGroupSchema.parse(req.body);
+      const updatedGroup = await storage.updateGroup(req.params.id, validatedUpdates);
       res.json(updatedGroup);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(400).json({ message: error.message });
     }
   });
 
@@ -158,11 +158,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update member
   app.patch("/api/members/:id", async (req, res) => {
     try {
-      const updates = req.body;
-      const member = await storage.updateMember(req.params.id, updates);
+      const validatedUpdates = updateMemberSchema.parse(req.body);
+      const member = await storage.updateMember(req.params.id, validatedUpdates);
       res.json(member);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(400).json({ message: error.message });
     }
   });
 
@@ -172,7 +172,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.deleteMember(req.params.id);
       res.json({ success: true });
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      const status = error.message.includes("Cannot delete organizer") ? 400 : 500;
+      res.status(status).json({ message: error.message });
     }
   });
 

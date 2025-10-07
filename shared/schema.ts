@@ -139,15 +139,21 @@ export const insertActivitySchema = createInsertSchema(activities).omit({
   createdAt: true,
 });
 
+// Update schemas (partial versions for PATCH operations)
+export const updateGroupSchema = insertGroupSchema.partial();
+export const updateMemberSchema = insertMemberSchema.partial();
+
 // Types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
 
 export type InsertGroup = z.infer<typeof insertGroupSchema>;
 export type Group = typeof groups.$inferSelect;
+export type UpdateGroup = z.infer<typeof updateGroupSchema>;
 
 export type InsertMember = z.infer<typeof insertMemberSchema>;
 export type Member = typeof members.$inferSelect;
+export type UpdateMember = z.infer<typeof updateMemberSchema>;
 
 export type InsertActivity = z.infer<typeof insertActivitySchema>;
 export type Activity = typeof activities.$inferSelect;
