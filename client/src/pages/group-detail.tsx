@@ -322,45 +322,6 @@ export default function GroupDetail() {
               </CardContent>
             </Card>
 
-            {/* Share Link Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Share2 className="h-5 w-5" />
-                  Invite Members
-                </CardTitle>
-                <CardDescription>Share this link with your group</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Button
-                  variant="outline"
-                  className="w-full justify-start"
-                  onClick={copyShareLink}
-                  data-testid="button-copy-link"
-                >
-                  {copied ? (
-                    <Check className="mr-2 h-4 w-4 text-green-600" />
-                  ) : (
-                    <Copy className="mr-2 h-4 w-4" />
-                  )}
-                  {copied ? "Copied!" : "Copy Invite Link"}
-                </Button>
-                
-                {members.some(m => m.email && !m.invitationSent) && (
-                  <Button
-                    variant="default"
-                    className="w-full justify-start"
-                    onClick={() => sendInvitationsMutation.mutate()}
-                    disabled={sendInvitationsMutation.isPending}
-                    data-testid="button-send-invitations"
-                  >
-                    <Mail className="mr-2 h-4 w-4" />
-                    {sendInvitationsMutation.isPending ? "Sending..." : "Send Email Invitations"}
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-
             {/* Members Card */}
             <Card>
               <CardHeader>
@@ -369,7 +330,7 @@ export default function GroupDetail() {
                   {members.length} {members.length === 1 ? "member" : "members"}
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-3">
                 {membersLoading ? (
                   <div className="space-y-3">
                     <Skeleton className="h-10 w-full" />
@@ -429,6 +390,37 @@ export default function GroupDetail() {
                 ) : (
                   <p className="text-sm text-muted-foreground">No members yet</p>
                 )}
+
+                <div className="pt-3 border-t space-y-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-start"
+                    onClick={copyShareLink}
+                    data-testid="button-copy-link"
+                  >
+                    {copied ? (
+                      <Check className="mr-2 h-4 w-4 text-green-600" />
+                    ) : (
+                      <Copy className="mr-2 h-4 w-4" />
+                    )}
+                    {copied ? "Copied!" : "Copy Invite Link"}
+                  </Button>
+                  
+                  {members.some(m => m.email && !m.invitationSent) && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="w-full justify-start"
+                      onClick={() => sendInvitationsMutation.mutate()}
+                      disabled={sendInvitationsMutation.isPending}
+                      data-testid="button-send-invitations"
+                    >
+                      <Mail className="mr-2 h-4 w-4" />
+                      {sendInvitationsMutation.isPending ? "Sending..." : "Send Email Invitations"}
+                    </Button>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </div>
