@@ -189,6 +189,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get group-specific voting events (top 10 with vote counts)
+  app.get("/api/groups/:groupId/voting-events", async (req, res) => {
+    try {
+      const events = await storage.getGroupVotingEvents(req.params.groupId);
+      res.json(events);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Create a voting event (authenticated)
   app.post("/api/voting-events", isAuthenticated, async (req: any, res) => {
     try {

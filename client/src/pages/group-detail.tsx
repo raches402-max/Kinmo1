@@ -14,7 +14,7 @@ import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Chec
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { Group, Activity, Member } from "@shared/schema";
+import type { Group, Activity, Member, VotingEvent, Vote } from "@shared/schema";
 
 export default function GroupDetail() {
   const [, params] = useRoute("/group/:id");
@@ -167,6 +167,101 @@ export default function GroupDetail() {
       });
     },
   });
+
+  // Voting functionality
+  const [newEventTitle, setNewEventTitle] = useState("");
+  const [addEventOpen, setAddEventOpen] = useState(false);
+
+  const { data: votingEvents = [], isLoading: votingEventsLoading } = useQuery<Array<VotingEvent & { upvotes: number; downvotes: number; netVotes: number }>>({
+    queryKey: ["/api/groups", groupId, "voting-events"],
+    enabled: !!groupId,
+  });
+
+  const { data: myVotes = {} } = useQuery<Record<string, Vote>>({
+    queryKey: ["/api/groups", groupId, "my-votes"],
+    queryFn: async () => {
+      if (!groupId) return {};
+      const votes: Record<string, Vote> = {};
+      for (const event of votingEvents) {
+        const response = await fetch(`/api/voting-events/${event.id}/my-vote`);
+        if (response.ok) {
+          const vote = await response.json();
+          if (vote) votes[event.id] = vote;
+        }
+      }
+      return votes;
+    },
+    enabled: !!groupId && votingEvents.length > 0,
+  });
+
+  const createEventMutation = useMutation({
+    mutationFn: async (title: string) => {
+      return await apiRequest("POST", "/api/voting-events", { groupId, title });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "voting-events"] });
+      setNewEventTitle("");
+      setAddEventOpen(false);
+      toast({
+        title: "Event added",
+        description: "Your event has been added to the voting list",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error adding event",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const voteMutation = useMutation({
+    mutationFn: async ({ eventId, voteType }: { eventId: string; voteType: 'upvote' | 'downvote' }) => {
+      return await apiRequest("POST", `/api/voting-events/${eventId}/vote`, { voteType });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "voting-events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "my-votes"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error voting",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const removeVoteMutation = useMutation({
+    mutationFn: async (eventId: string) => {
+      return await apiRequest("DELETE", `/api/voting-events/${eventId}/vote`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "voting-events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "my-votes"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error removing vote",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleVote = (eventId: string, voteType: 'upvote' | 'downvote') => {
+    const currentVote = myVotes[eventId];
+    if (currentVote) {
+      if (currentVote.voteType === voteType) {
+        removeVoteMutation.mutate(eventId);
+      } else {
+        voteMutation.mutate({ eventId, voteType });
+      }
+    } else {
+      voteMutation.mutate({ eventId, voteType });
+    }
+  };
 
   const openEditGroup = () => {
     if (group) {
@@ -421,6 +516,122 @@ export default function GroupDetail() {
                       {sendInvitationsMutation.isPending ? "Sending..." : "Send Email Invitations"}
                     </Button>
                   </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* YAS THIS Voting Table */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>YAS THIS</CardTitle>
+                    <CardDescription>Top 10 Events - Vote Now!</CardDescription>
+                  </div>
+                  <Dialog open={addEventOpen} onOpenChange={setAddEventOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm" data-testid="button-add-event">
+                        <ThumbsUp className="h-4 w-4 mr-2" />
+                        Add Event
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Add Event to YAS THIS</DialogTitle>
+                        <DialogDescription>
+                          Suggest an event for the group to vote on
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="event-title">Event Title</Label>
+                          <Input
+                            id="event-title"
+                            value={newEventTitle}
+                            onChange={(e) => setNewEventTitle(e.target.value)}
+                            placeholder="e.g., Karaoke Night at Sing Sing"
+                            data-testid="input-event-title"
+                          />
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button
+                          onClick={() => createEventMutation.mutate(newEventTitle)}
+                          disabled={!newEventTitle.trim() || createEventMutation.isPending}
+                          data-testid="button-submit-event"
+                        >
+                          {createEventMutation.isPending ? "Adding..." : "Add Event"}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {votingEventsLoading ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                  </div>
+                ) : votingEvents.length > 0 ? (
+                  <div className="space-y-2">
+                    {votingEvents.map((event, index) => {
+                      const currentVote = myVotes[event.id];
+                      const hasUpvoted = currentVote?.voteType === 'upvote';
+                      const hasDownvoted = currentVote?.voteType === 'downvote';
+                      
+                      return (
+                        <div 
+                          key={event.id} 
+                          className="flex items-center gap-2 p-2 rounded-md hover-elevate"
+                          data-testid={`voting-event-${event.id}`}
+                        >
+                          <span className="text-xs font-medium text-muted-foreground w-5">#{index + 1}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{event.title}</p>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant={hasUpvoted ? "default" : "ghost"}
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => handleVote(event.id, 'upvote')}
+                              data-testid={`button-upvote-${event.id}`}
+                            >
+                              <ThumbsUp className="h-3 w-3" />
+                            </Button>
+                            <span className="text-xs font-medium w-6 text-center" data-testid={`upvote-count-${event.id}`}>
+                              {event.upvotes}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant={hasDownvoted ? "default" : "ghost"}
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => handleVote(event.id, 'downvote')}
+                              data-testid={`button-downvote-${event.id}`}
+                            >
+                              <ThumbsDown className="h-3 w-3" />
+                            </Button>
+                            <span className="text-xs font-medium w-6 text-center" data-testid={`downvote-count-${event.id}`}>
+                              {event.downvotes}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs font-bold w-8 text-center" data-testid={`net-votes-${event.id}`}>
+                              {event.netVotes > 0 ? `+${event.netVotes}` : event.netVotes}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No events yet. Add one to get started!
+                  </p>
                 )}
               </CardContent>
             </Card>

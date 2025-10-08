@@ -94,6 +94,7 @@ export const activities = pgTable("activities", {
 // YAS THIS voting events table
 export const votingEvents = pgTable("voting_events", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  groupId: varchar("group_id").notNull().references(() => groups.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   description: text("description"),
   createdBy: varchar("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -123,6 +124,7 @@ export const groupsRelations = relations(groups, ({ one, many }) => ({
   }),
   members: many(members),
   activities: many(activities),
+  votingEvents: many(votingEvents),
 }));
 
 export const membersRelations = relations(members, ({ one }) => ({
@@ -140,6 +142,10 @@ export const activitiesRelations = relations(activities, ({ one }) => ({
 }));
 
 export const votingEventsRelations = relations(votingEvents, ({ one, many }) => ({
+  group: one(groups, {
+    fields: [votingEvents.groupId],
+    references: [groups.id],
+  }),
   creator: one(users, {
     fields: [votingEvents.createdBy],
     references: [users.id],

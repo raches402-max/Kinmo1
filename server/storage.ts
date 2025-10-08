@@ -43,6 +43,7 @@ export interface IStorage {
   // Voting Events
   createVotingEvent(event: InsertVotingEvent, userId: string): Promise<VotingEvent>;
   getVotingEvents(): Promise<Array<VotingEvent & { upvotes: number; downvotes: number; netVotes: number }>>;
+  getGroupVotingEvents(groupId: string): Promise<Array<VotingEvent & { upvotes: number; downvotes: number; netVotes: number }>>;
   getVotingEvent(id: string): Promise<VotingEvent | undefined>;
   updateVotingEvent(id: string, updates: UpdateVotingEvent): Promise<VotingEvent>;
   deleteVotingEvent(id: string): Promise<void>;
@@ -224,6 +225,7 @@ export class DatabaseStorage implements IStorage {
     const events = await db
       .select({
         id: votingEvents.id,
+        groupId: votingEvents.groupId,
         title: votingEvents.title,
         description: votingEvents.description,
         createdBy: votingEvents.createdBy,
@@ -234,6 +236,29 @@ export class DatabaseStorage implements IStorage {
       })
       .from(votingEvents)
       .leftJoin(votes, eq(votingEvents.id, votes.eventId))
+      .groupBy(votingEvents.id)
+      .orderBy(desc(sql`COUNT(CASE WHEN ${votes.voteType} = 'upvote' THEN 1 END) - COUNT(CASE WHEN ${votes.voteType} = 'downvote' THEN 1 END)`))
+      .limit(10);
+
+    return events;
+  }
+
+  async getGroupVotingEvents(groupId: string): Promise<Array<VotingEvent & { upvotes: number; downvotes: number; netVotes: number }>> {
+    const events = await db
+      .select({
+        id: votingEvents.id,
+        groupId: votingEvents.groupId,
+        title: votingEvents.title,
+        description: votingEvents.description,
+        createdBy: votingEvents.createdBy,
+        createdAt: votingEvents.createdAt,
+        upvotes: sql<number>`COUNT(CASE WHEN ${votes.voteType} = 'upvote' THEN 1 END)`.as('upvotes'),
+        downvotes: sql<number>`COUNT(CASE WHEN ${votes.voteType} = 'downvote' THEN 1 END)`.as('downvotes'),
+        netVotes: sql<number>`COUNT(CASE WHEN ${votes.voteType} = 'upvote' THEN 1 END) - COUNT(CASE WHEN ${votes.voteType} = 'downvote' THEN 1 END)`.as('netVotes'),
+      })
+      .from(votingEvents)
+      .leftJoin(votes, eq(votingEvents.id, votes.eventId))
+      .where(eq(votingEvents.groupId, groupId))
       .groupBy(votingEvents.id)
       .orderBy(desc(sql`COUNT(CASE WHEN ${votes.voteType} = 'upvote' THEN 1 END) - COUNT(CASE WHEN ${votes.voteType} = 'downvote' THEN 1 END)`))
       .limit(10);
