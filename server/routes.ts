@@ -402,7 +402,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
     console.log(`[AI Generation] Starting for group ${groupId}`);
     console.log(`[AI Generation] Group data:`, JSON.stringify(groupData, null, 2));
 
-    // Get existing activities with feedback for this group
+    // Get existing activities with feedback for this group (before archiving)
     const existingActivities = await storage.getGroupActivities(groupId);
     const previousFeedback = existingActivities
       .filter(a => a.feedback)
@@ -414,6 +414,10 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       }));
 
     console.log(`[AI Generation] Found ${previousFeedback.length} activities with feedback`);
+
+    // Archive old activities before generating new ones (preserves feedback for AI)
+    await storage.archiveGroupActivities(groupId);
+    console.log(`[AI Generation] Archived existing activities for group ${groupId}`);
 
     // Generate AI suggestions with feedback
     const suggestions = await generateActivitySuggestions({
