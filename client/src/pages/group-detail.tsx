@@ -128,7 +128,7 @@ export default function GroupDetail() {
   });
 
   const feedbackMutation = useMutation({
-    mutationFn: async ({ activityId, feedback }: { activityId: string; feedback: string }) => {
+    mutationFn: async ({ activityId, feedback }: { activityId: string; feedback: string | null }) => {
       return await apiRequest("PATCH", `/api/activities/${activityId}/feedback`, { feedback });
     },
     onSuccess: () => {
@@ -252,6 +252,23 @@ export default function GroupDetail() {
     onError: (error: Error) => {
       toast({
         title: "Error adding event",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteEventMutation = useMutation({
+    mutationFn: async (eventId: string) => {
+      return await apiRequest("DELETE", `/api/voting-events/${eventId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "voting-events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "my-votes"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error removing event",
         description: error.message,
         variant: "destructive",
       });
@@ -962,30 +979,42 @@ export default function GroupDetail() {
                           : "bg-black/40 hover:bg-black/60 border-2 border-white"
                       }`}
                       onClick={() => {
-                        feedbackMutation.mutate({ activityId: activity.id, feedback: "love" });
-                        createEventMutation.mutate({
-                          title: activity.venueName,
-                          description: activity.description,
-                          venueAddress: activity.venueAddress,
-                          venueType: activity.venueType,
-                          googlePlaceId: activity.googlePlaceId || undefined,
-                          rating: activity.rating || undefined,
-                          priceLevel: activity.priceLevel || undefined,
-                          photoUrl: activity.photoUrl || undefined,
-                          aiReasoning: activity.aiReasoning || undefined,
-                          priceEstimate: activity.priceEstimate || undefined,
-                          timeConstraints: activity.timeConstraints || undefined,
-                          complementaryPlaceName: activity.complementaryPlaceName || undefined,
-                          complementaryPlaceAddress: activity.complementaryPlaceAddress || undefined,
-                          complementaryPlaceId: activity.complementaryPlaceId || undefined,
-                          complementaryPlacePhotoUrl: activity.complementaryPlacePhotoUrl || undefined,
-                          complementaryPlaceRating: activity.complementaryPlaceRating || undefined,
-                          complementaryPlaceName2: activity.complementaryPlaceName2 || undefined,
-                          complementaryPlaceAddress2: activity.complementaryPlaceAddress2 || undefined,
-                          complementaryPlaceId2: activity.complementaryPlaceId2 || undefined,
-                          complementaryPlacePhotoUrl2: activity.complementaryPlacePhotoUrl2 || undefined,
-                          complementaryPlaceRating2: activity.complementaryPlaceRating2 || undefined,
-                        });
+                        if (activity.feedback === "love") {
+                          // Remove feedback and delete from YAS THIS list
+                          feedbackMutation.mutate({ activityId: activity.id, feedback: null });
+                          
+                          // Find the voting event with matching venueName and delete it
+                          const matchingEvent = votingEvents.find(event => event.title === activity.venueName);
+                          if (matchingEvent) {
+                            deleteEventMutation.mutate(matchingEvent.id);
+                          }
+                        } else {
+                          // Add feedback and add to YAS THIS list
+                          feedbackMutation.mutate({ activityId: activity.id, feedback: "love" });
+                          createEventMutation.mutate({
+                            title: activity.venueName,
+                            description: activity.description,
+                            venueAddress: activity.venueAddress,
+                            venueType: activity.venueType,
+                            googlePlaceId: activity.googlePlaceId || undefined,
+                            rating: activity.rating || undefined,
+                            priceLevel: activity.priceLevel || undefined,
+                            photoUrl: activity.photoUrl || undefined,
+                            aiReasoning: activity.aiReasoning || undefined,
+                            priceEstimate: activity.priceEstimate || undefined,
+                            timeConstraints: activity.timeConstraints || undefined,
+                            complementaryPlaceName: activity.complementaryPlaceName || undefined,
+                            complementaryPlaceAddress: activity.complementaryPlaceAddress || undefined,
+                            complementaryPlaceId: activity.complementaryPlaceId || undefined,
+                            complementaryPlacePhotoUrl: activity.complementaryPlacePhotoUrl || undefined,
+                            complementaryPlaceRating: activity.complementaryPlaceRating || undefined,
+                            complementaryPlaceName2: activity.complementaryPlaceName2 || undefined,
+                            complementaryPlaceAddress2: activity.complementaryPlaceAddress2 || undefined,
+                            complementaryPlaceId2: activity.complementaryPlaceId2 || undefined,
+                            complementaryPlacePhotoUrl2: activity.complementaryPlacePhotoUrl2 || undefined,
+                            complementaryPlaceRating2: activity.complementaryPlaceRating2 || undefined,
+                          });
+                        }
                       }}
                       data-testid={`button-love-${activity.id}`}
                     >

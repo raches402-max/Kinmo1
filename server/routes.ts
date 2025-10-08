@@ -122,7 +122,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/activities/:activityId/feedback", async (req, res) => {
     try {
       const { feedback } = req.body;
-      if (!["love", "more", "less"].includes(feedback)) {
+      if (feedback !== null && !["love", "more", "less"].includes(feedback)) {
         return res.status(400).json({ message: "Invalid feedback value" });
       }
       const activity = await storage.updateActivityFeedback(req.params.activityId, feedback);
