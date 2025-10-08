@@ -48,11 +48,10 @@ export default function GroupDetail() {
   const { data: activities = [], isLoading: activitiesLoading } = useQuery<Activity[]>({
     queryKey: ["/api/groups", groupId, "activities"],
     enabled: !!groupId,
-    refetchInterval: (query) => {
-      const activities = query.state.data as Activity[] | undefined;
-      // Poll every 3 seconds if no activities and group status is generating
-      return (!activities || activities.length === 0) && 
-             (group?.activityGenerationStatus === "pending" || group?.activityGenerationStatus === "generating")
+    refetchInterval: () => {
+      // Poll every 3 seconds while generating new activities
+      return group?.activityGenerationStatus === "pending" || 
+             group?.activityGenerationStatus === "generating"
         ? 3000 
         : false;
     },
