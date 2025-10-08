@@ -13,7 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -42,6 +43,7 @@ export default function GroupDetail() {
     additionalInstructions: ""
   });
   const [newMembers, setNewMembers] = useState<{ name: string; email: string }[]>([]);
+  const [membersOpen, setMembersOpen] = useState(true);
 
   const { data: group, isLoading: groupLoading } = useQuery<Group>({
     queryKey: ["/api/groups", groupId],
@@ -555,107 +557,119 @@ export default function GroupDetail() {
             </Card>
 
             {/* Members Card */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Members</CardTitle>
-                    <CardDescription>
-                      {members.length} {members.length === 1 ? "member" : "members"}
-                    </CardDescription>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={copyShareLink}
-                    data-testid="button-copy-link"
-                  >
-                    {copied ? (
-                      <Check className="h-4 w-4 text-green-600" />
-                    ) : (
-                      <UserPlus className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {membersLoading ? (
-                  <div className="space-y-3">
-                    <Skeleton className="h-10 w-full" />
-                    <Skeleton className="h-10 w-full" />
-                  </div>
-                ) : members.length > 0 ? (
-                  <div className="space-y-3">
-                    {members.map((member) => (
-                      <div key={member.id} className="flex items-center gap-3" data-testid={`member-${member.id}`}>
-                        <Avatar className="h-9 w-9">
-                          <AvatarFallback className="bg-primary/10 text-primary">
-                            {member.name?.[0]?.toUpperCase() || member.email?.[0]?.toUpperCase() || "?"}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{member.name || "Member"}</p>
-                          {member.email && (
-                            <p className="text-xs text-muted-foreground truncate">{member.email}</p>
-                          )}
+            <Collapsible open={membersOpen} onOpenChange={setMembersOpen}>
+              <Card>
+                <CollapsibleTrigger asChild>
+                  <CardHeader className="cursor-pointer hover-elevate">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${membersOpen ? "" : "-rotate-90"}`} />
+                        <div>
+                          <CardTitle>Members</CardTitle>
+                          <CardDescription>
+                            {members.length} {members.length === 1 ? "member" : "members"}
+                          </CardDescription>
                         </div>
-                        {member.isOrganizer ? (
-                          <Badge variant="secondary" className="text-xs">Organizer</Badge>
-                        ) : (
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-8 w-8"
-                                data-testid={`button-delete-member-${member.id}`}
-                              >
-                                <Trash2 className="h-4 w-4 text-muted-foreground" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Remove Member</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Are you sure you want to remove {member.name || member.email || "this member"} from the group?
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel data-testid="button-cancel-delete-member">Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => deleteMemberMutation.mutate(member.id)}
-                                  data-testid="button-confirm-delete-member"
-                                >
-                                  Remove
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        )}
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No members yet</p>
-                )}
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          copyShareLink();
+                        }}
+                        data-testid="button-copy-link"
+                      >
+                        {copied ? (
+                          <Check className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <UserPlus className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </CardHeader>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <CardContent className="space-y-3">
+                    {membersLoading ? (
+                      <div className="space-y-3">
+                        <Skeleton className="h-10 w-full" />
+                        <Skeleton className="h-10 w-full" />
+                      </div>
+                    ) : members.length > 0 ? (
+                      <div className="space-y-3">
+                        {members.map((member) => (
+                          <div key={member.id} className="flex items-center gap-3" data-testid={`member-${member.id}`}>
+                            <Avatar className="h-9 w-9">
+                              <AvatarFallback className="bg-primary/10 text-primary">
+                                {member.name?.[0]?.toUpperCase() || member.email?.[0]?.toUpperCase() || "?"}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{member.name || "Member"}</p>
+                              {member.email && (
+                                <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                              )}
+                            </div>
+                            {member.isOrganizer ? (
+                              <Badge variant="secondary" className="text-xs">Organizer</Badge>
+                            ) : (
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="h-8 w-8"
+                                    data-testid={`button-delete-member-${member.id}`}
+                                  >
+                                    <Trash2 className="h-4 w-4 text-muted-foreground" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Remove Member</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Are you sure you want to remove {member.name || member.email || "this member"} from the group?
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel data-testid="button-cancel-delete-member">Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => deleteMemberMutation.mutate(member.id)}
+                                      data-testid="button-confirm-delete-member"
+                                    >
+                                      Remove
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No members yet</p>
+                    )}
 
-                {members.some(m => m.email && !m.invitationSent) && (
-                  <div className="pt-3 border-t">
-                    <Button
-                      variant="default"
-                      size="sm"
-                      className="w-full justify-start"
-                      onClick={() => sendInvitationsMutation.mutate()}
-                      disabled={sendInvitationsMutation.isPending}
-                      data-testid="button-send-invitations"
-                    >
-                      <Mail className="mr-2 h-4 w-4" />
-                      {sendInvitationsMutation.isPending ? "Sending..." : "Send Email Invitations"}
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                    {members.some(m => m.email && !m.invitationSent) && (
+                      <div className="pt-3 border-t">
+                        <Button
+                          variant="default"
+                          size="sm"
+                          className="w-full justify-start"
+                          onClick={() => sendInvitationsMutation.mutate()}
+                          disabled={sendInvitationsMutation.isPending}
+                          data-testid="button-send-invitations"
+                        >
+                          <Mail className="mr-2 h-4 w-4" />
+                          {sendInvitationsMutation.isPending ? "Sending..." : "Send Email Invitations"}
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
 
             {/* Favorites Voting Table */}
             <Card>
