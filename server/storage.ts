@@ -138,7 +138,7 @@ export class DatabaseStorage implements IStorage {
         eq(activities.groupId, groupId),
         sql`${activities.archivedAt} IS NULL`
       )
-    );
+    ).orderBy(activities.createdAt);
   }
 
   async archiveGroupActivities(groupId: string): Promise<void> {
