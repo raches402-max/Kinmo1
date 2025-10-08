@@ -945,11 +945,18 @@ export default function GroupDetail() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {activities.filter(activity => activity.feedback !== "less").map((activity) => (
-                  <Card key={activity.id} className="relative overflow-visible hover-elevate transition-all" data-testid={`activity-${activity.id}`}>
-                    <Button
-                      variant={activity.feedback === "love" ? "default" : "ghost"}
-                      size="icon"
-                      className="absolute top-3 right-3 h-9 w-9 rounded-full bg-background/80 backdrop-blur-sm hover:bg-background/90 z-10"
+                  <Card key={activity.id} className="relative overflow-hidden hover-elevate transition-all" data-testid={`activity-${activity.id}`}>
+                    {activity.photoUrl && (
+                      <div className="aspect-video w-full overflow-hidden bg-muted">
+                        <img
+                          src={activity.photoUrl}
+                          alt={activity.venueName}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    )}
+                    <button
+                      className="absolute top-3 right-3 p-2 rounded-full hover:bg-background/10 transition-colors z-10"
                       onClick={() => {
                         feedbackMutation.mutate({ activityId: activity.id, feedback: "love" });
                         createEventMutation.mutate({
@@ -978,17 +985,15 @@ export default function GroupDetail() {
                       }}
                       data-testid={`button-love-${activity.id}`}
                     >
-                      <Heart className={`h-5 w-5 ${activity.feedback === "love" ? "fill-current" : ""}`} />
-                    </Button>
-                    {activity.photoUrl && (
-                      <div className="aspect-video w-full overflow-hidden bg-muted">
-                        <img
-                          src={activity.photoUrl}
-                          alt={activity.venueName}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    )}
+                      <Heart 
+                        className={`h-6 w-6 transition-all ${
+                          activity.feedback === "love" 
+                            ? "fill-red-500 stroke-red-500" 
+                            : "fill-none stroke-foreground"
+                        }`} 
+                        strokeWidth={2}
+                      />
+                    </button>
                     <CardHeader className="space-y-3">
                       <div>
                         <CardTitle className="text-lg mb-2">{activity.venueName}</CardTitle>
