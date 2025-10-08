@@ -587,12 +587,12 @@ export default function GroupDetail() {
               </CardContent>
             </Card>
 
-            {/* YAS THIS Voting Table */}
+            {/* Favorites Voting Table */}
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle>YAS THIS</CardTitle>
+                    <CardTitle>Favorites</CardTitle>
                     <CardDescription>Top 10 Events - Vote Now!</CardDescription>
                   </div>
                   <Dialog open={addEventOpen} onOpenChange={setAddEventOpen}>
@@ -604,7 +604,7 @@ export default function GroupDetail() {
                     </DialogTrigger>
                     <DialogContent>
                       <DialogHeader>
-                        <DialogTitle>Add Event to YAS THIS</DialogTitle>
+                        <DialogTitle>Add Event to Favorites</DialogTitle>
                         <DialogDescription>
                           Suggest an event for the group to vote on
                         </DialogDescription>
@@ -980,7 +980,7 @@ export default function GroupDetail() {
                       }`}
                       onClick={() => {
                         if (activity.feedback === "love") {
-                          // Remove feedback and delete from YAS THIS list
+                          // Remove feedback and delete from Favorites list
                           feedbackMutation.mutate({ activityId: activity.id, feedback: null });
                           
                           // Find the voting event with matching venueName and delete it
@@ -989,31 +989,36 @@ export default function GroupDetail() {
                             deleteEventMutation.mutate(matchingEvent.id);
                           }
                         } else {
-                          // Add feedback and add to YAS THIS list
+                          // Add feedback and add to Favorites list (only if not already there)
                           feedbackMutation.mutate({ activityId: activity.id, feedback: "love" });
-                          createEventMutation.mutate({
-                            title: activity.venueName,
-                            description: activity.description,
-                            venueAddress: activity.venueAddress,
-                            venueType: activity.venueType,
-                            googlePlaceId: activity.googlePlaceId || undefined,
-                            rating: activity.rating || undefined,
-                            priceLevel: activity.priceLevel || undefined,
-                            photoUrl: activity.photoUrl || undefined,
-                            aiReasoning: activity.aiReasoning || undefined,
-                            priceEstimate: activity.priceEstimate || undefined,
-                            timeConstraints: activity.timeConstraints || undefined,
-                            complementaryPlaceName: activity.complementaryPlaceName || undefined,
-                            complementaryPlaceAddress: activity.complementaryPlaceAddress || undefined,
-                            complementaryPlaceId: activity.complementaryPlaceId || undefined,
-                            complementaryPlacePhotoUrl: activity.complementaryPlacePhotoUrl || undefined,
-                            complementaryPlaceRating: activity.complementaryPlaceRating || undefined,
-                            complementaryPlaceName2: activity.complementaryPlaceName2 || undefined,
-                            complementaryPlaceAddress2: activity.complementaryPlaceAddress2 || undefined,
-                            complementaryPlaceId2: activity.complementaryPlaceId2 || undefined,
-                            complementaryPlacePhotoUrl2: activity.complementaryPlacePhotoUrl2 || undefined,
-                            complementaryPlaceRating2: activity.complementaryPlaceRating2 || undefined,
-                          });
+                          
+                          // Check if event already exists before creating
+                          const eventExists = votingEvents.some(event => event.title === activity.venueName);
+                          if (!eventExists) {
+                            createEventMutation.mutate({
+                              title: activity.venueName,
+                              description: activity.description,
+                              venueAddress: activity.venueAddress,
+                              venueType: activity.venueType,
+                              googlePlaceId: activity.googlePlaceId || undefined,
+                              rating: activity.rating || undefined,
+                              priceLevel: activity.priceLevel || undefined,
+                              photoUrl: activity.photoUrl || undefined,
+                              aiReasoning: activity.aiReasoning || undefined,
+                              priceEstimate: activity.priceEstimate || undefined,
+                              timeConstraints: activity.timeConstraints || undefined,
+                              complementaryPlaceName: activity.complementaryPlaceName || undefined,
+                              complementaryPlaceAddress: activity.complementaryPlaceAddress || undefined,
+                              complementaryPlaceId: activity.complementaryPlaceId || undefined,
+                              complementaryPlacePhotoUrl: activity.complementaryPlacePhotoUrl || undefined,
+                              complementaryPlaceRating: activity.complementaryPlaceRating || undefined,
+                              complementaryPlaceName2: activity.complementaryPlaceName2 || undefined,
+                              complementaryPlaceAddress2: activity.complementaryPlaceAddress2 || undefined,
+                              complementaryPlaceId2: activity.complementaryPlaceId2 || undefined,
+                              complementaryPlacePhotoUrl2: activity.complementaryPlacePhotoUrl2 || undefined,
+                              complementaryPlaceRating2: activity.complementaryPlaceRating2 || undefined,
+                            });
+                          }
                         }
                       }}
                       data-testid={`button-love-${activity.id}`}
