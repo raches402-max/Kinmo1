@@ -703,8 +703,12 @@ export default function GroupDetail() {
 
                                 {event.aiReasoning && (
                                   <div className="text-sm bg-primary/5 rounded-md p-3">
-                                    <p className="text-primary font-medium mb-1">Why we suggest this:</p>
-                                    <p className="text-muted-foreground">{event.aiReasoning}</p>
+                                    <p className="text-primary font-medium mb-2">Why we suggest this:</p>
+                                    <ul className="text-muted-foreground space-y-1 list-disc list-inside">
+                                      {event.aiReasoning.split(/[.!]\s+/).filter(s => s.trim()).slice(0, 3).map((point, i) => (
+                                        <li key={i} className="text-sm">{point.trim()}</li>
+                                      ))}
+                                    </ul>
                                   </div>
                                 )}
 
@@ -936,8 +940,12 @@ export default function GroupDetail() {
 
                       {activity.aiReasoning && (
                         <div className="text-sm bg-primary/5 rounded-md p-3">
-                          <p className="text-primary font-medium mb-1">Why we suggest this:</p>
-                          <p className="text-muted-foreground line-clamp-3">{activity.aiReasoning}</p>
+                          <p className="text-primary font-medium mb-2">Why we suggest this:</p>
+                          <ul className="text-muted-foreground space-y-1 list-disc list-inside">
+                            {activity.aiReasoning.split(/[.!]\s+/).filter(s => s.trim()).slice(0, 3).map((point, i) => (
+                              <li key={i} className="text-sm">{point.trim()}</li>
+                            ))}
+                          </ul>
                         </div>
                       )}
 
