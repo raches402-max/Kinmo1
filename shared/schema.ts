@@ -88,6 +88,7 @@ export const activities = pgTable("activities", {
   complementaryPlaceId2: text("complementary_place_id_2"),
   complementaryPlacePhotoUrl2: text("complementary_place_photo_url_2"),
   complementaryPlaceRating2: text("complementary_place_rating_2"),
+  archivedAt: timestamp("archived_at"), // Soft-delete for regeneration
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
