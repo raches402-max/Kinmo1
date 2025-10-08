@@ -13,6 +13,7 @@ import CreateGroup from "@/pages/create-group";
 import GroupDetail from "@/pages/group-detail";
 import JoinEntry from "@/pages/join-entry";
 import JoinGroup from "@/pages/join-group";
+import YasThis from "@/pages/yas-this";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -31,6 +32,7 @@ function Router() {
           <Route path="/" component={Dashboard} />
           <Route path="/create-group" component={CreateGroup} />
           <Route path="/group/:id" component={GroupDetail} />
+          <Route path="/yas-this" component={YasThis} />
           <Route path="/join-entry" component={JoinEntry} />
           <Route path="/join/:shareableLink" component={JoinGroup} />
         </>

@@ -91,9 +91,29 @@ export const activities = pgTable("activities", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// YAS THIS voting events table
+export const votingEvents = pgTable("voting_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  description: text("description"),
+  createdBy: varchar("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Votes table to track upvotes/downvotes
+export const votes = pgTable("votes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventId: varchar("event_id").notNull().references(() => votingEvents.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  voteType: text("vote_type").notNull(), // 'upvote' or 'downvote'
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   groups: many(groups),
+  votingEvents: many(votingEvents),
+  votes: many(votes),
 }));
 
 export const groupsRelations = relations(groups, ({ one, many }) => ({
@@ -119,6 +139,25 @@ export const activitiesRelations = relations(activities, ({ one }) => ({
   }),
 }));
 
+export const votingEventsRelations = relations(votingEvents, ({ one, many }) => ({
+  creator: one(users, {
+    fields: [votingEvents.createdBy],
+    references: [users.id],
+  }),
+  votes: many(votes),
+}));
+
+export const votesRelations = relations(votes, ({ one }) => ({
+  event: one(votingEvents, {
+    fields: [votes.eventId],
+    references: [votingEvents.id],
+  }),
+  user: one(users, {
+    fields: [votes.userId],
+    references: [users.id],
+  }),
+}));
+
 // Insert schemas
 export const insertGroupSchema = createInsertSchema(groups).omit({
   id: true,
@@ -139,9 +178,21 @@ export const insertActivitySchema = createInsertSchema(activities).omit({
   createdAt: true,
 });
 
+export const insertVotingEventSchema = createInsertSchema(votingEvents).omit({
+  id: true,
+  createdBy: true,
+  createdAt: true,
+});
+
+export const insertVoteSchema = createInsertSchema(votes).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Update schemas (partial versions for PATCH operations)
 export const updateGroupSchema = insertGroupSchema.partial();
 export const updateMemberSchema = insertMemberSchema.partial();
+export const updateVotingEventSchema = insertVotingEventSchema.partial();
 
 // Types
 export type UpsertUser = typeof users.$inferInsert;
@@ -157,3 +208,10 @@ export type UpdateMember = z.infer<typeof updateMemberSchema>;
 
 export type InsertActivity = z.infer<typeof insertActivitySchema>;
 export type Activity = typeof activities.$inferSelect;
+
+export type InsertVotingEvent = z.infer<typeof insertVotingEventSchema>;
+export type VotingEvent = typeof votingEvents.$inferSelect;
+export type UpdateVotingEvent = z.infer<typeof updateVotingEventSchema>;
+
+export type InsertVote = z.infer<typeof insertVoteSchema>;
+export type Vote = typeof votes.$inferSelect;

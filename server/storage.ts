@@ -1,14 +1,16 @@
 // Reference: javascript_database blueprint
 // Reference: javascript_log_in_with_replit blueprint
 import { 
-  users, groups, members, activities,
+  users, groups, members, activities, votingEvents, votes,
   type User, type UpsertUser,
   type Group, type InsertGroup, type UpdateGroup,
   type Member, type InsertMember, type UpdateMember,
-  type Activity, type InsertActivity
+  type Activity, type InsertActivity,
+  type VotingEvent, type InsertVotingEvent, type UpdateVotingEvent,
+  type Vote, type InsertVote
 } from "@shared/schema";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, desc, sql, and } from "drizzle-orm";
 import { randomBytes } from "crypto";
 
 export interface IStorage {
@@ -37,6 +39,19 @@ export interface IStorage {
   createActivity(activity: InsertActivity): Promise<Activity>;
   createActivities(activities: InsertActivity[]): Promise<Activity[]>;
   updateActivityFeedback(activityId: string, feedback: string): Promise<Activity>;
+  
+  // Voting Events
+  createVotingEvent(event: InsertVotingEvent, userId: string): Promise<VotingEvent>;
+  getVotingEvents(): Promise<Array<VotingEvent & { upvotes: number; downvotes: number; netVotes: number }>>;
+  getVotingEvent(id: string): Promise<VotingEvent | undefined>;
+  updateVotingEvent(id: string, updates: UpdateVotingEvent): Promise<VotingEvent>;
+  deleteVotingEvent(id: string): Promise<void>;
+  
+  // Votes
+  castVote(eventId: string, userId: string, voteType: 'upvote' | 'downvote'): Promise<Vote>;
+  removeVote(eventId: string, userId: string): Promise<void>;
+  getEventVotes(eventId: string): Promise<Vote[]>;
+  getUserVote(eventId: string, userId: string): Promise<Vote | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -194,6 +209,95 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(members)
       .where(eq(members.id, id));
+  }
+
+  // Voting Events operations
+  async createVotingEvent(insertEvent: InsertVotingEvent, userId: string): Promise<VotingEvent> {
+    const [event] = await db
+      .insert(votingEvents)
+      .values({ ...insertEvent, createdBy: userId })
+      .returning();
+    return event;
+  }
+
+  async getVotingEvents(): Promise<Array<VotingEvent & { upvotes: number; downvotes: number; netVotes: number }>> {
+    const events = await db
+      .select({
+        id: votingEvents.id,
+        title: votingEvents.title,
+        description: votingEvents.description,
+        createdBy: votingEvents.createdBy,
+        createdAt: votingEvents.createdAt,
+        upvotes: sql<number>`COUNT(CASE WHEN ${votes.voteType} = 'upvote' THEN 1 END)`.as('upvotes'),
+        downvotes: sql<number>`COUNT(CASE WHEN ${votes.voteType} = 'downvote' THEN 1 END)`.as('downvotes'),
+        netVotes: sql<number>`COUNT(CASE WHEN ${votes.voteType} = 'upvote' THEN 1 END) - COUNT(CASE WHEN ${votes.voteType} = 'downvote' THEN 1 END)`.as('netVotes'),
+      })
+      .from(votingEvents)
+      .leftJoin(votes, eq(votingEvents.id, votes.eventId))
+      .groupBy(votingEvents.id)
+      .orderBy(desc(sql`COUNT(CASE WHEN ${votes.voteType} = 'upvote' THEN 1 END) - COUNT(CASE WHEN ${votes.voteType} = 'downvote' THEN 1 END)`))
+      .limit(10);
+
+    return events;
+  }
+
+  async getVotingEvent(id: string): Promise<VotingEvent | undefined> {
+    const [event] = await db.select().from(votingEvents).where(eq(votingEvents.id, id));
+    return event || undefined;
+  }
+
+  async updateVotingEvent(id: string, updates: UpdateVotingEvent): Promise<VotingEvent> {
+    const [event] = await db
+      .update(votingEvents)
+      .set(updates)
+      .where(eq(votingEvents.id, id))
+      .returning();
+    return event;
+  }
+
+  async deleteVotingEvent(id: string): Promise<void> {
+    await db.delete(votingEvents).where(eq(votingEvents.id, id));
+  }
+
+  // Votes operations
+  async castVote(eventId: string, userId: string, voteType: 'upvote' | 'downvote'): Promise<Vote> {
+    const existingVote = await this.getUserVote(eventId, userId);
+    
+    if (existingVote) {
+      if (existingVote.voteType === voteType) {
+        return existingVote;
+      }
+      const [vote] = await db
+        .update(votes)
+        .set({ voteType })
+        .where(and(eq(votes.eventId, eventId), eq(votes.userId, userId)))
+        .returning();
+      return vote;
+    }
+    
+    const [vote] = await db
+      .insert(votes)
+      .values({ eventId, userId, voteType })
+      .returning();
+    return vote;
+  }
+
+  async removeVote(eventId: string, userId: string): Promise<void> {
+    await db
+      .delete(votes)
+      .where(and(eq(votes.eventId, eventId), eq(votes.userId, userId)));
+  }
+
+  async getEventVotes(eventId: string): Promise<Vote[]> {
+    return await db.select().from(votes).where(eq(votes.eventId, eventId));
+  }
+
+  async getUserVote(eventId: string, userId: string): Promise<Vote | undefined> {
+    const [vote] = await db
+      .select()
+      .from(votes)
+      .where(and(eq(votes.eventId, eventId), eq(votes.userId, userId)));
+    return vote || undefined;
   }
 }
 

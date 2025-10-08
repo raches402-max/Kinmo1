@@ -2,7 +2,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema } from "@shared/schema";
+import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema } from "@shared/schema";
 import { generateActivitySuggestions } from "./openai";
 import { searchPlaces } from "./google-places";
 import { setupAuth, isAuthenticated } from "./replitAuth";
@@ -174,6 +174,120 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       const status = error.message.includes("Cannot delete organizer") ? 400 : 500;
       res.status(status).json({ message: error.message });
+    }
+  });
+
+  // Voting Events Routes
+  
+  // Get all voting events (top 10 with vote counts)
+  app.get("/api/voting-events", async (req, res) => {
+    try {
+      const events = await storage.getVotingEvents();
+      res.json(events);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Create a voting event (authenticated)
+  app.post("/api/voting-events", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const validatedEvent = insertVotingEventSchema.parse(req.body);
+      const event = await storage.createVotingEvent(validatedEvent, userId);
+      res.json(event);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  // Update a voting event (authenticated)
+  app.patch("/api/voting-events/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const event = await storage.getVotingEvent(req.params.id);
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+      
+      const userId = req.user.claims.sub;
+      if (event.createdBy !== userId) {
+        return res.status(403).json({ message: "Unauthorized to edit this event" });
+      }
+
+      const validatedUpdates = updateVotingEventSchema.parse(req.body);
+      const updatedEvent = await storage.updateVotingEvent(req.params.id, validatedUpdates);
+      res.json(updatedEvent);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  // Delete a voting event (authenticated)
+  app.delete("/api/voting-events/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const event = await storage.getVotingEvent(req.params.id);
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+      
+      const userId = req.user.claims.sub;
+      if (event.createdBy !== userId) {
+        return res.status(403).json({ message: "Unauthorized to delete this event" });
+      }
+
+      await storage.deleteVotingEvent(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Cast a vote (authenticated)
+  app.post("/api/voting-events/:id/vote", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { voteType } = req.body;
+      
+      if (!['upvote', 'downvote'].includes(voteType)) {
+        return res.status(400).json({ message: "Invalid vote type" });
+      }
+
+      const vote = await storage.castVote(req.params.id, userId, voteType);
+      res.json(vote);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  // Remove a vote (authenticated)
+  app.delete("/api/voting-events/:id/vote", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      await storage.removeVote(req.params.id, userId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get votes for an event
+  app.get("/api/voting-events/:id/votes", async (req, res) => {
+    try {
+      const votes = await storage.getEventVotes(req.params.id);
+      res.json(votes);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get user's vote for an event (authenticated)
+  app.get("/api/voting-events/:id/my-vote", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const vote = await storage.getUserVote(req.params.id, userId);
+      res.json(vote || null);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
     }
   });
 
