@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -195,8 +196,30 @@ export default function GroupDetail() {
   });
 
   const createEventMutation = useMutation({
-    mutationFn: async (title: string) => {
-      return await apiRequest("POST", "/api/voting-events", { groupId, title });
+    mutationFn: async (eventData: { 
+      title: string;
+      description?: string;
+      venueAddress?: string;
+      venueType?: string;
+      googlePlaceId?: string;
+      rating?: string;
+      priceLevel?: string;
+      photoUrl?: string;
+      aiReasoning?: string;
+      priceEstimate?: string;
+      timeConstraints?: string;
+      complementaryPlaceName?: string;
+      complementaryPlaceAddress?: string;
+      complementaryPlaceId?: string;
+      complementaryPlacePhotoUrl?: string;
+      complementaryPlaceRating?: string;
+      complementaryPlaceName2?: string;
+      complementaryPlaceAddress2?: string;
+      complementaryPlaceId2?: string;
+      complementaryPlacePhotoUrl2?: string;
+      complementaryPlaceRating2?: string;
+    }) => {
+      return await apiRequest("POST", "/api/voting-events", { groupId, ...eventData });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "voting-events"] });
@@ -556,7 +579,7 @@ export default function GroupDetail() {
                       </div>
                       <DialogFooter>
                         <Button
-                          onClick={() => createEventMutation.mutate(newEventTitle)}
+                          onClick={() => createEventMutation.mutate({ title: newEventTitle })}
                           disabled={!newEventTitle.trim() || createEventMutation.isPending}
                           data-testid="button-submit-event"
                         >
@@ -582,49 +605,187 @@ export default function GroupDetail() {
                       const hasDownvoted = currentVote?.voteType === 'downvote';
                       
                       return (
-                        <div 
-                          key={event.id} 
-                          className="flex items-center gap-2 p-2 rounded-md hover-elevate"
-                          data-testid={`voting-event-${event.id}`}
-                        >
-                          <span className="text-xs font-medium text-muted-foreground w-5">#{index + 1}</span>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{event.title}</p>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant={hasUpvoted ? "default" : "ghost"}
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={() => handleVote(event.id, 'upvote')}
-                              data-testid={`button-upvote-${event.id}`}
+                        <Popover key={event.id}>
+                          <PopoverTrigger asChild>
+                            <div 
+                              className="flex items-center gap-2 p-2 rounded-md hover-elevate cursor-pointer"
+                              data-testid={`voting-event-${event.id}`}
                             >
-                              <ThumbsUp className="h-3 w-3" />
-                            </Button>
-                            <span className="text-xs font-medium w-6 text-center" data-testid={`upvote-count-${event.id}`}>
-                              {event.upvotes}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant={hasDownvoted ? "default" : "ghost"}
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={() => handleVote(event.id, 'downvote')}
-                              data-testid={`button-downvote-${event.id}`}
-                            >
-                              <ThumbsDown className="h-3 w-3" />
-                            </Button>
-                            <span className="text-xs font-medium w-6 text-center" data-testid={`downvote-count-${event.id}`}>
-                              {event.downvotes}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <span className="text-xs font-bold w-8 text-center" data-testid={`net-votes-${event.id}`}>
-                              {event.netVotes > 0 ? `+${event.netVotes}` : event.netVotes}
-                            </span>
-                          </div>
-                        </div>
+                              <span className="text-xs font-medium text-muted-foreground w-5">#{index + 1}</span>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{event.title}</p>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  variant={hasUpvoted ? "default" : "ghost"}
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleVote(event.id, 'upvote');
+                                  }}
+                                  data-testid={`button-upvote-${event.id}`}
+                                >
+                                  <ThumbsUp className="h-3 w-3" />
+                                </Button>
+                                <span className="text-xs font-medium w-6 text-center" data-testid={`upvote-count-${event.id}`}>
+                                  {event.upvotes}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  variant={hasDownvoted ? "default" : "ghost"}
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleVote(event.id, 'downvote');
+                                  }}
+                                  data-testid={`button-downvote-${event.id}`}
+                                >
+                                  <ThumbsDown className="h-3 w-3" />
+                                </Button>
+                                <span className="text-xs font-medium w-6 text-center" data-testid={`downvote-count-${event.id}`}>
+                                  {event.downvotes}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <span className="text-xs font-bold w-8 text-center" data-testid={`net-votes-${event.id}`}>
+                                  {event.netVotes > 0 ? `+${event.netVotes}` : event.netVotes}
+                                </span>
+                              </div>
+                            </div>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-96 p-0" side="right">
+                            <Card className="border-0 shadow-none">
+                              {event.photoUrl && (
+                                <div className="aspect-video w-full overflow-hidden bg-muted">
+                                  <img
+                                    src={event.photoUrl}
+                                    alt={event.title}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                              )}
+                              <CardHeader className="space-y-3">
+                                <div>
+                                  <CardTitle className="text-lg">{event.title}</CardTitle>
+                                  {event.description && (
+                                    <CardDescription className="mt-2">{event.description}</CardDescription>
+                                  )}
+                                </div>
+                                
+                                {(event.rating || event.priceLevel || event.venueType) && (
+                                  <div className="flex flex-wrap gap-2">
+                                    {event.rating && (
+                                      <Badge variant="secondary" className="gap-1">
+                                        <Star className="h-3 w-3 fill-current" />
+                                        {event.rating}
+                                      </Badge>
+                                    )}
+                                    {event.priceLevel && (
+                                      <Badge variant="secondary">
+                                        {priceDisplay(event.priceLevel)}
+                                      </Badge>
+                                    )}
+                                    {event.venueType && (
+                                      <Badge variant="outline">{event.venueType}</Badge>
+                                    )}
+                                  </div>
+                                )}
+
+                                {event.venueAddress && (
+                                  <div className="text-sm text-muted-foreground flex items-start gap-2">
+                                    <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                                    <span>{event.venueAddress}</span>
+                                  </div>
+                                )}
+
+                                {event.aiReasoning && (
+                                  <div className="text-sm bg-primary/5 rounded-md p-3">
+                                    <p className="text-primary font-medium mb-1">Why we suggest this:</p>
+                                    <p className="text-muted-foreground">{event.aiReasoning}</p>
+                                  </div>
+                                )}
+
+                                {(event.priceEstimate || event.timeConstraints) && (
+                                  <div className="space-y-2">
+                                    {event.priceEstimate && (
+                                      <div className="flex items-center gap-2 text-sm">
+                                        <Ticket className="h-4 w-4 text-muted-foreground" />
+                                        <span className="font-medium">Price:</span>
+                                        <span className="text-muted-foreground">{event.priceEstimate}</span>
+                                      </div>
+                                    )}
+                                    {event.timeConstraints && (
+                                      <div className="flex items-center gap-2 text-sm">
+                                        <Clock className="h-4 w-4 text-muted-foreground" />
+                                        <span className="font-medium">When:</span>
+                                        <span className="text-muted-foreground">{event.timeConstraints}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                {(event.complementaryPlaceName || event.complementaryPlaceName2) && (
+                                  <div className="bg-accent/20 rounded-md p-3">
+                                    <p className="text-sm font-medium mb-2 flex items-center gap-2">
+                                      <MapPin className="h-4 w-4" />
+                                      Grab food nearby:
+                                    </p>
+                                    <div className="space-y-2">
+                                      {event.complementaryPlaceName && (
+                                        <div className="flex items-start justify-between gap-2">
+                                          <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium">{event.complementaryPlaceName}</p>
+                                            {event.complementaryPlaceRating && (
+                                              <div className="flex items-center gap-1 mt-1">
+                                                <Star className="h-3 w-3 fill-current text-yellow-500" />
+                                                <span className="text-xs text-muted-foreground">{event.complementaryPlaceRating}</span>
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      )}
+                                      {event.complementaryPlaceName2 && (
+                                        <div className="flex items-start justify-between gap-2">
+                                          <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium">{event.complementaryPlaceName2}</p>
+                                            {event.complementaryPlaceRating2 && (
+                                              <div className="flex items-center gap-1 mt-1">
+                                                <Star className="h-3 w-3 fill-current text-yellow-500" />
+                                                <span className="text-xs text-muted-foreground">{event.complementaryPlaceRating2}</span>
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {event.googlePlaceId && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    asChild
+                                    className="w-full"
+                                  >
+                                    <a
+                                      href={`https://www.google.com/maps/search/?api=1&query=Google&query_place_id=${event.googlePlaceId}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="gap-2"
+                                    >
+                                      <ExternalLink className="h-4 w-4" />
+                                      View on Google Maps
+                                    </a>
+                                  </Button>
+                                )}
+                              </CardHeader>
+                            </Card>
+                          </PopoverContent>
+                        </Popover>
                       );
                     })}
                   </div>
@@ -880,7 +1041,29 @@ export default function GroupDetail() {
                             size="sm"
                             onClick={() => {
                               feedbackMutation.mutate({ activityId: activity.id, feedback: "love" });
-                              createEventMutation.mutate(activity.venueName);
+                              createEventMutation.mutate({
+                                title: activity.venueName,
+                                description: activity.description,
+                                venueAddress: activity.venueAddress,
+                                venueType: activity.venueType,
+                                googlePlaceId: activity.googlePlaceId || undefined,
+                                rating: activity.rating || undefined,
+                                priceLevel: activity.priceLevel || undefined,
+                                photoUrl: activity.photoUrl || undefined,
+                                aiReasoning: activity.aiReasoning || undefined,
+                                priceEstimate: activity.priceEstimate || undefined,
+                                timeConstraints: activity.timeConstraints || undefined,
+                                complementaryPlaceName: activity.complementaryPlaceName || undefined,
+                                complementaryPlaceAddress: activity.complementaryPlaceAddress || undefined,
+                                complementaryPlaceId: activity.complementaryPlaceId || undefined,
+                                complementaryPlacePhotoUrl: activity.complementaryPlacePhotoUrl || undefined,
+                                complementaryPlaceRating: activity.complementaryPlaceRating || undefined,
+                                complementaryPlaceName2: activity.complementaryPlaceName2 || undefined,
+                                complementaryPlaceAddress2: activity.complementaryPlaceAddress2 || undefined,
+                                complementaryPlaceId2: activity.complementaryPlaceId2 || undefined,
+                                complementaryPlacePhotoUrl2: activity.complementaryPlacePhotoUrl2 || undefined,
+                                complementaryPlaceRating2: activity.complementaryPlaceRating2 || undefined,
+                              });
                             }}
                             className="flex-1 gap-1"
                             data-testid={`button-love-${activity.id}`}
