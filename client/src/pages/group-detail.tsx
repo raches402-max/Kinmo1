@@ -381,6 +381,14 @@ export default function GroupDetail() {
     return "$".repeat(Math.max(1, count));
   };
 
+  const extractCity = (address: string | null | undefined): string => {
+    if (!address) return "";
+    // Address format is typically: "123 Street, City, State ZIP"
+    const parts = address.split(",").map(p => p.trim());
+    // Return the second part (city) if it exists
+    return parts.length >= 2 ? parts[1] : "";
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -614,6 +622,9 @@ export default function GroupDetail() {
                               <span className="text-xs font-medium text-muted-foreground w-5">#{index + 1}</span>
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium truncate">{event.title}</p>
+                                {extractCity(event.venueAddress) && (
+                                  <p className="text-[10px] text-muted-foreground truncate">{extractCity(event.venueAddress)}</p>
+                                )}
                               </div>
                               <div className="flex items-center gap-0.5">
                                 <Button
