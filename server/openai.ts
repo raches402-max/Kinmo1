@@ -25,6 +25,7 @@ export async function generateActivitySuggestions(groupData: {
   pastPreferences?: string;
   additionalInstructions?: string;
   previousFeedback?: { venueName: string; venueType: string; feedback: string; description: string }[];
+  previouslySuggestedVenues?: string[];
 }): Promise<ActivitySuggestion[]> {
   try {
     const closenessDescriptions = [
@@ -90,6 +91,12 @@ export async function generateActivitySuggestions(groupData: {
       }
     }
 
+    // Format previously suggested venues to avoid repeats
+    let avoidVenuesContext = '';
+    if (groupData.previouslySuggestedVenues && groupData.previouslySuggestedVenues.length > 0) {
+      avoidVenuesContext = `\n\nIMPORTANT - DO NOT suggest these venues again (already suggested): ${groupData.previouslySuggestedVenues.join(', ')}`;
+    }
+
     const prompt = `You are an expert activity planner. Generate 6 diverse activity suggestions for a group with these preferences:
 
 Location: ${groupData.locationBase}
@@ -99,7 +106,7 @@ Usual Availability: ${availabilityText}
 Group Closeness: ${closenessDescriptions[groupData.closenessLevel - 1]}
 Experience Preference: ${noveltyDescriptions[groupData.noveltyPreference - 1]}
 ${groupData.pastPreferences ? `Past Preferences: ${groupData.pastPreferences}` : ''}
-${groupData.additionalInstructions ? `Additional Instructions: ${groupData.additionalInstructions}` : ''}${feedbackContext}
+${groupData.additionalInstructions ? `Additional Instructions: ${groupData.additionalInstructions}` : ''}${feedbackContext}${avoidVenuesContext}
 
 Requirements:
 1. Suggest 6 specific types of venues/activities (not specific business names)

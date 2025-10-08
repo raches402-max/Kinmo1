@@ -36,6 +36,7 @@ export interface IStorage {
   
   // Activities
   getGroupActivities(groupId: string): Promise<Activity[]>;
+  getAllGroupActivities(groupId: string): Promise<Activity[]>;
   createActivity(activity: InsertActivity): Promise<Activity>;
   createActivities(activities: InsertActivity[]): Promise<Activity[]>;
   updateActivityFeedback(activityId: string, feedback: string): Promise<Activity>;
@@ -138,6 +139,12 @@ export class DatabaseStorage implements IStorage {
         eq(activities.groupId, groupId),
         sql`${activities.archivedAt} IS NULL`
       )
+    ).orderBy(activities.createdAt);
+  }
+
+  async getAllGroupActivities(groupId: string): Promise<Activity[]> {
+    return await db.select().from(activities).where(
+      eq(activities.groupId, groupId)
     ).orderBy(activities.createdAt);
   }
 

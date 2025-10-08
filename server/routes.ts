@@ -417,7 +417,11 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
     console.log(`[AI Generation] Starting for group ${groupId}`);
     console.log(`[AI Generation] Group data:`, JSON.stringify(groupData, null, 2));
 
-    // Get existing activities with feedback for this group (before archiving)
+    // Get ALL activities (including archived) to avoid repeating venue names
+    const allActivities = await storage.getAllGroupActivities(groupId);
+    const previouslySuggestedVenues = allActivities.map(a => a.venueName);
+    
+    // Get existing (non-archived) activities with feedback for this group
     const existingActivities = await storage.getGroupActivities(groupId);
     const previousFeedback = existingActivities
       .filter(a => a.feedback)
@@ -429,12 +433,13 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       }));
 
     console.log(`[AI Generation] Found ${previousFeedback.length} activities with feedback`);
+    console.log(`[AI Generation] Found ${previouslySuggestedVenues.length} previously suggested venues to avoid`);
 
     // Archive old activities before generating new ones (preserves feedback for AI)
     await storage.archiveGroupActivities(groupId);
     console.log(`[AI Generation] Archived existing activities for group ${groupId}`);
 
-    // Generate AI suggestions with feedback
+    // Generate AI suggestions with feedback and list of venues to avoid
     const suggestions = await generateActivitySuggestions({
       locationBase: groupData.locationBase,
       budgetMin: groupData.budgetMin,
@@ -446,6 +451,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       pastPreferences: groupData.pastPreferences,
       additionalInstructions: groupData.additionalInstructions,
       previousFeedback: previousFeedback.length > 0 ? previousFeedback : undefined,
+      previouslySuggestedVenues: previouslySuggestedVenues.length > 0 ? previouslySuggestedVenues : undefined,
     });
 
     console.log(`[AI Generation] Received ${suggestions.length} suggestions from OpenAI`);
