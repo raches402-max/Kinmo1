@@ -608,49 +608,49 @@ export default function GroupDetail() {
                         <Popover key={event.id}>
                           <PopoverTrigger asChild>
                             <div 
-                              className="flex items-center gap-2 p-2 rounded-md hover-elevate cursor-pointer"
+                              className="flex items-center gap-1 p-2 rounded-md hover-elevate cursor-pointer"
                               data-testid={`voting-event-${event.id}`}
                             >
                               <span className="text-xs font-medium text-muted-foreground w-5">#{index + 1}</span>
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium truncate">{event.title}</p>
                               </div>
-                              <div className="flex items-center gap-1">
+                              <div className="flex items-center gap-0.5">
                                 <Button
                                   variant={hasUpvoted ? "default" : "ghost"}
                                   size="icon"
-                                  className="h-7 w-7"
+                                  className="h-5 w-5"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleVote(event.id, 'upvote');
                                   }}
                                   data-testid={`button-upvote-${event.id}`}
                                 >
-                                  <ThumbsUp className="h-3 w-3" />
+                                  <ThumbsUp className="h-2.5 w-2.5" />
                                 </Button>
-                                <span className="text-xs font-medium w-6 text-center" data-testid={`upvote-count-${event.id}`}>
+                                <span className="text-[10px] font-medium w-4 text-center" data-testid={`upvote-count-${event.id}`}>
                                   {event.upvotes}
                                 </span>
                               </div>
-                              <div className="flex items-center gap-1">
+                              <div className="flex items-center gap-0.5">
                                 <Button
                                   variant={hasDownvoted ? "default" : "ghost"}
                                   size="icon"
-                                  className="h-7 w-7"
+                                  className="h-5 w-5"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleVote(event.id, 'downvote');
                                   }}
                                   data-testid={`button-downvote-${event.id}`}
                                 >
-                                  <ThumbsDown className="h-3 w-3" />
+                                  <ThumbsDown className="h-2.5 w-2.5" />
                                 </Button>
-                                <span className="text-xs font-medium w-6 text-center" data-testid={`downvote-count-${event.id}`}>
+                                <span className="text-[10px] font-medium w-4 text-center" data-testid={`downvote-count-${event.id}`}>
                                   {event.downvotes}
                                 </span>
                               </div>
-                              <div className="flex items-center gap-1">
-                                <span className="text-xs font-bold w-8 text-center" data-testid={`net-votes-${event.id}`}>
+                              <div className="flex items-center gap-0.5">
+                                <span className="text-[10px] font-bold w-6 text-center" data-testid={`net-votes-${event.id}`}>
                                   {event.netVotes > 0 ? `+${event.netVotes}` : event.netVotes}
                                 </span>
                               </div>
