@@ -339,6 +339,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Clear all activities for a group
+  app.delete("/api/groups/:id/activities", async (req, res) => {
+    try {
+      const group = await storage.getGroup(req.params.id);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      await storage.deleteAllGroupActivities(req.params.id);
+      res.json({ success: true, message: "All activities cleared" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Send email invitations (simplified - logs to console for MVP)
   app.post("/api/groups/:id/send-invitations", async (req, res) => {
     try {

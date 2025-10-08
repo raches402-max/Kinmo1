@@ -40,6 +40,7 @@ export interface IStorage {
   createActivities(activities: InsertActivity[]): Promise<Activity[]>;
   updateActivityFeedback(activityId: string, feedback: string): Promise<Activity>;
   archiveGroupActivities(groupId: string): Promise<void>;
+  deleteAllGroupActivities(groupId: string): Promise<void>;
   
   // Voting Events
   createVotingEvent(event: InsertVotingEvent, userId: string): Promise<VotingEvent>;
@@ -144,6 +145,12 @@ export class DatabaseStorage implements IStorage {
     await db
       .update(activities)
       .set({ archivedAt: new Date() })
+      .where(eq(activities.groupId, groupId));
+  }
+
+  async deleteAllGroupActivities(groupId: string): Promise<void> {
+    await db
+      .delete(activities)
       .where(eq(activities.groupId, groupId));
   }
 

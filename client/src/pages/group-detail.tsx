@@ -107,6 +107,26 @@ export default function GroupDetail() {
     },
   });
 
+  const clearActivitiesMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("DELETE", `/api/groups/${groupId}/activities`, {});
+    },
+    onSuccess: () => {
+      toast({
+        title: "Activities cleared",
+        description: "All AI suggestions have been removed",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "activities"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error clearing activities",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const feedbackMutation = useMutation({
     mutationFn: async ({ activityId, feedback }: { activityId: string; feedback: string }) => {
       return await apiRequest("PATCH", `/api/activities/${activityId}/feedback`, { feedback });
@@ -833,15 +853,48 @@ export default function GroupDetail() {
                     data-testid="input-temp-instructions"
                   />
                 </div>
-                <Button
-                  onClick={() => retryGenerationMutation.mutate()}
-                  disabled={retryGenerationMutation.isPending || group?.activityGenerationStatus === "generating" || group?.activityGenerationStatus === "pending"}
-                  variant="default"
-                  data-testid="button-generate-suggestions"
-                >
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  {retryGenerationMutation.isPending ? "Generating..." : "Generate New Ideas"}
-                </Button>
+                <div className="flex flex-col gap-2">
+                  <Button
+                    onClick={() => retryGenerationMutation.mutate()}
+                    disabled={retryGenerationMutation.isPending || group?.activityGenerationStatus === "generating" || group?.activityGenerationStatus === "pending"}
+                    variant="default"
+                    data-testid="button-generate-suggestions"
+                  >
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    {retryGenerationMutation.isPending ? "Generating..." : "Generate New Ideas"}
+                  </Button>
+                  
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={activities.length === 0 || clearActivitiesMutation.isPending}
+                        data-testid="button-clear-activities"
+                      >
+                        <Trash2 className="mr-2 h-3 w-3" />
+                        Clear All
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Clear all AI suggestions?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently delete all activity suggestions for this group. You can generate new ones anytime.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => clearActivitiesMutation.mutate()}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Clear All
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
               </div>
             </div>
 
