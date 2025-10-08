@@ -8,6 +8,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -16,6 +18,10 @@ import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Group, Activity, Member, VotingEvent, Vote } from "@shared/schema";
+import { AvailabilityGrid, createEmptyAvailability } from "@/components/AvailabilityGrid";
+
+const closenessLabels = ["Acquaintances", "Friends", "Good Friends", "Close Friends", "Best Friends"];
+const noveltyLabels = ["Familiar Favorites", "Mostly Familiar", "Mix of Both", "Try New Things", "Always Novel"];
 
 export default function GroupDetail() {
   const [, params] = useRoute("/group/:id");
@@ -24,12 +30,16 @@ export default function GroupDetail() {
   const [copied, setCopied] = useState(false);
   const [tempInstructions, setTempInstructions] = useState("");
   const [editGroupOpen, setEditGroupOpen] = useState(false);
+  const [editBudgetRange, setEditBudgetRange] = useState<number[]>([50, 250]);
+  const [editCloseness, setEditCloseness] = useState(3);
+  const [editNovelty, setEditNovelty] = useState(3);
+  const [editAvailability, setEditAvailability] = useState(createEmptyAvailability());
   const [editGroupData, setEditGroupData] = useState({
     name: "",
     locationBase: "",
-    budgetMin: "",
-    budgetMax: "",
-    meetingFrequency: ""
+    meetingFrequency: "",
+    pastPreferences: "",
+    additionalInstructions: ""
   });
 
   const { data: group, isLoading: groupLoading } = useQuery<Group>({
@@ -327,10 +337,18 @@ export default function GroupDetail() {
       setEditGroupData({
         name: group.name,
         locationBase: group.locationBase,
-        budgetMin: group.budgetMin.toString(),
-        budgetMax: group.budgetMax.toString(),
-        meetingFrequency: group.meetingFrequency
+        meetingFrequency: group.meetingFrequency,
+        pastPreferences: group.pastPreferences || "",
+        additionalInstructions: group.additionalInstructions || ""
       });
+      setEditBudgetRange([group.budgetMin, group.budgetMax]);
+      setEditCloseness(group.closenessLevel);
+      setEditNovelty(group.noveltyPreference);
+      // Check if availability has the expected structure
+      const availability = group.availability && typeof group.availability === 'object' && Object.keys(group.availability).length > 0
+        ? group.availability
+        : createEmptyAvailability();
+      setEditAvailability(availability as any);
       setEditGroupOpen(true);
     }
   };
@@ -339,9 +357,14 @@ export default function GroupDetail() {
     const updates = {
       name: editGroupData.name,
       locationBase: editGroupData.locationBase,
-      budgetMin: parseInt(editGroupData.budgetMin),
-      budgetMax: parseInt(editGroupData.budgetMax),
-      meetingFrequency: editGroupData.meetingFrequency
+      budgetMin: editBudgetRange[0],
+      budgetMax: editBudgetRange[1],
+      meetingFrequency: editGroupData.meetingFrequency,
+      closenessLevel: editCloseness,
+      noveltyPreference: editNovelty,
+      availability: editAvailability,
+      pastPreferences: editGroupData.pastPreferences,
+      additionalInstructions: editGroupData.additionalInstructions
     };
     updateGroupMutation.mutate(updates);
   };
@@ -1217,52 +1240,147 @@ export default function GroupDetail() {
 
       {/* Edit Group Dialog */}
       <Dialog open={editGroupOpen} onOpenChange={setEditGroupOpen}>
-        <DialogContent data-testid="dialog-edit-group">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="dialog-edit-group">
           <DialogHeader>
             <DialogTitle>Edit Group Details</DialogTitle>
             <DialogDescription>
               Update your group's information and preferences
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-group-name">Group Name</Label>
-              <Input
-                id="edit-group-name"
-                value={editGroupData.name}
-                onChange={(e) => setEditGroupData({ ...editGroupData, name: e.target.value })}
-                data-testid="input-edit-group-name"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-location">Location</Label>
-              <Input
-                id="edit-location"
-                value={editGroupData.locationBase}
-                onChange={(e) => setEditGroupData({ ...editGroupData, locationBase: e.target.value })}
-                data-testid="input-edit-location"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-budget-min">Min Budget ($)</Label>
-                <Input
-                  id="edit-budget-min"
-                  type="number"
-                  value={editGroupData.budgetMin}
-                  onChange={(e) => setEditGroupData({ ...editGroupData, budgetMin: e.target.value })}
-                  data-testid="input-edit-budget-min"
-                />
+          <div className="space-y-6 py-4">
+            {/* Group Details Section */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold">Group Details</h3>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-group-name">Group Name</Label>
+                  <Input
+                    id="edit-group-name"
+                    value={editGroupData.name}
+                    onChange={(e) => setEditGroupData({ ...editGroupData, name: e.target.value })}
+                    data-testid="input-edit-group-name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-location">Location Base</Label>
+                  <Input
+                    id="edit-location"
+                    value={editGroupData.locationBase}
+                    onChange={(e) => setEditGroupData({ ...editGroupData, locationBase: e.target.value })}
+                    data-testid="input-edit-location"
+                  />
+                </div>
+                <div className="space-y-3">
+                  <Label>Budget Range (per person)</Label>
+                  <div className="space-y-3">
+                    <Slider
+                      min={0}
+                      max={250}
+                      step={10}
+                      value={editBudgetRange}
+                      onValueChange={setEditBudgetRange}
+                      className="w-full"
+                      data-testid="slider-edit-budget"
+                    />
+                    <div className="flex justify-between text-sm">
+                      <span className="font-medium" data-testid="text-edit-budget-min">${editBudgetRange[0]}</span>
+                      <span className="font-medium" data-testid="text-edit-budget-max">
+                        {editBudgetRange[1] >= 250 ? "$250+" : `$${editBudgetRange[1]}`}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-frequency">How Often to Meet</Label>
+                  <Select value={editGroupData.meetingFrequency} onValueChange={(value) => setEditGroupData({ ...editGroupData, meetingFrequency: value })}>
+                    <SelectTrigger data-testid="select-edit-frequency">
+                      <SelectValue placeholder="Select frequency" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                      <SelectItem value="biweekly">Every 2 Weeks</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                      <SelectItem value="flexible">Flexible</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-3">
+                  <Label>Group Availability</Label>
+                  <AvailabilityGrid 
+                    value={editAvailability} 
+                    onChange={setEditAvailability}
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-budget-max">Max Budget ($)</Label>
-                <Input
-                  id="edit-budget-max"
-                  type="number"
-                  value={editGroupData.budgetMax}
-                  onChange={(e) => setEditGroupData({ ...editGroupData, budgetMax: e.target.value })}
-                  data-testid="input-edit-budget-max"
-                />
+            </div>
+
+            {/* Preferences Section */}
+            <div className="space-y-4 pt-4 border-t">
+              <h3 className="text-sm font-semibold">Group Preferences</h3>
+              <div className="space-y-6">
+                <div className="space-y-4">
+                  <Label>How Close Is This Group?</Label>
+                  <div className="space-y-4">
+                    <Slider
+                      min={1}
+                      max={5}
+                      step={1}
+                      value={[editCloseness]}
+                      onValueChange={(value) => setEditCloseness(value[0])}
+                      className="w-full"
+                      data-testid="slider-edit-closeness"
+                    />
+                    <div className="text-center">
+                      <span className="text-sm font-medium text-primary" data-testid="text-edit-closeness-level">
+                        {closenessLabels[editCloseness - 1]}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <Label>New Experiences vs Familiar Places</Label>
+                  <div className="space-y-4">
+                    <Slider
+                      min={1}
+                      max={5}
+                      step={1}
+                      value={[editNovelty]}
+                      onValueChange={(value) => setEditNovelty(value[0])}
+                      className="w-full"
+                      data-testid="slider-edit-novelty"
+                    />
+                    <div className="text-center">
+                      <span className="text-sm font-medium text-primary" data-testid="text-edit-novelty-level">
+                        {noveltyLabels[editNovelty - 1]}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-past-preferences">What Has Your Group Enjoyed in the Past?</Label>
+                  <Textarea
+                    id="edit-past-preferences"
+                    value={editGroupData.pastPreferences}
+                    onChange={(e) => setEditGroupData({ ...editGroupData, pastPreferences: e.target.value })}
+                    placeholder="e.g., Trying new restaurants, outdoor activities, board game cafes, art museums..."
+                    className="resize-none h-24"
+                    data-testid="textarea-edit-past-preferences"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-additional-instructions">Additional Instructions for AI (Optional)</Label>
+                  <Textarea
+                    id="edit-additional-instructions"
+                    value={editGroupData.additionalInstructions}
+                    onChange={(e) => setEditGroupData({ ...editGroupData, additionalInstructions: e.target.value })}
+                    placeholder="e.g., Must be accessible by public transit, prefer venues with outdoor seating, avoid crowded places..."
+                    className="resize-none h-24"
+                    data-testid="textarea-edit-additional-instructions"
+                  />
+                </div>
               </div>
             </div>
           </div>
