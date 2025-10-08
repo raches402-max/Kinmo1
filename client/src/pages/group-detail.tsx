@@ -956,7 +956,11 @@ export default function GroupDetail() {
                       </div>
                     )}
                     <button
-                      className="absolute top-3 right-3 p-2 rounded-full hover:bg-background/10 transition-colors z-10"
+                      className={`absolute top-3 right-3 p-2 rounded-full transition-all z-10 ${
+                        activity.feedback === "love"
+                          ? "bg-pink-500/90 hover:bg-pink-600/90"
+                          : "bg-black/40 hover:bg-black/60 border-2 border-white"
+                      }`}
                       onClick={() => {
                         feedbackMutation.mutate({ activityId: activity.id, feedback: "love" });
                         createEventMutation.mutate({
@@ -988,10 +992,10 @@ export default function GroupDetail() {
                       <Heart 
                         className={`h-6 w-6 transition-all ${
                           activity.feedback === "love" 
-                            ? "fill-red-500 stroke-red-500" 
-                            : "fill-none stroke-foreground"
+                            ? "fill-white stroke-white" 
+                            : "fill-none stroke-white"
                         }`} 
-                        strokeWidth={2}
+                        strokeWidth={2.5}
                       />
                     </button>
                     <CardHeader className="space-y-3">
