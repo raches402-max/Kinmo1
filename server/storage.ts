@@ -39,6 +39,7 @@ export interface IStorage {
   createActivity(activity: InsertActivity): Promise<Activity>;
   createActivities(activities: InsertActivity[]): Promise<Activity[]>;
   updateActivityFeedback(activityId: string, feedback: string): Promise<Activity>;
+  archiveGroupActivities(groupId: string): Promise<void>;
   
   // Voting Events
   createVotingEvent(event: InsertVotingEvent, userId: string): Promise<VotingEvent>;
@@ -131,7 +132,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getGroupActivities(groupId: string): Promise<Activity[]> {
-    return await db.select().from(activities).where(eq(activities.groupId, groupId));
+    return await db.select().from(activities).where(
+      and(
+        eq(activities.groupId, groupId),
+        sql`${activities.archivedAt} IS NULL`
+      )
+    );
+  }
+
+  async archiveGroupActivities(groupId: string): Promise<void> {
+    await db
+      .update(activities)
+      .set({ archivedAt: new Date() })
+      .where(eq(activities.groupId, groupId));
   }
 
   async createActivity(insertActivity: InsertActivity): Promise<Activity> {
