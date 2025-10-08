@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus } from "lucide-react";
+import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -945,14 +945,48 @@ export default function GroupDetail() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {activities.filter(activity => activity.feedback !== "less").map((activity) => (
-                  <Card key={activity.id} className="overflow-hidden hover-elevate transition-all" data-testid={`activity-${activity.id}`}>
+                  <Card key={activity.id} className="relative overflow-hidden hover-elevate transition-all" data-testid={`activity-${activity.id}`}>
                     {activity.photoUrl && (
-                      <div className="aspect-video w-full overflow-hidden bg-muted">
+                      <div className="relative aspect-video w-full overflow-hidden bg-muted">
                         <img
                           src={activity.photoUrl}
                           alt={activity.venueName}
                           className="w-full h-full object-cover"
                         />
+                        <Button
+                          variant={activity.feedback === "love" ? "default" : "ghost"}
+                          size="icon"
+                          className="absolute top-3 right-3 h-9 w-9 rounded-full bg-background/80 backdrop-blur-sm hover:bg-background/90"
+                          onClick={() => {
+                            feedbackMutation.mutate({ activityId: activity.id, feedback: "love" });
+                            createEventMutation.mutate({
+                              title: activity.venueName,
+                              description: activity.description,
+                              venueAddress: activity.venueAddress,
+                              venueType: activity.venueType,
+                              googlePlaceId: activity.googlePlaceId || undefined,
+                              rating: activity.rating || undefined,
+                              priceLevel: activity.priceLevel || undefined,
+                              photoUrl: activity.photoUrl || undefined,
+                              aiReasoning: activity.aiReasoning || undefined,
+                              priceEstimate: activity.priceEstimate || undefined,
+                              timeConstraints: activity.timeConstraints || undefined,
+                              complementaryPlaceName: activity.complementaryPlaceName || undefined,
+                              complementaryPlaceAddress: activity.complementaryPlaceAddress || undefined,
+                              complementaryPlaceId: activity.complementaryPlaceId || undefined,
+                              complementaryPlacePhotoUrl: activity.complementaryPlacePhotoUrl || undefined,
+                              complementaryPlaceRating: activity.complementaryPlaceRating || undefined,
+                              complementaryPlaceName2: activity.complementaryPlaceName2 || undefined,
+                              complementaryPlaceAddress2: activity.complementaryPlaceAddress2 || undefined,
+                              complementaryPlaceId2: activity.complementaryPlaceId2 || undefined,
+                              complementaryPlacePhotoUrl2: activity.complementaryPlacePhotoUrl2 || undefined,
+                              complementaryPlaceRating2: activity.complementaryPlaceRating2 || undefined,
+                            });
+                          }}
+                          data-testid={`button-love-${activity.id}`}
+                        >
+                          <Heart className={`h-5 w-5 ${activity.feedback === "love" ? "fill-current" : ""}`} />
+                        </Button>
                       </div>
                     )}
                     <CardHeader className="space-y-3">
@@ -1107,41 +1141,6 @@ export default function GroupDetail() {
                       <div className="pt-2 border-t">
                         <p className="text-xs font-medium text-muted-foreground mb-2">Your feedback:</p>
                         <div className="flex gap-2">
-                          <Button
-                            variant={activity.feedback === "love" ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => {
-                              feedbackMutation.mutate({ activityId: activity.id, feedback: "love" });
-                              createEventMutation.mutate({
-                                title: activity.venueName,
-                                description: activity.description,
-                                venueAddress: activity.venueAddress,
-                                venueType: activity.venueType,
-                                googlePlaceId: activity.googlePlaceId || undefined,
-                                rating: activity.rating || undefined,
-                                priceLevel: activity.priceLevel || undefined,
-                                photoUrl: activity.photoUrl || undefined,
-                                aiReasoning: activity.aiReasoning || undefined,
-                                priceEstimate: activity.priceEstimate || undefined,
-                                timeConstraints: activity.timeConstraints || undefined,
-                                complementaryPlaceName: activity.complementaryPlaceName || undefined,
-                                complementaryPlaceAddress: activity.complementaryPlaceAddress || undefined,
-                                complementaryPlaceId: activity.complementaryPlaceId || undefined,
-                                complementaryPlacePhotoUrl: activity.complementaryPlacePhotoUrl || undefined,
-                                complementaryPlaceRating: activity.complementaryPlaceRating || undefined,
-                                complementaryPlaceName2: activity.complementaryPlaceName2 || undefined,
-                                complementaryPlaceAddress2: activity.complementaryPlaceAddress2 || undefined,
-                                complementaryPlaceId2: activity.complementaryPlaceId2 || undefined,
-                                complementaryPlacePhotoUrl2: activity.complementaryPlacePhotoUrl2 || undefined,
-                                complementaryPlaceRating2: activity.complementaryPlaceRating2 || undefined,
-                              });
-                            }}
-                            className="flex-1 gap-1"
-                            data-testid={`button-love-${activity.id}`}
-                          >
-                            <Flame className="h-3 w-3" />
-                            YAS THIS
-                          </Button>
                           <Button
                             variant={activity.feedback === "more" ? "default" : "outline"}
                             size="sm"
