@@ -878,7 +878,10 @@ export default function GroupDetail() {
                           <Button
                             variant={activity.feedback === "love" ? "default" : "outline"}
                             size="sm"
-                            onClick={() => feedbackMutation.mutate({ activityId: activity.id, feedback: "love" })}
+                            onClick={() => {
+                              feedbackMutation.mutate({ activityId: activity.id, feedback: "love" });
+                              createEventMutation.mutate(activity.venueName);
+                            }}
                             className="flex-1 gap-1"
                             data-testid={`button-love-${activity.id}`}
                           >
