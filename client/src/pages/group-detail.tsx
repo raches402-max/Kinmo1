@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart } from "lucide-react";
+import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -41,6 +41,7 @@ export default function GroupDetail() {
     pastPreferences: "",
     additionalInstructions: ""
   });
+  const [newMembers, setNewMembers] = useState<{ name: string; email: string }[]>([]);
 
   const { data: group, isLoading: groupLoading } = useQuery<Group>({
     queryKey: ["/api/groups", groupId],
@@ -158,11 +159,34 @@ export default function GroupDetail() {
   });
 
   const updateGroupMutation = useMutation({
-    mutationFn: async (updates: any) => {
-      return await apiRequest("PATCH", `/api/groups/${groupId}`, updates);
+    mutationFn: async ({ updates, newMembers }: { updates: any; newMembers: { name: string; email: string }[] }) => {
+      // First update the group
+      await apiRequest("PATCH", `/api/groups/${groupId}`, updates);
+      
+      // Then add new members if any
+      if (newMembers.length > 0) {
+        await Promise.all(
+          newMembers.map(member => {
+            const memberData: any = {
+              isOrganizer: false,
+              invitationSent: false,
+              hasJoined: false,
+            };
+            // Only include name/email if they have values (not empty strings)
+            if (member.name.trim()) {
+              memberData.name = member.name.trim();
+            }
+            if (member.email.trim()) {
+              memberData.email = member.email.trim();
+            }
+            return apiRequest("POST", `/api/groups/${groupId}/join`, memberData);
+          })
+        );
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "members"] });
       setEditGroupOpen(false);
       toast({
         title: "Group updated",
@@ -349,11 +373,26 @@ export default function GroupDetail() {
         ? group.availability
         : createEmptyAvailability();
       setEditAvailability(availability as any);
+      setNewMembers([]);
       setEditGroupOpen(true);
     }
   };
 
-  const handleUpdateGroup = () => {
+  const addNewMember = () => {
+    setNewMembers([...newMembers, { name: "", email: "" }]);
+  };
+
+  const removeNewMember = (index: number) => {
+    setNewMembers(newMembers.filter((_, i) => i !== index));
+  };
+
+  const updateNewMember = (index: number, field: "name" | "email", value: string) => {
+    const updated = [...newMembers];
+    updated[index][field] = value;
+    setNewMembers(updated);
+  };
+
+  const handleUpdateGroup = async () => {
     const updates = {
       name: editGroupData.name,
       locationBase: editGroupData.locationBase,
@@ -366,7 +405,15 @@ export default function GroupDetail() {
       pastPreferences: editGroupData.pastPreferences,
       additionalInstructions: editGroupData.additionalInstructions
     };
-    updateGroupMutation.mutate(updates);
+    
+    // Filter out empty members (both name and email empty)
+    const validNewMembers = newMembers.filter(m => m.name.trim() || m.email.trim());
+    
+    // Update group and add new members
+    updateGroupMutation.mutate({ 
+      updates, 
+      newMembers: validNewMembers 
+    });
   };
 
   const copyShareLink = () => {
@@ -1382,6 +1429,114 @@ export default function GroupDetail() {
                   />
                 </div>
               </div>
+            </div>
+
+            {/* Members Section */}
+            <div className="space-y-4 pt-4 border-t">
+              <h3 className="text-sm font-semibold">Members</h3>
+              
+              {/* Existing Members */}
+              {members.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Current Members</Label>
+                  <div className="space-y-2">
+                    {members.map((member) => (
+                      <div key={member.id} className="flex items-center gap-2 p-2 bg-muted/50 rounded-md">
+                        <Avatar className="h-7 w-7">
+                          <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                            {member.name?.[0]?.toUpperCase() || member.email?.[0]?.toUpperCase() || "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{member.name || "Member"}</p>
+                          {member.email && (
+                            <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                          )}
+                        </div>
+                        {member.isOrganizer ? (
+                          <Badge variant="secondary" className="text-xs">Organizer</Badge>
+                        ) : (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-7 w-7"
+                              >
+                                <Trash2 className="h-3 w-3 text-muted-foreground" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Remove Member</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to remove {member.name || member.email || "this member"} from the group?
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => deleteMemberMutation.mutate(member.id)}
+                                >
+                                  Remove
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Add New Members */}
+              {newMembers.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">New Members to Add</Label>
+                  {newMembers.map((member, index) => (
+                    <div key={index} className="flex gap-2 items-start">
+                      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <Input
+                          placeholder="Name (optional)"
+                          value={member.name}
+                          onChange={(e) => updateNewMember(index, "name", e.target.value)}
+                          data-testid={`input-new-member-name-${index}`}
+                        />
+                        <Input
+                          type="email"
+                          placeholder="Email (optional)"
+                          value={member.email}
+                          onChange={(e) => updateNewMember(index, "email", e.target.value)}
+                          data-testid={`input-new-member-email-${index}`}
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9"
+                        onClick={() => removeNewMember(index)}
+                        data-testid={`button-remove-new-member-${index}`}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addNewMember}
+                className="w-full"
+                data-testid="button-add-new-member"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add Member
+              </Button>
             </div>
           </div>
           <DialogFooter>
