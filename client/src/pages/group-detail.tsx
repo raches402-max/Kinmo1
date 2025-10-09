@@ -553,27 +553,24 @@ export default function GroupDetail() {
                   <p className="text-xs text-muted-foreground mb-1">Availability</p>
                   <p className="text-xs leading-relaxed">{formatAvailability(group.availability)}</p>
                 </div>
-              </CardContent>
-            </Card>
 
-            {/* Members Card */}
-            <Collapsible open={membersOpen} onOpenChange={setMembersOpen}>
-              <Card>
-                <CollapsibleTrigger asChild>
-                  <CardHeader className="cursor-pointer hover-elevate">
-                    <div className="flex items-center justify-between">
+                {/* Members Section */}
+                <Collapsible open={membersOpen} onOpenChange={setMembersOpen} className="pt-2 border-t">
+                  <CollapsibleTrigger asChild>
+                    <div className="flex items-center justify-between cursor-pointer hover-elevate -mx-2 px-2 py-1 rounded-md">
                       <div className="flex items-center gap-2">
                         <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${membersOpen ? "" : "-rotate-90"}`} />
                         <div>
-                          <CardTitle>Members</CardTitle>
-                          <CardDescription>
+                          <p className="text-xs text-muted-foreground">Members</p>
+                          <p className="text-sm font-medium">
                             {members.length} {members.length === 1 ? "member" : "members"}
-                          </CardDescription>
+                          </p>
                         </div>
                       </div>
                       <Button
                         variant="outline"
                         size="icon"
+                        className="h-7 w-7"
                         onClick={(e) => {
                           e.stopPropagation();
                           copyShareLink();
@@ -581,48 +578,46 @@ export default function GroupDetail() {
                         data-testid="button-copy-link"
                       >
                         {copied ? (
-                          <Check className="h-4 w-4 text-green-600" />
+                          <Check className="h-3 w-3 text-green-600" />
                         ) : (
-                          <UserPlus className="h-4 w-4" />
+                          <UserPlus className="h-3 w-3" />
                         )}
                       </Button>
                     </div>
-                  </CardHeader>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <CardContent className="space-y-3">
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="pt-3">
                     {membersLoading ? (
-                      <div className="space-y-3">
-                        <Skeleton className="h-10 w-full" />
-                        <Skeleton className="h-10 w-full" />
+                      <div className="space-y-2">
+                        <Skeleton className="h-8 w-full" />
+                        <Skeleton className="h-8 w-full" />
                       </div>
                     ) : members.length > 0 ? (
-                      <div className="space-y-3">
+                      <div className="space-y-2">
                         {members.map((member) => (
-                          <div key={member.id} className="flex items-center gap-3" data-testid={`member-${member.id}`}>
-                            <Avatar className="h-9 w-9">
-                              <AvatarFallback className="bg-primary/10 text-primary">
+                          <div key={member.id} className="flex items-center gap-2" data-testid={`member-${member.id}`}>
+                            <Avatar className="h-7 w-7">
+                              <AvatarFallback className="bg-primary/10 text-primary text-xs">
                                 {member.name?.[0]?.toUpperCase() || member.email?.[0]?.toUpperCase() || "?"}
                               </AvatarFallback>
                             </Avatar>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{member.name || "Member"}</p>
+                              <p className="text-xs font-medium truncate">{member.name || "Member"}</p>
                               {member.email && (
-                                <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                                <p className="text-[10px] text-muted-foreground truncate">{member.email}</p>
                               )}
                             </div>
                             {member.isOrganizer ? (
-                              <Badge variant="secondary" className="text-xs">Organizer</Badge>
+                              <Badge variant="secondary" className="text-[10px] h-5">Organizer</Badge>
                             ) : (
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <Button 
                                     variant="ghost" 
                                     size="icon" 
-                                    className="h-8 w-8"
+                                    className="h-6 w-6"
                                     data-testid={`button-delete-member-${member.id}`}
                                   >
-                                    <Trash2 className="h-4 w-4 text-muted-foreground" />
+                                    <Trash2 className="h-3 w-3 text-muted-foreground" />
                                   </Button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
@@ -648,28 +643,28 @@ export default function GroupDetail() {
                         ))}
                       </div>
                     ) : (
-                      <p className="text-sm text-muted-foreground">No members yet</p>
+                      <p className="text-xs text-muted-foreground">No members yet</p>
                     )}
 
                     {members.some(m => m.email && !m.invitationSent) && (
-                      <div className="pt-3 border-t">
+                      <div className="pt-2 mt-2 border-t">
                         <Button
                           variant="default"
                           size="sm"
-                          className="w-full justify-start"
+                          className="w-full justify-start h-8 text-xs"
                           onClick={() => sendInvitationsMutation.mutate()}
                           disabled={sendInvitationsMutation.isPending}
                           data-testid="button-send-invitations"
                         >
-                          <Mail className="mr-2 h-4 w-4" />
-                          {sendInvitationsMutation.isPending ? "Sending..." : "Send Email Invitations"}
+                          <Mail className="mr-2 h-3 w-3" />
+                          {sendInvitationsMutation.isPending ? "Sending..." : "Send Invitations"}
                         </Button>
                       </div>
                     )}
-                  </CardContent>
-                </CollapsibleContent>
-              </Card>
-            </Collapsible>
+                  </CollapsibleContent>
+                </Collapsible>
+              </CardContent>
+            </Card>
 
             {/* Favorites Voting Table */}
             <Card>
