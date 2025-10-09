@@ -132,6 +132,16 @@ export const votes = pgTable("votes", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Preference signals table to track swipe feedback
+export const preferenceSignals = pgTable("preference_signals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  groupId: varchar("group_id").notNull().references(() => groups.id, { onDelete: "cascade" }),
+  conceptType: text("concept_type").notNull(), // e.g., "karaoke", "breweries", "outdoor-activities"
+  conceptDescription: text("concept_description").notNull(), // e.g., "Karaoke Night at Local Bar"
+  feedback: text("feedback").notNull(), // 'like' or 'pass'
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   groups: many(groups),
@@ -147,6 +157,7 @@ export const groupsRelations = relations(groups, ({ one, many }) => ({
   members: many(members),
   activities: many(activities),
   votingEvents: many(votingEvents),
+  preferenceSignals: many(preferenceSignals),
 }));
 
 export const membersRelations = relations(members, ({ one }) => ({
@@ -186,6 +197,13 @@ export const votesRelations = relations(votes, ({ one }) => ({
   }),
 }));
 
+export const preferenceSignalsRelations = relations(preferenceSignals, ({ one }) => ({
+  group: one(groups, {
+    fields: [preferenceSignals.groupId],
+    references: [groups.id],
+  }),
+}));
+
 // Insert schemas
 export const insertGroupSchema = createInsertSchema(groups).omit({
   id: true,
@@ -217,6 +235,11 @@ export const insertVoteSchema = createInsertSchema(votes).omit({
   createdAt: true,
 });
 
+export const insertPreferenceSignalSchema = createInsertSchema(preferenceSignals).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Update schemas (partial versions for PATCH operations)
 export const updateGroupSchema = insertGroupSchema.partial();
 export const updateMemberSchema = insertMemberSchema.partial();
@@ -243,3 +266,6 @@ export type UpdateVotingEvent = z.infer<typeof updateVotingEventSchema>;
 
 export type InsertVote = z.infer<typeof insertVoteSchema>;
 export type Vote = typeof votes.$inferSelect;
+
+export type InsertPreferenceSignal = z.infer<typeof insertPreferenceSignalSchema>;
+export type PreferenceSignal = typeof preferenceSignals.$inferSelect;

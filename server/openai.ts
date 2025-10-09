@@ -27,6 +27,8 @@ export async function generateActivitySuggestions(groupData: {
   additionalInstructions?: string;
   previousFeedback?: { venueName: string; venueType: string; feedback: string; description: string }[];
   votingFeedback?: { venueName: string; venueType: string; upvotes: number; downvotes: number; netVotes: number; description: string }[];
+  likedConcepts?: string[];
+  passedConcepts?: string[];
   previouslySuggestedVenues?: string[];
 }): Promise<ActivitySuggestion[]> {
   try {
@@ -104,6 +106,19 @@ export async function generateActivitySuggestions(groupData: {
       }
     }
 
+    // Format swipe session feedback
+    let swipeContext = '';
+    if ((groupData.likedConcepts && groupData.likedConcepts.length > 0) || 
+        (groupData.passedConcepts && groupData.passedConcepts.length > 0)) {
+      swipeContext = '\nSwipe Session Preferences:';
+      if (groupData.likedConcepts && groupData.likedConcepts.length > 0) {
+        swipeContext += `\n- LIKED concepts (prioritize these types): ${groupData.likedConcepts.join(', ')}`;
+      }
+      if (groupData.passedConcepts && groupData.passedConcepts.length > 0) {
+        swipeContext += `\n- PASSED concepts (avoid these types): ${groupData.passedConcepts.join(', ')}`;
+      }
+    }
+
     // Format activity categories for the prompt
     const categoryLabels: Record<string, string> = {
       'restaurants': 'Restaurants',
@@ -144,7 +159,7 @@ Budget Range: $${groupData.budgetMin}-${groupData.budgetMax} per person
 Meeting Frequency: ${groupData.meetingFrequency}
 Usual Availability: ${availabilityText}${categoriesContext}
 ${groupData.pastPreferences ? `Past Preferences: ${groupData.pastPreferences}` : ''}
-${groupData.additionalInstructions ? `\n⚠️ CRITICAL USER REQUEST: ${groupData.additionalInstructions}` : ''}${feedbackContext}${votingContext}${avoidVenuesContext}
+${groupData.additionalInstructions ? `\n⚠️ CRITICAL USER REQUEST: ${groupData.additionalInstructions}` : ''}${feedbackContext}${votingContext}${swipeContext}${avoidVenuesContext}
 
 CRITICAL - Availability Constraint:
 - The group is ONLY available during: ${availabilityText}
@@ -199,13 +214,17 @@ CRITICAL CONSTRAINTS for ALL complementaryFoodPlace queries:
    - If activities got "less", avoid or minimize that type
    - If Favorites have HIGH net votes (popular), prioritize very similar venue types
    - If Favorites have NEGATIVE net votes (unpopular), avoid similar venue types
-14. FOR REASONING: CRITICAL - Keep it extremely concise at 4-10 words. NO flowery language or fluff. Just state the key reason.
+14. CRITICAL - Use Swipe Session Preferences to refine suggestions:
+   - LIKED concepts: These are activity types the group has shown interest in - PRIORITIZE suggesting these types
+   - PASSED concepts: These are activity types the group is NOT interested in - AVOID suggesting these types
+   - Swipe preferences reveal what the group wants to explore, so weight them heavily in your suggestions
+15. FOR REASONING: CRITICAL - Keep it extremely concise at 4-10 words. NO flowery language or fluff. Just state the key reason.
    Examples:
    - Good: "Fits budget, casual Asian shareable dining" (6 words)
    - Good: "Budget-friendly, intimate conversation spot" (4 words)
    - Bad: "Fits your budget and love for casual Asian dining with shareable plates" (too long)
    - Bad: "This wonderful venue will delight your senses with an amazing array of flavors" (way too long)
-15. When suggesting something NEW (outside their usual range/novelty preference), explicitly say "NEW:" at the start of the reasoning to highlight it's a departure from their typical choices.
+16. When suggesting something NEW (outside their usual range/novelty preference), explicitly say "NEW:" at the start of the reasoning to highlight it's a departure from their typical choices.
    Example: "NEW: Outside typical range, fits budget" (6 words)
 
 Return your response as a JSON object with this structure:
@@ -254,5 +273,116 @@ Return your response as a JSON object with this structure:
   } catch (error) {
     console.error("Error generating activity suggestions:", error);
     throw new Error("Failed to generate activity suggestions: " + (error as Error).message);
+  }
+}
+
+export interface SwipeConcept {
+  conceptType: string; // e.g., "karaoke", "breweries", "outdoor-activities"
+  conceptDescription: string; // e.g., "Karaoke Night at Local Bar", "Craft Brewery Tour"
+}
+
+export async function generateSwipeConcepts(groupData: {
+  locationBase: string;
+  budgetMin: number;
+  budgetMax: number;
+  activityCategories?: string[];
+  pastPreferences?: string;
+  previouslySeenConcepts?: string[];
+}): Promise<SwipeConcept[]> {
+  try {
+    // Format activity categories for the prompt
+    const categoryLabels: Record<string, string> = {
+      'restaurants': 'Restaurants',
+      'brunch': 'Brunch Spots',
+      'cafes': 'Cafes',
+      'wine-bars': 'Wine / Cocktail Bars',
+      'breweries': 'Breweries / Beer Gardens',
+      'food-markets': 'Food Markets / Food Halls',
+      'potlucks': 'Potlucks',
+      'concerts': 'Concerts',
+      'karaoke': 'Karaoke',
+      'dancing': 'Dancing / Clubs',
+      'comedy': 'Comedy Shows',
+      'movies': 'Movie Theaters',
+      'museums': 'Museums / Art Galleries',
+      'sports': 'Sports Games',
+      'outdoors': 'Hikes / Outdoors',
+      'game-nights': 'Game Nights',
+      'trivia': 'Trivia Nights'
+    };
+    
+    let categoriesContext = '';
+    if (groupData.activityCategories && groupData.activityCategories.length > 0) {
+      const selectedCategories = groupData.activityCategories.map(id => categoryLabels[id] || id).join(', ');
+      categoriesContext = `\nActivity Interests: ${selectedCategories}`;
+    }
+
+    // Format previously seen concepts to avoid repeats
+    let avoidContext = '';
+    if (groupData.previouslySeenConcepts && groupData.previouslySeenConcepts.length > 0) {
+      avoidContext = `\n\nIMPORTANT - DO NOT suggest these concepts again (already shown): ${groupData.previouslySeenConcepts.join(', ')}`;
+    }
+
+    const prompt = `You are an expert activity planner. Generate 20 diverse activity concept ideas for a group to swipe through.
+
+Location: ${groupData.locationBase}
+Budget Range: $${groupData.budgetMin}-${groupData.budgetMax} per person${categoriesContext}
+${groupData.pastPreferences ? `Past Preferences: ${groupData.pastPreferences}` : ''}${avoidContext}
+
+Requirements:
+1. Generate 20 quick concept ideas (not specific venue names, just general concepts)
+2. Each concept should fit within the budget range
+3. ${groupData.activityCategories && groupData.activityCategories.length > 0 ? `PRIORITIZE the Activity Interests listed above - focus on these types` : 'Suggest a diverse mix of activity types'}
+4. Make them specific enough to visualize but general enough to represent a type of activity
+5. Examples of good concepts:
+   - "Karaoke Night at Local Bar"
+   - "Sunday Brunch at Cozy Cafe"
+   - "Craft Brewery Hopping Tour"
+   - "Outdoor Picnic in the Park"
+   - "Comedy Show Night"
+   - "Wine Tasting Experience"
+6. Include a mix of food, entertainment, and activities
+7. Keep descriptions concise and appealing
+
+For each concept, provide:
+- conceptType: a short category slug (e.g., "karaoke", "breweries", "brunch", "outdoor-picnic")
+- conceptDescription: a catchy 3-6 word description
+
+Return your response as a JSON object with this structure:
+{
+  "concepts": [
+    {
+      "conceptType": "category-slug",
+      "conceptDescription": "Short catchy description"
+    }
+  ]
+}`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert activity planner who creates engaging concept ideas for groups to explore. Always respond with valid JSON."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      response_format: { type: "json_object" },
+      max_completion_tokens: 1500,
+    });
+
+    const result = JSON.parse(response.choices[0].message.content || '{}');
+    
+    if (!result.concepts || result.concepts.length === 0) {
+      throw new Error("OpenAI returned no swipe concepts. The response may be empty or malformed.");
+    }
+    
+    return result.concepts;
+  } catch (error) {
+    console.error("Error generating swipe concepts:", error);
+    throw new Error("Failed to generate swipe concepts: " + (error as Error).message);
   }
 }

@@ -17,6 +17,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { ArrowLeft, Plus, X, Users, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap } from "lucide-react";
 import { Link } from "wouter";
 import { AvailabilityGrid, createEmptyAvailability } from "@/components/AvailabilityGrid";
+import { SwipeSession } from "@/components/SwipeSession";
 
 const formSchema = z.object({
   name: z.string().min(1, "Group name is required"),
@@ -71,6 +72,8 @@ export default function CreateGroup() {
   const [frequencyNumber, setFrequencyNumber] = useState(1);
   const [frequencyUnit, setFrequencyUnit] = useState("week");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [showSwipeSession, setShowSwipeSession] = useState(false);
+  const [createdGroupId, setCreatedGroupId] = useState<string | null>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -98,11 +101,13 @@ export default function CreateGroup() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/groups"] });
+      setCreatedGroupId(data.id);
       toast({
         title: "Group created successfully!",
-        description: "Generating AI-powered activity suggestions...",
+        description: "Want to help us learn your taste? (Optional)",
       });
-      navigate(`/group/${data.id}`);
+      // Show swipe session dialog
+      setShowSwipeSession(true);
     },
     onError: (error: Error) => {
       toast({
@@ -112,6 +117,27 @@ export default function CreateGroup() {
       });
     },
   });
+
+  function handleSwipeComplete() {
+    if (createdGroupId) {
+      setShowSwipeSession(false);
+      toast({
+        title: "Preferences saved!",
+        description: "Generating AI-powered activity suggestions...",
+      });
+      navigate(`/group/${createdGroupId}`);
+    }
+  }
+
+  function handleSwipeSkip() {
+    if (createdGroupId) {
+      toast({
+        title: "Skipped preference refinement",
+        description: "Generating AI-powered activity suggestions...",
+      });
+      navigate(`/group/${createdGroupId}`);
+    }
+  }
 
   const onSubmit = (data: FormValues) => {
     const validMembers = members.filter(m => m.name || m.email);
@@ -454,6 +480,21 @@ export default function CreateGroup() {
           </form>
         </Form>
       </div>
+
+      {/* Optional Swipe Session after group creation */}
+      {createdGroupId && (
+        <SwipeSession
+          groupId={createdGroupId}
+          open={showSwipeSession}
+          onOpenChange={(open) => {
+            setShowSwipeSession(open);
+            if (!open) {
+              handleSwipeSkip();
+            }
+          }}
+          onComplete={handleSwipeComplete}
+        />
+      )}
     </div>
   );
 }

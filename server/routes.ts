@@ -3,7 +3,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema } from "@shared/schema";
-import { generateActivitySuggestions } from "./openai";
+import { generateActivitySuggestions, generateSwipeConcepts } from "./openai";
 import { searchPlaces, searchNearbyPlaces } from "./google-places";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 
@@ -403,6 +403,61 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Generate swipeable concepts for preference refinement
+  app.post("/api/groups/:id/swipe-concepts", async (req, res) => {
+    try {
+      const group = await storage.getGroup(req.params.id);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      // Get previously seen concepts to avoid repeats
+      const previousSignals = await storage.getGroupPreferenceSignals(req.params.id);
+      const previouslySeenConcepts = previousSignals.map(s => s.conceptDescription);
+
+      const concepts = await generateSwipeConcepts({
+        locationBase: group.locationBase,
+        budgetMin: group.budgetMin,
+        budgetMax: group.budgetMax,
+        activityCategories: group.activityCategories || [],
+        pastPreferences: group.pastPreferences || '',
+        previouslySeenConcepts,
+      });
+
+      res.json({ concepts });
+    } catch (error: any) {
+      console.error("Error generating swipe concepts:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Save swipe feedback (like or pass)
+  app.post("/api/groups/:id/swipe-feedback", async (req, res) => {
+    try {
+      const { conceptType, conceptDescription, feedback } = req.body;
+
+      if (!conceptType || !conceptDescription || !feedback) {
+        return res.status(400).json({ message: "Missing required fields" });
+      }
+
+      if (feedback !== 'like' && feedback !== 'pass') {
+        return res.status(400).json({ message: "Feedback must be 'like' or 'pass'" });
+      }
+
+      const signal = await storage.createPreferenceSignal({
+        groupId: req.params.id,
+        conceptType,
+        conceptDescription,
+        feedback,
+      });
+
+      res.json({ signal });
+    } catch (error: any) {
+      console.error("Error saving swipe feedback:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
@@ -456,8 +511,19 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
         description: e.description || ''
       }));
 
+    // Get preference signals from swipe sessions
+    const preferenceSignals = await storage.getGroupPreferenceSignals(groupId);
+    const likedConcepts = preferenceSignals
+      .filter(s => s.feedback === 'like')
+      .map(s => s.conceptDescription);
+    const passedConcepts = preferenceSignals
+      .filter(s => s.feedback === 'pass')
+      .map(s => s.conceptDescription);
+
     console.log(`[AI Generation] Found ${previousFeedback.length} activities with feedback`);
     console.log(`[AI Generation] Found ${votingFeedback.length} favorites with voting data`);
+    console.log(`[AI Generation] Found ${likedConcepts.length} liked concepts from swipe sessions`);
+    console.log(`[AI Generation] Found ${passedConcepts.length} passed concepts from swipe sessions`);
     console.log(`[AI Generation] Found ${previouslySuggestedVenues.length} previously suggested venues to avoid`);
 
     // Archive old activities before generating new ones (preserves feedback for AI)
@@ -478,6 +544,8 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       additionalInstructions: groupData.additionalInstructions,
       previousFeedback: previousFeedback.length > 0 ? previousFeedback : undefined,
       votingFeedback: votingFeedback.length > 0 ? votingFeedback : undefined,
+      likedConcepts: likedConcepts.length > 0 ? likedConcepts : undefined,
+      passedConcepts: passedConcepts.length > 0 ? passedConcepts : undefined,
       previouslySuggestedVenues: previouslySuggestedVenues.length > 0 ? previouslySuggestedVenues : undefined,
     });
 

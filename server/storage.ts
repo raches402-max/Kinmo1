@@ -1,13 +1,14 @@
 // Reference: javascript_database blueprint
 // Reference: javascript_log_in_with_replit blueprint
 import { 
-  users, groups, members, activities, votingEvents, votes,
+  users, groups, members, activities, votingEvents, votes, preferenceSignals,
   type User, type UpsertUser,
   type Group, type InsertGroup, type UpdateGroup,
   type Member, type InsertMember, type UpdateMember,
   type Activity, type InsertActivity,
   type VotingEvent, type InsertVotingEvent, type UpdateVotingEvent,
-  type Vote, type InsertVote
+  type Vote, type InsertVote,
+  type PreferenceSignal, type InsertPreferenceSignal
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and } from "drizzle-orm";
@@ -56,6 +57,10 @@ export interface IStorage {
   removeVote(eventId: string, userId: string): Promise<void>;
   getEventVotes(eventId: string): Promise<Vote[]>;
   getUserVote(eventId: string, userId: string): Promise<Vote | undefined>;
+  
+  // Preference Signals
+  createPreferenceSignal(signal: InsertPreferenceSignal): Promise<PreferenceSignal>;
+  getGroupPreferenceSignals(groupId: string): Promise<PreferenceSignal[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -388,6 +393,22 @@ export class DatabaseStorage implements IStorage {
       .from(votes)
       .where(and(eq(votes.eventId, eventId), eq(votes.userId, userId)));
     return vote || undefined;
+  }
+
+  async createPreferenceSignal(signal: InsertPreferenceSignal): Promise<PreferenceSignal> {
+    const [preferenceSignal] = await db
+      .insert(preferenceSignals)
+      .values(signal)
+      .returning();
+    return preferenceSignal;
+  }
+
+  async getGroupPreferenceSignals(groupId: string): Promise<PreferenceSignal[]> {
+    return await db
+      .select()
+      .from(preferenceSignals)
+      .where(eq(preferenceSignals.groupId, groupId))
+      .orderBy(desc(preferenceSignals.createdAt));
   }
 }
 
