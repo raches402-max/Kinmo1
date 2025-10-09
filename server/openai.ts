@@ -243,14 +243,21 @@ CRITICAL CONSTRAINTS for ALL complementaryFoodPlace queries:
      * "Discover the vibrant flavors of authentic cuisine" ❌
    - Keep descriptions to 5-8 words maximum
    - Focus on WHAT the venue offers, not HOW the group will feel
-16. FOR REASONING: CRITICAL - Keep it extremely concise at 4-10 words. NO flowery language or fluff. Just state the key reason.
-   Examples:
-   - Good: "Fits budget, familiar Korean BBQ preference" (6 words)
-   - Good: "Budget-friendly, intimate conversation spot" (4 words)
-   - Bad: "Fits your budget and love for casual Asian dining with shareable plates" (too long)
-   - Bad: "This wonderful venue will delight your senses with an amazing array of flavors" (way too long)
+16. FOR REASONING: CRITICAL - Keep it extremely concise at 3-8 words. NO flowery language or fluff. Just state the key reason.
+   - DO NOT mention budget (it's assumed everything shown fits budget)
+   - FOCUS on: familiarity with past preferences, specific cuisine match, social/interactive aspects, NEW experiences
+   - GOOD examples (direct, concise):
+     * "Familiar Korean BBQ preference" (4 words)
+     * "Intimate conversation spot" (3 words)
+     * "Social, shareable dining experience" (4 words)
+     * "Matches past sushi preference" (4 words)
+   - BAD examples (too long or mentions budget):
+     * "Fits budget, familiar Korean BBQ preference" ❌ (mentions budget)
+     * "Budget-friendly, intimate conversation spot" ❌ (mentions budget)
+     * "Fits your budget and love for casual Asian dining with shareable plates" ❌ (way too long)
+     * "This wonderful venue will delight your senses" ❌ (fluff)
 17. When suggesting something NEW (outside their usual range/novelty preference), explicitly say "NEW:" at the start of the reasoning to highlight it's a departure from their typical choices.
-   Example: "NEW: Outside typical range, fits budget" (6 words)
+   Example: "NEW: Unfamiliar cuisine, interactive dining" (5 words)
 
 Return your response as a JSON object with this structure:
 {
