@@ -9,6 +9,13 @@ The platform enables users to create groups, invite members, and receive tailore
 ## Recent Changes
 
 ### October 9, 2025
+- **Refined Complementary Food Suggestions**: Improved AI logic for nearby food recommendations:
+  - **Distance & Quality**: All suggestions now limited to <0.5 miles with 3.5+ star ratings
+  - **Smart Pairing Logic**: 
+    - Full meal venues (restaurants, brunch) → suggest drinks/dessert nearby (cocktail bars, boba, ice cream)
+    - Drinks/dessert venues (cafes, bars, boba shops) → suggest full meals nearby (restaurants, sandwiches)
+    - Outdoor venues (parks, hiking) → suggest portable meal options nearby
+  - **Example Fix**: If main venue is boba (Wanpo), AI now suggests restaurants/food trucks instead of another dessert spot (Matcha Maiko)
 - **Activity Category Selection**: Added visual category selector buttons with icons for quick preference setting:
   - **17 Activity Types**: Restaurants, Brunch Spots, Cafes, Wine/Cocktail Bars, Breweries/Beer Gardens, Food Markets/Food Halls, Potlucks, Concerts, Karaoke, Dancing/Clubs, Comedy Shows, Movie Theaters, Museums/Art Galleries, Sports Games, Hikes/Outdoors, Game Nights, Trivia Nights
   - **Food & Dining**: Expanded with restaurants, brunch, breweries, and food markets to cover diverse culinary experiences

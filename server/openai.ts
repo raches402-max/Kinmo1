@@ -106,15 +106,23 @@ export async function generateActivitySuggestions(groupData: {
 
     // Format activity categories for the prompt
     const categoryLabels: Record<string, string> = {
-      'wine-bars': 'Wine / Cocktail Bars',
-      'karaoke': 'Karaoke',
-      'concerts': 'Concerts',
+      'restaurants': 'Restaurants',
+      'brunch': 'Brunch Spots',
       'cafes': 'Cafes',
+      'wine-bars': 'Wine / Cocktail Bars',
+      'breweries': 'Breweries / Beer Gardens',
+      'food-markets': 'Food Markets / Food Halls',
+      'potlucks': 'Potlucks',
+      'concerts': 'Concerts',
+      'karaoke': 'Karaoke',
+      'dancing': 'Dancing / Clubs',
+      'comedy': 'Comedy Shows',
+      'movies': 'Movie Theaters',
+      'museums': 'Museums / Art Galleries',
       'sports': 'Sports Games',
       'outdoors': 'Hikes / Outdoors',
-      'dancing': 'Dancing / Clubs',
       'game-nights': 'Game Nights',
-      'potlucks': 'Potlucks'
+      'trivia': 'Trivia Nights'
     };
     
     let categoriesContext = '';
@@ -161,32 +169,43 @@ Requirements:
 6. Each suggestion should fit within the budget range
 7. Diversity within the same category is good (e.g., different cuisines if suggesting restaurants)
 8. Provide a search query that can be used with Google Places API
-9. FOR EVENTS ONLY (festivals, concerts, shows, sporting events, etc.): 
+9. FOR EVENTS ONLY (festivals, concerts, shows, sporting events, movies, comedy shows, etc.): 
    - Include a realistic "priceEstimate" (e.g., "$25-50 per person", "$15 tickets", "Free")
    - Include "timeConstraints" if applicable (e.g., "Only on Friday afternoons", "Weekends in summer", "Saturday evenings")
    - IMPORTANT: timeConstraints must match the group's availability (${availabilityText})
-   - Include a "complementaryFoodPlace" search query for 2 nearby food places (e.g., "restaurants near [event venue]" or "food near [festival location]")
-10. FOR RESTAURANTS/CAFES/BARS (meal venues):
+   - Include a "complementaryFoodPlace" search query (e.g., "restaurants near [event venue]" or "food near [festival location]")
+10. FOR FULL MEAL VENUES - this includes: restaurants, brunch spots, food markets, food halls
    - Leave priceEstimate and timeConstraints empty (pricing comes from Google)
-   - REQUIRED: Include a "complementaryFoodPlace" search query for 2 highly rated pre/post meal options nearby
-   - Examples: "dessert shops near Millbrae", "cocktail bars near Millbrae", "boba tea near Millbrae", "ice cream near Millbrae"
-   - These complement the main meal experience (dessert after dinner, drinks before/after, boba runs)
-11. FOR OUTDOOR VENUES (parks, beaches, hiking trails, outdoor spaces without food):
-   - Include a "complementaryFoodPlace" search query for nearby food places (e.g., "sandwich shops near Central Park" or "coffee shops near Golden Gate Park")
-   - This helps groups know where to grab food for their outdoor activity
-12. IMPORTANT - Use previous feedback AND voting data to guide suggestions:
+   - REQUIRED: Include a "complementaryFoodPlace" search query for DRINKS/DESSERT options nearby to complete the meal experience
+   - Examples: "dessert shops near [location]", "cocktail bars near [location]", "boba tea near [location]", "ice cream near [location]", "wine bars near [location]"
+   - These are post-meal treats or drinks to extend the outing
+11. FOR DRINKS/DESSERT VENUES - this includes: cafes, coffee shops, boba shops, cocktail bars, wine bars, breweries, beer gardens, dessert shops, ice cream shops, tea shops
+   - Leave priceEstimate and timeConstraints empty (pricing comes from Google)
+   - REQUIRED: Include a "complementaryFoodPlace" search query for FULL MEAL options nearby
+   - Examples: "restaurants near [location]", "brunch spots near [location]", "sandwich shops near [location]", "food trucks near [location]"
+   - Logic: If the main venue is drinks/dessert, suggest a proper meal that complements it (not another drink/dessert spot)
+12. FOR OUTDOOR VENUES - this includes: parks, beaches, hiking trails, nature areas, outdoor recreation spaces
+   - Include a "complementaryFoodPlace" search query for nearby PORTABLE MEAL options
+   - Examples: "sandwich shops near [location]", "food trucks near [location]", "delis near [location]", "poke bowls near [location]"
+   - Focus on portable, casual food suitable for outdoor activities (avoid sit-down restaurants)
+
+CRITICAL CONSTRAINTS for ALL complementaryFoodPlace queries:
+- Distance: ALL suggestions must be within 0.5 miles of the main venue
+- Quality: ALL suggestions must have 3.5+ star ratings or better
+- Each search query should return multiple options for the group to choose from
+13. IMPORTANT - Use previous feedback AND voting data to guide suggestions:
    - If activities were "LOVED", suggest very similar venues/types
    - If activities got "more", increase that type of suggestion
    - If activities got "less", avoid or minimize that type
    - If Favorites have HIGH net votes (popular), prioritize very similar venue types
    - If Favorites have NEGATIVE net votes (unpopular), avoid similar venue types
-13. FOR REASONING: CRITICAL - Keep it extremely concise at 4-10 words. NO flowery language or fluff. Just state the key reason.
+14. FOR REASONING: CRITICAL - Keep it extremely concise at 4-10 words. NO flowery language or fluff. Just state the key reason.
    Examples:
    - Good: "Fits budget, casual Asian shareable dining" (6 words)
    - Good: "Budget-friendly, intimate conversation spot" (4 words)
    - Bad: "Fits your budget and love for casual Asian dining with shareable plates" (too long)
    - Bad: "This wonderful venue will delight your senses with an amazing array of flavors" (way too long)
-14. When suggesting something NEW (outside their usual range/novelty preference), explicitly say "NEW:" at the start of the reasoning to highlight it's a departure from their typical choices.
+15. When suggesting something NEW (outside their usual range/novelty preference), explicitly say "NEW:" at the start of the reasoning to highlight it's a departure from their typical choices.
    Example: "NEW: Outside typical range, fits budget" (6 words)
 
 Return your response as a JSON object with this structure:
@@ -200,7 +219,7 @@ Return your response as a JSON object with this structure:
       "searchQuery": "search terms for Google Places API (e.g., 'Italian restaurants in San Francisco')",
       "priceEstimate": "ONLY for events: realistic price estimate",
       "timeConstraints": "ONLY for events: date/time constraints if any",
-      "complementaryFoodPlace": "for restaurants/cafes/bars: search query for pre/post meal options (dessert, drinks, boba); for outdoor venues: search query for nearby food; for events: search query for nearby food"
+      "complementaryFoodPlace": "search query for nearby options (<0.5mi, 3.5+ stars). Full meal venues→drinks/dessert. Drinks/dessert venues→full meals. Outdoor venues→portable meals."
     }
   ]
 }`;
