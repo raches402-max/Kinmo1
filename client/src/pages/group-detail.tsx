@@ -24,6 +24,26 @@ import { AvailabilityGrid, createEmptyAvailability } from "@/components/Availabi
 const closenessLabels = ["Acquaintances", "Friends", "Good Friends", "Close Friends", "Best Friends"];
 const noveltyLabels = ["Familiar Favorites", "Mostly Familiar", "Mix of Both", "Try New Things", "Always Novel"];
 
+function formatMeetingFrequency(freq: string): string {
+  // Handle old format
+  if (freq === "weekly") return "Every week";
+  if (freq === "biweekly") return "Every 2 weeks";
+  if (freq === "monthly") return "Every month";
+  if (freq === "flexible") return "Flexible";
+  
+  // Handle new format: "2-weeks", "1-month", etc.
+  if (freq.includes("-")) {
+    const [num, unit] = freq.split("-");
+    const number = parseInt(num);
+    if (number === 1) {
+      return `Every ${unit.replace(/s$/, "")}`;
+    }
+    return `Every ${number} ${unit}`;
+  }
+  
+  return freq;
+}
+
 export default function GroupDetail() {
   const [, params] = useRoute("/group/:id");
   const groupId = params?.id;
@@ -35,10 +55,11 @@ export default function GroupDetail() {
   const [editCloseness, setEditCloseness] = useState(3);
   const [editNovelty, setEditNovelty] = useState(3);
   const [editAvailability, setEditAvailability] = useState(createEmptyAvailability());
+  const [editFrequencyNumber, setEditFrequencyNumber] = useState(1);
+  const [editFrequencyUnit, setEditFrequencyUnit] = useState("weeks");
   const [editGroupData, setEditGroupData] = useState({
     name: "",
     locationBase: "",
-    meetingFrequency: "",
     pastPreferences: "",
     additionalInstructions: ""
   });
@@ -363,13 +384,37 @@ export default function GroupDetail() {
       setEditGroupData({
         name: group.name,
         locationBase: group.locationBase,
-        meetingFrequency: group.meetingFrequency,
         pastPreferences: group.pastPreferences || "",
         additionalInstructions: group.additionalInstructions || ""
       });
       setEditBudgetRange([group.budgetMin, group.budgetMax]);
       setEditCloseness(group.closenessLevel);
       setEditNovelty(group.noveltyPreference);
+      
+      // Parse meeting frequency
+      const freq = group.meetingFrequency;
+      if (freq === "weekly") {
+        setEditFrequencyNumber(1);
+        setEditFrequencyUnit("weeks");
+      } else if (freq === "biweekly") {
+        setEditFrequencyNumber(2);
+        setEditFrequencyUnit("weeks");
+      } else if (freq === "monthly") {
+        setEditFrequencyNumber(1);
+        setEditFrequencyUnit("months");
+      } else if (freq === "flexible") {
+        setEditFrequencyNumber(1);
+        setEditFrequencyUnit("weeks");
+      } else if (freq.includes("-")) {
+        // New format: "2-weeks", "1-month", etc.
+        const [num, unit] = freq.split("-");
+        setEditFrequencyNumber(parseInt(num) || 1);
+        setEditFrequencyUnit(unit || "weeks");
+      } else {
+        setEditFrequencyNumber(1);
+        setEditFrequencyUnit("weeks");
+      }
+      
       // Check if availability has the expected structure
       const availability = group.availability && typeof group.availability === 'object' && Object.keys(group.availability).length > 0
         ? group.availability
@@ -400,7 +445,7 @@ export default function GroupDetail() {
       locationBase: editGroupData.locationBase,
       budgetMin: editBudgetRange[0],
       budgetMax: editBudgetRange[1],
-      meetingFrequency: editGroupData.meetingFrequency,
+      meetingFrequency: `${editFrequencyNumber}-${editFrequencyUnit}`,
       closenessLevel: editCloseness,
       noveltyPreference: editNovelty,
       availability: editAvailability,
@@ -546,7 +591,7 @@ export default function GroupDetail() {
                   </div>
                   <div className="flex-1">
                     <p className="text-xs text-muted-foreground">Frequency</p>
-                    <p className="text-sm font-medium capitalize">{group.meetingFrequency.replace("-", " ")}</p>
+                    <p className="text-sm font-medium">{formatMeetingFrequency(group.meetingFrequency)}</p>
                   </div>
                 </div>
                 <div>
@@ -1363,24 +1408,36 @@ export default function GroupDetail() {
                         {editBudgetRange[0] >= 200 ? "$200+" : `$${editBudgetRange[0]}`}
                       </span>
                       <span className="font-medium" data-testid="text-edit-budget-max">
-                        {editBudgetRange[1] >= 250 ? "$200+" : `$${editBudgetRange[1]}`}
+                        {editBudgetRange[1] >= 200 ? "$200+" : `$${editBudgetRange[1]}`}
                       </span>
                     </div>
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-frequency">How Often to Meet</Label>
-                  <Select value={editGroupData.meetingFrequency} onValueChange={(value) => setEditGroupData({ ...editGroupData, meetingFrequency: value })}>
-                    <SelectTrigger data-testid="select-edit-frequency">
-                      <SelectValue placeholder="Select frequency" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="weekly">Weekly</SelectItem>
-                      <SelectItem value="biweekly">Every 2 Weeks</SelectItem>
-                      <SelectItem value="monthly">Monthly</SelectItem>
-                      <SelectItem value="flexible">Flexible</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label>How Often to Meet</Label>
+                  <div className="flex gap-2">
+                    <div className="w-24">
+                      <Input
+                        type="number"
+                        min={1}
+                        max={99}
+                        value={editFrequencyNumber}
+                        onChange={(e) => setEditFrequencyNumber(parseInt(e.target.value) || 1)}
+                        data-testid="input-edit-frequency-number"
+                      />
+                    </div>
+                    <Select value={editFrequencyUnit} onValueChange={setEditFrequencyUnit}>
+                      <SelectTrigger className="flex-1" data-testid="select-edit-frequency-unit">
+                        <SelectValue placeholder="Select unit" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="days">days</SelectItem>
+                        <SelectItem value="weeks">weeks</SelectItem>
+                        <SelectItem value="months">months</SelectItem>
+                        <SelectItem value="years">years</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <div className="space-y-3">
                   <Label>Group Availability</Label>
