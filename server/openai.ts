@@ -330,23 +330,30 @@ Budget Range: $${groupData.budgetMin}-${groupData.budgetMax} per person${categor
 ${groupData.pastPreferences ? `Past Preferences: ${groupData.pastPreferences}` : ''}${avoidContext}
 
 Requirements:
-1. Generate 20 quick concept ideas (not specific venue names, just general concepts)
+1. Generate 20 specific, actionable activity ideas (NOT generic vibes or actions)
 2. Each concept should fit within the budget range
 3. ${groupData.activityCategories && groupData.activityCategories.length > 0 ? `PRIORITIZE the Activity Interests listed above - focus on these types` : 'Suggest a diverse mix of activity types'}
-4. Make them specific enough to visualize but general enough to represent a type of activity
-5. Examples of good concepts:
-   - "Karaoke Night at Local Bar"
-   - "Sunday Brunch at Cozy Cafe"
-   - "Craft Brewery Hopping Tour"
-   - "Outdoor Picnic in the Park"
-   - "Comedy Show Night"
-   - "Wine Tasting Experience"
-6. Include a mix of food, entertainment, and activities
-7. Keep descriptions concise and appealing
+4. Be SPECIFIC about the activity - avoid generic phrases like "bar hopping" or "clubbing"
+5. Examples of GOOD concepts (specific activities):
+   - "Pottery Painting Workshop"
+   - "Sunrise Trail Hike"
+   - "Hot Yoga Class"
+   - "Pickleball Match"
+   - "Wine & Paint Night"
+   - "Trivia at Irish Pub"
+   - "Sunday Farmers Market"
+   - "Rooftop Cocktails"
+   - "Bowling Night"
+6. Examples of BAD concepts (too vague/generic):
+   - "Bar hopping in the city" (too generic)
+   - "Clubbing till 2am" (just an action)
+   - "Going to museums" (too vague)
+7. Include a mix of food, entertainment, and activities
+8. Keep descriptions concise (2-4 words max) and specific
 
 For each concept, provide:
-- conceptType: a short category slug (e.g., "karaoke", "breweries", "brunch", "outdoor-picnic")
-- conceptDescription: a catchy 3-6 word description
+- conceptType: a short category slug (e.g., "pottery-class", "sunrise-hike", "hot-yoga", "pickleball")
+- conceptDescription: a specific 2-4 word activity name (e.g., "Pottery Painting Workshop", "Sunrise Trail Hike", "Hot Yoga Class")
 
 Return your response as a JSON object with this structure:
 {
