@@ -116,7 +116,13 @@ Budget Range: $${groupData.budgetMin}-${groupData.budgetMax} per person
 Meeting Frequency: ${groupData.meetingFrequency}
 Usual Availability: ${availabilityText}
 ${groupData.pastPreferences ? `Past Preferences: ${groupData.pastPreferences}` : ''}
-${groupData.additionalInstructions ? `Additional Instructions: ${groupData.additionalInstructions}` : ''}${feedbackContext}${votingContext}${avoidVenuesContext}
+${groupData.additionalInstructions ? `\n⚠️ CRITICAL USER REQUEST: ${groupData.additionalInstructions}` : ''}${feedbackContext}${votingContext}${avoidVenuesContext}
+
+CRITICAL - Availability Constraint:
+- The group is ONLY available during: ${availabilityText}
+- DO NOT suggest events/activities outside their availability times
+- If an event requires specific timing, it MUST match their availability
+- Example: If they're only available "Mon-Fri evenings", DO NOT suggest "Saturday events" or "Sunday morning" activities
 
 CRITICAL - Novelty Preference Strategy:
 - Suggest ${familiarCount} FAMILIAR venues (things similar to past preferences, favorites, or things they've loved)
@@ -124,40 +130,42 @@ CRITICAL - Novelty Preference Strategy:
 - Mark NEW suggestions with "NEW:" prefix in reasoning
 
 Requirements:
-1. ANALYZE Past Preferences to identify the TYPES of venues they prefer (restaurants, bars, cafes, activities, outdoor spaces, etc.)
-2. PRIORITIZE suggesting the same TYPES of venues they've enjoyed historically
+1. ${groupData.additionalInstructions ? `⚠️ STRICTLY FOLLOW THE USER'S CRITICAL REQUEST ABOVE - This takes priority over everything else` : 'No additional user instructions'}
+2. ANALYZE Past Preferences to identify the TYPES of venues they prefer (restaurants, bars, cafes, activities, outdoor spaces, etc.)
+3. PRIORITIZE suggesting the same TYPES of venues they've enjoyed historically
    - If past preferences are mostly restaurants → suggest mostly restaurants
    - If past preferences include bars/nightlife → include bars/nightlife
    - Match the category distribution of their past preferences
-3. Suggest 6 specific types of venues/activities (not specific business names)
-4. Each suggestion should fit within the budget range
-5. Diversity within the same category is good (e.g., different cuisines if suggesting restaurants)
-6. Provide a search query that can be used with Google Places API
-7. FOR EVENTS ONLY (festivals, concerts, shows, sporting events, etc.): 
+4. Suggest 6 specific types of venues/activities (not specific business names)
+5. Each suggestion should fit within the budget range
+6. Diversity within the same category is good (e.g., different cuisines if suggesting restaurants)
+7. Provide a search query that can be used with Google Places API
+8. FOR EVENTS ONLY (festivals, concerts, shows, sporting events, etc.): 
    - Include a realistic "priceEstimate" (e.g., "$25-50 per person", "$15 tickets", "Free")
    - Include "timeConstraints" if applicable (e.g., "Only on Friday afternoons", "Weekends in summer", "Saturday evenings")
+   - IMPORTANT: timeConstraints must match the group's availability (${availabilityText})
    - Include a "complementaryFoodPlace" search query for 2 nearby food places (e.g., "restaurants near [event venue]" or "food near [festival location]")
-8. FOR RESTAURANTS/CAFES/BARS (meal venues):
+9. FOR RESTAURANTS/CAFES/BARS (meal venues):
    - Leave priceEstimate and timeConstraints empty (pricing comes from Google)
    - REQUIRED: Include a "complementaryFoodPlace" search query for 2 highly rated pre/post meal options nearby
    - Examples: "dessert shops near Millbrae", "cocktail bars near Millbrae", "boba tea near Millbrae", "ice cream near Millbrae"
    - These complement the main meal experience (dessert after dinner, drinks before/after, boba runs)
-9. FOR OUTDOOR VENUES (parks, beaches, hiking trails, outdoor spaces without food):
+10. FOR OUTDOOR VENUES (parks, beaches, hiking trails, outdoor spaces without food):
    - Include a "complementaryFoodPlace" search query for nearby food places (e.g., "sandwich shops near Central Park" or "coffee shops near Golden Gate Park")
    - This helps groups know where to grab food for their outdoor activity
-10. IMPORTANT - Use previous feedback AND voting data to guide suggestions:
+11. IMPORTANT - Use previous feedback AND voting data to guide suggestions:
    - If activities were "LOVED", suggest very similar venues/types
    - If activities got "more", increase that type of suggestion
    - If activities got "less", avoid or minimize that type
    - If Favorites have HIGH net votes (popular), prioritize very similar venue types
    - If Favorites have NEGATIVE net votes (unpopular), avoid similar venue types
-11. FOR REASONING: CRITICAL - Keep it extremely concise at 4-10 words. NO flowery language or fluff. Just state the key reason.
+12. FOR REASONING: CRITICAL - Keep it extremely concise at 4-10 words. NO flowery language or fluff. Just state the key reason.
    Examples:
    - Good: "Fits budget, casual Asian shareable dining" (6 words)
    - Good: "Budget-friendly, intimate conversation spot" (4 words)
    - Bad: "Fits your budget and love for casual Asian dining with shareable plates" (too long)
    - Bad: "This wonderful venue will delight your senses with an amazing array of flavors" (way too long)
-12. When suggesting something NEW (outside their usual range/novelty preference), explicitly say "NEW:" at the start of the reasoning to highlight it's a departure from their typical choices.
+13. When suggesting something NEW (outside their usual range/novelty preference), explicitly say "NEW:" at the start of the reasoning to highlight it's a departure from their typical choices.
    Example: "NEW: Outside typical range, fits budget" (6 words)
 
 Return your response as a JSON object with this structure:
