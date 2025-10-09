@@ -49,7 +49,7 @@ export default function CreateGroup() {
   const [novelty, setNovelty] = useState(3);
   const [availability, setAvailability] = useState(createEmptyAvailability());
   const [frequencyNumber, setFrequencyNumber] = useState(1);
-  const [frequencyUnit, setFrequencyUnit] = useState("weeks");
+  const [frequencyUnit, setFrequencyUnit] = useState("week");
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -58,7 +58,7 @@ export default function CreateGroup() {
       locationBase: "",
       budgetMin: 50,
       budgetMax: 250,
-      meetingFrequency: "1-weeks",
+      meetingFrequency: "1-week",
       closenessLevel: 3,
       noveltyPreference: 3,
       pastPreferences: "",
@@ -214,10 +214,10 @@ export default function CreateGroup() {
                         <SelectValue placeholder="Select unit" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="days">days</SelectItem>
-                        <SelectItem value="weeks">weeks</SelectItem>
-                        <SelectItem value="months">months</SelectItem>
-                        <SelectItem value="years">years</SelectItem>
+                        <SelectItem value="day">day</SelectItem>
+                        <SelectItem value="week">week</SelectItem>
+                        <SelectItem value="month">month</SelectItem>
+                        <SelectItem value="year">year</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

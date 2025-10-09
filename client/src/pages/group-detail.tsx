@@ -31,14 +31,18 @@ function formatMeetingFrequency(freq: string): string {
   if (freq === "monthly") return "Every month";
   if (freq === "flexible") return "Flexible";
   
-  // Handle new format: "2-weeks", "1-month", etc.
+  // Handle new format: "2-week", "1-month", etc. (both singular and plural)
   if (freq.includes("-")) {
     const [num, unit] = freq.split("-");
     const number = parseInt(num);
+    // Remove 's' if plural for consistency
+    const singularUnit = unit.endsWith("s") ? unit.slice(0, -1) : unit;
+    
     if (number === 1) {
-      return `Every ${unit.replace(/s$/, "")}`;
+      return `Every ${singularUnit}`;
     }
-    return `Every ${number} ${unit}`;
+    // Add 's' for plural display
+    return `Every ${number} ${singularUnit}s`;
   }
   
   return freq;
@@ -395,24 +399,30 @@ export default function GroupDetail() {
       const freq = group.meetingFrequency;
       if (freq === "weekly") {
         setEditFrequencyNumber(1);
-        setEditFrequencyUnit("weeks");
+        setEditFrequencyUnit("week");
       } else if (freq === "biweekly") {
         setEditFrequencyNumber(2);
-        setEditFrequencyUnit("weeks");
+        setEditFrequencyUnit("week");
       } else if (freq === "monthly") {
         setEditFrequencyNumber(1);
-        setEditFrequencyUnit("months");
+        setEditFrequencyUnit("month");
       } else if (freq === "flexible") {
         setEditFrequencyNumber(1);
-        setEditFrequencyUnit("weeks");
+        setEditFrequencyUnit("week");
       } else if (freq.includes("-")) {
-        // New format: "2-weeks", "1-month", etc.
+        // New format: "2-week", "1-month", etc.
         const [num, unit] = freq.split("-");
-        setEditFrequencyNumber(parseInt(num) || 1);
-        setEditFrequencyUnit(unit || "weeks");
+        const parsedNum = parseInt(num) || 1;
+        // Convert old plural forms to singular
+        let singularUnit = unit || "week";
+        if (singularUnit.endsWith("s")) {
+          singularUnit = singularUnit.slice(0, -1);
+        }
+        setEditFrequencyNumber(parsedNum);
+        setEditFrequencyUnit(singularUnit);
       } else {
         setEditFrequencyNumber(1);
-        setEditFrequencyUnit("weeks");
+        setEditFrequencyUnit("week");
       }
       
       // Check if availability has the expected structure
@@ -1432,10 +1442,10 @@ export default function GroupDetail() {
                         <SelectValue placeholder="Select unit" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="days">days</SelectItem>
-                        <SelectItem value="weeks">weeks</SelectItem>
-                        <SelectItem value="months">months</SelectItem>
-                        <SelectItem value="years">years</SelectItem>
+                        <SelectItem value="day">day</SelectItem>
+                        <SelectItem value="week">week</SelectItem>
+                        <SelectItem value="month">month</SelectItem>
+                        <SelectItem value="year">year</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
