@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown } from "lucide-react";
+import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -25,15 +25,15 @@ const closenessLabels = ["Acquaintances", "Friends", "Good Friends", "Close Frie
 const noveltyLabels = ["We like our usual spots", "Leaning familiar", "Open sometimes", "Pretty adventurous", "Always up for new things!"];
 
 const activityCategories = [
-  { id: "wine-bars", label: "Wine / Cocktail Bars", emoji: "🍷" },
-  { id: "karaoke", label: "Karaoke", emoji: "🎤" },
-  { id: "concerts", label: "Concerts", emoji: "🎵" },
-  { id: "cafes", label: "Cafes", emoji: "☕" },
-  { id: "sports", label: "Sports Games", emoji: "⚽" },
-  { id: "outdoors", label: "Hikes / Outdoors", emoji: "🥾" },
-  { id: "dancing", label: "Dancing / Clubs", emoji: "💃" },
-  { id: "game-nights", label: "Game Nights", emoji: "🎲" },
-  { id: "potlucks", label: "Potlucks", emoji: "🍽️" },
+  { id: "wine-bars", label: "Wine / Cocktail Bars", icon: Wine },
+  { id: "karaoke", label: "Karaoke", icon: Mic2 },
+  { id: "concerts", label: "Concerts", icon: Music },
+  { id: "cafes", label: "Cafes", icon: Coffee },
+  { id: "sports", label: "Sports Games", icon: Trophy },
+  { id: "outdoors", label: "Hikes / Outdoors", icon: Mountain },
+  { id: "dancing", label: "Dancing / Clubs", icon: PartyPopper },
+  { id: "game-nights", label: "Game Nights", icon: Gamepad2 },
+  { id: "potlucks", label: "Potlucks", icon: UtensilsCrossed },
 ];
 
 function formatMeetingFrequency(freq: string): string {
@@ -1514,20 +1514,23 @@ export default function GroupDetail() {
                   <Label className="text-base">What types of activities interest your group?</Label>
                   <p className="text-sm text-muted-foreground">Select all that apply (optional)</p>
                   <div className="flex flex-wrap gap-2">
-                    {activityCategories.map((category) => (
-                      <Button
-                        key={category.id}
-                        type="button"
-                        variant={editCategories.includes(category.id) ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => toggleEditCategory(category.id)}
-                        className="gap-1.5"
-                        data-testid={`button-edit-category-${category.id}`}
-                      >
-                        <span className="text-base">{category.emoji}</span>
-                        <span>{category.label}</span>
-                      </Button>
-                    ))}
+                    {activityCategories.map((category) => {
+                      const Icon = category.icon;
+                      return (
+                        <Button
+                          key={category.id}
+                          type="button"
+                          variant={editCategories.includes(category.id) ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => toggleEditCategory(category.id)}
+                          className="gap-1.5"
+                          data-testid={`button-edit-category-${category.id}`}
+                        >
+                          <Icon className="h-4 w-4" />
+                          <span>{category.label}</span>
+                        </Button>
+                      );
+                    })}
                   </div>
                 </div>
 

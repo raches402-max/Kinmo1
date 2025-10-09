@@ -473,6 +473,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       availability: groupData.availability,
       closenessLevel: groupData.closenessLevel,
       noveltyPreference: groupData.noveltyPreference,
+      activityCategories: groupData.activityCategories,
       pastPreferences: groupData.pastPreferences,
       additionalInstructions: groupData.additionalInstructions,
       previousFeedback: previousFeedback.length > 0 ? previousFeedback : undefined,

@@ -22,6 +22,7 @@ export async function generateActivitySuggestions(groupData: {
   availability: any;
   closenessLevel: number;
   noveltyPreference: number;
+  activityCategories?: string[];
   pastPreferences?: string;
   additionalInstructions?: string;
   previousFeedback?: { venueName: string; venueType: string; feedback: string; description: string }[];
@@ -103,6 +104,25 @@ export async function generateActivitySuggestions(groupData: {
       }
     }
 
+    // Format activity categories for the prompt
+    const categoryLabels: Record<string, string> = {
+      'wine-bars': 'Wine / Cocktail Bars',
+      'karaoke': 'Karaoke',
+      'concerts': 'Concerts',
+      'cafes': 'Cafes',
+      'sports': 'Sports Games',
+      'outdoors': 'Hikes / Outdoors',
+      'dancing': 'Dancing / Clubs',
+      'game-nights': 'Game Nights',
+      'potlucks': 'Potlucks'
+    };
+    
+    let categoriesContext = '';
+    if (groupData.activityCategories && groupData.activityCategories.length > 0) {
+      const selectedCategories = groupData.activityCategories.map(id => categoryLabels[id] || id).join(', ');
+      categoriesContext = `\nActivity Interests: ${selectedCategories}`;
+    }
+
     // Format previously suggested venues to avoid repeats
     let avoidVenuesContext = '';
     if (groupData.previouslySuggestedVenues && groupData.previouslySuggestedVenues.length > 0) {
@@ -114,7 +134,7 @@ export async function generateActivitySuggestions(groupData: {
 Location: ${groupData.locationBase}
 Budget Range: $${groupData.budgetMin}-${groupData.budgetMax} per person
 Meeting Frequency: ${groupData.meetingFrequency}
-Usual Availability: ${availabilityText}
+Usual Availability: ${availabilityText}${categoriesContext}
 ${groupData.pastPreferences ? `Past Preferences: ${groupData.pastPreferences}` : ''}
 ${groupData.additionalInstructions ? `\n⚠️ CRITICAL USER REQUEST: ${groupData.additionalInstructions}` : ''}${feedbackContext}${votingContext}${avoidVenuesContext}
 
@@ -131,41 +151,42 @@ CRITICAL - Novelty Preference Strategy:
 
 Requirements:
 1. ${groupData.additionalInstructions ? `⚠️ STRICTLY FOLLOW THE USER'S CRITICAL REQUEST ABOVE - This takes priority over everything else` : 'No additional user instructions'}
-2. ANALYZE Past Preferences to identify the TYPES of venues they prefer (restaurants, bars, cafes, activities, outdoor spaces, etc.)
-3. PRIORITIZE suggesting the same TYPES of venues they've enjoyed historically
+2. ${groupData.activityCategories && groupData.activityCategories.length > 0 ? `PRIORITIZE the Activity Interests listed above - these are the types of activities the group specifically wants` : 'No specific activity category preferences'}
+3. ANALYZE Past Preferences to identify the TYPES of venues they prefer (restaurants, bars, cafes, activities, outdoor spaces, etc.)
+4. PRIORITIZE suggesting the same TYPES of venues they've enjoyed historically
    - If past preferences are mostly restaurants → suggest mostly restaurants
    - If past preferences include bars/nightlife → include bars/nightlife
    - Match the category distribution of their past preferences
-4. Suggest 6 specific types of venues/activities (not specific business names)
-5. Each suggestion should fit within the budget range
-6. Diversity within the same category is good (e.g., different cuisines if suggesting restaurants)
-7. Provide a search query that can be used with Google Places API
-8. FOR EVENTS ONLY (festivals, concerts, shows, sporting events, etc.): 
+5. Suggest 6 specific types of venues/activities (not specific business names)
+6. Each suggestion should fit within the budget range
+7. Diversity within the same category is good (e.g., different cuisines if suggesting restaurants)
+8. Provide a search query that can be used with Google Places API
+9. FOR EVENTS ONLY (festivals, concerts, shows, sporting events, etc.): 
    - Include a realistic "priceEstimate" (e.g., "$25-50 per person", "$15 tickets", "Free")
    - Include "timeConstraints" if applicable (e.g., "Only on Friday afternoons", "Weekends in summer", "Saturday evenings")
    - IMPORTANT: timeConstraints must match the group's availability (${availabilityText})
    - Include a "complementaryFoodPlace" search query for 2 nearby food places (e.g., "restaurants near [event venue]" or "food near [festival location]")
-9. FOR RESTAURANTS/CAFES/BARS (meal venues):
+10. FOR RESTAURANTS/CAFES/BARS (meal venues):
    - Leave priceEstimate and timeConstraints empty (pricing comes from Google)
    - REQUIRED: Include a "complementaryFoodPlace" search query for 2 highly rated pre/post meal options nearby
    - Examples: "dessert shops near Millbrae", "cocktail bars near Millbrae", "boba tea near Millbrae", "ice cream near Millbrae"
    - These complement the main meal experience (dessert after dinner, drinks before/after, boba runs)
-10. FOR OUTDOOR VENUES (parks, beaches, hiking trails, outdoor spaces without food):
+11. FOR OUTDOOR VENUES (parks, beaches, hiking trails, outdoor spaces without food):
    - Include a "complementaryFoodPlace" search query for nearby food places (e.g., "sandwich shops near Central Park" or "coffee shops near Golden Gate Park")
    - This helps groups know where to grab food for their outdoor activity
-11. IMPORTANT - Use previous feedback AND voting data to guide suggestions:
+12. IMPORTANT - Use previous feedback AND voting data to guide suggestions:
    - If activities were "LOVED", suggest very similar venues/types
    - If activities got "more", increase that type of suggestion
    - If activities got "less", avoid or minimize that type
    - If Favorites have HIGH net votes (popular), prioritize very similar venue types
    - If Favorites have NEGATIVE net votes (unpopular), avoid similar venue types
-12. FOR REASONING: CRITICAL - Keep it extremely concise at 4-10 words. NO flowery language or fluff. Just state the key reason.
+13. FOR REASONING: CRITICAL - Keep it extremely concise at 4-10 words. NO flowery language or fluff. Just state the key reason.
    Examples:
    - Good: "Fits budget, casual Asian shareable dining" (6 words)
    - Good: "Budget-friendly, intimate conversation spot" (4 words)
    - Bad: "Fits your budget and love for casual Asian dining with shareable plates" (too long)
    - Bad: "This wonderful venue will delight your senses with an amazing array of flavors" (way too long)
-13. When suggesting something NEW (outside their usual range/novelty preference), explicitly say "NEW:" at the start of the reasoning to highlight it's a departure from their typical choices.
+14. When suggesting something NEW (outside their usual range/novelty preference), explicitly say "NEW:" at the start of the reasoning to highlight it's a departure from their typical choices.
    Example: "NEW: Outside typical range, fits budget" (6 words)
 
 Return your response as a JSON object with this structure:

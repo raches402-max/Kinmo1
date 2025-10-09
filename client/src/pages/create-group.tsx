@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ArrowLeft, Plus, X, Users } from "lucide-react";
+import { ArrowLeft, Plus, X, Users, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed } from "lucide-react";
 import { Link } from "wouter";
 import { AvailabilityGrid, createEmptyAvailability } from "@/components/AvailabilityGrid";
 
@@ -41,15 +41,15 @@ const closenessLabels = ["Acquaintances", "Friends", "Good Friends", "Close Frie
 const noveltyLabels = ["We like our usual spots", "Leaning familiar", "Open sometimes", "Pretty adventurous", "Always up for new things!"];
 
 const activityCategories = [
-  { id: "wine-bars", label: "Wine / Cocktail Bars", emoji: "🍷" },
-  { id: "karaoke", label: "Karaoke", emoji: "🎤" },
-  { id: "concerts", label: "Concerts", emoji: "🎵" },
-  { id: "cafes", label: "Cafes", emoji: "☕" },
-  { id: "sports", label: "Sports Games", emoji: "⚽" },
-  { id: "outdoors", label: "Hikes / Outdoors", emoji: "🥾" },
-  { id: "dancing", label: "Dancing / Clubs", emoji: "💃" },
-  { id: "game-nights", label: "Game Nights", emoji: "🎲" },
-  { id: "potlucks", label: "Potlucks", emoji: "🍽️" },
+  { id: "wine-bars", label: "Wine / Cocktail Bars", icon: Wine },
+  { id: "karaoke", label: "Karaoke", icon: Mic2 },
+  { id: "concerts", label: "Concerts", icon: Music },
+  { id: "cafes", label: "Cafes", icon: Coffee },
+  { id: "sports", label: "Sports Games", icon: Trophy },
+  { id: "outdoors", label: "Hikes / Outdoors", icon: Mountain },
+  { id: "dancing", label: "Dancing / Clubs", icon: PartyPopper },
+  { id: "game-nights", label: "Game Nights", icon: Gamepad2 },
+  { id: "potlucks", label: "Potlucks", icon: UtensilsCrossed },
 ];
 
 export default function CreateGroup() {
@@ -310,20 +310,23 @@ export default function CreateGroup() {
                   <Label className="text-base">What types of activities interest your group?</Label>
                   <p className="text-sm text-muted-foreground">Select all that apply (optional)</p>
                   <div className="flex flex-wrap gap-2">
-                    {activityCategories.map((category) => (
-                      <Button
-                        key={category.id}
-                        type="button"
-                        variant={selectedCategories.includes(category.id) ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => toggleCategory(category.id)}
-                        className="gap-1.5"
-                        data-testid={`button-category-${category.id}`}
-                      >
-                        <span className="text-base">{category.emoji}</span>
-                        <span>{category.label}</span>
-                      </Button>
-                    ))}
+                    {activityCategories.map((category) => {
+                      const Icon = category.icon;
+                      return (
+                        <Button
+                          key={category.id}
+                          type="button"
+                          variant={selectedCategories.includes(category.id) ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => toggleCategory(category.id)}
+                          className="gap-1.5"
+                          data-testid={`button-category-${category.id}`}
+                        >
+                          <Icon className="h-4 w-4" />
+                          <span>{category.label}</span>
+                        </Button>
+                      );
+                    })}
                   </div>
                 </div>
 
