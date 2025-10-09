@@ -40,6 +40,18 @@ type MemberInput = {
 const closenessLabels = ["Acquaintances", "Friends", "Good Friends", "Close Friends", "Best Friends"];
 const noveltyLabels = ["We like our usual spots", "Leaning familiar", "Open sometimes", "Pretty adventurous", "Always up for new things!"];
 
+const activityCategories = [
+  { id: "wine-bars", label: "Wine / Cocktail Bars", emoji: "🍷" },
+  { id: "karaoke", label: "Karaoke", emoji: "🎤" },
+  { id: "concerts", label: "Concerts", emoji: "🎵" },
+  { id: "cafes", label: "Cafes", emoji: "☕" },
+  { id: "sports", label: "Sports Games", emoji: "⚽" },
+  { id: "outdoors", label: "Hikes / Outdoors", emoji: "🥾" },
+  { id: "dancing", label: "Dancing / Clubs", emoji: "💃" },
+  { id: "game-nights", label: "Game Nights", emoji: "🎲" },
+  { id: "potlucks", label: "Potlucks", emoji: "🍽️" },
+];
+
 export default function CreateGroup() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
@@ -50,6 +62,7 @@ export default function CreateGroup() {
   const [availability, setAvailability] = useState(createEmptyAvailability());
   const [frequencyNumber, setFrequencyNumber] = useState(1);
   const [frequencyUnit, setFrequencyUnit] = useState("week");
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -70,6 +83,7 @@ export default function CreateGroup() {
     mutationFn: async (data: FormValues & { 
       availability: any;
       members: MemberInput[];
+      activityCategories?: string[];
     }) => {
       const res = await apiRequest("POST", "/api/groups", data);
       return await res.json();
@@ -100,6 +114,7 @@ export default function CreateGroup() {
       meetingFrequency: `${frequencyNumber}-${frequencyUnit}`,
       closenessLevel: closeness,
       noveltyPreference: novelty,
+      activityCategories: selectedCategories.length > 0 ? selectedCategories : undefined,
       availability,
       members: validMembers,
     });
@@ -117,6 +132,14 @@ export default function CreateGroup() {
     const updated = [...members];
     updated[index][field] = value;
     setMembers(updated);
+  };
+
+  const toggleCategory = (categoryId: string) => {
+    setSelectedCategories(prev =>
+      prev.includes(categoryId)
+        ? prev.filter(id => id !== categoryId)
+        : [...prev, categoryId]
+    );
   };
 
   return (
@@ -280,6 +303,27 @@ export default function CreateGroup() {
                       <span>Open sometimes</span>
                       <span>Always up for new things!</span>
                     </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="text-base">What types of activities interest your group?</Label>
+                  <p className="text-sm text-muted-foreground">Select all that apply (optional)</p>
+                  <div className="flex flex-wrap gap-2">
+                    {activityCategories.map((category) => (
+                      <Button
+                        key={category.id}
+                        type="button"
+                        variant={selectedCategories.includes(category.id) ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => toggleCategory(category.id)}
+                        className="gap-1.5"
+                        data-testid={`button-category-${category.id}`}
+                      >
+                        <span className="text-base">{category.emoji}</span>
+                        <span>{category.label}</span>
+                      </Button>
+                    ))}
                   </div>
                 </div>
 
