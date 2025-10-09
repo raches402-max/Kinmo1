@@ -24,6 +24,18 @@ import { AvailabilityGrid, createEmptyAvailability } from "@/components/Availabi
 const closenessLabels = ["Acquaintances", "Friends", "Good Friends", "Close Friends", "Best Friends"];
 const noveltyLabels = ["We like our usual spots", "Leaning familiar", "Open sometimes", "Pretty adventurous", "Always up for new things!"];
 
+const activityCategories = [
+  { id: "wine-bars", label: "Wine / Cocktail Bars", emoji: "🍷" },
+  { id: "karaoke", label: "Karaoke", emoji: "🎤" },
+  { id: "concerts", label: "Concerts", emoji: "🎵" },
+  { id: "cafes", label: "Cafes", emoji: "☕" },
+  { id: "sports", label: "Sports Games", emoji: "⚽" },
+  { id: "outdoors", label: "Hikes / Outdoors", emoji: "🥾" },
+  { id: "dancing", label: "Dancing / Clubs", emoji: "💃" },
+  { id: "game-nights", label: "Game Nights", emoji: "🎲" },
+  { id: "potlucks", label: "Potlucks", emoji: "🍽️" },
+];
+
 function formatMeetingFrequency(freq: string): string {
   // Handle old format
   if (freq === "weekly") return "Every week";
@@ -61,6 +73,7 @@ export default function GroupDetail() {
   const [editAvailability, setEditAvailability] = useState(createEmptyAvailability());
   const [editFrequencyNumber, setEditFrequencyNumber] = useState(1);
   const [editFrequencyUnit, setEditFrequencyUnit] = useState("weeks");
+  const [editCategories, setEditCategories] = useState<string[]>([]);
   const [editGroupData, setEditGroupData] = useState({
     name: "",
     locationBase: "",
@@ -370,6 +383,14 @@ export default function GroupDetail() {
     },
   });
 
+  const toggleEditCategory = (categoryId: string) => {
+    setEditCategories(prev =>
+      prev.includes(categoryId)
+        ? prev.filter(id => id !== categoryId)
+        : [...prev, categoryId]
+    );
+  };
+
   const handleVote = (eventId: string, voteType: 'upvote' | 'downvote') => {
     const currentVote = myVotes[eventId];
     if (currentVote) {
@@ -394,6 +415,7 @@ export default function GroupDetail() {
       setEditBudgetRange([group.budgetMin, group.budgetMax]);
       setEditCloseness(group.closenessLevel);
       setEditNovelty(group.noveltyPreference);
+      setEditCategories(group.activityCategories || []);
       
       // Parse meeting frequency
       const freq = group.meetingFrequency;
@@ -458,6 +480,7 @@ export default function GroupDetail() {
       meetingFrequency: `${editFrequencyNumber}-${editFrequencyUnit}`,
       closenessLevel: editCloseness,
       noveltyPreference: editNovelty,
+      activityCategories: editCategories.length > 0 ? editCategories : undefined,
       availability: editAvailability,
       pastPreferences: editGroupData.pastPreferences,
       additionalInstructions: editGroupData.additionalInstructions
@@ -1484,6 +1507,27 @@ export default function GroupDetail() {
                       <span>Open sometimes</span>
                       <span>Always up for new things!</span>
                     </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="text-base">What types of activities interest your group?</Label>
+                  <p className="text-sm text-muted-foreground">Select all that apply (optional)</p>
+                  <div className="flex flex-wrap gap-2">
+                    {activityCategories.map((category) => (
+                      <Button
+                        key={category.id}
+                        type="button"
+                        variant={editCategories.includes(category.id) ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => toggleEditCategory(category.id)}
+                        className="gap-1.5"
+                        data-testid={`button-edit-category-${category.id}`}
+                      >
+                        <span className="text-base">{category.emoji}</span>
+                        <span>{category.label}</span>
+                      </Button>
+                    ))}
                   </div>
                 </div>
 
