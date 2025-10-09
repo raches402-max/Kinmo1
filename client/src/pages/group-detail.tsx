@@ -1040,7 +1040,10 @@ export default function GroupDetail() {
               </Card>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {activities.filter(activity => activity.feedback !== "less").map((activity) => {
+                {activities
+                  .filter(activity => activity.feedback !== "less")
+                  .sort((a, b) => a.id.localeCompare(b.id))
+                  .map((activity) => {
                   // Determine label for complementary places
                   const isRestaurant = ['restaurant', 'cafe', 'bar', 'brewery', 'bakery', 'food'].some(type => 
                     activity.venueType.toLowerCase().includes(type)
