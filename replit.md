@@ -17,6 +17,7 @@ The platform enables users to create groups, invite members, and receive tailore
   - **Specific Activities**: Updated AI to suggest concrete activities ("Pottery Painting Workshop", "Hot Yoga Class", "Trivia at Irish Pub") instead of vague vibes ("bar hopping", "clubbing")
 - **Fixed Duplicate Suggestions**: Completely eliminated duplicates in both main and complementary food suggestions:
   - **Comprehensive Tracking**: Duplicate prevention now tracks main venues (AI names + Google names) AND complementary food places (both complementaryPlaceName and complementaryPlaceName2)
+  - **Within-Batch Deduplication**: Added deduplication AFTER Google Places returns results to catch when different search queries return the same business (e.g., "Szechuan restaurants" and "dim sum restaurants" both returning the same restaurant)
   - **Varied Complementary Queries**: AI now uses specific, varied food types instead of generic repeats:
     - Instead of "dessert shops" repeatedly → uses "artisan ice cream", "gelato shops", "craft cocktail bars", "boba tea cafes", "sake bars"
     - Instead of "restaurants" generically → uses "ramen shops", "taco spots", "banh mi shops", "poke bowl restaurants", "dim sum"

@@ -646,8 +646,27 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
 
     console.log(`[AI Generation] Created ${activitiesData.length} activities to store`);
     
-    // Store all activities
-    await storage.createActivities(activitiesData);
+    // Deduplicate activities by venue name and Google Place ID within this batch
+    // (Google may return the same restaurant for different search queries like "Szechuan" and "Dim Sum")
+    const uniqueActivities: typeof activitiesData = [];
+    const seenVenues = new Set<string>();
+    
+    for (const activity of activitiesData) {
+      // Create a unique key based on Google Place ID (if available) or venue name
+      const venueKey = activity.googlePlaceId || activity.venueName.toLowerCase();
+      
+      if (!seenVenues.has(venueKey)) {
+        seenVenues.add(venueKey);
+        uniqueActivities.push(activity);
+      } else {
+        console.log(`[AI Generation] Skipping duplicate venue within batch: ${activity.venueName}`);
+      }
+    }
+    
+    console.log(`[AI Generation] After deduplication: ${uniqueActivities.length} unique activities (removed ${activitiesData.length - uniqueActivities.length} duplicates)`);
+    
+    // Store all unique activities
+    await storage.createActivities(uniqueActivities);
     
     console.log(`[AI Generation] Successfully stored activities for group ${groupId}`);
     
