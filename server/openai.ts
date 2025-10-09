@@ -32,10 +32,13 @@ export async function generateActivitySuggestions(groupData: {
   previouslySuggestedVenues?: string[];
 }): Promise<ActivitySuggestion[]> {
   try {
-    // Calculate novelty split: novelty 1 = 6 familiar, novelty 3 = 3 familiar + 3 new, novelty 5 = 6 new
-    // Formula: familiar = 6 - (noveltyPreference - 1) * 1.5, rounded
-    const familiarCount = Math.round(6 - (groupData.noveltyPreference - 1) * 1.5);
-    const newCount = 6 - familiarCount;
+    // Generate 15 suggestions to account for duplicates after Google Places enrichment
+    // After deduplication, we'll take the first 6 unique ones
+    // This ensures we always have 6 cards even in areas with limited venue options
+    // Calculate novelty split based on 15 suggestions: novelty 1 = 15 familiar, novelty 3 = 7-8 split, novelty 5 = 15 new
+    // Formula: familiar = 15 - (noveltyPreference - 1) * 3.75, rounded
+    const familiarCount = Math.round(15 - (groupData.noveltyPreference - 1) * 3.75);
+    const newCount = 15 - familiarCount;
 
     // Format availability for display
     const formatAvailabilityForPrompt = (availability: any): string => {
@@ -152,7 +155,9 @@ export async function generateActivitySuggestions(groupData: {
       avoidVenuesContext = `\n\nIMPORTANT - DO NOT suggest these venues again (already suggested): ${groupData.previouslySuggestedVenues.join(', ')}`;
     }
 
-    const prompt = `You are an expert activity planner. Generate 6 diverse activity suggestions for a group with these preferences:
+    const prompt = `You are an expert activity planner. Generate 15 diverse activity suggestions for a group with these preferences:
+
+NOTE: You will generate 15 suggestions, but only 6 will be shown to the user after removing duplicates. This ensures 6 unique venues even if Google Places returns the same restaurant for multiple search queries.
 
 Location: ${groupData.locationBase}
 Budget Range: $${groupData.budgetMin}-${groupData.budgetMax} per person
@@ -180,7 +185,7 @@ Requirements:
    - If past preferences are mostly restaurants → suggest mostly restaurants
    - If past preferences include bars/nightlife → include bars/nightlife
    - Match the category distribution of their past preferences
-5. Suggest 6 specific types of venues/activities (not specific business names)
+5. Suggest 15 specific types of venues/activities (not specific business names) - we'll show 6 after deduplication
 6. Each suggestion should fit within the budget range
 7. CRITICAL - BE SPECIFIC WITH CUISINE TYPES:
    - NEVER use broad categories like "Asian restaurants" or "Asian food"
@@ -294,11 +299,15 @@ Return your response as a JSON object with this structure:
     });
 
     const result = JSON.parse(response.choices[0].message.content || '{}');
-    console.log(`[OpenAI] Received response with ${result.suggestions?.length || 0} suggestions`);
+    console.log(`[OpenAI] Received response with ${result.suggestions?.length || 0} suggestions (will show 6 after deduplication)`);
     console.log(`[OpenAI] Raw response:`, JSON.stringify(result, null, 2));
     
     if (!result.suggestions || result.suggestions.length === 0) {
       throw new Error("OpenAI returned no activity suggestions. The response may be empty or malformed.");
+    }
+    
+    if (result.suggestions.length < 15) {
+      console.warn(`[OpenAI] Warning: Only received ${result.suggestions.length} suggestions instead of 15 - may result in fewer than 6 unique activities after deduplication`);
     }
     
     return result.suggestions;

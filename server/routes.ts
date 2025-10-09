@@ -537,136 +537,150 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
     await storage.archiveGroupActivities(groupId);
     console.log(`[AI Generation] Archived existing activities for group ${groupId}`);
 
-    // Generate AI suggestions with feedback and list of venues to avoid
-    const suggestions = await generateActivitySuggestions({
-      locationBase: groupData.locationBase,
-      budgetMin: groupData.budgetMin,
-      budgetMax: groupData.budgetMax,
-      meetingFrequency: groupData.meetingFrequency,
-      availability: groupData.availability,
-      closenessLevel: groupData.closenessLevel,
-      noveltyPreference: groupData.noveltyPreference,
-      activityCategories: groupData.activityCategories,
-      pastPreferences: groupData.pastPreferences,
-      additionalInstructions: groupData.additionalInstructions,
-      previousFeedback: previousFeedback.length > 0 ? previousFeedback : undefined,
-      votingFeedback: votingFeedback.length > 0 ? votingFeedback : undefined,
-      likedConcepts: likedConcepts.length > 0 ? likedConcepts : undefined,
-      passedConcepts: passedConcepts.length > 0 ? passedConcepts : undefined,
-      previouslySuggestedVenues: previouslySuggestedVenues.length > 0 ? previouslySuggestedVenues : undefined,
-    });
+    // Track all unique activities across retries
+    const allUniqueActivities: any[] = [];
+    const seenVenues = new Set<string>(); // Track across all attempts
+    let attempt = 0;
+    const maxAttempts = 3; // Try up to 3 times (15 suggestions each = 45 total) to ensure 6 unique cards
 
-    console.log(`[AI Generation] Received ${suggestions.length} suggestions from OpenAI`);
+    while (allUniqueActivities.length < 6 && attempt < maxAttempts) {
+      attempt++;
+      const needed = 6 - allUniqueActivities.length;
+      console.log(`[AI Generation] Attempt ${attempt}/${maxAttempts}: Need ${needed} more unique activities (have ${allUniqueActivities.length})`);
 
-    // For each suggestion, search Google Places
-    const activitiesData = await Promise.all(
-      suggestions.map(async (suggestion) => {
-        const places = await searchPlaces(suggestion.searchQuery, groupData.locationBase);
-        
-        // Also search for complementary food places if suggested
-        let complementaryPlace = null;
-        let complementaryPlace2 = null;
-        if (suggestion.complementaryFoodPlace && places.length > 0 && places[0].location) {
-          // Use nearby search with distance and rating constraints (<0.5 miles, 3.5+ stars)
-          const foodPlaces = await searchNearbyPlaces(
-            suggestion.complementaryFoodPlace,
-            places[0].location,
-            805, // 0.5 miles in meters
-            3.5  // minimum rating
-          );
-          if (foodPlaces.length > 0) {
-            complementaryPlace = foodPlaces[0];
+      // Generate AI suggestions with feedback and list of venues to avoid
+      const suggestions = await generateActivitySuggestions({
+        locationBase: groupData.locationBase,
+        budgetMin: groupData.budgetMin,
+        budgetMax: groupData.budgetMax,
+        meetingFrequency: groupData.meetingFrequency,
+        availability: groupData.availability,
+        closenessLevel: groupData.closenessLevel,
+        noveltyPreference: groupData.noveltyPreference,
+        activityCategories: groupData.activityCategories,
+        pastPreferences: groupData.pastPreferences,
+        additionalInstructions: groupData.additionalInstructions,
+        previousFeedback: previousFeedback.length > 0 ? previousFeedback : undefined,
+        votingFeedback: votingFeedback.length > 0 ? votingFeedback : undefined,
+        likedConcepts: likedConcepts.length > 0 ? likedConcepts : undefined,
+        passedConcepts: passedConcepts.length > 0 ? passedConcepts : undefined,
+        previouslySuggestedVenues: previouslySuggestedVenues.length > 0 ? previouslySuggestedVenues : undefined,
+      });
+
+      console.log(`[AI Generation] Attempt ${attempt}: Received ${suggestions.length} suggestions from OpenAI`);
+
+      // For each suggestion, search Google Places
+      const activitiesData = await Promise.all(
+        suggestions.map(async (suggestion) => {
+          const places = await searchPlaces(suggestion.searchQuery, groupData.locationBase);
+          
+          // Also search for complementary food places if suggested
+          let complementaryPlace = null;
+          let complementaryPlace2 = null;
+          if (suggestion.complementaryFoodPlace && places.length > 0 && places[0].location) {
+            // Use nearby search with distance and rating constraints (<0.5 miles, 3.5+ stars)
+            const foodPlaces = await searchNearbyPlaces(
+              suggestion.complementaryFoodPlace,
+              places[0].location,
+              805, // 0.5 miles in meters
+              3.5  // minimum rating
+            );
+            if (foodPlaces.length > 0) {
+              complementaryPlace = foodPlaces[0];
+            }
+            if (foodPlaces.length > 1) {
+              complementaryPlace2 = foodPlaces[1];
+            }
           }
-          if (foodPlaces.length > 1) {
-            complementaryPlace2 = foodPlaces[1];
+          
+          if (places.length > 0) {
+            const place = places[0];
+            return {
+              groupId,
+              aiSuggestedName: suggestion.venueName, // Store what AI originally suggested
+              venueName: place.name,
+              venueAddress: place.address,
+              venueType: suggestion.venueType,
+              description: suggestion.description,
+              googlePlaceId: place.placeId,
+              rating: place.rating,
+              priceLevel: place.priceLevel,
+              photoUrl: place.photoUrl,
+              aiReasoning: suggestion.reasoning,
+              suggestedDate: null,
+              suggestedTime: null,
+              priceEstimate: suggestion.priceEstimate || null,
+              timeConstraints: suggestion.timeConstraints || null,
+              complementaryPlaceName: complementaryPlace?.name || null,
+              complementaryPlaceAddress: complementaryPlace?.address || null,
+              complementaryPlaceId: complementaryPlace?.placeId || null,
+              complementaryPlacePhotoUrl: complementaryPlace?.photoUrl || null,
+              complementaryPlaceRating: complementaryPlace?.rating || null,
+              complementaryPlaceName2: complementaryPlace2?.name || null,
+              complementaryPlaceAddress2: complementaryPlace2?.address || null,
+              complementaryPlaceId2: complementaryPlace2?.placeId || null,
+              complementaryPlacePhotoUrl2: complementaryPlace2?.photoUrl || null,
+              complementaryPlaceRating2: complementaryPlace2?.rating || null,
+            };
+          } else {
+            // If no Google Places result, use AI suggestion directly
+            return {
+              groupId,
+              aiSuggestedName: suggestion.venueName, // Store what AI originally suggested
+              venueName: suggestion.venueName,
+              venueAddress: groupData.locationBase,
+              venueType: suggestion.venueType,
+              description: suggestion.description,
+              googlePlaceId: null,
+              rating: null,
+              priceLevel: null,
+              photoUrl: null,
+              aiReasoning: suggestion.reasoning,
+              suggestedDate: null,
+              suggestedTime: null,
+              priceEstimate: suggestion.priceEstimate || null,
+              timeConstraints: suggestion.timeConstraints || null,
+              complementaryPlaceName: complementaryPlace?.name || null,
+              complementaryPlaceAddress: complementaryPlace?.address || null,
+              complementaryPlaceId: complementaryPlace?.placeId || null,
+              complementaryPlacePhotoUrl: complementaryPlace?.photoUrl || null,
+              complementaryPlaceRating: complementaryPlace?.rating || null,
+              complementaryPlaceName2: complementaryPlace2?.name || null,
+              complementaryPlaceAddress2: complementaryPlace2?.address || null,
+              complementaryPlaceId2: complementaryPlace2?.placeId || null,
+              complementaryPlacePhotoUrl2: complementaryPlace2?.photoUrl || null,
+              complementaryPlaceRating2: complementaryPlace2?.rating || null,
+            };
           }
-        }
-        
-        if (places.length > 0) {
-          const place = places[0];
-          return {
-            groupId,
-            aiSuggestedName: suggestion.venueName, // Store what AI originally suggested
-            venueName: place.name,
-            venueAddress: place.address,
-            venueType: suggestion.venueType,
-            description: suggestion.description,
-            googlePlaceId: place.placeId,
-            rating: place.rating,
-            priceLevel: place.priceLevel,
-            photoUrl: place.photoUrl,
-            aiReasoning: suggestion.reasoning,
-            suggestedDate: null,
-            suggestedTime: null,
-            priceEstimate: suggestion.priceEstimate || null,
-            timeConstraints: suggestion.timeConstraints || null,
-            complementaryPlaceName: complementaryPlace?.name || null,
-            complementaryPlaceAddress: complementaryPlace?.address || null,
-            complementaryPlaceId: complementaryPlace?.placeId || null,
-            complementaryPlacePhotoUrl: complementaryPlace?.photoUrl || null,
-            complementaryPlaceRating: complementaryPlace?.rating || null,
-            complementaryPlaceName2: complementaryPlace2?.name || null,
-            complementaryPlaceAddress2: complementaryPlace2?.address || null,
-            complementaryPlaceId2: complementaryPlace2?.placeId || null,
-            complementaryPlacePhotoUrl2: complementaryPlace2?.photoUrl || null,
-            complementaryPlaceRating2: complementaryPlace2?.rating || null,
-          };
-        } else {
-          // If no Google Places result, use AI suggestion directly
-          return {
-            groupId,
-            aiSuggestedName: suggestion.venueName, // Store what AI originally suggested
-            venueName: suggestion.venueName,
-            venueAddress: groupData.locationBase,
-            venueType: suggestion.venueType,
-            description: suggestion.description,
-            googlePlaceId: null,
-            rating: null,
-            priceLevel: null,
-            photoUrl: null,
-            aiReasoning: suggestion.reasoning,
-            suggestedDate: null,
-            suggestedTime: null,
-            priceEstimate: suggestion.priceEstimate || null,
-            timeConstraints: suggestion.timeConstraints || null,
-            complementaryPlaceName: complementaryPlace?.name || null,
-            complementaryPlaceAddress: complementaryPlace?.address || null,
-            complementaryPlaceId: complementaryPlace?.placeId || null,
-            complementaryPlacePhotoUrl: complementaryPlace?.photoUrl || null,
-            complementaryPlaceRating: complementaryPlace?.rating || null,
-            complementaryPlaceName2: complementaryPlace2?.name || null,
-            complementaryPlaceAddress2: complementaryPlace2?.address || null,
-            complementaryPlaceId2: complementaryPlace2?.placeId || null,
-            complementaryPlacePhotoUrl2: complementaryPlace2?.photoUrl || null,
-            complementaryPlaceRating2: complementaryPlace2?.rating || null,
-          };
-        }
-      })
-    );
+        })
+      );
 
-    console.log(`[AI Generation] Created ${activitiesData.length} activities to store`);
-    
-    // Deduplicate activities by venue name and Google Place ID within this batch
-    // (Google may return the same restaurant for different search queries like "Szechuan" and "Dim Sum")
-    const uniqueActivities: typeof activitiesData = [];
-    const seenVenues = new Set<string>();
-    
-    for (const activity of activitiesData) {
-      // Create a unique key based on Google Place ID (if available) or venue name
-      const venueKey = activity.googlePlaceId || activity.venueName.toLowerCase();
+      console.log(`[AI Generation] Attempt ${attempt}: Created ${activitiesData.length} activities from Google Places`);
       
-      if (!seenVenues.has(venueKey)) {
-        seenVenues.add(venueKey);
-        uniqueActivities.push(activity);
-      } else {
-        console.log(`[AI Generation] Skipping duplicate venue within batch: ${activity.venueName}`);
+      // Add new unique activities from this batch to our collection
+      for (const activity of activitiesData) {
+        // Create a unique key based on Google Place ID (if available) or venue name
+        const venueKey = activity.googlePlaceId || activity.venueName.toLowerCase();
+        
+        if (!seenVenues.has(venueKey) && allUniqueActivities.length < 6) {
+          seenVenues.add(venueKey);
+          allUniqueActivities.push(activity);
+          console.log(`[AI Generation] Added unique venue: ${activity.venueName} (${allUniqueActivities.length}/6)`);
+        } else if (seenVenues.has(venueKey)) {
+          console.log(`[AI Generation] Skipping duplicate venue: ${activity.venueName}`);
+        }
       }
+      
+      console.log(`[AI Generation] After attempt ${attempt}: Have ${allUniqueActivities.length}/6 unique activities`);
     }
-    
-    console.log(`[AI Generation] After deduplication: ${uniqueActivities.length} unique activities (removed ${activitiesData.length - uniqueActivities.length} duplicates)`);
-    
-    // Store all unique activities
-    await storage.createActivities(uniqueActivities);
+
+    // Store the unique activities (up to 6)
+    if (allUniqueActivities.length > 0) {
+      console.log(`[AI Generation] Storing ${allUniqueActivities.length} unique activities`);
+      await storage.createActivities(allUniqueActivities);
+    } else {
+      console.warn(`[AI Generation] WARNING: No unique activities generated after ${maxAttempts} attempts`);
+    }
     
     console.log(`[AI Generation] Successfully stored activities for group ${groupId}`);
     
