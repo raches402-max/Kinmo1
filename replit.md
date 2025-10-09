@@ -8,6 +8,10 @@ The platform enables users to create groups, invite members, and receive tailore
 
 ## Recent Changes
 
+### October 9, 2025
+- **Fixed Duplicate Venue Suggestions**: Resolved issue where AI kept suggesting the same venues (like Baking Arts, Fiddlers Green, Central Park). The problem was that AI generates venue *types* (e.g., "Italian Restaurant") but Google Places finds specific venues (e.g., "Baking Arts"). Now the system stores both the AI-suggested type and the Google-enriched name, and passes the AI types back to avoid duplicates. Added `aiSuggestedName` field to activities table.
+- **Members in Group Details**: Moved members list into Group Details card as a collapsible section, removing the separate Members card for a more compact layout.
+
 ### October 7, 2025
 - **Complementary Food Suggestions**: For outdoor venues like parks and beaches, the AI now suggests nearby food places (e.g., "pick up sandwiches at ____ near this park"). This helps groups plan complete outdoor experiences with food options.
 - **Feedback Integration**: Activity feedback (love/more/less) is now fed back into the AI when generating new suggestions. The AI learns from previous feedback to suggest more of what the group loves and less of what they don't prefer.

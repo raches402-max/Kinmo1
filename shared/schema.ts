@@ -64,6 +64,7 @@ export const members = pgTable("members", {
 export const activities = pgTable("activities", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   groupId: varchar("group_id").notNull().references(() => groups.id, { onDelete: "cascade" }),
+  aiSuggestedName: text("ai_suggested_name"), // What AI originally suggested (e.g., "Italian Restaurant") before Google enrichment
   venueName: text("venue_name").notNull(),
   venueAddress: text("venue_address").notNull(),
   venueType: text("venue_type").notNull(), // restaurant, museum, park, etc.

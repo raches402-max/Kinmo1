@@ -419,7 +419,10 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
 
     // Get ALL activities (including archived) to avoid repeating venue names
     const allActivities = await storage.getAllGroupActivities(groupId);
-    const previouslySuggestedVenues = allActivities.map(a => a.venueName);
+    // Use AI suggested names (the types) rather than Google-enriched names to avoid duplicates
+    const previouslySuggestedVenues = allActivities
+      .map(a => a.aiSuggestedName || a.venueName)
+      .filter((name, index, self) => name && self.indexOf(name) === index); // Remove nulls and duplicates
     
     // Get existing (non-archived) activities with feedback for this group
     const existingActivities = await storage.getGroupActivities(groupId);
@@ -478,6 +481,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
           const place = places[0];
           return {
             groupId,
+            aiSuggestedName: suggestion.venueName, // Store what AI originally suggested
             venueName: place.name,
             venueAddress: place.address,
             venueType: suggestion.venueType,
@@ -506,6 +510,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
           // If no Google Places result, use AI suggestion directly
           return {
             groupId,
+            aiSuggestedName: suggestion.venueName, // Store what AI originally suggested
             venueName: suggestion.venueName,
             venueAddress: groupData.locationBase,
             venueType: suggestion.venueType,
