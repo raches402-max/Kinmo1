@@ -15,7 +15,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, MessageCircle } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Group, Activity, Member, VotingEvent, Vote } from "@shared/schema";
@@ -122,6 +122,18 @@ export default function GroupDetail() {
     queryKey: ["/api/groups", groupId, "members"],
     enabled: !!groupId,
   });
+
+  // Track previous generation status to detect when generation completes
+  const prevStatusRef = useRef<string | undefined>();
+  
+  useEffect(() => {
+    if (group?.activityGenerationStatus === "completed" && 
+        (prevStatusRef.current === "generating" || prevStatusRef.current === "pending")) {
+      // Generation just completed - force refetch activities to show results immediately
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "activities"] });
+    }
+    prevStatusRef.current = group?.activityGenerationStatus;
+  }, [group?.activityGenerationStatus, groupId]);
 
   const sendInvitationsMutation = useMutation({
     mutationFn: async () => {
