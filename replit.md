@@ -9,6 +9,12 @@ The platform enables users to create groups, invite members, and receive tailore
 ## Recent Changes
 
 ### October 9, 2025
+- **Activity Category Selection**: Added visual category selector buttons with icons for quick preference setting:
+  - **9 Activity Types**: Wine/Cocktail Bars, Karaoke, Concerts, Cafes, Sports Games, Hikes/Outdoors, Dancing/Clubs, Game Nights, Potlucks
+  - **Easy Selection**: Toggle buttons with lucide-react icons let organizers quickly select what their group enjoys
+  - **AI Integration**: Selected categories are prioritized in AI suggestions to better match group interests
+  - **Available In**: Both create group form and edit group dialog
+- **Meeting Frequency Simplified**: Changed from plural to singular units (day, week, month, year) for cleaner display
 - **AI Preference Interpretation Overhaul**: Completely redesigned how AI reads group preferences to be more accurate:
   - **Type Prioritization**: AI now analyzes past preferences to identify TYPES of venues (restaurants, bars, etc.) and prioritizes suggesting the same types they've historically enjoyed
   - **Closeness Level**: No longer influences activity types (reserved for future scheduling features like quorum)
