@@ -192,21 +192,25 @@ Requirements:
 10. FOR FULL MEAL VENUES - this includes: restaurants, brunch spots, food markets, food halls
    - Leave priceEstimate and timeConstraints empty (pricing comes from Google)
    - REQUIRED: Include a "complementaryFoodPlace" search query for DRINKS/DESSERT options nearby to complete the meal experience
-   - Examples: "dessert shops near [location]", "cocktail bars near [location]", "boba tea near [location]", "ice cream near [location]", "wine bars near [location]"
+   - BE SPECIFIC AND VARIED - use different types each time (don't repeat "dessert shops" over and over)
+   - Examples: "artisan ice cream near [location]", "craft cocktail bars near [location]", "boba tea cafes near [location]", "gelato shops near [location]", "sake bars near [location]", "specialty coffee near [location]"
    - These are post-meal treats or drinks to extend the outing
 11. FOR DRINKS/DESSERT VENUES - this includes: cafes, coffee shops, boba shops, cocktail bars, wine bars, breweries, beer gardens, dessert shops, ice cream shops, tea shops
    - Leave priceEstimate and timeConstraints empty (pricing comes from Google)
    - REQUIRED: Include a "complementaryFoodPlace" search query for FULL MEAL options nearby
-   - Examples: "restaurants near [location]", "brunch spots near [location]", "sandwich shops near [location]", "food trucks near [location]"
+   - BE SPECIFIC AND VARIED - use different cuisines/types each time (don't repeat "restaurants" generically)
+   - Examples: "ramen shops near [location]", "taco spots near [location]", "banh mi shops near [location]", "pizza places near [location]", "poke bowl restaurants near [location]", "dim sum near [location]"
    - Logic: If the main venue is drinks/dessert, suggest a proper meal that complements it (not another drink/dessert spot)
 12. FOR OUTDOOR VENUES - this includes: parks, beaches, hiking trails, nature areas, outdoor recreation spaces
    - Include a "complementaryFoodPlace" search query for nearby PORTABLE MEAL options
-   - Examples: "sandwich shops near [location]", "food trucks near [location]", "delis near [location]", "poke bowls near [location]"
+   - BE SPECIFIC AND VARIED - use different portable food types each time
+   - Examples: "banh mi sandwich shops near [location]", "taco trucks near [location]", "gourmet delis near [location]", "poke bowl takeout near [location]", "burrito places near [location]"
    - Focus on portable, casual food suitable for outdoor activities (avoid sit-down restaurants)
 
 CRITICAL CONSTRAINTS for ALL complementaryFoodPlace queries:
 - Distance: ALL suggestions must be within 0.5 miles of the main venue
 - Quality: ALL suggestions must have 3.5+ star ratings or better
+- VARIETY: Each suggestion should use a DIFFERENT type of complementary place (don't repeat the same type like "dessert shops" multiple times)
 - Each search query should return multiple options for the group to choose from
 13. IMPORTANT - Use previous feedback AND voting data to guide suggestions:
    - If activities were "LOVED", suggest very similar venues/types

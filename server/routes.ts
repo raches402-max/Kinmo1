@@ -484,7 +484,14 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       // Actual Google business names (e.g., "Sweet Indulgence", "Central Park")
       ...allActivities
         .filter(a => a.venueName)
-        .map(a => a.venueName)
+        .map(a => a.venueName),
+      // Complementary food place names (prevent duplicate dessert/food suggestions)
+      ...allActivities
+        .filter(a => a.complementaryPlaceName)
+        .map(a => a.complementaryPlaceName!),
+      ...allActivities
+        .filter(a => a.complementaryPlaceName2)
+        .map(a => a.complementaryPlaceName2!)
     ].filter((name, index, self) => name && self.indexOf(name) === index); // Remove nulls and duplicates
     
     // Get existing (non-archived) activities with feedback for this group

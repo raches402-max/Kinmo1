@@ -9,6 +9,18 @@ The platform enables users to create groups, invite members, and receive tailore
 ## Recent Changes
 
 ### October 9, 2025
+- **Tinder-Style Swipe Feed for Preference Refinement**: Added swipeable activity concept cards for ongoing taste refinement:
+  - **Database**: New `preference_signals` table tracks liked/passed concepts with timestamps
+  - **Swipe Session**: Generates 15-20 AI concepts based on group preferences, users swipe right (like) or left (pass)
+  - **AI Integration**: Swipe preferences feed into activity generation - AI prioritizes liked concepts and avoids passed ones
+  - **Two Entry Points**: Optional swipe session after group creation, plus "Refine Ideas" button in group page for ongoing refinement
+  - **Specific Activities**: Updated AI to suggest concrete activities ("Pottery Painting Workshop", "Hot Yoga Class", "Trivia at Irish Pub") instead of vague vibes ("bar hopping", "clubbing")
+- **Fixed Duplicate Suggestions**: Completely eliminated duplicates in both main and complementary food suggestions:
+  - **Comprehensive Tracking**: Duplicate prevention now tracks main venues (AI names + Google names) AND complementary food places (both complementaryPlaceName and complementaryPlaceName2)
+  - **Varied Complementary Queries**: AI now uses specific, varied food types instead of generic repeats:
+    - Instead of "dessert shops" repeatedly → uses "artisan ice cream", "gelato shops", "craft cocktail bars", "boba tea cafes", "sake bars"
+    - Instead of "restaurants" generically → uses "ramen shops", "taco spots", "banh mi shops", "poke bowl restaurants", "dim sum"
+  - **Result**: Same venues won't appear multiple times across different suggestions
 - **Refined Complementary Food Suggestions**: Improved AI logic AND Google Places filtering for nearby food recommendations:
   - **Distance & Quality Enforcement**: 
     - Google Places now uses `nearbySearch` API with 0.5 mile (805m) radius constraint
