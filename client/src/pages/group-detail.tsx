@@ -1415,8 +1415,8 @@ export default function GroupDetail() {
                 </div>
                 <div className="space-y-2">
                   <Label>How Often to Meet</Label>
-                  <div className="flex gap-2">
-                    <div className="w-24">
+                  <div className="flex items-center gap-2">
+                    <div className="w-20">
                       <Input
                         type="number"
                         min={1}
@@ -1426,6 +1426,7 @@ export default function GroupDetail() {
                         data-testid="input-edit-frequency-number"
                       />
                     </div>
+                    <span className="text-sm text-muted-foreground">x each</span>
                     <Select value={editFrequencyUnit} onValueChange={setEditFrequencyUnit}>
                       <SelectTrigger className="flex-1" data-testid="select-edit-frequency-unit">
                         <SelectValue placeholder="Select unit" />
