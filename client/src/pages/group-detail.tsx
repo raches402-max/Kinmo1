@@ -1040,8 +1040,19 @@ export default function GroupDetail() {
                 <div className="flex flex-col gap-2">
                   <div className="flex gap-2">
                     <Button
-                      onClick={() => retryGenerationMutation.mutate()}
-                      disabled={retryGenerationMutation.isPending || group?.activityGenerationStatus === "generating" || group?.activityGenerationStatus === "pending"}
+                      onClick={() => {
+                        const isGenerating = retryGenerationMutation.isPending || group?.activityGenerationStatus === "generating" || group?.activityGenerationStatus === "pending";
+                        if (isGenerating) {
+                          toast({
+                            title: "Already generating",
+                            description: "Please wait for the current generation to complete. This usually takes 10-20 seconds.",
+                          });
+                        } else {
+                          retryGenerationMutation.mutate();
+                        }
+                      }}
+                      aria-disabled={retryGenerationMutation.isPending || group?.activityGenerationStatus === "generating" || group?.activityGenerationStatus === "pending"}
+                      className={(retryGenerationMutation.isPending || group?.activityGenerationStatus === "generating" || group?.activityGenerationStatus === "pending") ? "opacity-50 cursor-not-allowed" : ""}
                       variant="default"
                       data-testid="button-generate-suggestions"
                     >
