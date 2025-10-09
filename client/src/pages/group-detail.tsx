@@ -1359,7 +1359,9 @@ export default function GroupDetail() {
                       data-testid="slider-edit-budget"
                     />
                     <div className="flex justify-between text-sm">
-                      <span className="font-medium" data-testid="text-edit-budget-min">${editBudgetRange[0]}</span>
+                      <span className="font-medium" data-testid="text-edit-budget-min">
+                        {editBudgetRange[0] >= 200 ? "$200+" : `$${editBudgetRange[0]}`}
+                      </span>
                       <span className="font-medium" data-testid="text-edit-budget-max">
                         {editBudgetRange[1] >= 250 ? "$250+" : `$${editBudgetRange[1]}`}
                       </span>
