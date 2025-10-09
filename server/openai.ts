@@ -234,20 +234,26 @@ CRITICAL CONSTRAINTS for ALL complementaryFoodPlace queries:
    - LIKED concepts: These are activity types the group has shown interest in - PRIORITIZE suggesting these types
    - PASSED concepts: These are activity types the group is NOT interested in - AVOID suggesting these types
    - Swipe preferences reveal what the group wants to explore, so weight them heavily in your suggestions
-15. FOR DESCRIPTION: CRITICAL - NO FLUFF. NO SALES LANGUAGE. BE DIRECT AND FACTUAL.
-   - BANNED WORDS: "Enjoy", "Savor", "Experience", "Discover", "Indulge", "Delight", "Amazing", "Wonderful", "Perfect", "Great"
-   - GOOD examples (direct, factual):
-     * "Authentic Szechuan cuisine with spicy dishes" (6 words)
-     * "Korean BBQ with tabletop grills" (5 words)
-     * "Traditional ramen with rich broths" (5 words)
-     * "Fresh sushi and sashimi selection" (5 words)
-   - BAD examples (salesy fluff):
-     * "Enjoy authentic dumplings in a casual setting" ❌
-     * "Savor various Asian noodle dishes together" ❌
-     * "Experience Malaysian-inspired dishes in a cozy atmosphere" ❌
-     * "Discover the vibrant flavors of authentic cuisine" ❌
-   - Keep descriptions to 5-8 words maximum
-   - Focus on WHAT the venue offers, not HOW the group will feel
+15. FOR DESCRIPTION: CRITICAL - ULTRA-SHORT AND PRAGMATIC. NOUNS ONLY. ZERO ADJECTIVES.
+   - RULE: Use ONLY nouns. ZERO adjectives, ZERO descriptive words. Format: cuisine + food type.
+   - BANNED: ALL adjectives including "Wood-fired", "Small", "Tabletop", "Spicy", "Rich", "Fresh", "Authentic", "Traditional", "Amazing", etc.
+   - GOOD examples (nouns only, 2-4 words):
+     * "Sushi and sashimi" (3 words - nouns only)
+     * "Korean BBQ" (2 words - nationality + noun)
+     * "Ramen bowls" (2 words - nouns only)
+     * "Dim sum" (2 words - nouns only)
+     * "Pizza and pasta" (3 words - nouns only)
+     * "Cocktails" (1 word - noun only)
+     * "Tapas" (1 word - noun only)
+   - BAD examples (contains ANY adjectives):
+     * "Wood-fired pizza" ❌ ("Wood-fired" is adjective)
+     * "Small plates" ❌ ("Small" is adjective)
+     * "Korean BBQ, tabletop grills" ❌ ("tabletop" is adjective modifier)
+     * "Ramen with rich broths" ❌ ("rich" is adjective)
+     * "Szechuan spicy dishes" ❌ ("spicy" is adjective)
+     * "Fresh sushi" ❌ ("Fresh" is adjective)
+   - 2-4 words maximum
+   - Format: [Cuisine/nationality] + [Food type], NOTHING else
 16. FOR REASONING: CRITICAL - Keep it extremely concise at 3-8 words. NO flowery language or fluff. Just state the key reason.
    - DO NOT mention budget (it's assumed everything shown fits budget)
    - FOCUS on: familiarity with past preferences, specific cuisine match, social/interactive aspects, NEW experiences

@@ -11,7 +11,7 @@ The platform enables users to create groups, invite members, and receive tailore
 ### October 9, 2025
 - **AI Prompt Refinement - No Fluff, Specific Cuisines, Always 6 Cards**:
   - **Specific Cuisines Only**: AI must now suggest specific cuisines (Sushi, Korean BBQ, Ramen, Pho, Dumplings, Thai, Vietnamese, etc.) instead of broad categories like "Asian restaurants" to avoid Google returning the same venues repeatedly
-  - **No Sales Language**: Banned flowery words like "Enjoy", "Savor", "Experience", "Discover" - descriptions now direct and factual (e.g., "Korean BBQ with tabletop grills" not "Enjoy authentic Korean cuisine")
+  - **No Sales Language**: Banned ALL adjectives including "Enjoy", "Savor", "Experience", "Discover", "Authentic", "Traditional", "Fresh", "Wood-fired", "Small", "Spicy", etc. - descriptions ultra-short and pragmatic (2-4 words max, NOUNS ONLY, ZERO adjectives): "Sushi and sashimi", "Korean BBQ", "Ramen bowls", "Dim sum", "Pizza and pasta"
   - **No Budget Mentions**: Reasoning field no longer mentions budget (assumed all suggestions fit budget) - now just 3-8 words focusing on preference match
   - **15→6 Deduplication Strategy with Retry**: AI generates 15 suggestions per attempt, system deduplicates after Google Places enrichment, then displays first 6 unique venues. If fewer than 6 unique after first attempt, retries up to 3 times (45 total suggestions max) to ensure 6 cards appear even in areas with limited venue diversity
   - **Why Duplicates Happen**: Google Places returns same restaurant for related searches (e.g., "dumpling restaurants" and "noodle restaurants" both return same venue that serves both)
