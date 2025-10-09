@@ -604,6 +604,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
               description: suggestion.description,
               googlePlaceId: place.placeId,
               rating: place.rating,
+              reviewCount: place.reviewCount || null,
               priceLevel: place.priceLevel,
               photoUrl: place.photoUrl,
               googleReview: place.review || null, // Add positive review from Google
@@ -634,6 +635,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
               description: suggestion.description,
               googlePlaceId: null,
               rating: null,
+              reviewCount: null,
               priceLevel: null,
               photoUrl: null,
               googleReview: null,

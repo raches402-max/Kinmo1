@@ -7,6 +7,7 @@ export interface PlaceResult {
   name: string;
   address: string;
   rating?: string;
+  reviewCount?: number; // Total number of Google reviews (user_ratings_total)
   priceLevel?: string;
   photoUrl?: string;
   types: string[];
@@ -234,7 +235,7 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceResult | nu
       params: {
         place_id: placeId,
         key: process.env.GOOGLE_PLACES_API_KEY,
-        fields: ['place_id', 'name', 'formatted_address', 'rating', 'price_level', 'photos', 'types', 'reviews'],
+        fields: ['place_id', 'name', 'formatted_address', 'rating', 'user_ratings_total', 'price_level', 'photos', 'types', 'reviews'],
       },
     });
 
@@ -255,6 +256,7 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceResult | nu
       name: place.name || "",
       address: place.formatted_address || "",
       rating: place.rating?.toString(),
+      reviewCount: place.user_ratings_total,
       priceLevel: place.price_level?.toString(),
       photoUrl,
       types: place.types || [],
