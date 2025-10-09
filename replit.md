@@ -10,7 +10,9 @@ The platform enables users to create groups, invite members, and receive tailore
 
 ### October 9, 2025
 - **Activity Category Selection**: Added visual category selector buttons with icons for quick preference setting:
-  - **9 Activity Types**: Wine/Cocktail Bars, Karaoke, Concerts, Cafes, Sports Games, Hikes/Outdoors, Dancing/Clubs, Game Nights, Potlucks
+  - **17 Activity Types**: Restaurants, Brunch Spots, Cafes, Wine/Cocktail Bars, Breweries/Beer Gardens, Food Markets/Food Halls, Potlucks, Concerts, Karaoke, Dancing/Clubs, Comedy Shows, Movie Theaters, Museums/Art Galleries, Sports Games, Hikes/Outdoors, Game Nights, Trivia Nights
+  - **Food & Dining**: Expanded with restaurants, brunch, breweries, and food markets to cover diverse culinary experiences
+  - **Entertainment & Culture**: Added comedy shows, movies, museums, and trivia nights to fill gaps in activity options
   - **Easy Selection**: Toggle buttons with lucide-react icons let organizers quickly select what their group enjoys
   - **AI Integration**: Selected categories are prioritized in AI suggestions to better match group interests
   - **Available In**: Both create group form and edit group dialog

@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed } from "lucide-react";
+import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -25,15 +25,23 @@ const closenessLabels = ["Acquaintances", "Friends", "Good Friends", "Close Frie
 const noveltyLabels = ["We like our usual spots", "Leaning familiar", "Open sometimes", "Pretty adventurous", "Always up for new things!"];
 
 const activityCategories = [
-  { id: "wine-bars", label: "Wine / Cocktail Bars", icon: Wine },
-  { id: "karaoke", label: "Karaoke", icon: Mic2 },
-  { id: "concerts", label: "Concerts", icon: Music },
+  { id: "restaurants", label: "Restaurants", icon: ChefHat },
+  { id: "brunch", label: "Brunch Spots", icon: Croissant },
   { id: "cafes", label: "Cafes", icon: Coffee },
+  { id: "wine-bars", label: "Wine / Cocktail Bars", icon: Wine },
+  { id: "breweries", label: "Breweries / Beer Gardens", icon: Beer },
+  { id: "food-markets", label: "Food Markets / Food Halls", icon: ShoppingBasket },
+  { id: "potlucks", label: "Potlucks", icon: UtensilsCrossed },
+  { id: "concerts", label: "Concerts", icon: Music },
+  { id: "karaoke", label: "Karaoke", icon: Mic2 },
+  { id: "dancing", label: "Dancing / Clubs", icon: PartyPopper },
+  { id: "comedy", label: "Comedy Shows", icon: Laugh },
+  { id: "movies", label: "Movie Theaters", icon: Film },
+  { id: "museums", label: "Museums / Art Galleries", icon: Palette },
   { id: "sports", label: "Sports Games", icon: Trophy },
   { id: "outdoors", label: "Hikes / Outdoors", icon: Mountain },
-  { id: "dancing", label: "Dancing / Clubs", icon: PartyPopper },
   { id: "game-nights", label: "Game Nights", icon: Gamepad2 },
-  { id: "potlucks", label: "Potlucks", icon: UtensilsCrossed },
+  { id: "trivia", label: "Trivia Nights", icon: GraduationCap },
 ];
 
 function formatMeetingFrequency(freq: string): string {
