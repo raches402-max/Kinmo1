@@ -22,7 +22,7 @@ import type { Group, Activity, Member, VotingEvent, Vote } from "@shared/schema"
 import { AvailabilityGrid, createEmptyAvailability } from "@/components/AvailabilityGrid";
 
 const closenessLabels = ["Acquaintances", "Friends", "Good Friends", "Close Friends", "Best Friends"];
-const noveltyLabels = ["Familiar Favorites", "Mostly Familiar", "Mix of Both", "Try New Things", "Always Novel"];
+const noveltyLabels = ["We like our usual spots", "Leaning familiar", "Open sometimes", "Pretty adventurous", "Always up for new things!"];
 
 function formatMeetingFrequency(freq: string): string {
   // Handle old format
@@ -1454,8 +1454,11 @@ export default function GroupDetail() {
               <h3 className="text-sm font-semibold">Group Preferences</h3>
               <div className="space-y-6">
                 <div className="space-y-4">
-                  <Label>New Experiences vs Familiar Places</Label>
-                  <div className="space-y-4">
+                  <Label className="text-base">How willing is your group to try new things?</Label>
+                  <div className="space-y-3">
+                    <div className="text-center text-sm text-muted-foreground">
+                      Group Openness to New Experiences
+                    </div>
                     <Slider
                       min={1}
                       max={5}
@@ -1465,10 +1468,10 @@ export default function GroupDetail() {
                       className="w-full"
                       data-testid="slider-edit-novelty"
                     />
-                    <div className="text-center">
-                      <span className="text-sm font-medium text-primary" data-testid="text-edit-novelty-level">
-                        {noveltyLabels[editNovelty - 1]}
-                      </span>
+                    <div className="flex justify-between text-xs text-muted-foreground px-1">
+                      <span>We like our usual spots</span>
+                      <span>Open sometimes</span>
+                      <span>Always up for new things!</span>
                     </div>
                   </div>
                 </div>
