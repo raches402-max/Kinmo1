@@ -182,7 +182,14 @@ Requirements:
    - Match the category distribution of their past preferences
 5. Suggest 6 specific types of venues/activities (not specific business names)
 6. Each suggestion should fit within the budget range
-7. Diversity within the same category is good (e.g., different cuisines if suggesting restaurants)
+7. CRITICAL - BE SPECIFIC WITH CUISINE TYPES:
+   - NEVER use broad categories like "Asian restaurants" or "Asian food"
+   - ALWAYS break down into SPECIFIC cuisines: Sushi, Korean BBQ (KBBQ), Ramen, Pho, Dumplings, Thai, Vietnamese, Chinese (Szechuan/Cantonese/Dim Sum), Japanese Izakaya, Malaysian, Filipino, etc.
+   - NEVER use generic "Italian restaurants" - specify: Pizza, Pasta, Trattoria, Osteria
+   - NEVER use generic "Mexican restaurants" - specify: Tacos, Burritos, Tortas, Tequila Bars
+   - Each cuisine type should be DISTINCT to avoid Google returning the same venues repeatedly
+   - Examples of GOOD search queries: "sushi restaurants near X", "Korean BBQ near X", "pho restaurants near X", "dim sum near X"
+   - Examples of BAD search queries: "Asian restaurants near X", "Asian food near X", "ethnic cuisine near X"
 8. Provide a search query that can be used with Google Places API
 9. FOR EVENTS ONLY (festivals, concerts, shows, sporting events, movies, comedy shows, etc.): 
    - Include a realistic "priceEstimate" (e.g., "$25-50 per person", "$15 tickets", "Free")
@@ -222,13 +229,27 @@ CRITICAL CONSTRAINTS for ALL complementaryFoodPlace queries:
    - LIKED concepts: These are activity types the group has shown interest in - PRIORITIZE suggesting these types
    - PASSED concepts: These are activity types the group is NOT interested in - AVOID suggesting these types
    - Swipe preferences reveal what the group wants to explore, so weight them heavily in your suggestions
-15. FOR REASONING: CRITICAL - Keep it extremely concise at 4-10 words. NO flowery language or fluff. Just state the key reason.
+15. FOR DESCRIPTION: CRITICAL - NO FLUFF. NO SALES LANGUAGE. BE DIRECT AND FACTUAL.
+   - BANNED WORDS: "Enjoy", "Savor", "Experience", "Discover", "Indulge", "Delight", "Amazing", "Wonderful", "Perfect", "Great"
+   - GOOD examples (direct, factual):
+     * "Authentic Szechuan cuisine with spicy dishes" (6 words)
+     * "Korean BBQ with tabletop grills" (5 words)
+     * "Traditional ramen with rich broths" (5 words)
+     * "Fresh sushi and sashimi selection" (5 words)
+   - BAD examples (salesy fluff):
+     * "Enjoy authentic dumplings in a casual setting" ❌
+     * "Savor various Asian noodle dishes together" ❌
+     * "Experience Malaysian-inspired dishes in a cozy atmosphere" ❌
+     * "Discover the vibrant flavors of authentic cuisine" ❌
+   - Keep descriptions to 5-8 words maximum
+   - Focus on WHAT the venue offers, not HOW the group will feel
+16. FOR REASONING: CRITICAL - Keep it extremely concise at 4-10 words. NO flowery language or fluff. Just state the key reason.
    Examples:
-   - Good: "Fits budget, casual Asian shareable dining" (6 words)
+   - Good: "Fits budget, familiar Korean BBQ preference" (6 words)
    - Good: "Budget-friendly, intimate conversation spot" (4 words)
    - Bad: "Fits your budget and love for casual Asian dining with shareable plates" (too long)
    - Bad: "This wonderful venue will delight your senses with an amazing array of flavors" (way too long)
-16. When suggesting something NEW (outside their usual range/novelty preference), explicitly say "NEW:" at the start of the reasoning to highlight it's a departure from their typical choices.
+17. When suggesting something NEW (outside their usual range/novelty preference), explicitly say "NEW:" at the start of the reasoning to highlight it's a departure from their typical choices.
    Example: "NEW: Outside typical range, fits budget" (6 words)
 
 Return your response as a JSON object with this structure:
