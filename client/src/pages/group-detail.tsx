@@ -1040,254 +1040,271 @@ export default function GroupDetail() {
               </Card>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {activities.filter(activity => activity.feedback !== "less").map((activity) => (
-                  <Card key={activity.id} className="relative overflow-hidden hover-elevate transition-all" data-testid={`activity-${activity.id}`}>
-                    {activity.photoUrl && (
-                      <div className="aspect-video w-full overflow-hidden bg-muted">
-                        <img
-                          src={activity.photoUrl}
-                          alt={activity.venueName}
-                          className="w-full h-full object-cover"
+                {activities.filter(activity => activity.feedback !== "less").map((activity) => {
+                  // Determine label for complementary places
+                  const isRestaurant = ['restaurant', 'cafe', 'bar', 'brewery', 'bakery', 'food'].some(type => 
+                    activity.venueType.toLowerCase().includes(type)
+                  );
+                  const isOutdoor = ['park', 'outdoor', 'beach', 'hiking', 'trail'].some(type => 
+                    activity.venueType.toLowerCase().includes(type)
+                  );
+                  
+                  let complementaryLabel = "Grab food nearby:";
+                  if (isRestaurant) {
+                    complementaryLabel = "Complete the experience:";
+                  } else if (isOutdoor) {
+                    complementaryLabel = "Grab food nearby:";
+                  }
+                  
+                  return (
+                    <Card key={activity.id} className="relative overflow-hidden hover-elevate transition-all flex flex-col" data-testid={`activity-${activity.id}`}>
+                      {activity.photoUrl && (
+                        <div className="aspect-video w-full overflow-hidden bg-muted">
+                          <img
+                            src={activity.photoUrl}
+                            alt={activity.venueName}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      )}
+                      <button
+                        className={`absolute top-3 right-3 p-2 rounded-full transition-all z-10 ${
+                          activity.feedback === "love"
+                            ? "bg-pink-500/90 hover:bg-pink-600/90"
+                            : "bg-black/40 hover:bg-black/60 border-2 border-white"
+                        }`}
+                        onClick={() => {
+                          if (activity.feedback === "love") {
+                            // Remove feedback and delete from Favorites list
+                            feedbackMutation.mutate({ activityId: activity.id, feedback: null });
+                            
+                            // Find the voting event with matching venueName and delete it
+                            const matchingEvent = votingEvents.find(event => event.title === activity.venueName);
+                            if (matchingEvent) {
+                              deleteEventMutation.mutate(matchingEvent.id);
+                            }
+                          } else {
+                            // Add feedback and add to Favorites list (only if not already there)
+                            feedbackMutation.mutate({ activityId: activity.id, feedback: "love" });
+                            
+                            // Check if event already exists before creating
+                            const eventExists = votingEvents.some(event => event.title === activity.venueName);
+                            if (!eventExists) {
+                              createEventMutation.mutate({
+                                title: activity.venueName,
+                                description: activity.description,
+                                venueAddress: activity.venueAddress,
+                                venueType: activity.venueType,
+                                googlePlaceId: activity.googlePlaceId || undefined,
+                                rating: activity.rating || undefined,
+                                priceLevel: activity.priceLevel || undefined,
+                                photoUrl: activity.photoUrl || undefined,
+                                aiReasoning: activity.aiReasoning || undefined,
+                                priceEstimate: activity.priceEstimate || undefined,
+                                timeConstraints: activity.timeConstraints || undefined,
+                                complementaryPlaceName: activity.complementaryPlaceName || undefined,
+                                complementaryPlaceAddress: activity.complementaryPlaceAddress || undefined,
+                                complementaryPlaceId: activity.complementaryPlaceId || undefined,
+                                complementaryPlacePhotoUrl: activity.complementaryPlacePhotoUrl || undefined,
+                                complementaryPlaceRating: activity.complementaryPlaceRating || undefined,
+                                complementaryPlaceName2: activity.complementaryPlaceName2 || undefined,
+                                complementaryPlaceAddress2: activity.complementaryPlaceAddress2 || undefined,
+                                complementaryPlaceId2: activity.complementaryPlaceId2 || undefined,
+                                complementaryPlacePhotoUrl2: activity.complementaryPlacePhotoUrl2 || undefined,
+                                complementaryPlaceRating2: activity.complementaryPlaceRating2 || undefined,
+                              });
+                            }
+                          }
+                        }}
+                        data-testid={`button-love-${activity.id}`}
+                      >
+                        <Heart 
+                          className={`h-6 w-6 transition-all ${
+                            activity.feedback === "love" 
+                              ? "fill-white stroke-white" 
+                              : "fill-none stroke-white"
+                          }`} 
+                          strokeWidth={2.5}
                         />
-                      </div>
-                    )}
-                    <button
-                      className={`absolute top-3 right-3 p-2 rounded-full transition-all z-10 ${
-                        activity.feedback === "love"
-                          ? "bg-pink-500/90 hover:bg-pink-600/90"
-                          : "bg-black/40 hover:bg-black/60 border-2 border-white"
-                      }`}
-                      onClick={() => {
-                        if (activity.feedback === "love") {
-                          // Remove feedback and delete from Favorites list
-                          feedbackMutation.mutate({ activityId: activity.id, feedback: null });
-                          
-                          // Find the voting event with matching venueName and delete it
-                          const matchingEvent = votingEvents.find(event => event.title === activity.venueName);
-                          if (matchingEvent) {
-                            deleteEventMutation.mutate(matchingEvent.id);
-                          }
-                        } else {
-                          // Add feedback and add to Favorites list (only if not already there)
-                          feedbackMutation.mutate({ activityId: activity.id, feedback: "love" });
-                          
-                          // Check if event already exists before creating
-                          const eventExists = votingEvents.some(event => event.title === activity.venueName);
-                          if (!eventExists) {
-                            createEventMutation.mutate({
-                              title: activity.venueName,
-                              description: activity.description,
-                              venueAddress: activity.venueAddress,
-                              venueType: activity.venueType,
-                              googlePlaceId: activity.googlePlaceId || undefined,
-                              rating: activity.rating || undefined,
-                              priceLevel: activity.priceLevel || undefined,
-                              photoUrl: activity.photoUrl || undefined,
-                              aiReasoning: activity.aiReasoning || undefined,
-                              priceEstimate: activity.priceEstimate || undefined,
-                              timeConstraints: activity.timeConstraints || undefined,
-                              complementaryPlaceName: activity.complementaryPlaceName || undefined,
-                              complementaryPlaceAddress: activity.complementaryPlaceAddress || undefined,
-                              complementaryPlaceId: activity.complementaryPlaceId || undefined,
-                              complementaryPlacePhotoUrl: activity.complementaryPlacePhotoUrl || undefined,
-                              complementaryPlaceRating: activity.complementaryPlaceRating || undefined,
-                              complementaryPlaceName2: activity.complementaryPlaceName2 || undefined,
-                              complementaryPlaceAddress2: activity.complementaryPlaceAddress2 || undefined,
-                              complementaryPlaceId2: activity.complementaryPlaceId2 || undefined,
-                              complementaryPlacePhotoUrl2: activity.complementaryPlacePhotoUrl2 || undefined,
-                              complementaryPlaceRating2: activity.complementaryPlaceRating2 || undefined,
-                            });
-                          }
-                        }
-                      }}
-                      data-testid={`button-love-${activity.id}`}
-                    >
-                      <Heart 
-                        className={`h-6 w-6 transition-all ${
-                          activity.feedback === "love" 
-                            ? "fill-white stroke-white" 
-                            : "fill-none stroke-white"
-                        }`} 
-                        strokeWidth={2.5}
-                      />
-                    </button>
-                    <CardHeader className="space-y-3">
-                      <div>
-                        <CardTitle className="text-lg mb-2">{activity.venueName}</CardTitle>
-                        <CardDescription className="line-clamp-2">{activity.description}</CardDescription>
-                      </div>
-                      
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex flex-wrap gap-2">
-                          {activity.rating && (
-                            <Badge variant="secondary" className="gap-1">
-                              <Star className="h-3 w-3 fill-current" />
-                              {activity.rating}
-                            </Badge>
-                          )}
-                          {activity.priceLevel && (
-                            <Badge variant="secondary">
-                              {priceDisplay(activity.priceLevel)}
-                            </Badge>
-                          )}
-                          <Badge variant="outline">{activity.venueType}</Badge>
+                      </button>
+                      <CardHeader className="space-y-3 flex-1 flex flex-col">
+                        <div>
+                          <CardTitle className="text-lg mb-2">{activity.venueName}</CardTitle>
+                          <CardDescription className="line-clamp-2">{activity.description}</CardDescription>
                         </div>
-                        {activity.googlePlaceId && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            asChild
-                            data-testid={`button-google-link-${activity.id}`}
-                          >
-                            <a
-                              href={`https://www.google.com/maps/search/?api=1&query=Google&query_place_id=${activity.googlePlaceId}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="gap-1"
+                        
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex flex-wrap gap-2">
+                            {activity.rating && (
+                              <Badge variant="secondary" className="gap-1">
+                                <Star className="h-3 w-3 fill-current" />
+                                {activity.rating}
+                              </Badge>
+                            )}
+                            {activity.priceLevel && (
+                              <Badge variant="secondary">
+                                {priceDisplay(activity.priceLevel)}
+                              </Badge>
+                            )}
+                            <Badge variant="outline">{activity.venueType}</Badge>
+                          </div>
+                          {activity.googlePlaceId && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              asChild
+                              data-testid={`button-google-link-${activity.id}`}
                             >
-                              <ExternalLink className="h-3 w-3" />
-                              Google
-                            </a>
-                          </Button>
+                              <a
+                                href={`https://www.google.com/maps/search/?api=1&query=Google&query_place_id=${activity.googlePlaceId}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="gap-1"
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                                Google
+                              </a>
+                            </Button>
+                          )}
+                        </div>
+
+                        <div className="text-sm text-muted-foreground flex items-start gap-2">
+                          <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                          <span className="line-clamp-2">{activity.venueAddress}</span>
+                        </div>
+
+                        {activity.aiReasoning && (
+                          <div className="text-sm bg-primary/5 rounded-md p-3">
+                            <p className="text-primary font-medium mb-2">Why we suggest this:</p>
+                            <ul className="text-muted-foreground space-y-1 list-disc list-inside">
+                              {activity.aiReasoning.split(/[.!]\s+/).filter(s => s.trim()).slice(0, 3).map((point, i) => (
+                                <li key={i} className="text-sm">{point.trim()}</li>
+                              ))}
+                            </ul>
+                          </div>
                         )}
-                      </div>
 
-                      <div className="text-sm text-muted-foreground flex items-start gap-2">
-                        <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                        <span className="line-clamp-2">{activity.venueAddress}</span>
-                      </div>
-
-                      {activity.aiReasoning && (
-                        <div className="text-sm bg-primary/5 rounded-md p-3">
-                          <p className="text-primary font-medium mb-2">Why we suggest this:</p>
-                          <ul className="text-muted-foreground space-y-1 list-disc list-inside">
-                            {activity.aiReasoning.split(/[.!]\s+/).filter(s => s.trim()).slice(0, 3).map((point, i) => (
-                              <li key={i} className="text-sm">{point.trim()}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {(activity.priceEstimate || activity.timeConstraints) && (
-                        <div className="space-y-2">
-                          {activity.priceEstimate && (
-                            <div className="flex items-center gap-2 text-sm">
-                              <Ticket className="h-4 w-4 text-muted-foreground" />
-                              <span className="font-medium">Price:</span>
-                              <span className="text-muted-foreground">{activity.priceEstimate}</span>
-                            </div>
-                          )}
-                          {activity.timeConstraints && (
-                            <div className="flex items-center gap-2 text-sm">
-                              <Clock className="h-4 w-4 text-muted-foreground" />
-                              <span className="font-medium">When:</span>
-                              <span className="text-muted-foreground">{activity.timeConstraints}</span>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {(activity.complementaryPlaceName || activity.complementaryPlaceName2) && (
-                        <div className="bg-accent/20 rounded-md p-3">
-                          <p className="text-sm font-medium mb-2 flex items-center gap-2">
-                            <MapPin className="h-4 w-4" />
-                            Grab food nearby:
-                          </p>
+                        {(activity.priceEstimate || activity.timeConstraints) && (
                           <div className="space-y-2">
-                            {activity.complementaryPlaceName && (
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium">{activity.complementaryPlaceName}</p>
-                                  {activity.complementaryPlaceRating && (
-                                    <div className="flex items-center gap-1 mt-1">
-                                      <Star className="h-3 w-3 fill-current text-yellow-500" />
-                                      <span className="text-xs text-muted-foreground">{activity.complementaryPlaceRating}</span>
-                                    </div>
-                                  )}
-                                </div>
-                                {activity.complementaryPlaceId && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    asChild
-                                    data-testid={`button-complementary-link-${activity.id}`}
-                                  >
-                                    <a
-                                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activity.complementaryPlaceName)}&query_place_id=${activity.complementaryPlaceId}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="gap-1"
-                                    >
-                                      <ExternalLink className="h-3 w-3" />
-                                      View
-                                    </a>
-                                  </Button>
-                                )}
+                            {activity.priceEstimate && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <Ticket className="h-4 w-4 text-muted-foreground" />
+                                <span className="font-medium">Price:</span>
+                                <span className="text-muted-foreground">{activity.priceEstimate}</span>
                               </div>
                             )}
-                            {activity.complementaryPlaceName2 && (
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium">{activity.complementaryPlaceName2}</p>
-                                  {activity.complementaryPlaceRating2 && (
-                                    <div className="flex items-center gap-1 mt-1">
-                                      <Star className="h-3 w-3 fill-current text-yellow-500" />
-                                      <span className="text-xs text-muted-foreground">{activity.complementaryPlaceRating2}</span>
-                                    </div>
-                                  )}
-                                </div>
-                                {activity.complementaryPlaceId2 && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    asChild
-                                    data-testid={`button-complementary-link-2-${activity.id}`}
-                                  >
-                                    <a
-                                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activity.complementaryPlaceName2)}&query_place_id=${activity.complementaryPlaceId2}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="gap-1"
-                                    >
-                                      <ExternalLink className="h-3 w-3" />
-                                      View
-                                    </a>
-                                  </Button>
-                                )}
+                            {activity.timeConstraints && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <Clock className="h-4 w-4 text-muted-foreground" />
+                                <span className="font-medium">When:</span>
+                                <span className="text-muted-foreground">{activity.timeConstraints}</span>
                               </div>
                             )}
                           </div>
-                        </div>
-                      )}
+                        )}
 
-                      <div className="pt-2 border-t">
-                        <p className="text-xs font-medium text-muted-foreground mb-2">Your feedback:</p>
-                        <div className="flex gap-2">
-                          <Button
-                            variant={activity.feedback === "more" ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => feedbackMutation.mutate({ activityId: activity.id, feedback: "more" })}
-                            className="flex-1 gap-1"
-                            data-testid={`button-more-${activity.id}`}
-                          >
-                            <ThumbsUp className="h-3 w-3" />
-                            More like this
-                          </Button>
-                          <Button
-                            variant={activity.feedback === "less" ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => feedbackMutation.mutate({ activityId: activity.id, feedback: "less" })}
-                            className="flex-1 gap-1"
-                            data-testid={`button-less-${activity.id}`}
-                          >
-                            <ThumbsDown className="h-3 w-3" />
-                            Not this
-                          </Button>
+                        {(activity.complementaryPlaceName || activity.complementaryPlaceName2) && (
+                          <div className="bg-accent/20 rounded-md p-3">
+                            <p className="text-sm font-medium mb-2 flex items-center gap-2">
+                              <MapPin className="h-4 w-4" />
+                              {complementaryLabel}
+                            </p>
+                            <div className="space-y-2">
+                              {activity.complementaryPlaceName && (
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium">{activity.complementaryPlaceName}</p>
+                                    {activity.complementaryPlaceRating && (
+                                      <div className="flex items-center gap-1 mt-1">
+                                        <Star className="h-3 w-3 fill-current text-yellow-500" />
+                                        <span className="text-xs text-muted-foreground">{activity.complementaryPlaceRating}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                  {activity.complementaryPlaceId && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      asChild
+                                      data-testid={`button-complementary-link-${activity.id}`}
+                                    >
+                                      <a
+                                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activity.complementaryPlaceName)}&query_place_id=${activity.complementaryPlaceId}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="gap-1"
+                                      >
+                                        <ExternalLink className="h-3 w-3" />
+                                        View
+                                      </a>
+                                    </Button>
+                                  )}
+                                </div>
+                              )}
+                              {activity.complementaryPlaceName2 && (
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium">{activity.complementaryPlaceName2}</p>
+                                    {activity.complementaryPlaceRating2 && (
+                                      <div className="flex items-center gap-1 mt-1">
+                                        <Star className="h-3 w-3 fill-current text-yellow-500" />
+                                        <span className="text-xs text-muted-foreground">{activity.complementaryPlaceRating2}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                  {activity.complementaryPlaceId2 && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      asChild
+                                      data-testid={`button-complementary-link-2-${activity.id}`}
+                                    >
+                                      <a
+                                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activity.complementaryPlaceName2)}&query_place_id=${activity.complementaryPlaceId2}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="gap-1"
+                                      >
+                                        <ExternalLink className="h-3 w-3" />
+                                        View
+                                      </a>
+                                    </Button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="pt-2 border-t mt-auto">
+                          <p className="text-xs font-medium text-muted-foreground mb-2">Your feedback:</p>
+                          <div className="flex gap-2">
+                            <Button
+                              variant={activity.feedback === "more" ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => feedbackMutation.mutate({ activityId: activity.id, feedback: "more" })}
+                              className="flex-1 gap-1"
+                              data-testid={`button-more-${activity.id}`}
+                            >
+                              <ThumbsUp className="h-3 w-3" />
+                              More like this
+                            </Button>
+                            <Button
+                              variant={activity.feedback === "less" ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => feedbackMutation.mutate({ activityId: activity.id, feedback: "less" })}
+                              className="flex-1 gap-1"
+                              data-testid={`button-less-${activity.id}`}
+                            >
+                              <ThumbsDown className="h-3 w-3" />
+                              Not this
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                    </CardHeader>
-                  </Card>
-                ))}
+                      </CardHeader>
+                    </Card>
+                  );
+                })}
               </div>
             )}
           </div>

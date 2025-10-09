@@ -119,7 +119,11 @@ Requirements:
    - Include a realistic "priceEstimate" (e.g., "$25-50 per person", "$15 tickets", "Free")
    - Include "timeConstraints" if applicable (e.g., "Only on Friday afternoons", "Weekends in summer", "Saturday evenings")
    - Include a "complementaryFoodPlace" search query for 2 nearby food places (e.g., "restaurants near [event venue]" or "food near [festival location]")
-8. For restaurants/cafes/bars: leave priceEstimate and timeConstraints empty (pricing comes from Google)
+8. FOR RESTAURANTS/CAFES/BARS (meal venues):
+   - Leave priceEstimate and timeConstraints empty (pricing comes from Google)
+   - REQUIRED: Include a "complementaryFoodPlace" search query for 2 highly rated pre/post meal options nearby
+   - Examples: "dessert shops near Millbrae", "cocktail bars near Millbrae", "boba tea near Millbrae", "ice cream near Millbrae"
+   - These complement the main meal experience (dessert after dinner, drinks before/after, boba runs)
 9. FOR OUTDOOR VENUES (parks, beaches, hiking trails, outdoor spaces without food):
    - Include a "complementaryFoodPlace" search query for nearby food places (e.g., "sandwich shops near Central Park" or "coffee shops near Golden Gate Park")
    - This helps groups know where to grab food for their outdoor activity
@@ -147,7 +151,7 @@ Return your response as a JSON object with this structure:
       "searchQuery": "search terms for Google Places API (e.g., 'Italian restaurants in San Francisco')",
       "priceEstimate": "ONLY for events: realistic price estimate",
       "timeConstraints": "ONLY for events: date/time constraints if any",
-      "complementaryFoodPlace": "ONLY for outdoor venues: search query for nearby food place"
+      "complementaryFoodPlace": "for restaurants/cafes/bars: search query for pre/post meal options (dessert, drinks, boba); for outdoor venues: search query for nearby food; for events: search query for nearby food"
     }
   ]
 }`;
