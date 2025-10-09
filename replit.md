@@ -9,8 +9,13 @@ The platform enables users to create groups, invite members, and receive tailore
 ## Recent Changes
 
 ### October 9, 2025
+- **AI Preference Interpretation Overhaul**: Completely redesigned how AI reads group preferences to be more accurate:
+  - **Type Prioritization**: AI now analyzes past preferences to identify TYPES of venues (restaurants, bars, etc.) and prioritizes suggesting the same types they've historically enjoyed
+  - **Closeness Level**: No longer influences activity types (reserved for future scheduling features like quorum)
+  - **Novelty as Percentage**: Novelty preference now works as a split - Level 1 = all familiar, Level 3 = 3 familiar + 3 new, Level 5 = all new
+  - **Familiar vs New**: "Familiar" means venues similar to past favorites or loved venues; "New" means novel experiences they haven't tried
 - **Voting Integration into AI**: Favorites list voting now influences AI suggestions! The system tracks upvotes/downvotes on favorite venues and tells the AI to suggest more venues like highly-voted favorites and avoid venues similar to downvoted ones. This works alongside the existing heart/more/less feedback system.
-- **Fixed Duplicate Venue Suggestions (Improved)**: Enhanced duplicate prevention to only use activities with `aiSuggestedName` populated. Old activities were mixing Google business names (like "Fiddlers Green") with AI types (like "Irish Pub"), causing the AI to suggest duplicates. Now only AI-suggested types are used for deduplication.
+- **Fixed Duplicate Venue Suggestions (Final)**: Enhanced duplicate prevention to track BOTH AI-suggested types AND actual Google business names, preventing repeats like "Sweet Indulgence" and "Central Park" from appearing again
 - **Members in Group Details**: Moved members list into Group Details card as a collapsible section, removing the separate Members card for a more compact layout.
 - **Meal Complementary Suggestions**: For restaurants/cafes/bars, AI now suggests pre/post meal options (dessert shops, cocktail bars, boba places, etc.) to complete the dining experience. These appear with the label "Complete the experience:" for meal venues, "Grab food nearby:" for outdoor venues.
 - **Aligned Feedback Section**: Activity cards now use flexbox layout to keep the feedback section (More like this / Not this buttons) aligned at the bottom of each card, regardless of content length.

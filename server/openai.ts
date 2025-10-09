@@ -29,21 +29,10 @@ export async function generateActivitySuggestions(groupData: {
   previouslySuggestedVenues?: string[];
 }): Promise<ActivitySuggestion[]> {
   try {
-    const closenessDescriptions = [
-      "acquaintances who are just getting to know each other",
-      "casual friends who enjoy spending time together",
-      "good friends with shared interests",
-      "close friends with strong bonds",
-      "best friends or family who know each other very well"
-    ];
-
-    const noveltyDescriptions = [
-      "strongly prefer familiar, tried-and-true places they've enjoyed before",
-      "generally prefer familiar places but open to occasional new experiences",
-      "enjoy a balanced mix of familiar favorites and new discoveries",
-      "prefer trying new places and experiences regularly",
-      "always seeking novel, unique, and adventurous experiences"
-    ];
+    // Calculate novelty split: novelty 1 = 6 familiar, novelty 3 = 3 familiar + 3 new, novelty 5 = 6 new
+    // Formula: familiar = 6 - (noveltyPreference - 1) * 1.5, rounded
+    const familiarCount = Math.round(6 - (groupData.noveltyPreference - 1) * 1.5);
+    const newCount = 6 - familiarCount;
 
     // Format availability for display
     const formatAvailabilityForPrompt = (availability: any): string => {
@@ -126,17 +115,23 @@ Location: ${groupData.locationBase}
 Budget Range: $${groupData.budgetMin}-${groupData.budgetMax} per person
 Meeting Frequency: ${groupData.meetingFrequency}
 Usual Availability: ${availabilityText}
-Group Closeness: ${closenessDescriptions[groupData.closenessLevel - 1]}
-Experience Preference: ${noveltyDescriptions[groupData.noveltyPreference - 1]}
 ${groupData.pastPreferences ? `Past Preferences: ${groupData.pastPreferences}` : ''}
 ${groupData.additionalInstructions ? `Additional Instructions: ${groupData.additionalInstructions}` : ''}${feedbackContext}${votingContext}${avoidVenuesContext}
 
+CRITICAL - Novelty Preference Strategy:
+- Suggest ${familiarCount} FAMILIAR venues (things similar to past preferences, favorites, or things they've loved)
+- Suggest ${newCount} NEW venues (novel experiences they haven't tried)
+- Mark NEW suggestions with "NEW:" prefix in reasoning
+
 Requirements:
-1. Suggest 6 specific types of venues/activities (not specific business names)
-2. Each suggestion should fit within the budget range
-3. Consider the group's closeness level (intimate vs casual activities)
-4. Balance familiar and novel based on their novelty preference
-5. Ensure variety across the 6 suggestions
+1. ANALYZE Past Preferences to identify the TYPES of venues they prefer (restaurants, bars, cafes, activities, outdoor spaces, etc.)
+2. PRIORITIZE suggesting the same TYPES of venues they've enjoyed historically
+   - If past preferences are mostly restaurants → suggest mostly restaurants
+   - If past preferences include bars/nightlife → include bars/nightlife
+   - Match the category distribution of their past preferences
+3. Suggest 6 specific types of venues/activities (not specific business names)
+4. Each suggestion should fit within the budget range
+5. Diversity within the same category is good (e.g., different cuisines if suggesting restaurants)
 6. Provide a search query that can be used with Google Places API
 7. FOR EVENTS ONLY (festivals, concerts, shows, sporting events, etc.): 
    - Include a realistic "priceEstimate" (e.g., "$25-50 per person", "$15 tickets", "Free")
