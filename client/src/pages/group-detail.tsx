@@ -892,7 +892,7 @@ export default function GroupDetail() {
                                 {(event.rating || event.priceLevel || event.venueType) && (
                                   <div className="flex flex-wrap gap-2">
                                     {event.rating && (
-                                      <Badge variant="secondary" className="gap-1">
+                                      <Badge variant="secondary" className="gap-1" data-testid={`badge-rating-event-${event.id}`}>
                                         <Star className="h-3 w-3 fill-current" />
                                         {event.rating}
                                       </Badge>
@@ -1152,7 +1152,17 @@ export default function GroupDetail() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {activities
                   .filter(activity => activity.feedback !== "less")
-                  .sort((a, b) => a.id.localeCompare(b.id))
+                  .sort((a, b) => {
+                    // Sort by rating (highest first), then by review count (highest first)
+                    const ratingA = parseFloat(a.rating || "0");
+                    const ratingB = parseFloat(b.rating || "0");
+                    if (ratingA !== ratingB) {
+                      return ratingB - ratingA; // Higher rating first
+                    }
+                    const reviewCountA = a.reviewCount || 0;
+                    const reviewCountB = b.reviewCount || 0;
+                    return reviewCountB - reviewCountA; // Higher review count first
+                  })
                   .map((activity) => {
                   // Determine label for complementary places
                   const isRestaurant = ['restaurant', 'cafe', 'bar', 'brewery', 'bakery', 'food'].some(type => 
@@ -1249,9 +1259,10 @@ export default function GroupDetail() {
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div className="flex flex-wrap gap-2">
                             {activity.rating && (
-                              <Badge variant="secondary" className="gap-1">
+                              <Badge variant="secondary" className="gap-1" data-testid={`badge-rating-${activity.id}`}>
                                 <Star className="h-3 w-3 fill-current" />
                                 {activity.rating}
+                                {activity.reviewCount && ` (${activity.reviewCount})`}
                               </Badge>
                             )}
                             {activity.priceLevel && (
@@ -1286,22 +1297,15 @@ export default function GroupDetail() {
                           <span className="line-clamp-2">{activity.venueAddress}</span>
                         </div>
 
-                        {activity.aiReasoning && (
+                        {activity.googleReview && (
                           <div className="text-sm bg-primary/5 rounded-md p-3">
-                            <p className="text-primary font-medium mb-2">Why we suggest this:</p>
-                            <ul className="text-muted-foreground space-y-1 list-disc list-inside">
-                              {activity.aiReasoning.split(/[.!]\s+/).filter(s => s.trim()).slice(0, 3).map((point, i) => (
-                                <li key={i} className="text-sm">{point.trim()}</li>
-                              ))}
-                            </ul>
-                            {activity.googleReview && (
-                              <div className="mt-3 pt-3 border-t border-primary/10">
-                                <p className="text-muted-foreground italic text-sm flex items-start gap-2" data-testid={`text-review-${activity.id}`}>
-                                  <MessageCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                                  <span>{activity.googleReview}</span>
-                                </p>
-                              </div>
-                            )}
+                            <p className="text-primary font-medium mb-2 flex items-center gap-2">
+                              <MessageCircle className="h-4 w-4" />
+                              Why we suggest this:
+                            </p>
+                            <p className="text-muted-foreground italic" data-testid={`text-review-${activity.id}`}>
+                              {activity.googleReview}
+                            </p>
                           </div>
                         )}
 

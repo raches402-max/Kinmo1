@@ -136,93 +136,75 @@ export async function searchNearbyPlaces(
   }
 }
 
-// Helper function to select and format the best review
-// Ensures TOTAL displayed string (including quotes, text, and author) is 80-100 chars
+// Helper function to create a summary of positive review highlights
 function selectBestReview(reviews?: any[]): string | undefined {
   if (!reviews || reviews.length === 0) return undefined;
 
   // Filter for positive reviews (4-5 stars)
-  const positiveReviews = reviews.filter(r => r.rating >= 4);
+  const positiveReviews = reviews.filter(r => r.rating >= 4 && r.text);
   if (positiveReviews.length === 0) return undefined;
 
   // Sort by rating (highest first), then by text length (more detailed reviews)
   const sortedReviews = positiveReviews.sort((a, b) => {
-    // Prioritize 5-star reviews
     if (b.rating !== a.rating) return b.rating - a.rating;
-    // Then by text length (prefer longer, more detailed reviews)
     return (b.text?.length || 0) - (a.text?.length || 0);
   });
 
-  const bestReview = sortedReviews[0];
-  if (!bestReview.text) return undefined;
-
-  let text = bestReview.text.trim();
-  const authorName = bestReview.author_name || "Anonymous";
+  // Take top 3 reviews to extract highlights
+  const topReviews = sortedReviews.slice(0, 3);
   
-  // Calculate overhead: quotes (2) + " - " (3) + author name
-  const overhead = 5 + authorName.length;
-  const minTextLength = Math.max(30, 80 - overhead); // Ensure total >= 80
-  const maxTextLength = 100 - overhead; // Ensure total <= 100
-
-  // If review text is too short even after accounting for overhead, try to find a longer review
-  if (text.length < minTextLength) {
-    const longerReview = positiveReviews.find(r => r.text && r.text.trim().length >= minTextLength);
-    if (longerReview && longerReview.text) {
-      text = longerReview.text.trim();
-    } else {
-      // No review meets min length - skip this review
-      return undefined;
-    }
-  }
-
-  // Truncate to fit within 80-100 char total length
-  if (text.length > maxTextLength) {
-    // Try to cut at sentence boundary
-    const sentences = text.match(/[^.!?]+[.!?]+/g);
-    if (sentences && sentences[0].length >= minTextLength && sentences[0].length <= maxTextLength) {
-      text = sentences[0].trim();
-    } else if (sentences && sentences[0].length < minTextLength && sentences.length > 1) {
-      // Accumulate sentences until >= minTextLength
-      let accumulated = sentences[0];
-      for (let i = 1; i < sentences.length && accumulated.length < minTextLength; i++) {
-        accumulated += sentences[i];
-      }
-      if (accumulated.length <= maxTextLength) {
-        text = accumulated.trim();
-      } else {
-        // Cut at word boundary, accounting for ellipsis (3 chars)
-        const maxWithEllipsis = maxTextLength - 3;
-        text = text.substring(0, maxWithEllipsis);
-        const lastSpace = text.lastIndexOf(' ');
-        // Ensure cutting at word boundary still meets minimum
-        if (lastSpace >= minTextLength - 3) {
-          text = text.substring(0, lastSpace) + '...';
-        } else {
-          text = text.substring(0, maxWithEllipsis) + '...';
+  // Extract positive phrases from reviews
+  const highlights: string[] = [];
+  const positiveKeywords = ['great', 'excellent', 'amazing', 'fantastic', 'love', 'perfect', 'best', 'delicious', 'wonderful', 'awesome', 'recommend', 'favorite'];
+  
+  for (const review of topReviews) {
+    if (!review.text) continue;
+    
+    // Split into sentences
+    const sentences = review.text.match(/[^.!?]+[.!?]+/g) || [review.text];
+    
+    for (const sentence of sentences) {
+      const lowerSentence = sentence.toLowerCase();
+      
+      // Check if sentence contains positive keywords
+      if (positiveKeywords.some(keyword => lowerSentence.includes(keyword))) {
+        // Clean up the sentence
+        let highlight = sentence.trim()
+          .replace(/^(i |we |they |the |this |it |very |really |so |such )/i, '') // Remove common prefixes
+          .replace(/[.!?]+$/, ''); // Remove ending punctuation
+        
+        // Take first part before comma if too long
+        if (highlight.length > 50) {
+          const parts = highlight.split(',');
+          highlight = parts[0].trim();
+        }
+        
+        // Capitalize first letter
+        highlight = highlight.charAt(0).toUpperCase() + highlight.slice(1);
+        
+        if (highlight.length >= 15 && highlight.length <= 60 && highlights.length < 3) {
+          highlights.push(highlight);
         }
       }
-    } else {
-      // Cut at word boundary, accounting for ellipsis (3 chars)
-      const maxWithEllipsis = maxTextLength - 3;
-      text = text.substring(0, maxWithEllipsis);
-      const lastSpace = text.lastIndexOf(' ');
-      // Ensure cutting at word boundary still meets minimum
-      if (lastSpace >= minTextLength - 3) {
-        text = text.substring(0, lastSpace) + '...';
-      } else {
-        text = text.substring(0, maxWithEllipsis) + '...';
-      }
+      
+      if (highlights.length >= 3) break;
     }
+    
+    if (highlights.length >= 3) break;
   }
-
-  const result = `"${text}" - ${authorName}`;
   
-  // Final safety check: ensure result is within bounds
-  if (result.length < 80 || result.length > 100) {
-    return undefined;
+  // If we couldn't extract enough highlights, use first sentence from best review
+  if (highlights.length === 0 && topReviews[0]?.text) {
+    const firstSentence = (topReviews[0].text.match(/[^.!?]+[.!?]/) || [topReviews[0].text])[0];
+    let highlight = firstSentence.trim().replace(/[.!?]+$/, '');
+    if (highlight.length > 60) {
+      highlight = highlight.substring(0, 57) + '...';
+    }
+    highlights.push(highlight);
   }
-
-  return result;
+  
+  // Return highlights as bullet-separated string
+  return highlights.length > 0 ? highlights.join(' • ') : undefined;
 }
 
 export async function getPlaceDetails(placeId: string): Promise<PlaceResult | null> {
