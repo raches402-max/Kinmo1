@@ -136,6 +136,7 @@ export async function searchNearbyPlaces(
 }
 
 // Helper function to select and format the best review
+// Ensures TOTAL displayed string (including quotes, text, and author) is 80-100 chars
 function selectBestReview(reviews?: any[]): string | undefined {
   if (!reviews || reviews.length === 0) return undefined;
 
@@ -154,13 +155,17 @@ function selectBestReview(reviews?: any[]): string | undefined {
   const bestReview = sortedReviews[0];
   if (!bestReview.text) return undefined;
 
-  // Ensure review is 80-100 chars
   let text = bestReview.text.trim();
   const authorName = bestReview.author_name || "Anonymous";
+  
+  // Calculate overhead: quotes (2) + " - " (3) + author name
+  const overhead = 5 + authorName.length;
+  const minTextLength = Math.max(30, 80 - overhead); // Ensure total >= 80
+  const maxTextLength = 100 - overhead; // Ensure total <= 100
 
-  // If too short, try to find a longer review
-  if (text.length < 80) {
-    const longerReview = positiveReviews.find(r => r.text && r.text.trim().length >= 80);
+  // If review text is too short even after accounting for overhead, try to find a longer review
+  if (text.length < minTextLength) {
+    const longerReview = positiveReviews.find(r => r.text && r.text.trim().length >= minTextLength);
     if (longerReview && longerReview.text) {
       text = longerReview.text.trim();
     } else {
@@ -169,43 +174,54 @@ function selectBestReview(reviews?: any[]): string | undefined {
     }
   }
 
-  // Truncate to 80-100 chars at sentence or word boundary
-  if (text.length > 100) {
+  // Truncate to fit within 80-100 char total length
+  if (text.length > maxTextLength) {
     // Try to cut at sentence boundary
     const sentences = text.match(/[^.!?]+[.!?]+/g);
-    if (sentences && sentences[0].length >= 80 && sentences[0].length <= 100) {
+    if (sentences && sentences[0].length >= minTextLength && sentences[0].length <= maxTextLength) {
       text = sentences[0].trim();
-    } else if (sentences && sentences[0].length < 80 && sentences.length > 1) {
-      // Accumulate sentences until >= 80 chars
+    } else if (sentences && sentences[0].length < minTextLength && sentences.length > 1) {
+      // Accumulate sentences until >= minTextLength
       let accumulated = sentences[0];
-      for (let i = 1; i < sentences.length && accumulated.length < 80; i++) {
+      for (let i = 1; i < sentences.length && accumulated.length < minTextLength; i++) {
         accumulated += sentences[i];
       }
-      if (accumulated.length <= 100) {
+      if (accumulated.length <= maxTextLength) {
         text = accumulated.trim();
       } else {
-        // Cut at word boundary within 80-100 range (max 97 chars + "..." = 100 total)
-        text = text.substring(0, 97);
+        // Cut at word boundary, accounting for ellipsis (3 chars)
+        const maxWithEllipsis = maxTextLength - 3;
+        text = text.substring(0, maxWithEllipsis);
         const lastSpace = text.lastIndexOf(' ');
-        if (lastSpace >= 80) {
+        // Ensure cutting at word boundary still meets minimum
+        if (lastSpace >= minTextLength - 3) {
           text = text.substring(0, lastSpace) + '...';
         } else {
-          text = text.substring(0, 97) + '...';
+          text = text.substring(0, maxWithEllipsis) + '...';
         }
       }
     } else {
-      // Cut at word boundary within 80-100 range (max 97 chars + "..." = 100 total)
-      text = text.substring(0, 97);
+      // Cut at word boundary, accounting for ellipsis (3 chars)
+      const maxWithEllipsis = maxTextLength - 3;
+      text = text.substring(0, maxWithEllipsis);
       const lastSpace = text.lastIndexOf(' ');
-      if (lastSpace >= 80) {
+      // Ensure cutting at word boundary still meets minimum
+      if (lastSpace >= minTextLength - 3) {
         text = text.substring(0, lastSpace) + '...';
       } else {
-        text = text.substring(0, 97) + '...';
+        text = text.substring(0, maxWithEllipsis) + '...';
       }
     }
   }
 
-  return `"${text}" - ${authorName}`;
+  const result = `"${text}" - ${authorName}`;
+  
+  // Final safety check: ensure result is within bounds
+  if (result.length < 80 || result.length > 100) {
+    return undefined;
+  }
+
+  return result;
 }
 
 export async function getPlaceDetails(placeId: string): Promise<PlaceResult | null> {
