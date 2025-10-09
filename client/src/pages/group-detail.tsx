@@ -1363,7 +1363,7 @@ export default function GroupDetail() {
                         {editBudgetRange[0] >= 200 ? "$200+" : `$${editBudgetRange[0]}`}
                       </span>
                       <span className="font-medium" data-testid="text-edit-budget-max">
-                        {editBudgetRange[1] >= 250 ? "$250+" : `$${editBudgetRange[1]}`}
+                        {editBudgetRange[1] >= 250 ? "$200+" : `$${editBudgetRange[1]}`}
                       </span>
                     </div>
                   </div>
