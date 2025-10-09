@@ -420,8 +420,10 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
     // Get ALL activities (including archived) to avoid repeating venue names
     const allActivities = await storage.getAllGroupActivities(groupId);
     // Use AI suggested names (the types) rather than Google-enriched names to avoid duplicates
+    // Only include activities that have aiSuggestedName - older activities without it would mix business names with types
     const previouslySuggestedVenues = allActivities
-      .map(a => a.aiSuggestedName || a.venueName)
+      .filter(a => a.aiSuggestedName) // Only use activities with AI suggested names
+      .map(a => a.aiSuggestedName!)
       .filter((name, index, self) => name && self.indexOf(name) === index); // Remove nulls and duplicates
     
     // Get existing (non-archived) activities with feedback for this group

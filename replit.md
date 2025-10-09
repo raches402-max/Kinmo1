@@ -9,10 +9,11 @@ The platform enables users to create groups, invite members, and receive tailore
 ## Recent Changes
 
 ### October 9, 2025
-- **Fixed Duplicate Venue Suggestions**: Resolved issue where AI kept suggesting the same venues (like Baking Arts, Fiddlers Green, Central Park). The problem was that AI generates venue *types* (e.g., "Italian Restaurant") but Google Places finds specific venues (e.g., "Baking Arts"). Now the system stores both the AI-suggested type and the Google-enriched name, and passes the AI types back to avoid duplicates. Added `aiSuggestedName` field to activities table.
+- **Fixed Duplicate Venue Suggestions (Improved)**: Enhanced duplicate prevention to only use activities with `aiSuggestedName` populated. Old activities were mixing Google business names (like "Fiddlers Green") with AI types (like "Irish Pub"), causing the AI to suggest duplicates. Now only AI-suggested types are used for deduplication.
 - **Members in Group Details**: Moved members list into Group Details card as a collapsible section, removing the separate Members card for a more compact layout.
-- **Meal Complementary Suggestions**: For restaurants/cafes/bars, AI now suggests pre/post meal options (dessert shops, cocktail bars, boba places, etc.) to complete the dining experience. These appear in the same section as "Grab food nearby" for outdoor venues, but with the label "Complete the experience:" for meal venues.
+- **Meal Complementary Suggestions**: For restaurants/cafes/bars, AI now suggests pre/post meal options (dessert shops, cocktail bars, boba places, etc.) to complete the dining experience. These appear with the label "Complete the experience:" for meal venues, "Grab food nearby:" for outdoor venues.
 - **Aligned Feedback Section**: Activity cards now use flexbox layout to keep the feedback section (More like this / Not this buttons) aligned at the bottom of each card, regardless of content length.
+- **Feedback Integration Confirmed**: "Not this" (less), "More like this" (more), and heart (love) feedback are all configured to feed into AI suggestions. The system passes this feedback to the AI prompt so it can suggest more of what you love and less of what you don't prefer.
 
 ### October 7, 2025
 - **Complementary Food Suggestions**: For outdoor venues like parks and beaches, the AI now suggests nearby food places (e.g., "pick up sandwiches at ____ near this park"). This helps groups plan complete outdoor experiences with food options.
