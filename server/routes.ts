@@ -4,7 +4,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema } from "@shared/schema";
 import { generateActivitySuggestions } from "./openai";
-import { searchPlaces } from "./google-places";
+import { searchPlaces, searchNearbyPlaces } from "./google-places";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -491,8 +491,14 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
         // Also search for complementary food places if suggested
         let complementaryPlace = null;
         let complementaryPlace2 = null;
-        if (suggestion.complementaryFoodPlace) {
-          const foodPlaces = await searchPlaces(suggestion.complementaryFoodPlace, groupData.locationBase);
+        if (suggestion.complementaryFoodPlace && places.length > 0 && places[0].location) {
+          // Use nearby search with distance and rating constraints (<0.5 miles, 3.5+ stars)
+          const foodPlaces = await searchNearbyPlaces(
+            suggestion.complementaryFoodPlace,
+            places[0].location,
+            805, // 0.5 miles in meters
+            3.5  // minimum rating
+          );
           if (foodPlaces.length > 0) {
             complementaryPlace = foodPlaces[0];
           }

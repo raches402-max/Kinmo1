@@ -9,8 +9,11 @@ The platform enables users to create groups, invite members, and receive tailore
 ## Recent Changes
 
 ### October 9, 2025
-- **Refined Complementary Food Suggestions**: Improved AI logic for nearby food recommendations:
-  - **Distance & Quality**: All suggestions now limited to <0.5 miles with 3.5+ star ratings
+- **Refined Complementary Food Suggestions**: Improved AI logic AND Google Places filtering for nearby food recommendations:
+  - **Distance & Quality Enforcement**: 
+    - Google Places now uses `nearbySearch` API with 0.5 mile (805m) radius constraint
+    - Filters results to only show 3.5+ star ratings
+    - Previously, text search could return venues 4+ miles away (e.g., Supreme Dumplings at 4.4mi)
   - **Smart Pairing Logic**: 
     - Full meal venues (restaurants, brunch) → suggest drinks/dessert nearby (cocktail bars, boba, ice cream)
     - Drinks/dessert venues (cafes, bars, boba shops) → suggest full meals nearby (restaurants, sandwiches)
