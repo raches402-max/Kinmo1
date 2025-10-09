@@ -9,6 +9,7 @@ The platform enables users to create groups, invite members, and receive tailore
 ## Recent Changes
 
 ### October 9, 2025
+- **Voting Integration into AI**: Favorites list voting now influences AI suggestions! The system tracks upvotes/downvotes on favorite venues and tells the AI to suggest more venues like highly-voted favorites and avoid venues similar to downvoted ones. This works alongside the existing heart/more/less feedback system.
 - **Fixed Duplicate Venue Suggestions (Improved)**: Enhanced duplicate prevention to only use activities with `aiSuggestedName` populated. Old activities were mixing Google business names (like "Fiddlers Green") with AI types (like "Irish Pub"), causing the AI to suggest duplicates. Now only AI-suggested types are used for deduplication.
 - **Members in Group Details**: Moved members list into Group Details card as a collapsible section, removing the separate Members card for a more compact layout.
 - **Meal Complementary Suggestions**: For restaurants/cafes/bars, AI now suggests pre/post meal options (dessert shops, cocktail bars, boba places, etc.) to complete the dining experience. These appear with the label "Complete the experience:" for meal venues, "Grab food nearby:" for outdoor venues.

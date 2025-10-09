@@ -25,6 +25,7 @@ export async function generateActivitySuggestions(groupData: {
   pastPreferences?: string;
   additionalInstructions?: string;
   previousFeedback?: { venueName: string; venueType: string; feedback: string; description: string }[];
+  votingFeedback?: { venueName: string; venueType: string; upvotes: number; downvotes: number; netVotes: number; description: string }[];
   previouslySuggestedVenues?: string[];
 }): Promise<ActivitySuggestion[]> {
   try {
@@ -91,6 +92,28 @@ export async function generateActivitySuggestions(groupData: {
       }
     }
 
+    // Format voting feedback from Favorites list
+    let votingContext = '';
+    if (groupData.votingFeedback && groupData.votingFeedback.length > 0) {
+      const popularVenues = groupData.votingFeedback
+        .filter(v => v.netVotes > 0)
+        .sort((a, b) => b.netVotes - a.netVotes)
+        .map(v => `${v.venueName} (${v.venueType}) [+${v.upvotes}/-${v.downvotes}]`);
+      
+      const unpopularVenues = groupData.votingFeedback
+        .filter(v => v.netVotes < 0)
+        .sort((a, b) => a.netVotes - b.netVotes)
+        .map(v => `${v.venueName} (${v.venueType}) [+${v.upvotes}/-${v.downvotes}]`);
+      
+      votingContext = '\nFavorites List Voting:';
+      if (popularVenues.length > 0) {
+        votingContext += `\n- POPULAR (high net votes - suggest more like these): ${popularVenues.join(', ')}`;
+      }
+      if (unpopularVenues.length > 0) {
+        votingContext += `\n- UNPOPULAR (negative net votes - avoid similar): ${unpopularVenues.join(', ')}`;
+      }
+    }
+
     // Format previously suggested venues to avoid repeats
     let avoidVenuesContext = '';
     if (groupData.previouslySuggestedVenues && groupData.previouslySuggestedVenues.length > 0) {
@@ -106,7 +129,7 @@ Usual Availability: ${availabilityText}
 Group Closeness: ${closenessDescriptions[groupData.closenessLevel - 1]}
 Experience Preference: ${noveltyDescriptions[groupData.noveltyPreference - 1]}
 ${groupData.pastPreferences ? `Past Preferences: ${groupData.pastPreferences}` : ''}
-${groupData.additionalInstructions ? `Additional Instructions: ${groupData.additionalInstructions}` : ''}${feedbackContext}${avoidVenuesContext}
+${groupData.additionalInstructions ? `Additional Instructions: ${groupData.additionalInstructions}` : ''}${feedbackContext}${votingContext}${avoidVenuesContext}
 
 Requirements:
 1. Suggest 6 specific types of venues/activities (not specific business names)
@@ -127,10 +150,12 @@ Requirements:
 9. FOR OUTDOOR VENUES (parks, beaches, hiking trails, outdoor spaces without food):
    - Include a "complementaryFoodPlace" search query for nearby food places (e.g., "sandwich shops near Central Park" or "coffee shops near Golden Gate Park")
    - This helps groups know where to grab food for their outdoor activity
-10. IMPORTANT - Use previous feedback to guide suggestions:
+10. IMPORTANT - Use previous feedback AND voting data to guide suggestions:
    - If activities were "LOVED", suggest very similar venues/types
    - If activities got "more", increase that type of suggestion
    - If activities got "less", avoid or minimize that type
+   - If Favorites have HIGH net votes (popular), prioritize very similar venue types
+   - If Favorites have NEGATIVE net votes (unpopular), avoid similar venue types
 11. FOR REASONING: CRITICAL - Keep it extremely concise at 4-10 words. NO flowery language or fluff. Just state the key reason.
    Examples:
    - Good: "Fits budget, casual Asian shareable dining" (6 words)

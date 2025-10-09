@@ -437,7 +437,21 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
         description: a.description
       }));
 
+    // Get voting events (Favorites list) with vote counts to incorporate into AI
+    const votingEvents = await storage.getGroupVotingEvents(groupId);
+    const votingFeedback = votingEvents
+      .filter(e => e.netVotes !== 0 && e.venueType) // Only include events with votes and valid venue type
+      .map(e => ({
+        venueName: e.title,
+        venueType: e.venueType!,
+        upvotes: e.upvotes,
+        downvotes: e.downvotes,
+        netVotes: e.netVotes,
+        description: e.description || ''
+      }));
+
     console.log(`[AI Generation] Found ${previousFeedback.length} activities with feedback`);
+    console.log(`[AI Generation] Found ${votingFeedback.length} favorites with voting data`);
     console.log(`[AI Generation] Found ${previouslySuggestedVenues.length} previously suggested venues to avoid`);
 
     // Archive old activities before generating new ones (preserves feedback for AI)
@@ -456,6 +470,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       pastPreferences: groupData.pastPreferences,
       additionalInstructions: groupData.additionalInstructions,
       previousFeedback: previousFeedback.length > 0 ? previousFeedback : undefined,
+      votingFeedback: votingFeedback.length > 0 ? votingFeedback : undefined,
       previouslySuggestedVenues: previouslySuggestedVenues.length > 0 ? previouslySuggestedVenues : undefined,
     });
 
