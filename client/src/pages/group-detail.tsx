@@ -1395,26 +1395,6 @@ export default function GroupDetail() {
               <h3 className="text-sm font-semibold">Group Preferences</h3>
               <div className="space-y-6">
                 <div className="space-y-4">
-                  <Label>How Close Is This Group?</Label>
-                  <div className="space-y-4">
-                    <Slider
-                      min={1}
-                      max={5}
-                      step={1}
-                      value={[editCloseness]}
-                      onValueChange={(value) => setEditCloseness(value[0])}
-                      className="w-full"
-                      data-testid="slider-edit-closeness"
-                    />
-                    <div className="text-center">
-                      <span className="text-sm font-medium text-primary" data-testid="text-edit-closeness-level">
-                        {closenessLabels[editCloseness - 1]}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
                   <Label>New Experiences vs Familiar Places</Label>
                   <div className="space-y-4">
                     <Slider
