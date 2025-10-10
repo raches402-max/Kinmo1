@@ -15,13 +15,30 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, MessageCircle } from "lucide-react";
+import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, MessageCircle, GripVertical, CheckCircle2 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Group, Activity, Member, VotingEvent, Vote } from "@shared/schema";
 import { AvailabilityGrid, createEmptyAvailability } from "@/components/AvailabilityGrid";
 import { SwipeSession } from "@/components/SwipeSession";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 const closenessLabels = ["Acquaintances", "Friends", "Good Friends", "Close Friends", "Best Friends"];
 const noveltyLabels = ["We like our usual spots", "Leaning familiar", "Open sometimes", "Pretty adventurous", "Always up for new things!"];
@@ -68,6 +85,123 @@ function formatMeetingFrequency(freq: string): string {
   }
   
   return freq;
+}
+
+// Sortable itinerary item component
+function SortableItineraryItem({ item, index }: { item: any; index: number }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-3 p-3 rounded-md bg-card border hover-elevate"
+      data-testid={`itinerary-item-${item.id}`}
+    >
+      <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
+        <GripVertical className="h-5 w-5 text-muted-foreground" />
+      </div>
+      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-bold">
+        {index + 1}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-medium truncate">{item.venueName}</p>
+        <p className="text-xs text-muted-foreground truncate">{item.venueType}</p>
+      </div>
+      {item.rating && (
+        <Badge variant="secondary" className="gap-1">
+          <Star className="h-3 w-3 fill-current" />
+          {item.rating}
+        </Badge>
+      )}
+    </div>
+  );
+}
+
+// Itinerary display component with drag-to-reorder
+function ItineraryDisplay({ itinerary }: { itinerary: any }) {
+  const { toast } = useToast();
+  const [items, setItems] = useState(itinerary.items || []);
+  
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const updateOrderMutation = useMutation({
+    mutationFn: async (newOrder: string[]) => {
+      return await apiRequest("PATCH", `/api/itineraries/${itinerary.id}/order`, {
+        proposedOrder: newOrder,
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Order updated",
+        description: "Your itinerary has been reordered",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error updating order",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const oldIndex = items.findIndex((item: any) => item.id === active.id);
+      const newIndex = items.findIndex((item: any) => item.id === over.id);
+      
+      const newItems = arrayMove(items, oldIndex, newIndex);
+      setItems(newItems);
+      
+      // Update on server
+      const newOrder = newItems.map((item: any) => item.sourceId);
+      updateOrderMutation.mutate(newOrder);
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      {itinerary.aiValidationNotes && (
+        <div className="p-3 rounded-md bg-muted/50 text-sm text-muted-foreground">
+          <p className="font-medium mb-1">AI Notes:</p>
+          <p>{itinerary.aiValidationNotes}</p>
+        </div>
+      )}
+      
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext items={items.map((i: any) => i.id)} strategy={verticalListSortingStrategy}>
+          {items.map((item: any, index: number) => (
+            <SortableItineraryItem key={item.id} item={item} index={index} />
+          ))}
+        </SortableContext>
+      </DndContext>
+    </div>
+  );
 }
 
 export default function GroupDetail() {
@@ -125,6 +259,11 @@ export default function GroupDetail() {
 
   const { data: members = [], isLoading: membersLoading } = useQuery<Member[]>({
     queryKey: ["/api/groups", groupId, "members"],
+    enabled: !!groupId,
+  });
+
+  const { data: itineraries = [], isLoading: itinerariesLoading } = useQuery<any[]>({
+    queryKey: ["/api/groups", groupId, "itineraries"],
     enabled: !!groupId,
   });
 
@@ -1229,6 +1368,30 @@ export default function GroupDetail() {
                   : "Personalized recommendations based on your group's preferences"
                 }
               </p>
+
+              {/* Itinerary Proposals Display */}
+              {itineraries.length > 0 && !selectionMode && (
+                <Card className="mb-6">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="flex items-center gap-2">
+                          <CheckCircle2 className="h-5 w-5 text-primary" />
+                          Your Evening Itinerary
+                        </CardTitle>
+                        <CardDescription className="mt-1">
+                          AI has organized your selections - drag to reorder
+                        </CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {itineraries.map((itinerary: any) => (
+                      <ItineraryDisplay key={itinerary.id} itinerary={itinerary} />
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
               
               <div className="flex gap-3 items-end">
                 <div className="flex-1">
