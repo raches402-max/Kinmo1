@@ -901,12 +901,13 @@ export default function GroupDetail() {
                                   )}
                                 </div>
                                 
-                                {(event.rating || event.priceLevel || event.venueType) && (
-                                  <div className="flex flex-wrap gap-2">
+                                {(event.rating || event.priceLevel || event.venueType || event.googlePlaceId) && (
+                                  <div className="flex flex-wrap gap-2 items-center">
                                     {event.rating && (
                                       <Badge variant="secondary" className="gap-1" data-testid={`badge-rating-event-${event.id}`}>
                                         <Star className="h-3 w-3 fill-current" />
                                         {event.rating}
+                                        {event.reviewCount && ` (${event.reviewCount})`}
                                       </Badge>
                                     )}
                                     {event.priceLevel && (
@@ -916,6 +917,24 @@ export default function GroupDetail() {
                                     )}
                                     {event.venueType && (
                                       <Badge variant="outline">{event.venueType}</Badge>
+                                    )}
+                                    {event.googlePlaceId && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        asChild
+                                        data-testid={`button-google-link-event-${event.id}`}
+                                      >
+                                        <a
+                                          href={`https://www.google.com/maps/search/?api=1&query=Google&query_place_id=${event.googlePlaceId}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="gap-1"
+                                        >
+                                          <ExternalLink className="h-3 w-3" />
+                                          Google
+                                        </a>
+                                      </Button>
                                     )}
                                   </div>
                                 )}
