@@ -887,107 +887,207 @@ export default function GroupDetail() {
             <TabsTrigger value="feedback" data-testid="tab-feedback">5. Feedback</TabsTrigger>
           </TabsList>
 
-          {/* Tab 1: Preferences */}
+          {/* Tab 1: Group Details */}
           <TabsContent value="preferences" className="space-y-6">
-            {/* Group Details Card */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
+            <div className="max-w-3xl mx-auto space-y-6">
+              {/* Group Details Section */}
+              <Card>
+                <CardHeader>
                   <CardTitle>Group Details</CardTitle>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    onClick={openEditGroup}
-                    data-testid="button-edit-group"
-                  >
-                    <Settings className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{group.locationBase}</p>
+                  <CardDescription>Basic information about your group</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-group-name">Group Name</Label>
+                    <Input
+                      id="edit-group-name"
+                      value={editGroupData.name}
+                      onChange={(e) => setEditGroupData({ ...editGroupData, name: e.target.value })}
+                      data-testid="input-edit-group-name"
+                    />
                   </div>
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex-1">
-                    <p className="text-xs text-muted-foreground">Budget</p>
-                    <p className="text-sm font-medium">${group.budgetMin}-${group.budgetMax}</p>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-location">Location Base</Label>
+                    <Input
+                      id="edit-location"
+                      value={editGroupData.locationBase}
+                      onChange={(e) => setEditGroupData({ ...editGroupData, locationBase: e.target.value })}
+                      data-testid="input-edit-location"
+                    />
                   </div>
-                  <div className="flex-1">
-                    <p className="text-xs text-muted-foreground">Frequency</p>
-                    <p className="text-sm font-medium">{formatMeetingFrequency(group.meetingFrequency)}</p>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Availability</p>
-                  <p className="text-xs leading-relaxed">{formatAvailability(group.availability)}</p>
-                </div>
-
-                {/* Members Section */}
-                <Collapsible open={membersOpen} onOpenChange={setMembersOpen} className="pt-2 border-t">
-                  <CollapsibleTrigger asChild>
-                    <div className="flex items-center justify-between cursor-pointer hover-elevate -mx-2 px-2 py-1 rounded-md">
-                      <div className="flex items-center gap-2">
-                        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${membersOpen ? "" : "-rotate-90"}`} />
-                        <div>
-                          <p className="text-xs text-muted-foreground">Members</p>
-                          <p className="text-sm font-medium">
-                            {members.length} {members.length === 1 ? "member" : "members"}
-                          </p>
-                        </div>
+                  <div className="space-y-3">
+                    <Label>Budget Range (per person)</Label>
+                    <div className="space-y-3">
+                      <Slider
+                        min={0}
+                        max={250}
+                        step={10}
+                        value={editBudgetRange}
+                        onValueChange={setEditBudgetRange}
+                        className="w-full"
+                        data-testid="slider-edit-budget"
+                      />
+                      <div className="flex justify-between text-sm">
+                        <span className="font-medium" data-testid="text-edit-budget-min">
+                          {editBudgetRange[0] >= 200 ? "$200+" : `$${editBudgetRange[0]}`}
+                        </span>
+                        <span className="font-medium" data-testid="text-edit-budget-max">
+                          {editBudgetRange[1] >= 200 ? "$200+" : `$${editBudgetRange[1]}`}
+                        </span>
                       </div>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          copyShareLink();
-                        }}
-                        data-testid="button-copy-link"
-                      >
-                        {copied ? (
-                          <Check className="h-3 w-3 text-green-600" />
-                        ) : (
-                          <UserPlus className="h-3 w-3" />
-                        )}
-                      </Button>
                     </div>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="pt-3">
-                    {membersLoading ? (
-                      <div className="space-y-2">
-                        <Skeleton className="h-8 w-full" />
-                        <Skeleton className="h-8 w-full" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>How Often to Meet</Label>
+                    <div className="flex items-center gap-2">
+                      <div className="w-20">
+                        <Input
+                          type="number"
+                          min={1}
+                          max={99}
+                          value={editFrequencyNumber}
+                          onChange={(e) => setEditFrequencyNumber(parseInt(e.target.value) || 1)}
+                          data-testid="input-edit-frequency-number"
+                        />
                       </div>
-                    ) : members.length > 0 ? (
+                      <span className="text-sm text-muted-foreground">x each</span>
+                      <Select value={editFrequencyUnit} onValueChange={setEditFrequencyUnit}>
+                        <SelectTrigger className="flex-1" data-testid="select-edit-frequency-unit">
+                          <SelectValue placeholder="Select unit" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="day">day</SelectItem>
+                          <SelectItem value="week">week</SelectItem>
+                          <SelectItem value="month">month</SelectItem>
+                          <SelectItem value="year">year</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <Label>Group Availability</Label>
+                    <AvailabilityGrid 
+                      value={editAvailability} 
+                      onChange={setEditAvailability}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Preferences Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Group Preferences</CardTitle>
+                  <CardDescription>Help AI understand what your group enjoys</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-4">
+                    <Label className="text-base">How willing is your group to try new things?</Label>
+                    <div className="space-y-3">
+                      <div className="text-center text-sm text-muted-foreground">
+                        Group Openness to New Experiences
+                      </div>
+                      <Slider
+                        min={1}
+                        max={5}
+                        step={1}
+                        value={[editNovelty]}
+                        onValueChange={(value) => setEditNovelty(value[0])}
+                        className="w-full"
+                        data-testid="slider-edit-novelty"
+                      />
+                      <div className="flex justify-between text-xs text-muted-foreground px-1">
+                        <span>We like our usual spots</span>
+                        <span>Open sometimes</span>
+                        <span>Always up for new things!</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label className="text-base">What types of activities interest your group?</Label>
+                    <p className="text-sm text-muted-foreground">Select all that apply (optional)</p>
+                    <div className="flex flex-wrap gap-2">
+                      {activityCategories.map((category) => {
+                        const Icon = category.icon;
+                        return (
+                          <Button
+                            key={category.id}
+                            type="button"
+                            variant={editCategories.includes(category.id) ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => toggleEditCategory(category.id)}
+                            className="gap-1.5"
+                            data-testid={`button-edit-category-${category.id}`}
+                          >
+                            <Icon className="h-4 w-4" />
+                            <span>{category.label}</span>
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-past-preferences">What Has Your Group Enjoyed in the Past?</Label>
+                    <Textarea
+                      id="edit-past-preferences"
+                      value={editGroupData.pastPreferences}
+                      onChange={(e) => setEditGroupData({ ...editGroupData, pastPreferences: e.target.value })}
+                      placeholder="e.g., Trying new restaurants, outdoor activities, board game cafes, art museums..."
+                      className="resize-none h-24"
+                      data-testid="textarea-edit-past-preferences"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-additional-instructions">Additional Instructions for AI (Optional)</Label>
+                    <Textarea
+                      id="edit-additional-instructions"
+                      value={editGroupData.additionalInstructions}
+                      onChange={(e) => setEditGroupData({ ...editGroupData, additionalInstructions: e.target.value })}
+                      placeholder="e.g., Must be accessible by public transit, prefer venues with outdoor seating, avoid crowded places..."
+                      className="resize-none h-24"
+                      data-testid="textarea-edit-additional-instructions"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Members Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Members</CardTitle>
+                  <CardDescription>Manage group members and invitations</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Existing Members */}
+                  {members.length > 0 && (
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Current Members</Label>
                       <div className="space-y-2">
                         {members.map((member) => (
-                          <div key={member.id} className="flex items-center gap-2" data-testid={`member-${member.id}`}>
+                          <div key={member.id} className="flex items-center gap-2 p-2 bg-muted/50 rounded-md">
                             <Avatar className="h-7 w-7">
                               <AvatarFallback className="bg-primary/10 text-primary text-xs">
                                 {member.name?.[0]?.toUpperCase() || member.email?.[0]?.toUpperCase() || "?"}
                               </AvatarFallback>
                             </Avatar>
                             <div className="flex-1 min-w-0">
-                              <p className="text-xs font-medium truncate">{member.name || "Member"}</p>
+                              <p className="text-sm font-medium truncate">{member.name || "Member"}</p>
                               {member.email && (
-                                <p className="text-[10px] text-muted-foreground truncate">{member.email}</p>
+                                <p className="text-xs text-muted-foreground truncate">{member.email}</p>
                               )}
                             </div>
                             {member.isOrganizer ? (
-                              <Badge variant="secondary" className="text-[10px] h-5">Organizer</Badge>
+                              <Badge variant="secondary" className="text-xs">Organizer</Badge>
                             ) : (
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <Button 
                                     variant="ghost" 
                                     size="icon" 
-                                    className="h-6 w-6"
-                                    data-testid={`button-delete-member-${member.id}`}
+                                    className="h-7 w-7"
                                   >
                                     <Trash2 className="h-3 w-3 text-muted-foreground" />
                                   </Button>
@@ -1000,10 +1100,9 @@ export default function GroupDetail() {
                                     </AlertDialogDescription>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
-                                    <AlertDialogCancel data-testid="button-cancel-delete-member">Cancel</AlertDialogCancel>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
                                     <AlertDialogAction
                                       onClick={() => deleteMemberMutation.mutate(member.id)}
-                                      data-testid="button-confirm-delete-member"
                                     >
                                       Remove
                                     </AlertDialogAction>
@@ -1014,29 +1113,87 @@ export default function GroupDetail() {
                           </div>
                         ))}
                       </div>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">No members yet</p>
-                    )}
+                    </div>
+                  )}
 
-                    {members.some(m => m.email && !m.invitationSent) && (
-                      <div className="pt-2 mt-2 border-t">
-                        <Button
-                          variant="default"
-                          size="sm"
-                          className="w-full justify-start h-8 text-xs"
-                          onClick={() => sendInvitationsMutation.mutate()}
-                          disabled={sendInvitationsMutation.isPending}
-                          data-testid="button-send-invitations"
-                        >
-                          <Mail className="mr-2 h-3 w-3" />
-                          {sendInvitationsMutation.isPending ? "Sending..." : "Send Invitations"}
-                        </Button>
-                      </div>
-                    )}
-                  </CollapsibleContent>
-                </Collapsible>
-              </CardContent>
-            </Card>
+                  {/* Add New Members */}
+                  {newMembers.length > 0 && (
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">New Members to Add</Label>
+                      {newMembers.map((member, index) => (
+                        <div key={index} className="flex gap-2 items-start">
+                          <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <Input
+                              placeholder="Name (optional)"
+                              value={member.name}
+                              onChange={(e) => updateNewMember(index, "name", e.target.value)}
+                              data-testid={`input-new-member-name-${index}`}
+                            />
+                            <Input
+                              type="email"
+                              placeholder="Email (optional)"
+                              value={member.email}
+                              onChange={(e) => updateNewMember(index, "email", e.target.value)}
+                              data-testid={`input-new-member-email-${index}`}
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9"
+                            onClick={() => removeNewMember(index)}
+                            data-testid={`button-remove-new-member-${index}`}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addNewMember}
+                    className="w-full"
+                    data-testid="button-add-new-member"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Member
+                  </Button>
+
+                  {members.some(m => m.email && !m.invitationSent) && (
+                    <div className="pt-2 border-t">
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => sendInvitationsMutation.mutate()}
+                        disabled={sendInvitationsMutation.isPending}
+                        data-testid="button-send-invitations"
+                      >
+                        <Mail className="mr-2 h-3 w-3" />
+                        {sendInvitationsMutation.isPending ? "Sending..." : "Send Invitations"}
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Save Button */}
+              <div className="flex justify-end">
+                <Button 
+                  onClick={handleUpdateGroup} 
+                  disabled={updateGroupMutation.isPending}
+                  size="lg"
+                  data-testid="button-save-group"
+                >
+                  {updateGroupMutation.isPending ? "Saving..." : "Save Changes"}
+                </Button>
+              </div>
+            </div>
           </TabsContent>
 
           {/* Tab 2: Activities */}
