@@ -212,6 +212,7 @@ export default function GroupDetail() {
   const [tempInstructions, setTempInstructions] = useState("");
   const [editGroupOpen, setEditGroupOpen] = useState(false);
   const [editBudgetRange, setEditBudgetRange] = useState<number[]>([50, 250]);
+  const [showInstructions, setShowInstructions] = useState(true);
   const [editCloseness, setEditCloseness] = useState(3);
   const [editNovelty, setEditNovelty] = useState(3);
   const [editAvailability, setEditAvailability] = useState(createEmptyAvailability());
@@ -1422,91 +1423,6 @@ export default function GroupDetail() {
                 </Card>
               )}
 
-              {/* How It Works - Persistent Help */}
-              {!selectionMode && activities.length > 0 && (
-                <Collapsible className="mb-4">
-                  <Card>
-                    <CollapsibleTrigger className="w-full">
-                      <CardHeader className="flex flex-row items-center justify-between py-3 cursor-pointer hover-elevate">
-                        <div className="flex items-center gap-2">
-                          <Sparkles className="h-4 w-4 text-primary" />
-                          <CardTitle className="text-sm font-medium">How Kinmo Works</CardTitle>
-                        </div>
-                        <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform ui-expanded:rotate-180" />
-                      </CardHeader>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <CardContent className="pt-0 pb-4">
-                        <div className="space-y-2">
-                          {/* Step 1: Discover */}
-                          <div className={`flex items-start gap-3 p-2 rounded-md ${
-                            activities.length > 0 ? 'bg-primary/10 border-l-4 border-primary' : 'bg-muted/50'
-                          }`}>
-                            <div className={`flex items-center justify-center w-6 h-6 rounded-full font-bold text-sm flex-shrink-0 ${
-                              activities.length > 0 ? 'bg-primary text-primary-foreground' : 'bg-muted-foreground/20 text-muted-foreground'
-                            }`}>
-                              1
-                            </div>
-                            <div>
-                              <p className="font-medium text-sm">Discover</p>
-                              <p className="text-xs text-muted-foreground">AI generates personalized activity suggestions</p>
-                            </div>
-                          </div>
-                          
-                          {/* Step 2: Build */}
-                          <div className={`flex items-start gap-3 p-2 rounded-md ${
-                            itineraries.length > 0 ? 'bg-primary/10 border-l-4 border-primary' : 'bg-muted/50'
-                          }`}>
-                            <div className={`flex items-center justify-center w-6 h-6 rounded-full font-bold text-sm flex-shrink-0 ${
-                              itineraries.length > 0 ? 'bg-primary text-primary-foreground' : 'bg-muted-foreground/20 text-muted-foreground'
-                            }`}>
-                              2
-                            </div>
-                            <div>
-                              <p className="font-medium text-sm">Build</p>
-                              <p className="text-xs text-muted-foreground">Select 2-5 venues to create your itinerary</p>
-                            </div>
-                          </div>
-                          
-                          {/* Step 3: Schedule */}
-                          <div className="flex items-start gap-3 p-2 rounded-md bg-muted/50">
-                            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted-foreground/20 text-muted-foreground font-bold text-sm flex-shrink-0">
-                              3
-                            </div>
-                            <div>
-                              <p className="font-medium text-sm">Schedule <span className="text-xs text-muted-foreground">(coming soon)</span></p>
-                              <p className="text-xs text-muted-foreground">Pick a date for your outing</p>
-                            </div>
-                          </div>
-                          
-                          {/* Step 4: Invite */}
-                          <div className="flex items-start gap-3 p-2 rounded-md bg-muted/50">
-                            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted-foreground/20 text-muted-foreground font-bold text-sm flex-shrink-0">
-                              4
-                            </div>
-                            <div>
-                              <p className="font-medium text-sm">Invite <span className="text-xs text-muted-foreground">(coming soon)</span></p>
-                              <p className="text-xs text-muted-foreground">Send to your group for RSVPs</p>
-                            </div>
-                          </div>
-                          
-                          {/* Step 5: Learn */}
-                          <div className="flex items-start gap-3 p-2 rounded-md bg-muted/50">
-                            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted-foreground/20 text-muted-foreground font-bold text-sm flex-shrink-0">
-                              5
-                            </div>
-                            <div>
-                              <p className="font-medium text-sm">Learn <span className="text-xs text-muted-foreground">(coming soon)</span></p>
-                              <p className="text-xs text-muted-foreground">AI gets smarter from your group's feedback</p>
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </CollapsibleContent>
-                  </Card>
-                </Collapsible>
-              )}
-
               {/* Itinerary Proposals Display */}
               {itineraries.length > 0 && !selectionMode && (
                 <Card className="mb-6">
@@ -1529,6 +1445,55 @@ export default function GroupDetail() {
                     ))}
                   </CardContent>
                 </Card>
+              )}
+
+              {/* How It Works Banner */}
+              {!selectionMode && activities.length > 0 && showInstructions && (
+                <div className="mb-4 p-3 rounded-lg border bg-primary/5 border-primary/20">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3 flex-1">
+                      <div className={`flex items-center justify-center w-7 h-7 rounded-full font-bold text-sm flex-shrink-0 ${
+                        itineraries.length > 0 ? 'bg-primary text-primary-foreground' : 'bg-primary text-primary-foreground'
+                      }`}>
+                        {itineraries.length > 0 ? '2' : '1'}
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-semibold text-sm mb-1">
+                          {itineraries.length > 0 ? 'Step 2: Build Your Itinerary' : 'Step 1: Discover Activities'}
+                        </p>
+                        <p className="text-xs text-muted-foreground mb-2">
+                          {itineraries.length > 0 
+                            ? 'Select 2-5 venues to create your perfect evening. AI validates proximity and timing.'
+                            : 'Browse AI-generated suggestions below. Use "Generate New Ideas" to explore more options.'}
+                        </p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span className={itineraries.length > 0 ? 'line-through opacity-50' : 'font-medium text-primary'}>
+                            1. Discover
+                          </span>
+                          <span>→</span>
+                          <span className={itineraries.length > 0 ? 'font-medium text-primary' : ''}>
+                            2. Build
+                          </span>
+                          <span>→</span>
+                          <span className="opacity-50">3. Schedule</span>
+                          <span>→</span>
+                          <span className="opacity-50">4. Invite</span>
+                          <span>→</span>
+                          <span className="opacity-50">5. Learn</span>
+                        </div>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowInstructions(false)}
+                      className="h-6 w-6 p-0 flex-shrink-0"
+                      data-testid="button-hide-instructions"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
               )}
               
               <div className="flex gap-3 items-end">
