@@ -214,6 +214,16 @@ CRITICAL - How to interpret USER INSTRUCTIONS:
 - Examples of SPECIFIC requests (all 15 should match): "Boba", "Korean BBQ only", "Get tacos", "Sushi restaurants"
 - Examples of GENERAL requests (maintain diversity): "something adventurous", "romantic atmosphere", "fun night out", "unique experiences"
 
+CRITICAL - Time-Based Organization Strategy:
+- Suggestions will be organized by TIME COMMITMENT:
+  * QUICK (<90 min): Drinks, bars, desserts, cafes - in and out
+  * STANDARD (1-3 hours): Full meals (breakfast, lunch, dinner) - the main event
+  * LARGE (4+ hours): Activities, hikes, shows, museums - commitment required
+- Generate a smart mix across time categories based on the group's activity interests and meeting frequency
+- For dinner-focused groups (mostly restaurant interests), prioritize STANDARD + QUICK venues
+- For activity-focused groups (outdoor/adventure interests), include all three categories
+- If no specific time-intensive activities fit the group, focus on STANDARD and QUICK options
+
 CRITICAL - Novelty Preference Strategy:
 - Suggest ${familiarCount} FAMILIAR venues (things similar to past preferences, favorites, or things they've loved)
 - Suggest ${newCount} NEW venues (novel experiences they haven't tried)
