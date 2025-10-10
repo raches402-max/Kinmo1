@@ -824,6 +824,57 @@ export default function GroupDetail() {
         </div>
       </header>
 
+      {/* How It Works Banner */}
+      {!selectionMode && activities.length > 0 && showInstructions && (
+        <div className="border-b bg-primary/5 border-primary/20">
+          <div className="max-w-7xl mx-auto px-6 py-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3 flex-1">
+                <div className={`flex items-center justify-center w-7 h-7 rounded-full font-bold text-sm flex-shrink-0 ${
+                  itineraries.length > 0 ? 'bg-primary text-primary-foreground' : 'bg-primary text-primary-foreground'
+                }`}>
+                  {itineraries.length > 0 ? '2' : '1'}
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-sm mb-1">
+                    {itineraries.length > 0 ? 'Step 2: Build Your Itinerary' : 'Step 1: Discover Activities'}
+                  </p>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    {itineraries.length > 0 
+                      ? 'Select 2-5 venues to create your perfect evening. AI validates proximity and timing.'
+                      : 'Browse AI-generated suggestions below. Use "Generate New Ideas" to explore more options.'}
+                  </p>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className={itineraries.length > 0 ? 'line-through opacity-50' : 'font-medium text-primary'}>
+                      1. Discover
+                    </span>
+                    <span>→</span>
+                    <span className={itineraries.length > 0 ? 'font-medium text-primary' : ''}>
+                      2. Build
+                    </span>
+                    <span>→</span>
+                    <span className="opacity-50">3. Schedule</span>
+                    <span>→</span>
+                    <span className="opacity-50">4. Invite</span>
+                    <span>→</span>
+                    <span className="opacity-50">5. Learn</span>
+                  </div>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowInstructions(false)}
+                className="h-6 w-6 p-0 flex-shrink-0"
+                data-testid="button-hide-instructions"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto px-6 py-12">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Sidebar - Group Info */}
@@ -1445,55 +1496,6 @@ export default function GroupDetail() {
                     ))}
                   </CardContent>
                 </Card>
-              )}
-
-              {/* How It Works Banner */}
-              {!selectionMode && activities.length > 0 && showInstructions && (
-                <div className="mb-4 p-3 rounded-lg border bg-primary/5 border-primary/20">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3 flex-1">
-                      <div className={`flex items-center justify-center w-7 h-7 rounded-full font-bold text-sm flex-shrink-0 ${
-                        itineraries.length > 0 ? 'bg-primary text-primary-foreground' : 'bg-primary text-primary-foreground'
-                      }`}>
-                        {itineraries.length > 0 ? '2' : '1'}
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-semibold text-sm mb-1">
-                          {itineraries.length > 0 ? 'Step 2: Build Your Itinerary' : 'Step 1: Discover Activities'}
-                        </p>
-                        <p className="text-xs text-muted-foreground mb-2">
-                          {itineraries.length > 0 
-                            ? 'Select 2-5 venues to create your perfect evening. AI validates proximity and timing.'
-                            : 'Browse AI-generated suggestions below. Use "Generate New Ideas" to explore more options.'}
-                        </p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span className={itineraries.length > 0 ? 'line-through opacity-50' : 'font-medium text-primary'}>
-                            1. Discover
-                          </span>
-                          <span>→</span>
-                          <span className={itineraries.length > 0 ? 'font-medium text-primary' : ''}>
-                            2. Build
-                          </span>
-                          <span>→</span>
-                          <span className="opacity-50">3. Schedule</span>
-                          <span>→</span>
-                          <span className="opacity-50">4. Invite</span>
-                          <span>→</span>
-                          <span className="opacity-50">5. Learn</span>
-                        </div>
-                      </div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowInstructions(false)}
-                      className="h-6 w-6 p-0 flex-shrink-0"
-                      data-testid="button-hide-instructions"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
               )}
               
               <div className="flex gap-3 items-end">
