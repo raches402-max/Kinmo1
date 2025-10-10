@@ -213,6 +213,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Search Google Places to enrich the event with venue details
       let enrichedEvent = { ...validatedEvent };
+      let enrichmentStatus: 'success' | 'no_results' | 'error' = 'error';
+      
       try {
         const places = await searchPlaces(validatedEvent.title, group.locationBase);
         
@@ -229,6 +231,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             photoUrl: place.photoUrl || validatedEvent.photoUrl,
           };
           
+          enrichmentStatus = 'success';
           console.log(`[Voting Event] Enriched "${validatedEvent.title}" with Google Places data:`, {
             name: place.name,
             rating: place.rating,
@@ -236,15 +239,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
             address: place.address,
           });
         } else {
+          enrichmentStatus = 'no_results';
           console.log(`[Voting Event] No Google Places results for "${validatedEvent.title}"`);
         }
       } catch (error) {
+        enrichmentStatus = 'error';
         console.error(`[Voting Event] Google Places enrichment failed for "${validatedEvent.title}":`, error);
         // Continue with un-enriched event - graceful degradation
       }
       
       const event = await storage.createVotingEvent(enrichedEvent, userId);
-      res.json(event);
+      res.json({ event, enrichmentStatus });
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }
