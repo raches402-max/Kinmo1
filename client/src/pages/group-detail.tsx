@@ -92,6 +92,8 @@ export default function GroupDetail() {
   const [newMembers, setNewMembers] = useState<{ name: string; email: string }[]>([]);
   const [membersOpen, setMembersOpen] = useState(true);
   const [showSwipeSession, setShowSwipeSession] = useState(false);
+  const [showEnrichmentConfirm, setShowEnrichmentConfirm] = useState(false);
+  const [pendingEventTitle, setPendingEventTitle] = useState("");
 
   const { data: group, isLoading: groupLoading } = useQuery<Group>({
     queryKey: ["/api/groups", groupId],
@@ -336,14 +338,25 @@ export default function GroupDetail() {
     }) => {
       return await apiRequest("POST", "/api/voting-events", { groupId, ...eventData });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "voting-events"] });
-      setNewEventTitle("");
-      setAddEventOpen(false);
-      toast({
-        title: "Event added",
-        description: "Your event has been added to the voting list",
-      });
+    onSuccess: (data: { event: any; enrichmentStatus: 'success' | 'no_results' | 'error' }) => {
+      // Check if Google Places found the venue
+      if (data.enrichmentStatus === 'no_results') {
+        // Show confirmation dialog
+        setPendingEventTitle(newEventTitle);
+        setShowEnrichmentConfirm(true);
+        setAddEventOpen(false); // Close the add event dialog
+      } else {
+        // Success or error - add the event normally
+        queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "voting-events"] });
+        setNewEventTitle("");
+        setAddEventOpen(false);
+        toast({
+          title: "Event added",
+          description: data.enrichmentStatus === 'success' 
+            ? "Your event has been added with venue details from Google Places"
+            : "Your event has been added to the voting list",
+        });
+      }
     },
     onError: (error: Error) => {
       toast({
