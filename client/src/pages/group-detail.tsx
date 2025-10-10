@@ -1516,21 +1516,54 @@ export default function GroupDetail() {
                 </div>
               </Card>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {activities
-                  .filter(activity => activity.feedback !== "less")
-                  .sort((a, b) => {
-                    // Sort by rating (highest first), then by review count (highest first)
-                    const ratingA = parseFloat(a.rating || "0");
-                    const ratingB = parseFloat(b.rating || "0");
-                    if (ratingA !== ratingB) {
-                      return ratingB - ratingA; // Higher rating first
-                    }
-                    const reviewCountA = a.reviewCount || 0;
-                    const reviewCountB = b.reviewCount || 0;
-                    return reviewCountB - reviewCountA; // Higher review count first
-                  })
-                  .map((activity) => {
+              <>
+                {/* Group activities by time category */}
+                {(() => {
+                  const filteredActivities = activities
+                    .filter(activity => activity.feedback !== "less")
+                    .sort((a, b) => {
+                      // Sort by rating (highest first), then by review count (highest first)
+                      const ratingA = parseFloat(a.rating || "0");
+                      const ratingB = parseFloat(b.rating || "0");
+                      if (ratingA !== ratingB) {
+                        return ratingB - ratingA;
+                      }
+                      const reviewCountA = a.reviewCount || 0;
+                      const reviewCountB = b.reviewCount || 0;
+                      return reviewCountB - reviewCountA;
+                    });
+
+                  const groupedByTime = {
+                    standard: filteredActivities.filter(a => a.timeCategory === 'standard'),
+                    quick: filteredActivities.filter(a => a.timeCategory === 'quick'),
+                    large: filteredActivities.filter(a => a.timeCategory === 'large'),
+                  };
+
+                  const timeCategoryLabels = {
+                    standard: { icon: "🍽️", title: "STANDARD", subtitle: "1-3 hours" },
+                    quick: { icon: "⚡", title: "QUICK", subtitle: "Under 90 min" },
+                    large: { icon: "🎯", title: "EXPERIENCE", subtitle: "4+ hours" },
+                  };
+
+                  return (
+                    <div className="space-y-8">
+                      {(['standard', 'quick', 'large'] as const).map((category) => {
+                        const categoryActivities = groupedByTime[category];
+                        if (categoryActivities.length === 0) return null;
+
+                        const label = timeCategoryLabels[category];
+                        
+                        return (
+                          <div key={category} className="space-y-4">
+                            <div className="flex items-center gap-3">
+                              <span className="text-2xl">{label.icon}</span>
+                              <div>
+                                <h3 className="text-sm font-semibold tracking-wide">{label.title}</h3>
+                                <p className="text-xs text-muted-foreground">{label.subtitle}</p>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              {categoryActivities.map((activity) => {
                   // Determine label for complementary places
                   const isRestaurant = ['restaurant', 'cafe', 'bar', 'brewery', 'bakery', 'food'].some(type => 
                     activity.venueType.toLowerCase().includes(type)
@@ -1811,7 +1844,14 @@ export default function GroupDetail() {
                     </Card>
                   );
                 })}
-              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </>
             )}
           </div>
         </div>
