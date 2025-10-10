@@ -39,6 +39,7 @@ AI suggestion preferences:
   - For drinks/dessert venues, suggests nearby full meals (e.g., restaurants, sandwiches).
   - For outdoor venues, suggests nearby portable meal options within a 0.5-mile radius with 3.5+ star ratings.
 - **Activity Category Selection**: Visual selector with 17 activity types for quick preference setting, integrated into AI suggestions.
+- **Enhanced Favorites with Google Places Enrichment**: When users manually add events to the Favorites voting list, the system automatically looks up the venue in Google Places and enriches the entry with venue details (photo, rating, review count, address, price level, Google Maps link). Includes graceful degradation if enrichment fails.
 
 ## External Dependencies
 
