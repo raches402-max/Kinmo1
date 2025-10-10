@@ -340,20 +340,13 @@ export default function GroupDetail() {
       return await apiRequest("POST", "/api/voting-events", { groupId, ...eventData });
     },
     onSuccess: (data: { event?: any; enrichmentStatus: 'success' | 'no_results' | 'error' | 'skipped' }) => {
-      console.log('[CreateEvent] Response:', data);
-      console.log('[CreateEvent] Enrichment status:', data.enrichmentStatus);
-      console.log('[CreateEvent] Has event:', !!data.event);
-      
       // Check if Google Places found the venue
       if (data.enrichmentStatus === 'no_results') {
-        console.log('[CreateEvent] No results - showing confirmation dialog');
-        console.log('[CreateEvent] newEventTitle:', newEventTitle);
         // Show confirmation dialog - event was not created yet
         setPendingEventTitle(newEventTitle);
         setShowEnrichmentConfirm(true);
         setAddEventOpen(false); // Close the add event dialog
       } else if (data.event) {
-        console.log('[CreateEvent] Event created successfully');
         // Event was created successfully
         queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "voting-events"] });
         setNewEventTitle("");
