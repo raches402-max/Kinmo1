@@ -1562,7 +1562,7 @@ export default function GroupDetail() {
                                 <p className="text-xs text-muted-foreground">{label.subtitle}</p>
                               </div>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-3">
                               {categoryActivities.map((activity) => {
                   // Determine label for complementary places
                   const isRestaurant = ['restaurant', 'cafe', 'bar', 'brewery', 'bakery', 'food'].some(type => 
@@ -1584,7 +1584,7 @@ export default function GroupDetail() {
                   return (
                     <Card key={activity.id} className={`relative overflow-hidden hover-elevate transition-all flex flex-col ${selectionMode ? 'cursor-pointer' : ''} ${isSelected ? 'ring-2 ring-primary' : ''}`} data-testid={`activity-${activity.id}`} onClick={() => selectionMode && toggleVenueSelection('activity', activity.id)}>
                       {activity.photoUrl && (
-                        <div className="aspect-[4/3] w-full overflow-hidden bg-muted">
+                        <div className="aspect-video w-full overflow-hidden bg-muted">
                           <img
                             src={activity.photoUrl}
                             alt={activity.venueName}
@@ -1664,33 +1664,32 @@ export default function GroupDetail() {
                         />
                       </button>
                       )}
-                      <CardHeader className="space-y-3 flex-1 flex flex-col">
+                      <CardHeader className="space-y-2 flex-1 flex flex-col pb-3">
                         <div>
-                          <CardTitle className="text-lg mb-2">{activity.venueName}</CardTitle>
-                          <CardDescription className="line-clamp-1">{activity.description}</CardDescription>
+                          <CardTitle className="text-base mb-1">{activity.venueName}</CardTitle>
+                          <CardDescription className="line-clamp-1 text-xs">{activity.description}</CardDescription>
                         </div>
                         
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex flex-wrap gap-2">
-                            {activity.rating && (
-                              <Badge variant="secondary" className="gap-1" data-testid={`badge-rating-${activity.id}`}>
-                                <Star className="h-3 w-3 fill-current" />
-                                {activity.rating}
-                                {activity.reviewCount && ` (${activity.reviewCount})`}
-                              </Badge>
-                            )}
-                            {activity.priceLevel && (
-                              <Badge variant="secondary">
-                                {priceDisplay(activity.priceLevel)}
-                              </Badge>
-                            )}
-                            <Badge variant="outline">{activity.venueType}</Badge>
-                          </div>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {activity.rating && (
+                            <Badge variant="secondary" className="gap-1 text-xs" data-testid={`badge-rating-${activity.id}`}>
+                              <Star className="h-3 w-3 fill-current" />
+                              {activity.rating}
+                              {activity.reviewCount && ` (${activity.reviewCount})`}
+                            </Badge>
+                          )}
+                          {activity.priceLevel && (
+                            <Badge variant="secondary" className="text-xs">
+                              {priceDisplay(activity.priceLevel)}
+                            </Badge>
+                          )}
+                          <Badge variant="outline" className="text-xs">{activity.venueType}</Badge>
                           {activity.googlePlaceId && (
                             <Button
                               variant="ghost"
                               size="sm"
                               asChild
+                              className="h-6 px-2 ml-auto"
                               data-testid={`button-google-link-${activity.id}`}
                             >
                               <a
@@ -1700,30 +1699,28 @@ export default function GroupDetail() {
                                 className="gap-1"
                               >
                                 <ExternalLink className="h-3 w-3" />
-                                Google
+                                <span className="text-xs">Maps</span>
                               </a>
                             </Button>
                           )}
                         </div>
 
-                        <div className="text-sm text-muted-foreground flex items-start gap-2">
-                          <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                          <span className="line-clamp-2">{activity.venueAddress}</span>
+                        <div className="text-xs text-muted-foreground flex items-start gap-1.5">
+                          <MapPin className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                          <span className="line-clamp-1">{activity.venueAddress}</span>
                         </div>
 
                         {(activity.priceEstimate || activity.timeConstraints) && (
-                          <div className="space-y-2">
+                          <div className="flex flex-wrap gap-2 text-xs">
                             {activity.priceEstimate && (
-                              <div className="flex items-center gap-2 text-sm">
-                                <Ticket className="h-4 w-4 text-muted-foreground" />
-                                <span className="font-medium">Price:</span>
+                              <div className="flex items-center gap-1">
+                                <Ticket className="h-3 w-3 text-muted-foreground" />
                                 <span className="text-muted-foreground">{activity.priceEstimate}</span>
                               </div>
                             )}
                             {activity.timeConstraints && (
-                              <div className="flex items-center gap-2 text-sm">
-                                <Clock className="h-4 w-4 text-muted-foreground" />
-                                <span className="font-medium">When:</span>
+                              <div className="flex items-center gap-1">
+                                <Clock className="h-3 w-3 text-muted-foreground" />
                                 <span className="text-muted-foreground">{activity.timeConstraints}</span>
                               </div>
                             )}
@@ -1731,19 +1728,19 @@ export default function GroupDetail() {
                         )}
 
                         {(activity.complementaryPlaceName || activity.complementaryPlaceName2) && (
-                          <div className="bg-accent/20 rounded-md p-3">
-                            <p className="text-sm font-medium mb-2 flex items-center gap-2">
-                              <MapPin className="h-4 w-4" />
+                          <div className="bg-accent/20 rounded-md p-2">
+                            <p className="text-xs font-medium mb-1.5 flex items-center gap-1.5">
+                              <MapPin className="h-3 w-3" />
                               {complementaryLabel}
                             </p>
-                            <div className="space-y-2">
+                            <div className="space-y-1.5">
                               {activity.complementaryPlaceName && (
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium">{activity.complementaryPlaceName}</p>
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                    <p className="text-xs font-medium truncate">{activity.complementaryPlaceName}</p>
                                     {activity.complementaryPlaceRating && (
-                                      <div className="flex items-center gap-1 mt-1">
-                                        <Star className="h-3 w-3 fill-current text-yellow-500" />
+                                      <div className="flex items-center gap-0.5">
+                                        <Star className="h-2.5 w-2.5 fill-current text-yellow-500" />
                                         <span className="text-xs text-muted-foreground">{activity.complementaryPlaceRating}</span>
                                       </div>
                                     )}
@@ -1753,28 +1750,27 @@ export default function GroupDetail() {
                                       variant="ghost"
                                       size="sm"
                                       asChild
+                                      className="h-5 px-1.5"
                                       data-testid={`button-complementary-link-${activity.id}`}
                                     >
                                       <a
                                         href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activity.complementaryPlaceName)}&query_place_id=${activity.complementaryPlaceId}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="gap-1"
                                       >
-                                        <ExternalLink className="h-3 w-3" />
-                                        View
+                                        <ExternalLink className="h-2.5 w-2.5" />
                                       </a>
                                     </Button>
                                   )}
                                 </div>
                               )}
                               {activity.complementaryPlaceName2 && (
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium">{activity.complementaryPlaceName2}</p>
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                    <p className="text-xs font-medium truncate">{activity.complementaryPlaceName2}</p>
                                     {activity.complementaryPlaceRating2 && (
-                                      <div className="flex items-center gap-1 mt-1">
-                                        <Star className="h-3 w-3 fill-current text-yellow-500" />
+                                      <div className="flex items-center gap-0.5">
+                                        <Star className="h-2.5 w-2.5 fill-current text-yellow-500" />
                                         <span className="text-xs text-muted-foreground">{activity.complementaryPlaceRating2}</span>
                                       </div>
                                     )}
@@ -1784,16 +1780,15 @@ export default function GroupDetail() {
                                       variant="ghost"
                                       size="sm"
                                       asChild
+                                      className="h-5 px-1.5"
                                       data-testid={`button-complementary-link-2-${activity.id}`}
                                     >
                                       <a
                                         href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activity.complementaryPlaceName2)}&query_place_id=${activity.complementaryPlaceId2}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="gap-1"
                                       >
-                                        <ExternalLink className="h-3 w-3" />
-                                        View
+                                        <ExternalLink className="h-2.5 w-2.5" />
                                       </a>
                                     </Button>
                                   )}
@@ -1804,23 +1799,22 @@ export default function GroupDetail() {
                         )}
 
                         <div className="pt-2 border-t mt-auto">
-                          <p className="text-xs font-medium text-muted-foreground mb-2">Your feedback:</p>
-                          <div className="flex gap-2">
+                          <div className="flex gap-1.5">
                             <Button
                               variant={activity.feedback === "more" ? "default" : "outline"}
                               size="sm"
                               onClick={() => feedbackMutation.mutate({ activityId: activity.id, feedback: "more" })}
-                              className="flex-1 gap-1"
+                              className="flex-1 gap-1 h-7 text-xs"
                               data-testid={`button-more-${activity.id}`}
                             >
                               <ThumbsUp className="h-3 w-3" />
-                              More like this
+                              More
                             </Button>
                             <Button
                               variant={activity.feedback === "less" ? "default" : "outline"}
                               size="sm"
                               onClick={() => feedbackMutation.mutate({ activityId: activity.id, feedback: "less" })}
-                              className="flex-1 gap-1"
+                              className="flex-1 gap-1 h-7 text-xs"
                               data-testid={`button-less-${activity.id}`}
                             >
                               <ThumbsDown className="h-3 w-3" />
