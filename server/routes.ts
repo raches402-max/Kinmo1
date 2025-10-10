@@ -355,6 +355,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Helper function to detect single-theme instructions
+  function isSingleThemeRequest(instructions: string): boolean {
+    if (!instructions || instructions.trim().length === 0) {
+      return false;
+    }
+
+    const lowercaseInstructions = instructions.toLowerCase().trim();
+    
+    // Check for explicit "only" or "must be" keywords
+    if (lowercaseInstructions.includes('only') || lowercaseInstructions.includes('must be')) {
+      return true;
+    }
+    
+    // Check if it's a short, specific request (less than 30 characters, no commas)
+    // Examples: "Boba", "Tacos", "Pizza places", "Sushi restaurants"
+    if (lowercaseInstructions.length < 30 && !lowercaseInstructions.includes(',')) {
+      return true;
+    }
+    
+    return false;
+  }
+
   // Retry activity generation
   app.post("/api/groups/:id/retry-generation", async (req, res) => {
     try {
@@ -372,6 +394,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         tempInstructions
       ].filter(Boolean).join('\n');
 
+      // Detect if this is a single-theme request (e.g., "Boba", "Sushi only")
+      const singleTheme = isSingleThemeRequest(combinedInstructions);
+
       // Reset status and trigger regeneration
       await storage.updateGroupStatus(req.params.id, "pending");
       
@@ -385,6 +410,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         noveltyPreference: group.noveltyPreference,
         pastPreferences: group.pastPreferences,
         additionalInstructions: combinedInstructions || group.additionalInstructions,
+        singleThemeOverride: singleTheme,
       });
 
       res.json({ success: true, message: "Activity generation restarted" });
