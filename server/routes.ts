@@ -794,6 +794,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
         likedConcepts: likedConcepts.length > 0 ? likedConcepts : undefined,
         passedConcepts: passedConcepts.length > 0 ? passedConcepts : undefined,
         previouslySuggestedVenues: previouslySuggestedVenues.length > 0 ? previouslySuggestedVenues : undefined,
+        singleThemeOverride: groupData.singleThemeOverride,
       });
 
       console.log(`[AI Generation] Attempt ${attempt}: Received ${suggestions.length} suggestions from OpenAI`);
