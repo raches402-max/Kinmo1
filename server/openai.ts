@@ -30,15 +30,28 @@ export async function generateActivitySuggestions(groupData: {
   likedConcepts?: string[];
   passedConcepts?: string[];
   previouslySuggestedVenues?: string[];
+  singleThemeOverride?: boolean;
 }): Promise<ActivitySuggestion[]> {
   try {
     // Generate 15 suggestions to account for duplicates after Google Places enrichment
     // After deduplication, we'll take the first 6 unique ones
     // This ensures we always have 6 cards even in areas with limited venue options
-    // Calculate novelty split based on 15 suggestions: novelty 1 = 15 familiar, novelty 3 = 7-8 split, novelty 5 = 15 new
-    // Formula: familiar = 15 - (noveltyPreference - 1) * 3.75, rounded
-    const familiarCount = Math.round(15 - (groupData.noveltyPreference - 1) * 3.75);
-    const newCount = 15 - familiarCount;
+    
+    // Calculate novelty split - but override if single-theme request detected
+    let familiarCount: number;
+    let newCount: number;
+    
+    if (groupData.singleThemeOverride) {
+      // Single-theme request: generate all 15 suggestions of the same type
+      familiarCount = 15;
+      newCount = 0;
+    } else {
+      // Normal diversity: calculate novelty split based on 15 suggestions
+      // novelty 1 = 15 familiar, novelty 3 = 7-8 split, novelty 5 = 15 new
+      // Formula: familiar = 15 - (noveltyPreference - 1) * 3.75, rounded
+      familiarCount = Math.round(15 - (groupData.noveltyPreference - 1) * 3.75);
+      newCount = 15 - familiarCount;
+    }
 
     // Format availability for display
     const formatAvailabilityForPrompt = (availability: any): string => {
@@ -155,7 +168,9 @@ export async function generateActivitySuggestions(groupData: {
       avoidVenuesContext = `\n\nIMPORTANT - DO NOT suggest these venues again (already suggested): ${groupData.previouslySuggestedVenues.join(', ')}`;
     }
 
-    const prompt = `You are an expert activity planner. Generate 15 diverse activity suggestions for a group with these preferences:
+    const prompt = `You are an expert activity planner. ${groupData.singleThemeOverride 
+      ? `Generate 15 venue suggestions that ALL match the user's specific request below.` 
+      : `Generate 15 diverse activity suggestions for a group with these preferences:`}
 
 NOTE: You will generate 15 suggestions, but only 6 will be shown to the user after removing duplicates. This ensures 6 unique venues even if Google Places returns the same restaurant for multiple search queries.
 
@@ -172,13 +187,20 @@ CRITICAL - Availability Constraint:
 - If an event requires specific timing, it MUST match their availability
 - Example: If they're only available "Mon-Fri evenings", DO NOT suggest "Saturday events" or "Sunday morning" activities
 
-CRITICAL - Novelty Preference Strategy:
+${groupData.singleThemeOverride 
+  ? `CRITICAL - Single-Theme Override:
+- ALL 15 SUGGESTIONS MUST MATCH THE USER'S CRITICAL REQUEST ABOVE
+- DO NOT suggest anything that doesn't match their specific request
+- Focus on variety WITHIN the requested theme (different venues of the same type)
+- Example: If they requested "Boba", ALL 15 suggestions must be boba/bubble tea venues
+- Example: If they requested "Sushi only", ALL 15 suggestions must be sushi restaurants`
+  : `CRITICAL - Novelty Preference Strategy:
 - Suggest ${familiarCount} FAMILIAR venues (things similar to past preferences, favorites, or things they've loved)
 - Suggest ${newCount} NEW venues (novel experiences they haven't tried)
-- Mark NEW suggestions with "NEW:" prefix in reasoning
+- Mark NEW suggestions with "NEW:" prefix in reasoning`}
 
 Requirements:
-1. ${groupData.additionalInstructions ? `⚠️ STRICTLY FOLLOW THE USER'S CRITICAL REQUEST ABOVE - This takes priority over everything else` : 'No additional user instructions'}
+1. ${groupData.additionalInstructions ? `⚠️ ${groupData.singleThemeOverride ? 'ALL SUGGESTIONS MUST MATCH THE USER\'S CRITICAL REQUEST ABOVE - Reject anything that doesn\'t match' : 'STRICTLY FOLLOW THE USER\'S CRITICAL REQUEST ABOVE - This takes priority over everything else'}` : 'No additional user instructions'}
 2. ${groupData.activityCategories && groupData.activityCategories.length > 0 ? `PRIORITIZE the Activity Interests listed above - these are the types of activities the group specifically wants` : 'No specific activity category preferences'}
 3. ANALYZE Past Preferences to identify the TYPES of venues they prefer (restaurants, bars, cafes, activities, outdoor spaces, etc.)
 4. PRIORITIZE suggesting the same TYPES of venues they've enjoyed historically
