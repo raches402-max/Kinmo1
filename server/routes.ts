@@ -215,7 +215,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Search Google Places to enrich the event with venue details
       let enrichedEvent = { ...validatedEvent };
-      let enrichmentStatus: 'success' | 'no_results' | 'error' = 'error';
+      let enrichmentStatus: 'success' | 'no_results' | 'error' | 'skipped' = 'error';
       
       // Only check Google Places if not explicitly skipping
       if (!skipEnrichmentCheck) {
@@ -355,65 +355,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Helper function to detect single-theme instructions
-  function isSingleThemeRequest(instructions: string): boolean {
-    if (!instructions || instructions.trim().length === 0) {
-      return false;
-    }
-
-    const lowercaseInstructions = instructions.toLowerCase().trim();
-    
-    // Common venue/food type keywords with word-boundary aware matching
-    // Multi-word phrases are checked as exact phrases, single words use word boundaries
-    const venueKeywordPatterns = [
-      // Multi-word phrases (exact match)
-      /\bbubble tea\b/,
-      /\bwine bar\b/,
-      /\bice cream\b/,
-      // Single words (word boundaries to avoid "pho" matching "phoenix")
-      /\bboba\b/, /\bsushi\b/, /\bramen\b/, /\bpizza\b/, /\btacos\b/, /\bburgers\b/, /\bpho\b/,
-      /\bbbq\b/, /\bkorean\b/, /\bthai\b/, /\bvietnamese\b/, /\bchinese\b/, /\bjapanese\b/, 
-      /\bmexican\b/, /\bitalian\b/, /\bindian\b/, /\bbrewery\b/, /\bbreweries\b/,
-      /\bcocktail\b/, /\bcoffee\b/, /\bcafe\b/, /\bbakery\b/, /\bdessert\b/, /\bgelato\b/
-    ];
-    
-    // Exact keyword list for Case 1 (exact match check)
-    const exactVenueKeywords = [
-      'boba', 'bubble tea', 'sushi', 'ramen', 'pizza', 'tacos', 'burgers', 'pho',
-      'bbq', 'korean', 'thai', 'vietnamese', 'chinese', 'japanese', 'mexican',
-      'italian', 'indian', 'brewery', 'breweries', 'wine bar', 'cocktail',
-      'coffee', 'cafe', 'bakery', 'dessert', 'ice cream', 'gelato'
-    ];
-    
-    const hasVenueKeyword = venueKeywordPatterns.some(pattern => pattern.test(lowercaseInstructions));
-    
-    // Case 1: Exact venue keyword match (e.g., "Boba", "Sushi", "Pizza")
-    if (exactVenueKeywords.includes(lowercaseInstructions)) {
-      return true;
-    }
-    
-    // Case 2: Directive keywords with word boundaries
-    const directivePatterns = [
-      /\bonly\b/,
-      /\bjust\b/,
-      /\bmust\s+be\b/,
-      /\bneed\b/,
-      /\bget\b/,
-      /\bfind\b/
-    ];
-    
-    const hasDirectiveKeyword = directivePatterns.some(pattern => pattern.test(lowercaseInstructions));
-    
-    // Single-theme detection: venue keyword (word-boundary aware) + explicit directive keyword
-    // Examples that trigger: "Get boba", "Just sushi", "Only pho", "Find pizza"
-    // Examples that DON'T trigger: "Need phoenix ideas", "Budget for sushi", "Prefer tacos"
-    if (hasVenueKeyword && hasDirectiveKeyword) {
-      return true;
-    }
-    
-    return false;
-  }
-
   // Retry activity generation
   app.post("/api/groups/:id/retry-generation", async (req, res) => {
     try {
@@ -431,13 +372,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         tempInstructions
       ].filter(Boolean).join('\n');
 
-      // Detect if this is a single-theme request
-      // If temp instructions are provided, check them (they override permanent instructions)
-      // Otherwise, check the combined/permanent instructions
-      const singleTheme = tempInstructions 
-        ? isSingleThemeRequest(tempInstructions)
-        : isSingleThemeRequest(combinedInstructions);
-
       // Reset status and trigger regeneration
       await storage.updateGroupStatus(req.params.id, "pending");
       
@@ -451,7 +385,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         noveltyPreference: group.noveltyPreference,
         pastPreferences: group.pastPreferences,
         additionalInstructions: combinedInstructions || group.additionalInstructions,
-        singleThemeOverride: singleTheme,
       });
 
       res.json({ success: true, message: "Activity generation restarted" });
@@ -835,7 +768,6 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
         likedConcepts: likedConcepts.length > 0 ? likedConcepts : undefined,
         passedConcepts: passedConcepts.length > 0 ? passedConcepts : undefined,
         previouslySuggestedVenues: previouslySuggestedVenues.length > 0 ? previouslySuggestedVenues : undefined,
-        singleThemeOverride: groupData.singleThemeOverride,
       });
 
       console.log(`[AI Generation] Attempt ${attempt}: Received ${suggestions.length} suggestions from OpenAI`);
