@@ -335,18 +335,26 @@ export default function GroupDetail() {
       complementaryPlaceId2?: string;
       complementaryPlacePhotoUrl2?: string;
       complementaryPlaceRating2?: string;
+      skipEnrichmentCheck?: boolean;
     }) => {
       return await apiRequest("POST", "/api/voting-events", { groupId, ...eventData });
     },
-    onSuccess: (data: { event: any; enrichmentStatus: 'success' | 'no_results' | 'error' }) => {
+    onSuccess: (data: { event?: any; enrichmentStatus: 'success' | 'no_results' | 'error' | 'skipped' }) => {
+      console.log('[CreateEvent] Response:', data);
+      console.log('[CreateEvent] Enrichment status:', data.enrichmentStatus);
+      console.log('[CreateEvent] Has event:', !!data.event);
+      
       // Check if Google Places found the venue
       if (data.enrichmentStatus === 'no_results') {
-        // Show confirmation dialog
+        console.log('[CreateEvent] No results - showing confirmation dialog');
+        console.log('[CreateEvent] newEventTitle:', newEventTitle);
+        // Show confirmation dialog - event was not created yet
         setPendingEventTitle(newEventTitle);
         setShowEnrichmentConfirm(true);
         setAddEventOpen(false); // Close the add event dialog
-      } else {
-        // Success or error - add the event normally
+      } else if (data.event) {
+        console.log('[CreateEvent] Event created successfully');
+        // Event was created successfully
         queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "voting-events"] });
         setNewEventTitle("");
         setAddEventOpen(false);
@@ -852,17 +860,17 @@ export default function GroupDetail() {
                         </Button>
                         <Button
                           onClick={() => {
-                            queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "voting-events"] });
-                            setNewEventTitle("");
-                            setShowEnrichmentConfirm(false);
-                            toast({
-                              title: "Event added",
-                              description: "Your event has been added to the voting list",
+                            // Create the event with enrichment check skipped
+                            createEventMutation.mutate({ 
+                              title: pendingEventTitle, 
+                              skipEnrichmentCheck: true 
                             });
+                            setShowEnrichmentConfirm(false);
                           }}
+                          disabled={createEventMutation.isPending}
                           data-testid="button-add-anyway"
                         >
-                          Add Anyway
+                          {createEventMutation.isPending ? "Adding..." : "Add Anyway"}
                         </Button>
                       </DialogFooter>
                     </DialogContent>

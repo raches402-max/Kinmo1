@@ -204,6 +204,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const validatedEvent = insertVotingEventSchema.parse(req.body);
+      const skipEnrichmentCheck = req.body.skipEnrichmentCheck === true;
       
       // Get the group to know the location for Google Places search
       const group = await storage.getGroup(validatedEvent.groupId);
@@ -215,37 +216,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let enrichedEvent = { ...validatedEvent };
       let enrichmentStatus: 'success' | 'no_results' | 'error' = 'error';
       
-      try {
-        const places = await searchPlaces(validatedEvent.title, group.locationBase);
-        
-        // Merge Google Places data if found
-        if (places.length > 0) {
-          const place = places[0];
-          enrichedEvent = {
-            ...validatedEvent,
-            venueAddress: place.address || validatedEvent.venueAddress,
-            googlePlaceId: place.placeId || validatedEvent.googlePlaceId,
-            rating: place.rating || validatedEvent.rating,
-            reviewCount: place.reviewCount || validatedEvent.reviewCount,
-            priceLevel: place.priceLevel || validatedEvent.priceLevel,
-            photoUrl: place.photoUrl || validatedEvent.photoUrl,
-          };
+      // Only check Google Places if not explicitly skipping
+      if (!skipEnrichmentCheck) {
+        try {
+          const places = await searchPlaces(validatedEvent.title, group.locationBase);
           
-          enrichmentStatus = 'success';
-          console.log(`[Voting Event] Enriched "${validatedEvent.title}" with Google Places data:`, {
-            name: place.name,
-            rating: place.rating,
-            reviewCount: place.reviewCount,
-            address: place.address,
-          });
-        } else {
-          enrichmentStatus = 'no_results';
-          console.log(`[Voting Event] No Google Places results for "${validatedEvent.title}"`);
+          // Merge Google Places data if found
+          if (places.length > 0) {
+            const place = places[0];
+            enrichedEvent = {
+              ...validatedEvent,
+              venueAddress: place.address || validatedEvent.venueAddress,
+              googlePlaceId: place.placeId || validatedEvent.googlePlaceId,
+              rating: place.rating || validatedEvent.rating,
+              reviewCount: place.reviewCount || validatedEvent.reviewCount,
+              priceLevel: place.priceLevel || validatedEvent.priceLevel,
+              photoUrl: place.photoUrl || validatedEvent.photoUrl,
+            };
+            
+            enrichmentStatus = 'success';
+            console.log(`[Voting Event] Enriched "${validatedEvent.title}" with Google Places data:`, {
+              name: place.name,
+              rating: place.rating,
+              reviewCount: place.reviewCount,
+              address: place.address,
+            });
+          } else {
+            enrichmentStatus = 'no_results';
+            console.log(`[Voting Event] No Google Places results for "${validatedEvent.title}"`);
+            // Don't create event yet - let frontend ask for confirmation
+            return res.json({ enrichmentStatus });
+          }
+        } catch (error) {
+          enrichmentStatus = 'error';
+          console.error(`[Voting Event] Google Places enrichment failed for "${validatedEvent.title}":`, error);
+          // Continue with un-enriched event - graceful degradation
         }
-      } catch (error) {
-        enrichmentStatus = 'error';
-        console.error(`[Voting Event] Google Places enrichment failed for "${validatedEvent.title}":`, error);
-        // Continue with un-enriched event - graceful degradation
+      } else {
+        enrichmentStatus = 'skipped';
+        console.log(`[Voting Event] Skipping enrichment check for "${validatedEvent.title}"`);
       }
       
       const event = await storage.createVotingEvent(enrichedEvent, userId);
