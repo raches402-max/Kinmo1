@@ -1,14 +1,16 @@
 // Reference: javascript_database blueprint
 // Reference: javascript_log_in_with_replit blueprint
 import { 
-  users, groups, members, activities, votingEvents, votes, preferenceSignals,
+  users, groups, members, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems,
   type User, type UpsertUser,
   type Group, type InsertGroup, type UpdateGroup,
   type Member, type InsertMember, type UpdateMember,
   type Activity, type InsertActivity,
   type VotingEvent, type InsertVotingEvent, type UpdateVotingEvent,
   type Vote, type InsertVote,
-  type PreferenceSignal, type InsertPreferenceSignal
+  type PreferenceSignal, type InsertPreferenceSignal,
+  type Itinerary, type InsertItinerary, type UpdateItinerary,
+  type ItineraryItem, type InsertItineraryItem
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and } from "drizzle-orm";
@@ -61,6 +63,13 @@ export interface IStorage {
   // Preference Signals
   createPreferenceSignal(signal: InsertPreferenceSignal): Promise<PreferenceSignal>;
   getGroupPreferenceSignals(groupId: string): Promise<PreferenceSignal[]>;
+  
+  // Itineraries
+  createItinerary(itinerary: InsertItinerary, userId: string, items: Array<{sourceType: 'activity' | 'voting_event', sourceId: string}>): Promise<Itinerary>;
+  getGroupItineraries(groupId: string): Promise<Array<Itinerary & { items: ItineraryItem[] }>>;
+  getItinerary(id: string): Promise<(Itinerary & { items: ItineraryItem[] }) | undefined>;
+  updateItinerary(id: string, updates: UpdateItinerary): Promise<Itinerary>;
+  deleteItinerary(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -409,6 +418,116 @@ export class DatabaseStorage implements IStorage {
       .from(preferenceSignals)
       .where(eq(preferenceSignals.groupId, groupId))
       .orderBy(desc(preferenceSignals.createdAt));
+  }
+
+  async createItinerary(insertItinerary: InsertItinerary, userId: string, itemsData: Array<{sourceType: 'activity' | 'voting_event', sourceId: string}>): Promise<Itinerary> {
+    const [itinerary] = await db
+      .insert(itineraries)
+      .values({ ...insertItinerary, createdBy: userId })
+      .returning();
+    
+    // Create itinerary items with venue data
+    if (itemsData.length > 0) {
+      const itemsToInsert: InsertItineraryItem[] = [];
+      
+      for (let i = 0; i < itemsData.length; i++) {
+        const item = itemsData[i];
+        let venueName = '';
+        let venueAddress = '';
+        let venueType = '';
+        let googlePlaceId = null;
+        let rating = null;
+        let photoUrl = null;
+        
+        if (item.sourceType === 'activity') {
+          const [activity] = await db.select().from(activities).where(eq(activities.id, item.sourceId));
+          if (activity) {
+            venueName = activity.venueName;
+            venueAddress = activity.venueAddress || '';
+            venueType = activity.venueType;
+            googlePlaceId = activity.googlePlaceId;
+            rating = activity.rating;
+            photoUrl = activity.photoUrl;
+          }
+        } else {
+          const [votingEvent] = await db.select().from(votingEvents).where(eq(votingEvents.id, item.sourceId));
+          if (votingEvent) {
+            venueName = votingEvent.title;
+            venueAddress = votingEvent.venueAddress || '';
+            venueType = votingEvent.venueType || 'venue';
+            googlePlaceId = votingEvent.googlePlaceId;
+            rating = votingEvent.rating;
+            photoUrl = votingEvent.photoUrl;
+          }
+        }
+        
+        itemsToInsert.push({
+          itineraryId: itinerary.id,
+          sourceType: item.sourceType,
+          sourceId: item.sourceId,
+          venueName,
+          venueAddress,
+          venueType,
+          googlePlaceId,
+          rating,
+          photoUrl,
+          orderIndex: i,
+        });
+      }
+      
+      await db.insert(itineraryItems).values(itemsToInsert);
+    }
+    
+    return itinerary;
+  }
+
+  async getGroupItineraries(groupId: string): Promise<Array<Itinerary & { items: ItineraryItem[] }>> {
+    const foundItineraries = await db
+      .select()
+      .from(itineraries)
+      .where(eq(itineraries.groupId, groupId))
+      .orderBy(desc(itineraries.createdAt));
+    
+    const result = [];
+    for (const itinerary of foundItineraries) {
+      const items = await db
+        .select()
+        .from(itineraryItems)
+        .where(eq(itineraryItems.itineraryId, itinerary.id))
+        .orderBy(itineraryItems.orderIndex);
+      result.push({ ...itinerary, items });
+    }
+    return result;
+  }
+
+  async getItinerary(id: string): Promise<(Itinerary & { items: ItineraryItem[] }) | undefined> {
+    const [itinerary] = await db
+      .select()
+      .from(itineraries)
+      .where(eq(itineraries.id, id));
+    
+    if (!itinerary) return undefined;
+    
+    const items = await db
+      .select()
+      .from(itineraryItems)
+      .where(eq(itineraryItems.itineraryId, id))
+      .orderBy(itineraryItems.orderIndex);
+    
+    return { ...itinerary, items };
+  }
+
+  async updateItinerary(id: string, updates: UpdateItinerary): Promise<Itinerary> {
+    const [itinerary] = await db
+      .update(itineraries)
+      .set(updates)
+      .where(eq(itineraries.id, id))
+      .returning();
+    return itinerary;
+  }
+
+  async deleteItinerary(id: string): Promise<void> {
+    await db.delete(itineraries).where(eq(itineraries.id, id));
   }
 }
 

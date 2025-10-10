@@ -145,11 +145,39 @@ export const preferenceSignals = pgTable("preference_signals", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Itineraries table - validated combinations of venues for an evening
+export const itineraries = pgTable("itineraries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  groupId: varchar("group_id").notNull().references(() => groups.id, { onDelete: "cascade" }),
+  status: text("status").notNull().default("proposed"), // proposed, accepted, rejected
+  aiValidationNotes: text("ai_validation_notes"), // AI insights about flow, timing, proximity
+  proposedOrder: jsonb("proposed_order").notNull(), // Array of item IDs in suggested sequence
+  createdBy: varchar("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Itinerary items - individual venues in an itinerary
+export const itineraryItems = pgTable("itinerary_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  itineraryId: varchar("itinerary_id").notNull().references(() => itineraries.id, { onDelete: "cascade" }),
+  sourceType: text("source_type").notNull(), // 'activity' or 'voting_event'
+  sourceId: varchar("source_id").notNull(), // ID from activities or votingEvents table
+  venueName: text("venue_name").notNull(),
+  venueAddress: text("venue_address"),
+  venueType: text("venue_type").notNull(),
+  googlePlaceId: text("google_place_id"),
+  rating: text("rating"),
+  photoUrl: text("photo_url"),
+  orderIndex: integer("order_index").notNull(), // Position in itinerary sequence
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   groups: many(groups),
   votingEvents: many(votingEvents),
   votes: many(votes),
+  itineraries: many(itineraries),
 }));
 
 export const groupsRelations = relations(groups, ({ one, many }) => ({
@@ -161,6 +189,7 @@ export const groupsRelations = relations(groups, ({ one, many }) => ({
   activities: many(activities),
   votingEvents: many(votingEvents),
   preferenceSignals: many(preferenceSignals),
+  itineraries: many(itineraries),
 }));
 
 export const membersRelations = relations(members, ({ one }) => ({
@@ -207,6 +236,25 @@ export const preferenceSignalsRelations = relations(preferenceSignals, ({ one })
   }),
 }));
 
+export const itinerariesRelations = relations(itineraries, ({ one, many }) => ({
+  group: one(groups, {
+    fields: [itineraries.groupId],
+    references: [groups.id],
+  }),
+  creator: one(users, {
+    fields: [itineraries.createdBy],
+    references: [users.id],
+  }),
+  items: many(itineraryItems),
+}));
+
+export const itineraryItemsRelations = relations(itineraryItems, ({ one }) => ({
+  itinerary: one(itineraries, {
+    fields: [itineraryItems.itineraryId],
+    references: [itineraries.id],
+  }),
+}));
+
 // Insert schemas
 export const insertGroupSchema = createInsertSchema(groups).omit({
   id: true,
@@ -243,10 +291,22 @@ export const insertPreferenceSignalSchema = createInsertSchema(preferenceSignals
   createdAt: true,
 });
 
+export const insertItinerarySchema = createInsertSchema(itineraries).omit({
+  id: true,
+  createdBy: true,
+  createdAt: true,
+});
+
+export const insertItineraryItemSchema = createInsertSchema(itineraryItems).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Update schemas (partial versions for PATCH operations)
 export const updateGroupSchema = insertGroupSchema.partial();
 export const updateMemberSchema = insertMemberSchema.partial();
 export const updateVotingEventSchema = insertVotingEventSchema.partial();
+export const updateItinerarySchema = insertItinerarySchema.partial();
 
 // Types
 export type UpsertUser = typeof users.$inferInsert;
@@ -272,3 +332,10 @@ export type Vote = typeof votes.$inferSelect;
 
 export type InsertPreferenceSignal = z.infer<typeof insertPreferenceSignalSchema>;
 export type PreferenceSignal = typeof preferenceSignals.$inferSelect;
+
+export type InsertItinerary = z.infer<typeof insertItinerarySchema>;
+export type Itinerary = typeof itineraries.$inferSelect;
+export type UpdateItinerary = z.infer<typeof updateItinerarySchema>;
+
+export type InsertItineraryItem = z.infer<typeof insertItineraryItemSchema>;
+export type ItineraryItem = typeof itineraryItems.$inferSelect;
