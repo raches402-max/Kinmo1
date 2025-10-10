@@ -76,15 +76,15 @@ export default function Dashboard() {
         </div>
 
         {isLoading ? (
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-6">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-3">
             {[...Array(3)].map((_, i) => (
               <Card key={i}>
-                <CardHeader>
-                  <Skeleton className="h-6 w-3/4 mb-2" />
-                  <Skeleton className="h-4 w-full" />
+                <CardHeader className="pb-3">
+                  <Skeleton className="h-5 w-3/4 mb-1" />
+                  <Skeleton className="h-3 w-full" />
                 </CardHeader>
-                <CardContent>
-                  <Skeleton className="h-20 w-full" />
+                <CardContent className="pb-4">
+                  <Skeleton className="h-16 w-full" />
                 </CardContent>
               </Card>
             ))}
@@ -108,32 +108,25 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-6">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-3">
             {groups.map((group) => (
               <Link key={group.id} href={`/group/${group.id}`}>
                 <Card className="hover-elevate active-elevate-2 transition-all cursor-pointer h-full" data-testid={`card-group-${group.id}`}>
-                  <CardHeader>
-                    <CardTitle className="flex items-start justify-between gap-2">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-start justify-between gap-2 text-base">
                       <span>{group.name}</span>
                       {group.activityGenerationStatus === "completed" && (
-                        <Sparkles className="h-4 w-4 text-primary flex-shrink-0" />
+                        <Sparkles className="h-3.5 w-3.5 text-primary flex-shrink-0" />
                       )}
                     </CardTitle>
-                    <CardDescription className="flex items-center gap-2">
+                    <CardDescription className="flex items-center gap-1.5 text-sm">
                       <MapPin className="h-3 w-3" />
-                      {group.locationBase}
+                      {group.locationBase} • {group.meetingFrequency.charAt(0).toUpperCase() + group.meetingFrequency.slice(1)}
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Calendar className="h-4 w-4" />
-                      {group.meetingFrequency.charAt(0).toUpperCase() + group.meetingFrequency.slice(1)}
-                    </div>
-                    <div className="text-sm">
-                      <span className="font-medium">Budget:</span>{" "}
-                      <span className="text-muted-foreground">
-                        ${group.budgetMin}-${group.budgetMax} per person
-                      </span>
+                  <CardContent className="space-y-2 pb-3">
+                    <div className="text-sm text-muted-foreground">
+                      Budget: ${group.budgetMin}-${group.budgetMax}
                     </div>
                     {group.activityGenerationStatus === "generating" && (
                       <div className="text-sm text-primary">
