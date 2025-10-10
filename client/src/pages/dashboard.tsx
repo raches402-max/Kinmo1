@@ -76,7 +76,7 @@ export default function Dashboard() {
         </div>
 
         {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-6">
             {[...Array(3)].map((_, i) => (
               <Card key={i}>
                 <CardHeader>
@@ -108,7 +108,7 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-6">
             {groups.map((group) => (
               <Link key={group.id} href={`/group/${group.id}`}>
                 <Card className="hover-elevate active-elevate-2 transition-all cursor-pointer h-full" data-testid={`card-group-${group.id}`}>
