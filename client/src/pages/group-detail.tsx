@@ -880,7 +880,7 @@ export default function GroupDetail() {
       <div className="max-w-7xl mx-auto px-6 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full max-w-3xl mx-auto grid-cols-5">
-            <TabsTrigger value="preferences" data-testid="tab-preferences">Preferences</TabsTrigger>
+            <TabsTrigger value="preferences" data-testid="tab-preferences">1. Group Details</TabsTrigger>
             <TabsTrigger value="activities" data-testid="tab-activities">Activities</TabsTrigger>
             <TabsTrigger value="build" data-testid="tab-build">Build</TabsTrigger>
             <TabsTrigger value="schedule" data-testid="tab-schedule">Schedule</TabsTrigger>
