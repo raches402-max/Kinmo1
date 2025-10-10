@@ -310,21 +310,25 @@ CRITICAL CONSTRAINTS for ALL complementaryFoodPlace queries:
      * "Fresh sushi" ❌ ("Fresh" is adjective)
    - 2-4 words maximum
    - Format: [Cuisine/nationality] + [Food type], NOTHING else
-16. FOR REASONING: CRITICAL - Keep it extremely concise at 3-8 words. NO flowery language or fluff. Just state the key reason.
+16. FOR REASONING: CRITICAL - Ultra-short and direct. 2-5 words maximum. NO vague phrases. Be specific.
    - DO NOT mention budget (it's assumed everything shown fits budget)
-   - FOCUS on: familiarity with past preferences, specific cuisine match, social/interactive aspects, NEW experiences
-   - GOOD examples (direct, concise):
-     * "Familiar Korean BBQ preference" (4 words)
-     * "Intimate conversation spot" (3 words)
-     * "Social, shareable dining experience" (4 words)
-     * "Matches past sushi preference" (4 words)
-   - BAD examples (too long or mentions budget):
-     * "Fits budget, familiar Korean BBQ preference" ❌ (mentions budget)
-     * "Budget-friendly, intimate conversation spot" ❌ (mentions budget)
-     * "Fits your budget and love for casual Asian dining with shareable plates" ❌ (way too long)
-     * "This wonderful venue will delight your senses" ❌ (fluff)
-17. When suggesting something NEW (outside their usual range/novelty preference), explicitly say "NEW:" at the start of the reasoning to highlight it's a departure from their typical choices.
-   Example: "NEW: Unfamiliar cuisine, interactive dining" (5 words)
+   - BANNED VAGUE PHRASES: "interaction", "sharing", "social experience", "group dining", "intimate", "experience"
+   - INSTEAD be SPECIFIC about WHAT matches their preferences
+   - FOCUS on: Matches past preferences, Familiar cuisine type, NEW cuisine
+   - GOOD examples (specific, direct, 2-5 words):
+     * "Familiar sushi preference" (3 words)
+     * "Matches Korean BBQ history" (4 words)
+     * "Past dumpling favorite" (3 words)
+     * "Regular Thai spot" (3 words)
+   - BAD examples (vague, fluffy, or too long):
+     * "Social, shareable dining experience" ❌ (vague "social, shareable")
+     * "Interactive dining, great for groups" ❌ (vague "interactive", too long)
+     * "Interaction and sharing" ❌ (completely vague)
+     * "Intimate conversation spot" ❌ (vague "intimate")
+     * "Budget-friendly Korean BBQ" ❌ (mentions budget)
+17. When suggesting something NEW (outside their usual range), start with "NEW:" and be specific about what's new.
+   - GOOD: "NEW: Unfamiliar Filipino cuisine" (4 words - specific)
+   - BAD: "NEW: Unique flavors to explore" ❌ (vague)
 
 Return your response as a JSON object with this structure:
 {
