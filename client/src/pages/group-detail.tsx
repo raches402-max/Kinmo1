@@ -214,7 +214,7 @@ export default function GroupDetail() {
   const [editGroupOpen, setEditGroupOpen] = useState(false);
   const [editBudgetRange, setEditBudgetRange] = useState<number[]>([50, 250]);
   const [showInstructions, setShowInstructions] = useState(true);
-  const [activeTab, setActiveTab] = useState("preferences");
+  const [activeTab, setActiveTab] = useState("activities");
   const [editCloseness, setEditCloseness] = useState(3);
   const [editNovelty, setEditNovelty] = useState(3);
   const [editAvailability, setEditAvailability] = useState(createEmptyAvailability());
@@ -1037,7 +1037,10 @@ export default function GroupDetail() {
                 </Collapsible>
               </CardContent>
             </Card>
+          </TabsContent>
 
+          {/* Tab 2: Activities */}
+          <TabsContent value="activities" className="space-y-6">
             {/* Favorites Voting Table */}
             <Card>
               <CardHeader>
@@ -1379,16 +1382,17 @@ export default function GroupDetail() {
                 )}
               </CardContent>
             </Card>
-          </div>
 
-          {/* Main Content - Activities */}
-          <div className="lg:col-span-2">
+            {/* AI-Suggested Activities */}
             <div className="mb-6">
               <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
                 <h2 className="text-2xl font-bold" data-testid="text-activities-title">AI-Suggested Activities</h2>
                 {!selectionMode && (activities.length > 0 || votingEvents.length > 0) && (
                   <Button
-                    onClick={() => setSelectionMode(true)}
+                    onClick={() => {
+                      setSelectionMode(true);
+                      setActiveTab("build");
+                    }}
                     variant="default"
                     size="lg"
                     className="bg-primary hover:bg-primary/90"
@@ -1398,115 +1402,13 @@ export default function GroupDetail() {
                     I'm Ready, Let's Do This!
                   </Button>
                 )}
-                {selectionMode && (
-                  <div className="flex gap-2">
-                    <Badge variant="secondary" className="px-3 py-1">
-                      {selectedVenues.length} / 5 selected
-                    </Badge>
-                    <Button
-                      onClick={handleReadyClick}
-                      disabled={validateItineraryMutation.isPending || selectedVenues.length < 2}
-                      variant="default"
-                      data-testid="button-validate-itinerary"
-                    >
-                      {validateItineraryMutation.isPending ? "Validating..." : "Create Itinerary"}
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        setSelectionMode(false);
-                        setSelectedVenues([]);
-                      }}
-                      variant="outline"
-                      data-testid="button-cancel-selection"
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                )}
               </div>
               <p className="text-muted-foreground mb-4">
                 {selectionMode 
-                  ? "Select 2-5 venues to create your evening itinerary. AI will validate proximity, hours, and flow."
+                  ? "Select venues below. Go to Build tab to create your itinerary."
                   : "Personalized recommendations based on your group's preferences"
                 }
               </p>
-
-              {/* Selected Venues Display */}
-              {selectionMode && selectedVenues.length > 0 && (
-                <Card className="mb-4">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base">Selected Venues</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    {selectedVenues.map((venue, index) => {
-                      // Find the actual venue/event data to display
-                      let venueName = '';
-                      let venueType = '';
-                      
-                      if (venue.sourceType === 'activity') {
-                        const activity = activities.find(a => a.id === venue.sourceId);
-                        venueName = activity?.venueName || 'Unknown';
-                        venueType = activity?.venueType || '';
-                      } else {
-                        const event = votingEvents.find(e => e.id === venue.sourceId);
-                        venueName = event?.title || 'Unknown';
-                        venueType = event?.venueType || '';
-                      }
-
-                      return (
-                        <div
-                          key={`${venue.sourceType}-${venue.sourceId}`}
-                          className="flex items-center gap-3 p-2 rounded-md bg-accent/20 border"
-                          data-testid={`selected-venue-${venue.sourceId}`}
-                        >
-                          <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary font-bold text-sm">
-                            {index + 1}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{venueName}</p>
-                            {venueType && (
-                              <p className="text-xs text-muted-foreground truncate">{venueType}</p>
-                            )}
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => toggleVenueSelection(venue.sourceType, venue.sourceId)}
-                            className="h-6 w-6 p-0"
-                            data-testid={`button-remove-venue-${venue.sourceId}`}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      );
-                    })}
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Itinerary Proposals Display */}
-              {itineraries.length > 0 && !selectionMode && (
-                <Card className="mb-6">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="flex items-center gap-2">
-                          <CheckCircle2 className="h-5 w-5 text-primary" />
-                          Your Evening Itinerary
-                        </CardTitle>
-                        <CardDescription className="mt-1">
-                          AI has organized your selections - drag to reorder
-                        </CardDescription>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    {itineraries.map((itinerary: any) => (
-                      <ItineraryDisplay key={itinerary.id} itinerary={itinerary} />
-                    ))}
-                  </CardContent>
-                </Card>
-              )}
               
               <div className="flex gap-3 items-end">
                 <div className="flex-1">
@@ -2006,8 +1908,177 @@ export default function GroupDetail() {
                 })()}
               </>
             )}
-          </div>
-        </div>
+          </TabsContent>
+
+          {/* Tab 3: Build */}
+          <TabsContent value="build" className="space-y-6">
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-2xl font-bold mb-2">Build Your Itinerary</h2>
+                <p className="text-muted-foreground">
+                  {selectionMode 
+                    ? "Select 2-5 venues from Activities or Favorites, then click Create Itinerary"
+                    : itineraries.length > 0
+                      ? "Your evening itinerary is ready! Drag to reorder venues."
+                      : "Switch to Activities tab to browse and select venues for your itinerary"
+                  }
+                </p>
+              </div>
+
+              {/* Selected Venues Display */}
+              {selectionMode && selectedVenues.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-base">Selected Venues ({selectedVenues.length}/5)</CardTitle>
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={handleReadyClick}
+                          disabled={validateItineraryMutation.isPending || selectedVenues.length < 2}
+                          variant="default"
+                          size="sm"
+                          data-testid="button-validate-itinerary-build"
+                        >
+                          {validateItineraryMutation.isPending ? "Validating..." : "Create Itinerary"}
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            setSelectionMode(false);
+                            setSelectedVenues([]);
+                          }}
+                          variant="outline"
+                          size="sm"
+                          data-testid="button-cancel-selection-build"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {selectedVenues.map((venue, index) => {
+                      let venueName = '';
+                      let venueType = '';
+                      
+                      if (venue.sourceType === 'activity') {
+                        const activity = activities.find(a => a.id === venue.sourceId);
+                        venueName = activity?.venueName || 'Unknown';
+                        venueType = activity?.venueType || '';
+                      } else {
+                        const event = votingEvents.find(e => e.id === venue.sourceId);
+                        venueName = event?.title || 'Unknown';
+                        venueType = event?.venueType || '';
+                      }
+
+                      return (
+                        <div
+                          key={`${venue.sourceType}-${venue.sourceId}`}
+                          className="flex items-center gap-3 p-2 rounded-md bg-accent/20 border"
+                          data-testid={`selected-venue-build-${venue.sourceId}`}
+                        >
+                          <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary font-bold text-sm">
+                            {index + 1}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{venueName}</p>
+                            {venueType && (
+                              <p className="text-xs text-muted-foreground truncate">{venueType}</p>
+                            )}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleVenueSelection(venue.sourceType, venue.sourceId)}
+                            className="h-6 w-6 p-0"
+                            data-testid={`button-remove-venue-build-${venue.sourceId}`}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Itinerary Display */}
+              {itineraries.length > 0 && !selectionMode && (
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="flex items-center gap-2">
+                          <CheckCircle2 className="h-5 w-5 text-primary" />
+                          Your Evening Itinerary
+                        </CardTitle>
+                        <CardDescription className="mt-1">
+                          AI has organized your selections - drag to reorder
+                        </CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {itineraries.map((itinerary: any) => (
+                      <ItineraryDisplay key={itinerary.id} itinerary={itinerary} />
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Empty State */}
+              {!selectionMode && selectedVenues.length === 0 && itineraries.length === 0 && (
+                <Card>
+                  <CardContent className="text-center py-12">
+                    <Sparkles className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                    <h3 className="text-lg font-semibold mb-2">Ready to Build?</h3>
+                    <p className="text-muted-foreground mb-4">
+                      Go to the Activities tab, browse suggestions, and click "I'm Ready, Let's Do This!" to start selecting venues
+                    </p>
+                    <Button onClick={() => setActiveTab("activities")} data-testid="button-go-to-activities">
+                      Browse Activities
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </TabsContent>
+
+          {/* Tab 4: Schedule */}
+          <TabsContent value="schedule" className="space-y-6">
+            <Card className="max-w-2xl mx-auto">
+              <CardHeader className="text-center">
+                <CardTitle className="text-2xl">Schedule Your Outing</CardTitle>
+                <CardDescription className="text-base mt-2">
+                  Coming Soon
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="text-center py-8">
+                <Calendar className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+                <p className="text-muted-foreground">
+                  Date scheduling and RSVP collection - launching soon!
+                </p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Tab 5: Feedback */}
+          <TabsContent value="feedback" className="space-y-6">
+            <Card className="max-w-2xl mx-auto">
+              <CardHeader className="text-center">
+                <CardTitle className="text-2xl">Share Your Feedback</CardTitle>
+                <CardDescription className="text-base mt-2">
+                  Coming Soon
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="text-center py-8">
+                <Star className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+                <p className="text-muted-foreground">
+                  AI learns from your group's feedback - launching soon!
+                </p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Edit Group Dialog */}
