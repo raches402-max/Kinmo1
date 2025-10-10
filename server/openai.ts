@@ -209,20 +209,23 @@ CRITICAL - Availability Constraint:
 
 CRITICAL - How to interpret USER INSTRUCTIONS:
 - If the user provides SPECIFIC venue types (e.g., "Boba", "Sushi", "Pizza"), generate ALL 15 suggestions of that type for variety within the theme
-- If the user provides GENERAL guidance (e.g., "something adventurous", "romantic vibes", "fun and lively"), maintain diversity across the 15 suggestions while matching the mood/theme
+- If the user provides GENERAL guidance (e.g., "something adventurous", "romantic vibes", "fun and lively", "dinner plans", "mostly restaurants"), maintain diversity across ALL time categories while matching the mood/theme
 - Use your natural language understanding to distinguish between requests for specific venue types vs. general preferences
 - Examples of SPECIFIC requests (all 15 should match): "Boba", "Korean BBQ only", "Get tacos", "Sushi restaurants"
-- Examples of GENERAL requests (maintain diversity): "something adventurous", "romantic atmosphere", "fun night out", "unique experiences"
+- Examples of GENERAL requests (maintain diversity across time categories): "something adventurous", "romantic atmosphere", "fun night out", "unique experiences", "dinner plans", "mostly restaurants"
 
-CRITICAL - Time-Based Organization Strategy:
+CRITICAL - Time-Based Organization Strategy (MANDATORY):
 - Suggestions will be organized by TIME COMMITMENT:
   * QUICK (<90 min): Drinks, bars, desserts, cafes - in and out
   * STANDARD (1-3 hours): Full meals (breakfast, lunch, dinner) - the main event
   * LARGE (4+ hours): Activities, hikes, shows, museums - commitment required
-- Generate a smart mix across time categories based on the group's activity interests and meeting frequency
-- For dinner-focused groups (mostly restaurant interests), prioritize STANDARD + QUICK venues
-- For activity-focused groups (outdoor/adventure interests), include all three categories
-- If no specific time-intensive activities fit the group, focus on STANDARD and QUICK options
+- MANDATORY DISTRIBUTION - You MUST generate exactly 15 suggestions with this breakdown:
+  * 4 QUICK suggestions (boba tea shops, cocktail bars, ice cream parlors, coffee shops, wine bars, dessert cafes)
+  * 9 STANDARD suggestions (restaurants - various cuisines)
+  * 2 LARGE suggestions (activities, outdoor venues, shows) - only if the group's interests support them, otherwise add more QUICK or STANDARD
+- CRITICAL: QUICK items are STANDALONE main venue suggestions, NOT complementary options
+- EVEN IF user instructions say "dinner plans" or "mostly restaurants", you MUST still include 4 QUICK venue suggestions
+- Think of QUICK venues as pre-dinner drinks or post-dinner dessert spots - they complement the main meal but are separate experiences
 
 CRITICAL - Novelty Preference Strategy:
 - Suggest ${familiarCount} FAMILIAR venues (things similar to past preferences, favorites, or things they've loved)
