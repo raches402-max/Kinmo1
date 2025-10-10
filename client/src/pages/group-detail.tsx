@@ -824,6 +824,49 @@ export default function GroupDetail() {
                       </DialogFooter>
                     </DialogContent>
                   </Dialog>
+
+                  {/* Confirmation Dialog when Google Places finds nothing */}
+                  <Dialog open={showEnrichmentConfirm} onOpenChange={setShowEnrichmentConfirm}>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Venue Not Found</DialogTitle>
+                        <DialogDescription>
+                          Google Places couldn't find "{pendingEventTitle}". This might be a private event or there might be a typo in the name.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <p className="text-sm text-muted-foreground">
+                          Would you like to edit the details or add it anyway?
+                        </p>
+                      </div>
+                      <DialogFooter className="gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setShowEnrichmentConfirm(false);
+                            setAddEventOpen(true);
+                          }}
+                          data-testid="button-edit-event-details"
+                        >
+                          Edit Details
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "voting-events"] });
+                            setNewEventTitle("");
+                            setShowEnrichmentConfirm(false);
+                            toast({
+                              title: "Event added",
+                              description: "Your event has been added to the voting list",
+                            });
+                          }}
+                          data-testid="button-add-anyway"
+                        >
+                          Add Anyway
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
                 </div>
               </CardHeader>
               <CardContent>
