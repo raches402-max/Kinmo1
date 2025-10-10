@@ -3,7 +3,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema } from "@shared/schema";
-import { generateActivitySuggestions, generateSwipeConcepts } from "./openai";
+import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime } from "./openai";
 import { searchPlaces, searchNearbyPlaces } from "./google-places";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { validateItinerary } from "./itinerary-validation";
@@ -816,6 +816,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
               suggestedTime: null,
               priceEstimate: suggestion.priceEstimate || null,
               timeConstraints: suggestion.timeConstraints || null,
+              timeCategory: categorizeByTime(suggestion.venueType), // Categorize by time commitment
               complementaryPlaceName: complementaryPlace?.name || null,
               complementaryPlaceAddress: complementaryPlace?.address || null,
               complementaryPlaceId: complementaryPlace?.placeId || null,
@@ -847,6 +848,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
               suggestedTime: null,
               priceEstimate: suggestion.priceEstimate || null,
               timeConstraints: suggestion.timeConstraints || null,
+              timeCategory: categorizeByTime(suggestion.venueType), // Categorize by time commitment
               complementaryPlaceName: complementaryPlace?.name || null,
               complementaryPlaceAddress: complementaryPlace?.address || null,
               complementaryPlaceId: complementaryPlace?.placeId || null,

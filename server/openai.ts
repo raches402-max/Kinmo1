@@ -3,6 +3,39 @@ import OpenAI from "openai";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+// Time category mapping based on venue type
+export function categorizeByTime(venueType: string): 'quick' | 'standard' | 'large' {
+  const type = venueType.toLowerCase();
+  
+  // Quick: Under 90 min - Drinks, bars, desserts, cafes
+  const quickKeywords = [
+    'bar', 'cocktail', 'wine', 'brewery', 'beer', 'pub',
+    'cafe', 'coffee', 'boba', 'bubble tea', 'tea',
+    'dessert', 'ice cream', 'gelato', 'bakery', 'pastry'
+  ];
+  
+  // Large: 4+ hours - Activities, hikes, outdoor experiences, events
+  const largeKeywords = [
+    'hike', 'hiking', 'trail', 'park', 'outdoor', 'beach', 'nature',
+    'museum', 'gallery', 'art', 'exhibit',
+    'concert', 'show', 'festival', 'event', 'game', 'sporting',
+    'activity', 'experience', 'adventure', 'tour'
+  ];
+  
+  // Check quick first
+  if (quickKeywords.some(keyword => type.includes(keyword))) {
+    return 'quick';
+  }
+  
+  // Check large
+  if (largeKeywords.some(keyword => type.includes(keyword))) {
+    return 'large';
+  }
+  
+  // Default to standard (1-3 hours) - restaurants, meals, etc.
+  return 'standard';
+}
+
 export interface ActivitySuggestion {
   venueName: string;
   venueType: string;
