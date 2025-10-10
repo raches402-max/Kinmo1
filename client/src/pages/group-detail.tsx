@@ -1899,15 +1899,16 @@ export default function GroupDetail() {
                     </Card>
                   );
                 })}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
-              </>
-            )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  })()}
+</>
+)}
+</div>
           </TabsContent>
 
           {/* Tab 3: Build */}
