@@ -1422,6 +1422,91 @@ export default function GroupDetail() {
                 </Card>
               )}
 
+              {/* How It Works - Persistent Help */}
+              {!selectionMode && activities.length > 0 && (
+                <Collapsible className="mb-4">
+                  <Card>
+                    <CollapsibleTrigger className="w-full">
+                      <CardHeader className="flex flex-row items-center justify-between py-3 cursor-pointer hover-elevate">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-primary" />
+                          <CardTitle className="text-sm font-medium">How Kinmo Works</CardTitle>
+                        </div>
+                        <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform ui-expanded:rotate-180" />
+                      </CardHeader>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <CardContent className="pt-0 pb-4">
+                        <div className="space-y-2">
+                          {/* Step 1: Discover */}
+                          <div className={`flex items-start gap-3 p-2 rounded-md ${
+                            activities.length > 0 ? 'bg-primary/10 border-l-4 border-primary' : 'bg-muted/50'
+                          }`}>
+                            <div className={`flex items-center justify-center w-6 h-6 rounded-full font-bold text-sm flex-shrink-0 ${
+                              activities.length > 0 ? 'bg-primary text-primary-foreground' : 'bg-muted-foreground/20 text-muted-foreground'
+                            }`}>
+                              1
+                            </div>
+                            <div>
+                              <p className="font-medium text-sm">Discover</p>
+                              <p className="text-xs text-muted-foreground">AI generates personalized activity suggestions</p>
+                            </div>
+                          </div>
+                          
+                          {/* Step 2: Build */}
+                          <div className={`flex items-start gap-3 p-2 rounded-md ${
+                            itineraries.length > 0 ? 'bg-primary/10 border-l-4 border-primary' : 'bg-muted/50'
+                          }`}>
+                            <div className={`flex items-center justify-center w-6 h-6 rounded-full font-bold text-sm flex-shrink-0 ${
+                              itineraries.length > 0 ? 'bg-primary text-primary-foreground' : 'bg-muted-foreground/20 text-muted-foreground'
+                            }`}>
+                              2
+                            </div>
+                            <div>
+                              <p className="font-medium text-sm">Build</p>
+                              <p className="text-xs text-muted-foreground">Select 2-5 venues to create your itinerary</p>
+                            </div>
+                          </div>
+                          
+                          {/* Step 3: Schedule */}
+                          <div className="flex items-start gap-3 p-2 rounded-md bg-muted/50">
+                            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted-foreground/20 text-muted-foreground font-bold text-sm flex-shrink-0">
+                              3
+                            </div>
+                            <div>
+                              <p className="font-medium text-sm">Schedule <span className="text-xs text-muted-foreground">(coming soon)</span></p>
+                              <p className="text-xs text-muted-foreground">Pick a date for your outing</p>
+                            </div>
+                          </div>
+                          
+                          {/* Step 4: Invite */}
+                          <div className="flex items-start gap-3 p-2 rounded-md bg-muted/50">
+                            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted-foreground/20 text-muted-foreground font-bold text-sm flex-shrink-0">
+                              4
+                            </div>
+                            <div>
+                              <p className="font-medium text-sm">Invite <span className="text-xs text-muted-foreground">(coming soon)</span></p>
+                              <p className="text-xs text-muted-foreground">Send to your group for RSVPs</p>
+                            </div>
+                          </div>
+                          
+                          {/* Step 5: Learn */}
+                          <div className="flex items-start gap-3 p-2 rounded-md bg-muted/50">
+                            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted-foreground/20 text-muted-foreground font-bold text-sm flex-shrink-0">
+                              5
+                            </div>
+                            <div>
+                              <p className="font-medium text-sm">Learn <span className="text-xs text-muted-foreground">(coming soon)</span></p>
+                              <p className="text-xs text-muted-foreground">AI gets smarter from your group's feedback</p>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </CollapsibleContent>
+                  </Card>
+                </Collapsible>
+              )}
+
               {/* Itinerary Proposals Display */}
               {itineraries.length > 0 && !selectionMode && (
                 <Card className="mb-6">
@@ -1557,13 +1642,69 @@ export default function GroupDetail() {
                     </>
                   ) : (
                     <>
-                      <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <Sparkles className="h-12 w-12 text-primary mx-auto mb-4" />
                       <h3 className="text-lg font-semibold mb-2">
-                        {group?.activityGenerationStatus === "generating" ? "Generating suggestions..." : "Finding perfect activities..."}
+                        AI is generating your suggestions...
                       </h3>
-                      <p className="text-muted-foreground">
-                        Our AI is analyzing your group's preferences
+                      <p className="text-sm text-muted-foreground mb-6">
+                        This usually takes 10-20 seconds
                       </p>
+                      
+                      {/* Roadmap */}
+                      <div className="max-w-2xl mx-auto mt-6">
+                        <h4 className="text-sm font-semibold mb-4">How Kinmo Works</h4>
+                        <div className="space-y-3 text-left">
+                          <div className="flex items-start gap-3 p-3 rounded-md bg-primary/10 border-l-4 border-primary">
+                            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground font-bold text-sm flex-shrink-0">
+                              1
+                            </div>
+                            <div>
+                              <p className="font-medium text-sm">Discover</p>
+                              <p className="text-xs text-muted-foreground">AI generates personalized activity suggestions</p>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-start gap-3 p-3 rounded-md bg-muted/50">
+                            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted-foreground/20 text-muted-foreground font-bold text-sm flex-shrink-0">
+                              2
+                            </div>
+                            <div>
+                              <p className="font-medium text-sm">Build</p>
+                              <p className="text-xs text-muted-foreground">Select 2-5 venues to create your itinerary</p>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-start gap-3 p-3 rounded-md bg-muted/50">
+                            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted-foreground/20 text-muted-foreground font-bold text-sm flex-shrink-0">
+                              3
+                            </div>
+                            <div>
+                              <p className="font-medium text-sm">Schedule <span className="text-xs text-muted-foreground">(coming soon)</span></p>
+                              <p className="text-xs text-muted-foreground">Pick a date for your outing</p>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-start gap-3 p-3 rounded-md bg-muted/50">
+                            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted-foreground/20 text-muted-foreground font-bold text-sm flex-shrink-0">
+                              4
+                            </div>
+                            <div>
+                              <p className="font-medium text-sm">Invite <span className="text-xs text-muted-foreground">(coming soon)</span></p>
+                              <p className="text-xs text-muted-foreground">Send to your group for RSVPs</p>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-start gap-3 p-3 rounded-md bg-muted/50">
+                            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted-foreground/20 text-muted-foreground font-bold text-sm flex-shrink-0">
+                              5
+                            </div>
+                            <div>
+                              <p className="font-medium text-sm">Learn <span className="text-xs text-muted-foreground">(coming soon)</span></p>
+                              <p className="text-xs text-muted-foreground">AI gets smarter from your group's feedback</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </>
                   )}
                 </div>
