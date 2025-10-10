@@ -197,9 +197,9 @@ NOTE: You will generate 15 suggestions, but only 6 will be shown to the user aft
 Location: ${groupData.locationBase}
 Budget Range: $${groupData.budgetMin}-${groupData.budgetMax} per person
 Meeting Frequency: ${groupData.meetingFrequency}
-Usual Availability: ${availabilityText}${categoriesContext}
-${groupData.pastPreferences ? `Past Preferences: ${groupData.pastPreferences}` : ''}
-${groupData.additionalInstructions ? `\n⚠️ USER INSTRUCTIONS: ${groupData.additionalInstructions}` : ''}${feedbackContext}${votingContext}${swipeContext}${avoidVenuesContext}
+Usual Availability: ${availabilityText}
+${groupData.additionalInstructions ? `\n🚨 USER INSTRUCTIONS (OVERRIDES EVERYTHING): ${groupData.additionalInstructions}` : `${categoriesContext}
+${groupData.pastPreferences ? `Past Preferences: ${groupData.pastPreferences}` : ''}${feedbackContext}${votingContext}${swipeContext}`}${avoidVenuesContext}
 
 CRITICAL - Availability Constraint:
 - The group is ONLY available during: ${availabilityText}
@@ -207,17 +207,17 @@ CRITICAL - Availability Constraint:
 - If an event requires specific timing, it MUST match their availability
 - Example: If they're only available "Mon-Fri evenings", DO NOT suggest "Saturday events" or "Sunday morning" activities
 
-CRITICAL - How to interpret USER INSTRUCTIONS (HIGHEST PRIORITY):
-- If the user provides SPECIFIC venue types (e.g., "Boba", "Sushi", "Pizza", "Korean BBQ"), generate ALL 15 suggestions of that EXACT type for variety within the theme
-  * IGNORE the time-based distribution below when user specifies a specific venue type
-  * Focus ALL suggestions on finding different variations of that specific venue type
-  * Example: "Boba" → generate 15 different boba tea shops/cafes
-  * Example: "Sushi" → generate 15 different sushi restaurants
-- If the user provides GENERAL guidance (e.g., "something adventurous", "romantic vibes", "fun and lively", "dinner plans", "mostly restaurants"), maintain diversity across ALL time categories while matching the mood/theme
-  * In this case, FOLLOW the time-based distribution below
-- Use your natural language understanding to distinguish between requests for specific venue types vs. general preferences
-- Examples of SPECIFIC requests (OVERRIDE distribution, all 15 should match): "Boba", "Korean BBQ only", "Get tacos", "Sushi restaurants", "Pizza places", "Coffee shops"
-- Examples of GENERAL requests (FOLLOW distribution below): "something adventurous", "romantic atmosphere", "fun night out", "unique experiences", "dinner plans", "mostly restaurants"
+${groupData.additionalInstructions ? `🚨 CRITICAL - USER INSTRUCTIONS MODE (ABSOLUTE PRIORITY):
+- The user has provided specific instructions in the text box above
+- IGNORE ALL OTHER CONTEXT: Activity Interests, Past Preferences, Voting Feedback, and Swipe Feedback are NOT relevant
+- ONLY focus on what the user typed in the USER INSTRUCTIONS
+- If they specify a venue type (like "Boba", "Sushi", "Pizza", "Korean BBQ"), generate ALL 15 suggestions of that exact type
+- If they provide general guidance (like "something fun", "adventurous"), maintain diversity while matching the theme
+- Use your natural language understanding to distinguish between specific venue types vs. general preferences` : `CRITICAL - How to interpret preferences:
+- If Activity Interests are specified, prioritize those activity types
+- Analyze Past Preferences to understand venue types they prefer
+- Consider Voting Feedback and Swipe Feedback to refine suggestions
+- Maintain diversity across time categories (4 QUICK + 9 STANDARD + 2 LARGE distribution)`}
 
 CRITICAL - Time-Based Organization Strategy (ONLY applies when user provides GENERAL guidance):
 - Suggestions will be organized by TIME COMMITMENT:
@@ -231,20 +231,16 @@ CRITICAL - Time-Based Organization Strategy (ONLY applies when user provides GEN
 - CRITICAL: QUICK items are STANDALONE main venue suggestions, NOT complementary options
 - Think of QUICK venues as pre-dinner drinks or post-dinner dessert spots - they complement the main meal but are separate experiences
 
-CRITICAL - Novelty Preference Strategy:
+${!groupData.additionalInstructions ? `CRITICAL - Novelty Preference Strategy:
 - Suggest ${familiarCount} FAMILIAR venues (things similar to past preferences, favorites, or things they've loved)
 - Suggest ${newCount} NEW venues (novel experiences they haven't tried)
-- Mark NEW suggestions with "NEW:" prefix in reasoning
-- NOTE: If user instructions specify a particular venue type, ALL suggestions should be that type (but vary the specific venues)
+- Mark NEW suggestions with "NEW:" prefix in reasoning` : ''}
 
 Requirements:
-1. ${groupData.additionalInstructions ? `⚠️ INTERPRET AND FOLLOW THE USER INSTRUCTIONS ABOVE - If they specify a SPECIFIC venue type (like "Boba", "Sushi", "Pizza"), generate ALL 15 suggestions of that exact type and IGNORE the time-based distribution. If they provide GENERAL guidance (like "dinner plans", "something fun"), maintain diversity across time categories and FOLLOW the time-based distribution.` : 'No additional user instructions'}
-2. ${groupData.activityCategories && groupData.activityCategories.length > 0 ? `PRIORITIZE the Activity Interests listed above - these are the types of activities the group specifically wants` : 'No specific activity category preferences'}
-3. ANALYZE Past Preferences to identify the TYPES of venues they prefer (restaurants, bars, cafes, activities, outdoor spaces, etc.)
-4. PRIORITIZE suggesting the same TYPES of venues they've enjoyed historically
-   - If past preferences are mostly restaurants → suggest mostly restaurants
-   - If past preferences include bars/nightlife → include bars/nightlife
-   - Match the category distribution of their past preferences
+1. ${groupData.additionalInstructions ? `🚨 FOLLOW ONLY THE USER INSTRUCTIONS ABOVE - Ignore all other context (Activity Interests, Past Preferences, Feedback). If they specify a venue type (like "Boba"), generate ALL 15 of that type. If they give general guidance, maintain diversity while matching the theme.` : 'Use Activity Interests, Past Preferences, and Feedback to guide suggestions'}
+2. ${!groupData.additionalInstructions && groupData.activityCategories && groupData.activityCategories.length > 0 ? `PRIORITIZE the Activity Interests - these are the types of activities the group specifically wants` : ''}
+3. ${!groupData.additionalInstructions ? 'ANALYZE Past Preferences to identify venue TYPES they prefer (restaurants, bars, cafes, activities, etc.)' : ''}
+4. ${!groupData.additionalInstructions ? 'PRIORITIZE suggesting the same TYPES of venues they\'ve enjoyed historically' : ''}
 5. Suggest 15 specific types of venues/activities (not specific business names) - we'll show 6 after deduplication
 6. Each suggestion should fit within the budget range
 7. CRITICAL - BE SPECIFIC WITH CUISINE TYPES:
@@ -284,7 +280,7 @@ CRITICAL CONSTRAINTS for ALL complementaryFoodPlace queries:
 - Quality: ALL suggestions must have 3.5+ star ratings or better
 - VARIETY: Each suggestion should use a DIFFERENT type of complementary place (don't repeat the same type like "dessert shops" multiple times)
 - Each search query should return multiple options for the group to choose from
-13. IMPORTANT - Use previous feedback AND voting data to guide suggestions:
+${!groupData.additionalInstructions ? `13. IMPORTANT - Use previous feedback AND voting data to guide suggestions:
    - If activities were "LOVED", suggest very similar venues/types
    - If activities got "more", increase that type of suggestion
    - If activities got "less", avoid or minimize that type
@@ -293,7 +289,7 @@ CRITICAL CONSTRAINTS for ALL complementaryFoodPlace queries:
 14. CRITICAL - Use Swipe Session Preferences to refine suggestions:
    - LIKED concepts: These are activity types the group has shown interest in - PRIORITIZE suggesting these types
    - PASSED concepts: These are activity types the group is NOT interested in - AVOID suggesting these types
-   - Swipe preferences reveal what the group wants to explore, so weight them heavily in your suggestions
+   - Swipe preferences reveal what the group wants to explore, so weight them heavily in your suggestions` : ''}
 15. FOR DESCRIPTION: CRITICAL - ULTRA-SHORT AND PRAGMATIC. NOUNS ONLY. ZERO ADJECTIVES.
    - RULE: Use ONLY nouns. ZERO adjectives, ZERO descriptive words. Format: cuisine + food type.
    - BANNED: ALL adjectives including "Wood-fired", "Small", "Tabletop", "Spicy", "Rich", "Fresh", "Authentic", "Traditional", "Amazing", etc.
