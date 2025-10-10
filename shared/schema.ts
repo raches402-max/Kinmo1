@@ -106,6 +106,7 @@ export const votingEvents = pgTable("voting_events", {
   venueType: text("venue_type"),
   googlePlaceId: text("google_place_id"),
   rating: text("rating"),
+  reviewCount: integer("review_count"), // Number of Google reviews (user_ratings_total)
   priceLevel: text("price_level"),
   photoUrl: text("photo_url"),
   aiReasoning: text("ai_reasoning"),

@@ -199,12 +199,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create a voting event (authenticated)
+  // Create a voting event (authenticated) - enriches with Google Places data
   app.post("/api/voting-events", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const validatedEvent = insertVotingEventSchema.parse(req.body);
-      const event = await storage.createVotingEvent(validatedEvent, userId);
+      
+      // Get the group to know the location for Google Places search
+      const group = await storage.getGroup(validatedEvent.groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+      
+      // Search Google Places to enrich the event with venue details
+      const places = await searchPlaces(validatedEvent.title, group.locationBase);
+      
+      // Merge Google Places data if found
+      let enrichedEvent = { ...validatedEvent };
+      if (places.length > 0) {
+        const place = places[0];
+        enrichedEvent = {
+          ...validatedEvent,
+          venueAddress: place.address || validatedEvent.venueAddress,
+          googlePlaceId: place.placeId || validatedEvent.googlePlaceId,
+          rating: place.rating || validatedEvent.rating,
+          reviewCount: place.reviewCount || validatedEvent.reviewCount,
+          priceLevel: place.priceLevel || validatedEvent.priceLevel,
+          photoUrl: place.photoUrl || validatedEvent.photoUrl,
+        };
+        
+        console.log(`[Voting Event] Enriched "${validatedEvent.title}" with Google Places data:`, {
+          name: place.name,
+          rating: place.rating,
+          reviewCount: place.reviewCount,
+          address: place.address,
+        });
+      }
+      
+      const event = await storage.createVotingEvent(enrichedEvent, userId);
       res.json(event);
     } catch (error: any) {
       res.status(400).json({ message: error.message });
