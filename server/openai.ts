@@ -207,24 +207,28 @@ CRITICAL - Availability Constraint:
 - If an event requires specific timing, it MUST match their availability
 - Example: If they're only available "Mon-Fri evenings", DO NOT suggest "Saturday events" or "Sunday morning" activities
 
-CRITICAL - How to interpret USER INSTRUCTIONS:
-- If the user provides SPECIFIC venue types (e.g., "Boba", "Sushi", "Pizza"), generate ALL 15 suggestions of that type for variety within the theme
+CRITICAL - How to interpret USER INSTRUCTIONS (HIGHEST PRIORITY):
+- If the user provides SPECIFIC venue types (e.g., "Boba", "Sushi", "Pizza", "Korean BBQ"), generate ALL 15 suggestions of that EXACT type for variety within the theme
+  * IGNORE the time-based distribution below when user specifies a specific venue type
+  * Focus ALL suggestions on finding different variations of that specific venue type
+  * Example: "Boba" → generate 15 different boba tea shops/cafes
+  * Example: "Sushi" → generate 15 different sushi restaurants
 - If the user provides GENERAL guidance (e.g., "something adventurous", "romantic vibes", "fun and lively", "dinner plans", "mostly restaurants"), maintain diversity across ALL time categories while matching the mood/theme
+  * In this case, FOLLOW the time-based distribution below
 - Use your natural language understanding to distinguish between requests for specific venue types vs. general preferences
-- Examples of SPECIFIC requests (all 15 should match): "Boba", "Korean BBQ only", "Get tacos", "Sushi restaurants"
-- Examples of GENERAL requests (maintain diversity across time categories): "something adventurous", "romantic atmosphere", "fun night out", "unique experiences", "dinner plans", "mostly restaurants"
+- Examples of SPECIFIC requests (OVERRIDE distribution, all 15 should match): "Boba", "Korean BBQ only", "Get tacos", "Sushi restaurants", "Pizza places", "Coffee shops"
+- Examples of GENERAL requests (FOLLOW distribution below): "something adventurous", "romantic atmosphere", "fun night out", "unique experiences", "dinner plans", "mostly restaurants"
 
-CRITICAL - Time-Based Organization Strategy (MANDATORY):
+CRITICAL - Time-Based Organization Strategy (ONLY applies when user provides GENERAL guidance):
 - Suggestions will be organized by TIME COMMITMENT:
   * QUICK (<90 min): Drinks, bars, desserts, cafes - in and out
   * STANDARD (1-3 hours): Full meals (breakfast, lunch, dinner) - the main event
   * LARGE (4+ hours): Activities, hikes, shows, museums - commitment required
-- MANDATORY DISTRIBUTION - You MUST generate exactly 15 suggestions with this breakdown:
+- MANDATORY DISTRIBUTION (only when user gives GENERAL guidance):
   * 4 QUICK suggestions (boba tea shops, cocktail bars, ice cream parlors, coffee shops, wine bars, dessert cafes)
   * 9 STANDARD suggestions (restaurants - various cuisines)
   * 2 LARGE suggestions (activities, outdoor venues, shows) - only if the group's interests support them, otherwise add more QUICK or STANDARD
 - CRITICAL: QUICK items are STANDALONE main venue suggestions, NOT complementary options
-- EVEN IF user instructions say "dinner plans" or "mostly restaurants", you MUST still include 4 QUICK venue suggestions
 - Think of QUICK venues as pre-dinner drinks or post-dinner dessert spots - they complement the main meal but are separate experiences
 
 CRITICAL - Novelty Preference Strategy:
@@ -234,7 +238,7 @@ CRITICAL - Novelty Preference Strategy:
 - NOTE: If user instructions specify a particular venue type, ALL suggestions should be that type (but vary the specific venues)
 
 Requirements:
-1. ${groupData.additionalInstructions ? `⚠️ INTERPRET AND FOLLOW THE USER INSTRUCTIONS ABOVE - If they specify a venue type, focus all suggestions on that type. If they provide general guidance, maintain diversity while matching the theme.` : 'No additional user instructions'}
+1. ${groupData.additionalInstructions ? `⚠️ INTERPRET AND FOLLOW THE USER INSTRUCTIONS ABOVE - If they specify a SPECIFIC venue type (like "Boba", "Sushi", "Pizza"), generate ALL 15 suggestions of that exact type and IGNORE the time-based distribution. If they provide GENERAL guidance (like "dinner plans", "something fun"), maintain diversity across time categories and FOLLOW the time-based distribution.` : 'No additional user instructions'}
 2. ${groupData.activityCategories && groupData.activityCategories.length > 0 ? `PRIORITIZE the Activity Interests listed above - these are the types of activities the group specifically wants` : 'No specific activity category preferences'}
 3. ANALYZE Past Preferences to identify the TYPES of venues they prefer (restaurants, bars, cafes, activities, outdoor spaces, etc.)
 4. PRIORITIZE suggesting the same TYPES of venues they've enjoyed historically
