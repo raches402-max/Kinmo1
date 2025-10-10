@@ -150,57 +150,101 @@ function selectBestReview(reviews?: any[]): string | undefined {
     return (b.text?.length || 0) - (a.text?.length || 0);
   });
 
-  // Take top 3 reviews to extract highlights
-  const topReviews = sortedReviews.slice(0, 3);
+  // Take top 5 reviews to extract highlights
+  const topReviews = sortedReviews.slice(0, 5);
   
-  // Extract positive phrases from reviews
+  // Extract key phrases about food, service, atmosphere, etc.
   const highlights: string[] = [];
-  const positiveKeywords = ['great', 'excellent', 'amazing', 'fantastic', 'love', 'perfect', 'best', 'delicious', 'wonderful', 'awesome', 'recommend', 'favorite'];
+  const highlightPatterns = [
+    // Food quality patterns
+    /(?:the |their |has |serves? )?(amazing|excellent|delicious|incredible|outstanding|fantastic|perfect|fresh|authentic|flavorful) (food|dishes?|meals?|cuisine|menu|options?|selection)/i,
+    /(best|great|amazing|delicious|excellent) (pizza|burger|pasta|sushi|tacos?|sandwiches?|desserts?|coffee|drinks?|cocktails?|breakfast|brunch|dinner)/i,
+    
+    // Service patterns
+    /(friendly|excellent|great|attentive|amazing|wonderful|fantastic) (service|staff|servers?|waiters?|team)/i,
+    /(staff|service|team) (?:is |was |are |were )?(so |very )?(friendly|helpful|attentive|excellent|amazing|great)/i,
+    
+    // Atmosphere patterns
+    /(cozy|beautiful|amazing|great|nice|perfect|lovely|wonderful) (atmosphere|ambiance|vibe|setting|place|location|spot|space|interior|decor)/i,
+    /(atmosphere|ambiance|vibe) (?:is |was )?(so |very )?(cozy|beautiful|amazing|great|nice|perfect)/i,
+    
+    // General positive patterns
+    /(highly recommend|must try|definitely recommend|worth (?:the |a )?visit|can't recommend enough)/i,
+    /(love|loved) (?:the |this )?(place|restaurant|spot|food|experience)/i,
+  ];
   
   for (const review of topReviews) {
     if (!review.text) continue;
     
-    // Split into sentences
-    const sentences = review.text.match(/[^.!?]+[.!?]+/g) || [review.text];
+    const text = review.text.toLowerCase();
     
-    for (const sentence of sentences) {
-      const lowerSentence = sentence.toLowerCase();
-      
-      // Check if sentence contains positive keywords
-      if (positiveKeywords.some(keyword => lowerSentence.includes(keyword))) {
-        // Clean up the sentence
-        let highlight = sentence.trim()
-          .replace(/^(i |we |they |the |this |it |very |really |so |such )/i, '') // Remove common prefixes
-          .replace(/[.!?]+$/, ''); // Remove ending punctuation
-        
-        // Take first part before comma if too long
-        if (highlight.length > 50) {
-          const parts = highlight.split(',');
-          highlight = parts[0].trim();
-        }
+    // Try each pattern
+    for (const pattern of highlightPatterns) {
+      const match = text.match(pattern);
+      if (match) {
+        // Clean and format the matched text
+        let highlight = match[0].trim()
+          .replace(/^(the |their |has |have |had |serves? |is |was |are |were |so |very )/i, '')
+          .replace(/[.!?,;]+$/, '');
         
         // Capitalize first letter
         highlight = highlight.charAt(0).toUpperCase() + highlight.slice(1);
         
-        if (highlight.length >= 15 && highlight.length <= 60 && highlights.length < 3) {
+        // Avoid duplicates
+        const isDuplicate = highlights.some(h => 
+          h.toLowerCase().includes(highlight.toLowerCase()) || 
+          highlight.toLowerCase().includes(h.toLowerCase())
+        );
+        
+        if (!isDuplicate && highlight.length >= 10 && highlight.length <= 50) {
           highlights.push(highlight);
+          if (highlights.length >= 3) break;
         }
       }
-      
-      if (highlights.length >= 3) break;
     }
     
     if (highlights.length >= 3) break;
   }
   
-  // If we couldn't extract enough highlights, use first sentence from best review
-  if (highlights.length === 0 && topReviews[0]?.text) {
-    const firstSentence = (topReviews[0].text.match(/[^.!?]+[.!?]/) || [topReviews[0].text])[0];
-    let highlight = firstSentence.trim().replace(/[.!?]+$/, '');
-    if (highlight.length > 60) {
-      highlight = highlight.substring(0, 57) + '...';
+  // If we couldn't extract highlights with patterns, look for any strong positive phrases
+  if (highlights.length < 2) {
+    const positiveWords = ['amazing', 'excellent', 'fantastic', 'incredible', 'outstanding', 'delicious', 'perfect', 'best'];
+    
+    for (const review of topReviews) {
+      if (!review.text) continue;
+      
+      const sentences = review.text.match(/[^.!?]+[.!?]+/g) || [review.text];
+      
+      for (const sentence of sentences) {
+        const lower = sentence.toLowerCase();
+        
+        if (positiveWords.some(word => lower.includes(word))) {
+          let highlight = sentence.trim()
+            .replace(/^(i |we |they |the |this |it |very |really |so |such |and |but )/i, '')
+            .replace(/[.!?]+$/, '');
+          
+          // Take first clause if too long
+          if (highlight.length > 45) {
+            const parts = highlight.split(/,| and | but /);
+            highlight = parts[0].trim();
+          }
+          
+          highlight = highlight.charAt(0).toUpperCase() + highlight.slice(1);
+          
+          const isDuplicate = highlights.some(h => 
+            h.toLowerCase().includes(highlight.toLowerCase()) || 
+            highlight.toLowerCase().includes(h.toLowerCase())
+          );
+          
+          if (!isDuplicate && highlight.length >= 12 && highlight.length <= 50) {
+            highlights.push(highlight);
+            if (highlights.length >= 3) break;
+          }
+        }
+      }
+      
+      if (highlights.length >= 3) break;
     }
-    highlights.push(highlight);
   }
   
   // Return highlights as bullet-separated string

@@ -1717,9 +1717,14 @@ export default function GroupDetail() {
                               <MessageCircle className="h-4 w-4" />
                               Why we suggest this:
                             </p>
-                            <p className="text-muted-foreground italic" data-testid={`text-review-${activity.id}`}>
-                              {activity.googleReview}
-                            </p>
+                            <ul className="space-y-1" data-testid={`text-review-${activity.id}`}>
+                              {activity.googleReview.split(' • ').map((highlight, i) => (
+                                <li key={i} className="text-muted-foreground flex items-start gap-2">
+                                  <span className="text-primary mt-0.5">•</span>
+                                  <span>{highlight}</span>
+                                </li>
+                              ))}
+                            </ul>
                           </div>
                         )}
 
