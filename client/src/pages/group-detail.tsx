@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, MessageCircle } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -94,6 +95,8 @@ export default function GroupDetail() {
   const [showSwipeSession, setShowSwipeSession] = useState(false);
   const [showEnrichmentConfirm, setShowEnrichmentConfirm] = useState(false);
   const [pendingEventTitle, setPendingEventTitle] = useState("");
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedVenues, setSelectedVenues] = useState<Array<{sourceType: 'activity' | 'voting_event', sourceId: string}>>([]);
 
   const { data: group, isLoading: groupLoading } = useQuery<Group>({
     queryKey: ["/api/groups", groupId],
@@ -285,6 +288,60 @@ export default function GroupDetail() {
       });
     },
   });
+
+  // Itinerary validation mutation
+  const validateItineraryMutation = useMutation({
+    mutationFn: async (venues: Array<{sourceType: 'activity' | 'voting_event', sourceId: string}>) => {
+      return await apiRequest("POST", `/api/groups/${groupId}/itineraries/validate`, { selectedVenues: venues });
+    },
+    onSuccess: () => {
+      setSelectionMode(false);
+      setSelectedVenues([]);
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "itineraries"] });
+      toast({
+        title: "Itinerary created!",
+        description: "AI has validated and organized your evening plan",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Validation failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const toggleVenueSelection = (sourceType: 'activity' | 'voting_event', sourceId: string) => {
+    setSelectedVenues(prev => {
+      const exists = prev.some(v => v.sourceType === sourceType && v.sourceId === sourceId);
+      if (exists) {
+        return prev.filter(v => !(v.sourceType === sourceType && v.sourceId === sourceId));
+      } else {
+        if (prev.length >= 5) {
+          toast({
+            title: "Maximum reached",
+            description: "You can select up to 5 venues",
+            variant: "destructive",
+          });
+          return prev;
+        }
+        return [...prev, { sourceType, sourceId }];
+      }
+    });
+  };
+
+  const handleReadyClick = () => {
+    if (selectedVenues.length < 2) {
+      toast({
+        title: "Select more venues",
+        description: "Please select at least 2 venues for an itinerary",
+        variant: "destructive",
+      });
+      return;
+    }
+    validateItineraryMutation.mutate(selectedVenues);
+  };
 
   // Voting functionality
   const [newEventTitle, setNewEventTitle] = useState("");
@@ -883,15 +940,34 @@ export default function GroupDetail() {
                       const currentVote = myVotes[event.id];
                       const hasUpvoted = currentVote?.voteType === 'upvote';
                       const hasDownvoted = currentVote?.voteType === 'downvote';
+                      const isSelected = selectedVenues.some(v => v.sourceType === 'voting_event' && v.sourceId === event.id);
                       
                       return (
                         <Popover key={event.id}>
                           <PopoverTrigger asChild>
                             <div 
-                              className="flex items-center gap-1 p-2 rounded-md hover-elevate cursor-pointer"
+                              className={`flex items-center gap-1 p-2 rounded-md hover-elevate cursor-pointer ${isSelected ? 'ring-2 ring-primary' : ''}`}
                               data-testid={`voting-event-${event.id}`}
+                              onClick={(e) => {
+                                if (selectionMode) {
+                                  e.stopPropagation();
+                                  e.preventDefault();
+                                  toggleVenueSelection('voting_event', event.id);
+                                }
+                              }}
                             >
-                              <span className="text-xs font-medium text-muted-foreground w-5">#{index + 1}</span>
+                              {selectionMode && (
+                                <Checkbox
+                                  checked={isSelected}
+                                  onCheckedChange={(checked) => {
+                                    toggleVenueSelection('voting_event', event.id);
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="h-4 w-4"
+                                  data-testid={`checkbox-event-${event.id}`}
+                                />
+                              )}
+                              {!selectionMode && <span className="text-xs font-medium text-muted-foreground w-5">#{index + 1}</span>}
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium truncate">{event.title}</p>
                                 {extractCity(event.venueAddress) && (
@@ -1109,9 +1185,49 @@ export default function GroupDetail() {
             <div className="mb-6">
               <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
                 <h2 className="text-2xl font-bold" data-testid="text-activities-title">AI-Suggested Activities</h2>
+                {!selectionMode && (activities.length > 0 || votingEvents.length > 0) && (
+                  <Button
+                    onClick={() => setSelectionMode(true)}
+                    variant="default"
+                    size="lg"
+                    className="bg-primary hover:bg-primary/90"
+                    data-testid="button-ready"
+                  >
+                    <Sparkles className="mr-2 h-5 w-5" />
+                    I'm Ready, Let's Do This!
+                  </Button>
+                )}
+                {selectionMode && (
+                  <div className="flex gap-2">
+                    <Badge variant="secondary" className="px-3 py-1">
+                      {selectedVenues.length} / 5 selected
+                    </Badge>
+                    <Button
+                      onClick={handleReadyClick}
+                      disabled={validateItineraryMutation.isPending || selectedVenues.length < 2}
+                      variant="default"
+                      data-testid="button-validate-itinerary"
+                    >
+                      {validateItineraryMutation.isPending ? "Validating..." : "Create Itinerary"}
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setSelectionMode(false);
+                        setSelectedVenues([]);
+                      }}
+                      variant="outline"
+                      data-testid="button-cancel-selection"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                )}
               </div>
               <p className="text-muted-foreground mb-4">
-                Personalized recommendations based on your group's preferences
+                {selectionMode 
+                  ? "Select 2-5 venues to create your evening itinerary. AI will validate proximity, hours, and flow."
+                  : "Personalized recommendations based on your group's preferences"
+                }
               </p>
               
               <div className="flex gap-3 items-end">
@@ -1267,8 +1383,10 @@ export default function GroupDetail() {
                     complementaryLabel = "Grab food nearby:";
                   }
                   
+                  const isSelected = selectedVenues.some(v => v.sourceType === 'activity' && v.sourceId === activity.id);
+                  
                   return (
-                    <Card key={activity.id} className="relative overflow-hidden hover-elevate transition-all flex flex-col" data-testid={`activity-${activity.id}`}>
+                    <Card key={activity.id} className={`relative overflow-hidden hover-elevate transition-all flex flex-col ${selectionMode ? 'cursor-pointer' : ''} ${isSelected ? 'ring-2 ring-primary' : ''}`} data-testid={`activity-${activity.id}`} onClick={() => selectionMode && toggleVenueSelection('activity', activity.id)}>
                       {activity.photoUrl && (
                         <div className="aspect-video w-full overflow-hidden bg-muted">
                           <img
@@ -1278,13 +1396,24 @@ export default function GroupDetail() {
                           />
                         </div>
                       )}
-                      <button
-                        className={`absolute top-3 right-3 p-2 rounded-full transition-all z-10 ${
-                          activity.feedback === "love"
-                            ? "bg-pink-500/90 hover:bg-pink-600/90"
-                            : "bg-black/40 hover:bg-black/60 border-2 border-white"
-                        }`}
-                        onClick={() => {
+                      {selectionMode && (
+                        <div className="absolute top-3 left-3 z-10">
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => toggleVenueSelection('activity', activity.id)}
+                            className="h-6 w-6 bg-white border-2"
+                            data-testid={`checkbox-activity-${activity.id}`}
+                          />
+                        </div>
+                      )}
+                      {!selectionMode && (
+                        <button
+                          className={`absolute top-3 right-3 p-2 rounded-full transition-all z-10 ${
+                            activity.feedback === "love"
+                              ? "bg-pink-500/90 hover:bg-pink-600/90"
+                              : "bg-black/40 hover:bg-black/60 border-2 border-white"
+                          }`}
+                          onClick={() => {
                           if (activity.feedback === "love") {
                             // Remove feedback and delete from Favorites list
                             feedbackMutation.mutate({ activityId: activity.id, feedback: null });
@@ -1338,6 +1467,7 @@ export default function GroupDetail() {
                           strokeWidth={2.5}
                         />
                       </button>
+                      )}
                       <CardHeader className="space-y-3 flex-1 flex flex-col">
                         <div>
                           <CardTitle className="text-lg mb-2">{activity.venueName}</CardTitle>

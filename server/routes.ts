@@ -2,10 +2,11 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema } from "@shared/schema";
+import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema } from "@shared/schema";
 import { generateActivitySuggestions, generateSwipeConcepts } from "./openai";
 import { searchPlaces, searchNearbyPlaces } from "./google-places";
 import { setupAuth, isAuthenticated } from "./replitAuth";
+import { validateItinerary } from "./itinerary-validation";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Set up authentication
@@ -507,6 +508,155 @@ Looking forward to planning great activities together!
       res.json({ signal });
     } catch (error: any) {
       console.error("Error saving swipe feedback:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Validate and create itinerary
+  app.post("/api/groups/:groupId/itineraries/validate", isAuthenticated, async (req: any, res) => {
+    try {
+      const { groupId } = req.params;
+      const { selectedVenues } = req.body; // Array of { sourceType, sourceId }
+      const userId = req.user.claims.sub;
+
+      if (!selectedVenues || !Array.isArray(selectedVenues) || selectedVenues.length === 0) {
+        return res.status(400).json({ message: "No venues selected" });
+      }
+
+      // Fetch venue details with location data
+      const venuesWithDetails = await Promise.all(
+        selectedVenues.map(async (v: { sourceType: string; sourceId: string }) => {
+          if (v.sourceType === 'activity') {
+            const activities = await storage.getGroupActivities(groupId);
+            const activity = activities.find(a => a.id === v.sourceId);
+            if (!activity) return null;
+            
+            // Fetch location from Google Places if we have a place ID
+            let location: { lat: number; lng: number } | undefined;
+            if (activity.googlePlaceId) {
+              const placeDetails = await import('./google-places').then(m => m.getPlaceDetails(activity.googlePlaceId!));
+              if (placeDetails?.location) {
+                location = placeDetails.location;
+              }
+            }
+            
+            return {
+              sourceType: 'activity' as const,
+              sourceId: activity.id,
+              venueName: activity.venueName,
+              venueType: activity.venueType,
+              venueAddress: activity.venueAddress,
+              googlePlaceId: activity.googlePlaceId,
+              location,
+            };
+          } else {
+            const events = await storage.getGroupVotingEvents(groupId);
+            const event = events.find(e => e.id === v.sourceId);
+            if (!event) return null;
+            
+            // Fetch location from Google Places if we have a place ID
+            let location: { lat: number; lng: number } | undefined;
+            if (event.googlePlaceId) {
+              const placeDetails = await import('./google-places').then(m => m.getPlaceDetails(event.googlePlaceId!));
+              if (placeDetails?.location) {
+                location = placeDetails.location;
+              }
+            }
+            
+            return {
+              sourceType: 'voting_event' as const,
+              sourceId: event.id,
+              venueName: event.title,
+              venueType: event.venueType || 'venue',
+              venueAddress: event.venueAddress,
+              googlePlaceId: event.googlePlaceId,
+              location,
+            };
+          }
+        })
+      );
+
+      const validVenues = venuesWithDetails.filter(Boolean);
+      
+      if (validVenues.length === 0) {
+        return res.status(400).json({ message: "No valid venues found" });
+      }
+
+      // Validate itinerary with AI
+      const validation = await validateItinerary(validVenues as any);
+
+      if (!validation.isValid) {
+        return res.status(400).json({
+          message: validation.validationNotes,
+          issues: validation.issues,
+        });
+      }
+
+      // Create itinerary with proposed order
+      const itinerary = await storage.createItinerary(
+        {
+          groupId,
+          status: 'proposed',
+          aiValidationNotes: validation.validationNotes,
+          proposedOrder: validation.proposedOrder,
+        },
+        userId,
+        validation.proposedOrder.map(sourceId => {
+          const venue = validVenues.find(v => v?.sourceId === sourceId);
+          return {
+            sourceType: venue?.sourceType || 'activity',
+            sourceId: sourceId,
+          };
+        })
+      );
+
+      // Fetch full itinerary with items
+      const fullItinerary = await storage.getItinerary(itinerary.id);
+
+      res.json({
+        itinerary: fullItinerary,
+        validation: {
+          notes: validation.validationNotes,
+          issues: validation.issues,
+        },
+      });
+    } catch (error: any) {
+      console.error("Error validating itinerary:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get group itineraries
+  app.get("/api/groups/:groupId/itineraries", async (req, res) => {
+    try {
+      const itineraries = await storage.getGroupItineraries(req.params.groupId);
+      res.json(itineraries);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Update itinerary order
+  app.patch("/api/itineraries/:id/order", isAuthenticated, async (req, res) => {
+    try {
+      const { proposedOrder } = req.body; // New array of sourceIds
+      
+      const itinerary = await storage.updateItinerary(req.params.id, {
+        proposedOrder,
+      });
+      
+      res.json(itinerary);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Delete itinerary
+  app.delete("/api/itineraries/:id", isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteItinerary(req.params.id);
+      res.json({ message: "Itinerary deleted" });
+    } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
