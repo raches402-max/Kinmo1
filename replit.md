@@ -24,7 +24,7 @@ AI suggestion preferences:
 
 ### Data Storage
 - **Database**: PostgreSQL via Neon serverless, Drizzle ORM for type-safe operations, Drizzle Kit for migrations.
-- **Schema Design**: `groups` (planning preferences, budget, location, AI status), `members` (invitations, availability, organizer status), and `activities` (AI suggestions, Google Places data). Uses UUID primary keys and cryptographically random tokens for shareable links.
+- **Schema Design**: `groups` (planning preferences, budget, location, AI status), `members` (invitations, availability, organizer status), `activities` (AI suggestions, Google Places data), `itineraries` (validated multi-venue plans with AI notes), and `itinerary_items` (individual venues in itineraries). Uses UUID primary keys and cryptographically random tokens for shareable links.
 - **Data Access Layer**: `IStorage` interface, `DatabaseStorage` class, transaction support, cascade deletion.
 
 ### Core Features & AI Logic
@@ -40,6 +40,7 @@ AI suggestion preferences:
   - For outdoor venues, suggests nearby portable meal options within a 0.5-mile radius with 3.5+ star ratings.
 - **Activity Category Selection**: Visual selector with 17 activity types for quick preference setting, integrated into AI suggestions.
 - **Enhanced Favorites with Google Places Enrichment**: When users manually add events to the Favorites voting list, the system automatically looks up the venue in Google Places and enriches the entry with venue details (photo, rating, review count, address, price level, Google Maps link). Includes graceful degradation if enrichment fails.
+- **Multi-Select Itinerary Builder**: Users can select 2-5 venues from activities and favorites to create an evening itinerary. AI validates proximity (using Google Places coordinates), operating hours, and logical flow, then proposes an ordered sequence. Users can drag-to-reorder venues in the itinerary display using @dnd-kit. The system stores itineraries with AI validation notes and supports real-time order updates.
 
 ## External Dependencies
 
