@@ -212,28 +212,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Search Google Places to enrich the event with venue details
-      const places = await searchPlaces(validatedEvent.title, group.locationBase);
-      
-      // Merge Google Places data if found
       let enrichedEvent = { ...validatedEvent };
-      if (places.length > 0) {
-        const place = places[0];
-        enrichedEvent = {
-          ...validatedEvent,
-          venueAddress: place.address || validatedEvent.venueAddress,
-          googlePlaceId: place.placeId || validatedEvent.googlePlaceId,
-          rating: place.rating || validatedEvent.rating,
-          reviewCount: place.reviewCount || validatedEvent.reviewCount,
-          priceLevel: place.priceLevel || validatedEvent.priceLevel,
-          photoUrl: place.photoUrl || validatedEvent.photoUrl,
-        };
+      try {
+        const places = await searchPlaces(validatedEvent.title, group.locationBase);
         
-        console.log(`[Voting Event] Enriched "${validatedEvent.title}" with Google Places data:`, {
-          name: place.name,
-          rating: place.rating,
-          reviewCount: place.reviewCount,
-          address: place.address,
-        });
+        // Merge Google Places data if found
+        if (places.length > 0) {
+          const place = places[0];
+          enrichedEvent = {
+            ...validatedEvent,
+            venueAddress: place.address || validatedEvent.venueAddress,
+            googlePlaceId: place.placeId || validatedEvent.googlePlaceId,
+            rating: place.rating || validatedEvent.rating,
+            reviewCount: place.reviewCount || validatedEvent.reviewCount,
+            priceLevel: place.priceLevel || validatedEvent.priceLevel,
+            photoUrl: place.photoUrl || validatedEvent.photoUrl,
+          };
+          
+          console.log(`[Voting Event] Enriched "${validatedEvent.title}" with Google Places data:`, {
+            name: place.name,
+            rating: place.rating,
+            reviewCount: place.reviewCount,
+            address: place.address,
+          });
+        } else {
+          console.log(`[Voting Event] No Google Places results for "${validatedEvent.title}"`);
+        }
+      } catch (error) {
+        console.error(`[Voting Event] Google Places enrichment failed for "${validatedEvent.title}":`, error);
+        // Continue with un-enriched event - graceful degradation
       }
       
       const event = await storage.createVotingEvent(enrichedEvent, userId);
