@@ -15,7 +15,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, MessageCircle, GripVertical, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -1584,7 +1584,7 @@ export default function GroupDetail() {
                   return (
                     <Card key={activity.id} className={`relative overflow-hidden hover-elevate transition-all flex flex-col ${selectionMode ? 'cursor-pointer' : ''} ${isSelected ? 'ring-2 ring-primary' : ''}`} data-testid={`activity-${activity.id}`} onClick={() => selectionMode && toggleVenueSelection('activity', activity.id)}>
                       {activity.photoUrl && (
-                        <div className="aspect-video w-full overflow-hidden bg-muted">
+                        <div className="aspect-[4/3] w-full overflow-hidden bg-muted">
                           <img
                             src={activity.photoUrl}
                             alt={activity.venueName}
@@ -1667,7 +1667,7 @@ export default function GroupDetail() {
                       <CardHeader className="space-y-3 flex-1 flex flex-col">
                         <div>
                           <CardTitle className="text-lg mb-2">{activity.venueName}</CardTitle>
-                          <CardDescription className="line-clamp-2">{activity.description}</CardDescription>
+                          <CardDescription className="line-clamp-1">{activity.description}</CardDescription>
                         </div>
                         
                         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1710,23 +1710,6 @@ export default function GroupDetail() {
                           <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
                           <span className="line-clamp-2">{activity.venueAddress}</span>
                         </div>
-
-                        {activity.googleReview && (
-                          <div className="text-sm bg-primary/5 rounded-md p-3">
-                            <p className="text-primary font-medium mb-2 flex items-center gap-2">
-                              <MessageCircle className="h-4 w-4" />
-                              Why we suggest this:
-                            </p>
-                            <ul className="space-y-1" data-testid={`text-review-${activity.id}`}>
-                              {activity.googleReview.split(' • ').map((highlight, i) => (
-                                <li key={i} className="text-muted-foreground flex items-start gap-2">
-                                  <span className="text-primary mt-0.5">•</span>
-                                  <span>{highlight}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
 
                         {(activity.priceEstimate || activity.timeConstraints) && (
                           <div className="space-y-2">
