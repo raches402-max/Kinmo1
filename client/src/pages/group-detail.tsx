@@ -15,6 +15,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -213,6 +214,7 @@ export default function GroupDetail() {
   const [editGroupOpen, setEditGroupOpen] = useState(false);
   const [editBudgetRange, setEditBudgetRange] = useState<number[]>([50, 250]);
   const [showInstructions, setShowInstructions] = useState(true);
+  const [activeTab, setActiveTab] = useState("preferences");
   const [editCloseness, setEditCloseness] = useState(3);
   const [editNovelty, setEditNovelty] = useState(3);
   const [editAvailability, setEditAvailability] = useState(createEmptyAvailability());
@@ -875,10 +877,18 @@ export default function GroupDetail() {
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto px-6 py-12">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Sidebar - Group Info */}
-          <div className="lg:col-span-1 space-y-6">
+      <div className="max-w-7xl mx-auto px-6 py-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="grid w-full max-w-3xl mx-auto grid-cols-5">
+            <TabsTrigger value="preferences" data-testid="tab-preferences">Preferences</TabsTrigger>
+            <TabsTrigger value="activities" data-testid="tab-activities">Activities</TabsTrigger>
+            <TabsTrigger value="build" data-testid="tab-build">Build</TabsTrigger>
+            <TabsTrigger value="schedule" data-testid="tab-schedule">Schedule</TabsTrigger>
+            <TabsTrigger value="feedback" data-testid="tab-feedback">Feedback</TabsTrigger>
+          </TabsList>
+
+          {/* Tab 1: Preferences */}
+          <TabsContent value="preferences" className="space-y-6">
             {/* Group Details Card */}
             <Card>
               <CardHeader>
