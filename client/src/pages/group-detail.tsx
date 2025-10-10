@@ -1369,6 +1369,59 @@ export default function GroupDetail() {
                 }
               </p>
 
+              {/* Selected Venues Display */}
+              {selectionMode && selectedVenues.length > 0 && (
+                <Card className="mb-4">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Selected Venues</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {selectedVenues.map((venue, index) => {
+                      // Find the actual venue/event data to display
+                      let venueName = '';
+                      let venueType = '';
+                      
+                      if (venue.sourceType === 'activity') {
+                        const activity = activities.find(a => a.id === venue.sourceId);
+                        venueName = activity?.venueName || 'Unknown';
+                        venueType = activity?.venueType || '';
+                      } else {
+                        const event = votingEvents.find(e => e.id === venue.sourceId);
+                        venueName = event?.title || 'Unknown';
+                        venueType = event?.venueType || '';
+                      }
+
+                      return (
+                        <div
+                          key={`${venue.sourceType}-${venue.sourceId}`}
+                          className="flex items-center gap-3 p-2 rounded-md bg-accent/20 border"
+                          data-testid={`selected-venue-${venue.sourceId}`}
+                        >
+                          <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary font-bold text-sm">
+                            {index + 1}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{venueName}</p>
+                            {venueType && (
+                              <p className="text-xs text-muted-foreground truncate">{venueType}</p>
+                            )}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleVenueSelection(venue.sourceType, venue.sourceId)}
+                            className="h-6 w-6 p-0"
+                            data-testid={`button-remove-venue-${venue.sourceId}`}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Itinerary Proposals Display */}
               {itineraries.length > 0 && !selectionMode && (
                 <Card className="mb-6">
