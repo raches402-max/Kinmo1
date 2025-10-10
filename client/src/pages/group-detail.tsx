@@ -1560,7 +1560,7 @@ export default function GroupDetail() {
                         </div>
                       )}
                       {selectionMode && (
-                        <div className="absolute top-3 left-3 z-10">
+                        <div className="absolute top-3 left-3 z-10" onClick={(e) => e.stopPropagation()}>
                           <Checkbox
                             checked={isSelected}
                             onCheckedChange={() => toggleVenueSelection('activity', activity.id)}

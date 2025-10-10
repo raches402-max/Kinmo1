@@ -96,8 +96,7 @@ export default function CreateGroup() {
       members: MemberInput[];
       activityCategories?: string[];
     }) => {
-      const res = await apiRequest("POST", "/api/groups", data);
-      return await res.json();
+      return await apiRequest("POST", "/api/groups", data);
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/groups"] });
