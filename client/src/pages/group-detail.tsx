@@ -1197,9 +1197,9 @@ export default function GroupDetail() {
           </TabsContent>
 
           {/* Tab 2: Activities */}
-          <TabsContent value="activities" className="flex gap-6">
+          <TabsContent value="activities" className="flex flex-col xl:flex-row gap-6">
             {/* Main Content - AI-Suggested Activities */}
-            <div className="flex-1 space-y-6">
+            <div className="flex-1 space-y-6 min-w-0">
               <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
                 <h2 className="text-2xl font-bold" data-testid="text-activities-title">AI-Suggested Activities</h2>
                 {!selectionMode && (activities.length > 0 || votingEvents.length > 0) && (
@@ -1301,9 +1301,8 @@ export default function GroupDetail() {
                   </AlertDialog>
                 </div>
               </div>
-            </div>
 
-            {activitiesLoading ? (
+              {activitiesLoading ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {[...Array(6)].map((_, i) => (
                   <Card key={i}>
@@ -1723,6 +1722,238 @@ export default function GroupDetail() {
                 })()}
               </>
             )}
+            </div>
+
+            {/* Right Sidebar - Favorites Voting */}
+            <div className="w-full xl:w-80 xl:flex-shrink-0 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold" data-testid="text-favorites-title">Favorites</h3>
+                <Dialog open={addEventOpen} onOpenChange={setAddEventOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" data-testid="button-add-favorite">
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent data-testid="dialog-add-favorite">
+                    <DialogHeader>
+                      <DialogTitle>Add to Favorites</DialogTitle>
+                      <DialogDescription>
+                        Add a place you'd like your group to vote on
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="event-title">Place Name</Label>
+                        <Input
+                          id="event-title"
+                          value={newEventTitle}
+                          onChange={(e) => setNewEventTitle(e.target.value)}
+                          placeholder="e.g., The Blue Room"
+                          data-testid="input-event-title"
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setAddEventOpen(false);
+                          setNewEventTitle("");
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          if (newEventTitle.trim()) {
+                            createEventMutation.mutate({ 
+                              title: newEventTitle,
+                              skipEnrichmentCheck: false 
+                            });
+                          }
+                        }}
+                        disabled={!newEventTitle.trim() || createEventMutation.isPending}
+                        data-testid="button-save-favorite"
+                      >
+                        {createEventMutation.isPending ? "Adding..." : "Add to Favorites"}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+              
+              <p className="text-sm text-muted-foreground">
+                Vote on favorites or add your own places
+              </p>
+
+              {/* Voting Events List */}
+              <div className="space-y-3">
+                {votingEventsLoading ? (
+                  <Card>
+                    <CardContent className="p-4">
+                      <Skeleton className="h-16 w-full" />
+                    </CardContent>
+                  </Card>
+                ) : votingEvents.length === 0 ? (
+                  <Card>
+                    <CardContent className="p-6 text-center">
+                      <Heart className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground">No favorites yet</p>
+                      <p className="text-xs text-muted-foreground mt-1">Click + Add to create one</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  votingEvents
+                    .sort((a, b) => (b.netVotes || 0) - (a.netVotes || 0))
+                    .map((event) => {
+                      const myVote = myVotes[event.id];
+                      const isSelected = selectedVenues.some(v => v.sourceType === 'event' && v.sourceId === event.id);
+                      
+                      return (
+                        <Card 
+                          key={event.id} 
+                          className={`hover-elevate transition-all ${selectionMode ? 'cursor-pointer' : ''} ${isSelected ? 'ring-2 ring-primary' : ''}`}
+                          onClick={() => selectionMode && toggleVenueSelection('event', event.id)}
+                          data-testid={`voting-event-${event.id}`}
+                        >
+                          {event.photoUrl && (
+                            <div className="aspect-video w-full overflow-hidden bg-muted">
+                              <img
+                                src={event.photoUrl}
+                                alt={event.title}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          )}
+                          {selectionMode && (
+                            <div className="absolute top-3 left-3 z-10" onClick={(e) => e.stopPropagation()}>
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={() => toggleVenueSelection('event', event.id)}
+                                className="h-6 w-6 bg-white border-2"
+                                data-testid={`checkbox-event-${event.id}`}
+                              />
+                            </div>
+                          )}
+                          <CardContent className="p-4">
+                            <div className="space-y-3">
+                              <div>
+                                <h4 className="font-semibold text-sm mb-1" data-testid={`text-event-title-${event.id}`}>
+                                  {event.title}
+                                </h4>
+                                {event.description && (
+                                  <p className="text-xs text-muted-foreground line-clamp-2">{event.description}</p>
+                                )}
+                                {event.venueAddress && (
+                                  <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{event.venueAddress}</p>
+                                )}
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                {event.rating && (
+                                  <Badge variant="secondary" className="gap-1 text-xs">
+                                    <Star className="h-3 w-3 fill-current" />
+                                    {event.rating}
+                                  </Badge>
+                                )}
+                                {event.priceLevel && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    {priceDisplay(event.priceLevel)}
+                                  </Badge>
+                                )}
+                                {event.venueType && (
+                                  <Badge variant="outline" className="text-xs">{event.venueType}</Badge>
+                                )}
+                                {event.googlePlaceId && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    asChild
+                                    className="h-6 px-2 text-xs"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <a
+                                      href={`https://www.google.com/maps/place/?q=place_id:${event.googlePlaceId}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      data-testid={`link-maps-event-${event.id}`}
+                                    >
+                                      <MapPin className="h-3 w-3 mr-1" />
+                                      Maps
+                                    </a>
+                                  </Button>
+                                )}
+                              </div>
+
+                              {!selectionMode && (
+                                <div className="flex items-center gap-2 pt-2 border-t">
+                                  <Button
+                                    variant={myVote?.voteType === "up" ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleVote(event.id, "up");
+                                    }}
+                                    className="flex-1 gap-1 h-8"
+                                    data-testid={`button-upvote-${event.id}`}
+                                  >
+                                    <ThumbsUp className="h-3 w-3" />
+                                    {event.upvotes || 0}
+                                  </Button>
+                                  <Button
+                                    variant={myVote?.voteType === "down" ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleVote(event.id, "down");
+                                    }}
+                                    className="flex-1 gap-1 h-8"
+                                    data-testid={`button-downvote-${event.id}`}
+                                  >
+                                    <ThumbsDown className="h-3 w-3" />
+                                    {event.downvotes || 0}
+                                  </Button>
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8"
+                                        onClick={(e) => e.stopPropagation()}
+                                        data-testid={`button-delete-event-${event.id}`}
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Remove from Favorites?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          This will permanently remove "{event.title}" from your group's favorites.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          onClick={() => deleteEventMutation.mutate(event.id)}
+                                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                        >
+                                          Remove
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </div>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })
+                )}
+              </div>
+            </div>
           </TabsContent>
 
           {/* Tab 3: Build */}
