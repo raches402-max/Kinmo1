@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -1788,7 +1789,7 @@ export default function GroupDetail() {
               </p>
 
               {/* Voting Events List */}
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {votingEventsLoading ? (
                   <Card>
                     <CardContent className="p-4">
@@ -1808,45 +1809,133 @@ export default function GroupDetail() {
                     .sort((a, b) => (b.netVotes || 0) - (a.netVotes || 0))
                     .map((event) => {
                       const myVote = myVotes[event.id];
-                      const isSelected = selectedVenues.some(v => v.sourceType === 'event' && v.sourceId === event.id);
+                      const isSelected = selectedVenues.some(v => v.sourceType === 'voting_event' && v.sourceId === event.id);
+                      
+                      // Show venueAddress or a fallback
+                      const locationText = event.venueAddress || event.venueType || '';
                       
                       return (
-                        <Card 
-                          key={event.id} 
-                          className={`hover-elevate transition-all ${selectionMode ? 'cursor-pointer' : ''} ${isSelected ? 'ring-2 ring-primary' : ''}`}
-                          onClick={() => selectionMode && toggleVenueSelection('event', event.id)}
-                          data-testid={`voting-event-${event.id}`}
-                        >
-                          {event.photoUrl && (
-                            <div className="aspect-video w-full overflow-hidden bg-muted">
-                              <img
-                                src={event.photoUrl}
-                                alt={event.title}
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                          )}
-                          {selectionMode && (
-                            <div className="absolute top-3 left-3 z-10" onClick={(e) => e.stopPropagation()}>
-                              <Checkbox
-                                checked={isSelected}
-                                onCheckedChange={() => toggleVenueSelection('event', event.id)}
-                                className="h-6 w-6 bg-white border-2"
-                                data-testid={`checkbox-event-${event.id}`}
-                              />
-                            </div>
-                          )}
-                          <CardContent className="p-4">
+                        <HoverCard key={event.id} openDelay={200}>
+                          <HoverCardTrigger asChild>
+                            <Card 
+                              className={`hover-elevate transition-all ${selectionMode ? 'cursor-pointer' : ''} ${isSelected ? 'ring-2 ring-primary' : ''}`}
+                              onClick={() => selectionMode && toggleVenueSelection('voting_event', event.id)}
+                              data-testid={`voting-event-${event.id}`}
+                            >
+                              <CardContent className="p-3">
+                                {selectionMode && (
+                                  <div className="flex items-start gap-2 mb-2">
+                                    <Checkbox
+                                      checked={isSelected}
+                                      onCheckedChange={() => toggleVenueSelection('voting_event', event.id)}
+                                      className="h-5 w-5 mt-0.5"
+                                      onClick={(e) => e.stopPropagation()}
+                                      data-testid={`checkbox-event-${event.id}`}
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                      <h4 className="font-medium text-sm truncate" data-testid={`text-event-title-${event.id}`}>
+                                        {event.title}
+                                      </h4>
+                                      {locationText && (
+                                        <p className="text-xs text-muted-foreground truncate">{locationText}</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {!selectionMode && (
+                                  <>
+                                    <div className="mb-2">
+                                      <h4 className="font-medium text-sm truncate mb-0.5" data-testid={`text-event-title-${event.id}`}>
+                                        {event.title}
+                                      </h4>
+                                      {locationText && (
+                                        <p className="text-xs text-muted-foreground truncate">{locationText}</p>
+                                      )}
+                                    </div>
+                                    
+                                    <div className="flex items-center gap-1">
+                                      <Button
+                                        variant={myVote?.voteType === "upvote" ? "default" : "outline"}
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleVote(event.id, "upvote");
+                                        }}
+                                        className="flex-1 gap-1 h-7 text-xs"
+                                        data-testid={`button-upvote-${event.id}`}
+                                      >
+                                        <ThumbsUp className="h-3 w-3" />
+                                        {event.upvotes || 0}
+                                      </Button>
+                                      <Button
+                                        variant={myVote?.voteType === "downvote" ? "default" : "outline"}
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleVote(event.id, "downvote");
+                                        }}
+                                        className="flex-1 gap-1 h-7 text-xs"
+                                        data-testid={`button-downvote-${event.id}`}
+                                      >
+                                        <ThumbsDown className="h-3 w-3" />
+                                        {event.downvotes || 0}
+                                      </Button>
+                                      <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-7 w-7"
+                                            onClick={(e) => e.stopPropagation()}
+                                            data-testid={`button-delete-event-${event.id}`}
+                                          >
+                                            <Trash2 className="h-3 w-3" />
+                                          </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                                          <AlertDialogHeader>
+                                            <AlertDialogTitle>Remove from Favorites?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                              This will permanently remove "{event.title}" from your group's favorites.
+                                            </AlertDialogDescription>
+                                          </AlertDialogHeader>
+                                          <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction
+                                              onClick={() => deleteEventMutation.mutate(event.id)}
+                                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                            >
+                                              Remove
+                                            </AlertDialogAction>
+                                          </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                      </AlertDialog>
+                                    </div>
+                                  </>
+                                )}
+                              </CardContent>
+                            </Card>
+                          </HoverCardTrigger>
+                          <HoverCardContent className="w-80" side="left" align="start">
                             <div className="space-y-3">
+                              {event.photoUrl && (
+                                <div className="aspect-video w-full overflow-hidden rounded-md bg-muted">
+                                  <img
+                                    src={event.photoUrl}
+                                    alt={event.title}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                              )}
+                              
                               <div>
-                                <h4 className="font-semibold text-sm mb-1" data-testid={`text-event-title-${event.id}`}>
-                                  {event.title}
-                                </h4>
+                                <h4 className="font-semibold text-sm mb-1">{event.title}</h4>
                                 {event.description && (
-                                  <p className="text-xs text-muted-foreground line-clamp-2">{event.description}</p>
+                                  <p className="text-xs text-muted-foreground mb-2">{event.description}</p>
                                 )}
                                 {event.venueAddress && (
-                                  <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{event.venueAddress}</p>
+                                  <p className="text-xs text-muted-foreground">{event.venueAddress}</p>
                                 )}
                               </div>
 
@@ -1855,6 +1944,7 @@ export default function GroupDetail() {
                                   <Badge variant="secondary" className="gap-1 text-xs">
                                     <Star className="h-3 w-3 fill-current" />
                                     {event.rating}
+                                    {event.reviewCount && ` (${event.reviewCount})`}
                                   </Badge>
                                 )}
                                 {event.priceLevel && (
@@ -1865,90 +1955,29 @@ export default function GroupDetail() {
                                 {event.venueType && (
                                   <Badge variant="outline" className="text-xs">{event.venueType}</Badge>
                                 )}
-                                {event.googlePlaceId && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    asChild
-                                    className="h-6 px-2 text-xs"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <a
-                                      href={`https://www.google.com/maps/place/?q=place_id:${event.googlePlaceId}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      data-testid={`link-maps-event-${event.id}`}
-                                    >
-                                      <MapPin className="h-3 w-3 mr-1" />
-                                      Maps
-                                    </a>
-                                  </Button>
-                                )}
                               </div>
-
-                              {!selectionMode && (
-                                <div className="flex items-center gap-2 pt-2 border-t">
-                                  <Button
-                                    variant={myVote?.voteType === "up" ? "default" : "outline"}
-                                    size="sm"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleVote(event.id, "up");
-                                    }}
-                                    className="flex-1 gap-1 h-8"
-                                    data-testid={`button-upvote-${event.id}`}
+                              
+                              {event.googlePlaceId && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  asChild
+                                  className="w-full"
+                                >
+                                  <a
+                                    href={`https://www.google.com/maps/place/?q=place_id:${event.googlePlaceId}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    data-testid={`link-maps-event-${event.id}`}
                                   >
-                                    <ThumbsUp className="h-3 w-3" />
-                                    {event.upvotes || 0}
-                                  </Button>
-                                  <Button
-                                    variant={myVote?.voteType === "down" ? "default" : "outline"}
-                                    size="sm"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleVote(event.id, "down");
-                                    }}
-                                    className="flex-1 gap-1 h-8"
-                                    data-testid={`button-downvote-${event.id}`}
-                                  >
-                                    <ThumbsDown className="h-3 w-3" />
-                                    {event.downvotes || 0}
-                                  </Button>
-                                  <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8"
-                                        onClick={(e) => e.stopPropagation()}
-                                        data-testid={`button-delete-event-${event.id}`}
-                                      >
-                                        <Trash2 className="h-3 w-3" />
-                                      </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-                                      <AlertDialogHeader>
-                                        <AlertDialogTitle>Remove from Favorites?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                          This will permanently remove "{event.title}" from your group's favorites.
-                                        </AlertDialogDescription>
-                                      </AlertDialogHeader>
-                                      <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction
-                                          onClick={() => deleteEventMutation.mutate(event.id)}
-                                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                        >
-                                          Remove
-                                        </AlertDialogAction>
-                                      </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                  </AlertDialog>
-                                </div>
+                                    <MapPin className="h-3 w-3 mr-2" />
+                                    View on Google Maps
+                                  </a>
+                                </Button>
                               )}
                             </div>
-                          </CardContent>
-                        </Card>
+                          </HoverCardContent>
+                        </HoverCard>
                       );
                     })
                 )}
