@@ -280,6 +280,7 @@ export default function GroupDetail() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedVenues, setSelectedVenues] = useState<Array<{sourceType: 'activity' | 'voting_event', sourceId: string}>>([]);
   const [selectedMainActivity, setSelectedMainActivity] = useState<string | null>(null);
+  const [selectedComplementary, setSelectedComplementary] = useState<'option1' | 'option2' | null>(null);
 
   const { data: group, isLoading: groupLoading } = useQuery<Group>({
     queryKey: ["/api/groups", groupId],
@@ -327,6 +328,11 @@ export default function GroupDetail() {
     }
     prevStatusRef.current = group?.activityGenerationStatus;
   }, [group?.activityGenerationStatus, groupId]);
+
+  // Reset complementary selection when main activity changes
+  useEffect(() => {
+    setSelectedComplementary(null);
+  }, [selectedMainActivity]);
 
   const sendInvitationsMutation = useMutation({
     mutationFn: async () => {
@@ -1819,6 +1825,156 @@ export default function GroupDetail() {
                   );
                 })()}
               </>
+            )}
+
+            {/* Complementary Options Section */}
+            {selectedMainActivity && !selectionMode && (() => {
+              const mainActivity = activities.find(a => a.id === selectedMainActivity);
+              if (!mainActivity) return null;
+              
+              const hasComplementary = mainActivity.complementaryPlaceName || mainActivity.complementaryPlaceName2;
+              if (!hasComplementary) return null;
+
+              // Determine label for complementary places
+              const isRestaurant = ['restaurant', 'cafe', 'bar', 'brewery', 'bakery', 'food'].some(type => 
+                mainActivity.venueType.toLowerCase().includes(type)
+              );
+              const isOutdoor = ['park', 'outdoor', 'beach', 'hiking', 'trail'].some(type => 
+                mainActivity.venueType.toLowerCase().includes(type)
+              );
+              
+              let complementaryLabel = "Grab food nearby:";
+              if (isRestaurant) {
+                complementaryLabel = "Complete the experience:";
+              } else if (isOutdoor) {
+                complementaryLabel = "Grab food nearby:";
+              }
+
+              const options = [];
+              if (mainActivity.complementaryPlaceName) {
+                options.push({
+                  id: 'option1',
+                  name: mainActivity.complementaryPlaceName,
+                  address: mainActivity.complementaryPlaceAddress,
+                  photoUrl: mainActivity.complementaryPlacePhotoUrl,
+                  rating: mainActivity.complementaryPlaceRating,
+                  placeId: mainActivity.complementaryPlaceId,
+                });
+              }
+              if (mainActivity.complementaryPlaceName2) {
+                options.push({
+                  id: 'option2',
+                  name: mainActivity.complementaryPlaceName2,
+                  address: mainActivity.complementaryPlaceAddress2,
+                  photoUrl: mainActivity.complementaryPlacePhotoUrl2,
+                  rating: mainActivity.complementaryPlaceRating2,
+                  placeId: mainActivity.complementaryPlaceId2,
+                });
+              }
+
+              return (
+                <div className="mt-6 border-t pt-6">
+                  <div className="mb-4">
+                    <h3 className="text-sm font-semibold mb-1">{complementaryLabel}</h3>
+                    <p className="text-xs text-muted-foreground">Choose a complementary option to add to your itinerary</p>
+                  </div>
+                  
+                  <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-3">
+                    {options.map((option) => {
+                      const isSelected = selectedComplementary === option.id;
+                      
+                      return (
+                        <Card
+                          key={option.id}
+                          className={`relative overflow-hidden hover-elevate transition-all cursor-pointer ${
+                            isSelected ? 'ring-2 ring-primary' : ''
+                          }`}
+                          onClick={() => setSelectedComplementary(isSelected ? null : option.id as 'option1' | 'option2')}
+                          data-testid={`complementary-${option.id}`}
+                        >
+                          {option.photoUrl && (
+                            <div className="aspect-video w-full overflow-hidden bg-muted">
+                              <img
+                                src={option.photoUrl}
+                                alt={option.name}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          )}
+                          
+                          <div className="absolute top-3 left-3 z-10">
+                            <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                              isSelected 
+                                ? 'bg-primary border-primary' 
+                                : 'bg-white border-gray-400'
+                            }`}>
+                              {isSelected && (
+                                <div className="h-2 w-2 rounded-full bg-white" />
+                              )}
+                            </div>
+                          </div>
+
+                          <CardHeader className="space-y-2">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <CardTitle className="text-base mb-1">{option.name}</CardTitle>
+                                <CardDescription className="line-clamp-1 text-xs">
+                                  {option.address}
+                                </CardDescription>
+                              </div>
+                              {option.placeId && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  asChild
+                                  className="h-6 px-2 flex-shrink-0"
+                                  onClick={(e) => e.stopPropagation()}
+                                  data-testid={`button-maps-${option.id}`}
+                                >
+                                  <a
+                                    href={`https://www.google.com/maps/search/?api=1&query=Google&query_place_id=${option.placeId}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="gap-1"
+                                  >
+                                    <ExternalLink className="h-3 w-3" />
+                                    <span className="text-xs">Maps</span>
+                                  </a>
+                                </Button>
+                              )}
+                            </div>
+                            
+                            {option.rating && (
+                              <div className="flex items-center gap-1.5">
+                                <Badge variant="secondary" className="gap-1 text-xs">
+                                  <Star className="h-3 w-3 fill-current" />
+                                  {option.rating}
+                                </Badge>
+                              </div>
+                            )}
+                          </CardHeader>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Create Itinerary Button */}
+            {selectedMainActivity && !selectionMode && (
+              <div className="mt-6 flex justify-center">
+                <Button
+                  size="lg"
+                  onClick={() => {
+                    // TODO: Create itinerary with main + optional complementary
+                    console.log('Creating itinerary:', { main: selectedMainActivity, complementary: selectedComplementary });
+                  }}
+                  data-testid="button-create-itinerary"
+                >
+                  Create Itinerary
+                </Button>
+              </div>
             )}
             </div>
 
