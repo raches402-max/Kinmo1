@@ -863,7 +863,7 @@ export default function GroupDetail() {
                 </div>
                 <div className="flex-1">
                   <p className="font-semibold text-sm mb-1">
-                    {itineraries.length > 0 ? 'Step 2: Build Your Itinerary' : 'Step 1: Discover Activities'}
+                    {itineraries.length > 0 ? 'Step 2: Create Your Itinerary' : 'Step 1: Discover Activities'}
                   </p>
                   <p className="text-xs text-muted-foreground mb-2">
                     {itineraries.length > 0 
@@ -876,7 +876,7 @@ export default function GroupDetail() {
                     </span>
                     <span>→</span>
                     <span className={itineraries.length > 0 ? 'font-medium text-primary' : ''}>
-                      2. Build
+                      2. Itinerary
                     </span>
                     <span>→</span>
                     <span className="opacity-50">3. Schedule</span>
@@ -1313,7 +1313,7 @@ export default function GroupDetail() {
               </div>
               <p className="text-muted-foreground mb-4">
                 {selectionMode 
-                  ? "Select venues below. Go to Build tab to create your itinerary."
+                  ? "Select venues below. Go to Itinerary tab to create your itinerary."
                   : "Personalized recommendations based on your group's preferences"
                 }
               </p>
@@ -1455,7 +1455,7 @@ export default function GroupDetail() {
                               2
                             </div>
                             <div>
-                              <p className="font-medium text-sm">Build</p>
+                              <p className="font-medium text-sm">Itinerary</p>
                               <p className="text-xs text-muted-foreground">Select 2-5 venues to create your itinerary</p>
                             </div>
                           </div>
@@ -2077,11 +2077,11 @@ export default function GroupDetail() {
             </div>
           </TabsContent>
 
-          {/* Tab 3: Build */}
+          {/* Tab 3: Itinerary */}
           <TabsContent value="build" className="space-y-6">
             <div className="space-y-6">
               <div>
-                <h2 className="text-2xl font-bold mb-2">Build Your Itinerary</h2>
+                <h2 className="text-2xl font-bold mb-2">Create Your Itinerary</h2>
                 <p className="text-muted-foreground">
                   {selectionMode 
                     ? "Select 2-5 venues from Activities or Favorites, then click Create Itinerary"
@@ -2197,7 +2197,7 @@ export default function GroupDetail() {
                 <Card>
                   <CardContent className="text-center py-12">
                     <Sparkles className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                    <h3 className="text-lg font-semibold mb-2">Ready to Build?</h3>
+                    <h3 className="text-lg font-semibold mb-2">Ready to Create Your Itinerary?</h3>
                     <p className="text-muted-foreground mb-4">
                       Go to the Activities tab, browse suggestions, and click "I'm Ready, Let's Do This!" to start selecting venues
                     </p>
