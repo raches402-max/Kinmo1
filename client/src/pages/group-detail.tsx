@@ -229,6 +229,8 @@ export default function GroupDetail() {
     additionalInstructions: ""
   });
   const [newMembers, setNewMembers] = useState<{ name: string; email: string }[]>([]);
+  const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
+  const [editMemberData, setEditMemberData] = useState<{ name: string; email: string }>({ name: '', email: '' });
   const [membersOpen, setMembersOpen] = useState(true);
   const [showSwipeSession, setShowSwipeSession] = useState(false);
   const [showEnrichmentConfirm, setShowEnrichmentConfirm] = useState(false);
@@ -426,6 +428,27 @@ export default function GroupDetail() {
     onError: (error: Error) => {
       toast({
         title: "Error removing member",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateMemberMutation = useMutation({
+    mutationFn: async ({ memberId, data }: { memberId: string; data: { name?: string; email?: string } }) => {
+      return await apiRequest("PATCH", `/api/members/${memberId}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "members"] });
+      setEditingMemberId(null);
+      toast({
+        title: "Member updated",
+        description: "Member details have been updated",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error updating member",
         description: error.message,
         variant: "destructive",
       });
@@ -1068,48 +1091,117 @@ export default function GroupDetail() {
                       <Label className="text-xs text-muted-foreground">Current Members</Label>
                       <div className="space-y-2">
                         {members.map((member) => (
-                          <div key={member.id} className="flex items-center gap-2 p-2 bg-muted/50 rounded-md">
-                            <Avatar className="h-7 w-7">
-                              <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                                {member.name?.[0]?.toUpperCase() || member.email?.[0]?.toUpperCase() || "?"}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{member.name || "Member"}</p>
-                              {member.email && (
-                                <p className="text-xs text-muted-foreground truncate">{member.email}</p>
-                              )}
-                            </div>
-                            {member.isOrganizer ? (
-                              <Badge variant="secondary" className="text-xs">Organizer</Badge>
+                          <div key={member.id}>
+                            {editingMemberId === member.id ? (
+                              // Edit mode
+                              <div className="flex gap-2 items-start p-2 bg-muted/50 rounded-md">
+                                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
+                                  <Input
+                                    placeholder="Name (optional)"
+                                    value={editMemberData.name}
+                                    onChange={(e) => setEditMemberData({ ...editMemberData, name: e.target.value })}
+                                    data-testid={`input-edit-member-name-${member.id}`}
+                                  />
+                                  <Input
+                                    type="email"
+                                    placeholder="Email (optional)"
+                                    value={editMemberData.email}
+                                    onChange={(e) => setEditMemberData({ ...editMemberData, email: e.target.value })}
+                                    data-testid={`input-edit-member-email-${member.id}`}
+                                  />
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-9 w-9"
+                                  onClick={() => {
+                                    updateMemberMutation.mutate({
+                                      memberId: member.id,
+                                      data: {
+                                        name: editMemberData.name.trim() || undefined,
+                                        email: editMemberData.email.trim() || undefined,
+                                      }
+                                    });
+                                  }}
+                                  data-testid={`button-save-member-${member.id}`}
+                                >
+                                  <Check className="h-4 w-4 text-green-600" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-9 w-9"
+                                  onClick={() => setEditingMemberId(null)}
+                                  data-testid={`button-cancel-edit-member-${member.id}`}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
                             ) : (
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    className="h-7 w-7"
-                                  >
-                                    <Trash2 className="h-3 w-3 text-muted-foreground" />
-                                  </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Remove Member</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      Are you sure you want to remove {member.name || member.email || "this member"} from the group?
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction
-                                      onClick={() => deleteMemberMutation.mutate(member.id)}
+                              // Display mode
+                              <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-md">
+                                <Avatar className="h-7 w-7">
+                                  <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                                    {member.name?.[0]?.toUpperCase() || member.email?.[0]?.toUpperCase() || "?"}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium truncate">{member.name || "Member"}</p>
+                                  {member.email && (
+                                    <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                                  )}
+                                </div>
+                                {member.isOrganizer ? (
+                                  <Badge variant="secondary" className="text-xs">Organizer</Badge>
+                                ) : (
+                                  <div className="flex gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7"
+                                      onClick={() => {
+                                        setEditingMemberId(member.id);
+                                        setEditMemberData({
+                                          name: member.name || '',
+                                          email: member.email || ''
+                                        });
+                                      }}
+                                      data-testid={`button-edit-member-${member.id}`}
                                     >
-                                      Remove
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
+                                      <Pencil className="h-3 w-3 text-muted-foreground" />
+                                    </Button>
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <Button 
+                                          variant="ghost" 
+                                          size="icon" 
+                                          className="h-7 w-7"
+                                        >
+                                          <Trash2 className="h-3 w-3 text-muted-foreground" />
+                                        </Button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle>Remove Member</AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            Are you sure you want to remove {member.name || member.email || "this member"} from the group?
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                          <AlertDialogAction
+                                            onClick={() => deleteMemberMutation.mutate(member.id)}
+                                          >
+                                            Remove
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
+                                  </div>
+                                )}
+                              </div>
                             )}
                           </div>
                         ))}
