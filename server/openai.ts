@@ -256,7 +256,7 @@ Requirements:
    - Include a realistic "priceEstimate" (e.g., "$25-50 per person", "$15 tickets", "Free")
    - Include "timeConstraints" if applicable (e.g., "Only on Friday afternoons", "Weekends in summer", "Saturday evenings")
    - IMPORTANT: timeConstraints must match the group's availability (${availabilityText})
-   - Include a "complementaryFoodPlace" search query (e.g., "restaurants near [event venue]" or "food near [festival location]")
+   - Include a "complementaryFoodPlace" KEYWORD (e.g., "restaurants", "food trucks", "cafes" - NOT "restaurants near [venue]")
 10. FOR FULL MEAL VENUES - this includes: restaurants, brunch spots, food markets, food halls
    - Leave priceEstimate and timeConstraints empty (pricing comes from Google)
    - REQUIRED: Include a "complementaryFoodPlace" KEYWORD for DRINKS/DESSERT options nearby to complete the meal experience
@@ -280,6 +280,8 @@ Requirements:
 
 CRITICAL CONSTRAINTS for ALL complementaryFoodPlace keywords:
 - FORMAT: Use ONLY simple keywords without "near [location]" - the nearby search happens automatically
+  ✅ CORRECT: "boba tea", "craft cocktail bars", "artisan ice cream"
+  ❌ WRONG: "boba tea cafes near Sichuan hot pot", "craft cocktail bars near [location]", "artisan ice cream near restaurant"
 - Distance: ALL suggestions will be searched within 0.5 miles of the main venue
 - Quality: ALL suggestions will be filtered to 3.5+ star ratings or better
 - VARIETY: Each suggestion should use a DIFFERENT type of complementary place (don't repeat the same type like "dessert shops" multiple times)

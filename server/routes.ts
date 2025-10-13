@@ -788,11 +788,13 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
               805, // 0.5 miles in meters
               3.5  // minimum rating
             );
-            if (foodPlaces.length > 0) {
-              complementaryPlace = foodPlaces[0];
+            // Filter out the main venue from complementary results (avoid suggesting venue as its own complement)
+            const validFoodPlaces = foodPlaces.filter(fp => fp.placeId !== places[0].placeId);
+            if (validFoodPlaces.length > 0) {
+              complementaryPlace = validFoodPlaces[0];
             }
-            if (foodPlaces.length > 1) {
-              complementaryPlace2 = foodPlaces[1];
+            if (validFoodPlaces.length > 1) {
+              complementaryPlace2 = validFoodPlaces[1];
             }
           }
           
