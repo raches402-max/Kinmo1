@@ -29,7 +29,7 @@ AI suggestion preferences:
 
 ### Core Features & AI Logic
 - **AI Suggestion Generation**: Uses GPT-4o-mini to generate 15 diverse suggestions per attempt, which are then deduplicated to 6 unique venues. Retries up to 3 times to ensure 6 cards.
-  - **Prompt Refinement**: Focuses on specific cuisines, avoids adjectives and budget mentions, and provides ultra-short, pragmatic descriptions (2-4 words, nouns only).
+  - **Prompt Refinement**: Focuses on specific cuisines, avoids quality adjectives and budget mentions, and provides ultra-short, pragmatic descriptions (1-4 words maximum, food/cuisine nouns only, cuisine names allowed but zero quality adjectives).
   - **Preference Interpretation**: AI prioritizes venue types based on past preferences, uses novelty as a percentage split (familiar vs. new), and integrates voting feedback (up/downvotes on favorites) and direct card feedback ("More like this," "Not this," "Heart").
   - **Natural Language Understanding**: The temporary instructions text box uses GPT-4's natural language understanding to interpret user intent. Specific requests like "Boba" or "Sushi" generate all suggestions of that type, while general guidance like "something adventurous" maintains diversity. No detection heuristics - relies entirely on AI's ability to understand context.
 - **Google Reviews Integration**: Fetches 4-5 star Google reviews and creates summarized positive highlights (e.g., "Great food • Amazing atmosphere • Highly recommend"). Review counts displayed in rating badges. Activity cards sorted by highest rating first, then highest review count.

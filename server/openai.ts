@@ -296,26 +296,25 @@ ${!groupData.additionalInstructions ? `13. IMPORTANT - Use previous feedback AND
    - LIKED concepts: These are activity types the group has shown interest in - PRIORITIZE suggesting these types
    - PASSED concepts: These are activity types the group is NOT interested in - AVOID suggesting these types
    - Swipe preferences reveal what the group wants to explore, so weight them heavily in your suggestions` : ''}
-15. FOR DESCRIPTION: CRITICAL - ULTRA-SHORT AND PRAGMATIC. NOUNS ONLY. ZERO ADJECTIVES.
-   - RULE: Use ONLY nouns. ZERO adjectives, ZERO descriptive words. Format: cuisine + food type.
-   - BANNED: ALL adjectives including "Wood-fired", "Small", "Tabletop", "Spicy", "Rich", "Fresh", "Authentic", "Traditional", "Amazing", etc.
-   - GOOD examples (nouns only, 2-4 words):
-     * "Sushi and sashimi" (3 words - nouns only)
-     * "Korean BBQ" (2 words - nationality + noun)
-     * "Ramen bowls" (2 words - nouns only)
-     * "Dim sum" (2 words - nouns only)
-     * "Pizza and pasta" (3 words - nouns only)
-     * "Cocktails" (1 word - noun only)
-     * "Tapas" (1 word - noun only)
-   - BAD examples (contains ANY adjectives):
-     * "Wood-fired pizza" ❌ ("Wood-fired" is adjective)
-     * "Small plates" ❌ ("Small" is adjective)
-     * "Korean BBQ, tabletop grills" ❌ ("tabletop" is adjective modifier)
-     * "Ramen with rich broths" ❌ ("rich" is adjective)
-     * "Szechuan spicy dishes" ❌ ("spicy" is adjective)
-     * "Fresh sushi" ❌ ("Fresh" is adjective)
-   - 2-4 words maximum
-   - Format: [Cuisine/nationality] + [Food type], NOTHING else
+15. FOR DESCRIPTION: ABSOLUTE MAXIMUM 4 WORDS. NOUNS ONLY. ZERO DESCRIPTIVE ADJECTIVES.
+   - HARD LIMIT: 1-4 words TOTAL. Not one word more. Count your words.
+   - RULE: Use ONLY food/cuisine nouns. Cuisine names (Korean, Italian, Japanese) are ALLOWED. Descriptive adjectives (fresh, authentic, high-quality) are BANNED.
+   - ALLOWED: Cuisine names (Korean, Italian, Mexican), food nouns (sushi, pizza, ramen, cocktails)
+   - BANNED: Quality adjectives (high-quality, fresh, authentic, traditional, wood-fired, small, spicy, rich)
+   - BANNED PHRASES: "with ingredients", "and more", "featuring", "known for", any connective phrases
+   - GOOD examples (1-4 words):
+     * "Sushi" (1 word)
+     * "Korean BBQ" (2 words - cuisine + noun)
+     * "Ramen" (1 word)
+     * "Dim sum" (2 words)
+     * "Italian pasta" (2 words - cuisine + noun)
+     * "Cocktails" (1 word)
+   - BAD examples (TOO LONG or has quality adjectives):
+     * "High-quality sushi and sashimi with fresh ingredients" ❌ (12 words! Has quality adjectives!)
+     * "Fresh sushi" ❌ ("Fresh" is quality adjective)
+     * "Authentic Italian pasta" ❌ ("Authentic" is quality adjective)
+     * "Wood-fired pizza" ❌ ("Wood-fired" is quality adjective)
+   - Format: Just the food/cuisine. 1-4 words max.
 16. FOR REASONING: CRITICAL - Ultra-short and direct. 2-5 words maximum. NO vague phrases. Be specific.
    - DO NOT mention budget (it's assumed everything shown fits budget)
    - BANNED VAGUE PHRASES: "interaction", "sharing", "social experience", "group dining", "intimate", "experience"
