@@ -2409,6 +2409,17 @@ export default function GroupDetail() {
                           AI has organized your selections - drag to reorder
                         </CardDescription>
                       </div>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setSelectionMode(true);
+                          setActiveTab("activities");
+                        }}
+                        data-testid="button-add-more-stops"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add More Stops
+                      </Button>
                     </div>
                   </CardHeader>
                   <CardContent>
