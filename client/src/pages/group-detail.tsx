@@ -1691,11 +1691,32 @@ export default function GroupDetail() {
                       </button>
                       )}
                       <CardHeader className="space-y-2 flex-1 flex flex-col pb-3">
-                        <div>
-                          <CardTitle className="text-base mb-1">{activity.venueName}</CardTitle>
-                          <CardDescription className="line-clamp-1 text-xs">
-                            {activity.description || activity.googleReview}
-                          </CardDescription>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <CardTitle className="text-base mb-1">{activity.venueName}</CardTitle>
+                            <CardDescription className="line-clamp-1 text-xs">
+                              {activity.description || activity.googleReview}
+                            </CardDescription>
+                          </div>
+                          {activity.googlePlaceId && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              asChild
+                              className="h-6 px-2 flex-shrink-0"
+                              data-testid={`button-google-link-${activity.id}`}
+                            >
+                              <a
+                                href={`https://www.google.com/maps/search/?api=1&query=Google&query_place_id=${activity.googlePlaceId}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="gap-1"
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                                <span className="text-xs">Maps</span>
+                              </a>
+                            </Button>
+                          )}
                         </div>
                         
                         <div className="flex flex-wrap items-center gap-1.5">
@@ -1712,25 +1733,6 @@ export default function GroupDetail() {
                             </Badge>
                           )}
                           <Badge variant="outline" className="text-xs">{activity.venueType}</Badge>
-                          {activity.googlePlaceId && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              asChild
-                              className="h-6 px-2 ml-auto"
-                              data-testid={`button-google-link-${activity.id}`}
-                            >
-                              <a
-                                href={`https://www.google.com/maps/search/?api=1&query=Google&query_place_id=${activity.googlePlaceId}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="gap-1"
-                              >
-                                <ExternalLink className="h-3 w-3" />
-                                <span className="text-xs">Maps</span>
-                              </a>
-                            </Button>
-                          )}
                         </div>
 
                         <div className="text-xs text-muted-foreground flex items-start gap-1.5">
@@ -1752,77 +1754,6 @@ export default function GroupDetail() {
                                 <span className="text-muted-foreground">{activity.timeConstraints}</span>
                               </div>
                             )}
-                          </div>
-                        )}
-
-                        {(activity.complementaryPlaceName || activity.complementaryPlaceName2) && (
-                          <div className="bg-accent/20 rounded-md p-2">
-                            <p className="text-xs font-medium mb-1.5 flex items-center gap-1.5">
-                              <MapPin className="h-3 w-3" />
-                              {complementaryLabel}
-                            </p>
-                            <div className="space-y-1.5">
-                              {activity.complementaryPlaceName && (
-                                <div className="flex items-center justify-between gap-2">
-                                  <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                                    <p className="text-xs font-medium truncate">{activity.complementaryPlaceName}</p>
-                                    {activity.complementaryPlaceRating && (
-                                      <div className="flex items-center gap-0.5">
-                                        <Star className="h-2.5 w-2.5 fill-current text-yellow-500" />
-                                        <span className="text-xs text-muted-foreground">{activity.complementaryPlaceRating}</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                  {activity.complementaryPlaceId && (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      asChild
-                                      className="h-5 px-1.5"
-                                      data-testid={`button-complementary-link-${activity.id}`}
-                                    >
-                                      <a
-                                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activity.complementaryPlaceName)}&query_place_id=${activity.complementaryPlaceId}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                      >
-                                        <ExternalLink className="h-2.5 w-2.5" />
-                                      </a>
-                                    </Button>
-                                  )}
-                                </div>
-                              )}
-                              {activity.complementaryPlaceName2 && (
-                                <div className="flex items-center justify-between gap-2">
-                                  <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                                    <p className="text-xs font-medium truncate">{activity.complementaryPlaceName2}</p>
-                                    {activity.complementaryPlaceRating2 && (
-                                      <div className="flex items-center gap-0.5">
-                                        <Star className="h-2.5 w-2.5 fill-current text-yellow-500" />
-                                        <span className="text-xs text-muted-foreground">{activity.complementaryPlaceRating2}</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                  {activity.complementaryPlaceId2 && (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      asChild
-                                      className="h-5 px-1.5"
-                                      data-testid={`button-complementary-link-2-${activity.id}`}
-                                    >
-                                      <a
-                                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activity.complementaryPlaceName2)}&query_place_id=${activity.complementaryPlaceId2}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                      >
-                                        <ExternalLink className="h-2.5 w-2.5" />
-                                      </a>
-                                    </Button>
-                                  )}
-                                </div>
-                              )}
-                            </div>
                           </div>
                         )}
 
