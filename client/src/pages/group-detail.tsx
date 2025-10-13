@@ -279,6 +279,7 @@ export default function GroupDetail() {
   const [pendingEventTitle, setPendingEventTitle] = useState("");
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedVenues, setSelectedVenues] = useState<Array<{sourceType: 'activity' | 'voting_event', sourceId: string}>>([]);
+  const [selectedMainActivity, setSelectedMainActivity] = useState<string | null>(null);
 
   const { data: group, isLoading: groupLoading } = useQuery<Group>({
     queryKey: ["/api/groups", groupId],
@@ -1606,9 +1607,26 @@ export default function GroupDetail() {
                   }
                   
                   const isSelected = selectedVenues.some(v => v.sourceType === 'activity' && v.sourceId === activity.id);
+                  const isMainSelected = selectedMainActivity === activity.id;
                   
                   return (
-                    <Card key={activity.id} className={`relative overflow-hidden hover-elevate transition-all flex flex-col ${selectionMode ? 'cursor-pointer' : ''} ${isSelected ? 'ring-2 ring-primary' : ''}`} data-testid={`activity-${activity.id}`} onClick={() => selectionMode && toggleVenueSelection('activity', activity.id)}>
+                    <Card 
+                      key={activity.id} 
+                      className={`relative overflow-hidden hover-elevate transition-all flex flex-col cursor-pointer ${
+                        selectionMode 
+                          ? (isSelected ? 'ring-2 ring-primary' : '') 
+                          : (isMainSelected ? 'ring-2 ring-primary' : '')
+                      }`} 
+                      data-testid={`activity-${activity.id}`} 
+                      onClick={() => {
+                        if (selectionMode) {
+                          toggleVenueSelection('activity', activity.id);
+                        } else {
+                          // Toggle main activity selection
+                          setSelectedMainActivity(isMainSelected ? null : activity.id);
+                        }
+                      }}
+                    >
                       {activity.photoUrl && (
                         <div className="aspect-video w-full overflow-hidden bg-muted">
                           <img
@@ -1635,7 +1653,8 @@ export default function GroupDetail() {
                               ? "bg-pink-500/90 hover:bg-pink-600/90"
                               : "bg-black/40 hover:bg-black/60 border-2 border-white"
                           }`}
-                          onClick={() => {
+                          onClick={(e) => {
+                          e.stopPropagation();
                           if (activity.feedback === "love") {
                             // Remove feedback and delete from Favorites list
                             feedbackMutation.mutate({ activityId: activity.id, feedback: null });
@@ -1705,6 +1724,7 @@ export default function GroupDetail() {
                               asChild
                               className="h-6 px-2 flex-shrink-0"
                               data-testid={`button-google-link-${activity.id}`}
+                              onClick={(e) => e.stopPropagation()}
                             >
                               <a
                                 href={`https://www.google.com/maps/search/?api=1&query=Google&query_place_id=${activity.googlePlaceId}`}
@@ -1762,7 +1782,10 @@ export default function GroupDetail() {
                             <Button
                               variant={activity.feedback === "more" ? "default" : "outline"}
                               size="sm"
-                              onClick={() => feedbackMutation.mutate({ activityId: activity.id, feedback: "more" })}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                feedbackMutation.mutate({ activityId: activity.id, feedback: "more" });
+                              }}
                               className="flex-1 gap-1 h-7 text-xs"
                               data-testid={`button-more-${activity.id}`}
                             >
@@ -1772,7 +1795,10 @@ export default function GroupDetail() {
                             <Button
                               variant={activity.feedback === "less" ? "default" : "outline"}
                               size="sm"
-                              onClick={() => feedbackMutation.mutate({ activityId: activity.id, feedback: "less" })}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                feedbackMutation.mutate({ activityId: activity.id, feedback: "less" });
+                              }}
                               className="flex-1 gap-1 h-7 text-xs"
                               data-testid={`button-less-${activity.id}`}
                             >
