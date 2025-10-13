@@ -512,7 +512,11 @@ export default function GroupDetail() {
     onSuccess: () => {
       setSelectionMode(false);
       setSelectedVenues([]);
+      setSelectedMainActivity(null);
+      setSelectedComplementary(null);
+      setActiveTab("build");
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "itineraries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "voting-events"] });
       toast({
         title: "Itinerary created!",
         description: "AI has validated and organized your evening plan",
@@ -1966,13 +1970,75 @@ export default function GroupDetail() {
               <div className="mt-6 flex justify-center">
                 <Button
                   size="lg"
-                  onClick={() => {
-                    // TODO: Create itinerary with main + optional complementary
-                    console.log('Creating itinerary:', { main: selectedMainActivity, complementary: selectedComplementary });
+                  onClick={async () => {
+                    const mainActivity = activities.find(a => a.id === selectedMainActivity);
+                    if (!mainActivity) return;
+
+                    const venues: Array<{sourceType: 'activity' | 'voting_event', sourceId: string}> = [
+                      { sourceType: 'activity', sourceId: mainActivity.id }
+                    ];
+
+                    // If complementary is selected, create a temporary voting event for it
+                    if (selectedComplementary && mainActivity) {
+                      const complementaryData = selectedComplementary === 'option1' ? {
+                        name: mainActivity.complementaryPlaceName,
+                        address: mainActivity.complementaryPlaceAddress,
+                        placeId: mainActivity.complementaryPlaceId,
+                        photoUrl: mainActivity.complementaryPlacePhotoUrl,
+                        rating: mainActivity.complementaryPlaceRating,
+                      } : {
+                        name: mainActivity.complementaryPlaceName2,
+                        address: mainActivity.complementaryPlaceAddress2,
+                        placeId: mainActivity.complementaryPlaceId2,
+                        photoUrl: mainActivity.complementaryPlacePhotoUrl2,
+                        rating: mainActivity.complementaryPlaceRating2,
+                      };
+
+                      if (complementaryData.name) {
+                        try {
+                          // Create voting event for complementary venue
+                          const response = await apiRequest("POST", `/api/voting-events`, {
+                            groupId: groupId,
+                            title: complementaryData.name,
+                            description: `Complementary to ${mainActivity.venueName}`,
+                            venueAddress: complementaryData.address || '',
+                            venueType: 'complementary',
+                            googlePlaceId: complementaryData.placeId || undefined,
+                            rating: complementaryData.rating || undefined,
+                            photoUrl: complementaryData.photoUrl || undefined,
+                          });
+                          
+                          // Add to venues array if event was created successfully
+                          if (response.event?.id) {
+                            venues.push({ sourceType: 'voting_event', sourceId: response.event.id });
+                          } else {
+                            // Complementary venue creation failed - notify user and abort
+                            toast({
+                              title: "Could not add complementary venue",
+                              description: "Please try creating an itinerary with just the main venue",
+                              variant: "destructive",
+                            });
+                            return;
+                          }
+                        } catch (error) {
+                          console.error('Failed to create complementary venue:', error);
+                          toast({
+                            title: "Error adding complementary venue",
+                            description: error instanceof Error ? error.message : "Please try again",
+                            variant: "destructive",
+                          });
+                          return;
+                        }
+                      }
+                    }
+
+                    // Create itinerary with selected venues
+                    validateItineraryMutation.mutate(venues);
                   }}
+                  disabled={validateItineraryMutation.isPending}
                   data-testid="button-create-itinerary"
                 >
-                  Create Itinerary
+                  {validateItineraryMutation.isPending ? "Creating..." : "Create Itinerary"}
                 </Button>
               </div>
             )}
