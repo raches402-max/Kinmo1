@@ -89,6 +89,42 @@ function formatMeetingFrequency(freq: string): string {
   return freq;
 }
 
+type ActivityCategory = 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences';
+
+function getActivityCategory(venueType: string): ActivityCategory {
+  const lowerType = venueType.toLowerCase();
+  
+  // CAFES - coffee shops, cafes
+  if (lowerType.includes('cafe') || lowerType.includes('coffee')) {
+    return 'cafes';
+  }
+  
+  // DRINKS - bars, breweries, wine bars, cocktail lounges
+  if (lowerType.includes('bar') || lowerType.includes('brewery') || 
+      lowerType.includes('wine') || lowerType.includes('cocktail') ||
+      lowerType.includes('pub') || lowerType.includes('lounge')) {
+    return 'drinks';
+  }
+  
+  // DESSERT - boba, ice cream, dessert shops (but NOT cafes)
+  if (lowerType.includes('boba') || lowerType.includes('ice cream') || 
+      lowerType.includes('dessert') || lowerType.includes('bakery') ||
+      lowerType.includes('sweet')) {
+    return 'dessert';
+  }
+  
+  // MEAL - restaurants, food markets, food halls
+  if (lowerType.includes('restaurant') || lowerType.includes('food') ||
+      lowerType.includes('kitchen') || lowerType.includes('diner') ||
+      lowerType.includes('eatery') || lowerType.includes('bistro') ||
+      lowerType.includes('grill')) {
+    return 'meal';
+  }
+  
+  // EXPERIENCES - everything else (museums, parks, concerts, etc.)
+  return 'experiences';
+}
+
 // Sortable itinerary item component
 function SortableItineraryItem({ item, index }: { item: any; index: number }) {
   const {
