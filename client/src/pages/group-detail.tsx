@@ -906,7 +906,7 @@ export default function GroupDetail() {
           <TabsList className="grid w-full max-w-3xl mx-auto grid-cols-5">
             <TabsTrigger value="preferences" data-testid="tab-preferences">1. Group Details</TabsTrigger>
             <TabsTrigger value="activities" data-testid="tab-activities">2. Activities</TabsTrigger>
-            <TabsTrigger value="build" data-testid="tab-build">3. Build</TabsTrigger>
+            <TabsTrigger value="build" data-testid="tab-build">3. Itinerary</TabsTrigger>
             <TabsTrigger value="schedule" data-testid="tab-schedule">4. Schedule</TabsTrigger>
             <TabsTrigger value="feedback" data-testid="tab-feedback">5. Feedback</TabsTrigger>
           </TabsList>
