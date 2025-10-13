@@ -1693,7 +1693,9 @@ export default function GroupDetail() {
                       <CardHeader className="space-y-2 flex-1 flex flex-col pb-3">
                         <div>
                           <CardTitle className="text-base mb-1">{activity.venueName}</CardTitle>
-                          <CardDescription className="line-clamp-1 text-xs">{activity.description}</CardDescription>
+                          <CardDescription className="line-clamp-1 text-xs">
+                            {activity.googleReview || activity.description}
+                          </CardDescription>
                         </div>
                         
                         <div className="flex flex-wrap items-center gap-1.5">
