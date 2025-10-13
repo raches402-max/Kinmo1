@@ -259,27 +259,31 @@ Requirements:
    - Include a "complementaryFoodPlace" search query (e.g., "restaurants near [event venue]" or "food near [festival location]")
 10. FOR FULL MEAL VENUES - this includes: restaurants, brunch spots, food markets, food halls
    - Leave priceEstimate and timeConstraints empty (pricing comes from Google)
-   - REQUIRED: Include a "complementaryFoodPlace" search query for DRINKS/DESSERT options nearby to complete the meal experience
+   - REQUIRED: Include a "complementaryFoodPlace" KEYWORD for DRINKS/DESSERT options nearby to complete the meal experience
    - BE SPECIFIC AND VARIED - use different types each time (don't repeat "dessert shops" over and over)
-   - Examples: "artisan ice cream near [location]", "craft cocktail bars near [location]", "boba tea cafes near [location]", "gelato shops near [location]", "sake bars near [location]", "specialty coffee near [location]"
+   - IMPORTANT: Use ONLY simple keywords (NOT full queries with "near"). The nearby search is automatic.
+   - Examples: "artisan ice cream", "craft cocktail bars", "boba tea", "gelato shops", "sake bars", "specialty coffee", "dessert cafes"
    - These are post-meal treats or drinks to extend the outing
 11. FOR DRINKS/DESSERT VENUES - this includes: cafes, coffee shops, boba shops, cocktail bars, wine bars, breweries, beer gardens, dessert shops, ice cream shops, tea shops
    - Leave priceEstimate and timeConstraints empty (pricing comes from Google)
-   - REQUIRED: Include a "complementaryFoodPlace" search query for FULL MEAL options nearby
+   - REQUIRED: Include a "complementaryFoodPlace" KEYWORD for FULL MEAL options nearby
    - BE SPECIFIC AND VARIED - use different cuisines/types each time (don't repeat "restaurants" generically)
-   - Examples: "ramen shops near [location]", "taco spots near [location]", "banh mi shops near [location]", "pizza places near [location]", "poke bowl restaurants near [location]", "dim sum near [location]"
+   - IMPORTANT: Use ONLY simple keywords (NOT full queries with "near"). The nearby search is automatic.
+   - Examples: "ramen restaurants", "taco restaurants", "banh mi", "pizza restaurants", "poke bowls", "dim sum restaurants"
    - Logic: If the main venue is drinks/dessert, suggest a proper meal that complements it (not another drink/dessert spot)
 12. FOR OUTDOOR VENUES - this includes: parks, beaches, hiking trails, nature areas, outdoor recreation spaces
-   - Include a "complementaryFoodPlace" search query for nearby PORTABLE MEAL options
+   - Include a "complementaryFoodPlace" KEYWORD for nearby PORTABLE MEAL options
    - BE SPECIFIC AND VARIED - use different portable food types each time
-   - Examples: "banh mi sandwich shops near [location]", "taco trucks near [location]", "gourmet delis near [location]", "poke bowl takeout near [location]", "burrito places near [location]"
+   - IMPORTANT: Use ONLY simple keywords (NOT full queries with "near"). The nearby search is automatic.
+   - Examples: "banh mi sandwich", "taco trucks", "gourmet delis", "poke bowl takeout", "burrito restaurants"
    - Focus on portable, casual food suitable for outdoor activities (avoid sit-down restaurants)
 
-CRITICAL CONSTRAINTS for ALL complementaryFoodPlace queries:
-- Distance: ALL suggestions must be within 0.5 miles of the main venue
-- Quality: ALL suggestions must have 3.5+ star ratings or better
+CRITICAL CONSTRAINTS for ALL complementaryFoodPlace keywords:
+- FORMAT: Use ONLY simple keywords without "near [location]" - the nearby search happens automatically
+- Distance: ALL suggestions will be searched within 0.5 miles of the main venue
+- Quality: ALL suggestions will be filtered to 3.5+ star ratings or better
 - VARIETY: Each suggestion should use a DIFFERENT type of complementary place (don't repeat the same type like "dessert shops" multiple times)
-- Each search query should return multiple options for the group to choose from
+- Each keyword should be specific enough to return relevant options for the group to choose from
 ${!groupData.additionalInstructions ? `13. IMPORTANT - Use previous feedback AND voting data to guide suggestions:
    - If activities were "LOVED", suggest very similar venues/types
    - If activities got "more", increase that type of suggestion
