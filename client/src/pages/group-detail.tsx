@@ -1533,7 +1533,7 @@ export default function GroupDetail() {
               </Card>
             ) : (
               <>
-                {/* Group activities by time category */}
+                {/* Group activities by food/beverage category */}
                 {(() => {
                   const filteredActivities = activities
                     .filter(activity => activity.feedback !== "less")
@@ -1549,25 +1549,29 @@ export default function GroupDetail() {
                       return reviewCountB - reviewCountA;
                     });
 
-                  const groupedByTime = {
-                    standard: filteredActivities.filter(a => a.timeCategory === 'standard'),
-                    quick: filteredActivities.filter(a => a.timeCategory === 'quick'),
-                    large: filteredActivities.filter(a => a.timeCategory === 'large'),
+                  const groupedByCategory = {
+                    meal: filteredActivities.filter(a => getActivityCategory(a.venueType) === 'meal'),
+                    cafes: filteredActivities.filter(a => getActivityCategory(a.venueType) === 'cafes'),
+                    drinks: filteredActivities.filter(a => getActivityCategory(a.venueType) === 'drinks'),
+                    dessert: filteredActivities.filter(a => getActivityCategory(a.venueType) === 'dessert'),
+                    experiences: filteredActivities.filter(a => getActivityCategory(a.venueType) === 'experiences'),
                   };
 
-                  const timeCategoryLabels = {
-                    standard: { icon: "🍽️", title: "STANDARD", subtitle: "1-3 hours" },
-                    quick: { icon: "⚡", title: "QUICK", subtitle: "Under 90 min" },
-                    large: { icon: "🎯", title: "EXPERIENCE", subtitle: "4+ hours" },
+                  const categoryLabels = {
+                    meal: { icon: "🍽️", title: "MEAL", subtitle: "Restaurants, food markets, food halls" },
+                    cafes: { icon: "☕", title: "CAFES", subtitle: "Coffee shops, cafes" },
+                    drinks: { icon: "🍸", title: "DRINKS", subtitle: "Bars, cocktail lounges, breweries" },
+                    dessert: { icon: "🍰", title: "DESSERT", subtitle: "Boba, ice cream, dessert shops" },
+                    experiences: { icon: "🎭", title: "EXPERIENCES", subtitle: "Museums, concerts, parks, activities" },
                   };
 
                   return (
                     <div className="space-y-8">
-                      {(['standard', 'quick', 'large'] as const).map((category) => {
-                        const categoryActivities = groupedByTime[category];
+                      {(['meal', 'cafes', 'drinks', 'dessert', 'experiences'] as const).map((category) => {
+                        const categoryActivities = groupedByCategory[category];
                         if (categoryActivities.length === 0) return null;
 
-                        const label = timeCategoryLabels[category];
+                        const label = categoryLabels[category];
                         
                         return (
                           <div key={category} className="space-y-4">
