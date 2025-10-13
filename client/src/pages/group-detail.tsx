@@ -115,9 +115,9 @@ function getActivityCategory(venueType: string): ActivityCategory {
     return 'dessert';
   }
   
-  // DRINKS - bars, breweries, wine bars, cocktail lounges
+  // DRINKS - bars, breweries, wine bars, cocktail lounges, and generic "drink"
   // Check AFTER meal and dessert to avoid false positives
-  const drinksKeywords = ['brewery', 'wine bar', 'cocktail', 'pub', 'lounge', 'taproom', 'speakeasy'];
+  const drinksKeywords = ['drink', 'brewery', 'wine bar', 'cocktail', 'pub', 'lounge', 'taproom', 'speakeasy'];
   const hasDrinkKeyword = drinksKeywords.some(keyword => lowerType.includes(keyword));
   
   // Use regex for standalone "bar" but be careful with punctuation

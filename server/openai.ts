@@ -335,12 +335,35 @@ ${!groupData.additionalInstructions ? `13. IMPORTANT - Use previous feedback AND
    - GOOD: "NEW: Unfamiliar Filipino cuisine" (4 words - specific)
    - BAD: "NEW: Unique flavors to explore" ❌ (vague)
 
+CRITICAL - venueType Field Specificity:
+- NEVER use generic categories like "drink", "Asian food", or "restaurant"
+- ALWAYS be SPECIFIC with venue types to enable proper categorization
+- For DRINKS venues, use specific types:
+  * "boba shop" or "bubble tea shop" (NOT "drink")
+  * "cocktail bar" or "craft cocktail bar" (NOT "bar" or "drink")
+  * "wine bar" (NOT "bar" or "drink")
+  * "brewery" or "beer garden" (NOT "bar" or "drink")
+  * "sake bar" (NOT "bar" or "drink")
+- For RESTAURANTS, be specific with cuisine:
+  * "sushi restaurant" (NOT "restaurant" or "Japanese restaurant")
+  * "Korean BBQ restaurant" (NOT "restaurant" or "Asian restaurant")
+  * "ramen restaurant" (NOT "restaurant")
+  * "taco restaurant" or "Mexican restaurant" (NOT "restaurant")
+- For CAFES/DESSERT, be specific:
+  * "coffee shop" or "cafe" (NOT "drink")
+  * "ice cream shop" (NOT "dessert shop" or "drink")
+  * "dessert cafe" (NOT "cafe" or "drink")
+- For EXPERIENCES, be specific:
+  * "hiking trail" or "park" (NOT "outdoor activity")
+  * "art museum" or "museum" (NOT "activity")
+  * "concert venue" or "live music venue" (NOT "event")
+
 Return your response as a JSON object with this structure:
 {
   "suggestions": [
     {
       "venueName": "suggested venue type or activity name",
-      "venueType": "category (restaurant, museum, park, event, festival, concert, etc)",
+      "venueType": "SPECIFIC category (e.g., 'boba shop', 'cocktail bar', 'sushi restaurant', 'ice cream shop', 'art museum') - NEVER use generic 'drink', 'restaurant', 'activity'",
       "description": "brief description of the activity and why it suits this group",
       "reasoning": "why this is a good fit for this specific group based on their preferences",
       "searchQuery": "search terms for Google Places API (e.g., 'Italian restaurants in San Francisco')",
