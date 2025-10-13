@@ -1694,7 +1694,7 @@ export default function GroupDetail() {
                         <div>
                           <CardTitle className="text-base mb-1">{activity.venueName}</CardTitle>
                           <CardDescription className="line-clamp-1 text-xs">
-                            {activity.googleReview || activity.description}
+                            {activity.description || activity.googleReview}
                           </CardDescription>
                         </div>
                         
