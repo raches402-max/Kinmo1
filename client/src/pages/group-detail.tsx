@@ -94,31 +94,37 @@ type ActivityCategory = 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences';
 function getActivityCategory(venueType: string): ActivityCategory {
   const lowerType = venueType.toLowerCase();
   
+  // Strong meal indicators - if these exist, it's definitely a meal venue
+  const mealKeywords = ['restaurant', 'food hall', 'food market', 'kitchen', 'diner', 
+                       'eatery', 'bistro', 'grill', 'bbq', 'pizzeria', 'steakhouse'];
+  const isMealVenue = mealKeywords.some(keyword => lowerType.includes(keyword));
+  
+  if (isMealVenue) {
+    return 'meal';
+  }
+  
   // CAFES - coffee shops, cafes
   if (lowerType.includes('cafe') || lowerType.includes('coffee')) {
     return 'cafes';
   }
   
-  // DRINKS - bars, breweries, wine bars, cocktail lounges
-  if (lowerType.includes('bar') || lowerType.includes('brewery') || 
-      lowerType.includes('wine') || lowerType.includes('cocktail') ||
-      lowerType.includes('pub') || lowerType.includes('lounge')) {
-    return 'drinks';
-  }
-  
-  // DESSERT - boba, ice cream, dessert shops (but NOT cafes)
+  // DESSERT - boba, ice cream, dessert shops (check BEFORE drinks to catch "boba bar", "dessert bar")
   if (lowerType.includes('boba') || lowerType.includes('ice cream') || 
       lowerType.includes('dessert') || lowerType.includes('bakery') ||
-      lowerType.includes('sweet')) {
+      lowerType.includes('sweet') || lowerType.includes('milk bar')) {
     return 'dessert';
   }
   
-  // MEAL - restaurants, food markets, food halls
-  if (lowerType.includes('restaurant') || lowerType.includes('food') ||
-      lowerType.includes('kitchen') || lowerType.includes('diner') ||
-      lowerType.includes('eatery') || lowerType.includes('bistro') ||
-      lowerType.includes('grill')) {
-    return 'meal';
+  // DRINKS - bars, breweries, wine bars, cocktail lounges
+  // Check AFTER meal and dessert to avoid false positives
+  const drinksKeywords = ['brewery', 'wine bar', 'cocktail', 'pub', 'lounge', 'taproom', 'speakeasy'];
+  const hasDrinkKeyword = drinksKeywords.some(keyword => lowerType.includes(keyword));
+  
+  // Use regex for standalone "bar" but be careful with punctuation
+  const hasStandaloneBar = /\bbar\b/.test(lowerType);
+  
+  if (hasDrinkKeyword || hasStandaloneBar) {
+    return 'drinks';
   }
   
   // EXPERIENCES - everything else (museums, parks, concerts, etc.)

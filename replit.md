@@ -42,6 +42,13 @@ AI suggestion preferences:
   - Uses simple keyword-based queries (not full natural language) optimized for Google Places Nearby Search API.
   - Automatically filters out the main venue from complementary results to prevent self-referencing.
 - **Activity Category Selection**: Visual selector with 17 activity types for quick preference setting, integrated into AI suggestions.
+- **Activity Categorization on Activities Tab**: AI-generated activities are automatically categorized and displayed in 5 groups for intuitive browsing:
+  - 🍽️ **MEAL** - Restaurants, food markets, food halls (any time of day: breakfast, lunch, dinner)
+  - ☕ **CAFES** - Coffee shops, cafes
+  - 🍸 **DRINKS** - Bars, cocktail lounges, wine bars, breweries
+  - 🍰 **DESSERT** - Boba, ice cream, dessert shops
+  - 🎭 **EXPERIENCES** - Museums, concerts, karaoke, parks, events
+  - Within each category, venues are sorted by rating (highest first), then review count
 - **Enhanced Favorites with Google Places Enrichment**: When users manually add events to the Favorites voting list, the system automatically looks up the venue in Google Places and enriches the entry with venue details (photo, rating, review count, address, price level, Google Maps link). Includes graceful degradation if enrichment fails.
 - **Multi-Select Itinerary Builder**: Users can select 2-5 venues from activities and favorites to create an evening itinerary. AI validates proximity (using Google Places coordinates), operating hours, and logical flow, then proposes an ordered sequence. Users can drag-to-reorder venues in the itinerary display using @dnd-kit. The system stores itineraries with AI validation notes and supports real-time order updates.
 
