@@ -368,6 +368,7 @@ export default function GroupDetail() {
   const [showEnrichmentConfirm, setShowEnrichmentConfirm] = useState(false);
   const [pendingEventTitle, setPendingEventTitle] = useState("");
   const [selectedVenues, setSelectedVenues] = useState<Array<{sourceType: 'activity' | 'voting_event', sourceId: string}>>([]);
+  const [regeneratingCategory, setRegeneratingCategory] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -482,6 +483,32 @@ export default function GroupDetail() {
     onError: (error: Error) => {
       toast({
         title: "Error clearing activities",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const regenerateCategoryMutation = useMutation({
+    mutationFn: async ({ category, currentVenueNames, checkedActivityIds }: { category: string; currentVenueNames: string[]; checkedActivityIds: string[] }) => {
+      return await apiRequest("POST", `/api/groups/${groupId}/activities/regenerate-category`, {
+        category,
+        currentVenueNames,
+        checkedActivityIds
+      });
+    },
+    onSuccess: (newActivities: any[], variables: { category: string; currentVenueNames: string[]; checkedActivityIds: string[] }) => {
+      setRegeneratingCategory(null);
+      toast({
+        title: "New suggestions generated!",
+        description: `Replaced unchecked ${variables.category} suggestions`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "activities"] });
+    },
+    onError: (error: Error) => {
+      setRegeneratingCategory(null);
+      toast({
+        title: "Error regenerating",
         description: error.message,
         variant: "destructive",
       });
@@ -654,6 +681,24 @@ export default function GroupDetail() {
         return [...prev, { sourceType, sourceId }];
       }
     });
+  };
+
+  // Handle category regeneration
+  const handleRegenerateCategory = (category: string, categoryActivities: Activity[]) => {
+    setRegeneratingCategory(category);
+    
+    // Collect all currently visible venue names for deduplication
+    const currentVenueNames = [
+      ...activities.map(a => a.venueName),
+      ...votingEvents.map(e => e.title),
+    ];
+    
+    // Collect checked activity IDs in this category to preserve them
+    const checkedActivityIds = categoryActivities
+      .filter(a => selectedVenues.some(v => v.sourceType === 'activity' && v.sourceId === a.id))
+      .map(a => a.id);
+    
+    regenerateCategoryMutation.mutate({ category, currentVenueNames, checkedActivityIds });
   };
 
   // Voting functionality
@@ -1741,14 +1786,35 @@ export default function GroupDetail() {
 
                         const label = categoryLabels[category];
                         
+                        // Check if all cards in this category are checked
+                        const checkedCount = categoryActivities.filter(a => 
+                          selectedVenues.some(v => v.sourceType === 'activity' && v.sourceId === a.id)
+                        ).length;
+                        const allChecked = checkedCount === categoryActivities.length;
+                        const isRegenerating = regeneratingCategory === category;
+                        
                         return (
                           <div key={category} className="space-y-4">
                             <div className="flex items-center gap-3">
                               <span className="text-2xl">{label.icon}</span>
-                              <div>
+                              <div className="flex-1">
                                 <h3 className="text-sm font-semibold tracking-wide">{label.title}</h3>
                                 <p className="text-xs text-muted-foreground">{label.subtitle}</p>
                               </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRegenerateCategory(category, categoryActivities)}
+                                disabled={allChecked || isRegenerating}
+                                className="h-8 w-8 p-0"
+                                data-testid={`button-regenerate-${category}`}
+                              >
+                                {isRegenerating ? (
+                                  <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
+                                ) : (
+                                  <Sparkles className="h-4 w-4" />
+                                )}
+                              </Button>
                             </div>
                             <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-3">
                               {categoryActivities.map((activity) => {

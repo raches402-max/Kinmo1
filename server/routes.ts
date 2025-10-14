@@ -2,11 +2,13 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema } from "@shared/schema";
+import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, activities as activitiesTable } from "@shared/schema";
 import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue } from "./openai";
 import { searchPlaces, searchNearbyPlaces } from "./google-places";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { validateItinerary } from "./itinerary-validation";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Set up authentication
@@ -411,6 +413,201 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ success: true, message: "Activity generation restarted" });
     } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Regenerate specific category
+  app.post("/api/groups/:id/activities/regenerate-category", async (req, res) => {
+    try {
+      const group = await storage.getGroup(req.params.id);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      const { category, currentVenueNames, checkedActivityIds } = req.body;
+      
+      if (!category || !['meal', 'cafes', 'drinks', 'dessert', 'experiences'].includes(category)) {
+        return res.status(400).json({ message: "Invalid category" });
+      }
+
+      console.log(`[Category Regen] Regenerating ${category} for group ${req.params.id}`);
+      console.log(`[Category Regen] Avoiding ${currentVenueNames?.length || 0} current venues`);
+      console.log(`[Category Regen] Preserving ${checkedActivityIds?.length || 0} checked activities`);
+
+      // Get feedback data for AI context
+      const existingActivities = await storage.getGroupActivities(req.params.id);
+      const previousFeedback = existingActivities
+        .filter(a => a.feedback)
+        .map(a => ({
+          venueName: a.venueName,
+          venueType: a.venueType,
+          feedback: a.feedback!,
+          description: a.description
+        }));
+
+      const votingEvents = await storage.getGroupVotingEvents(req.params.id);
+      const votingFeedback = votingEvents
+        .filter(e => e.netVotes !== 0 && e.venueType)
+        .map(e => ({
+          venueName: e.title,
+          venueType: e.venueType!,
+          upvotes: e.upvotes,
+          downvotes: e.downvotes,
+          netVotes: e.netVotes,
+          description: e.description || ''
+        }));
+
+      const preferenceSignals = await storage.getGroupPreferenceSignals(req.params.id);
+      const likedConcepts = preferenceSignals
+        .filter(s => s.feedback === 'like')
+        .map(s => s.conceptDescription);
+      const passedConcepts = preferenceSignals
+        .filter(s => s.feedback === 'pass')
+        .map(s => s.conceptDescription);
+
+      // Generate suggestions for this specific category
+      const suggestions = await generateActivitySuggestions({
+        locationBase: group.locationBase,
+        budgetMin: group.budgetMin,
+        budgetMax: group.budgetMax,
+        meetingFrequency: group.meetingFrequency,
+        availability: group.availability,
+        closenessLevel: group.closenessLevel,
+        noveltyPreference: group.noveltyPreference,
+        activityCategories: group.activityCategories || undefined,
+        pastPreferences: group.pastPreferences || undefined,
+        additionalInstructions: group.additionalInstructions || undefined,
+        searchRadius: group.searchRadius || undefined,
+        previousFeedback: previousFeedback.length > 0 ? previousFeedback : undefined,
+        votingFeedback: votingFeedback.length > 0 ? votingFeedback : undefined,
+        likedConcepts: likedConcepts.length > 0 ? likedConcepts : undefined,
+        passedConcepts: passedConcepts.length > 0 ? passedConcepts : undefined,
+        previouslySuggestedVenues: currentVenueNames || [],
+        targetCategories: [category],
+      });
+
+      console.log(`[Category Regen] Got ${suggestions.length} suggestions for ${category}`);
+
+      // Enrich with Google Places
+      const enrichedActivities = await Promise.all(
+        suggestions.map(async (suggestion) => {
+          const places = await searchPlaces(
+            suggestion.searchQuery,
+            group.locationBase,
+            group.searchRadius || 2
+          );
+
+          const searchRadius = group.searchRadius || 2;
+          const qualityFiltered = places.filter(place => {
+            const rating = parseFloat(place.rating || '0');
+            const reviewCount = place.reviewCount || 0;
+
+            if (searchRadius <= 2) {
+              return rating >= 3.0 && reviewCount >= 5;
+            } else if (searchRadius <= 10) {
+              return rating >= 3.5 && reviewCount >= 20;
+            } else if (searchRadius <= 30) {
+              return rating >= 4.0 && reviewCount >= 50;
+            } else {
+              return rating >= 4.2 && reviewCount >= 100;
+            }
+          });
+
+          const finalPlaces = qualityFiltered.length > 0 ? qualityFiltered : places;
+
+          // Search for complementary places
+          let complementaryPlace = null;
+          let complementaryPlace2 = null;
+          if (suggestion.complementaryFoodPlace && finalPlaces.length > 0 && finalPlaces[0].location) {
+            const foodPlaces = await searchNearbyPlaces(
+              suggestion.complementaryFoodPlace,
+              finalPlaces[0].location,
+              805,
+              3.5
+            );
+            const validFoodPlaces = foodPlaces.filter(fp => fp.placeId !== finalPlaces[0].placeId);
+            if (validFoodPlaces.length > 0) {
+              complementaryPlace = validFoodPlaces[0];
+            }
+            if (validFoodPlaces.length > 1) {
+              complementaryPlace2 = validFoodPlaces[1];
+            }
+          }
+
+          if (finalPlaces.length > 0) {
+            const place = finalPlaces[0];
+            return {
+              aiSuggestedName: suggestion.venueName,
+              venueName: place.name,
+              venueAddress: place.address,
+              venueType: suggestion.venueType,
+              description: suggestion.description,
+              googlePlaceId: place.placeId,
+              latitude: place.location?.lat?.toString() || null,
+              longitude: place.location?.lng?.toString() || null,
+              rating: place.rating,
+              reviewCount: place.reviewCount || null,
+              priceLevel: place.priceLevel,
+              photoUrl: place.photoUrl,
+              googleReview: place.review || null,
+              aiReasoning: suggestion.reasoning,
+              timeCategory: categorizeByTime(suggestion.venueType),
+              category: categorizeVenue(suggestion.venueType),
+              complementaryPlaceName: complementaryPlace?.name || null,
+              complementaryPlaceAddress: complementaryPlace?.address || null,
+              complementaryPlaceId: complementaryPlace?.placeId || null,
+              complementaryPlacePhotoUrl: complementaryPlace?.photoUrl || null,
+              complementaryPlaceRating: complementaryPlace?.rating || null,
+              complementaryPlaceName2: complementaryPlace2?.name || null,
+              complementaryPlaceAddress2: complementaryPlace2?.address || null,
+              complementaryPlaceId2: complementaryPlace2?.placeId || null,
+              complementaryPlacePhotoUrl2: complementaryPlace2?.photoUrl || null,
+              complementaryPlaceRating2: complementaryPlace2?.rating || null,
+            };
+          }
+          return null;
+        })
+      );
+
+      const validActivities = enrichedActivities.filter(a => a !== null);
+      console.log(`[Category Regen] Got ${validActivities.length} enriched activities`);
+
+      // Delete unchecked activities in this category
+      const checkedIds = new Set(checkedActivityIds || []);
+      const uncheckedActivities = [];
+      for (const a of existingActivities) {
+        const activityCategory = await categorizeVenue(a.venueType);
+        // Only delete if: (1) matches category AND (2) is NOT checked
+        if (activityCategory === category && !checkedIds.has(a.id)) {
+          uncheckedActivities.push(a);
+        }
+      }
+
+      console.log(`[Category Regen] Deleting ${uncheckedActivities.length} unchecked activities`);
+      
+      // Delete unchecked activities
+      for (const activity of uncheckedActivities) {
+        await db.delete(activitiesTable).where(eq(activitiesTable.id, activity.id));
+      }
+
+      // Insert new activities
+      const newActivities = [];
+      for (const activityData of validActivities) {
+        const category = await categorizeVenue(activityData.venueType);
+        const newActivity = await storage.createActivity({
+          ...activityData,
+          groupId: req.params.id,
+          category,
+        });
+        newActivities.push(newActivity);
+      }
+
+      console.log(`[Category Regen] Created ${newActivities.length} new activities`);
+
+      res.json(newActivities);
+    } catch (error: any) {
+      console.error("[Category Regen] Error:", error);
       res.status(500).json({ message: error.message });
     }
   });
