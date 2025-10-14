@@ -926,7 +926,10 @@ export default function GroupDetail() {
               Back
             </Button>
           </Link>
-          <h1 className="text-xl font-semibold" data-testid="text-group-name">{group.name}</h1>
+          <div className="flex items-center gap-2">
+            <span className="text-2xl" data-testid="emoji-group-detail">{group.emoji || "🎉"}</span>
+            <h1 className="text-xl font-semibold" data-testid="text-group-name">{group.name}</h1>
+          </div>
           <div className="w-20"></div>
         </div>
       </header>
