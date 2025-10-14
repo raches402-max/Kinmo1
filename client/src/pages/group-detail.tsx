@@ -1023,6 +1023,37 @@ export default function GroupDetail() {
                     />
                   </div>
                   <div className="space-y-2">
+                    <Label htmlFor="inline-group-emoji">Group Icon</Label>
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className="text-4xl">{editGroupData.emoji || "🎉"}</div>
+                        <Input 
+                          id="inline-group-emoji"
+                          value={editGroupData.emoji} 
+                          onChange={(e) => setEditGroupData({ ...editGroupData, emoji: e.target.value })}
+                          placeholder="🎉" 
+                          className="w-20 text-center text-2xl"
+                          data-testid="input-inline-group-emoji"
+                        />
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {groupEmojis.map((emoji) => (
+                          <Button
+                            key={emoji}
+                            type="button"
+                            variant={editGroupData.emoji === emoji ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setEditGroupData({ ...editGroupData, emoji })}
+                            className="text-xl h-10 w-10 p-0"
+                            data-testid={`button-inline-emoji-${emoji}`}
+                          >
+                            {emoji}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
                     <Label htmlFor="edit-location">Location Base</Label>
                     <Input
                       id="edit-location"
@@ -2598,7 +2629,6 @@ export default function GroupDetail() {
                         onChange={(e) => setEditGroupData({ ...editGroupData, emoji: e.target.value })}
                         placeholder="🎉" 
                         className="w-20 text-center text-2xl"
-                        maxLength={2}
                         data-testid="input-edit-group-emoji"
                       />
                     </div>

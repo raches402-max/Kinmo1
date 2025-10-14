@@ -241,7 +241,6 @@ export default function CreateGroup() {
                               {...field} 
                               placeholder="🎉" 
                               className="w-20 text-center text-2xl"
-                              maxLength={2}
                               data-testid="input-group-emoji"
                             />
                           </FormControl>
