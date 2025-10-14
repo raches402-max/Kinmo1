@@ -465,7 +465,11 @@ REMINDER: The suggestions array MUST contain EXACTLY 30 items. Count them if nee
     }
     
     if (result.suggestions.length < 30) {
-      console.warn(`[OpenAI] Warning: Only received ${result.suggestions.length} suggestions instead of 30 - may result in fewer than 15 unique activities after deduplication`);
+      console.log(`[OpenAI] ℹ️  Received ${result.suggestions.length}/30 suggestions (OpenAI sometimes returns fewer than requested - this is normal)`);
+    }
+    
+    if (result.suggestions.length < 20) {
+      console.warn(`[OpenAI] ⚠️ Very low suggestion count (${result.suggestions.length}) - may need additional retries for balanced categories`);
     }
     
     return result.suggestions;
