@@ -424,6 +424,59 @@ export default function GroupDetail() {
     prevStatusRef.current = group?.activityGenerationStatus;
   }, [group?.activityGenerationStatus, groupId]);
 
+  // Initialize form fields from group data when it loads
+  useEffect(() => {
+    if (group) {
+      setEditGroupData({
+        name: group.name,
+        emoji: group.emoji || "🎉",
+        locationBase: group.locationBase,
+        pastPreferences: group.pastPreferences || "",
+        additionalInstructions: group.additionalInstructions || ""
+      });
+      setEditBudgetRange([group.budgetMin, group.budgetMax]);
+      setEditCloseness(group.closenessLevel);
+      setEditNovelty(group.noveltyPreference);
+      setEditCategories(group.activityCategories || []);
+      
+      // Parse meeting frequency
+      const freq = group.meetingFrequency;
+      if (freq === "weekly") {
+        setEditFrequencyNumber(1);
+        setEditFrequencyUnit("week");
+      } else if (freq === "biweekly") {
+        setEditFrequencyNumber(2);
+        setEditFrequencyUnit("week");
+      } else if (freq === "monthly") {
+        setEditFrequencyNumber(1);
+        setEditFrequencyUnit("month");
+      } else if (freq === "flexible") {
+        setEditFrequencyNumber(1);
+        setEditFrequencyUnit("week");
+      } else if (freq && freq.includes("-")) {
+        // New format: "2-week", "1-month", etc.
+        const [num, unit] = freq.split("-");
+        const parsedNum = parseInt(num) || 1;
+        // Convert old plural forms to singular
+        let singularUnit = unit || "week";
+        if (singularUnit.endsWith("s")) {
+          singularUnit = singularUnit.slice(0, -1);
+        }
+        setEditFrequencyNumber(parsedNum);
+        setEditFrequencyUnit(singularUnit);
+      } else {
+        setEditFrequencyNumber(1);
+        setEditFrequencyUnit("week");
+      }
+      
+      // Check if availability has the expected structure
+      const availability = group.availability && typeof group.availability === 'object' && Object.keys(group.availability).length > 0
+        ? group.availability
+        : createEmptyAvailability();
+      setEditAvailability(availability as any);
+    }
+  }, [group]);
+
   const sendInvitationsMutation = useMutation({
     mutationFn: async () => {
       return await apiRequest("POST", `/api/groups/${groupId}/send-invitations`, {});
@@ -883,7 +936,7 @@ export default function GroupDetail() {
       } else if (freq === "flexible") {
         setEditFrequencyNumber(1);
         setEditFrequencyUnit("week");
-      } else if (freq.includes("-")) {
+      } else if (freq && freq.includes("-")) {
         // New format: "2-week", "1-month", etc.
         const [num, unit] = freq.split("-");
         const parsedNum = parseInt(num) || 1;
