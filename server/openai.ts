@@ -243,8 +243,15 @@ Requirements:
 4. ${!groupData.additionalInstructions && groupData.pastPreferences ? 'PRIORITIZE suggesting the same TYPES of venues they\'ve enjoyed historically' : ''}
 5. 🚨 CRITICAL - NEVER SUGGEST AIRPORT VENUES: DO NOT suggest any venues located inside airports (terminals, gates, etc.) UNLESS the user EXPLICITLY asks for "airport activities" or "activities inside an airport". Airport restaurants, cafes, and shops are BANNED unless specifically requested.
 6. Suggest 75 specific types of venues/activities (not specific business names) - we'll show 15 after deduplication (aiming for 3 per category: MEAL, CAFES, DRINKS, DESSERT, EXPERIENCES)
-7. Each suggestion should fit within the budget range
-8. CRITICAL - BE SPECIFIC WITH CUISINE TYPES:
+7. 🎯 CATEGORY BALANCE GOAL: Aim for a balanced distribution across categories to ensure ~3 cards per category after deduplication:
+   - MEAL venues (restaurants, brunch spots, food markets, food halls): ~30 suggestions
+   - CAFES (coffee shops, cafes): ~10 suggestions
+   - DRINKS (bars, cocktail lounges, breweries, wine bars): ~15 suggestions
+   - DESSERT (boba, ice cream, dessert shops): ~10 suggestions
+   - EXPERIENCES (museums, parks, concerts, activities): ~10 suggestions
+   - This distribution helps ensure visual balance with 3 cards displaying per category row
+8. Each suggestion should fit within the budget range
+9. CRITICAL - BE SPECIFIC WITH CUISINE TYPES:
    - NEVER use broad categories like "Asian restaurants" or "Asian food"
    - ALWAYS break down into SPECIFIC cuisines: Sushi, Korean BBQ (KBBQ), Ramen, Pho, Dumplings, Thai, Vietnamese, Chinese (Szechuan/Cantonese/Dim Sum), Japanese Izakaya, Malaysian, Filipino, etc.
    - NEVER use generic "Italian restaurants" - specify: Pizza, Pasta, Trattoria, Osteria
@@ -252,7 +259,7 @@ Requirements:
    - Each cuisine type should be DISTINCT to avoid Google returning the same venues repeatedly
    - Examples of GOOD search queries: "sushi restaurants near X", "Korean BBQ near X", "pho restaurants near X", "dim sum near X"
    - Examples of BAD search queries: "Asian restaurants near X", "Asian food near X", "ethnic cuisine near X"
-9. CRITICAL - RECOGNIZE EXPERIENCE-BASED OPTIONS (beyond just venue types):
+10. CRITICAL - RECOGNIZE EXPERIENCE-BASED OPTIONS (beyond just venue types):
    - The AI should adapt to broader experiential terms that people actually use
    - EXPERIENCE TYPES to recognize and incorporate:
      * Bottomless brunch (brunch + unlimited drinks like mimosas)
@@ -273,27 +280,27 @@ Requirements:
      * ✅ GOOD: "wine tasting rooms near [location]", "omakase sushi near [location]", "tapas restaurants near [location]"
      * ❌ BAD: Just "brunch near [location]" when they want bottomless brunch
    - This allows natural language understanding - users say "bottomless brunch" not "brunch restaurants with drink specials"
-10. Provide a search query that can be used with Google Places API
-11. FOR EVENTS ONLY (festivals, concerts, shows, sporting events, movies, comedy shows, etc.): 
+11. Provide a search query that can be used with Google Places API
+12. FOR EVENTS ONLY (festivals, concerts, shows, sporting events, movies, comedy shows, etc.): 
    - Include a realistic "priceEstimate" (e.g., "$25-50 per person", "$15 tickets", "Free")
    - Include "timeConstraints" if applicable (e.g., "Only on Friday afternoons", "Weekends in summer", "Saturday evenings")
    - IMPORTANT: timeConstraints must match the group's availability (${availabilityText})
    - Include a "complementaryFoodPlace" KEYWORD (e.g., "restaurants", "food trucks", "cafes" - NOT "restaurants near [venue]")
-12. FOR FULL MEAL VENUES - this includes: restaurants, brunch spots, food markets, food halls
+13. FOR FULL MEAL VENUES - this includes: restaurants, brunch spots, food markets, food halls
    - Leave priceEstimate and timeConstraints empty (pricing comes from Google)
    - REQUIRED: Include a "complementaryFoodPlace" KEYWORD for DRINKS/DESSERT options nearby to complete the meal experience
    - BE SPECIFIC AND VARIED - use different types each time (don't repeat "dessert shops" over and over)
    - IMPORTANT: Use ONLY simple keywords (NOT full queries with "near"). The nearby search is automatic.
    - Examples: "artisan ice cream", "craft cocktail bars", "boba tea", "gelato shops", "sake bars", "specialty coffee", "dessert cafes"
    - These are post-meal treats or drinks to extend the outing
-13. FOR DRINKS/DESSERT VENUES - this includes: cafes, coffee shops, boba shops, cocktail bars, wine bars, breweries, beer gardens, dessert shops, ice cream shops, tea shops
+14. FOR DRINKS/DESSERT VENUES - this includes: cafes, coffee shops, boba shops, cocktail bars, wine bars, breweries, beer gardens, dessert shops, ice cream shops, tea shops
    - Leave priceEstimate and timeConstraints empty (pricing comes from Google)
    - REQUIRED: Include a "complementaryFoodPlace" KEYWORD for FULL MEAL options nearby
    - BE SPECIFIC AND VARIED - use different cuisines/types each time (don't repeat "restaurants" generically)
    - IMPORTANT: Use ONLY simple keywords (NOT full queries with "near"). The nearby search is automatic.
    - Examples: "ramen restaurants", "taco restaurants", "banh mi", "pizza restaurants", "poke bowls", "dim sum restaurants"
    - Logic: If the main venue is drinks/dessert, suggest a proper meal that complements it (not another drink/dessert spot)
-14. FOR OUTDOOR VENUES - this includes: parks, beaches, hiking trails, nature areas, outdoor recreation spaces
+15. FOR OUTDOOR VENUES - this includes: parks, beaches, hiking trails, nature areas, outdoor recreation spaces
    - Include a "complementaryFoodPlace" KEYWORD for nearby PORTABLE MEAL options
    - BE SPECIFIC AND VARIED - use different portable food types each time
    - IMPORTANT: Use ONLY simple keywords (NOT full queries with "near"). The nearby search is automatic.
@@ -308,17 +315,17 @@ CRITICAL CONSTRAINTS for ALL complementaryFoodPlace keywords:
 - Quality: ALL suggestions will be filtered to 3.5+ star ratings or better
 - VARIETY: Each suggestion should use a DIFFERENT type of complementary place (don't repeat the same type like "dessert shops" multiple times)
 - Each keyword should be specific enough to return relevant options for the group to choose from
-${!groupData.additionalInstructions ? `15. IMPORTANT - Use previous feedback AND voting data to guide suggestions:
+${!groupData.additionalInstructions ? `16. IMPORTANT - Use previous feedback AND voting data to guide suggestions:
    - If activities were "LOVED", suggest very similar venues/types
    - If activities got "more", increase that type of suggestion
    - If activities got "less", avoid or minimize that type
    - If Favorites have HIGH net votes (popular), prioritize very similar venue types
    - If Favorites have NEGATIVE net votes (unpopular), avoid similar venue types
-16. CRITICAL - Use Swipe Session Preferences to refine suggestions:
+17. CRITICAL - Use Swipe Session Preferences to refine suggestions:
    - LIKED concepts: These are activity types the group has shown interest in - PRIORITIZE suggesting these types
    - PASSED concepts: These are activity types the group is NOT interested in - AVOID suggesting these types
    - Swipe preferences reveal what the group wants to explore, so weight them heavily in your suggestions` : ''}
-17. FOR DESCRIPTION: ABSOLUTE MAXIMUM 4 WORDS. NOUNS ONLY. ZERO DESCRIPTIVE ADJECTIVES.
+18. FOR DESCRIPTION: ABSOLUTE MAXIMUM 4 WORDS. NOUNS ONLY. ZERO DESCRIPTIVE ADJECTIVES.
    - HARD LIMIT: 1-4 words TOTAL. Not one word more. Count your words.
    - RULE: Use ONLY food/cuisine nouns. Cuisine names (Korean, Italian, Japanese) are ALLOWED. Descriptive adjectives (fresh, authentic, high-quality) are BANNED.
    - ALLOWED: Cuisine names (Korean, Italian, Mexican), food nouns (sushi, pizza, ramen, cocktails)
@@ -337,7 +344,7 @@ ${!groupData.additionalInstructions ? `15. IMPORTANT - Use previous feedback AND
      * "Authentic Italian pasta" ❌ ("Authentic" is quality adjective)
      * "Wood-fired pizza" ❌ ("Wood-fired" is quality adjective)
    - Format: Just the food/cuisine. 1-4 words max.
-18. FOR REASONING: CRITICAL - Ultra-short and direct. 2-5 words maximum. NO vague phrases. Be specific.
+19. FOR REASONING: CRITICAL - Ultra-short and direct. 2-5 words maximum. NO vague phrases. Be specific.
    - DO NOT mention budget (it's assumed everything shown fits budget)
    - BANNED VAGUE PHRASES: "interaction", "sharing", "social experience", "group dining", "intimate", "experience"
    - INSTEAD be SPECIFIC about WHAT matches their preferences
@@ -353,7 +360,7 @@ ${!groupData.additionalInstructions ? `15. IMPORTANT - Use previous feedback AND
      * "Interaction and sharing" ❌ (completely vague)
      * "Intimate conversation spot" ❌ (vague "intimate")
      * "Budget-friendly Korean BBQ" ❌ (mentions budget)
-19. When suggesting something NEW (outside their usual range), start with "NEW:" and be specific about what's new.
+20. When suggesting something NEW (outside their usual range), start with "NEW:" and be specific about what's new.
    - GOOD: "NEW: Unfamiliar Filipino cuisine" (4 words - specific)
    - BAD: "NEW: Unique flavors to explore" ❌ (vague)
 
