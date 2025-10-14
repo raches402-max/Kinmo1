@@ -53,6 +53,15 @@ AI suggestion preferences:
   - Within each category, venues are sorted by rating (highest first), then review count
 - **Enhanced Favorites with Google Places Enrichment**: When users manually add events to the Favorites voting list, the system automatically looks up the venue in Google Places and enriches the entry with venue details (photo, rating, review count, address, price level, Google Maps link). Includes graceful degradation if enrichment fails.
 - **Multi-Select Itinerary Builder**: Users can select 2-5 venues from activities and favorites to create an evening itinerary. AI validates proximity (using Google Places coordinates), operating hours, and logical flow, then proposes an ordered sequence. Users can drag-to-reorder venues in the itinerary display using @dnd-kit. The system stores itineraries with AI validation notes and supports real-time order updates.
+- **Location Radius Expansion**: 4-tier search radius selector allowing users to expand search area from nearby (< 2 miles) to road trips (< 50 miles):
+  - **📍 Nearby (< 2 miles)**: Walking or short drive distance, 3.0+ stars, 5+ reviews minimum
+  - **🏙️ Citywide (< 10 miles)**: Venues across the city, 3.5+ stars, 20+ reviews minimum
+  - **🚗 Special Trip (< 30 miles)**: Special destinations worth a drive, 4.0+ stars, 50+ reviews minimum
+  - **🛣️ Road Trip (< 50 miles)**: Road trip worthy destinations, 4.2+ stars, 100+ reviews minimum
+  - Quality filtering ensures farther venues are highly rated with substantial review counts
+  - AI prompt adapts suggestions based on selected radius tier (nearby conveniences vs. destination-worthy gems)
+  - Google Places searches use dynamic radius converted to meters (1 mile = 1609.34 meters)
+  - Schema-level validation enforces only 2, 10, 30, 50 mile values with fallback to 2 miles default
 
 ## External Dependencies
 
