@@ -58,6 +58,7 @@ export async function generateActivitySuggestions(groupData: {
   activityCategories?: string[];
   pastPreferences?: string;
   additionalInstructions?: string;
+  searchRadius?: number; // Search radius in miles (2, 10, 30, 50)
   previousFeedback?: { venueName: string; venueType: string; feedback: string; description: string }[];
   votingFeedback?: { venueName: string; venueType: string; upvotes: number; downvotes: number; netVotes: number; description: string }[];
   likedConcepts?: string[];
@@ -213,11 +214,20 @@ export async function generateActivitySuggestions(groupData: {
 - This is a retry to fill gaps - prioritize these categories above all else`;
     }
 
+    // Format search radius for prompt
+    const searchRadius = groupData.searchRadius || 2;
+    const radiusTier = 
+      searchRadius <= 2 ? 'Nearby (< 2 miles)' :
+      searchRadius <= 10 ? 'Citywide (< 10 miles)' :
+      searchRadius <= 30 ? 'Special Trip (< 30 miles)' :
+      'Road Trip (< 50 miles)';
+
     const prompt = `You are an expert activity planner. Generate 30 activity suggestions for a group with these preferences:
 
 NOTE: You will generate 30 suggestions, but only 15 will be shown to the user after removing duplicates (aiming for 3 per category). This ensures 15 unique venues even if Google Places returns the same restaurant for multiple search queries.
 
 Location: ${groupData.locationBase}
+Search Radius: ${radiusTier} - ${searchRadius <= 2 ? 'Focus on nearby venues within walking or short drive distance' : searchRadius <= 10 ? 'Include venues across the city' : searchRadius <= 30 ? 'Include special destinations worth a drive' : 'Include road trip worthy destinations - only suggest highly-rated gems'}
 Budget Range: $${groupData.budgetMin}-${groupData.budgetMax} per person
 Meeting Frequency: ${groupData.meetingFrequency}
 Usual Availability: ${availabilityText}

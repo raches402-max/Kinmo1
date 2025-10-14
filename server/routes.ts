@@ -784,6 +784,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
         activityCategories: groupData.activityCategories,
         pastPreferences: groupData.pastPreferences,
         additionalInstructions: groupData.additionalInstructions,
+        searchRadius: groupData.searchRadius, // Pass search radius to AI
         previousFeedback: previousFeedback.length > 0 ? previousFeedback : undefined,
         votingFeedback: votingFeedback.length > 0 ? votingFeedback : undefined,
         likedConcepts: likedConcepts.length > 0 ? likedConcepts : undefined,
