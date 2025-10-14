@@ -17,7 +17,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, ShoppingCart } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -2127,6 +2127,33 @@ export default function GroupDetail() {
                 )}
               </div>
             </div>
+
+            {/* Floating Cart Badge - only visible when venues selected */}
+            {selectedVenues.length > 0 && (
+              <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2" data-testid="floating-cart-badge">
+                <Card className="shadow-lg border-2">
+                  <CardContent className="p-3 flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <div className="relative">
+                        <ShoppingCart className="h-5 w-5" />
+                        <div className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center">
+                          {selectedVenues.length}
+                        </div>
+                      </div>
+                      <span className="text-sm font-medium">{selectedVenues.length} selected</span>
+                    </div>
+                    <Button
+                      onClick={() => setActiveTab("build")}
+                      disabled={selectedVenues.length < 2}
+                      size="sm"
+                      data-testid="button-build-itinerary-cart"
+                    >
+                      Build Itinerary
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
           </TabsContent>
 
           {/* Tab 3: Itinerary */}
