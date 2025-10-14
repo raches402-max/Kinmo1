@@ -65,15 +65,15 @@ export async function generateActivitySuggestions(groupData: {
   previouslySuggestedVenues?: string[];
 }): Promise<ActivitySuggestion[]> {
   try {
-    // Generate 15 suggestions to account for duplicates after Google Places enrichment
+    // Generate 30 suggestions to account for duplicates after Google Places enrichment
     // After deduplication, we'll take the first 6 unique ones
     // This ensures we always have 6 cards even in areas with limited venue options
     
-    // Calculate novelty split based on 15 suggestions
-    // novelty 1 = 15 familiar, novelty 3 = 7-8 split, novelty 5 = 15 new
-    // Formula: familiar = 15 - (noveltyPreference - 1) * 3.75, rounded
-    const familiarCount = Math.round(15 - (groupData.noveltyPreference - 1) * 3.75);
-    const newCount = 15 - familiarCount;
+    // Calculate novelty split based on 30 suggestions
+    // novelty 1 = 30 familiar, novelty 3 = 15-15 split, novelty 5 = 30 new
+    // Formula: familiar = 30 - (noveltyPreference - 1) * 7.5, rounded
+    const familiarCount = Math.round(30 - (groupData.noveltyPreference - 1) * 7.5);
+    const newCount = 30 - familiarCount;
 
     // Format availability for display
     const formatAvailabilityForPrompt = (availability: any): string => {
@@ -190,9 +190,9 @@ export async function generateActivitySuggestions(groupData: {
       avoidVenuesContext = `\n\nIMPORTANT - DO NOT suggest these venues again (already suggested): ${groupData.previouslySuggestedVenues.join(', ')}`;
     }
 
-    const prompt = `You are an expert activity planner. Generate 15 activity suggestions for a group with these preferences:
+    const prompt = `You are an expert activity planner. Generate 30 activity suggestions for a group with these preferences:
 
-NOTE: You will generate 15 suggestions, but only 6 will be shown to the user after removing duplicates. This ensures 6 unique venues even if Google Places returns the same restaurant for multiple search queries.
+NOTE: You will generate 30 suggestions, but only 6 will be shown to the user after removing duplicates. This ensures 6 unique venues even if Google Places returns the same restaurant for multiple search queries.
 
 Location: ${groupData.locationBase}
 Budget Range: $${groupData.budgetMin}-${groupData.budgetMax} per person
@@ -211,7 +211,7 @@ ${groupData.additionalInstructions ? `🚨 CRITICAL - USER INSTRUCTIONS MODE (AB
 - The user has provided specific instructions in the text box above
 - IGNORE ALL OTHER CONTEXT: Activity Interests, Past Preferences, Voting Feedback, and Swipe Feedback are NOT relevant
 - ONLY focus on what the user typed in the USER INSTRUCTIONS
-- If they specify a venue type (like "Boba", "Sushi", "Pizza", "Korean BBQ"), generate ALL 15 suggestions of that exact type
+- If they specify a venue type (like "Boba", "Sushi", "Pizza", "Korean BBQ"), generate ALL 30 suggestions of that exact type
 - If they provide general guidance (like "something fun", "adventurous"), maintain diversity while matching the theme
 - Use your natural language understanding to distinguish between specific venue types vs. general preferences` : `CRITICAL - How to interpret preferences:
 - If Activity Interests are specified, prioritize those activity types

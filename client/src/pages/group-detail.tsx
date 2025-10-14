@@ -108,16 +108,18 @@ function getActivityCategory(venueType: string): ActivityCategory {
     return 'cafes';
   }
   
-  // DESSERT - boba, ice cream, dessert shops (check BEFORE drinks to catch "boba bar", "dessert bar")
+  // DESSERT - boba, ice cream, dessert shops, tea shops (check BEFORE drinks to catch "boba bar", "dessert bar")
   if (lowerType.includes('boba') || lowerType.includes('ice cream') || 
       lowerType.includes('dessert') || lowerType.includes('bakery') ||
-      lowerType.includes('sweet') || lowerType.includes('milk bar')) {
+      lowerType.includes('sweet') || lowerType.includes('milk bar') ||
+      lowerType.includes('tea shop') || lowerType.includes('bubble tea') || 
+      lowerType.includes('milk tea') || lowerType.includes('gelato')) {
     return 'dessert';
   }
   
   // DRINKS - bars, breweries, wine bars, cocktail lounges, and generic "drink"
   // Check AFTER meal and dessert to avoid false positives
-  const drinksKeywords = ['drink', 'brewery', 'wine bar', 'cocktail', 'pub', 'lounge', 'taproom', 'speakeasy'];
+  const drinksKeywords = ['drink', 'brewery', 'wine bar', 'cocktail', 'pub', 'lounge', 'taproom', 'speakeasy', 'sake bar', 'taphouse', 'tasting room'];
   const hasDrinkKeyword = drinksKeywords.some(keyword => lowerType.includes(keyword));
   
   // Use regex for standalone "bar" but be careful with punctuation
