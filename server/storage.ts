@@ -26,6 +26,7 @@ export interface IStorage {
   getGroup(id: string): Promise<Group | undefined>;
   getGroupByShareableLink(link: string): Promise<Group | undefined>;
   getUserGroups(userId: string): Promise<Group[]>;
+  getAllGroups(): Promise<Group[]>;
   updateGroup(id: string, updates: UpdateGroup): Promise<Group>;
   updateGroupStatus(id: string, status: string, error?: string): Promise<void>;
   
@@ -123,6 +124,10 @@ export class DatabaseStorage implements IStorage {
 
   async getUserGroups(userId: string): Promise<Group[]> {
     return await db.select().from(groups).where(eq(groups.userId, userId));
+  }
+
+  async getAllGroups(): Promise<Group[]> {
+    return await db.select().from(groups);
   }
 
   async getGroup(id: string): Promise<Group | undefined> {

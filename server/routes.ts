@@ -981,6 +981,56 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Admin endpoint to backfill coordinates for existing groups
+  // Protected endpoint - requires authentication
+  app.post("/api/admin/backfill-coordinates", isAuthenticated, async (req, res) => {
+    try {
+      const groups = await storage.getAllGroups();
+      let backfilled = 0;
+      let failed = 0;
+      let skipped = 0;
+      
+      for (const group of groups) {
+        // Skip if already has coordinates
+        if (group.latitude && group.longitude) {
+          skipped++;
+          continue;
+        }
+        
+        // Skip if no location to geocode
+        if (!group.locationBase || group.locationBase.trim() === '') {
+          skipped++;
+          continue;
+        }
+        
+        // Geocode the location
+        const geocoded = await geocodeLocation(group.locationBase);
+        if (geocoded) {
+          await storage.updateGroup(group.id, {
+            latitude: geocoded.latitude.toString(),
+            longitude: geocoded.longitude.toString(),
+          });
+          console.log(`Backfilled coordinates for group ${group.id}: ${group.locationBase} -> (${geocoded.latitude}, ${geocoded.longitude})`);
+          backfilled++;
+        } else {
+          console.warn(`Failed to geocode location for group ${group.id}: ${group.locationBase}`);
+          failed++;
+        }
+      }
+      
+      res.json({
+        success: true,
+        message: `Backfilled ${backfilled} groups, ${skipped} already had coordinates, ${failed} failed to geocode`,
+        backfilled,
+        skipped,
+        failed,
+      });
+    } catch (error: any) {
+      console.error("Error backfilling coordinates:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
