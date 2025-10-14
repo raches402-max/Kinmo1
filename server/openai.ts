@@ -214,8 +214,17 @@ export async function generateActivitySuggestions(groupData: {
 - This is a retry to fill gaps - prioritize these categories above all else`;
     }
 
-    // Format search radius for prompt
-    const searchRadius = groupData.searchRadius || 2;
+    // Format search radius for prompt - ensure valid value
+    const searchRadius = groupData.searchRadius && [2, 10, 30, 50].includes(groupData.searchRadius) 
+      ? groupData.searchRadius 
+      : 2; // Default to 2 miles (Nearby)
+    
+    if (!groupData.searchRadius) {
+      console.log('[AI Generation] No search radius provided, defaulting to 2 miles (Nearby)');
+    } else if (![2, 10, 30, 50].includes(groupData.searchRadius)) {
+      console.warn(`[AI Generation] Invalid search radius ${groupData.searchRadius}, defaulting to 2 miles (Nearby)`);
+    }
+    
     const radiusTier = 
       searchRadius <= 2 ? 'Nearby (< 2 miles)' :
       searchRadius <= 10 ? 'Citywide (< 10 miles)' :

@@ -266,6 +266,10 @@ export const insertGroupSchema = createInsertSchema(groups).omit({
   shareableLink: true,
   activityGenerationStatus: true,
   activityGenerationError: true,
+}).extend({
+  searchRadius: z.number().refine(val => [2, 10, 30, 50].includes(val), {
+    message: "Search radius must be 2, 10, 30, or 50 miles"
+  }).default(2),
 });
 
 export const insertMemberSchema = createInsertSchema(members).omit({
@@ -306,7 +310,19 @@ export const insertItineraryItemSchema = createInsertSchema(itineraryItems).omit
 });
 
 // Update schemas (partial versions for PATCH operations)
-export const updateGroupSchema = insertGroupSchema.partial();
+export const updateGroupSchema = insertGroupSchema.partial().refine(
+  (data) => {
+    // If searchRadius is provided, validate it
+    if (data.searchRadius !== undefined) {
+      return [2, 10, 30, 50].includes(data.searchRadius);
+    }
+    return true;
+  },
+  {
+    message: "Search radius must be 2, 10, 30, or 50 miles when provided",
+    path: ["searchRadius"],
+  }
+);
 export const updateMemberSchema = insertMemberSchema.partial();
 export const updateVotingEventSchema = insertVotingEventSchema.partial();
 export const updateItinerarySchema = insertItinerarySchema.partial();
