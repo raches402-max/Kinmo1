@@ -427,6 +427,26 @@ export default function GroupDetail() {
     },
   });
 
+  const updateRadiusMutation = useMutation({
+    mutationFn: async ({ searchRadius }: { searchRadius: number }) => {
+      return await apiRequest("PATCH", `/api/groups/${groupId}/radius`, { searchRadius });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId] });
+      toast({
+        title: "Search radius updated",
+        description: "New suggestions will use this search area",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error updating radius",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const updateGroupMutation = useMutation({
     mutationFn: async ({ updates, newMembers }: { updates: any; newMembers: { name: string; email: string }[] }) => {
       // First update the group
@@ -1378,6 +1398,35 @@ export default function GroupDetail() {
                   : "Personalized recommendations based on your group's preferences"
                 }
               </p>
+              
+              {/* Search Radius Selector */}
+              <div className="mb-4">
+                <Label className="text-sm font-medium mb-2 block">Search Radius</Label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    { value: 2, label: "Nearby", desc: "< 2 miles", icon: "📍" },
+                    { value: 10, label: "Citywide", desc: "< 10 miles", icon: "🏙️" },
+                    { value: 30, label: "Special Trip", desc: "< 30 miles", icon: "🚗" },
+                    { value: 50, label: "Road Trip", desc: "< 50 miles", icon: "🛣️" },
+                  ].map((tier) => (
+                    <Button
+                      key={tier.value}
+                      variant={group?.searchRadius === tier.value ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => {
+                        updateRadiusMutation.mutate({ searchRadius: tier.value });
+                      }}
+                      disabled={updateRadiusMutation.isPending}
+                      className="flex flex-col h-auto py-2 px-2"
+                      data-testid={`button-radius-${tier.value}`}
+                    >
+                      <span className="text-base mb-1">{tier.icon}</span>
+                      <span className="text-xs font-semibold">{tier.label}</span>
+                      <span className="text-xs opacity-70">{tier.desc}</span>
+                    </Button>
+                  ))}
+                </div>
+              </div>
               
               <div className="flex gap-3 items-end">
                 <div className="flex-1">
