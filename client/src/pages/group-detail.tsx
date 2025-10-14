@@ -45,6 +45,11 @@ import { CSS } from '@dnd-kit/utilities';
 const closenessLabels = ["Acquaintances", "Friends", "Good Friends", "Close Friends", "Best Friends"];
 const noveltyLabels = ["We like our usual spots", "Leaning familiar", "Open sometimes", "Pretty adventurous", "Always up for new things!"];
 
+const groupEmojis = [
+  "🎉", "🎊", "🎈", "🍕", "🍔", "🍰", "🎮", "🎬", 
+  "🎵", "🎨", "🏀", "⚽", "🎯", "🎭", "🎪", "🎤"
+];
+
 const activityCategories = [
   { id: "restaurants", label: "Restaurants", icon: ChefHat },
   { id: "brunch", label: "Brunch Spots", icon: Croissant },
@@ -274,6 +279,7 @@ export default function GroupDetail() {
   const [editCategories, setEditCategories] = useState<string[]>([]);
   const [editGroupData, setEditGroupData] = useState({
     name: "",
+    emoji: "🎉",
     locationBase: "",
     pastPreferences: "",
     additionalInstructions: ""
@@ -748,6 +754,7 @@ export default function GroupDetail() {
     if (group) {
       setEditGroupData({
         name: group.name,
+        emoji: group.emoji || "🎉",
         locationBase: group.locationBase,
         pastPreferences: group.pastPreferences || "",
         additionalInstructions: group.additionalInstructions || ""
@@ -814,6 +821,7 @@ export default function GroupDetail() {
   const handleUpdateGroup = async () => {
     const updates = {
       name: editGroupData.name,
+      emoji: editGroupData.emoji,
       locationBase: editGroupData.locationBase,
       budgetMin: editBudgetRange[0],
       budgetMax: editBudgetRange[1],
@@ -2578,6 +2586,38 @@ export default function GroupDetail() {
                     onChange={(e) => setEditGroupData({ ...editGroupData, name: e.target.value })}
                     data-testid="input-edit-group-name"
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-group-emoji">Group Icon</Label>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="text-4xl">{editGroupData.emoji || "🎉"}</div>
+                      <Input 
+                        id="edit-group-emoji"
+                        value={editGroupData.emoji} 
+                        onChange={(e) => setEditGroupData({ ...editGroupData, emoji: e.target.value })}
+                        placeholder="🎉" 
+                        className="w-20 text-center text-2xl"
+                        maxLength={2}
+                        data-testid="input-edit-group-emoji"
+                      />
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {groupEmojis.map((emoji) => (
+                        <Button
+                          key={emoji}
+                          type="button"
+                          variant={editGroupData.emoji === emoji ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setEditGroupData({ ...editGroupData, emoji })}
+                          className="text-xl h-10 w-10 p-0"
+                          data-testid={`button-edit-emoji-${emoji}`}
+                        >
+                          {emoji}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-location">Location Base</Label>
