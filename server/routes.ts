@@ -93,19 +93,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedUpdates = updateGroupSchema.parse(req.body);
       
       // If location is being updated, geocode it
+      let geocodingResult: 'success' | 'failed' | 'not_attempted' = 'not_attempted';
       if (validatedUpdates.locationBase) {
         const geocoded = await geocodeLocation(validatedUpdates.locationBase);
         if (geocoded) {
           validatedUpdates.latitude = geocoded.latitude.toString();
           validatedUpdates.longitude = geocoded.longitude.toString();
+          geocodingResult = 'success';
           console.log(`Geocoded location update: ${validatedUpdates.locationBase} -> (${geocoded.latitude}, ${geocoded.longitude})`);
         } else {
+          geocodingResult = 'failed';
           console.warn(`Failed to geocode location: ${validatedUpdates.locationBase}`);
         }
       }
       
       const updatedGroup = await storage.updateGroup(req.params.id, validatedUpdates);
-      res.json(updatedGroup);
+      res.json({ ...updatedGroup, geocodingResult });
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }

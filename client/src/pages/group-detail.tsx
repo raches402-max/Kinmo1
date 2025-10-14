@@ -611,7 +611,7 @@ export default function GroupDetail() {
   const updateGroupMutation = useMutation({
     mutationFn: async ({ updates, newMembers }: { updates: any; newMembers: { name: string; email: string }[] }) => {
       // First update the group
-      await apiRequest("PATCH", `/api/groups/${groupId}`, updates);
+      const response = await apiRequest("PATCH", `/api/groups/${groupId}`, updates);
       
       // Then add new members if any
       if (newMembers.length > 0) {
@@ -633,14 +633,25 @@ export default function GroupDetail() {
           })
         );
       }
+      return response;
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId] });
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "members"] });
       setEditGroupOpen(false);
+      
+      let description = "Your group details have been saved";
+      let variant: "default" | "destructive" | undefined = undefined;
+      
+      if (data?.geocodingResult === 'failed') {
+        description = "Group updated, but location couldn't be geocoded. Venue suggestions may be less accurate. Try using a more specific location like 'Oakland, California' instead of just 'Oakland'.";
+        variant = "destructive";
+      }
+      
       toast({
         title: "Group updated",
-        description: "Your group details have been saved",
+        description,
+        variant,
       });
     },
     onError: (error: Error) => {
