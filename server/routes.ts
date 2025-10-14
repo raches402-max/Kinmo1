@@ -434,9 +434,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`[Category Regen] Regenerating ${category} for group ${req.params.id}`);
       console.log(`[Category Regen] Avoiding ${currentVenueNames?.length || 0} current venues`);
       console.log(`[Category Regen] Preserving ${checkedActivityIds?.length || 0} checked activities`);
+      
+      // Calculate how many new activities we need
+      const existingActivities = await storage.getGroupActivities(req.params.id);
+      const checkedIds = new Set(checkedActivityIds || []);
+      let checkedCount = 0;
+      
+      for (const a of existingActivities) {
+        const activityCategory = await categorizeVenue(a.venueType);
+        if (activityCategory === category && checkedIds.has(a.id)) {
+          checkedCount++;
+        }
+      }
+      
+      const neededCount = 3 - checkedCount;
+      console.log(`[Category Regen] Need ${neededCount} new activities (have ${checkedCount} checked)`);
+      
+      if (neededCount <= 0) {
+        console.log(`[Category Regen] Category already has 3 cards (all checked), skipping regeneration`);
+        return res.json([]);
+      }
 
       // Get feedback data for AI context
-      const existingActivities = await storage.getGroupActivities(req.params.id);
       const previousFeedback = existingActivities
         .filter(a => a.feedback)
         .map(a => ({
@@ -466,31 +485,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .filter(s => s.feedback === 'pass')
         .map(s => s.conceptDescription);
 
-      // Generate suggestions for this specific category
-      const suggestions = await generateActivitySuggestions({
-        locationBase: group.locationBase,
-        budgetMin: group.budgetMin,
-        budgetMax: group.budgetMax,
-        meetingFrequency: group.meetingFrequency,
-        availability: group.availability,
-        closenessLevel: group.closenessLevel,
-        noveltyPreference: group.noveltyPreference,
-        activityCategories: group.activityCategories || undefined,
-        pastPreferences: group.pastPreferences || undefined,
-        additionalInstructions: group.additionalInstructions || undefined,
-        searchRadius: group.searchRadius || undefined,
-        previousFeedback: previousFeedback.length > 0 ? previousFeedback : undefined,
-        votingFeedback: votingFeedback.length > 0 ? votingFeedback : undefined,
-        likedConcepts: likedConcepts.length > 0 ? likedConcepts : undefined,
-        passedConcepts: passedConcepts.length > 0 ? passedConcepts : undefined,
-        previouslySuggestedVenues: currentVenueNames || [],
-        targetCategories: [category],
-      });
+      // Retry logic to ensure we get enough quality venues
+      let allValidActivities: any[] = [];
+      const seenVenues = new Set<string>(); // Track across attempts
+      
+      // Add existing venues (both checked and current) to prevent duplicates
+      for (const venue of existingActivities) {
+        const venueKey = venue.googlePlaceId || venue.venueName.toLowerCase();
+        seenVenues.add(venueKey);
+      }
+      for (const venue of currentVenueNames || []) {
+        seenVenues.add(venue.toLowerCase());
+      }
+      
+      let attempt = 0;
+      const maxAttempts = 3;
+      
+      while (allValidActivities.length < neededCount && attempt < maxAttempts) {
+        attempt++;
+        console.log(`[Category Regen] Attempt ${attempt}/${maxAttempts}: Need ${neededCount - allValidActivities.length} more venues`);
+        
+        // Generate suggestions for this specific category
+        const suggestions = await generateActivitySuggestions({
+          locationBase: group.locationBase,
+          budgetMin: group.budgetMin,
+          budgetMax: group.budgetMax,
+          meetingFrequency: group.meetingFrequency,
+          availability: group.availability,
+          closenessLevel: group.closenessLevel,
+          noveltyPreference: group.noveltyPreference,
+          activityCategories: group.activityCategories || undefined,
+          pastPreferences: group.pastPreferences || undefined,
+          additionalInstructions: group.additionalInstructions || undefined,
+          searchRadius: group.searchRadius || undefined,
+          previousFeedback: previousFeedback.length > 0 ? previousFeedback : undefined,
+          votingFeedback: votingFeedback.length > 0 ? votingFeedback : undefined,
+          likedConcepts: likedConcepts.length > 0 ? likedConcepts : undefined,
+          passedConcepts: passedConcepts.length > 0 ? passedConcepts : undefined,
+          previouslySuggestedVenues: currentVenueNames || [],
+          targetCategories: [category],
+        });
 
-      console.log(`[Category Regen] Got ${suggestions.length} suggestions for ${category}`);
+        console.log(`[Category Regen] Attempt ${attempt}: Got ${suggestions.length} suggestions for ${category}`);
 
-      // Enrich with Google Places
-      const enrichedActivities = await Promise.all(
+        // Enrich with Google Places
+        const enrichedActivities = await Promise.all(
         suggestions.map(async (suggestion) => {
           const places = await searchPlaces(
             suggestion.searchQuery,
@@ -515,7 +554,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           });
 
-          const finalPlaces = qualityFiltered.length > 0 ? qualityFiltered : places;
+          // Only use venues that meet quality standards - no fallback to low-quality venues
+          const finalPlaces = qualityFiltered;
 
           // Search for complementary places
           let complementaryPlace = null;
@@ -571,22 +611,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
       );
 
-      const validActivities = enrichedActivities.filter(a => a !== null);
-      console.log(`[Category Regen] Got ${validActivities.length} enriched activities`);
+        const validActivities = enrichedActivities.filter(a => a !== null);
+        console.log(`[Category Regen] Attempt ${attempt}: Got ${validActivities.length} enriched activities`);
+        
+        // Add unique activities to our collection
+        for (const activity of validActivities) {
+          const venueKey = activity.googlePlaceId || activity.venueName.toLowerCase();
+          if (!seenVenues.has(venueKey) && allValidActivities.length < neededCount) {
+            seenVenues.add(venueKey);
+            allValidActivities.push(activity);
+            console.log(`[Category Regen] Added unique venue: ${activity.venueName} (${allValidActivities.length}/${neededCount})`);
+          }
+        }
+        
+        console.log(`[Category Regen] After attempt ${attempt}: Have ${allValidActivities.length}/${neededCount} venues`);
+      }
+      
+      console.log(`[Category Regen] Retry complete: Collected ${allValidActivities.length}/${neededCount} valid activities`);
+      
+      // Check if we successfully collected enough venues
+      if (allValidActivities.length < neededCount) {
+        const errorMsg = `Could not find enough quality venues after ${maxAttempts} attempts. Found ${allValidActivities.length}/${neededCount} venues. Try adjusting search radius or preferences.`;
+        console.error(`[Category Regen] ${errorMsg}`);
+        return res.status(400).json({ message: errorMsg });
+      }
 
-      // Delete unchecked activities in this category and count checked ones
-      const checkedIds = new Set(checkedActivityIds || []);
+      // Delete unchecked activities in this category
       const uncheckedActivities = [];
-      let checkedCount = 0;
       
       for (const a of existingActivities) {
         const activityCategory = await categorizeVenue(a.venueType);
-        if (activityCategory === category) {
-          if (checkedIds.has(a.id)) {
-            checkedCount++;
-          } else {
-            uncheckedActivities.push(a);
-          }
+        if (activityCategory === category && !checkedIds.has(a.id)) {
+          uncheckedActivities.push(a);
         }
       }
 
@@ -600,11 +656,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Insert new activities to reach exactly 3 total for this category
       const newActivities = [];
-      const neededCount = 3 - checkedCount;
-      console.log(`[Category Regen] Need ${neededCount} new activities to reach 3 total (have ${checkedCount} checked)`);
+      console.log(`[Category Regen] Inserting ${Math.min(neededCount, allValidActivities.length)}/${neededCount} new activities`);
       
-      for (let i = 0; i < Math.min(neededCount, validActivities.length); i++) {
-        const activityData = validActivities[i];
+      for (let i = 0; i < Math.min(neededCount, allValidActivities.length); i++) {
+        const activityData = allValidActivities[i];
         const activityCategory = await categorizeVenue(activityData.venueType);
         const newActivity = await storage.createActivity({
           ...activityData,
@@ -614,7 +669,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         newActivities.push(newActivity);
       }
 
-      console.log(`[Category Regen] Created ${newActivities.length} new activities. Category now has ${checkedCount + newActivities.length}/3 cards`);
+      const finalCount = checkedCount + newActivities.length;
+      console.log(`[Category Regen] Created ${newActivities.length} new activities. Category now has ${finalCount}/3 cards`);
 
       res.json(newActivities);
     } catch (error: any) {
@@ -1058,8 +1114,8 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
             }
           });
           
-          // Use quality-filtered results, fallback to original if all filtered out
-          const finalPlaces = qualityFiltered.length > 0 ? qualityFiltered : places;
+          // Only use venues that meet quality standards - no fallback to low-quality venues
+          const finalPlaces = qualityFiltered;
           
           // Also search for complementary food places if suggested
           let complementaryPlace = null;
