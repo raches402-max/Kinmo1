@@ -190,9 +190,9 @@ export async function generateActivitySuggestions(groupData: {
       avoidVenuesContext = `\n\nIMPORTANT - DO NOT suggest these venues again (already suggested): ${groupData.previouslySuggestedVenues.join(', ')}`;
     }
 
-    const prompt = `You are an expert activity planner. Generate 45 activity suggestions for a group with these preferences:
+    const prompt = `You are an expert activity planner. Generate 75 activity suggestions for a group with these preferences:
 
-NOTE: You will generate 45 suggestions, but only 9 will be shown to the user after removing duplicates. This ensures 9 unique venues even if Google Places returns the same restaurant for multiple search queries.
+NOTE: You will generate 75 suggestions, but only 15 will be shown to the user after removing duplicates (aiming for 3 per category). This ensures 15 unique venues even if Google Places returns the same restaurant for multiple search queries.
 
 Location: ${groupData.locationBase}
 Budget Range: $${groupData.budgetMin}-${groupData.budgetMax} per person
@@ -211,13 +211,13 @@ ${groupData.additionalInstructions ? `🚨 CRITICAL - USER INSTRUCTIONS MODE (AB
 - The user has provided specific instructions in the text box above
 - IGNORE ALL OTHER CONTEXT: Activity Interests, Past Preferences, Voting Feedback, and Swipe Feedback are NOT relevant
 - ONLY focus on what the user typed in the USER INSTRUCTIONS
-- If they specify a venue type (like "Boba", "Sushi", "Pizza", "Korean BBQ"), generate ALL 45 suggestions of that exact type
+- If they specify a venue type (like "Boba", "Sushi", "Pizza", "Korean BBQ"), generate ALL 75 suggestions of that exact type
 - If they provide general guidance (like "something fun", "adventurous"), maintain diversity while matching the theme
 - Use your natural language understanding to distinguish between specific venue types vs. general preferences` : `CRITICAL - How to interpret preferences:
 - If Activity Interests are specified, prioritize those activity types
 - Analyze Past Preferences to understand venue types they prefer
 - Consider Voting Feedback and Swipe Feedback to refine suggestions
-- Maintain diversity across time categories (12 QUICK + 27 STANDARD + 6 LARGE distribution)`}
+- Maintain diversity across time categories (20 QUICK + 45 STANDARD + 10 LARGE distribution)`}
 
 CRITICAL - Time-Based Organization Strategy (ONLY applies when user provides GENERAL guidance):
 - Suggestions will be organized by TIME COMMITMENT:
@@ -225,9 +225,9 @@ CRITICAL - Time-Based Organization Strategy (ONLY applies when user provides GEN
   * STANDARD (1-3 hours): Full meals (breakfast, lunch, dinner) - the main event
   * LARGE (4+ hours): Activities, hikes, shows, museums - commitment required
 - MANDATORY DISTRIBUTION (only when user gives GENERAL guidance):
-  * 12 QUICK suggestions (boba tea shops, cocktail bars, ice cream parlors, coffee shops, wine bars, dessert cafes)
-  * 27 STANDARD suggestions (restaurants - various cuisines)
-  * 6 LARGE suggestions (activities, outdoor venues, shows) - only if the group's interests support them, otherwise add more QUICK or STANDARD
+  * 20 QUICK suggestions (boba tea shops, cocktail bars, ice cream parlors, coffee shops, wine bars, dessert cafes)
+  * 45 STANDARD suggestions (restaurants - various cuisines)
+  * 10 LARGE suggestions (activities, outdoor venues, shows) - only if the group's interests support them, otherwise add more QUICK or STANDARD
 - CRITICAL: QUICK items are STANDALONE main venue suggestions, NOT complementary options
 - Think of QUICK venues as pre-dinner drinks or post-dinner dessert spots - they complement the main meal but are separate experiences
 
@@ -237,12 +237,12 @@ ${!groupData.additionalInstructions ? `CRITICAL - Novelty Preference Strategy:
 - Mark NEW suggestions with "NEW:" prefix in reasoning` : ''}
 
 Requirements:
-1. ${groupData.additionalInstructions ? `🚨 FOLLOW ONLY THE USER INSTRUCTIONS ABOVE - Ignore all other context (Activity Interests, Past Preferences, Feedback). If they specify a venue type (like "Boba"), generate ALL 45 of that type. If they give general guidance, maintain diversity while matching the theme.` : (!groupData.pastPreferences && (!groupData.activityCategories || groupData.activityCategories.length === 0) ? `🌍 CULTURAL DIVERSITY FOR NEW GROUPS: This group has NO past preferences or activity interests. Ensure MAXIMUM CULTURAL DIVERSITY across ALL 45 suggestions. DO NOT bias toward any single cuisine type (Asian, Italian, Mexican, etc.). Mix: American, Italian, Mexican, Japanese, Korean, Thai, Vietnamese, Indian, Mediterranean, French, Chinese, etc. Spread cuisines evenly.` : 'Use Activity Interests, Past Preferences, and Feedback to guide suggestions')}
+1. ${groupData.additionalInstructions ? `🚨 FOLLOW ONLY THE USER INSTRUCTIONS ABOVE - Ignore all other context (Activity Interests, Past Preferences, Feedback). If they specify a venue type (like "Boba"), generate ALL 75 of that type. If they give general guidance, maintain diversity while matching the theme.` : (!groupData.pastPreferences && (!groupData.activityCategories || groupData.activityCategories.length === 0) ? `🌍 CULTURAL DIVERSITY FOR NEW GROUPS: This group has NO past preferences or activity interests. Ensure MAXIMUM CULTURAL DIVERSITY across ALL 75 suggestions. DO NOT bias toward any single cuisine type (Asian, Italian, Mexican, etc.). Mix: American, Italian, Mexican, Japanese, Korean, Thai, Vietnamese, Indian, Mediterranean, French, Chinese, etc. Spread cuisines evenly.` : 'Use Activity Interests, Past Preferences, and Feedback to guide suggestions')}
 2. ${!groupData.additionalInstructions && groupData.activityCategories && groupData.activityCategories.length > 0 ? `PRIORITIZE the Activity Interests - these are the types of activities the group specifically wants` : ''}
 3. ${!groupData.additionalInstructions && groupData.pastPreferences ? 'ANALYZE Past Preferences to identify venue TYPES they prefer (restaurants, bars, cafes, activities, etc.)' : ''}
 4. ${!groupData.additionalInstructions && groupData.pastPreferences ? 'PRIORITIZE suggesting the same TYPES of venues they\'ve enjoyed historically' : ''}
 5. 🚨 CRITICAL - NEVER SUGGEST AIRPORT VENUES: DO NOT suggest any venues located inside airports (terminals, gates, etc.) UNLESS the user EXPLICITLY asks for "airport activities" or "activities inside an airport". Airport restaurants, cafes, and shops are BANNED unless specifically requested.
-6. Suggest 45 specific types of venues/activities (not specific business names) - we'll show 9 after deduplication
+6. Suggest 75 specific types of venues/activities (not specific business names) - we'll show 15 after deduplication (aiming for 3 per category: MEAL, CAFES, DRINKS, DESSERT, EXPERIENCES)
 7. Each suggestion should fit within the budget range
 8. CRITICAL - BE SPECIFIC WITH CUISINE TYPES:
    - NEVER use broad categories like "Asian restaurants" or "Asian food"
