@@ -803,19 +803,46 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
             groupData.searchRadius || 2 // Use group's search radius (default 2 miles)
           );
           
+          // Apply quality filtering based on search radius
+          // Farther venues must have higher ratings and review counts
+          const searchRadius = groupData.searchRadius || 2;
+          const qualityFiltered = places.filter(place => {
+            const rating = parseFloat(place.rating || '0');
+            const reviewCount = place.reviewCount || 0;
+            
+            // Quality requirements by tier:
+            // < 2 miles (Nearby): 3.0+ stars, 5+ reviews
+            // < 10 miles (Citywide): 3.5+ stars, 20+ reviews
+            // < 30 miles (Special Trip): 4.0+ stars, 50+ reviews
+            // < 50 miles (Road Trip): 4.2+ stars, 100+ reviews
+            
+            if (searchRadius <= 2) {
+              return rating >= 3.0 && reviewCount >= 5;
+            } else if (searchRadius <= 10) {
+              return rating >= 3.5 && reviewCount >= 20;
+            } else if (searchRadius <= 30) {
+              return rating >= 4.0 && reviewCount >= 50;
+            } else {
+              return rating >= 4.2 && reviewCount >= 100;
+            }
+          });
+          
+          // Use quality-filtered results, fallback to original if all filtered out
+          const finalPlaces = qualityFiltered.length > 0 ? qualityFiltered : places;
+          
           // Also search for complementary food places if suggested
           let complementaryPlace = null;
           let complementaryPlace2 = null;
-          if (suggestion.complementaryFoodPlace && places.length > 0 && places[0].location) {
+          if (suggestion.complementaryFoodPlace && finalPlaces.length > 0 && finalPlaces[0].location) {
             // Use nearby search with distance and rating constraints (<0.5 miles, 3.5+ stars)
             const foodPlaces = await searchNearbyPlaces(
               suggestion.complementaryFoodPlace,
-              places[0].location,
+              finalPlaces[0].location,
               805, // 0.5 miles in meters
               3.5  // minimum rating
             );
             // Filter out the main venue from complementary results (avoid suggesting venue as its own complement)
-            const validFoodPlaces = foodPlaces.filter(fp => fp.placeId !== places[0].placeId);
+            const validFoodPlaces = foodPlaces.filter(fp => fp.placeId !== finalPlaces[0].placeId);
             if (validFoodPlaces.length > 0) {
               complementaryPlace = validFoodPlaces[0];
             }
@@ -824,8 +851,8 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
             }
           }
           
-          if (places.length > 0) {
-            const place = places[0];
+          if (finalPlaces.length > 0) {
+            const place = finalPlaces[0];
             return {
               groupId,
               aiSuggestedName: suggestion.venueName, // Store what AI originally suggested
