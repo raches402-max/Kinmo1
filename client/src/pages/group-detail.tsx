@@ -1403,33 +1403,45 @@ export default function GroupDetail() {
               <div className="mb-4">
                 <div className="flex items-center gap-3">
                   <span className="text-lg">📍</span>
-                  <div className="flex-1 relative">
-                    <Slider
-                      value={[
-                        group?.searchRadius === 2 ? 0 :
-                        group?.searchRadius === 10 ? 1 :
-                        group?.searchRadius === 30 ? 2 : 3
-                      ]}
-                      onValueChange={(value) => {
-                        const radiusMap = [2, 10, 30, 50];
-                        const newRadius = radiusMap[value[0]];
-                        if (newRadius !== group?.searchRadius) {
-                          updateRadiusMutation.mutate({ searchRadius: newRadius });
-                        }
-                      }}
-                      max={3}
-                      step={1}
-                      className="w-full"
-                      disabled={updateRadiusMutation.isPending}
-                      data-testid="slider-search-radius"
-                    />
-                    <div className="flex justify-between mt-1">
-                      <span className="text-xs text-muted-foreground">2mi</span>
-                      <span className="text-xs text-muted-foreground">10mi</span>
-                      <span className="text-xs text-muted-foreground">30mi</span>
-                      <span className="text-xs text-muted-foreground">50mi</span>
-                    </div>
-                  </div>
+                  <HoverCard>
+                    <HoverCardTrigger asChild>
+                      <div className="flex-1 relative cursor-pointer">
+                        <Slider
+                          value={[
+                            group?.searchRadius === 2 ? 0 :
+                            group?.searchRadius === 10 ? 1 :
+                            group?.searchRadius === 30 ? 2 : 3
+                          ]}
+                          onValueChange={(value) => {
+                            const radiusMap = [2, 10, 30, 50];
+                            const newRadius = radiusMap[value[0]];
+                            if (newRadius !== group?.searchRadius) {
+                              updateRadiusMutation.mutate({ searchRadius: newRadius });
+                            }
+                          }}
+                          max={3}
+                          step={1}
+                          className="w-full"
+                          disabled={updateRadiusMutation.isPending}
+                          data-testid="slider-search-radius"
+                        />
+                        <div className="flex justify-between mt-1">
+                          <span className="text-xs text-muted-foreground">2mi</span>
+                          <span className="text-xs text-muted-foreground">10mi</span>
+                          <span className="text-xs text-muted-foreground">30mi</span>
+                          <span className="text-xs text-muted-foreground">50mi</span>
+                        </div>
+                      </div>
+                    </HoverCardTrigger>
+                    <HoverCardContent className="w-auto p-2" side="top">
+                      <p className="text-sm">
+                        {group?.searchRadius === 2 && "📍 Nearby (< 2 miles)"}
+                        {group?.searchRadius === 10 && "🏙️ Citywide (< 10 miles)"}
+                        {group?.searchRadius === 30 && "🚗 Special Trip (< 30 miles)"}
+                        {group?.searchRadius === 50 && "🛣️ Road Trip (< 50 miles)"}
+                      </p>
+                    </HoverCardContent>
+                  </HoverCard>
                   <span className="text-lg">🛣️</span>
                 </div>
               </div>
