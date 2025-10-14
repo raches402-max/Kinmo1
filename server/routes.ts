@@ -873,29 +873,86 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
         // Create a unique key based on Google Place ID (if available) or venue name
         const venueKey = activity.googlePlaceId || activity.venueName.toLowerCase();
         
-        if (!seenVenues.has(venueKey) && allUniqueActivities.length < 9) {
+        if (!seenVenues.has(venueKey) && allUniqueActivities.length < 15) {
           seenVenues.add(venueKey);
           allUniqueActivities.push(activity);
-          console.log(`[AI Generation] Added unique venue: ${activity.venueName} (${allUniqueActivities.length}/9)`);
+          console.log(`[AI Generation] Added unique venue: ${activity.venueName} (${allUniqueActivities.length}/15)`);
         } else if (seenVenues.has(venueKey)) {
           console.log(`[AI Generation] Skipping duplicate venue: ${activity.venueName}`);
         }
       }
       
-      console.log(`[AI Generation] After attempt ${attempt}: Have ${allUniqueActivities.length}/9 unique activities`);
+      console.log(`[AI Generation] After attempt ${attempt}: Have ${allUniqueActivities.length}/15 unique activities`);
+      
+      // After each attempt, check category distribution if we have activities but aren't done yet
+      if (allUniqueActivities.length > 0 && allUniqueActivities.length < 15 && attempt < maxAttempts) {
+        // First, categorize what we have so far
+        await Promise.all(
+          allUniqueActivities.map(async (activity) => {
+            if (!activity.category) {
+              activity.category = await categorizeVenue(activity.venueType);
+            }
+          })
+        );
+        
+        // Count by category
+        const categoryCounts: Record<string, number> = {
+          meal: 0,
+          cafes: 0,
+          drinks: 0,
+          dessert: 0,
+          experiences: 0
+        };
+        
+        for (const activity of allUniqueActivities) {
+          if (activity.category) {
+            categoryCounts[activity.category] = (categoryCounts[activity.category] || 0) + 1;
+          }
+        }
+        
+        console.log(`[AI Generation] Current category distribution:`, categoryCounts);
+        
+        // Identify underrepresented categories (less than 3)
+        const underrepresentedCategories = Object.entries(categoryCounts)
+          .filter(([_, count]) => count < 3)
+          .map(([category]) => category);
+        
+        if (underrepresentedCategories.length > 0) {
+          console.log(`[AI Generation] Underrepresented categories: ${underrepresentedCategories.join(', ')}`);
+          // We'll use this info in the next attempt (would need to pass to generateActivitySuggestions)
+        }
+      }
     }
 
-    // Store the unique activities (up to 9)
+    // Store the unique activities (up to 15)
     if (allUniqueActivities.length > 0) {
       console.log(`[AI Generation] Categorizing ${allUniqueActivities.length} activities with AI...`);
       
-      // Add AI categorization to each activity in parallel
+      // Add AI categorization to each activity in parallel (for any not yet categorized)
       await Promise.all(
         allUniqueActivities.map(async (activity) => {
-          activity.category = await categorizeVenue(activity.venueType);
+          if (!activity.category) {
+            activity.category = await categorizeVenue(activity.venueType);
+          }
         })
       );
       
+      // Final category distribution logging
+      const finalCategoryCounts: Record<string, number> = {
+        meal: 0,
+        cafes: 0,
+        drinks: 0,
+        dessert: 0,
+        experiences: 0
+      };
+      
+      for (const activity of allUniqueActivities) {
+        if (activity.category) {
+          finalCategoryCounts[activity.category] = (finalCategoryCounts[activity.category] || 0) + 1;
+        }
+      }
+      
+      console.log(`[AI Generation] Final category distribution:`, finalCategoryCounts);
       console.log(`[AI Generation] Storing ${allUniqueActivities.length} unique activities`);
       await storage.createActivities(allUniqueActivities);
     } else {
