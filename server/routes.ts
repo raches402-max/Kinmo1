@@ -503,14 +503,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const rating = parseFloat(place.rating || '0');
             const reviewCount = place.reviewCount || 0;
 
+            // Stricter quality requirements to ensure legitimacy
             if (searchRadius <= 2) {
-              return rating >= 3.0 && reviewCount >= 5;
-            } else if (searchRadius <= 10) {
               return rating >= 3.5 && reviewCount >= 20;
+            } else if (searchRadius <= 10) {
+              return rating >= 3.8 && reviewCount >= 50;
             } else if (searchRadius <= 30) {
-              return rating >= 4.0 && reviewCount >= 50;
+              return rating >= 4.0 && reviewCount >= 100;
             } else {
-              return rating >= 4.2 && reviewCount >= 100;
+              return rating >= 4.2 && reviewCount >= 150;
             }
           });
 
@@ -573,37 +574,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validActivities = enrichedActivities.filter(a => a !== null);
       console.log(`[Category Regen] Got ${validActivities.length} enriched activities`);
 
-      // Delete unchecked activities in this category
+      // Delete unchecked activities in this category and count checked ones
       const checkedIds = new Set(checkedActivityIds || []);
       const uncheckedActivities = [];
+      let checkedCount = 0;
+      
       for (const a of existingActivities) {
         const activityCategory = await categorizeVenue(a.venueType);
-        // Only delete if: (1) matches category AND (2) is NOT checked
-        if (activityCategory === category && !checkedIds.has(a.id)) {
-          uncheckedActivities.push(a);
+        if (activityCategory === category) {
+          if (checkedIds.has(a.id)) {
+            checkedCount++;
+          } else {
+            uncheckedActivities.push(a);
+          }
         }
       }
 
-      console.log(`[Category Regen] Deleting ${uncheckedActivities.length} unchecked activities`);
+      console.log(`[Category Regen] Category has ${checkedCount} checked activities, ${uncheckedActivities.length} unchecked`);
       
       // Delete unchecked activities
       for (const activity of uncheckedActivities) {
         await db.delete(activitiesTable).where(eq(activitiesTable.id, activity.id));
       }
+      console.log(`[Category Regen] Deleted ${uncheckedActivities.length} unchecked activities`);
 
-      // Insert new activities
+      // Insert new activities to reach exactly 3 total for this category
       const newActivities = [];
-      for (const activityData of validActivities) {
-        const category = await categorizeVenue(activityData.venueType);
+      const neededCount = 3 - checkedCount;
+      console.log(`[Category Regen] Need ${neededCount} new activities to reach 3 total (have ${checkedCount} checked)`);
+      
+      for (let i = 0; i < Math.min(neededCount, validActivities.length); i++) {
+        const activityData = validActivities[i];
+        const activityCategory = await categorizeVenue(activityData.venueType);
         const newActivity = await storage.createActivity({
           ...activityData,
           groupId: req.params.id,
-          category,
+          category: activityCategory,
         });
         newActivities.push(newActivity);
       }
 
-      console.log(`[Category Regen] Created ${newActivities.length} new activities`);
+      console.log(`[Category Regen] Created ${newActivities.length} new activities. Category now has ${checkedCount + newActivities.length}/3 cards`);
 
       res.json(newActivities);
     } catch (error: any) {
@@ -963,10 +974,30 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
     const allUniqueActivities: any[] = [];
     const seenVenues = new Set<string>(); // Track across all attempts
     let attempt = 0;
-    const maxAttempts = 3; // Try up to 3 times (30 suggestions each = 90 total) to ensure 15 unique cards
+    const maxAttempts = 5; // Try up to 5 times to ensure exactly 3 cards per category
     let targetCategories: string[] | undefined = undefined; // For targeted retry
+    
+    // Helper function to check if we have exactly 3 cards per category
+    const hasBalancedDistribution = (activities: any[]): boolean => {
+      const categoryCounts: Record<string, number> = {
+        meal: 0,
+        cafes: 0,
+        drinks: 0,
+        dessert: 0,
+        experiences: 0
+      };
+      
+      for (const activity of activities) {
+        if (activity.category) {
+          categoryCounts[activity.category] = (categoryCounts[activity.category] || 0) + 1;
+        }
+      }
+      
+      // All categories must have exactly 3 cards
+      return Object.values(categoryCounts).every(count => count >= 3);
+    };
 
-    while (allUniqueActivities.length < 15 && attempt < maxAttempts) {
+    while (!hasBalancedDistribution(allUniqueActivities) && attempt < maxAttempts) {
       attempt++;
       const needed = 15 - allUniqueActivities.length;
       console.log(`[AI Generation] Attempt ${attempt}/${maxAttempts}: Need ${needed} more unique activities (have ${allUniqueActivities.length})`);
@@ -1010,20 +1041,20 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
             const rating = parseFloat(place.rating || '0');
             const reviewCount = place.reviewCount || 0;
             
-            // Quality requirements by tier:
-            // < 2 miles (Nearby): 3.0+ stars, 5+ reviews
-            // < 10 miles (Citywide): 3.5+ stars, 20+ reviews
-            // < 30 miles (Special Trip): 4.0+ stars, 50+ reviews
-            // < 50 miles (Road Trip): 4.2+ stars, 100+ reviews
+            // Quality requirements by tier (stricter to ensure legitimacy):
+            // < 2 miles (Nearby): 3.5+ stars, 20+ reviews
+            // < 10 miles (Citywide): 3.8+ stars, 50+ reviews
+            // < 30 miles (Special Trip): 4.0+ stars, 100+ reviews
+            // < 50 miles (Road Trip): 4.2+ stars, 150+ reviews
             
             if (searchRadius <= 2) {
-              return rating >= 3.0 && reviewCount >= 5;
-            } else if (searchRadius <= 10) {
               return rating >= 3.5 && reviewCount >= 20;
+            } else if (searchRadius <= 10) {
+              return rating >= 3.8 && reviewCount >= 50;
             } else if (searchRadius <= 30) {
-              return rating >= 4.0 && reviewCount >= 50;
+              return rating >= 4.0 && reviewCount >= 100;
             } else {
-              return rating >= 4.2 && reviewCount >= 100;
+              return rating >= 4.2 && reviewCount >= 150;
             }
           });
           
@@ -1123,33 +1154,52 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
 
       console.log(`[AI Generation] Attempt ${attempt}: Created ${activitiesData.length} activities from Google Places`);
       
-      // Add new unique activities from this batch to our collection
+      // First, categorize all new activities
+      await Promise.all(
+        activitiesData.map(async (activity) => {
+          if (!activity.category) {
+            activity.category = await categorizeVenue(activity.venueType);
+          }
+        })
+      );
+      
+      // Count current category distribution
+      const currentCategoryCounts: Record<string, number> = {
+        meal: 0,
+        cafes: 0,
+        drinks: 0,
+        dessert: 0,
+        experiences: 0
+      };
+      
+      for (const activity of allUniqueActivities) {
+        if (activity.category) {
+          currentCategoryCounts[activity.category] = (currentCategoryCounts[activity.category] || 0) + 1;
+        }
+      }
+      
+      // Add new unique activities from this batch, respecting category limits (max 3 per category)
       for (const activity of activitiesData) {
         // Create a unique key based on Google Place ID (if available) or venue name
         const venueKey = activity.googlePlaceId || activity.venueName.toLowerCase();
+        const category = activity.category;
         
-        if (!seenVenues.has(venueKey) && allUniqueActivities.length < 15) {
+        if (!seenVenues.has(venueKey) && category && currentCategoryCounts[category] < 3) {
           seenVenues.add(venueKey);
           allUniqueActivities.push(activity);
-          console.log(`[AI Generation] Added unique venue: ${activity.venueName} (${allUniqueActivities.length}/15)`);
+          currentCategoryCounts[category]++;
+          console.log(`[AI Generation] Added unique venue: ${activity.venueName} [${category.toUpperCase()}] (${currentCategoryCounts[category]}/3 in category)`);
         } else if (seenVenues.has(venueKey)) {
           console.log(`[AI Generation] Skipping duplicate venue: ${activity.venueName}`);
+        } else if (category && currentCategoryCounts[category] >= 3) {
+          console.log(`[AI Generation] Skipping ${activity.venueName} - ${category.toUpperCase()} category already has 3 cards`);
         }
       }
       
       console.log(`[AI Generation] After attempt ${attempt}: Have ${allUniqueActivities.length}/15 unique activities`);
       
-      // After each attempt, check category distribution if we have activities but aren't done yet
-      if (allUniqueActivities.length > 0 && allUniqueActivities.length < 15 && attempt < maxAttempts) {
-        // First, categorize what we have so far
-        await Promise.all(
-          allUniqueActivities.map(async (activity) => {
-            if (!activity.category) {
-              activity.category = await categorizeVenue(activity.venueType);
-            }
-          })
-        );
-        
+      // After each attempt, check category distribution if we aren't done yet
+      if (!hasBalancedDistribution(allUniqueActivities) && attempt < maxAttempts) {
         // Count by category
         const categoryCounts: Record<string, number> = {
           meal: 0,
@@ -1178,7 +1228,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
           targetCategories = underrepresentedCategories;
           console.log(`[AI Generation] 🎯 Next attempt will target: ${targetCategories.join(', ')}`);
         } else {
-          console.log(`[AI Generation] ✅ All categories have at least 3 cards - balanced distribution achieved!`);
+          console.log(`[AI Generation] ✅ All categories have exactly 3 cards - balanced distribution achieved!`);
         }
       }
     }
