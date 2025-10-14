@@ -63,6 +63,7 @@ export async function generateActivitySuggestions(groupData: {
   likedConcepts?: string[];
   passedConcepts?: string[];
   previouslySuggestedVenues?: string[];
+  targetCategories?: string[]; // NEW: For category-specific generation
 }): Promise<ActivitySuggestion[]> {
   try {
     // Generate 75 suggestions to account for duplicates after Google Places enrichment
@@ -190,6 +191,28 @@ export async function generateActivitySuggestions(groupData: {
       avoidVenuesContext = `\n\nIMPORTANT - DO NOT suggest these venues again (already suggested): ${groupData.previouslySuggestedVenues.join(', ')}`;
     }
 
+    // Format target categories for focused generation
+    let targetCategoriesContext = '';
+    if (groupData.targetCategories && groupData.targetCategories.length > 0) {
+      const categoryDescriptions: Record<string, string> = {
+        'meal': 'MEAL venues (restaurants, brunch spots, food markets, food halls)',
+        'cafes': 'CAFES (coffee shops, cafes)',
+        'drinks': 'DRINKS (bars, cocktail lounges, breweries, wine bars)',
+        'dessert': 'DESSERT (boba, ice cream, dessert shops)',
+        'experiences': 'EXPERIENCES (museums, parks, concerts, activities)'
+      };
+      
+      const targetDescriptions = groupData.targetCategories
+        .map(cat => categoryDescriptions[cat] || cat)
+        .join(', ');
+      
+      targetCategoriesContext = `\n\n🎯 CRITICAL - TARGETED CATEGORY GENERATION:
+- We need MORE suggestions in these specific categories: ${targetDescriptions}
+- Generate ALL 75 suggestions focused ONLY on these categories
+- Distribute the 75 suggestions across ONLY the target categories (ignore balanced distribution)
+- This is a retry to fill gaps - prioritize these categories above all else`;
+    }
+
     const prompt = `You are an expert activity planner. Generate 75 activity suggestions for a group with these preferences:
 
 NOTE: You will generate 75 suggestions, but only 15 will be shown to the user after removing duplicates (aiming for 3 per category). This ensures 15 unique venues even if Google Places returns the same restaurant for multiple search queries.
@@ -199,7 +222,7 @@ Budget Range: $${groupData.budgetMin}-${groupData.budgetMax} per person
 Meeting Frequency: ${groupData.meetingFrequency}
 Usual Availability: ${availabilityText}
 ${groupData.additionalInstructions ? `\n🚨 USER INSTRUCTIONS (OVERRIDES EVERYTHING): ${groupData.additionalInstructions}` : `${categoriesContext}
-${groupData.pastPreferences ? `Past Preferences: ${groupData.pastPreferences}` : ''}${feedbackContext}${votingContext}${swipeContext}`}${avoidVenuesContext}
+${groupData.pastPreferences ? `Past Preferences: ${groupData.pastPreferences}` : ''}${feedbackContext}${votingContext}${swipeContext}`}${avoidVenuesContext}${targetCategoriesContext}
 
 CRITICAL - Availability Constraint:
 - The group is ONLY available during: ${availabilityText}
@@ -422,15 +445,15 @@ Return your response as a JSON object with this structure:
     });
 
     const result = JSON.parse(response.choices[0].message.content || '{}');
-    console.log(`[OpenAI] Received response with ${result.suggestions?.length || 0} suggestions (will show 9 after deduplication)`);
+    console.log(`[OpenAI] Received response with ${result.suggestions?.length || 0} suggestions (will show 15 after deduplication)`);
     console.log(`[OpenAI] Raw response:`, JSON.stringify(result, null, 2));
     
     if (!result.suggestions || result.suggestions.length === 0) {
       throw new Error("OpenAI returned no activity suggestions. The response may be empty or malformed.");
     }
     
-    if (result.suggestions.length < 45) {
-      console.warn(`[OpenAI] Warning: Only received ${result.suggestions.length} suggestions instead of 45 - may result in fewer than 9 unique activities after deduplication`);
+    if (result.suggestions.length < 75) {
+      console.warn(`[OpenAI] Warning: Only received ${result.suggestions.length} suggestions instead of 75 - may result in fewer than 15 unique activities after deduplication`);
     }
     
     return result.suggestions;

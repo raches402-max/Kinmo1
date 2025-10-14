@@ -745,6 +745,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
     const seenVenues = new Set<string>(); // Track across all attempts
     let attempt = 0;
     const maxAttempts = 3; // Try up to 3 times (75 suggestions each = 225 total) to ensure 15 unique cards
+    let targetCategories: string[] | undefined = undefined; // For targeted retry
 
     while (allUniqueActivities.length < 15 && attempt < maxAttempts) {
       attempt++;
@@ -768,6 +769,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
         likedConcepts: likedConcepts.length > 0 ? likedConcepts : undefined,
         passedConcepts: passedConcepts.length > 0 ? passedConcepts : undefined,
         previouslySuggestedVenues: previouslySuggestedVenues.length > 0 ? previouslySuggestedVenues : undefined,
+        targetCategories: targetCategories, // Pass underrepresented categories on retry
       });
 
       console.log(`[AI Generation] Attempt ${attempt}: Received ${suggestions.length} suggestions from OpenAI`);
@@ -919,7 +921,8 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
         
         if (underrepresentedCategories.length > 0) {
           console.log(`[AI Generation] Underrepresented categories: ${underrepresentedCategories.join(', ')}`);
-          // We'll use this info in the next attempt (would need to pass to generateActivitySuggestions)
+          // Set target categories for next attempt
+          targetCategories = underrepresentedCategories;
         }
       }
     }
