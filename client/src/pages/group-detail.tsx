@@ -1399,32 +1399,38 @@ export default function GroupDetail() {
                 }
               </p>
               
-              {/* Search Radius Selector */}
+              {/* Search Radius Slider */}
               <div className="mb-4">
-                <Label className="text-sm font-medium mb-2 block">Search Radius</Label>
-                <div className="grid grid-cols-4 gap-2">
-                  {[
-                    { value: 2, label: "Nearby", desc: "< 2 miles", icon: "📍" },
-                    { value: 10, label: "Citywide", desc: "< 10 miles", icon: "🏙️" },
-                    { value: 30, label: "Special Trip", desc: "< 30 miles", icon: "🚗" },
-                    { value: 50, label: "Road Trip", desc: "< 50 miles", icon: "🛣️" },
-                  ].map((tier) => (
-                    <Button
-                      key={tier.value}
-                      variant={group?.searchRadius === tier.value ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => {
-                        updateRadiusMutation.mutate({ searchRadius: tier.value });
+                <div className="flex items-center gap-3">
+                  <span className="text-lg">📍</span>
+                  <div className="flex-1 relative">
+                    <Slider
+                      value={[
+                        group?.searchRadius === 2 ? 0 :
+                        group?.searchRadius === 10 ? 1 :
+                        group?.searchRadius === 30 ? 2 : 3
+                      ]}
+                      onValueChange={(value) => {
+                        const radiusMap = [2, 10, 30, 50];
+                        const newRadius = radiusMap[value[0]];
+                        if (newRadius !== group?.searchRadius) {
+                          updateRadiusMutation.mutate({ searchRadius: newRadius });
+                        }
                       }}
+                      max={3}
+                      step={1}
+                      className="w-full"
                       disabled={updateRadiusMutation.isPending}
-                      className="flex flex-col h-auto py-2 px-2"
-                      data-testid={`button-radius-${tier.value}`}
-                    >
-                      <span className="text-base mb-1">{tier.icon}</span>
-                      <span className="text-xs font-semibold">{tier.label}</span>
-                      <span className="text-xs opacity-70">{tier.desc}</span>
-                    </Button>
-                  ))}
+                      data-testid="slider-search-radius"
+                    />
+                    <div className="flex justify-between mt-1">
+                      <span className="text-xs text-muted-foreground">2mi</span>
+                      <span className="text-xs text-muted-foreground">10mi</span>
+                      <span className="text-xs text-muted-foreground">30mi</span>
+                      <span className="text-xs text-muted-foreground">50mi</span>
+                    </div>
+                  </div>
+                  <span className="text-lg">🛣️</span>
                 </div>
               </div>
               
