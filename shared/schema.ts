@@ -33,6 +33,8 @@ export const groups = pgTable("groups", {
   name: text("name").notNull(),
   emoji: text("emoji").default("🎉"), // Group emoji icon
   locationBase: text("location_base").notNull(),
+  latitude: text("latitude"), // Geocoded latitude from locationBase
+  longitude: text("longitude"), // Geocoded longitude from locationBase
   budgetMin: integer("budget_min").notNull(),
   budgetMax: integer("budget_max").notNull(),
   meetingFrequency: text("meeting_frequency").notNull(), // weekly, biweekly, monthly

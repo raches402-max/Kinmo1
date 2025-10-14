@@ -2,6 +2,44 @@ import { Client } from "@googlemaps/google-maps-services-js";
 
 const client = new Client({});
 
+export interface GeocodeResult {
+  latitude: number;
+  longitude: number;
+  formattedAddress: string;
+}
+
+export async function geocodeLocation(location: string): Promise<GeocodeResult | null> {
+  try {
+    if (!process.env.GOOGLE_PLACES_API_KEY) {
+      throw new Error("GOOGLE_PLACES_API_KEY is not set");
+    }
+
+    const response = await client.geocode({
+      params: {
+        address: location,
+        key: process.env.GOOGLE_PLACES_API_KEY,
+      },
+    });
+
+    if (!response.data.results || response.data.results.length === 0) {
+      console.error(`Geocoding failed for location: ${location}`);
+      return null;
+    }
+
+    const result = response.data.results[0];
+    const { lat, lng } = result.geometry.location;
+
+    return {
+      latitude: lat,
+      longitude: lng,
+      formattedAddress: result.formatted_address,
+    };
+  } catch (error) {
+    console.error("Error geocoding location:", error);
+    return null;
+  }
+}
+
 export interface PlaceResult {
   placeId: string;
   name: string;
@@ -18,7 +56,8 @@ export interface PlaceResult {
 export async function searchPlaces(
   query: string,
   location: string,
-  radiusMiles: number = 2
+  radiusMiles: number = 2,
+  coordinates?: { lat: number; lng: number }
 ): Promise<PlaceResult[]> {
   try {
     if (!process.env.GOOGLE_PLACES_API_KEY) {
@@ -28,12 +67,19 @@ export async function searchPlaces(
     // Convert miles to meters (1 mile = 1609.34 meters)
     const radiusMeters = Math.round(radiusMiles * 1609.34);
 
+    // If coordinates are provided, use them for more precise search
+    const searchParams: any = {
+      query: coordinates ? query : `${query} in ${location}`,
+      key: process.env.GOOGLE_PLACES_API_KEY,
+    };
+    
+    if (coordinates) {
+      searchParams.location = coordinates;
+      searchParams.radius = radiusMeters;
+    }
+
     const response = await client.textSearch({
-      params: {
-        query: `${query} in ${location}`,
-        radius: radiusMeters,
-        key: process.env.GOOGLE_PLACES_API_KEY,
-      },
+      params: searchParams,
     });
 
     if (!response.data.results || response.data.results.length === 0) {

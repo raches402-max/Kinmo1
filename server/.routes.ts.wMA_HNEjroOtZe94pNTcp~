@@ -91,19 +91,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const validatedUpdates = updateGroupSchema.parse(req.body);
-      
-      // If location is being updated, geocode it
-      if (validatedUpdates.locationBase) {
-        const geocoded = await geocodeLocation(validatedUpdates.locationBase);
-        if (geocoded) {
-          validatedUpdates.latitude = geocoded.latitude.toString();
-          validatedUpdates.longitude = geocoded.longitude.toString();
-          console.log(`Geocoded location update: ${validatedUpdates.locationBase} -> (${geocoded.latitude}, ${geocoded.longitude})`);
-        } else {
-          console.warn(`Failed to geocode location: ${validatedUpdates.locationBase}`);
-        }
-      }
-      
       const updatedGroup = await storage.updateGroup(req.params.id, validatedUpdates);
       res.json(updatedGroup);
     } catch (error: any) {
@@ -261,14 +248,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Only check Google Places if not explicitly skipping
       if (!skipEnrichmentCheck) {
         try {
-          const coordinates = group.latitude && group.longitude 
-            ? { lat: parseFloat(group.latitude), lng: parseFloat(group.longitude) }
-            : undefined;
           const places = await searchPlaces(
             validatedEvent.title, 
             group.locationBase,
-            group.searchRadius || 2, // Use group's search radius
-            coordinates
+            group.searchRadius || 2 // Use group's search radius
           );
           
           // Merge Google Places data if found
@@ -556,16 +539,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`[Category Regen] Attempt ${attempt}: Got ${suggestions.length} suggestions for ${category}`);
 
         // Enrich with Google Places
-        const coordinates = group.latitude && group.longitude 
-          ? { lat: parseFloat(group.latitude), lng: parseFloat(group.longitude) }
-          : undefined;
         const enrichedActivities = await Promise.all(
         suggestions.map(async (suggestion) => {
           const places = await searchPlaces(
             suggestion.searchQuery,
             group.locationBase,
-            group.searchRadius || 2,
-            coordinates
+            group.searchRadius || 2
           );
 
           const searchRadius = group.searchRadius || 2;
@@ -1113,16 +1092,12 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       console.log(`[AI Generation] Attempt ${attempt}: Received ${suggestions.length} suggestions from OpenAI`);
 
       // For each suggestion, search Google Places with group's search radius
-      const coordinates = groupData.latitude && groupData.longitude 
-        ? { lat: parseFloat(groupData.latitude), lng: parseFloat(groupData.longitude) }
-        : undefined;
       const activitiesData = await Promise.all(
         suggestions.map(async (suggestion) => {
           const places = await searchPlaces(
             suggestion.searchQuery, 
             groupData.locationBase, 
-            groupData.searchRadius || 2, // Use group's search radius (default 2 miles)
-            coordinates
+            groupData.searchRadius || 2 // Use group's search radius (default 2 miles)
           );
           
           // Apply quality filtering based on search radius
