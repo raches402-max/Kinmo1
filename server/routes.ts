@@ -236,7 +236,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Only check Google Places if not explicitly skipping
       if (!skipEnrichmentCheck) {
         try {
-          const places = await searchPlaces(validatedEvent.title, group.locationBase);
+          const places = await searchPlaces(
+            validatedEvent.title, 
+            group.locationBase,
+            group.searchRadius || 2 // Use group's search radius
+          );
           
           // Merge Google Places data if found
           if (places.length > 0) {
@@ -790,10 +794,14 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
 
       console.log(`[AI Generation] Attempt ${attempt}: Received ${suggestions.length} suggestions from OpenAI`);
 
-      // For each suggestion, search Google Places
+      // For each suggestion, search Google Places with group's search radius
       const activitiesData = await Promise.all(
         suggestions.map(async (suggestion) => {
-          const places = await searchPlaces(suggestion.searchQuery, groupData.locationBase);
+          const places = await searchPlaces(
+            suggestion.searchQuery, 
+            groupData.locationBase, 
+            groupData.searchRadius || 2 // Use group's search radius (default 2 miles)
+          );
           
           // Also search for complementary food places if suggested
           let complementaryPlace = null;

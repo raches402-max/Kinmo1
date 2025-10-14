@@ -17,16 +17,21 @@ export interface PlaceResult {
 
 export async function searchPlaces(
   query: string,
-  location: string
+  location: string,
+  radiusMiles: number = 2
 ): Promise<PlaceResult[]> {
   try {
     if (!process.env.GOOGLE_PLACES_API_KEY) {
       throw new Error("GOOGLE_PLACES_API_KEY is not set");
     }
 
+    // Convert miles to meters (1 mile = 1609.34 meters)
+    const radiusMeters = Math.round(radiusMiles * 1609.34);
+
     const response = await client.textSearch({
       params: {
         query: `${query} in ${location}`,
+        radius: radiusMeters,
         key: process.env.GOOGLE_PLACES_API_KEY,
       },
     });
