@@ -91,8 +91,14 @@ function formatMeetingFrequency(freq: string): string {
 
 type ActivityCategory = 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences';
 
-function getActivityCategory(venueType: string): ActivityCategory {
-  const lowerType = venueType.toLowerCase();
+function getActivityCategory(activity: { venueType: string; category?: string | null }): ActivityCategory {
+  // Use stored AI category if available
+  if (activity.category) {
+    return activity.category as ActivityCategory;
+  }
+  
+  // Fallback to keyword matching for backwards compatibility
+  const lowerType = activity.venueType.toLowerCase();
   
   // Strong meal indicators - if these exist, it's definitely a meal venue
   const mealKeywords = ['restaurant', 'food hall', 'food market', 'kitchen', 'diner', 
@@ -1569,11 +1575,11 @@ export default function GroupDetail() {
                     });
 
                   const groupedByCategory = {
-                    meal: filteredActivities.filter(a => getActivityCategory(a.venueType) === 'meal'),
-                    cafes: filteredActivities.filter(a => getActivityCategory(a.venueType) === 'cafes'),
-                    drinks: filteredActivities.filter(a => getActivityCategory(a.venueType) === 'drinks'),
-                    dessert: filteredActivities.filter(a => getActivityCategory(a.venueType) === 'dessert'),
-                    experiences: filteredActivities.filter(a => getActivityCategory(a.venueType) === 'experiences'),
+                    meal: filteredActivities.filter(a => getActivityCategory(a) === 'meal'),
+                    cafes: filteredActivities.filter(a => getActivityCategory(a) === 'cafes'),
+                    drinks: filteredActivities.filter(a => getActivityCategory(a) === 'drinks'),
+                    dessert: filteredActivities.filter(a => getActivityCategory(a) === 'dessert'),
+                    experiences: filteredActivities.filter(a => getActivityCategory(a) === 'experiences'),
                   };
 
                   const categoryLabels = {

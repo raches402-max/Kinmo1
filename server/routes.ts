@@ -3,7 +3,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema } from "@shared/schema";
-import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime } from "./openai";
+import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue } from "./openai";
 import { searchPlaces, searchNearbyPlaces } from "./google-places";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { validateItinerary } from "./itinerary-validation";
@@ -887,6 +887,15 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
 
     // Store the unique activities (up to 6)
     if (allUniqueActivities.length > 0) {
+      console.log(`[AI Generation] Categorizing ${allUniqueActivities.length} activities with AI...`);
+      
+      // Add AI categorization to each activity in parallel
+      await Promise.all(
+        allUniqueActivities.map(async (activity) => {
+          activity.category = await categorizeVenue(activity.venueType);
+        })
+      );
+      
       console.log(`[AI Generation] Storing ${allUniqueActivities.length} unique activities`);
       await storage.createActivities(allUniqueActivities);
     } else {

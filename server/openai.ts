@@ -529,3 +529,121 @@ Return your response as a JSON object with this structure:
     throw new Error("Failed to generate swipe concepts: " + (error as Error).message);
   }
 }
+
+// AI-based venue categorization for edge cases
+const categorizationCache = new Map<string, string>();
+
+// Keyword-based fallback categorization
+function keywordCategorize(venueType: string): 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences' {
+  const lowerType = venueType.toLowerCase();
+  
+  const mealKeywords = ['restaurant', 'food hall', 'food market', 'kitchen', 'diner', 
+                       'eatery', 'bistro', 'grill', 'bbq', 'pizzeria', 'steakhouse', 'izakaya'];
+  if (mealKeywords.some(keyword => lowerType.includes(keyword))) {
+    return 'meal';
+  }
+  
+  if (lowerType.includes('cafe') || lowerType.includes('coffee')) {
+    return 'cafes';
+  }
+  
+  if (lowerType.includes('boba') || lowerType.includes('ice cream') || 
+      lowerType.includes('dessert') || lowerType.includes('bakery') ||
+      lowerType.includes('sweet') || lowerType.includes('milk bar') ||
+      lowerType.includes('tea shop') || lowerType.includes('bubble tea') || 
+      lowerType.includes('milk tea') || lowerType.includes('gelato')) {
+    return 'dessert';
+  }
+  
+  const drinksKeywords = ['drink', 'brewery', 'wine bar', 'cocktail', 'pub', 'lounge', 'taproom', 'speakeasy', 'sake bar', 'taphouse', 'tasting room'];
+  const hasStandaloneBar = /\bbar\b/.test(lowerType);
+  if (drinksKeywords.some(keyword => lowerType.includes(keyword)) || hasStandaloneBar) {
+    return 'drinks';
+  }
+  
+  return 'experiences';
+}
+
+export async function categorizeVenue(venueType: string): Promise<'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences'> {
+  // Check cache first
+  const cached = categorizationCache.get(venueType.toLowerCase());
+  if (cached) {
+    return cached as 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences';
+  }
+
+  try {
+    const prompt = `Categorize this venue type into ONE of these categories:
+
+Venue type: "${venueType}"
+
+Categories:
+- meal: Full meal venues (restaurants, food halls, dining establishments including izakaya, bistro, etc.)
+- cafes: Coffee shops, cafes
+- drinks: Bars, breweries, wine bars, cocktail lounges (alcoholic beverages)
+- dessert: Boba/tea shops, ice cream, dessert cafes, bakeries, sweet treats
+- experiences: Entertainment, museums, parks, sports, events, activities
+
+Rules:
+1. Izakaya = meal (Japanese dining establishment)
+2. Tea shop/bubble tea/boba = dessert
+3. Any dining establishment with food = meal
+4. Bars with alcohol = drinks
+5. Entertainment/activities = experiences
+
+Return a JSON object with this exact structure:
+{
+  "category": "meal"
+}
+
+The category value MUST be one of: meal, cafes, drinks, dessert, or experiences`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: "You categorize venue types. Always respond with valid JSON containing only the category."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      response_format: { type: "json_object" },
+      max_completion_tokens: 50,
+    });
+
+    const result = JSON.parse(response.choices[0].message.content || '{}');
+    
+    // Validate that we got a category in the response
+    if (!result.category) {
+      console.error(`[AI Categorization] No category in response for "${venueType}":`, result);
+      console.log(`[AI Categorization] Falling back to keyword categorization for "${venueType}"`);
+      const fallbackCategory = keywordCategorize(venueType);
+      categorizationCache.set(venueType.toLowerCase(), fallbackCategory);
+      return fallbackCategory;
+    }
+    
+    const category = result.category;
+    
+    // Validate it's one of the expected categories
+    const validCategories = ['meal', 'cafes', 'drinks', 'dessert', 'experiences'];
+    if (!validCategories.includes(category)) {
+      console.error(`[AI Categorization] Invalid category "${category}" for "${venueType}". Falling back to keyword categorization.`);
+      const fallbackCategory = keywordCategorize(venueType);
+      categorizationCache.set(venueType.toLowerCase(), fallbackCategory);
+      return fallbackCategory;
+    }
+    
+    // Cache the result
+    categorizationCache.set(venueType.toLowerCase(), category);
+    
+    console.log(`[AI Categorization] "${venueType}" → ${category}`);
+    return category as 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences';
+  } catch (error) {
+    console.error("Error categorizing venue:", error);
+    console.log(`[AI Categorization] Exception occurred, falling back to keyword categorization for "${venueType}"`);
+    const fallbackCategory = keywordCategorize(venueType);
+    return fallbackCategory;
+  }
+}

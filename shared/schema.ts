@@ -93,6 +93,7 @@ export const activities = pgTable("activities", {
   complementaryPlaceRating2: text("complementary_place_rating_2"),
   googleReview: text("google_review"), // Short positive review from Google Places (80-100 chars)
   timeCategory: text("time_category"), // quick (<90min), standard (1-3hrs), large (4+ hrs)
+  category: text("category"), // AI-categorized: meal, cafes, drinks, dessert, experiences
   archivedAt: timestamp("archived_at"), // Soft-delete for regeneration
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
