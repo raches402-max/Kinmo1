@@ -28,8 +28,9 @@ AI suggestion preferences:
 - **Data Access Layer**: `IStorage` interface, `DatabaseStorage` class, transaction support, cascade deletion.
 
 ### Core Features & AI Logic
-- **AI Suggestion Generation**: Uses GPT-4o-mini to generate ~30 diverse suggestions per attempt (typically returns 20-33), which are then deduplicated to 15 unique venues displayed as 3 cards per category. Retries up to 3 times with category-aware targeting to ensure balanced 3-3-3-3-3 distribution.
-  - **Category-Aware Retry Logic**: After each attempt, tracks category distribution (MEAL, CAFES, DRINKS, DESSERT, EXPERIENCES). If any category has < 3 cards, makes a targeted retry requesting suggestions ONLY for underrepresented categories. This ensures balanced visual presentation with 3 cards per category row.
+- **AI Suggestion Generation**: Uses GPT-4o-mini to generate ~30 diverse suggestions per attempt (typically returns 20-33), which are then deduplicated to exactly 15 unique venues displayed as 3 cards per category. Retries up to 5 times with category-aware targeting to ensure perfect 3-3-3-3-3 distribution.
+  - **Category-Aware Retry Logic**: After each attempt, tracks category distribution (MEAL, CAFES, DRINKS, DESSERT, EXPERIENCES). If any category has < 3 cards, makes a targeted retry requesting suggestions ONLY for underrepresented categories. Stops only when all 5 categories have exactly 3 cards each. This ensures balanced visual presentation with complete rows of 3 cards per category.
+  - **Per-Category Regeneration**: Users can regenerate individual categories by clicking sparkle icons next to category headers. Preserves checked (selected for itinerary) activities while replacing unchecked ones. Maintains exactly 3 cards per category after regeneration.
   - **Prompt Refinement**: Focuses on specific cuisines, avoids quality adjectives and budget mentions, and provides ultra-short, pragmatic descriptions (1-4 words maximum, food/cuisine nouns only, cuisine names allowed but zero quality adjectives). Uses specific venue types ("boba shop", "cocktail bar") instead of generic categories ("drink", "restaurant").
   - **Preference Interpretation**: AI prioritizes venue types based on past preferences, uses novelty as a percentage split (familiar vs. new), and integrates voting feedback (up/downvotes on favorites) and direct card feedback ("More like this," "Not this," "Heart").
   - **Natural Language Understanding**: The temporary instructions text box uses GPT-4's natural language understanding to interpret user intent. Specific requests like "Boba" or "Sushi" generate all suggestions of that type, while general guidance like "something adventurous" maintains diversity. No detection heuristics - relies entirely on AI's ability to understand context.
@@ -68,11 +69,11 @@ AI suggestion preferences:
   - **Drag-to-Reorder in Itinerary**: Users can reorder venues in final itinerary display using @dnd-kit
   - **State Management**: Selection state tracked via selectedVenues array, cleared after successful itinerary creation
 - **Location Radius Expansion**: 4-tier search radius selector allowing users to expand search area from nearby (< 2 miles) to road trips (< 50 miles):
-  - **📍 Nearby (< 2 miles)**: Walking or short drive distance, 3.0+ stars, 5+ reviews minimum
-  - **🏙️ Citywide (< 10 miles)**: Venues across the city, 3.5+ stars, 20+ reviews minimum
-  - **🚗 Special Trip (< 30 miles)**: Special destinations worth a drive, 4.0+ stars, 50+ reviews minimum
-  - **🛣️ Road Trip (< 50 miles)**: Road trip worthy destinations, 4.2+ stars, 100+ reviews minimum
-  - Quality filtering ensures farther venues are highly rated with substantial review counts
+  - **📍 Nearby (< 2 miles)**: Walking or short drive distance, 3.5+ stars, 20+ reviews minimum (stricter to ensure legitimate venues)
+  - **🏙️ Citywide (< 10 miles)**: Venues across the city, 3.8+ stars, 50+ reviews minimum
+  - **🚗 Special Trip (< 30 miles)**: Special destinations worth a drive, 4.0+ stars, 100+ reviews minimum
+  - **🛣️ Road Trip (< 50 miles)**: Road trip worthy destinations, 4.2+ stars, 150+ reviews minimum
+  - Quality filtering ensures farther venues are highly rated with substantial review counts to avoid questionable or illegitimate venues
   - AI prompt adapts suggestions based on selected radius tier (nearby conveniences vs. destination-worthy gems)
   - Google Places searches use dynamic radius converted to meters (1 mile = 1609.34 meters)
   - Schema-level validation enforces only 2, 10, 30, 50 mile values with fallback to 2 miles default
