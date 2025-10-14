@@ -291,10 +291,7 @@ export default function GroupDetail() {
   const [showSwipeSession, setShowSwipeSession] = useState(false);
   const [showEnrichmentConfirm, setShowEnrichmentConfirm] = useState(false);
   const [pendingEventTitle, setPendingEventTitle] = useState("");
-  const [selectionMode, setSelectionMode] = useState(false);
   const [selectedVenues, setSelectedVenues] = useState<Array<{sourceType: 'activity' | 'voting_event', sourceId: string}>>([]);
-  const [selectedMainActivity, setSelectedMainActivity] = useState<string | null>(null);
-  const [selectedComplementary, setSelectedComplementary] = useState<'option1' | 'option2' | null>(null);
 
   const { data: group, isLoading: groupLoading } = useQuery<Group>({
     queryKey: ["/api/groups", groupId],
@@ -342,11 +339,6 @@ export default function GroupDetail() {
     }
     prevStatusRef.current = group?.activityGenerationStatus;
   }, [group?.activityGenerationStatus, groupId]);
-
-  // Reset complementary selection when main activity changes
-  useEffect(() => {
-    setSelectedComplementary(null);
-  }, [selectedMainActivity]);
 
   const sendInvitationsMutation = useMutation({
     mutationFn: async () => {
@@ -544,10 +536,7 @@ export default function GroupDetail() {
       return await apiRequest("POST", `/api/groups/${groupId}/itineraries/validate`, { selectedVenues: venues });
     },
     onSuccess: () => {
-      setSelectionMode(false);
       setSelectedVenues([]);
-      setSelectedMainActivity(null);
-      setSelectedComplementary(null);
       setActiveTab("build");
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "itineraries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "voting-events"] });
@@ -582,18 +571,6 @@ export default function GroupDetail() {
         return [...prev, { sourceType, sourceId }];
       }
     });
-  };
-
-  const handleReadyClick = () => {
-    if (selectedVenues.length < 2) {
-      toast({
-        title: "Select more venues",
-        description: "Please select at least 2 venues for an itinerary",
-        variant: "destructive",
-      });
-      return;
-    }
-    validateItineraryMutation.mutate(selectedVenues);
   };
 
   // Voting functionality
@@ -943,7 +920,7 @@ export default function GroupDetail() {
       </header>
 
       {/* How It Works Banner */}
-      {!selectionMode && activities.length > 0 && showInstructions && (
+      {activities.length > 0 && showInstructions && (
         <div className="border-b bg-primary/5 border-primary/20">
           <div className="max-w-7xl mx-auto px-6 py-3">
             <div className="flex items-start justify-between gap-3">
@@ -1418,27 +1395,9 @@ export default function GroupDetail() {
             <div className="flex-1 space-y-6 min-w-0">
               <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
                 <h2 className="text-2xl font-bold" data-testid="text-activities-title">AI-Suggested Activities</h2>
-                {!selectionMode && (activities.length > 0 || votingEvents.length > 0) && (
-                  <Button
-                    onClick={() => {
-                      setSelectionMode(true);
-                      setActiveTab("build");
-                    }}
-                    variant="default"
-                    size="lg"
-                    className="bg-primary hover:bg-primary/90"
-                    data-testid="button-ready"
-                  >
-                    <Sparkles className="mr-2 h-5 w-5" />
-                    I'm Ready, Let's Do This!
-                  </Button>
-                )}
               </div>
               <p className="text-muted-foreground mb-4">
-                {selectionMode 
-                  ? "Select venues below. Go to Itinerary tab to create your itinerary."
-                  : "Personalized recommendations based on your group's preferences"
-                }
+                Select venues to build your itinerary. Click the checkboxes to add venues to your plan.
               </p>
               
               {/* Search Radius Slider */}
@@ -1726,25 +1685,12 @@ export default function GroupDetail() {
                   }
                   
                   const isSelected = selectedVenues.some(v => v.sourceType === 'activity' && v.sourceId === activity.id);
-                  const isMainSelected = selectedMainActivity === activity.id;
                   
                   return (
                     <Card 
                       key={activity.id} 
-                      className={`relative overflow-hidden hover-elevate transition-all flex flex-col cursor-pointer ${
-                        selectionMode 
-                          ? (isSelected ? 'ring-2 ring-primary' : '') 
-                          : (isMainSelected ? 'ring-2 ring-primary' : '')
-                      }`} 
-                      data-testid={`activity-${activity.id}`} 
-                      onClick={() => {
-                        if (selectionMode) {
-                          toggleVenueSelection('activity', activity.id);
-                        } else {
-                          // Toggle main activity selection
-                          setSelectedMainActivity(isMainSelected ? null : activity.id);
-                        }
-                      }}
+                      className={`relative overflow-hidden hover-elevate transition-all flex flex-col ${isSelected ? 'ring-2 ring-primary' : ''}`} 
+                      data-testid={`activity-${activity.id}`}
                     >
                       {activity.photoUrl && (
                         <div className="aspect-video w-full overflow-hidden bg-muted">
@@ -1755,25 +1701,22 @@ export default function GroupDetail() {
                           />
                         </div>
                       )}
-                      {selectionMode && (
-                        <div className="absolute top-3 left-3 z-10" onClick={(e) => e.stopPropagation()}>
-                          <Checkbox
-                            checked={isSelected}
-                            onCheckedChange={() => toggleVenueSelection('activity', activity.id)}
-                            className="h-6 w-6 bg-white border-2"
-                            data-testid={`checkbox-activity-${activity.id}`}
-                          />
-                        </div>
-                      )}
-                      {!selectionMode && (
-                        <button
-                          className={`absolute top-3 right-3 p-2 rounded-full transition-all z-10 ${
-                            activity.feedback === "love"
-                              ? "bg-pink-500/90 hover:bg-pink-600/90"
-                              : "bg-black/40 hover:bg-black/60 border-2 border-white"
-                          }`}
-                          onClick={(e) => {
-                          e.stopPropagation();
+                      <div className="absolute top-3 left-3 z-10" onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggleVenueSelection('activity', activity.id)}
+                          className="h-6 w-6 bg-white border-2"
+                          data-testid={`checkbox-activity-${activity.id}`}
+                        />
+                      </div>
+                      <button
+                        className={`absolute top-3 right-3 p-2 rounded-full transition-all z-10 ${
+                          activity.feedback === "love"
+                            ? "bg-pink-500/90 hover:bg-pink-600/90"
+                            : "bg-black/40 hover:bg-black/60 border-2 border-white"
+                        }`}
+                        onClick={(e) => {
+                        e.stopPropagation();
                           if (activity.feedback === "love") {
                             // Remove feedback and delete from Favorites list
                             feedbackMutation.mutate({ activityId: activity.id, feedback: null });
@@ -1827,7 +1770,6 @@ export default function GroupDetail() {
                           strokeWidth={2.5}
                         />
                       </button>
-                      )}
                       <CardHeader className="space-y-2 flex-1 flex flex-col pb-3">
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
@@ -1939,218 +1881,6 @@ export default function GroupDetail() {
                 })()}
               </>
             )}
-
-            {/* Complementary Options Section */}
-            {selectedMainActivity && !selectionMode && (() => {
-              const mainActivity = activities.find(a => a.id === selectedMainActivity);
-              if (!mainActivity) return null;
-              
-              const hasComplementary = mainActivity.complementaryPlaceName || mainActivity.complementaryPlaceName2;
-              if (!hasComplementary) return null;
-
-              // Determine label for complementary places
-              const isRestaurant = ['restaurant', 'cafe', 'bar', 'brewery', 'bakery', 'food'].some(type => 
-                mainActivity.venueType.toLowerCase().includes(type)
-              );
-              const isOutdoor = ['park', 'outdoor', 'beach', 'hiking', 'trail'].some(type => 
-                mainActivity.venueType.toLowerCase().includes(type)
-              );
-              
-              let complementaryLabel = "Grab food nearby:";
-              if (isRestaurant) {
-                complementaryLabel = "Complete the experience:";
-              } else if (isOutdoor) {
-                complementaryLabel = "Grab food nearby:";
-              }
-
-              const options = [];
-              if (mainActivity.complementaryPlaceName) {
-                options.push({
-                  id: 'option1',
-                  name: mainActivity.complementaryPlaceName,
-                  address: mainActivity.complementaryPlaceAddress,
-                  photoUrl: mainActivity.complementaryPlacePhotoUrl,
-                  rating: mainActivity.complementaryPlaceRating,
-                  placeId: mainActivity.complementaryPlaceId,
-                });
-              }
-              if (mainActivity.complementaryPlaceName2) {
-                options.push({
-                  id: 'option2',
-                  name: mainActivity.complementaryPlaceName2,
-                  address: mainActivity.complementaryPlaceAddress2,
-                  photoUrl: mainActivity.complementaryPlacePhotoUrl2,
-                  rating: mainActivity.complementaryPlaceRating2,
-                  placeId: mainActivity.complementaryPlaceId2,
-                });
-              }
-
-              return (
-                <div className="mt-6 border-t pt-6">
-                  <div className="mb-4">
-                    <h3 className="text-sm font-semibold mb-1">{complementaryLabel}</h3>
-                    <p className="text-xs text-muted-foreground">Choose a complementary option to add to your itinerary</p>
-                  </div>
-                  
-                  <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-3">
-                    {options.map((option) => {
-                      const isSelected = selectedComplementary === option.id;
-                      
-                      return (
-                        <Card
-                          key={option.id}
-                          className={`relative overflow-hidden hover-elevate transition-all cursor-pointer ${
-                            isSelected ? 'ring-2 ring-primary' : ''
-                          }`}
-                          onClick={() => setSelectedComplementary(isSelected ? null : option.id as 'option1' | 'option2')}
-                          data-testid={`complementary-${option.id}`}
-                        >
-                          {option.photoUrl && (
-                            <div className="aspect-video w-full overflow-hidden bg-muted">
-                              <img
-                                src={option.photoUrl}
-                                alt={option.name}
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                          )}
-                          
-                          <div className="absolute top-3 left-3 z-10">
-                            <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all ${
-                              isSelected 
-                                ? 'bg-primary border-primary' 
-                                : 'bg-white border-gray-400'
-                            }`}>
-                              {isSelected && (
-                                <div className="h-2 w-2 rounded-full bg-white" />
-                              )}
-                            </div>
-                          </div>
-
-                          <CardHeader className="space-y-2">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1 min-w-0">
-                                <CardTitle className="text-base mb-1">{option.name}</CardTitle>
-                                <CardDescription className="line-clamp-1 text-xs">
-                                  {option.address}
-                                </CardDescription>
-                              </div>
-                              {option.placeId && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  asChild
-                                  className="h-6 px-2 flex-shrink-0"
-                                  onClick={(e) => e.stopPropagation()}
-                                  data-testid={`button-maps-${option.id}`}
-                                >
-                                  <a
-                                    href={`https://www.google.com/maps/search/?api=1&query=Google&query_place_id=${option.placeId}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="gap-1"
-                                  >
-                                    <ExternalLink className="h-3 w-3" />
-                                    <span className="text-xs">Maps</span>
-                                  </a>
-                                </Button>
-                              )}
-                            </div>
-                            
-                            {option.rating && (
-                              <div className="flex items-center gap-1.5">
-                                <Badge variant="secondary" className="gap-1 text-xs">
-                                  <Star className="h-3 w-3 fill-current" />
-                                  {option.rating}
-                                </Badge>
-                              </div>
-                            )}
-                          </CardHeader>
-                        </Card>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* Create Itinerary Button */}
-            {selectedMainActivity && !selectionMode && (
-              <div className="mt-6 flex justify-center">
-                <Button
-                  size="lg"
-                  onClick={async () => {
-                    const mainActivity = activities.find(a => a.id === selectedMainActivity);
-                    if (!mainActivity) return;
-
-                    const venues: Array<{sourceType: 'activity' | 'voting_event', sourceId: string}> = [
-                      { sourceType: 'activity', sourceId: mainActivity.id }
-                    ];
-
-                    // If complementary is selected, create a temporary voting event for it
-                    if (selectedComplementary && mainActivity) {
-                      const complementaryData = selectedComplementary === 'option1' ? {
-                        name: mainActivity.complementaryPlaceName,
-                        address: mainActivity.complementaryPlaceAddress,
-                        placeId: mainActivity.complementaryPlaceId,
-                        photoUrl: mainActivity.complementaryPlacePhotoUrl,
-                        rating: mainActivity.complementaryPlaceRating,
-                      } : {
-                        name: mainActivity.complementaryPlaceName2,
-                        address: mainActivity.complementaryPlaceAddress2,
-                        placeId: mainActivity.complementaryPlaceId2,
-                        photoUrl: mainActivity.complementaryPlacePhotoUrl2,
-                        rating: mainActivity.complementaryPlaceRating2,
-                      };
-
-                      if (complementaryData.name) {
-                        try {
-                          // Create voting event for complementary venue
-                          const response = await apiRequest("POST", `/api/voting-events`, {
-                            groupId: groupId,
-                            title: complementaryData.name,
-                            description: `Complementary to ${mainActivity.venueName}`,
-                            venueAddress: complementaryData.address || '',
-                            venueType: 'complementary',
-                            googlePlaceId: complementaryData.placeId || undefined,
-                            rating: complementaryData.rating || undefined,
-                            photoUrl: complementaryData.photoUrl || undefined,
-                          });
-                          
-                          // Add to venues array if event was created successfully
-                          if (response.event?.id) {
-                            venues.push({ sourceType: 'voting_event', sourceId: response.event.id });
-                          } else {
-                            // Complementary venue creation failed - notify user and abort
-                            toast({
-                              title: "Could not add complementary venue",
-                              description: "Please try creating an itinerary with just the main venue",
-                              variant: "destructive",
-                            });
-                            return;
-                          }
-                        } catch (error) {
-                          console.error('Failed to create complementary venue:', error);
-                          toast({
-                            title: "Error adding complementary venue",
-                            description: error instanceof Error ? error.message : "Please try again",
-                            variant: "destructive",
-                          });
-                          return;
-                        }
-                      }
-                    }
-
-                    // Create itinerary with selected venues
-                    validateItineraryMutation.mutate(venues);
-                  }}
-                  disabled={validateItineraryMutation.isPending}
-                  data-testid="button-create-itinerary"
-                >
-                  {validateItineraryMutation.isPending ? "Creating..." : "Create Itinerary"}
-                </Button>
-              </div>
-            )}
             </div>
 
             {/* Right Sidebar - Favorites Voting */}
@@ -2246,102 +1976,88 @@ export default function GroupDetail() {
                         <HoverCard key={event.id} openDelay={200}>
                           <HoverCardTrigger asChild>
                             <Card 
-                              className={`hover-elevate transition-all ${selectionMode ? 'cursor-pointer' : ''} ${isSelected ? 'ring-2 ring-primary' : ''}`}
-                              onClick={() => selectionMode && toggleVenueSelection('voting_event', event.id)}
+                              className={`hover-elevate transition-all ${isSelected ? 'ring-2 ring-primary' : ''}`}
                               data-testid={`voting-event-${event.id}`}
                             >
                               <CardContent className="p-3">
-                                {selectionMode && (
-                                  <div className="flex items-start gap-2 mb-2">
-                                    <Checkbox
-                                      checked={isSelected}
-                                      onCheckedChange={() => toggleVenueSelection('voting_event', event.id)}
-                                      className="h-5 w-5 mt-0.5"
-                                      onClick={(e) => e.stopPropagation()}
-                                      data-testid={`checkbox-event-${event.id}`}
-                                    />
-                                    <div className="flex-1 min-w-0">
-                                      <h4 className="font-medium text-sm truncate" data-testid={`text-event-title-${event.id}`}>
-                                        {event.title}
-                                      </h4>
-                                      {locationText && (
-                                        <p className="text-xs text-muted-foreground truncate">{locationText}</p>
-                                      )}
-                                    </div>
+                                <div className="flex items-start gap-2 mb-2">
+                                  <Checkbox
+                                    checked={isSelected}
+                                    onCheckedChange={() => toggleVenueSelection('voting_event', event.id)}
+                                    className="h-5 w-5 mt-0.5"
+                                    onClick={(e) => e.stopPropagation()}
+                                    data-testid={`checkbox-event-${event.id}`}
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <h4 className="font-medium text-sm truncate" data-testid={`text-event-title-${event.id}`}>
+                                      {event.title}
+                                    </h4>
+                                    {locationText && (
+                                      <p className="text-xs text-muted-foreground truncate">{locationText}</p>
+                                    )}
                                   </div>
-                                )}
+                                </div>
                                 
-                                {!selectionMode && (
-                                  <>
-                                    <div className="mb-2">
-                                      <h4 className="font-medium text-sm truncate mb-0.5" data-testid={`text-event-title-${event.id}`}>
-                                        {event.title}
-                                      </h4>
-                                      {locationText && (
-                                        <p className="text-xs text-muted-foreground truncate">{locationText}</p>
-                                      )}
-                                    </div>
-                                    
-                                    <div className="flex items-center gap-1">
+                                <div className="mb-2"></div>
+                                
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    variant={myVote?.voteType === "upvote" ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleVote(event.id, "upvote");
+                                    }}
+                                    className="flex-1 gap-1 h-7 text-xs"
+                                    data-testid={`button-upvote-${event.id}`}
+                                  >
+                                    <ThumbsUp className="h-3 w-3" />
+                                    {event.upvotes || 0}
+                                  </Button>
+                                  <Button
+                                    variant={myVote?.voteType === "downvote" ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleVote(event.id, "downvote");
+                                    }}
+                                    className="flex-1 gap-1 h-7 text-xs"
+                                    data-testid={`button-downvote-${event.id}`}
+                                  >
+                                    <ThumbsDown className="h-3 w-3" />
+                                    {event.downvotes || 0}
+                                  </Button>
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
                                       <Button
-                                        variant={myVote?.voteType === "upvote" ? "default" : "outline"}
-                                        size="sm"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleVote(event.id, "upvote");
-                                        }}
-                                        className="flex-1 gap-1 h-7 text-xs"
-                                        data-testid={`button-upvote-${event.id}`}
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7"
+                                        onClick={(e) => e.stopPropagation()}
+                                        data-testid={`button-delete-event-${event.id}`}
                                       >
-                                        <ThumbsUp className="h-3 w-3" />
-                                        {event.upvotes || 0}
+                                        <Trash2 className="h-3 w-3" />
                                       </Button>
-                                      <Button
-                                        variant={myVote?.voteType === "downvote" ? "default" : "outline"}
-                                        size="sm"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleVote(event.id, "downvote");
-                                        }}
-                                        className="flex-1 gap-1 h-7 text-xs"
-                                        data-testid={`button-downvote-${event.id}`}
-                                      >
-                                        <ThumbsDown className="h-3 w-3" />
-                                        {event.downvotes || 0}
-                                      </Button>
-                                      <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                          <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-7 w-7"
-                                            onClick={(e) => e.stopPropagation()}
-                                            data-testid={`button-delete-event-${event.id}`}
-                                          >
-                                            <Trash2 className="h-3 w-3" />
-                                          </Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-                                          <AlertDialogHeader>
-                                            <AlertDialogTitle>Remove from Favorites?</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                              This will permanently remove "{event.title}" from your group's favorites.
-                                            </AlertDialogDescription>
-                                          </AlertDialogHeader>
-                                          <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction
-                                              onClick={() => deleteEventMutation.mutate(event.id)}
-                                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                            >
-                                              Remove
-                                            </AlertDialogAction>
-                                          </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                      </AlertDialog>
-                                    </div>
-                                  </>
-                                )}
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Remove from Favorites?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          This will permanently remove "{event.title}" from your group's favorites.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          onClick={() => deleteEventMutation.mutate(event.id)}
+                                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                        >
+                                          Remove
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </div>
                               </CardContent>
                             </Card>
                           </HoverCardTrigger>
@@ -2419,7 +2135,7 @@ export default function GroupDetail() {
               <div>
                 <h2 className="text-2xl font-bold mb-2">Create Your Itinerary</h2>
                 <p className="text-muted-foreground">
-                  {selectionMode 
+                  {selectedVenues.length > 0
                     ? "Select 2-5 venues from Activities or Favorites, then click Create Itinerary"
                     : itineraries.length > 0
                       ? "Your evening itinerary is ready! Drag to reorder venues."
@@ -2429,14 +2145,14 @@ export default function GroupDetail() {
               </div>
 
               {/* Selected Venues Display */}
-              {selectionMode && selectedVenues.length > 0 && (
+              {selectedVenues.length > 0 && (
                 <Card>
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-base">Selected Venues ({selectedVenues.length}/5)</CardTitle>
                       <div className="flex gap-2">
                         <Button
-                          onClick={handleReadyClick}
+                          onClick={() => validateItineraryMutation.mutate(selectedVenues)}
                           disabled={validateItineraryMutation.isPending || selectedVenues.length < 2}
                           variant="default"
                           size="sm"
@@ -2446,14 +2162,13 @@ export default function GroupDetail() {
                         </Button>
                         <Button
                           onClick={() => {
-                            setSelectionMode(false);
                             setSelectedVenues([]);
                           }}
                           variant="outline"
                           size="sm"
                           data-testid="button-cancel-selection-build"
                         >
-                          Cancel
+                          Clear All
                         </Button>
                       </div>
                     </div>
@@ -2505,7 +2220,7 @@ export default function GroupDetail() {
               )}
 
               {/* Itinerary Display */}
-              {itineraries.length > 0 && !selectionMode && (
+              {itineraries.length > 0 && selectedVenues.length === 0 && (
                 <Card>
                   <CardHeader>
                     <div className="flex items-center justify-between">
@@ -2520,10 +2235,7 @@ export default function GroupDetail() {
                       </div>
                       <Button
                         variant="outline"
-                        onClick={() => {
-                          setSelectionMode(true);
-                          setActiveTab("activities");
-                        }}
+                        onClick={() => setActiveTab("activities")}
                         data-testid="button-add-more-stops"
                       >
                         <Plus className="h-4 w-4 mr-2" />
@@ -2540,7 +2252,7 @@ export default function GroupDetail() {
               )}
 
               {/* Empty State */}
-              {!selectionMode && selectedVenues.length === 0 && itineraries.length === 0 && (
+              {selectedVenues.length === 0 && itineraries.length === 0 && (
                 <Card>
                   <CardContent className="text-center py-12">
                     <Sparkles className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
