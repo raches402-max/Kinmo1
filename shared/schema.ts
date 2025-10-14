@@ -31,6 +31,7 @@ export const groups = pgTable("groups", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
+  emoji: text("emoji").default("🎉"), // Group emoji icon
   locationBase: text("location_base").notNull(),
   budgetMin: integer("budget_min").notNull(),
   budgetMax: integer("budget_max").notNull(),
