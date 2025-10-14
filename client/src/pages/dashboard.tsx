@@ -114,7 +114,10 @@ export default function Dashboard() {
                 <Card className="hover-elevate active-elevate-2 transition-all cursor-pointer h-full" data-testid={`card-group-${group.id}`}>
                   <CardHeader className="pb-2">
                     <CardTitle className="flex items-start justify-between gap-2 text-base">
-                      <span>{group.name}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl" data-testid={`emoji-group-${group.id}`}>{group.emoji || "🎉"}</span>
+                        <span>{group.name}</span>
+                      </div>
                       {group.activityGenerationStatus === "completed" && (
                         <Sparkles className="h-3.5 w-3.5 text-primary flex-shrink-0" />
                       )}
