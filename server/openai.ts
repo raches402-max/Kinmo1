@@ -237,10 +237,10 @@ ${!groupData.additionalInstructions ? `CRITICAL - Novelty Preference Strategy:
 - Mark NEW suggestions with "NEW:" prefix in reasoning` : ''}
 
 Requirements:
-1. ${groupData.additionalInstructions ? `🚨 FOLLOW ONLY THE USER INSTRUCTIONS ABOVE - Ignore all other context (Activity Interests, Past Preferences, Feedback). If they specify a venue type (like "Boba"), generate ALL 15 of that type. If they give general guidance, maintain diversity while matching the theme.` : 'Use Activity Interests, Past Preferences, and Feedback to guide suggestions'}
+1. ${groupData.additionalInstructions ? `🚨 FOLLOW ONLY THE USER INSTRUCTIONS ABOVE - Ignore all other context (Activity Interests, Past Preferences, Feedback). If they specify a venue type (like "Boba"), generate ALL 15 of that type. If they give general guidance, maintain diversity while matching the theme.` : (!groupData.pastPreferences && (!groupData.activityCategories || groupData.activityCategories.length === 0) ? `🌍 CULTURAL DIVERSITY FOR NEW GROUPS: This group has NO past preferences or activity interests. Ensure MAXIMUM CULTURAL DIVERSITY across ALL 30 suggestions. DO NOT bias toward any single cuisine type (Asian, Italian, Mexican, etc.). Mix: American, Italian, Mexican, Japanese, Korean, Thai, Vietnamese, Indian, Mediterranean, French, Chinese, etc. Spread cuisines evenly.` : 'Use Activity Interests, Past Preferences, and Feedback to guide suggestions')}
 2. ${!groupData.additionalInstructions && groupData.activityCategories && groupData.activityCategories.length > 0 ? `PRIORITIZE the Activity Interests - these are the types of activities the group specifically wants` : ''}
-3. ${!groupData.additionalInstructions ? 'ANALYZE Past Preferences to identify venue TYPES they prefer (restaurants, bars, cafes, activities, etc.)' : ''}
-4. ${!groupData.additionalInstructions ? 'PRIORITIZE suggesting the same TYPES of venues they\'ve enjoyed historically' : ''}
+3. ${!groupData.additionalInstructions && groupData.pastPreferences ? 'ANALYZE Past Preferences to identify venue TYPES they prefer (restaurants, bars, cafes, activities, etc.)' : ''}
+4. ${!groupData.additionalInstructions && groupData.pastPreferences ? 'PRIORITIZE suggesting the same TYPES of venues they\'ve enjoyed historically' : ''}
 5. 🚨 CRITICAL - NEVER SUGGEST AIRPORT VENUES: DO NOT suggest any venues located inside airports (terminals, gates, etc.) UNLESS the user EXPLICITLY asks for "airport activities" or "activities inside an airport". Airport restaurants, cafes, and shops are BANNED unless specifically requested.
 6. Suggest 15 specific types of venues/activities (not specific business names) - we'll show 6 after deduplication
 7. Each suggestion should fit within the budget range
