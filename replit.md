@@ -84,11 +84,18 @@ AI suggestion preferences:
   - **Display Locations**: Emoji displayed on group cards in dashboard, group detail page header, and all editing interfaces
   - **Inline Editing**: Emoji editable directly in Group Details tab with real-time preview and "Save Changes" button
   - **Fallback**: Groups without emoji default to 🎉 for consistent visual presentation
+- **Location-Based Filtering with Geocoding** (October 2025):
+  - **Geocoded Coordinates**: Location strings (e.g., "Oakland, California") are converted to latitude/longitude coordinates using Google Geocoding API and stored in database
+  - **Precise Search Filtering**: All Google Places searches now use coordinates + radius for accurate location-specific results (e.g., Oakland suggestions are truly Oakland-only, not broader Bay Area)
+  - **User Feedback**: When editing group location, users receive feedback if geocoding fails with actionable guidance ("Try 'Oakland, California' instead of just 'Oakland'")
+  - **Backward Compatible**: Falls back to text-based search if coordinates aren't available
+  - **Backfill Support**: Authenticated admin endpoint (`POST /api/admin/backfill-coordinates`) available to populate coordinates for existing groups
+  - **Database Schema**: Groups table includes `latitude` and `longitude` text fields storing geocoded coordinates as strings
 
 ## External Dependencies
 
 -   **OpenAI Integration**: GPT-4o-mini model for AI activity suggestion and preference-aware reasoning.
--   **Google Places API**: Text search for venue discovery, Photo API for imagery, and enrichment data (ratings, price levels, addresses, place IDs).
+-   **Google Places API**: Text search for venue discovery, Photo API for imagery, Geocoding API for location coordinate conversion, and enrichment data (ratings, price levels, addresses, place IDs).
 -   **Third-Party UI Libraries**: Radix UI, Tailwind CSS, `class-variance-authority`, `date-fns`, Lucide React.
 -   **Development Tools**: TypeScript, ESBuild, Vite plugins (cartographer, dev-banner, runtime-error-modal), PostCSS with Autoprefixer.
 -   **Environment Requirements**: `DATABASE_URL`, `OPENAI_API_KEY`, `GOOGLE_PLACES_API_KEY`, `NODE_ENV`.
