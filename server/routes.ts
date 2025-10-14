@@ -744,11 +744,11 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
     const allUniqueActivities: any[] = [];
     const seenVenues = new Set<string>(); // Track across all attempts
     let attempt = 0;
-    const maxAttempts = 3; // Try up to 3 times (30 suggestions each = 90 total) to ensure 6 unique cards
+    const maxAttempts = 3; // Try up to 3 times (45 suggestions each = 135 total) to ensure 9 unique cards
 
-    while (allUniqueActivities.length < 6 && attempt < maxAttempts) {
+    while (allUniqueActivities.length < 9 && attempt < maxAttempts) {
       attempt++;
-      const needed = 6 - allUniqueActivities.length;
+      const needed = 9 - allUniqueActivities.length;
       console.log(`[AI Generation] Attempt ${attempt}/${maxAttempts}: Need ${needed} more unique activities (have ${allUniqueActivities.length})`);
 
       // Generate AI suggestions with feedback and list of venues to avoid
@@ -873,19 +873,19 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
         // Create a unique key based on Google Place ID (if available) or venue name
         const venueKey = activity.googlePlaceId || activity.venueName.toLowerCase();
         
-        if (!seenVenues.has(venueKey) && allUniqueActivities.length < 6) {
+        if (!seenVenues.has(venueKey) && allUniqueActivities.length < 9) {
           seenVenues.add(venueKey);
           allUniqueActivities.push(activity);
-          console.log(`[AI Generation] Added unique venue: ${activity.venueName} (${allUniqueActivities.length}/6)`);
+          console.log(`[AI Generation] Added unique venue: ${activity.venueName} (${allUniqueActivities.length}/9)`);
         } else if (seenVenues.has(venueKey)) {
           console.log(`[AI Generation] Skipping duplicate venue: ${activity.venueName}`);
         }
       }
       
-      console.log(`[AI Generation] After attempt ${attempt}: Have ${allUniqueActivities.length}/6 unique activities`);
+      console.log(`[AI Generation] After attempt ${attempt}: Have ${allUniqueActivities.length}/9 unique activities`);
     }
 
-    // Store the unique activities (up to 6)
+    // Store the unique activities (up to 9)
     if (allUniqueActivities.length > 0) {
       console.log(`[AI Generation] Categorizing ${allUniqueActivities.length} activities with AI...`);
       
