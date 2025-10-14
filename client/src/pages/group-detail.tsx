@@ -24,6 +24,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Group, Activity, Member, VotingEvent, Vote } from "@shared/schema";
 import { AvailabilityGrid, createEmptyAvailability } from "@/components/AvailabilityGrid";
 import { SwipeSession } from "@/components/SwipeSession";
+import { calculateDistance, getDistanceCategory, formatDistance } from "@/lib/distance";
 import {
   DndContext,
   closestCenter,
@@ -261,6 +262,81 @@ function ItineraryDisplay({ itinerary }: { itinerary: any }) {
   );
 }
 
+function SortableCartVenue({ id, index, venueName, venueType, photoUrl, onRemove, distanceToNext }: {
+  id: string;
+  index: number;
+  venueName: string;
+  venueType: string;
+  photoUrl: string;
+  onRemove: () => void;
+  distanceToNext?: { distance: number; category: 'close' | 'moderate' | 'far' } | null;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div>
+      <div
+        ref={setNodeRef}
+        style={style}
+        className="flex items-center gap-3 p-2 rounded-md bg-accent/20 border hover-elevate"
+        data-testid={`cart-venue-${id}`}
+      >
+        <div
+          {...attributes}
+          {...listeners}
+          className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary font-bold text-xs flex-shrink-0 cursor-grab active:cursor-grabbing"
+        >
+          <GripVertical className="h-3 w-3" />
+        </div>
+        {photoUrl && (
+          <div className="w-12 h-12 rounded overflow-hidden flex-shrink-0">
+            <img src={photoUrl} alt={venueName} className="w-full h-full object-cover" />
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate">{venueName}</p>
+          {venueType && (
+            <p className="text-xs text-muted-foreground truncate">{venueType}</p>
+          )}
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onRemove}
+          className="h-7 w-7 p-0 flex-shrink-0"
+          data-testid={`button-remove-cart-${id}`}
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+      {distanceToNext && (
+        <div className="flex items-center justify-center py-1">
+          <div className={`text-xs font-medium ${
+            distanceToNext.category === 'close' ? 'text-green-600 dark:text-green-400' : 
+            distanceToNext.category === 'moderate' ? 'text-yellow-600 dark:text-yellow-400' : 
+            'text-red-600 dark:text-red-400'
+          }`}>
+            ↓ {formatDistance(distanceToNext.distance)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function GroupDetail() {
   const [, params] = useRoute("/group/:id");
   const groupId = params?.id;
@@ -292,6 +368,13 @@ export default function GroupDetail() {
   const [showEnrichmentConfirm, setShowEnrichmentConfirm] = useState(false);
   const [pendingEventTitle, setPendingEventTitle] = useState("");
   const [selectedVenues, setSelectedVenues] = useState<Array<{sourceType: 'activity' | 'voting_event', sourceId: string}>>([]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   const { data: group, isLoading: groupLoading } = useQuery<Group>({
     queryKey: ["/api/groups", groupId],
@@ -2130,28 +2213,190 @@ export default function GroupDetail() {
 
             {/* Floating Cart Badge - only visible when venues selected */}
             {selectedVenues.length > 0 && (
-              <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2" data-testid="floating-cart-badge">
-                <Card className="shadow-lg border-2">
-                  <CardContent className="p-3 flex items-center gap-3">
-                    <div className="flex items-center gap-2">
+              <div className="fixed bottom-6 right-6 z-50" data-testid="floating-cart-badge">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="default"
+                      size="lg"
+                      className="shadow-lg h-14 px-4 gap-3"
+                      data-testid="button-cart-trigger"
+                    >
                       <div className="relative">
                         <ShoppingCart className="h-5 w-5" />
-                        <div className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center">
+                        <div className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-background text-foreground text-xs font-bold flex items-center justify-center border-2 border-primary">
                           {selectedVenues.length}
                         </div>
                       </div>
-                      <span className="text-sm font-medium">{selectedVenues.length} selected</span>
-                    </div>
-                    <Button
-                      onClick={() => setActiveTab("build")}
-                      disabled={selectedVenues.length < 2}
-                      size="sm"
-                      data-testid="button-build-itinerary-cart"
-                    >
-                      Build Itinerary
+                      <span className="text-sm font-medium">{selectedVenues.length} Venue{selectedVenues.length !== 1 ? 's' : ''}</span>
                     </Button>
-                  </CardContent>
-                </Card>
+                  </PopoverTrigger>
+                  <PopoverContent 
+                    className="w-96 p-0" 
+                    align="end"
+                    side="top"
+                    sideOffset={8}
+                    data-testid="cart-popover-content"
+                  >
+                    <div className="p-4 border-b">
+                      <h3 className="font-semibold text-base mb-1">Your Itinerary Cart</h3>
+                      <p className="text-xs text-muted-foreground">{selectedVenues.length} of 5 venues selected</p>
+                      {(() => {
+                        // Calculate total route distance
+                        let totalDistance = 0;
+                        let hasAllCoords = true;
+                        
+                        for (let i = 0; i < selectedVenues.length - 1; i++) {
+                          const current = selectedVenues[i];
+                          const next = selectedVenues[i + 1];
+                          
+                          let currentLat, currentLng, nextLat, nextLng;
+                          
+                          if (current.sourceType === 'activity') {
+                            const activity = activities.find(a => a.id === current.sourceId);
+                            currentLat = parseFloat(activity?.latitude || '0');
+                            currentLng = parseFloat(activity?.longitude || '0');
+                          } else {
+                            const event = votingEvents.find(e => e.id === current.sourceId);
+                            currentLat = parseFloat(event?.latitude || '0');
+                            currentLng = parseFloat(event?.longitude || '0');
+                          }
+                          
+                          if (next.sourceType === 'activity') {
+                            const activity = activities.find(a => a.id === next.sourceId);
+                            nextLat = parseFloat(activity?.latitude || '0');
+                            nextLng = parseFloat(activity?.longitude || '0');
+                          } else {
+                            const event = votingEvents.find(e => e.id === next.sourceId);
+                            nextLat = parseFloat(event?.latitude || '0');
+                            nextLng = parseFloat(event?.longitude || '0');
+                          }
+                          
+                          if (currentLat && currentLng && nextLat && nextLng) {
+                            totalDistance += calculateDistance(currentLat, currentLng, nextLat, nextLng);
+                          } else {
+                            hasAllCoords = false;
+                          }
+                        }
+                        
+                        if (selectedVenues.length > 1 && hasAllCoords) {
+                          const category = getDistanceCategory(totalDistance);
+                          const colorClass = category === 'close' ? 'text-green-600 dark:text-green-400' : 
+                                            category === 'moderate' ? 'text-yellow-600 dark:text-yellow-400' : 
+                                            'text-red-600 dark:text-red-400';
+                          return (
+                            <p className={`text-xs font-medium mt-1 ${colorClass}`}>
+                              Total route: {formatDistance(totalDistance)}
+                            </p>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={(event: DragEndEvent) => {
+                        const { active, over } = event;
+                        if (over && active.id !== over.id) {
+                          setSelectedVenues((venues) => {
+                            const oldIndex = venues.findIndex(v => `${v.sourceType}-${v.sourceId}` === active.id);
+                            const newIndex = venues.findIndex(v => `${v.sourceType}-${v.sourceId}` === over.id);
+                            return arrayMove(venues, oldIndex, newIndex);
+                          });
+                        }
+                      }}
+                    >
+                      <SortableContext
+                        items={selectedVenues.map(v => `${v.sourceType}-${v.sourceId}`)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <div className="max-h-96 overflow-y-auto p-3 space-y-0">
+                          {selectedVenues.map((venue, index) => {
+                            const venueId = `${venue.sourceType}-${venue.sourceId}`;
+                            let venueName = '';
+                            let venueType = '';
+                            let photoUrl = '';
+                            let lat = 0, lng = 0;
+                            
+                            if (venue.sourceType === 'activity') {
+                              const activity = activities.find(a => a.id === venue.sourceId);
+                              venueName = activity?.venueName || 'Unknown';
+                              venueType = activity?.venueType || '';
+                              photoUrl = activity?.photoUrl || '';
+                              lat = parseFloat(activity?.latitude || '0');
+                              lng = parseFloat(activity?.longitude || '0');
+                            } else {
+                              const event = votingEvents.find(e => e.id === venue.sourceId);
+                              venueName = event?.title || 'Unknown';
+                              venueType = event?.venueType || '';
+                              photoUrl = event?.photoUrl || '';
+                              lat = parseFloat(event?.latitude || '0');
+                              lng = parseFloat(event?.longitude || '0');
+                            }
+                            
+                            // Calculate distance to next venue
+                            let distanceToNext = null;
+                            if (index < selectedVenues.length - 1) {
+                              const nextVenue = selectedVenues[index + 1];
+                              let nextLat = 0, nextLng = 0;
+                              
+                              if (nextVenue.sourceType === 'activity') {
+                                const activity = activities.find(a => a.id === nextVenue.sourceId);
+                                nextLat = parseFloat(activity?.latitude || '0');
+                                nextLng = parseFloat(activity?.longitude || '0');
+                              } else {
+                                const event = votingEvents.find(e => e.id === nextVenue.sourceId);
+                                nextLat = parseFloat(event?.latitude || '0');
+                                nextLng = parseFloat(event?.longitude || '0');
+                              }
+                              
+                              if (lat && lng && nextLat && nextLng) {
+                                const distance = calculateDistance(lat, lng, nextLat, nextLng);
+                                distanceToNext = {
+                                  distance,
+                                  category: getDistanceCategory(distance)
+                                };
+                              }
+                            }
+
+                            return (
+                              <SortableCartVenue
+                                key={venueId}
+                                id={venueId}
+                                index={index}
+                                venueName={venueName}
+                                venueType={venueType}
+                                photoUrl={photoUrl}
+                                onRemove={() => toggleVenueSelection(venue.sourceType, venue.sourceId)}
+                                distanceToNext={distanceToNext}
+                              />
+                            );
+                          })}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
+                    <div className="p-3 border-t flex gap-2">
+                      <Button
+                        onClick={() => setActiveTab("build")}
+                        disabled={selectedVenues.length < 2}
+                        className="flex-1"
+                        size="sm"
+                        data-testid="button-build-itinerary-cart"
+                      >
+                        Build Itinerary
+                      </Button>
+                      <Button
+                        onClick={() => setSelectedVenues([])}
+                        variant="outline"
+                        size="sm"
+                        data-testid="button-clear-cart"
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
             )}
           </TabsContent>

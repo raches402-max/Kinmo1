@@ -73,6 +73,8 @@ export const activities = pgTable("activities", {
   venueType: text("venue_type").notNull(), // restaurant, museum, park, etc.
   description: text("description").notNull(),
   googlePlaceId: text("google_place_id"),
+  latitude: text("latitude"), // Google Places coordinates
+  longitude: text("longitude"), // Google Places coordinates
   rating: text("rating"),
   reviewCount: integer("review_count"), // Number of Google reviews (user_ratings_total)
   priceLevel: text("price_level"),
@@ -109,6 +111,8 @@ export const votingEvents = pgTable("voting_events", {
   venueAddress: text("venue_address"),
   venueType: text("venue_type"),
   googlePlaceId: text("google_place_id"),
+  latitude: text("latitude"), // Google Places coordinates
+  longitude: text("longitude"), // Google Places coordinates
   rating: text("rating"),
   reviewCount: integer("review_count"), // Number of Google reviews (user_ratings_total)
   priceLevel: text("price_level"),
