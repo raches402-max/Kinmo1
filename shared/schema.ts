@@ -41,6 +41,7 @@ export const groups = pgTable("groups", {
   activityCategories: text("activity_categories").array(), // Selected activity types (e.g., ["wine-bars", "karaoke", "concerts"])
   pastPreferences: text("past_preferences"), // comma-separated or text description
   additionalInstructions: text("additional_instructions"), // Custom AI instructions from user
+  searchRadius: integer("search_radius").default(2).notNull(), // Search radius in miles (2, 10, 30, 50)
   shareableLink: text("shareable_link").notNull().unique(),
   activityGenerationStatus: text("activity_generation_status").default("pending").notNull(), // pending, generating, completed, failed
   activityGenerationError: text("activity_generation_error"),

@@ -86,6 +86,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update search radius
+  app.patch("/api/groups/:id/radius", async (req, res) => {
+    try {
+      const { searchRadius } = req.body;
+      
+      if (![2, 10, 30, 50].includes(searchRadius)) {
+        return res.status(400).json({ message: "Invalid search radius. Must be 2, 10, 30, or 50 miles." });
+      }
+
+      const updatedGroup = await storage.updateGroup(req.params.id, { searchRadius });
+      res.json(updatedGroup);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
   // Get group by shareable link
   app.get("/api/groups/by-link/:shareableLink", async (req, res) => {
     try {
