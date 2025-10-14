@@ -441,12 +441,15 @@ Return your response as a JSON object with this structure:
         }
       ],
       response_format: { type: "json_object" },
-      max_completion_tokens: 8000,
+      max_completion_tokens: 12000, // Increased to support 75 suggestions (~160 tokens each = ~12000 total)
     });
 
     const result = JSON.parse(response.choices[0].message.content || '{}');
-    console.log(`[OpenAI] Received response with ${result.suggestions?.length || 0} suggestions (will show 15 after deduplication)`);
-    console.log(`[OpenAI] Raw response:`, JSON.stringify(result, null, 2));
+    const suggestionsCount = result.suggestions?.length || 0;
+    console.log(`[OpenAI] ✅ Received response with ${suggestionsCount} suggestions (target: 75, will show 15 after deduplication)`);
+    
+    // Log token usage for debugging
+    console.log(`[OpenAI] Token usage: ${response.usage?.completion_tokens || 0} completion tokens (max: 12000)`);
     
     if (!result.suggestions || result.suggestions.length === 0) {
       throw new Error("OpenAI returned no activity suggestions. The response may be empty or malformed.");

@@ -912,7 +912,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
           }
         }
         
-        console.log(`[AI Generation] Current category distribution:`, categoryCounts);
+        console.log(`[AI Generation] 📊 Current category distribution after attempt ${attempt}:`, categoryCounts);
         
         // Identify underrepresented categories (less than 3)
         const underrepresentedCategories = Object.entries(categoryCounts)
@@ -920,9 +920,12 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
           .map(([category]) => category);
         
         if (underrepresentedCategories.length > 0) {
-          console.log(`[AI Generation] Underrepresented categories: ${underrepresentedCategories.join(', ')}`);
+          console.log(`[AI Generation] ⚠️ Underrepresented categories (< 3 cards): ${underrepresentedCategories.join(', ')}`);
           // Set target categories for next attempt
           targetCategories = underrepresentedCategories;
+          console.log(`[AI Generation] 🎯 Next attempt will target: ${targetCategories.join(', ')}`);
+        } else {
+          console.log(`[AI Generation] ✅ All categories have at least 3 cards - balanced distribution achieved!`);
         }
       }
     }
