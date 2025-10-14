@@ -24,7 +24,7 @@ AI suggestion preferences:
 
 ### Data Storage
 - **Database**: PostgreSQL via Neon serverless, Drizzle ORM for type-safe operations, Drizzle Kit for migrations.
-- **Schema Design**: `groups` (planning preferences, budget, location, AI status), `members` (invitations, availability, organizer status), `activities` (AI suggestions, Google Places data), `itineraries` (validated multi-venue plans with AI notes), and `itinerary_items` (individual venues in itineraries). Uses UUID primary keys and cryptographically random tokens for shareable links.
+- **Schema Design**: `groups` (planning preferences, budget, location, AI status, emoji icon), `members` (invitations, availability, organizer status), `activities` (AI suggestions, Google Places data), `itineraries` (validated multi-venue plans with AI notes), and `itinerary_items` (individual venues in itineraries). Uses UUID primary keys and cryptographically random tokens for shareable links.
 - **Data Access Layer**: `IStorage` interface, `DatabaseStorage` class, transaction support, cascade deletion.
 
 ### Core Features & AI Logic
@@ -62,6 +62,13 @@ AI suggestion preferences:
   - AI prompt adapts suggestions based on selected radius tier (nearby conveniences vs. destination-worthy gems)
   - Google Places searches use dynamic radius converted to meters (1 mile = 1609.34 meters)
   - Schema-level validation enforces only 2, 10, 30, 50 mile values with fallback to 2 miles default
+- **Group Emoji Personalization**: Users can personalize their groups with emoji icons for visual identity:
+  - **Random Default**: Groups created with a randomly selected emoji from a curated palette of 16 popular options
+  - **Visual Picker**: Click-to-select emoji buttons in create and edit forms for quick selection
+  - **Custom Input**: Text input field allows users to paste any emoji, including multi-codepoint variants (flags, skin tones, complex emoji)
+  - **Display Locations**: Emoji displayed on group cards in dashboard, group detail page header, and all editing interfaces
+  - **Inline Editing**: Emoji editable directly in Group Details tab with real-time preview and "Save Changes" button
+  - **Fallback**: Groups without emoji default to 🎉 for consistent visual presentation
 
 ## External Dependencies
 
