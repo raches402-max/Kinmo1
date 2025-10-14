@@ -52,7 +52,14 @@ AI suggestion preferences:
   - 🎭 **EXPERIENCES** - Museums, concerts, karaoke, parks, events
   - Within each category, venues are sorted by rating (highest first), then review count
 - **Enhanced Favorites with Google Places Enrichment**: When users manually add events to the Favorites voting list, the system automatically looks up the venue in Google Places and enriches the entry with venue details (photo, rating, review count, address, price level, Google Maps link). Includes graceful degradation if enrichment fails.
-- **Multi-Select Itinerary Builder**: Users can select 2-5 venues from activities and favorites to create an evening itinerary. AI validates proximity (using Google Places coordinates), operating hours, and logical flow, then proposes an ordered sequence. Users can drag-to-reorder venues in the itinerary display using @dnd-kit. The system stores itineraries with AI validation notes and supports real-time order updates.
+- **Shopping Cart Itinerary Builder**: Simplified multi-select flow for building itineraries:
+  - **Tab 2 (Activities)**: Checkboxes always visible on activity cards and favorites - no selection mode toggle needed
+  - **Floating Cart Badge**: Fixed position badge in bottom-right corner shows selection count (0-5) with shopping cart icon and disabled/enabled "Build Itinerary" button
+  - **2-5 Venue Requirement**: Cart button disabled until 2 venues selected, maximum 5 venues with toast notification at limit
+  - **Tab 3 (Build/Itinerary)**: Clicking cart button navigates to Build tab showing selected venues in organized card with "Create Itinerary" button
+  - **AI Validation**: System validates proximity (using Google Places coordinates), operating hours, and logical flow, then creates ordered itinerary
+  - **Drag-to-Reorder**: Users can reorder venues in final itinerary display using @dnd-kit
+  - **State Management**: Selection state tracked via selectedVenues array, cleared after successful itinerary creation
 - **Location Radius Expansion**: 4-tier search radius selector allowing users to expand search area from nearby (< 2 miles) to road trips (< 50 miles):
   - **📍 Nearby (< 2 miles)**: Walking or short drive distance, 3.0+ stars, 5+ reviews minimum
   - **🏙️ Citywide (< 10 miles)**: Venues across the city, 3.5+ stars, 20+ reviews minimum
