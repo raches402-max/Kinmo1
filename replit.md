@@ -52,13 +52,20 @@ AI suggestion preferences:
   - 🎭 **EXPERIENCES** - Museums, concerts, karaoke, parks, events
   - Within each category, venues are sorted by rating (highest first), then review count
 - **Enhanced Favorites with Google Places Enrichment**: When users manually add events to the Favorites voting list, the system automatically looks up the venue in Google Places and enriches the entry with venue details (photo, rating, review count, address, price level, Google Maps link). Includes graceful degradation if enrichment fails.
-- **Shopping Cart Itinerary Builder**: Simplified multi-select flow for building itineraries:
+- **Shopping Cart Itinerary Builder**: Simplified multi-select flow for building itineraries with expandable cart preview and distance indicators:
   - **Tab 2 (Activities)**: Checkboxes always visible on activity cards and favorites - no selection mode toggle needed
-  - **Floating Cart Badge**: Fixed position badge in bottom-right corner shows selection count (0-5) with shopping cart icon and disabled/enabled "Build Itinerary" button
+  - **Expandable Cart Popover**: Fixed position badge in bottom-right corner with shopping cart icon, selection count (0-5), and expandable preview showing:
+    - Venue thumbnails with names and types
+    - Drag-to-reorder handles using @dnd-kit (users can resequence venues before building)
+    - Quick remove (X) buttons for individual venues
+    - Total route distance with color-coded indicators (green <5mi, yellow 5-15mi, red >15mi)
+    - Individual hop distances between consecutive venues with color coding
+    - "Build Itinerary" and "Clear All" action buttons
+  - **Distance Calculations**: Haversine formula calculates route distances using latitude/longitude from Google Places API stored in database
   - **2-5 Venue Requirement**: Cart button disabled until 2 venues selected, maximum 5 venues with toast notification at limit
-  - **Tab 3 (Build/Itinerary)**: Clicking cart button navigates to Build tab showing selected venues in organized card with "Create Itinerary" button
+  - **Tab 3 (Build/Itinerary)**: Clicking "Build Itinerary" navigates to Build tab showing selected venues in organized card with "Create Itinerary" button
   - **AI Validation**: System validates proximity (using Google Places coordinates), operating hours, and logical flow, then creates ordered itinerary
-  - **Drag-to-Reorder**: Users can reorder venues in final itinerary display using @dnd-kit
+  - **Drag-to-Reorder in Itinerary**: Users can reorder venues in final itinerary display using @dnd-kit
   - **State Management**: Selection state tracked via selectedVenues array, cleared after successful itinerary creation
 - **Location Radius Expansion**: 4-tier search radius selector allowing users to expand search area from nearby (< 2 miles) to road trips (< 50 miles):
   - **📍 Nearby (< 2 miles)**: Walking or short drive distance, 3.0+ stars, 5+ reviews minimum
