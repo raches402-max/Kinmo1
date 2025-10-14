@@ -66,15 +66,15 @@ export async function generateActivitySuggestions(groupData: {
   targetCategories?: string[]; // NEW: For category-specific generation
 }): Promise<ActivitySuggestion[]> {
   try {
-    // Generate 75 suggestions to account for duplicates after Google Places enrichment
+    // Generate 30 suggestions to account for duplicates after Google Places enrichment
     // After deduplication, we'll take the first 15 unique ones (3 per category)
     // This ensures we always have 15 cards even in areas with limited venue options
     
-    // Calculate novelty split based on 75 suggestions
-    // novelty 1 = 75 familiar, novelty 3 = 37-38 split, novelty 5 = 75 new
-    // Formula: familiar = 75 - (noveltyPreference - 1) * 18.75, rounded
-    const familiarCount = Math.round(75 - (groupData.noveltyPreference - 1) * 18.75);
-    const newCount = 75 - familiarCount;
+    // Calculate novelty split based on 30 suggestions
+    // novelty 1 = 30 familiar, novelty 3 = 15-15 split, novelty 5 = 30 new
+    // Formula: familiar = 30 - (noveltyPreference - 1) * 7.5, rounded
+    const familiarCount = Math.round(30 - (groupData.noveltyPreference - 1) * 7.5);
+    const newCount = 30 - familiarCount;
 
     // Format availability for display
     const formatAvailabilityForPrompt = (availability: any): string => {
@@ -208,14 +208,14 @@ export async function generateActivitySuggestions(groupData: {
       
       targetCategoriesContext = `\n\n🎯 CRITICAL - TARGETED CATEGORY GENERATION:
 - We need MORE suggestions in these specific categories: ${targetDescriptions}
-- Generate ALL 75 suggestions focused ONLY on these categories
-- Distribute the 75 suggestions across ONLY the target categories (ignore balanced distribution)
+- Generate ALL 30 suggestions focused ONLY on these categories
+- Distribute the 30 suggestions across ONLY the target categories (ignore balanced distribution)
 - This is a retry to fill gaps - prioritize these categories above all else`;
     }
 
-    const prompt = `You are an expert activity planner. Generate 75 activity suggestions for a group with these preferences:
+    const prompt = `You are an expert activity planner. Generate 30 activity suggestions for a group with these preferences:
 
-NOTE: You will generate 75 suggestions, but only 15 will be shown to the user after removing duplicates (aiming for 3 per category). This ensures 15 unique venues even if Google Places returns the same restaurant for multiple search queries.
+NOTE: You will generate 30 suggestions, but only 15 will be shown to the user after removing duplicates (aiming for 3 per category). This ensures 15 unique venues even if Google Places returns the same restaurant for multiple search queries.
 
 Location: ${groupData.locationBase}
 Budget Range: $${groupData.budgetMin}-${groupData.budgetMax} per person
@@ -234,7 +234,7 @@ ${groupData.additionalInstructions ? `🚨 CRITICAL - USER INSTRUCTIONS MODE (AB
 - The user has provided specific instructions in the text box above
 - IGNORE ALL OTHER CONTEXT: Activity Interests, Past Preferences, Voting Feedback, and Swipe Feedback are NOT relevant
 - ONLY focus on what the user typed in the USER INSTRUCTIONS
-- If they specify a venue type (like "Boba", "Sushi", "Pizza", "Korean BBQ"), generate ALL 75 suggestions of that exact type
+- If they specify a venue type (like "Boba", "Sushi", "Pizza", "Korean BBQ"), generate ALL 30 suggestions of that exact type
 - If they provide general guidance (like "something fun", "adventurous"), maintain diversity while matching the theme
 - Use your natural language understanding to distinguish between specific venue types vs. general preferences` : `CRITICAL - How to interpret preferences:
 - If Activity Interests are specified, prioritize those activity types
@@ -260,18 +260,18 @@ ${!groupData.additionalInstructions ? `CRITICAL - Novelty Preference Strategy:
 - Mark NEW suggestions with "NEW:" prefix in reasoning` : ''}
 
 Requirements:
-1. ${groupData.additionalInstructions ? `🚨 FOLLOW ONLY THE USER INSTRUCTIONS ABOVE - Ignore all other context (Activity Interests, Past Preferences, Feedback). If they specify a venue type (like "Boba"), generate ALL 75 of that type. If they give general guidance, maintain diversity while matching the theme.` : (!groupData.pastPreferences && (!groupData.activityCategories || groupData.activityCategories.length === 0) ? `🌍 CULTURAL DIVERSITY FOR NEW GROUPS: This group has NO past preferences or activity interests. Ensure MAXIMUM CULTURAL DIVERSITY across ALL 75 suggestions. DO NOT bias toward any single cuisine type (Asian, Italian, Mexican, etc.). Mix: American, Italian, Mexican, Japanese, Korean, Thai, Vietnamese, Indian, Mediterranean, French, Chinese, etc. Spread cuisines evenly.` : 'Use Activity Interests, Past Preferences, and Feedback to guide suggestions')}
+1. ${groupData.additionalInstructions ? `🚨 FOLLOW ONLY THE USER INSTRUCTIONS ABOVE - Ignore all other context (Activity Interests, Past Preferences, Feedback). If they specify a venue type (like "Boba"), generate ALL 30 of that type. If they give general guidance, maintain diversity while matching the theme.` : (!groupData.pastPreferences && (!groupData.activityCategories || groupData.activityCategories.length === 0) ? `🌍 CULTURAL DIVERSITY FOR NEW GROUPS: This group has NO past preferences or activity interests. Ensure MAXIMUM CULTURAL DIVERSITY across ALL 30 suggestions. DO NOT bias toward any single cuisine type (Asian, Italian, Mexican, etc.). Mix: American, Italian, Mexican, Japanese, Korean, Thai, Vietnamese, Indian, Mediterranean, French, Chinese, etc. Spread cuisines evenly.` : 'Use Activity Interests, Past Preferences, and Feedback to guide suggestions')}
 2. ${!groupData.additionalInstructions && groupData.activityCategories && groupData.activityCategories.length > 0 ? `PRIORITIZE the Activity Interests - these are the types of activities the group specifically wants` : ''}
 3. ${!groupData.additionalInstructions && groupData.pastPreferences ? 'ANALYZE Past Preferences to identify venue TYPES they prefer (restaurants, bars, cafes, activities, etc.)' : ''}
 4. ${!groupData.additionalInstructions && groupData.pastPreferences ? 'PRIORITIZE suggesting the same TYPES of venues they\'ve enjoyed historically' : ''}
 5. 🚨 CRITICAL - NEVER SUGGEST AIRPORT VENUES: DO NOT suggest any venues located inside airports (terminals, gates, etc.) UNLESS the user EXPLICITLY asks for "airport activities" or "activities inside an airport". Airport restaurants, cafes, and shops are BANNED unless specifically requested.
-6. Suggest 75 specific types of venues/activities (not specific business names) - we'll show 15 after deduplication (aiming for 3 per category: MEAL, CAFES, DRINKS, DESSERT, EXPERIENCES)
+6. Suggest 30 specific types of venues/activities (not specific business names) - we'll show 15 after deduplication (aiming for 3 per category: MEAL, CAFES, DRINKS, DESSERT, EXPERIENCES)
 7. 🎯 CATEGORY BALANCE GOAL: Aim for a balanced distribution across categories to ensure ~3 cards per category after deduplication:
-   - MEAL venues (restaurants, brunch spots, food markets, food halls): ~30 suggestions
-   - CAFES (coffee shops, cafes): ~10 suggestions
-   - DRINKS (bars, cocktail lounges, breweries, wine bars): ~15 suggestions
-   - DESSERT (boba, ice cream, dessert shops): ~10 suggestions
-   - EXPERIENCES (museums, parks, concerts, activities): ~10 suggestions
+   - MEAL venues (restaurants, brunch spots, food markets, food halls): ~12 suggestions
+   - CAFES (coffee shops, cafes): ~4 suggestions
+   - DRINKS (bars, cocktail lounges, breweries, wine bars): ~6 suggestions
+   - DESSERT (boba, ice cream, dessert shops): ~4 suggestions
+   - EXPERIENCES (museums, parks, concerts, activities): ~4 suggestions
    - This distribution helps ensure visual balance with 3 cards displaying per category row
 8. Each suggestion should fit within the budget range
 9. CRITICAL - BE SPECIFIC WITH CUISINE TYPES:
@@ -410,7 +410,13 @@ CRITICAL - venueType Field Specificity:
   * "art museum" or "museum" (NOT "activity")
   * "concert venue" or "live music venue" (NOT "event")
 
-Return your response as a JSON object with this structure:
+🚨 CRITICAL - RESPONSE FORMAT REQUIREMENTS:
+- You MUST return EXACTLY 30 suggestions in the suggestions array
+- The array MUST contain 30 items - no more, no less
+- DO NOT stop generating suggestions until you reach exactly 30 items
+- This is a hard requirement - the system will fail if you return fewer than 30
+
+Return your response as a JSON object with this EXACT structure containing EXACTLY 30 items in the suggestions array:
 {
   "suggestions": [
     {
@@ -422,9 +428,12 @@ Return your response as a JSON object with this structure:
       "priceEstimate": "ONLY for events: realistic price estimate",
       "timeConstraints": "ONLY for events: date/time constraints if any",
       "complementaryFoodPlace": "search query for nearby options (<0.5mi, 3.5+ stars). Full meal venues→drinks/dessert. Drinks/dessert venues→full meals. Outdoor venues→portable meals."
-    }
+    },
+    ... (repeat for EXACTLY 30 total suggestions)
   ]
-}`;
+}
+
+REMINDER: The suggestions array MUST contain EXACTLY 30 items. Count them if needed. Do not stop at 10, 15, 20, or any other number - you must provide all 30 suggestions.`;
 
     console.log(`[OpenAI] Sending prompt with availability: ${availabilityText}`);
     
@@ -433,7 +442,7 @@ Return your response as a JSON object with this structure:
       messages: [
         {
           role: "system",
-          content: "You are an expert activity planner who creates personalized suggestions based on group preferences. Always respond with valid JSON."
+          content: "You are an expert activity planner who creates personalized suggestions based on group preferences. CRITICAL: You MUST always return EXACTLY 30 suggestions in the suggestions array. Always respond with valid JSON containing exactly 30 items."
         },
         {
           role: "user",
@@ -441,22 +450,22 @@ Return your response as a JSON object with this structure:
         }
       ],
       response_format: { type: "json_object" },
-      max_completion_tokens: 12000, // Increased to support 75 suggestions (~160 tokens each = ~12000 total)
+      max_completion_tokens: 6000, // Supports 30 suggestions (~200 tokens each = ~6000 total)
     });
 
     const result = JSON.parse(response.choices[0].message.content || '{}');
     const suggestionsCount = result.suggestions?.length || 0;
-    console.log(`[OpenAI] ✅ Received response with ${suggestionsCount} suggestions (target: 75, will show 15 after deduplication)`);
+    console.log(`[OpenAI] ✅ Received response with ${suggestionsCount} suggestions (target: 30, will show 15 after deduplication)`);
     
     // Log token usage for debugging
-    console.log(`[OpenAI] Token usage: ${response.usage?.completion_tokens || 0} completion tokens (max: 12000)`);
+    console.log(`[OpenAI] Token usage: ${response.usage?.completion_tokens || 0} completion tokens (max: 6000)`);
     
     if (!result.suggestions || result.suggestions.length === 0) {
       throw new Error("OpenAI returned no activity suggestions. The response may be empty or malformed.");
     }
     
-    if (result.suggestions.length < 75) {
-      console.warn(`[OpenAI] Warning: Only received ${result.suggestions.length} suggestions instead of 75 - may result in fewer than 15 unique activities after deduplication`);
+    if (result.suggestions.length < 30) {
+      console.warn(`[OpenAI] Warning: Only received ${result.suggestions.length} suggestions instead of 30 - may result in fewer than 15 unique activities after deduplication`);
     }
     
     return result.suggestions;

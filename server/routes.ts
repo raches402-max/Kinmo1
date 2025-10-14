@@ -744,7 +744,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
     const allUniqueActivities: any[] = [];
     const seenVenues = new Set<string>(); // Track across all attempts
     let attempt = 0;
-    const maxAttempts = 3; // Try up to 3 times (75 suggestions each = 225 total) to ensure 15 unique cards
+    const maxAttempts = 3; // Try up to 3 times (30 suggestions each = 90 total) to ensure 15 unique cards
     let targetCategories: string[] | undefined = undefined; // For targeted retry
 
     while (allUniqueActivities.length < 15 && attempt < maxAttempts) {
