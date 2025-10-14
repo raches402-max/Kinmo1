@@ -21,6 +21,7 @@ import { SwipeSession } from "@/components/SwipeSession";
 
 const formSchema = z.object({
   name: z.string().min(1, "Group name is required"),
+  emoji: z.string().default("🎉"),
   locationBase: z.string().min(1, "Location is required"),
   budgetMin: z.number().min(0),
   budgetMax: z.number().min(0),
@@ -61,6 +62,15 @@ const activityCategories = [
   { id: "trivia", label: "Trivia Nights", icon: GraduationCap },
 ];
 
+const groupEmojis = [
+  "🎉", "🍕", "🎸", "🎮", "⚽", "🎬", "🍻", "☕", 
+  "🌮", "🎯", "🎭", "🎨", "🍔", "🎵", "🏃", "🎲"
+];
+
+function getRandomEmoji() {
+  return groupEmojis[Math.floor(Math.random() * groupEmojis.length)];
+}
+
 export default function CreateGroup() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
@@ -79,6 +89,7 @@ export default function CreateGroup() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
+      emoji: getRandomEmoji(),
       locationBase: "",
       budgetMin: 50,
       budgetMax: 250,
@@ -211,6 +222,46 @@ export default function CreateGroup() {
                       <FormControl>
                         <Input placeholder="Friday Night Crew" {...field} data-testid="input-group-name" />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="emoji"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Group Icon</FormLabel>
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-3">
+                          <div className="text-4xl">{field.value || "🎉"}</div>
+                          <FormControl>
+                            <Input 
+                              {...field} 
+                              placeholder="🎉" 
+                              className="w-20 text-center text-2xl"
+                              maxLength={2}
+                              data-testid="input-group-emoji"
+                            />
+                          </FormControl>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {groupEmojis.map((emoji) => (
+                            <Button
+                              key={emoji}
+                              type="button"
+                              variant={field.value === emoji ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => field.onChange(emoji)}
+                              className="text-xl h-10 w-10 p-0"
+                              data-testid={`button-emoji-${emoji}`}
+                            >
+                              {emoji}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
