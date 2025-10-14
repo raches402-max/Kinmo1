@@ -65,15 +65,15 @@ export async function generateActivitySuggestions(groupData: {
   previouslySuggestedVenues?: string[];
 }): Promise<ActivitySuggestion[]> {
   try {
-    // Generate 45 suggestions to account for duplicates after Google Places enrichment
-    // After deduplication, we'll take the first 9 unique ones
-    // This ensures we always have 9 cards even in areas with limited venue options
+    // Generate 75 suggestions to account for duplicates after Google Places enrichment
+    // After deduplication, we'll take the first 15 unique ones (3 per category)
+    // This ensures we always have 15 cards even in areas with limited venue options
     
-    // Calculate novelty split based on 45 suggestions
-    // novelty 1 = 45 familiar, novelty 3 = 22-23 split, novelty 5 = 45 new
-    // Formula: familiar = 45 - (noveltyPreference - 1) * 11.25, rounded
-    const familiarCount = Math.round(45 - (groupData.noveltyPreference - 1) * 11.25);
-    const newCount = 45 - familiarCount;
+    // Calculate novelty split based on 75 suggestions
+    // novelty 1 = 75 familiar, novelty 3 = 37-38 split, novelty 5 = 75 new
+    // Formula: familiar = 75 - (noveltyPreference - 1) * 18.75, rounded
+    const familiarCount = Math.round(75 - (groupData.noveltyPreference - 1) * 18.75);
+    const newCount = 75 - familiarCount;
 
     // Format availability for display
     const formatAvailabilityForPrompt = (availability: any): string => {
