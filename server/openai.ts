@@ -390,7 +390,7 @@ Return your response as a JSON object with this structure:
         }
       ],
       response_format: { type: "json_object" },
-      max_completion_tokens: 2048,
+      max_completion_tokens: 8000,
     });
 
     const result = JSON.parse(response.choices[0].message.content || '{}');
@@ -401,8 +401,8 @@ Return your response as a JSON object with this structure:
       throw new Error("OpenAI returned no activity suggestions. The response may be empty or malformed.");
     }
     
-    if (result.suggestions.length < 15) {
-      console.warn(`[OpenAI] Warning: Only received ${result.suggestions.length} suggestions instead of 15 - may result in fewer than 6 unique activities after deduplication`);
+    if (result.suggestions.length < 30) {
+      console.warn(`[OpenAI] Warning: Only received ${result.suggestions.length} suggestions instead of 30 - may result in fewer than 6 unique activities after deduplication`);
     }
     
     return result.suggestions;
