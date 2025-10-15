@@ -946,6 +946,94 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Get nearby add-on suggestions for selected venues
+  app.post("/api/groups/:groupId/nearby-suggestions", async (req, res) => {
+    try {
+      const { selectedVenues } = req.body; // Array of { sourceType, sourceId }
+      const { groupId } = req.params;
+
+      if (!selectedVenues || !Array.isArray(selectedVenues) || selectedVenues.length === 0) {
+        return res.json({ suggestions: [] });
+      }
+
+      // Fetch venue details with location data
+      const venuesWithLocations = await Promise.all(
+        selectedVenues.map(async (v: { sourceType: string; sourceId: string }) => {
+          if (v.sourceType === 'activity') {
+            const activities = await storage.getGroupActivities(groupId);
+            const activity = activities.find(a => a.id === v.sourceId);
+            if (!activity?.googlePlaceId) return null;
+            
+            const placeDetails = await import('./google-places').then(m => m.getPlaceDetails(activity.googlePlaceId!));
+            if (!placeDetails?.location) return null;
+            
+            return {
+              location: placeDetails.location,
+              placeId: activity.googlePlaceId,
+              name: activity.venueName,
+            };
+          } else {
+            const events = await storage.getGroupVotingEvents(groupId);
+            const event = events.find(e => e.id === v.sourceId);
+            if (!event?.googlePlaceId) return null;
+            
+            const placeDetails = await import('./google-places').then(m => m.getPlaceDetails(event.googlePlaceId!));
+            if (!placeDetails?.location) return null;
+            
+            return {
+              location: placeDetails.location,
+              placeId: event.googlePlaceId,
+              name: event.title,
+            };
+          }
+        })
+      );
+
+      const validLocations = venuesWithLocations.filter(Boolean);
+      
+      if (validLocations.length === 0) {
+        return res.json({ suggestions: [] });
+      }
+
+      // Search for nearby high-rated places around the first venue
+      const centerLocation = validLocations[0]!.location;
+      const selectedPlaceIds = validLocations.map(v => v!.placeId);
+      
+      // Search for various types of nearby venues
+      const searchQueries = ['restaurant', 'cafe', 'bar', 'dessert', 'ice cream'];
+      const allNearbyPlaces = await Promise.all(
+        searchQueries.map(query => 
+          searchNearbyPlaces(query, centerLocation, 805, 4.0) // 0.5 miles = 805 meters, 4.0+ rating
+        )
+      );
+
+      // Flatten and deduplicate
+      const uniquePlaces = new Map();
+      allNearbyPlaces.flat().forEach(place => {
+        // Skip if it's one of the selected venues
+        if (selectedPlaceIds.includes(place.placeId)) return;
+        
+        if (!uniquePlaces.has(place.placeId)) {
+          uniquePlaces.set(place.placeId, place);
+        }
+      });
+
+      // Take top 3 suggestions by rating
+      const suggestions = Array.from(uniquePlaces.values())
+        .sort((a, b) => {
+          const ratingA = parseFloat(a.rating || '0');
+          const ratingB = parseFloat(b.rating || '0');
+          return ratingB - ratingA;
+        })
+        .slice(0, 3);
+
+      res.json({ suggestions });
+    } catch (error: any) {
+      console.error("Error fetching nearby suggestions:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Get group itineraries
   app.get("/api/groups/:groupId/itineraries", async (req, res) => {
     try {

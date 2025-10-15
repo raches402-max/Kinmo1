@@ -372,6 +372,7 @@ export default function GroupDetail() {
   const [favoritesSearch, setFavoritesSearch] = useState("");
   const [categorySortMode, setCategorySortMode] = useState<Record<string, 'rating' | 'votes'>>({});
   const [activitiesSubTab, setActivitiesSubTab] = useState("ai-suggested");
+  const [addedSuggestionPlaceIds, setAddedSuggestionPlaceIds] = useState<Set<string>>(new Set());
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -413,6 +414,20 @@ export default function GroupDetail() {
   const { data: itineraries = [], isLoading: itinerariesLoading } = useQuery<any[]>({
     queryKey: ["/api/groups", groupId, "itineraries"],
     enabled: !!groupId,
+  });
+
+  // Fetch nearby suggestions when venues are selected
+  const { data: nearbySuggestions = [] } = useQuery<any[]>({
+    queryKey: ["/api/groups", groupId, "nearby-suggestions", selectedVenues],
+    queryFn: async () => {
+      if (selectedVenues.length === 0) return [];
+      
+      const response = await apiRequest("POST", `/api/groups/${groupId}/nearby-suggestions`, {
+        selectedVenues
+      });
+      return response.suggestions || [];
+    },
+    enabled: !!groupId && selectedVenues.length > 0,
   });
 
   // Track previous generation status to detect when generation completes
@@ -714,6 +729,7 @@ export default function GroupDetail() {
     },
     onSuccess: () => {
       setSelectedVenues([]);
+      setAddedSuggestionPlaceIds(new Set()); // Clear tracking set
       setActiveTab("build");
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "itineraries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "voting-events"] });
@@ -844,6 +860,49 @@ export default function GroupDetail() {
     onError: (error: Error) => {
       toast({
         title: "Error adding event",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const addVotingEventMutation = useMutation({
+    mutationFn: async (eventData: { 
+      title: string;
+      venueAddress?: string;
+      venueType?: string;
+      googlePlaceId?: string;
+    }) => {
+      return await apiRequest("POST", "/api/voting-events", { 
+        groupId, 
+        ...eventData, 
+        skipEnrichmentCheck: true // Skip confirmation since we already have Google data
+      });
+    },
+    onSuccess: (data: { event?: any }, variables) => {
+      if (data.event) {
+        // Track placeId only on success to allow retries on failure
+        if (variables.googlePlaceId) {
+          setAddedSuggestionPlaceIds(prev => new Set(Array.from(prev).concat(variables.googlePlaceId!)));
+        }
+        
+        queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "voting-events"] });
+        
+        // Automatically add to selected venues
+        setSelectedVenues(prev => [...prev, {
+          sourceType: 'voting_event',
+          sourceId: data.event.id
+        }]);
+        
+        toast({
+          title: "Added to itinerary",
+          description: "Nearby venue has been added to your selection",
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error adding venue",
         description: error.message,
         variant: "destructive",
       });
@@ -2528,7 +2587,10 @@ export default function GroupDetail() {
                         Build Itinerary
                       </Button>
                       <Button
-                        onClick={() => setSelectedVenues([])}
+                        onClick={() => {
+                          setSelectedVenues([]);
+                          setAddedSuggestionPlaceIds(new Set()); // Clear tracking set
+                        }}
                         variant="outline"
                         size="sm"
                         data-testid="button-clear-cart"
@@ -2910,6 +2972,7 @@ export default function GroupDetail() {
                         <Button
                           onClick={() => {
                             setSelectedVenues([]);
+                            setAddedSuggestionPlaceIds(new Set()); // Clear tracking set
                           }}
                           variant="outline"
                           size="sm"
@@ -2962,6 +3025,78 @@ export default function GroupDetail() {
                         </div>
                       );
                     })}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Nearby Add-on Suggestions */}
+              {selectedVenues.length > 0 && nearbySuggestions.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Nearby Add-ons</CardTitle>
+                    <CardDescription className="text-xs">
+                      High-rated venues within 0.5 miles - click to add
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      {nearbySuggestions.map((suggestion: any) => {
+                        // Check if already exists in activities, voting events, or locally tracked
+                        const alreadySelected = activities.some(a => a.googlePlaceId === suggestion.placeId) ||
+                          votingEvents.some(e => e.googlePlaceId === suggestion.placeId) ||
+                          addedSuggestionPlaceIds.has(suggestion.placeId);
+
+                        return (
+                          <button
+                            key={suggestion.placeId}
+                            onClick={() => {
+                              if (alreadySelected || addVotingEventMutation.isPending) return;
+                              if (selectedVenues.length >= 5) {
+                                toast({
+                                  title: "Maximum reached",
+                                  description: "You can select up to 5 venues",
+                                  variant: "destructive"
+                                });
+                                return;
+                              }
+                              
+                              // Add suggestion as a new venue (via voting event)
+                              addVotingEventMutation.mutate({
+                                title: suggestion.name,
+                                venueType: suggestion.types?.[0] || 'venue',
+                                venueAddress: suggestion.address,
+                                googlePlaceId: suggestion.placeId,
+                              });
+                            }}
+                            disabled={alreadySelected || addVotingEventMutation.isPending}
+                            className={`flex gap-3 p-3 rounded-md border text-left transition-all hover-elevate active-elevate-2 ${
+                              alreadySelected || addVotingEventMutation.isPending ? 'opacity-50 cursor-not-allowed' : ''
+                            }`}
+                            data-testid={`suggestion-${suggestion.placeId}`}
+                          >
+                            {suggestion.photoUrl && (
+                              <img 
+                                src={suggestion.photoUrl} 
+                                alt={suggestion.name}
+                                className="w-16 h-16 rounded object-cover flex-shrink-0"
+                              />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{suggestion.name}</p>
+                              {suggestion.rating && (
+                                <div className="flex items-center gap-1 mt-1">
+                                  <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                                  <span className="text-xs font-medium">{suggestion.rating}</span>
+                                </div>
+                              )}
+                              <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
+                                {suggestion.address}
+                              </p>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </CardContent>
                 </Card>
               )}
