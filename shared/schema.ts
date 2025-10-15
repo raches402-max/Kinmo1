@@ -71,6 +71,9 @@ export const members = pgTable("members", {
   memberAvailability: jsonb("member_availability"), // Dates that work for this member: ["2025-01-15", "2025-01-16"]
   claimToken: text("claim_token").unique(), // Session token for claiming identity without login
   
+  // Smart preference learning from RSVP follow-ups
+  memberConstraints: jsonb("member_constraints"), // {scheduleConflicts: ["Thursdays"], budgetConcern: true, distanceConcern: true, notes: "..."}
+  
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
