@@ -279,7 +279,10 @@ export class DatabaseStorage implements IStorage {
         venueAddress: votingEvents.venueAddress,
         venueType: votingEvents.venueType,
         googlePlaceId: votingEvents.googlePlaceId,
+        latitude: votingEvents.latitude,
+        longitude: votingEvents.longitude,
         rating: votingEvents.rating,
+        reviewCount: votingEvents.reviewCount,
         priceLevel: votingEvents.priceLevel,
         photoUrl: votingEvents.photoUrl,
         aiReasoning: votingEvents.aiReasoning,
@@ -320,7 +323,10 @@ export class DatabaseStorage implements IStorage {
         venueAddress: votingEvents.venueAddress,
         venueType: votingEvents.venueType,
         googlePlaceId: votingEvents.googlePlaceId,
+        latitude: votingEvents.latitude,
+        longitude: votingEvents.longitude,
         rating: votingEvents.rating,
+        reviewCount: votingEvents.reviewCount,
         priceLevel: votingEvents.priceLevel,
         photoUrl: votingEvents.photoUrl,
         aiReasoning: votingEvents.aiReasoning,
@@ -552,3 +558,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateItineraryItemOrder(itineraryId: string, proposedOrder: string[]): Promise<void> {
+    // Update order indices based on the proposed order
+    // Ensure we only update items that belong to this specific itinerary
+    for (let i = 0; i < proposedOrder.length; i++) {
+      await db
+        .update(itineraryItems)
+        .set({ orderIndex: i })
+        .where(
+          and(
+            eq(itineraryItems.id, proposedOrder[i]),
+            eq(itineraryItems.itineraryId, itineraryId)
+          )
+        );
+    }
+  }
+}
+
+export const storage = new DatabaseStorage();
