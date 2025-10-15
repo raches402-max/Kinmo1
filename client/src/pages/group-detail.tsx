@@ -1131,7 +1131,7 @@ export default function GroupDetail() {
                   </p>
                   <p className="text-xs text-muted-foreground mb-2">
                     {itineraries.length > 0 
-                      ? 'Select 2-5 venues to create your perfect evening. AI validates proximity and timing.'
+                      ? 'Select 1-5 venues to create your perfect evening. AI validates proximity and timing.'
                       : 'Browse AI-generated suggestions below. Use "Generate New Ideas" to explore more options.'}
                   </p>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -1600,7 +1600,7 @@ export default function GroupDetail() {
                     <h2 className="text-2xl font-bold" data-testid="text-activities-title">AI-Suggested Activities</h2>
               </div>
               <p className="text-muted-foreground mb-4">
-                Select venues to build your itinerary. Click the checkboxes to add venues to your plan.
+                Select 1-5 venues to build your itinerary. Click the checkboxes to add venues to your plan.
               </p>
               
               {/* Search Radius Slider */}
@@ -2520,7 +2520,7 @@ export default function GroupDetail() {
                     <div className="p-3 border-t flex gap-2">
                       <Button
                         onClick={() => setActiveTab("build")}
-                        disabled={selectedVenues.length < 2}
+                        disabled={selectedVenues.length < 1}
                         className="flex-1"
                         size="sm"
                         data-testid="button-build-itinerary-cart"
@@ -2883,7 +2883,7 @@ export default function GroupDetail() {
                 <h2 className="text-2xl font-bold mb-2">Create Your Itinerary</h2>
                 <p className="text-muted-foreground">
                   {selectedVenues.length > 0
-                    ? "Select 2-5 venues from Activities or Favorites, then click Create Itinerary"
+                    ? "Select 1-5 venues from Activities or Favorites, then click Create Itinerary"
                     : itineraries.length > 0
                       ? "Your evening itinerary is ready! Drag to reorder venues."
                       : "Switch to Activities tab to browse and select venues for your itinerary"
@@ -2900,7 +2900,7 @@ export default function GroupDetail() {
                       <div className="flex gap-2">
                         <Button
                           onClick={() => validateItineraryMutation.mutate(selectedVenues)}
-                          disabled={validateItineraryMutation.isPending || selectedVenues.length < 2}
+                          disabled={validateItineraryMutation.isPending || selectedVenues.length < 1}
                           variant="default"
                           size="sm"
                           data-testid="button-validate-itinerary-build"
