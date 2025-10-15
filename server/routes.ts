@@ -8,7 +8,83 @@ import { searchPlaces, searchNearbyPlaces, geocodeLocation } from "./google-plac
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { validateItinerary } from "./itinerary-validation";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
+
+async function trackFeedbackAndMaybeAnalyze(groupId: string) {
+  try {
+    const [updatedGroup] = await db
+      .update(groupsTable)
+      .set({
+        feedbackCount: sql`COALESCE(${groupsTable.feedbackCount}, 0) + 1`
+      })
+      .where(eq(groupsTable.id, groupId))
+      .returning();
+
+    if (!updatedGroup) {
+      console.error(`Group ${groupId} not found when tracking feedback`);
+      return;
+    }
+
+    const newCount = updatedGroup.feedbackCount || 0;
+    console.log(`[Feedback Tracking] Group ${groupId} feedback count: ${newCount}`);
+
+    if (newCount > 0 && newCount % 15 === 0) {
+      console.log(`[Feedback Tracking] Triggering insights analysis at ${newCount} feedback actions`);
+      
+      setImmediate(async () => {
+        try {
+          const activities = await storage.getGroupActivities(groupId);
+          const votingEvents = await storage.getGroupVotingEvents(groupId);
+          const preferenceSignals = await storage.getGroupPreferenceSignals(groupId);
+
+          const notThisFeedback = activities
+            .filter(a => a.feedback === 'less')
+            .map(a => ({
+              venueName: a.venueName,
+              venueType: a.venueType,
+              feedback: a.feedback as string,
+            }));
+
+          const votingFeedback = votingEvents.map(event => ({
+            venueName: event.venueName,
+            venueType: event.venueType || 'event',
+            upvotes: event.upvotes,
+            downvotes: event.downvotes,
+          }));
+
+          const likedConcepts = preferenceSignals
+            .filter(s => s.feedback === 'like')
+            .map(s => ({ type: s.conceptType, description: s.conceptDescription }));
+
+          const passedConcepts = preferenceSignals
+            .filter(s => s.feedback === 'pass')
+            .map(s => ({ type: s.conceptType, description: s.conceptDescription }));
+
+          const patterns = await analyzePreferencePatterns({
+            notThisFeedback,
+            votingFeedback,
+            likedConcepts,
+            passedConcepts
+          });
+
+          await db
+            .update(groupsTable)
+            .set({
+              preferenceInsights: patterns,
+              lastInsightsUpdate: new Date().toISOString()
+            })
+            .where(eq(groupsTable.id, groupId));
+
+          console.log(`[Feedback Tracking] Insights updated for group ${groupId}`);
+        } catch (error) {
+          console.error(`[Feedback Tracking] Background insights analysis failed:`, error);
+        }
+      });
+    }
+  } catch (error) {
+    console.error(`[Feedback Tracking] Error tracking feedback for group ${groupId}:`, error);
+  }
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Set up authentication
@@ -171,6 +247,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid feedback value" });
       }
       const activity = await storage.updateActivityFeedback(req.params.activityId, feedback);
+      
+      if (activity.groupId) {
+        await trackFeedbackAndMaybeAnalyze(activity.groupId);
+      }
+      
       res.json(activity);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -508,6 +589,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const vote = await storage.castVote(req.params.id, userId, voteType);
+      
+      const event = await storage.getVotingEvent(req.params.id);
+      if (event?.groupId) {
+        await trackFeedbackAndMaybeAnalyze(event.groupId);
+      }
+      
       res.json(vote);
     } catch (error: any) {
       res.status(400).json({ message: error.message });
@@ -1060,6 +1147,8 @@ Looking forward to planning great activities together!
         conceptDescription,
         feedback,
       });
+
+      await trackFeedbackAndMaybeAnalyze(req.params.id);
 
       res.json({ signal });
     } catch (error: any) {
