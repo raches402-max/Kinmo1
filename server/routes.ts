@@ -772,6 +772,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           if (finalPlaces.length > 0) {
             const place = finalPlaces[0];
+            
+            // CRITICAL: Only include venues with verified Google Places data
+            // Reject venues missing essential information (rating, address, or photo)
+            if (!place.rating || !place.address || !place.photoUrl) {
+              console.log(`[Category Regen] Rejecting ${place.name} - missing critical data (rating: ${place.rating}, address: ${!!place.address}, photo: ${!!place.photoUrl})`);
+              return null;
+            }
+            
             return {
               aiSuggestedName: suggestion.venueName,
               venueName: place.name,
@@ -801,6 +809,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               complementaryPlaceRating2: complementaryPlace2?.rating || null,
             };
           }
+          
+          console.log(`[Category Regen] Rejecting ${suggestion.venueName} - no Google Places results found`);
           return null;
         })
       );
@@ -1521,6 +1531,14 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
 
           if (finalPlaces.length > 0) {
             const place = finalPlaces[0];
+            
+            // CRITICAL: Only include venues with verified Google Places data
+            // Reject venues missing essential information (rating, address, or photo)
+            if (!place.rating || !place.address || !place.photoUrl) {
+              console.log(`[AI Generation] Rejecting ${place.name} - missing critical data (rating: ${place.rating}, address: ${!!place.address}, photo: ${!!place.photoUrl})`);
+              return null;
+            }
+            
             return {
               groupId,
               aiSuggestedName: suggestion.venueName, // Store what AI originally suggested
@@ -1554,37 +1572,9 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
               complementaryPlaceRating2: complementaryPlace2?.rating || null,
             };
           } else {
-            // If no Google Places result, use AI suggestion directly
-            return {
-              groupId,
-              aiSuggestedName: suggestion.venueName, // Store what AI originally suggested
-              venueName: suggestion.venueName,
-              venueAddress: groupData.locationBase,
-              venueType: suggestion.venueType,
-              description: suggestion.description,
-              googlePlaceId: null,
-              rating: null,
-              reviewCount: null,
-              priceLevel: null,
-              photoUrl: null,
-              googleReview: null,
-              aiReasoning: suggestion.reasoning,
-              suggestedDate: null,
-              suggestedTime: null,
-              priceEstimate: suggestion.priceEstimate || null,
-              timeConstraints: suggestion.timeConstraints || null,
-              timeCategory: categorizeByTime(suggestion.venueType), // Categorize by time commitment
-              complementaryPlaceName: complementaryPlace?.name || null,
-              complementaryPlaceAddress: complementaryPlace?.address || null,
-              complementaryPlaceId: complementaryPlace?.placeId || null,
-              complementaryPlacePhotoUrl: complementaryPlace?.photoUrl || null,
-              complementaryPlaceRating: complementaryPlace?.rating || null,
-              complementaryPlaceName2: complementaryPlace2?.name || null,
-              complementaryPlaceAddress2: complementaryPlace2?.address || null,
-              complementaryPlaceId2: complementaryPlace2?.placeId || null,
-              complementaryPlacePhotoUrl2: complementaryPlace2?.photoUrl || null,
-              complementaryPlaceRating2: complementaryPlace2?.rating || null,
-            };
+            // Reject suggestions with no Google Places results
+            console.log(`[AI Generation] Rejecting ${suggestion.venueName} - no Google Places results found`);
+            return null;
           }
         })
       );
