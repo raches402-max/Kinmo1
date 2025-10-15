@@ -371,6 +371,7 @@ export default function GroupDetail() {
   const [regeneratingCategory, setRegeneratingCategory] = useState<string | null>(null);
   const [favoritesSearch, setFavoritesSearch] = useState("");
   const [categorySortMode, setCategorySortMode] = useState<Record<string, 'rating' | 'votes'>>({});
+  const [activitiesSubTab, setActivitiesSubTab] = useState("ai-suggested");
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -1166,10 +1167,9 @@ export default function GroupDetail() {
 
       <div className="max-w-7xl mx-auto px-6 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-3xl mx-auto grid-cols-6">
+          <TabsList className="grid w-full max-w-3xl mx-auto grid-cols-5">
             <TabsTrigger value="preferences" data-testid="tab-preferences">1. Group Details</TabsTrigger>
             <TabsTrigger value="activities" data-testid="tab-activities">2. Activities</TabsTrigger>
-            <TabsTrigger value="favorites" data-testid="tab-favorites">2.5 Favorites</TabsTrigger>
             <TabsTrigger value="build" data-testid="tab-build">3. Itinerary</TabsTrigger>
             <TabsTrigger value="schedule" data-testid="tab-schedule">4. Schedule</TabsTrigger>
             <TabsTrigger value="feedback" data-testid="tab-feedback">5. Feedback</TabsTrigger>
@@ -1585,11 +1585,19 @@ export default function GroupDetail() {
           </TabsContent>
 
           {/* Tab 2: Activities */}
-          <TabsContent value="activities" className="flex flex-col xl:flex-row gap-6">
-            {/* Main Content - AI-Suggested Activities */}
-            <div className="flex-1 space-y-6 min-w-0">
-              <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
-                <h2 className="text-2xl font-bold" data-testid="text-activities-title">AI-Suggested Activities</h2>
+          <TabsContent value="activities" className="space-y-6">
+            <Tabs value={activitiesSubTab} onValueChange={setActivitiesSubTab}>
+              <TabsList className="grid w-full max-w-md mx-auto grid-cols-2">
+                <TabsTrigger value="ai-suggested" data-testid="subtab-ai-suggested">AI Suggested</TabsTrigger>
+                <TabsTrigger value="favorites" data-testid="subtab-favorites">Favorites</TabsTrigger>
+              </TabsList>
+
+              {/* Sub-tab 1: AI Suggested */}
+              <TabsContent value="ai-suggested" className="flex flex-col xl:flex-row gap-6">
+                {/* Main Content - AI-Suggested Activities */}
+                <div className="flex-1 space-y-6 min-w-0">
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+                    <h2 className="text-2xl font-bold" data-testid="text-activities-title">AI-Suggested Activities</h2>
               </div>
               <p className="text-muted-foreground mb-4">
                 Select venues to build your itinerary. Click the checkboxes to add venues to your plan.
@@ -2532,17 +2540,17 @@ export default function GroupDetail() {
                 </Popover>
               </div>
             )}
-          </TabsContent>
+              </TabsContent>
 
-          {/* Tab 2.5: Favorites */}
-          <TabsContent value="favorites" className="space-y-6">
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold mb-2">Your Favorites</h2>
-                <p className="text-muted-foreground">
-                  Vote on group favorites and select venues to add to your itinerary
-                </p>
-              </div>
+              {/* Sub-tab 2: Favorites */}
+              <TabsContent value="favorites" className="space-y-6">
+                <div className="space-y-6">
+                  <div>
+                    <h2 className="text-2xl font-bold mb-2">Your Favorites</h2>
+                    <p className="text-muted-foreground">
+                      Vote on group favorites and select venues to add to your itinerary
+                    </p>
+                  </div>
 
               {votingEvents.length === 0 ? (
                 <Card>
@@ -2863,7 +2871,9 @@ export default function GroupDetail() {
                   })()}
                 </div>
               )}
-            </div>
+                </div>
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
           {/* Tab 3: Itinerary */}
