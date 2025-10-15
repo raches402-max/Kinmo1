@@ -1164,9 +1164,10 @@ export default function GroupDetail() {
 
       <div className="max-w-7xl mx-auto px-6 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-3xl mx-auto grid-cols-5">
+          <TabsList className="grid w-full max-w-3xl mx-auto grid-cols-6">
             <TabsTrigger value="preferences" data-testid="tab-preferences">1. Group Details</TabsTrigger>
             <TabsTrigger value="activities" data-testid="tab-activities">2. Activities</TabsTrigger>
+            <TabsTrigger value="favorites" data-testid="tab-favorites">2.5 Favorites</TabsTrigger>
             <TabsTrigger value="build" data-testid="tab-build">3. Itinerary</TabsTrigger>
             <TabsTrigger value="schedule" data-testid="tab-schedule">4. Schedule</TabsTrigger>
             <TabsTrigger value="feedback" data-testid="tab-feedback">5. Feedback</TabsTrigger>
@@ -2529,6 +2530,235 @@ export default function GroupDetail() {
                 </Popover>
               </div>
             )}
+          </TabsContent>
+
+          {/* Tab 2.5: Favorites */}
+          <TabsContent value="favorites" className="space-y-6">
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-2xl font-bold mb-2">Your Favorites</h2>
+                <p className="text-muted-foreground">
+                  Vote on group favorites and select venues to add to your itinerary
+                </p>
+              </div>
+
+              {votingEvents.length === 0 ? (
+                <Card>
+                  <CardContent className="p-12 text-center">
+                    <Heart className="h-12 w-12 mx-auto mb-3 text-muted-foreground opacity-50" />
+                    <p className="text-sm text-muted-foreground">No favorites yet</p>
+                    <p className="text-xs text-muted-foreground mt-1">Add venues from the Activities tab</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-6">
+                  {(() => {
+                    // Categorize voting events
+                    const categorizeVenue = (venueType: string | null): 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences' => {
+                      if (!venueType) return 'experiences';
+                      const lower = venueType.toLowerCase();
+                      
+                      if (lower.includes('coffee') || lower.includes('cafe') || lower.includes('café')) return 'cafes';
+                      if (lower.includes('bar') || lower.includes('brewery') || lower.includes('wine') || lower.includes('cocktail')) return 'drinks';
+                      if (lower.includes('dessert') || lower.includes('ice cream') || lower.includes('boba') || lower.includes('bakery')) return 'dessert';
+                      if (lower.includes('restaurant') || lower.includes('food') || lower.includes('dining') || lower.includes('sushi') || 
+                          lower.includes('pizza') || lower.includes('taco') || lower.includes('burger')) return 'meal';
+                      
+                      return 'experiences';
+                    };
+
+                    const categoryConfig = {
+                      meal: { label: 'MEALS' },
+                      cafes: { label: 'CAFES' },
+                      drinks: { label: 'DRINKS' },
+                      dessert: { label: 'DESSERT' },
+                      experiences: { label: 'EXPERIENCES' }
+                    };
+
+                    // Group voting events by category
+                    const grouped = votingEvents.reduce((acc, event) => {
+                      const category = categorizeVenue(event.venueType);
+                      if (!acc[category]) acc[category] = [];
+                      acc[category].push(event);
+                      return acc;
+                    }, {} as Record<string, typeof votingEvents>);
+
+                    // Sort each category by rating (highest first)
+                    Object.keys(grouped).forEach(category => {
+                      grouped[category].sort((a, b) => {
+                        const ratingA = parseFloat(a.rating || '0');
+                        const ratingB = parseFloat(b.rating || '0');
+                        return ratingB - ratingA;
+                      });
+                    });
+
+                    return Object.entries(categoryConfig).map(([categoryKey, config]) => {
+                      const categoryEvents = grouped[categoryKey];
+                      if (!categoryEvents || categoryEvents.length === 0) return null;
+
+                      return (
+                        <Card key={categoryKey}>
+                          <CardHeader className="pb-3">
+                            <CardTitle className="text-base flex items-center gap-2">
+                              <span>{config.label}</span>
+                              <Badge variant="secondary" className="ml-2">{categoryEvents.length}</Badge>
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="space-y-2">
+                              {categoryEvents.map(event => {
+                                const myVote = myVotes[event.id];
+                                const isSelected = selectedVenues.some(v => v.sourceType === 'voting_event' && v.sourceId === event.id);
+                                
+                                return (
+                                  <div 
+                                    key={event.id}
+                                    className="flex items-center gap-3 p-3 rounded-md border hover-elevate transition-colors"
+                                    data-testid={`favorites-row-${event.id}`}
+                                  >
+                                    <Checkbox
+                                      checked={isSelected}
+                                      onCheckedChange={() => toggleVenueSelection('voting_event', event.id)}
+                                      className="h-5 w-5"
+                                      onClick={(e) => e.stopPropagation()}
+                                      data-testid={`checkbox-favorite-${event.id}`}
+                                    />
+                                    
+                                    <div className="flex-1 min-w-0">
+                                      <h4 className="font-medium text-sm truncate">{event.title}</h4>
+                                      {event.venueType && (
+                                        <p className="text-xs text-muted-foreground truncate">{event.venueType}</p>
+                                      )}
+                                    </div>
+
+                                    {event.rating && (
+                                      <Badge variant="secondary" className="gap-1 text-xs shrink-0">
+                                        <Star className="h-3 w-3 fill-current" />
+                                        {event.rating}
+                                        {event.reviewCount && ` (${event.reviewCount})`}
+                                      </Badge>
+                                    )}
+
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      <Badge variant="outline" className="text-xs">
+                                        {event.netVotes > 0 ? '+' : ''}{event.netVotes || 0}
+                                      </Badge>
+                                    </div>
+
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      <Button
+                                        variant={myVote?.voteType === "upvote" ? "default" : "ghost"}
+                                        size="icon"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleVote(event.id, "upvote");
+                                        }}
+                                        className="h-8 w-8"
+                                        data-testid={`button-upvote-${event.id}`}
+                                      >
+                                        <ThumbsUp className="h-3.5 w-3.5" />
+                                      </Button>
+                                      <Button
+                                        variant={myVote?.voteType === "downvote" ? "default" : "ghost"}
+                                        size="icon"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleVote(event.id, "downvote");
+                                        }}
+                                        className="h-8 w-8"
+                                        data-testid={`button-downvote-${event.id}`}
+                                      >
+                                        <ThumbsDown className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </div>
+
+                                    <Dialog>
+                                      <DialogTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-8 w-8 shrink-0"
+                                          data-testid={`button-view-details-${event.id}`}
+                                        >
+                                          <ExternalLink className="h-3.5 w-3.5" />
+                                        </Button>
+                                      </DialogTrigger>
+                                      <DialogContent className="max-w-2xl">
+                                        <DialogHeader>
+                                          <DialogTitle>{event.title}</DialogTitle>
+                                          {event.description && (
+                                            <DialogDescription>{event.description}</DialogDescription>
+                                          )}
+                                        </DialogHeader>
+                                        <div className="space-y-4">
+                                          {event.photoUrl && (
+                                            <div className="aspect-video w-full overflow-hidden rounded-md bg-muted">
+                                              <img
+                                                src={event.photoUrl}
+                                                alt={event.title}
+                                                className="w-full h-full object-cover"
+                                              />
+                                            </div>
+                                          )}
+                                          
+                                          <div className="grid gap-2">
+                                            {event.venueAddress && (
+                                              <div className="flex items-start gap-2">
+                                                <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
+                                                <p className="text-sm">{event.venueAddress}</p>
+                                              </div>
+                                            )}
+                                            
+                                            <div className="flex flex-wrap items-center gap-2">
+                                              {event.rating && (
+                                                <Badge variant="secondary" className="gap-1">
+                                                  <Star className="h-3 w-3 fill-current" />
+                                                  {event.rating}
+                                                  {event.reviewCount && ` (${event.reviewCount})`}
+                                                </Badge>
+                                              )}
+                                              {event.priceLevel && (
+                                                <Badge variant="secondary">
+                                                  {priceDisplay(event.priceLevel)}
+                                                </Badge>
+                                              )}
+                                              {event.venueType && (
+                                                <Badge variant="outline">{event.venueType}</Badge>
+                                              )}
+                                            </div>
+                                          </div>
+                                          
+                                          {event.googlePlaceId && (
+                                            <Button
+                                              variant="outline"
+                                              asChild
+                                              className="w-full"
+                                            >
+                                              <a
+                                                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.title)}&query_place_id=${event.googlePlaceId}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                              >
+                                                <MapPin className="mr-2 h-4 w-4" />
+                                                View on Google Maps
+                                              </a>
+                                            </Button>
+                                          )}
+                                        </div>
+                                      </DialogContent>
+                                    </Dialog>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    });
+                  })()}
+                </div>
+              )}
+            </div>
           </TabsContent>
 
           {/* Tab 3: Itinerary */}
