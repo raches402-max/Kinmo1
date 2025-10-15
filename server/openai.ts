@@ -65,6 +65,7 @@ export async function generateActivitySuggestions(groupData: {
   passedConcepts?: string[];
   previouslySuggestedVenues?: string[];
   targetCategories?: string[]; // NEW: For category-specific generation
+  memberConstraints?: { scheduleConflicts?: string[]; budgetConcern?: boolean; distanceConcern?: boolean; notes?: string }[]; // Member RSVP constraints
 }): Promise<ActivitySuggestion[]> {
   try {
     // Generate 30 suggestions to account for duplicates after Google Places enrichment
@@ -159,6 +160,38 @@ export async function generateActivitySuggestions(groupData: {
       }
     }
 
+    // Format member constraints from RSVP feedback
+    let constraintsContext = '';
+    if (groupData.memberConstraints && groupData.memberConstraints.length > 0) {
+      const allScheduleConflicts = new Set<string>();
+      let budgetConcernCount = 0;
+      let distanceConcernCount = 0;
+      const notes: string[] = [];
+
+      groupData.memberConstraints.forEach(constraint => {
+        if (constraint.scheduleConflicts) {
+          constraint.scheduleConflicts.forEach(conflict => allScheduleConflicts.add(conflict));
+        }
+        if (constraint.budgetConcern) budgetConcernCount++;
+        if (constraint.distanceConcern) distanceConcernCount++;
+        if (constraint.notes) notes.push(constraint.notes);
+      });
+
+      constraintsContext = '\n🚨 CRITICAL - Member Constraints (Auto-Avoid):';
+      if (allScheduleConflicts.size > 0) {
+        constraintsContext += `\n- SCHEDULE CONFLICTS: Multiple members can't do ${Array.from(allScheduleConflicts).join(', ')} - AVOID suggesting events at these times`;
+      }
+      if (budgetConcernCount > 0) {
+        constraintsContext += `\n- BUDGET CONCERNS: ${budgetConcernCount} member(s) mentioned budget is tight - prioritize lower-cost options within the budget range`;
+      }
+      if (distanceConcernCount > 0) {
+        constraintsContext += `\n- DISTANCE CONCERNS: ${distanceConcernCount} member(s) mentioned distance/location is an issue - prioritize venues within the closer search radius`;
+      }
+      if (notes.length > 0) {
+        constraintsContext += `\n- MEMBER FEEDBACK: ${notes.join(' | ')}`;
+      }
+    }
+
     // Format activity categories for the prompt
     const categoryLabels: Record<string, string> = {
       'restaurants': 'Restaurants',
@@ -241,7 +274,7 @@ Budget Range: $${groupData.budgetMin}-${groupData.budgetMax} per person
 Meeting Frequency: ${groupData.meetingFrequency}
 Usual Availability: ${availabilityText}
 ${groupData.additionalInstructions ? `\n🚨 USER INSTRUCTIONS (OVERRIDES EVERYTHING): ${groupData.additionalInstructions}` : `${categoriesContext}
-${groupData.pastPreferences ? `Past Preferences: ${groupData.pastPreferences}` : ''}${feedbackContext}${votingContext}${swipeContext}`}${avoidVenuesContext}${targetCategoriesContext}
+${groupData.pastPreferences ? `Past Preferences: ${groupData.pastPreferences}` : ''}${feedbackContext}${votingContext}${swipeContext}`}${constraintsContext}${avoidVenuesContext}${targetCategoriesContext}
 
 CRITICAL - Availability Constraint:
 - The group is ONLY available during: ${availabilityText}

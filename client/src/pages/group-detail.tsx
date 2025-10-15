@@ -43,6 +43,14 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
+// Type for member constraints
+type MemberConstraints = {
+  scheduleConflicts?: string[];
+  budgetConcern?: boolean;
+  distanceConcern?: boolean;
+  notes?: string;
+};
+
 const closenessLabels = ["Acquaintances", "Friends", "Good Friends", "Close Friends", "Best Friends"];
 const noveltyLabels = ["We like our usual spots", "Leaning familiar", "Open sometimes", "Pretty adventurous", "Always up for new things!"];
 
@@ -1522,6 +1530,48 @@ export default function GroupDetail() {
                       </Badge>
                     </div>
                   )}
+
+                  {/* Group Constraint Insights */}
+                  {(() => {
+                    const scheduleConflicts = new Set<string>();
+                    const budgetConcernCount = members.filter(m => (m.memberConstraints as MemberConstraints)?.budgetConcern).length;
+                    const distanceConcernCount = members.filter(m => (m.memberConstraints as MemberConstraints)?.distanceConcern).length;
+                    
+                    members.forEach(m => {
+                      const constraints = m.memberConstraints as MemberConstraints;
+                      if (constraints?.scheduleConflicts) {
+                        constraints.scheduleConflicts.forEach(conflict => scheduleConflicts.add(conflict));
+                      }
+                    });
+
+                    const hasInsights = scheduleConflicts.size > 0 || budgetConcernCount > 0 || distanceConcernCount > 0;
+
+                    return hasInsights ? (
+                      <div className="space-y-2 pb-2 border-b">
+                        <Label className="text-xs font-semibold">Group Insights</Label>
+                        <div className="flex flex-wrap gap-2">
+                          {scheduleConflicts.size > 0 && (
+                            <Badge variant="secondary" className="gap-1 text-xs">
+                              <Clock className="w-3 h-3" />
+                              Schedule conflicts: {Array.from(scheduleConflicts).join(", ")}
+                            </Badge>
+                          )}
+                          {budgetConcernCount > 0 && (
+                            <Badge variant="secondary" className="gap-1 text-xs">
+                              <DollarSign className="w-3 h-3" />
+                              {budgetConcernCount} {budgetConcernCount === 1 ? "member" : "members"} mentioned budget
+                            </Badge>
+                          )}
+                          {distanceConcernCount > 0 && (
+                            <Badge variant="secondary" className="gap-1 text-xs">
+                              <MapPin className="w-3 h-3" />
+                              {distanceConcernCount} {distanceConcernCount === 1 ? "member" : "members"} mentioned distance
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    ) : null;
+                  })()}
                   
                   {/* Existing Members */}
                   {members.length > 0 && (
@@ -1607,6 +1657,33 @@ export default function GroupDetail() {
                                       <MapPin className="w-3 h-3" /> {member.memberLocation}
                                     </p>
                                   )}
+                                  {(() => {
+                                    const constraints = member.memberConstraints as MemberConstraints | null;
+                                    if (!constraints) return null;
+                                    return (
+                                      <div className="text-xs text-muted-foreground space-y-1 mt-1">
+                                        {constraints.scheduleConflicts && constraints.scheduleConflicts.length > 0 && (
+                                          <p className="flex items-center gap-1">
+                                            <Clock className="w-3 h-3" /> 
+                                            {constraints.scheduleConflicts.join(", ")}
+                                          </p>
+                                        )}
+                                        {constraints.budgetConcern && (
+                                          <p className="flex items-center gap-1">
+                                            <DollarSign className="w-3 h-3" /> Budget concern
+                                          </p>
+                                        )}
+                                        {constraints.distanceConcern && (
+                                          <p className="flex items-center gap-1">
+                                            <MapPin className="w-3 h-3" /> Distance concern
+                                          </p>
+                                        )}
+                                        {constraints.notes && (
+                                          <p className="italic">"{constraints.notes}"</p>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
                                 </div>
                                 {member.isOrganizer ? (
                                   <Badge variant="secondary" className="text-xs">Organizer</Badge>

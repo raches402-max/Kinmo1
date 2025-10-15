@@ -7,9 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle2, Circle, XCircle, MapPin, DollarSign, Calendar } from "lucide-react";
+import { CheckCircle2, Circle, XCircle, MapPin, DollarSign, Calendar, Clock } from "lucide-react";
 
 type Member = {
   id: string;
@@ -43,6 +45,13 @@ export default function InvitePage() {
   const [memberLocation, setMemberLocation] = useState("");
   const [budgetMin, setBudgetMin] = useState("");
   const [budgetMax, setBudgetMax] = useState("");
+
+  // Constraint/follow-up state (for Maybe/Can't make it RSVP)
+  const [showConstraints, setShowConstraints] = useState(false);
+  const [scheduleConflicts, setScheduleConflicts] = useState("");
+  const [budgetConcern, setBudgetConcern] = useState(false);
+  const [distanceConcern, setDistanceConcern] = useState(false);
+  const [constraintNotes, setConstraintNotes] = useState("");
 
   // Load claim data from localStorage
   useEffect(() => {
@@ -160,6 +169,31 @@ export default function InvitePage() {
     },
   });
 
+  // Constraints mutation
+  const constraintsMutation = useMutation({
+    mutationFn: async (constraints: any) => {
+      return await apiRequest("PATCH", `/api/members/${claimedMemberId}/constraints`, {
+        memberConstraints: constraints,
+        claimToken,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", group?.id, "members"] });
+      toast({
+        title: "Feedback saved",
+        description: "This will help us plan better activities for the group!",
+      });
+      setShowConstraints(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleClaim = (memberId: string) => {
     claimMutation.mutate(memberId);
   };
@@ -175,6 +209,26 @@ export default function InvitePage() {
     if (budgetMax) prefs.memberBudgetMax = parseInt(budgetMax);
 
     preferencesMutation.mutate(prefs);
+  };
+
+  const handleSaveConstraints = () => {
+    const constraints: any = {};
+    
+    // Parse schedule conflicts (comma-separated days)
+    if (scheduleConflicts.trim()) {
+      constraints.scheduleConflicts = scheduleConflicts.split(',').map(s => s.trim()).filter(Boolean);
+    }
+    
+    if (budgetConcern) constraints.budgetConcern = true;
+    if (distanceConcern) constraints.distanceConcern = true;
+    if (constraintNotes.trim()) constraints.notes = constraintNotes.trim();
+
+    // Only save if there's at least one constraint
+    if (Object.keys(constraints).length > 0) {
+      constraintsMutation.mutate(constraints);
+    } else {
+      setShowConstraints(false);
+    }
   };
 
   if (groupLoading || membersLoading) {
@@ -308,6 +362,127 @@ export default function InvitePage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Optional Follow-up Questions for Maybe/Can't make it */}
+          {(selectedRsvp === "maybe" || selectedRsvp === "not_going") && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>Help us understand</CardTitle>
+                <CardDescription>
+                  {selectedRsvp === "maybe" 
+                    ? "What might affect your decision? (completely optional)"
+                    : "What's keeping you away? (completely optional)"}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {!showConstraints ? (
+                  <div className="flex gap-3">
+                    <Button
+                      variant="default"
+                      onClick={() => setShowConstraints(true)}
+                      data-testid="button-show-constraints"
+                    >
+                      Share feedback
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setShowConstraints(false)}
+                      data-testid="button-skip-constraints"
+                    >
+                      Skip
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Schedule Conflicts */}
+                    <div className="space-y-2">
+                      <Label htmlFor="schedule" className="flex items-center gap-2">
+                        <Clock className="w-4 h-4" />
+                        Any days/times that usually don't work?
+                      </Label>
+                      <Input
+                        id="schedule"
+                        placeholder="e.g., Thursdays, weekday evenings"
+                        value={scheduleConflicts}
+                        onChange={(e) => setScheduleConflicts(e.target.value)}
+                        data-testid="input-schedule-conflicts"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        We'll avoid suggesting events at these times
+                      </p>
+                    </div>
+
+                    <Separator />
+
+                    {/* Checkboxes for common concerns */}
+                    <div className="space-y-3">
+                      <Label>Other concerns?</Label>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="budget-concern"
+                          checked={budgetConcern}
+                          onCheckedChange={(checked) => setBudgetConcern(checked as boolean)}
+                          data-testid="checkbox-budget-concern"
+                        />
+                        <Label 
+                          htmlFor="budget-concern" 
+                          className="text-sm font-normal cursor-pointer"
+                        >
+                          Budget is a concern for me
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="distance-concern"
+                          checked={distanceConcern}
+                          onCheckedChange={(checked) => setDistanceConcern(checked as boolean)}
+                          data-testid="checkbox-distance-concern"
+                        />
+                        <Label 
+                          htmlFor="distance-concern" 
+                          className="text-sm font-normal cursor-pointer"
+                        >
+                          Location/distance is an issue
+                        </Label>
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    {/* Free text notes */}
+                    <div className="space-y-2">
+                      <Label htmlFor="notes">Anything else we should know?</Label>
+                      <Textarea
+                        id="notes"
+                        placeholder="Share any other thoughts..."
+                        value={constraintNotes}
+                        onChange={(e) => setConstraintNotes(e.target.value)}
+                        rows={3}
+                        data-testid="textarea-constraint-notes"
+                      />
+                    </div>
+
+                    <div className="flex gap-3">
+                      <Button
+                        onClick={handleSaveConstraints}
+                        disabled={constraintsMutation.isPending}
+                        data-testid="button-save-constraints"
+                      >
+                        {constraintsMutation.isPending ? "Saving..." : "Save feedback"}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowConstraints(false)}
+                        data-testid="button-cancel-constraints"
+                      >
+                        Skip
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Optional Preferences */}
           {selectedRsvp && (

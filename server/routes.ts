@@ -672,6 +672,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         attempt++;
         console.log(`[Category Regen] Attempt ${attempt}/${maxAttempts}: Need ${neededCount - allValidActivities.length} more venues`);
 
+        // Get member constraints for this category regeneration
+        const groupMembers = await storage.getGroupMembers(group.id);
+        const memberConstraints = groupMembers
+          .filter(m => m.memberConstraints)
+          .map(m => m.memberConstraints as { scheduleConflicts?: string[]; budgetConcern?: boolean; distanceConcern?: boolean; notes?: string });
+
         // Generate suggestions for this specific category
         const suggestions = await generateActivitySuggestions({
           locationBase: group.locationBase,
@@ -691,6 +697,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           passedConcepts: passedConcepts.length > 0 ? passedConcepts : undefined,
           previouslySuggestedVenues: currentVenueNames || [],
           targetCategories: [category],
+          memberConstraints: memberConstraints.length > 0 ? memberConstraints : undefined,
         });
 
         console.log(`[Category Regen] Attempt ${attempt}: Got ${suggestions.length} suggestions for ${category}`);
@@ -1362,10 +1369,17 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       .filter(s => s.feedback === 'pass')
       .map(s => s.conceptDescription);
 
+    // Get member constraints from RSVP feedback
+    const groupMembers = await storage.getGroupMembers(groupId);
+    const memberConstraints = groupMembers
+      .filter(m => m.memberConstraints)
+      .map(m => m.memberConstraints as { scheduleConflicts?: string[]; budgetConcern?: boolean; distanceConcern?: boolean; notes?: string });
+
     console.log(`[AI Generation] Found ${previousFeedback.length} activities with feedback`);
     console.log(`[AI Generation] Found ${votingFeedback.length} favorites with voting data`);
     console.log(`[AI Generation] Found ${likedConcepts.length} liked concepts from swipe sessions`);
     console.log(`[AI Generation] Found ${passedConcepts.length} passed concepts from swipe sessions`);
+    console.log(`[AI Generation] Found ${memberConstraints.length} members with constraints`);
     console.log(`[AI Generation] Found ${previouslySuggestedVenues.length} previously suggested venues to avoid`);
 
     // Archive old activities before generating new ones (preserves feedback for AI)
@@ -1423,6 +1437,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
         passedConcepts: passedConcepts.length > 0 ? passedConcepts : undefined,
         previouslySuggestedVenues: previouslySuggestedVenues.length > 0 ? previouslySuggestedVenues : undefined,
         targetCategories: targetCategories, // Pass underrepresented categories on retry
+        memberConstraints: memberConstraints.length > 0 ? memberConstraints : undefined, // Pass member RSVP constraints
       });
 
       console.log(`[AI Generation] Attempt ${attempt}: Received ${suggestions.length} suggestions from OpenAI`);
