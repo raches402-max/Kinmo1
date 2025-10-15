@@ -63,11 +63,18 @@ AI suggestion preferences:
     - Individual hop distances between consecutive venues with color coding
     - "Build Itinerary" and "Clear All" action buttons
   - **Distance Calculations**: Haversine formula calculates route distances using latitude/longitude from Google Places API stored in database
-  - **2-5 Venue Requirement**: Cart button disabled until 2 venues selected, maximum 5 venues with toast notification at limit
+  - **1-5 Venue Requirement**: Cart button enabled with 1+ venues selected, maximum 5 venues with toast notification at limit
   - **Tab 3 (Build/Itinerary)**: Clicking "Build Itinerary" navigates to Build tab showing selected venues in organized card with "Create Itinerary" button
   - **AI Validation**: System validates proximity (using Google Places coordinates), operating hours, and logical flow, then creates ordered itinerary
   - **Drag-to-Reorder in Itinerary**: Users can reorder venues in final itinerary display using @dnd-kit
   - **State Management**: Selection state tracked via selectedVenues array, cleared after successful itinerary creation
+  - **Nearby Add-On Suggestions**: When venues are selected, system suggests high-rated nearby venues (<0.5 miles, 4.0+ stars) to enhance the itinerary:
+    - Displays top 3 nearby venues with photos, ratings, addresses, and distances
+    - One-click add to itinerary with automatic duplicate prevention
+    - Tracks added suggestions in local state (addedSuggestionPlaceIds Set) to prevent duplicates
+    - Only records successful additions - failed API calls allow retries
+    - Button disabled during pending mutations and for already-added venues
+    - Tracking set cleared when itinerary is cleared or validated
 - **Location Radius Expansion**: 4-tier search radius selector allowing users to expand search area from nearby (< 2 miles) to road trips (< 50 miles):
   - **📍 Nearby (< 2 miles)**: Walking or short drive distance, 3.5+ stars, 20+ reviews minimum (stricter to ensure legitimate venues)
   - **🏙️ Citywide (< 10 miles)**: Venues across the city, 3.8+ stars, 50+ reviews minimum
