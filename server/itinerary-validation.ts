@@ -89,6 +89,16 @@ export async function validateItinerary(
     }
   }
 
+  // For single venue, skip AI validation and use simple default
+  if (selectedVenues.length === 1) {
+    return {
+      isValid: true,
+      proposedOrder: [selectedVenues[0].sourceId],
+      validationNotes: "", // No notes needed for single venue
+      issues: undefined,
+    };
+  }
+
   // Use AI to determine logical flow and order
   const venueDescriptions = selectedVenues.map((v, idx) => 
     `${idx + 1}. ${v.venueName} (${v.venueType})${v.venueAddress ? ` at ${v.venueAddress}` : ''}`
@@ -107,12 +117,22 @@ Consider:
 
 Respond with:
 1. The optimal order (using venue numbers from the list above)
-2. Brief reasoning for this flow (2-3 sentences max)
+2. ONE brief note (max 8 words) - only if there's something helpful to mention
+
+EXAMPLES OF GOOD NOTES:
+- "Dinner → drinks flow"
+- "Dessert moved to end"
+- "Bar before dinner works well"
+- "" (empty if order is obvious)
+
+EXAMPLES OF BAD NOTES (too wordy):
+- "As there is only one venue listed (Portal), it serves as the brunch spot for a full meal..."
+- "The itinerary follows a natural progression from dinner to drinks to dessert..."
 
 Format your response as JSON:
 {
   "order": [1, 3, 2],
-  "reasoning": "Your concise explanation here"
+  "reasoning": "Dinner → drinks flow"
 }`;
 
   try {
@@ -121,7 +141,7 @@ Format your response as JSON:
       messages: [
         {
           role: "system",
-          content: "You are an expert event planner who creates logical, enjoyable evening itineraries. Be concise and practical.",
+          content: "You are an expert event planner. Be extremely concise - helpful facts only, no fluff.",
         },
         {
           role: "user",
@@ -137,10 +157,14 @@ Format your response as JSON:
       selectedVenues[idx - 1]?.sourceId
     ).filter(Boolean);
 
-    // Build validation notes
-    let validationNotes = aiResponse.reasoning || "Suggested order based on typical flow";
+    // Build validation notes - keep them brief
+    let validationNotes = (aiResponse.reasoning || "").trim();
+    
+    // Add distance note if there's a proximity issue
     if (proximityIssues.length > 0) {
-      validationNotes += `\n\nDistance note: ${proximityIssues[0]}`;
+      validationNotes = validationNotes 
+        ? `${validationNotes}. ${proximityIssues[0]}`
+        : proximityIssues[0];
     }
 
     return {
