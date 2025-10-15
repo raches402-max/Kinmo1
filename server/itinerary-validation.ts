@@ -45,12 +45,12 @@ function calculateDistance(
 export async function validateItinerary(
   selectedVenues: SelectedVenue[]
 ): Promise<ValidationResult> {
-  if (selectedVenues.length < 2) {
+  if (selectedVenues.length < 1) {
     return {
       isValid: false,
       proposedOrder: [],
-      validationNotes: "Please select at least 2 venues for an itinerary",
-      issues: ["Minimum 2 venues required"],
+      validationNotes: "Please select at least 1 venue for an itinerary",
+      issues: ["Minimum 1 venue required"],
     };
   }
 
@@ -58,7 +58,7 @@ export async function validateItinerary(
     return {
       isValid: false,
       proposedOrder: [],
-      validationNotes: "Too many venues selected. Please select 2-5 venues max",
+      validationNotes: "Too many venues selected. Please select 1-5 venues max",
       issues: ["Maximum 5 venues allowed"],
     };
   }

@@ -1780,7 +1780,7 @@ export default function GroupDetail() {
                             </div>
                             <div>
                               <p className="font-medium text-sm">Itinerary</p>
-                              <p className="text-xs text-muted-foreground">Select 2-5 venues to create your itinerary</p>
+                              <p className="text-xs text-muted-foreground">Select 1-5 venues to create your itinerary</p>
                             </div>
                           </div>
                           
