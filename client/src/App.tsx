@@ -14,6 +14,7 @@ import GroupDetail from "@/pages/group-detail";
 import JoinEntry from "@/pages/join-entry";
 import JoinGroup from "@/pages/join-group";
 import YasThis from "@/pages/yas-this";
+import InvitePage from "@/pages/invite";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -26,6 +27,7 @@ function Router() {
           <Route path="/" component={Landing} />
           <Route path="/join-entry" component={JoinEntry} />
           <Route path="/join/:shareableLink" component={JoinGroup} />
+          <Route path="/invite/:token" component={InvitePage} />
         </>
       ) : (
         <>
@@ -35,6 +37,7 @@ function Router() {
           <Route path="/yas-this" component={YasThis} />
           <Route path="/join-entry" component={JoinEntry} />
           <Route path="/join/:shareableLink" component={JoinGroup} />
+          <Route path="/invite/:token" component={InvitePage} />
         </>
       )}
       <Route component={NotFound} />

@@ -17,7 +17,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, ShoppingCart, Search, ArrowUpDown } from "lucide-react";
+import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -1502,6 +1502,27 @@ export default function GroupDetail() {
                   <CardDescription>Manage group members and invitations</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {/* RSVP Summary */}
+                  {members.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pb-2 border-b">
+                      <Badge variant="outline" className="gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        {members.filter(m => m.rsvpStatus === "going").length} Going
+                      </Badge>
+                      <Badge variant="outline" className="gap-1">
+                        <Circle className="w-3 h-3" />
+                        {members.filter(m => m.rsvpStatus === "maybe").length} Maybe
+                      </Badge>
+                      <Badge variant="outline" className="gap-1">
+                        <XCircle className="w-3 h-3" />
+                        {members.filter(m => m.rsvpStatus === "not_going").length} Can't make it
+                      </Badge>
+                      <Badge variant="outline" className="gap-1 text-muted-foreground">
+                        {members.filter(m => !m.rsvpStatus).length} No response
+                      </Badge>
+                    </div>
+                  )}
+                  
                   {/* Existing Members */}
                   {members.length > 0 && (
                     <div className="space-y-2">
@@ -1565,9 +1586,26 @@ export default function GroupDetail() {
                                   </AvatarFallback>
                                 </Avatar>
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium truncate">{member.name || "Member"}</p>
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-sm font-medium truncate">{member.name || "Member"}</p>
+                                    {member.rsvpStatus && (
+                                      <Badge 
+                                        variant={member.rsvpStatus === "going" ? "default" : "secondary"}
+                                        className="text-xs"
+                                      >
+                                        {member.rsvpStatus === "going" && "✓ Going"}
+                                        {member.rsvpStatus === "maybe" && "? Maybe"}
+                                        {member.rsvpStatus === "not_going" && "✗ Can't make it"}
+                                      </Badge>
+                                    )}
+                                  </div>
                                   {member.email && (
                                     <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                                  )}
+                                  {member.memberLocation && (
+                                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                      <MapPin className="w-3 h-3" /> {member.memberLocation}
+                                    </p>
                                   )}
                                 </div>
                                 {member.isOrganizer ? (

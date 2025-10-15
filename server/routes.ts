@@ -222,6 +222,113 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Member RSVP Routes
+
+  // Claim a member identity (no auth required)
+  app.post("/api/members/:id/claim", async (req, res) => {
+    try {
+      const { claimToken } = req.body;
+      
+      if (!claimToken) {
+        return res.status(400).json({ message: "Claim token required" });
+      }
+
+      // Check if member exists and if already claimed
+      const existingMember = await storage.getMember(req.params.id);
+      if (!existingMember) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+
+      // If member already has a claim token, reject the claim attempt
+      // This prevents RSVP hijacking - once claimed, the identity is locked to that token
+      if (existingMember.claimToken && existingMember.claimToken !== claimToken) {
+        return res.status(409).json({ 
+          message: "This member has already been claimed by someone else",
+          alreadyClaimed: true 
+        });
+      }
+
+      // If not claimed yet, or re-claiming with same token, allow it
+      const member = await storage.updateMember(req.params.id, {
+        claimToken,
+        hasJoined: true,
+      });
+
+      res.json(member);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  // Update member RSVP status (no auth required, validates claim token)
+  app.patch("/api/members/:id/rsvp", async (req, res) => {
+    try {
+      const { rsvpStatus, claimToken } = req.body;
+
+      if (!claimToken) {
+        return res.status(401).json({ message: "Claim token required" });
+      }
+
+      if (!["going", "maybe", "not_going"].includes(rsvpStatus)) {
+        return res.status(400).json({ message: "Invalid RSVP status" });
+      }
+
+      // Verify the claim token matches
+      const member = await storage.getMember(req.params.id);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+
+      if (member.claimToken !== claimToken) {
+        return res.status(401).json({ message: "Invalid claim token" });
+      }
+
+      // Update RSVP status
+      const updatedMember = await storage.updateMember(req.params.id, {
+        rsvpStatus,
+      });
+
+      res.json(updatedMember);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  // Update member preferences (no auth required, validates claim token)
+  app.patch("/api/members/:id/preferences", async (req, res) => {
+    try {
+      const { memberLocation, memberBudgetMin, memberBudgetMax, memberAvailability, claimToken } = req.body;
+
+      if (!claimToken) {
+        return res.status(401).json({ message: "Claim token required" });
+      }
+
+      // Verify the claim token matches
+      const member = await storage.getMember(req.params.id);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+
+      if (member.claimToken !== claimToken) {
+        return res.status(401).json({ message: "Invalid claim token" });
+      }
+
+      // Build update object with only provided fields
+      const updates: any = {};
+      if (memberLocation !== undefined) updates.memberLocation = memberLocation;
+      if (memberBudgetMin !== undefined) updates.memberBudgetMin = memberBudgetMin;
+      if (memberBudgetMax !== undefined) updates.memberBudgetMax = memberBudgetMax;
+      if (memberAvailability !== undefined) updates.memberAvailability = memberAvailability;
+
+      // Update preferences
+      const updatedMember = await storage.updateMember(req.params.id, updates);
+
+      res.json(updatedMember);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
   // Voting Events Routes
 
   // Get all voting events (top 10 with vote counts)
