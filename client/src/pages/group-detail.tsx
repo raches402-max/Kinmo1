@@ -17,7 +17,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, ShoppingCart } from "lucide-react";
+import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, ShoppingCart, Search, ArrowUpDown } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -369,6 +369,8 @@ export default function GroupDetail() {
   const [pendingEventTitle, setPendingEventTitle] = useState("");
   const [selectedVenues, setSelectedVenues] = useState<Array<{sourceType: 'activity' | 'voting_event', sourceId: string}>>([]);
   const [regeneratingCategory, setRegeneratingCategory] = useState<string | null>(null);
+  const [favoritesSearch, setFavoritesSearch] = useState("");
+  const [categorySortMode, setCategorySortMode] = useState<Record<string, 'rating' | 'votes'>>({});
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -2552,6 +2554,18 @@ export default function GroupDetail() {
                 </Card>
               ) : (
                 <div className="space-y-6">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      placeholder="Search favorites by name..."
+                      value={favoritesSearch}
+                      onChange={(e) => setFavoritesSearch(e.target.value)}
+                      className="pl-9"
+                      data-testid="input-favorites-search"
+                    />
+                  </div>
+
                   {(() => {
                     // Categorize voting events
                     const categorizeVenue = (venueType: string | null): 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences' => {
@@ -2575,34 +2589,90 @@ export default function GroupDetail() {
                       experiences: { label: 'EXPERIENCES' }
                     };
 
+                    // Filter voting events by search
+                    const filteredEvents = votingEvents.filter(event => 
+                      event.title.toLowerCase().includes(favoritesSearch.toLowerCase())
+                    );
+
                     // Group voting events by category
-                    const grouped = votingEvents.reduce((acc, event) => {
+                    const grouped = filteredEvents.reduce((acc, event) => {
                       const category = categorizeVenue(event.venueType);
                       if (!acc[category]) acc[category] = [];
                       acc[category].push(event);
                       return acc;
                     }, {} as Record<string, typeof votingEvents>);
 
-                    // Sort each category by rating (highest first)
+                    // Sort each category
                     Object.keys(grouped).forEach(category => {
+                      const sortMode = categorySortMode[category] || 'rating';
                       grouped[category].sort((a, b) => {
-                        const ratingA = parseFloat(a.rating || '0');
-                        const ratingB = parseFloat(b.rating || '0');
-                        return ratingB - ratingA;
+                        if (sortMode === 'rating') {
+                          const ratingA = parseFloat(a.rating || '0');
+                          const ratingB = parseFloat(b.rating || '0');
+                          return ratingB - ratingA;
+                        } else {
+                          return (b.netVotes || 0) - (a.netVotes || 0);
+                        }
                       });
                     });
+
+                    // Function to add all venues from a category
+                    const addAllFromCategory = (categoryKey: string) => {
+                      const categoryEvents = grouped[categoryKey];
+                      if (!categoryEvents) return;
+                      
+                      const newSelections = categoryEvents
+                        .filter(event => !selectedVenues.some(v => v.sourceType === 'voting_event' && v.sourceId === event.id))
+                        .map(event => ({ sourceType: 'voting_event' as const, sourceId: event.id }));
+                      
+                      const totalAfterAdd = selectedVenues.length + newSelections.length;
+                      if (totalAfterAdd > 5) {
+                        toast({
+                          title: "Maximum 5 venues",
+                          description: `You can only select up to 5 venues total`,
+                          variant: "destructive"
+                        });
+                        return;
+                      }
+                      
+                      setSelectedVenues([...selectedVenues, ...newSelections]);
+                    };
 
                     return Object.entries(categoryConfig).map(([categoryKey, config]) => {
                       const categoryEvents = grouped[categoryKey];
                       if (!categoryEvents || categoryEvents.length === 0) return null;
 
+                      const sortMode = categorySortMode[categoryKey] || 'rating';
+
                       return (
                         <Card key={categoryKey}>
                           <CardHeader className="pb-3">
-                            <CardTitle className="text-base flex items-center gap-2">
-                              <span>{config.label}</span>
-                              <Badge variant="secondary" className="ml-2">{categoryEvents.length}</Badge>
-                            </CardTitle>
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <CardTitle className="text-base">{config.label}</CardTitle>
+                                <Badge variant="secondary">{categoryEvents.length}</Badge>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setCategorySortMode({ ...categorySortMode, [categoryKey]: sortMode === 'rating' ? 'votes' : 'rating' })}
+                                  data-testid={`button-sort-${categoryKey}`}
+                                >
+                                  <ArrowUpDown className="h-3 w-3 mr-1" />
+                                  {sortMode === 'rating' ? 'Rating' : 'Votes'}
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => addAllFromCategory(categoryKey)}
+                                  data-testid={`button-add-all-${categoryKey}`}
+                                >
+                                  <Plus className="h-3 w-3 mr-1" />
+                                  Add All
+                                </Button>
+                              </div>
+                            </div>
                           </CardHeader>
                           <CardContent>
                             <div className="space-y-2">
@@ -2611,143 +2681,178 @@ export default function GroupDetail() {
                                 const isSelected = selectedVenues.some(v => v.sourceType === 'voting_event' && v.sourceId === event.id);
                                 
                                 return (
-                                  <div 
-                                    key={event.id}
-                                    className="flex items-center gap-3 p-3 rounded-md border hover-elevate transition-colors"
-                                    data-testid={`favorites-row-${event.id}`}
-                                  >
-                                    <Checkbox
-                                      checked={isSelected}
-                                      onCheckedChange={() => toggleVenueSelection('voting_event', event.id)}
-                                      className="h-5 w-5"
-                                      onClick={(e) => e.stopPropagation()}
-                                      data-testid={`checkbox-favorite-${event.id}`}
-                                    />
-                                    
-                                    <div className="flex-1 min-w-0">
-                                      <h4 className="font-medium text-sm truncate">{event.title}</h4>
-                                      {event.venueType && (
-                                        <p className="text-xs text-muted-foreground truncate">{event.venueType}</p>
-                                      )}
-                                    </div>
-
-                                    {event.rating && (
-                                      <Badge variant="secondary" className="gap-1 text-xs shrink-0">
-                                        <Star className="h-3 w-3 fill-current" />
-                                        {event.rating}
-                                        {event.reviewCount && ` (${event.reviewCount})`}
-                                      </Badge>
-                                    )}
-
-                                    <div className="flex items-center gap-1 shrink-0">
-                                      <Badge variant="outline" className="text-xs">
-                                        {event.netVotes > 0 ? '+' : ''}{event.netVotes || 0}
-                                      </Badge>
-                                    </div>
-
-                                    <div className="flex items-center gap-1 shrink-0">
-                                      <Button
-                                        variant={myVote?.voteType === "upvote" ? "default" : "ghost"}
-                                        size="icon"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleVote(event.id, "upvote");
-                                        }}
-                                        className="h-8 w-8"
-                                        data-testid={`button-upvote-${event.id}`}
+                                  <HoverCard key={event.id}>
+                                    <HoverCardTrigger asChild>
+                                      <div 
+                                        className="flex items-center gap-3 p-3 rounded-md border hover-elevate transition-colors cursor-pointer"
+                                        data-testid={`favorites-row-${event.id}`}
                                       >
-                                        <ThumbsUp className="h-3.5 w-3.5" />
-                                      </Button>
-                                      <Button
-                                        variant={myVote?.voteType === "downvote" ? "default" : "ghost"}
-                                        size="icon"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleVote(event.id, "downvote");
-                                        }}
-                                        className="h-8 w-8"
-                                        data-testid={`button-downvote-${event.id}`}
-                                      >
-                                        <ThumbsDown className="h-3.5 w-3.5" />
-                                      </Button>
-                                    </div>
-
-                                    <Dialog>
-                                      <DialogTrigger asChild>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-8 w-8 shrink-0"
-                                          data-testid={`button-view-details-${event.id}`}
-                                        >
-                                          <ExternalLink className="h-3.5 w-3.5" />
-                                        </Button>
-                                      </DialogTrigger>
-                                      <DialogContent className="max-w-2xl">
-                                        <DialogHeader>
-                                          <DialogTitle>{event.title}</DialogTitle>
-                                          {event.description && (
-                                            <DialogDescription>{event.description}</DialogDescription>
-                                          )}
-                                        </DialogHeader>
-                                        <div className="space-y-4">
-                                          {event.photoUrl && (
-                                            <div className="aspect-video w-full overflow-hidden rounded-md bg-muted">
-                                              <img
-                                                src={event.photoUrl}
-                                                alt={event.title}
-                                                className="w-full h-full object-cover"
-                                              />
-                                            </div>
-                                          )}
-                                          
-                                          <div className="grid gap-2">
-                                            {event.venueAddress && (
-                                              <div className="flex items-start gap-2">
-                                                <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
-                                                <p className="text-sm">{event.venueAddress}</p>
-                                              </div>
-                                            )}
-                                            
-                                            <div className="flex flex-wrap items-center gap-2">
-                                              {event.rating && (
-                                                <Badge variant="secondary" className="gap-1">
-                                                  <Star className="h-3 w-3 fill-current" />
-                                                  {event.rating}
-                                                  {event.reviewCount && ` (${event.reviewCount})`}
-                                                </Badge>
-                                              )}
-                                              {event.priceLevel && (
-                                                <Badge variant="secondary">
-                                                  {priceDisplay(event.priceLevel)}
-                                                </Badge>
-                                              )}
-                                              {event.venueType && (
-                                                <Badge variant="outline">{event.venueType}</Badge>
-                                              )}
-                                            </div>
+                                        <Checkbox
+                                          checked={isSelected}
+                                          onCheckedChange={() => toggleVenueSelection('voting_event', event.id)}
+                                          className="h-5 w-5"
+                                          onClick={(e) => e.stopPropagation()}
+                                          data-testid={`checkbox-favorite-${event.id}`}
+                                        />
+                                        
+                                        {event.photoUrl && (
+                                          <div className="w-12 h-12 rounded-md overflow-hidden bg-muted shrink-0">
+                                            <img
+                                              src={event.photoUrl}
+                                              alt={event.title}
+                                              className="w-full h-full object-cover"
+                                            />
                                           </div>
-                                          
-                                          {event.googlePlaceId && (
-                                            <Button
-                                              variant="outline"
-                                              asChild
-                                              className="w-full"
-                                            >
-                                              <a
-                                                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.title)}&query_place_id=${event.googlePlaceId}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                              >
-                                                <MapPin className="mr-2 h-4 w-4" />
-                                                View on Google Maps
-                                              </a>
-                                            </Button>
+                                        )}
+                                        
+                                        <div className="flex-1 min-w-0">
+                                          <h4 className="font-medium text-sm truncate">{event.title}</h4>
+                                          {event.venueType && (
+                                            <p className="text-xs text-muted-foreground truncate">{event.venueType}</p>
                                           )}
                                         </div>
-                                      </DialogContent>
-                                    </Dialog>
-                                  </div>
+
+                                        {event.rating && (
+                                          <Badge variant="secondary" className="gap-1 text-xs shrink-0">
+                                            <Star className="h-3 w-3 fill-current" />
+                                            {event.rating}
+                                            {event.reviewCount && ` (${event.reviewCount})`}
+                                          </Badge>
+                                        )}
+
+                                        <div className="flex items-center gap-1 shrink-0">
+                                          <Badge variant="outline" className="text-xs">
+                                            {event.netVotes > 0 ? '+' : ''}{event.netVotes || 0}
+                                          </Badge>
+                                        </div>
+
+                                        <div className="flex items-center gap-1 shrink-0">
+                                          <Button
+                                            variant={myVote?.voteType === "upvote" ? "default" : "ghost"}
+                                            size="icon"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleVote(event.id, "upvote");
+                                            }}
+                                            className="h-8 w-8"
+                                            data-testid={`button-upvote-${event.id}`}
+                                          >
+                                            <ThumbsUp className="h-3.5 w-3.5" />
+                                          </Button>
+                                          <Button
+                                            variant={myVote?.voteType === "downvote" ? "default" : "ghost"}
+                                            size="icon"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleVote(event.id, "downvote");
+                                            }}
+                                            className="h-8 w-8"
+                                            data-testid={`button-downvote-${event.id}`}
+                                          >
+                                            <ThumbsDown className="h-3.5 w-3.5" />
+                                          </Button>
+                                        </div>
+
+                                        <Dialog>
+                                          <DialogTrigger asChild>
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              className="h-8 w-8 shrink-0"
+                                              data-testid={`button-view-details-${event.id}`}
+                                              onClick={(e) => e.stopPropagation()}
+                                            >
+                                              <ExternalLink className="h-3.5 w-3.5" />
+                                            </Button>
+                                          </DialogTrigger>
+                                          <DialogContent className="max-w-2xl">
+                                            <DialogHeader>
+                                              <DialogTitle>{event.title}</DialogTitle>
+                                              {event.description && (
+                                                <DialogDescription>{event.description}</DialogDescription>
+                                              )}
+                                            </DialogHeader>
+                                            <div className="space-y-4">
+                                              {event.photoUrl && (
+                                                <div className="aspect-video w-full overflow-hidden rounded-md bg-muted">
+                                                  <img
+                                                    src={event.photoUrl}
+                                                    alt={event.title}
+                                                    className="w-full h-full object-cover"
+                                                  />
+                                                </div>
+                                              )}
+                                              
+                                              <div className="grid gap-2">
+                                                {event.venueAddress && (
+                                                  <div className="flex items-start gap-2">
+                                                    <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
+                                                    <p className="text-sm">{event.venueAddress}</p>
+                                                  </div>
+                                                )}
+                                                
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                  {event.rating && (
+                                                    <Badge variant="secondary" className="gap-1">
+                                                      <Star className="h-3 w-3 fill-current" />
+                                                      {event.rating}
+                                                      {event.reviewCount && ` (${event.reviewCount})`}
+                                                    </Badge>
+                                                  )}
+                                                  {event.priceLevel && (
+                                                    <Badge variant="secondary">
+                                                      {priceDisplay(event.priceLevel)}
+                                                    </Badge>
+                                                  )}
+                                                  {event.venueType && (
+                                                    <Badge variant="outline">{event.venueType}</Badge>
+                                                  )}
+                                                </div>
+                                              </div>
+                                              
+                                              {event.googlePlaceId && (
+                                                <Button
+                                                  variant="outline"
+                                                  asChild
+                                                  className="w-full"
+                                                >
+                                                  <a
+                                                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.title)}&query_place_id=${event.googlePlaceId}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                  >
+                                                    <MapPin className="mr-2 h-4 w-4" />
+                                                    View on Google Maps
+                                                  </a>
+                                                </Button>
+                                              )}
+                                            </div>
+                                          </DialogContent>
+                                        </Dialog>
+                                      </div>
+                                    </HoverCardTrigger>
+                                    <HoverCardContent className="w-80" side="left">
+                                      <div className="space-y-2">
+                                        <h4 className="font-medium">{event.title}</h4>
+                                        {event.venueAddress && (
+                                          <p className="text-sm text-muted-foreground">{event.venueAddress}</p>
+                                        )}
+                                        <div className="flex flex-wrap gap-2">
+                                          {event.rating && (
+                                            <Badge variant="secondary" className="gap-1">
+                                              <Star className="h-3 w-3 fill-current" />
+                                              {event.rating}
+                                            </Badge>
+                                          )}
+                                          {event.priceLevel && (
+                                            <Badge variant="secondary">
+                                              {priceDisplay(event.priceLevel)}
+                                            </Badge>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </HoverCardContent>
+                                  </HoverCard>
                                 );
                               })}
                             </div>
