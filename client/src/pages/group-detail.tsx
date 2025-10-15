@@ -217,6 +217,8 @@ function ItineraryDisplay({ itinerary, groupId }: { itinerary: any; groupId: str
       });
     },
     onSuccess: () => {
+      // Note: No need to invalidate nearby-suggestions on reorder
+      // Nearby suggestions are based on WHICH venues are present, not their order
       toast({
         title: "Order updated",
         description: "Your itinerary has been reordered",
@@ -237,6 +239,7 @@ function ItineraryDisplay({ itinerary, groupId }: { itinerary: any; groupId: str
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "itineraries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "nearby-suggestions"] });
       toast({
         title: "Venue removed",
         description: "The venue has been removed from your itinerary",
@@ -454,18 +457,39 @@ export default function GroupDetail() {
     enabled: !!groupId,
   });
 
-  // Fetch nearby suggestions when venues are selected
+  // Fetch nearby suggestions when venues are selected or itinerary exists
   const { data: nearbySuggestions = [] } = useQuery<any[]>({
-    queryKey: ["/api/groups", groupId, "nearby-suggestions", selectedVenues],
+    queryKey: [
+      "/api/groups", 
+      groupId, 
+      "nearby-suggestions",
+      // Cart state: include selectedVenues
+      selectedVenues,
+      // Post-checkout state: include stable itinerary content identifier
+      itineraries.length > 0 
+        ? itineraries.flatMap(it => it.items || []).map((item: any) => item.id || item.activityId).sort().join(',')
+        : ''
+    ],
     queryFn: async () => {
-      if (selectedVenues.length === 0) return [];
+      // Derive venue selection from either cart or itinerary
+      let venuesForSuggestions = selectedVenues;
+      
+      if (selectedVenues.length === 0 && itineraries.length > 0) {
+        // Use itinerary items as the basis for suggestions
+        venuesForSuggestions = itineraries[0].items?.map((item: any) => ({
+          sourceType: 'activity' as const,
+          sourceId: item.activityId || item.id
+        })) || [];
+      }
+      
+      if (venuesForSuggestions.length === 0) return [];
       
       const response = await apiRequest("POST", `/api/groups/${groupId}/nearby-suggestions`, {
-        selectedVenues
+        selectedVenues: venuesForSuggestions
       });
       return response.suggestions || [];
     },
-    enabled: !!groupId && selectedVenues.length > 0,
+    enabled: !!groupId && (selectedVenues.length > 0 || itineraries.length > 0),
   });
 
   // Track previous generation status to detect when generation completes
@@ -771,6 +795,7 @@ export default function GroupDetail() {
       setActiveTab("build");
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "itineraries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "voting-events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "nearby-suggestions"] });
       toast({
         title: "Itinerary created!",
         description: "AI has validated and organized your evening plan",
@@ -3067,77 +3092,6 @@ export default function GroupDetail() {
                 </Card>
               )}
 
-              {/* Nearby Add-on Suggestions */}
-              {selectedVenues.length > 0 && nearbySuggestions.length > 0 && (
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">Nearby Add-ons</CardTitle>
-                    <CardDescription className="text-xs">
-                      High-rated venues within 0.5 miles - click to add
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      {nearbySuggestions.map((suggestion: any) => {
-                        // Check if already exists in activities, voting events, or locally tracked
-                        const alreadySelected = activities.some(a => a.googlePlaceId === suggestion.placeId) ||
-                          votingEvents.some(e => e.googlePlaceId === suggestion.placeId) ||
-                          addedSuggestionPlaceIds.has(suggestion.placeId);
-
-                        return (
-                          <button
-                            key={suggestion.placeId}
-                            onClick={() => {
-                              if (alreadySelected || addVotingEventMutation.isPending) return;
-                              if (selectedVenues.length >= 5) {
-                                toast({
-                                  title: "Maximum reached",
-                                  description: "You can select up to 5 venues",
-                                  variant: "destructive"
-                                });
-                                return;
-                              }
-                              
-                              // Add suggestion as a new venue (via voting event)
-                              addVotingEventMutation.mutate({
-                                title: suggestion.name,
-                                venueType: suggestion.types?.[0] || 'venue',
-                                venueAddress: suggestion.address,
-                                googlePlaceId: suggestion.placeId,
-                              });
-                            }}
-                            disabled={alreadySelected || addVotingEventMutation.isPending}
-                            className={`flex gap-3 p-3 rounded-md border text-left transition-all hover-elevate active-elevate-2 ${
-                              alreadySelected || addVotingEventMutation.isPending ? 'opacity-50 cursor-not-allowed' : ''
-                            }`}
-                            data-testid={`suggestion-${suggestion.placeId}`}
-                          >
-                            {suggestion.photoUrl && (
-                              <img 
-                                src={suggestion.photoUrl} 
-                                alt={suggestion.name}
-                                className="w-16 h-16 rounded object-cover flex-shrink-0"
-                              />
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{suggestion.name}</p>
-                              {suggestion.rating && (
-                                <div className="flex items-center gap-1 mt-1">
-                                  <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                                  <span className="text-xs font-medium">{suggestion.rating}</span>
-                                </div>
-                              )}
-                              <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
-                                {suggestion.address}
-                              </p>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
 
               {/* Itinerary Display */}
               {itineraries.length > 0 && selectedVenues.length === 0 && (
@@ -3186,6 +3140,113 @@ export default function GroupDetail() {
                   </CardContent>
                 </Card>
               )}
+
+              {/* Nearby Add-on Suggestions - Bottom Checkout Style */}
+              {(selectedVenues.length > 0 || itineraries.length > 0) && nearbySuggestions.length > 0 && (() => {
+                // Determine contextual message based on venue types (from selected or itinerary)
+                let venueTypes: string[] = [];
+                
+                if (selectedVenues.length > 0) {
+                  // Get types from selected venues
+                  venueTypes = selectedVenues.map(venue => {
+                    if (venue.sourceType === 'activity') {
+                      const activity = activities.find(a => a.id === venue.sourceId);
+                      return activity?.venueType?.toLowerCase() || '';
+                    } else {
+                      const event = votingEvents.find(e => e.id === venue.sourceId);
+                      return event?.venueType?.toLowerCase() || '';
+                    }
+                  }).filter(Boolean);
+                } else if (itineraries.length > 0) {
+                  // Get types from itinerary items
+                  venueTypes = itineraries[0].items?.map((item: any) => 
+                    item.venueType?.toLowerCase() || ''
+                  ).filter(Boolean) || [];
+                }
+
+                const hasMeal = venueTypes.some(type => 
+                  type.includes('restaurant') || type.includes('food') || type.includes('meal') || 
+                  type.includes('dining') || type.includes('breakfast') || type.includes('lunch') || type.includes('dinner')
+                );
+                const hasDrinksDessert = venueTypes.some(type => 
+                  type.includes('bar') || type.includes('drink') || type.includes('cocktail') || 
+                  type.includes('dessert') || type.includes('ice cream') || type.includes('boba') || type.includes('cafe')
+                );
+
+                let contextualMessage = "Round it out with these nearby spots?";
+                if (hasMeal && !hasDrinksDessert) {
+                  contextualMessage = "Feeling like dessert or drinks after?";
+                } else if (hasDrinksDessert && !hasMeal) {
+                  contextualMessage = "Want to add a meal stop?";
+                }
+
+                return (
+                  <div className="mt-8 pt-8 border-t">
+                    <div className="mb-4">
+                      <h3 className="text-base font-medium text-muted-foreground mb-1">{contextualMessage}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        High-rated spots within 0.5 miles
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      {nearbySuggestions.map((suggestion: any) => {
+                        const alreadySelected = activities.some(a => a.googlePlaceId === suggestion.placeId) ||
+                          votingEvents.some(e => e.googlePlaceId === suggestion.placeId) ||
+                          addedSuggestionPlaceIds.has(suggestion.placeId);
+
+                        return (
+                          <button
+                            key={suggestion.placeId}
+                            onClick={() => {
+                              if (alreadySelected || addVotingEventMutation.isPending) return;
+                              if (selectedVenues.length >= 5) {
+                                toast({
+                                  title: "Maximum reached",
+                                  description: "You can select up to 5 venues",
+                                  variant: "destructive"
+                                });
+                                return;
+                              }
+                              
+                              addVotingEventMutation.mutate({
+                                title: suggestion.name,
+                                venueType: suggestion.types?.[0] || 'venue',
+                                venueAddress: suggestion.address,
+                                googlePlaceId: suggestion.placeId,
+                              });
+                            }}
+                            disabled={alreadySelected || addVotingEventMutation.isPending}
+                            className={`flex gap-3 p-3 rounded-md border text-left transition-all hover-elevate active-elevate-2 ${
+                              alreadySelected || addVotingEventMutation.isPending ? 'opacity-50 cursor-not-allowed' : ''
+                            }`}
+                            data-testid={`suggestion-${suggestion.placeId}`}
+                          >
+                            {suggestion.photoUrl && (
+                              <img 
+                                src={suggestion.photoUrl} 
+                                alt={suggestion.name}
+                                className="w-16 h-16 rounded object-cover flex-shrink-0"
+                              />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{suggestion.name}</p>
+                              {suggestion.rating && (
+                                <div className="flex items-center gap-1 mt-1">
+                                  <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                                  <span className="text-xs font-medium">{suggestion.rating}</span>
+                                </div>
+                              )}
+                              <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
+                                {suggestion.address}
+                              </p>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </TabsContent>
 
