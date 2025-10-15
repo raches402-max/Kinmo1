@@ -422,6 +422,7 @@ export default function GroupDetail() {
   const [categorySortMode, setCategorySortMode] = useState<Record<string, 'rating' | 'votes'>>({});
   const [activitiesSubTab, setActivitiesSubTab] = useState("ai-suggested");
   const [addedSuggestionPlaceIds, setAddedSuggestionPlaceIds] = useState<Set<string>>(new Set());
+  const [venueSearchQuery, setVenueSearchQuery] = useState("");
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -1876,8 +1877,9 @@ export default function GroupDetail() {
           {/* Tab 2: Activities */}
           <TabsContent value="activities" className="space-y-6">
             <Tabs value={activitiesSubTab} onValueChange={setActivitiesSubTab}>
-              <TabsList className="grid w-full max-w-md mx-auto grid-cols-2">
+              <TabsList className="grid w-full max-w-2xl mx-auto grid-cols-3">
                 <TabsTrigger value="ai-suggested" data-testid="subtab-ai-suggested">AI Suggested</TabsTrigger>
+                <TabsTrigger value="search" data-testid="subtab-search">Search</TabsTrigger>
                 <TabsTrigger value="favorites" data-testid="subtab-favorites">Favorites</TabsTrigger>
               </TabsList>
 
@@ -2589,7 +2591,61 @@ export default function GroupDetail() {
             )}
               </TabsContent>
 
-              {/* Sub-tab 2: Favorites */}
+              {/* Sub-tab 2: Search */}
+              <TabsContent value="search" className="space-y-6">
+                <div className="space-y-6">
+                  <div>
+                    <h2 className="text-2xl font-bold mb-2">Search for Venues</h2>
+                    <p className="text-muted-foreground mb-4">
+                      Find specific places you want to add to your itinerary
+                    </p>
+                  </div>
+
+                  {/* Search Input */}
+                  <div className="relative max-w-xl">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      placeholder="Search for parks, restaurants, cafes, or any venue..."
+                      value={venueSearchQuery}
+                      onChange={(e) => setVenueSearchQuery(e.target.value)}
+                      className="pl-9"
+                      data-testid="input-venue-search"
+                    />
+                  </div>
+
+                  {/* Search Results */}
+                  {venueSearchQuery.trim() && (
+                    <div className="space-y-3">
+                      <p className="text-sm text-muted-foreground">
+                        Search results for "{venueSearchQuery}"
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {/* Results will be populated here */}
+                        <Card>
+                          <CardContent className="p-4 text-center text-muted-foreground">
+                            <p className="text-sm">Type to search for venues near {group?.locationBase}</p>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    </div>
+                  )}
+
+                  {!venueSearchQuery.trim() && (
+                    <Card>
+                      <CardContent className="p-12 text-center">
+                        <Search className="h-12 w-12 mx-auto mb-3 text-muted-foreground opacity-50" />
+                        <p className="text-sm text-muted-foreground">Start typing to search for specific venues</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Try searching for "Golden Gate Park" or "pizza near Mission"
+                        </p>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              </TabsContent>
+
+              {/* Sub-tab 3: Favorites */}
               <TabsContent value="favorites" className="space-y-6">
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
