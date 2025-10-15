@@ -62,6 +62,15 @@ export const members = pgTable("members", {
   isOrganizer: boolean("is_organizer").default(false).notNull(),
   invitationSent: boolean("invitation_sent").default(false).notNull(),
   hasJoined: boolean("has_joined").default(false).notNull(),
+  
+  // RSVP and preference fields for invite flow
+  rsvpStatus: text("rsvp_status"), // going, maybe, not_going, null (no response)
+  memberLocation: text("member_location"), // Member's location for aggregation
+  memberBudgetMin: integer("member_budget_min"), // Member's min budget preference
+  memberBudgetMax: integer("member_budget_max"), // Member's max budget preference
+  memberAvailability: jsonb("member_availability"), // Dates that work for this member: ["2025-01-15", "2025-01-16"]
+  claimToken: text("claim_token").unique(), // Session token for claiming identity without login
+  
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
