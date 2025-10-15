@@ -48,6 +48,9 @@ export const groups = pgTable("groups", {
   shareableLink: text("shareable_link").notNull().unique(),
   activityGenerationStatus: text("activity_generation_status").default("pending").notNull(), // pending, generating, completed, failed
   activityGenerationError: text("activity_generation_error"),
+  preferenceInsights: jsonb("preference_insights"), // AI-analyzed preference patterns: [{pattern: "...", icon: "...", description: "..."}]
+  lastInsightsUpdate: timestamp("last_insights_update"), // When insights were last generated
+  feedbackCount: integer("feedback_count").default(0).notNull(), // Track feedback actions to trigger insight regeneration
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

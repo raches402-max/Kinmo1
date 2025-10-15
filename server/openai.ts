@@ -789,3 +789,130 @@ The category value MUST be one of: meal, cafes, drinks, dessert, or experiences`
     return fallbackCategory;
   }
 }
+
+export interface PreferencePattern {
+  pattern: string;
+  icon: string;
+  description: string;
+}
+
+export async function analyzePreferencePatterns(data: {
+  notThisFeedback: { venueName: string; venueType: string; description: string }[];
+  votingFeedback: { venueName: string; venueType: string; upvotes: number; downvotes: number; netVotes: number }[];
+  likedConcepts: string[];
+  passedConcepts: string[];
+}): Promise<PreferencePattern[]> {
+  try {
+    const { notThisFeedback, votingFeedback, likedConcepts, passedConcepts } = data;
+
+    // Calculate total feedback actions
+    const totalActions = 
+      notThisFeedback.length + 
+      votingFeedback.length + 
+      likedConcepts.length + 
+      passedConcepts.length;
+
+    // Don't generate insights if there's not enough data
+    if (totalActions < 5) {
+      console.log('[AI Insights] Not enough feedback data to generate patterns (need at least 5 actions)');
+      return [];
+    }
+
+    // Build context for AI
+    let feedbackContext = '';
+    
+    if (notThisFeedback.length > 0) {
+      feedbackContext += '\n\n"Not This" Feedback (venues rejected):';
+      notThisFeedback.forEach(f => {
+        feedbackContext += `\n- ${f.venueName} (${f.venueType}): ${f.description}`;
+      });
+    }
+
+    if (votingFeedback.length > 0) {
+      const upvoted = votingFeedback.filter(v => v.netVotes > 0);
+      const downvoted = votingFeedback.filter(v => v.netVotes < 0);
+      
+      if (upvoted.length > 0) {
+        feedbackContext += '\n\nUpvoted Favorites (group loves):';
+        upvoted.forEach(v => {
+          feedbackContext += `\n- ${v.venueName} (${v.venueType}): +${v.upvotes} votes`;
+        });
+      }
+      
+      if (downvoted.length > 0) {
+        feedbackContext += '\n\nDownvoted Venues (group dislikes):';
+        downvoted.forEach(v => {
+          feedbackContext += `\n- ${v.venueName} (${v.venueType}): ${v.downvotes} downvotes`;
+        });
+      }
+    }
+
+    if (likedConcepts.length > 0) {
+      feedbackContext += '\n\nLiked Concepts (from swipe sessions):';
+      likedConcepts.forEach(c => {
+        feedbackContext += `\n- ${c}`;
+      });
+    }
+
+    if (passedConcepts.length > 0) {
+      feedbackContext += '\n\nPassed Concepts (from swipe sessions):';
+      passedConcepts.forEach(c => {
+        feedbackContext += `\n- ${c}`;
+      });
+    }
+
+    const prompt = `Analyze this group's activity preferences and identify 3-5 clear patterns or trends.
+
+${feedbackContext}
+
+Based on this feedback data (${totalActions} total actions), identify the clearest patterns in what this group likes or dislikes.
+
+Rules:
+1. Only identify patterns if there are at least 2-3 examples supporting it
+2. Be specific and actionable (e.g., "Avoiding loud venues" not "likes quiet places")
+3. Focus on the strongest signals
+4. Keep descriptions concise and casual (10-15 words max)
+5. Choose appropriate emoji icons that match the pattern
+6. Return 3-5 patterns maximum (fewer if data is limited)
+
+Example patterns:
+- Avoiding loud venues: 🎵 "You've passed on 4 nightclubs and live music spots"
+- Loves unique experiences: ✨ "Museums and art galleries get the most upvotes"
+- Budget-conscious: 💰 "Expensive venues frequently marked 'not this'"
+- Prefers authentic cuisine: 🌮 "Local ethnic restaurants highly favored over chains"
+
+Return JSON array of patterns:
+[
+  {
+    "pattern": "Short descriptive title",
+    "icon": "single emoji",
+    "description": "Brief casual explanation (10-15 words)"
+  }
+]`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert at analyzing group preferences and identifying behavioral patterns. Be specific and actionable. Always respond with valid JSON."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      response_format: { type: "json_object" },
+      max_completion_tokens: 500,
+    });
+
+    const result = JSON.parse(response.choices[0].message.content || '{"patterns": []}');
+    const patterns = result.patterns || [];
+    
+    console.log(`[AI Insights] Generated ${patterns.length} preference patterns from ${totalActions} feedback actions`);
+    return patterns;
+  } catch (error) {
+    console.error("Error analyzing preference patterns:", error);
+    return [];
+  }
+}
