@@ -588,8 +588,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           });
 
-          // Only use venues that meet quality standards - no fallback to low-quality venues
-          const finalPlaces = qualityFiltered;
+          // Apply budget filtering based on Google Places price level
+          const budgetFiltered = qualityFiltered.filter(place => {
+            const priceLevel = parseInt(place.priceLevel || '0');
+            const budgetMax = group.budgetMax;
+
+            if (budgetMax < 50) {
+              return priceLevel <= 1; // Free or $ only
+            } else if (budgetMax < 100) {
+              return priceLevel <= 2; // Free, $, or $$
+            } else if (budgetMax < 200) {
+              return priceLevel <= 3; // Free, $, $$, or $$$
+            } else {
+              return priceLevel <= 4; // All price levels
+            }
+          });
+
+          // Only use venues that meet quality AND budget standards
+          const finalPlaces = budgetFiltered;
 
           // Search for complementary places
           let complementaryPlace = null;
@@ -1311,8 +1327,24 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
             }
           });
 
-          // Only use venues that meet quality standards - no fallback to low-quality venues
-          const finalPlaces = qualityFiltered;
+          // Apply budget filtering based on Google Places price level
+          const budgetFiltered = qualityFiltered.filter(place => {
+            const priceLevel = parseInt(place.priceLevel || '0');
+            const budgetMax = groupData.budgetMax;
+
+            if (budgetMax < 50) {
+              return priceLevel <= 1; // Free or $ only
+            } else if (budgetMax < 100) {
+              return priceLevel <= 2; // Free, $, or $$
+            } else if (budgetMax < 200) {
+              return priceLevel <= 3; // Free, $, $$, or $$$
+            } else {
+              return priceLevel <= 4; // All price levels
+            }
+          });
+
+          // Only use venues that meet quality AND budget standards
+          const finalPlaces = budgetFiltered;
 
           // Also search for complementary food places if suggested
           let complementaryPlace = null;
