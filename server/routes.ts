@@ -1457,8 +1457,8 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
         ? { lat: parseFloat(groupData.latitude), lng: parseFloat(groupData.longitude) }
         : undefined;
       
-      // Process suggestions in parallel batches of 10 to avoid rate limits
-      const batchSize = 10;
+      // Process suggestions in parallel batches of 20 (faster processing while respecting API limits)
+      const batchSize = 20;
       const activitiesData: any[] = [];
       
       for (let i = 0; i < suggestions.length; i += batchSize) {
