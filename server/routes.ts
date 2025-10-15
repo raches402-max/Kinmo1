@@ -1590,8 +1590,12 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
 
       console.log(`[AI Generation] Attempt ${attempt}: Created ${activitiesData.length} activities from Google Places`);
 
+      // Filter out null activities (from failed Google Places searches)
+      const validActivities = activitiesData.filter((a: any) => a !== null);
+      console.log(`[AI Generation] After filtering nulls: ${validActivities.length} valid activities`);
+
       // First, categorize all new activities in batches
-      const uncategorized = activitiesData.filter((a: any) => !a.category);
+      const uncategorized = validActivities.filter((a: any) => !a.category);
       for (let i = 0; i < uncategorized.length; i += batchSize) {
         const batch = uncategorized.slice(i, i + batchSize);
         await Promise.all(
@@ -1617,7 +1621,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       }
 
       // Add new unique activities from this batch, respecting category limits (max 3 per category)
-      for (const activity of activitiesData as any[]) {
+      for (const activity of validActivities as any[]) {
         // Create a unique key based on Google Place ID (if available) or venue name
         const venueKey = activity.googlePlaceId || activity.venueName.toLowerCase();
         const category = activity.category;
