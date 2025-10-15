@@ -329,6 +329,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update member constraints from RSVP follow-ups (no auth required, validates claim token)
+  app.patch("/api/members/:id/constraints", async (req, res) => {
+    try {
+      const { memberConstraints, claimToken } = req.body;
+
+      if (!claimToken) {
+        return res.status(401).json({ message: "Claim token required" });
+      }
+
+      // Verify the claim token matches
+      const member = await storage.getMember(req.params.id);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+
+      if (member.claimToken !== claimToken) {
+        return res.status(401).json({ message: "Invalid claim token" });
+      }
+
+      // Update constraints
+      const updatedMember = await storage.updateMember(req.params.id, {
+        memberConstraints,
+      });
+
+      res.json(updatedMember);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
   // Voting Events Routes
 
   // Get all voting events (top 10 with vote counts)
