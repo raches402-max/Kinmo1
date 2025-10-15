@@ -2670,11 +2670,66 @@ export default function GroupDetail() {
               {/* Sub-tab 2: Favorites */}
               <TabsContent value="favorites" className="space-y-6">
                 <div className="space-y-6">
-                  <div>
-                    <h2 className="text-2xl font-bold mb-2">Your Favorites</h2>
-                    <p className="text-muted-foreground">
-                      Vote on group favorites and select venues to add to your itinerary
-                    </p>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-2xl font-bold mb-2">Your Favorites</h2>
+                      <p className="text-muted-foreground">
+                        Vote on group favorites and select venues to add to your itinerary
+                      </p>
+                    </div>
+                    <Dialog open={addEventOpen} onOpenChange={setAddEventOpen}>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" data-testid="button-add-favorite-tab">
+                          <Plus className="h-4 w-4 mr-1" />
+                          Add
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent data-testid="dialog-add-favorite-tab">
+                        <DialogHeader>
+                          <DialogTitle>Add to Favorites</DialogTitle>
+                          <DialogDescription>
+                            Add a place you'd like your group to vote on
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="event-title-tab">Place Name</Label>
+                            <Input
+                              id="event-title-tab"
+                              value={newEventTitle}
+                              onChange={(e) => setNewEventTitle(e.target.value)}
+                              placeholder="e.g., The Blue Room"
+                              data-testid="input-event-title-tab"
+                            />
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setAddEventOpen(false);
+                              setNewEventTitle("");
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            onClick={() => {
+                              if (newEventTitle.trim()) {
+                                createEventMutation.mutate({ 
+                                  title: newEventTitle,
+                                  skipEnrichmentCheck: false 
+                                });
+                              }
+                            }}
+                            disabled={!newEventTitle.trim() || createEventMutation.isPending}
+                            data-testid="button-save-favorite-tab"
+                          >
+                            {createEventMutation.isPending ? "Adding..." : "Add to Favorites"}
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
                   </div>
 
               {votingEvents.length === 0 ? (
