@@ -1361,6 +1361,52 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Search for venues by query string
+  app.get("/api/groups/:groupId/search-venues", async (req, res) => {
+    try {
+      const { query } = req.query;
+      const { groupId } = req.params;
+
+      if (!query || typeof query !== 'string' || query.trim().length < 2) {
+        return res.json({ results: [] });
+      }
+
+      // Get group location for context
+      const group = await storage.getGroup(groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      // Use Google Places Text Search with group location as context
+      const searchQuery = group.latitude && group.longitude
+        ? `${query.trim()} near ${group.locationBase}`
+        : query.trim();
+
+      const radius = group.searchRadius || 10;
+      const coordinates = group.latitude && group.longitude
+        ? { latitude: parseFloat(group.latitude), longitude: parseFloat(group.longitude) }
+        : null;
+
+      const results = await searchPlaces(searchQuery, radius, 3.0, coordinates);
+
+      // Return top 10 results
+      const limitedResults = results.slice(0, 10).map(place => ({
+        placeId: place.placeId,
+        name: place.name,
+        address: place.address,
+        photoUrl: place.photoUrl,
+        rating: place.rating,
+        reviewCount: place.reviewCount,
+        types: place.types || [],
+      }));
+
+      res.json({ results: limitedResults });
+    } catch (error: any) {
+      console.error("Error searching venues:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Get group itineraries
   app.get("/api/groups/:groupId/itineraries", async (req, res) => {
     try {
