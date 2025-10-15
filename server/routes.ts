@@ -471,7 +471,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let checkedCount = 0;
 
       for (const a of existingActivities) {
-        const activityCategory = await categorizeVenue(a.venueType);
+        const activityCategory = await categorizeVenue(a.venueName, a.venueType);
         if (activityCategory === category && checkedIds.has(a.id)) {
           checkedCount++;
         }
@@ -644,7 +644,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               googleReview: place.review || null,
               aiReasoning: suggestion.reasoning,
               timeCategory: categorizeByTime(suggestion.venueType),
-              category: categorizeVenue(suggestion.venueType),
+              category: categorizeVenue(place.name, suggestion.venueType, place.types),
               complementaryPlaceName: complementaryPlace?.name || null,
               complementaryPlaceAddress: complementaryPlace?.address || null,
               complementaryPlaceId: complementaryPlace?.placeId || null,
@@ -690,7 +690,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const uncheckedActivities = [];
 
       for (const a of existingActivities) {
-        const activityCategory = await categorizeVenue(a.venueType);
+        const activityCategory = await categorizeVenue(a.venueName, a.venueType);
         if (activityCategory === category && !checkedIds.has(a.id)) {
           uncheckedActivities.push(a);
         }
@@ -710,7 +710,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       for (let i = 0; i < Math.min(neededCount, allValidActivities.length); i++) {
         const activityData = allValidActivities[i];
-        const activityCategory = await categorizeVenue(activityData.venueType);
+        const activityCategory = await categorizeVenue(activityData.venueName, activityData.venueType);
         const newActivity = await storage.createActivity({
           ...activityData,
           groupId: req.params.id,
@@ -1441,9 +1441,9 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
 
       // First, categorize all new activities
       await Promise.all(
-        activitiesData.map(async (activity) => {
+        activitiesData.map(async (activity: any) => {
           if (!activity.category) {
-            activity.category = await categorizeVenue(activity.venueType);
+            activity.category = await categorizeVenue(activity.venueName, activity.venueType);
           }
         })
       );
@@ -1464,7 +1464,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       }
 
       // Add new unique activities from this batch, respecting category limits (max 3 per category)
-      for (const activity of activitiesData) {
+      for (const activity of activitiesData as any[]) {
         // Create a unique key based on Google Place ID (if available) or venue name
         const venueKey = activity.googlePlaceId || activity.venueName.toLowerCase();
         const category = activity.category;
@@ -1524,9 +1524,9 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
 
       // Add AI categorization to each activity in parallel (for any not yet categorized)
       await Promise.all(
-        allUniqueActivities.map(async (activity) => {
+        allUniqueActivities.map(async (activity: any) => {
           if (!activity.category) {
-            activity.category = await categorizeVenue(activity.venueType);
+            activity.category = await categorizeVenue(activity.venueName, activity.venueType);
           }
         })
       );

@@ -650,31 +650,54 @@ function keywordCategorize(venueType: string): 'meal' | 'cafes' | 'drinks' | 'de
   return 'experiences';
 }
 
-export async function categorizeVenue(venueType: string): Promise<'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences'> {
-  // Check cache first
-  const cached = categorizationCache.get(venueType.toLowerCase());
+export async function categorizeVenue(
+  venueName: string, 
+  venueType: string, 
+  googleTypes?: string[]
+): Promise<'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences'> {
+  // Create cache key from venue name + type for more accurate caching
+  const cacheKey = `${venueName.toLowerCase()}::${venueType.toLowerCase()}`;
+  const cached = categorizationCache.get(cacheKey);
   if (cached) {
     return cached as 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences';
   }
 
   try {
-    const prompt = `Categorize this venue type into ONE of these categories:
+    // Build context from all available information
+    let context = `Venue name: "${venueName}"\nVenue type: "${venueType}"`;
+    if (googleTypes && googleTypes.length > 0) {
+      context += `\nGoogle types: ${googleTypes.join(', ')}`;
+    }
 
-Venue type: "${venueType}"
+    const prompt = `Categorize this venue into ONE category based on its PRIMARY purpose.
+
+${context}
 
 Categories:
-- meal: Full meal venues (restaurants, food halls, dining establishments including izakaya, bistro, etc.)
+- meal: Full meal venues (restaurants, food halls, dining establishments)
 - cafes: Coffee shops, cafes
 - drinks: Bars, breweries, wine bars, cocktail lounges (alcoholic beverages)
 - dessert: Boba/tea shops, ice cream, dessert cafes, bakeries, sweet treats
-- experiences: Entertainment, museums, parks, sports, events, activities
+- experiences: Entertainment, museums, parks, sports, events, activities, shows, performances
 
-Rules:
-1. Izakaya = meal (Japanese dining establishment)
-2. Tea shop/bubble tea/boba = dessert
-3. Any dining establishment with food = meal
-4. Bars with alcohol = drinks
-5. Entertainment/activities = experiences
+CRITICAL RULES - PRIMARY PURPOSE:
+1. If the venue's PRIMARY purpose is entertainment/experience (shows, performances, museums, activities), it's "experiences" - EVEN IF food is served
+   Examples:
+   - "Murder Mystery Dinner Show" → experiences (it's a SHOW that serves dinner)
+   - "Concert Hall with Bar" → experiences (it's a CONCERT venue)
+   - "Museum Cafe" → experiences (it's a MUSEUM)
+   - "Sports Bar with Games" → drinks (it's primarily a BAR)
+   
+2. If the PRIMARY purpose is dining/eating:
+   - Izakaya = meal (Japanese dining establishment)
+   - Restaurants, bistros, food halls = meal
+   
+3. If the PRIMARY purpose is drinks:
+   - Bars, breweries, wine bars = drinks
+   
+4. If the PRIMARY purpose is dessert/treats:
+   - Tea shop/bubble tea/boba = dessert
+   - Ice cream, bakeries = dessert
 
 Return a JSON object with this exact structure:
 {
@@ -688,7 +711,7 @@ The category value MUST be one of: meal, cafes, drinks, dessert, or experiences`
       messages: [
         {
           role: "system",
-          content: "You categorize venue types. Always respond with valid JSON containing only the category."
+          content: "You categorize venues by their PRIMARY purpose. Entertainment/shows = experiences even if food is served. Always respond with valid JSON."
         },
         {
           role: "user",
@@ -703,10 +726,10 @@ The category value MUST be one of: meal, cafes, drinks, dessert, or experiences`
     
     // Validate that we got a category in the response
     if (!result.category) {
-      console.error(`[AI Categorization] No category in response for "${venueType}":`, result);
-      console.log(`[AI Categorization] Falling back to keyword categorization for "${venueType}"`);
+      console.error(`[AI Categorization] No category in response for "${venueName}":`, result);
+      console.log(`[AI Categorization] Falling back to keyword categorization`);
       const fallbackCategory = keywordCategorize(venueType);
-      categorizationCache.set(venueType.toLowerCase(), fallbackCategory);
+      categorizationCache.set(cacheKey, fallbackCategory);
       return fallbackCategory;
     }
     
@@ -715,20 +738,20 @@ The category value MUST be one of: meal, cafes, drinks, dessert, or experiences`
     // Validate it's one of the expected categories
     const validCategories = ['meal', 'cafes', 'drinks', 'dessert', 'experiences'];
     if (!validCategories.includes(category)) {
-      console.error(`[AI Categorization] Invalid category "${category}" for "${venueType}". Falling back to keyword categorization.`);
+      console.error(`[AI Categorization] Invalid category "${category}" for "${venueName}". Falling back to keyword categorization.`);
       const fallbackCategory = keywordCategorize(venueType);
-      categorizationCache.set(venueType.toLowerCase(), fallbackCategory);
+      categorizationCache.set(cacheKey, fallbackCategory);
       return fallbackCategory;
     }
     
     // Cache the result
-    categorizationCache.set(venueType.toLowerCase(), category);
+    categorizationCache.set(cacheKey, category);
     
-    console.log(`[AI Categorization] "${venueType}" → ${category}`);
+    console.log(`[AI Categorization] "${venueName}" → ${category}`);
     return category as 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences';
   } catch (error) {
     console.error("Error categorizing venue:", error);
-    console.log(`[AI Categorization] Exception occurred, falling back to keyword categorization for "${venueType}"`);
+    console.log(`[AI Categorization] Exception occurred, falling back to keyword categorization`);
     const fallbackCategory = keywordCategorize(venueType);
     return fallbackCategory;
   }
