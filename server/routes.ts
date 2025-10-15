@@ -1456,14 +1456,21 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       const coordinates = groupData.latitude && groupData.longitude 
         ? { lat: parseFloat(groupData.latitude), lng: parseFloat(groupData.longitude) }
         : undefined;
-      const activitiesData = await Promise.all(
-        suggestions.map(async (suggestion) => {
-          const places = await searchPlaces(
-            suggestion.searchQuery, 
-            groupData.locationBase, 
-            groupData.searchRadius || 2, // Use group's search radius (default 2 miles)
-            coordinates
-          );
+      
+      // Process suggestions in parallel batches of 10 to avoid rate limits
+      const batchSize = 10;
+      const activitiesData: any[] = [];
+      
+      for (let i = 0; i < suggestions.length; i += batchSize) {
+        const batch = suggestions.slice(i, i + batchSize);
+        const batchResults = await Promise.all(
+          batch.map(async (suggestion) => {
+            const places = await searchPlaces(
+              suggestion.searchQuery, 
+              groupData.locationBase, 
+              groupData.searchRadius || 2,
+              coordinates
+            );
 
           // Apply quality filtering based on search radius
           // Farther venues must have higher ratings and review counts
@@ -1576,19 +1583,23 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
             console.log(`[AI Generation] Rejecting ${suggestion.venueName} - no Google Places results found`);
             return null;
           }
-        })
-      );
+          })
+        );
+        activitiesData.push(...batchResults);
+      }
 
       console.log(`[AI Generation] Attempt ${attempt}: Created ${activitiesData.length} activities from Google Places`);
 
-      // First, categorize all new activities
-      await Promise.all(
-        activitiesData.map(async (activity: any) => {
-          if (!activity.category) {
+      // First, categorize all new activities in batches
+      const uncategorized = activitiesData.filter((a: any) => !a.category);
+      for (let i = 0; i < uncategorized.length; i += batchSize) {
+        const batch = uncategorized.slice(i, i + batchSize);
+        await Promise.all(
+          batch.map(async (activity: any) => {
             activity.category = await categorizeVenue(activity.venueName, activity.venueType);
-          }
-        })
-      );
+          })
+        );
+      }
 
       // Count current category distribution
       const currentCategoryCounts: Record<string, number> = {
