@@ -1,7 +1,7 @@
 // Reference: javascript_database blueprint
 // Reference: javascript_log_in_with_replit blueprint
 import {
-  users, groups, members, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems,
+  users, groups, members, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps,
   type User, type UpsertUser,
   type Group, type InsertGroup, type UpdateGroup,
   type Member, type InsertMember, type UpdateMember,
@@ -10,7 +10,8 @@ import {
   type Vote, type InsertVote,
   type PreferenceSignal, type InsertPreferenceSignal,
   type Itinerary, type InsertItinerary, type UpdateItinerary,
-  type ItineraryItem, type InsertItineraryItem
+  type ItineraryItem, type InsertItineraryItem,
+  type Rsvp, type InsertRsvp
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and } from "drizzle-orm";
@@ -68,11 +69,19 @@ export interface IStorage {
   // Itineraries
   createItinerary(itinerary: InsertItinerary, userId: string, items: Array<{sourceType: 'activity' | 'voting_event', sourceId: string}>): Promise<Itinerary>;
   getGroupItineraries(groupId: string): Promise<Array<Itinerary & { items: ItineraryItem[] }>>;
+  getSavedItineraries(groupId: string): Promise<Array<Itinerary & { items: ItineraryItem[] }>>;
+  getProposedItineraries(groupId: string): Promise<Array<Itinerary & { items: ItineraryItem[], rsvps: Rsvp[] }>>;
   getItinerary(id: string): Promise<(Itinerary & { items: ItineraryItem[] }) | undefined>;
   updateItinerary(id: string, updates: UpdateItinerary): Promise<Itinerary>;
   deleteItinerary(id: string): Promise<void>;
   getItineraryItemById(itemId: string): Promise<any>;
   deleteItineraryItem(itemId: string): Promise<void>;
+
+  // RSVPs
+  createRsvp(rsvp: InsertRsvp): Promise<Rsvp>;
+  getItineraryRsvps(itineraryId: string): Promise<Rsvp[]>;
+  updateRsvp(id: string, updates: Partial<InsertRsvp>): Promise<Rsvp>;
+  deleteRsvp(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -571,6 +580,86 @@ export class DatabaseStorage implements IStorage {
           )
         );
     }
+  }
+
+  async getSavedItineraries(groupId: string): Promise<Array<Itinerary & { items: ItineraryItem[] }>> {
+    const foundItineraries = await db
+      .select()
+      .from(itineraries)
+      .where(and(
+        eq(itineraries.groupId, groupId),
+        eq(itineraries.isSaved, true)
+      ))
+      .orderBy(desc(itineraries.createdAt));
+
+    const result = [];
+    for (const itinerary of foundItineraries) {
+      const items = await db
+        .select()
+        .from(itineraryItems)
+        .where(eq(itineraryItems.itineraryId, itinerary.id))
+        .orderBy(itineraryItems.orderIndex);
+      result.push({ ...itinerary, items });
+    }
+    return result;
+  }
+
+  async getProposedItineraries(groupId: string): Promise<Array<Itinerary & { items: ItineraryItem[], rsvps: Rsvp[] }>> {
+    const foundItineraries = await db
+      .select()
+      .from(itineraries)
+      .where(and(
+        eq(itineraries.groupId, groupId),
+        eq(itineraries.status, 'proposed')
+      ))
+      .orderBy(desc(itineraries.createdAt));
+
+    const result = [];
+    for (const itinerary of foundItineraries) {
+      const items = await db
+        .select()
+        .from(itineraryItems)
+        .where(eq(itineraryItems.itineraryId, itinerary.id))
+        .orderBy(itineraryItems.orderIndex);
+      
+      const itineraryRsvps = await db
+        .select()
+        .from(rsvps)
+        .where(eq(rsvps.itineraryId, itinerary.id))
+        .orderBy(desc(rsvps.createdAt));
+
+      result.push({ ...itinerary, items, rsvps: itineraryRsvps });
+    }
+    return result;
+  }
+
+  async createRsvp(rsvp: InsertRsvp): Promise<Rsvp> {
+    const [createdRsvp] = await db
+      .insert(rsvps)
+      .values(rsvp)
+      .returning();
+    return createdRsvp;
+  }
+
+  async getItineraryRsvps(itineraryId: string): Promise<Rsvp[]> {
+    return await db
+      .select()
+      .from(rsvps)
+      .where(eq(rsvps.itineraryId, itineraryId))
+      .orderBy(desc(rsvps.createdAt));
+  }
+
+  async updateRsvp(id: string, updates: Partial<InsertRsvp>): Promise<Rsvp> {
+    const [rsvp] = await db
+      .update(rsvps)
+      .set(updates)
+      .where(eq(rsvps.id, id))
+      .returning();
+    return rsvp;
+  }
+
+  async deleteRsvp(id: string): Promise<void> {
+    await db.delete(rsvps).where(eq(rsvps.id, id));
   }
 }
 

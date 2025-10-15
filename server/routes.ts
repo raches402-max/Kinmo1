@@ -1461,6 +1461,135 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Get saved itineraries for a group
+  app.get("/api/groups/:groupId/saved-itineraries", async (req, res) => {
+    try {
+      const savedItineraries = await storage.getSavedItineraries(req.params.groupId);
+      res.json(savedItineraries);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Save an itinerary (creates a copy so the draft remains editable)
+  app.post("/api/itineraries/:id/save", isAuthenticated, async (req: any, res) => {
+    try {
+      const { name } = req.body;
+      const userId = req.user.claims.sub;
+      
+      // Get the original itinerary with items
+      const original = await storage.getItinerary(req.params.id);
+      if (!original) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      // Create a duplicate itinerary marked as saved
+      const itemsData = original.items.map(item => ({
+        sourceType: item.sourceType as 'activity' | 'voting_event',
+        sourceId: item.sourceId
+      }));
+
+      const savedItinerary = await storage.createItinerary(
+        {
+          groupId: original.groupId,
+          name,
+          status: 'saved' as any,
+          isSaved: true as any,
+          aiValidationNotes: original.aiValidationNotes,
+          proposedOrder: original.proposedOrder,
+        },
+        userId,
+        itemsData
+      );
+
+      res.json(savedItinerary);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Send an itinerary as a proposal to the group
+  app.post("/api/itineraries/:id/send", isAuthenticated, async (req, res) => {
+    try {
+      const { isPrimary } = req.body;
+      const updates: UpdateItinerary = {
+        status: 'proposed' as any,
+        isPrimary: (isPrimary || false) as any,
+      };
+      const itinerary = await storage.updateItinerary(req.params.id, updates);
+      res.json(itinerary);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Send a backup itinerary linked to another itinerary
+  app.post("/api/itineraries/:id/send-backup", isAuthenticated, async (req, res) => {
+    try {
+      const { backupForItineraryId } = req.body;
+      const updates: UpdateItinerary = {
+        status: 'proposed' as any,
+        isPrimary: false as any,
+        backupForItineraryId: backupForItineraryId as any,
+      };
+      const itinerary = await storage.updateItinerary(req.params.id, updates);
+      res.json(itinerary);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Finalize an itinerary as "The Plan"
+  app.post("/api/itineraries/:id/finalize", isAuthenticated, async (req, res) => {
+    try {
+      const updates: UpdateItinerary = {
+        status: 'scheduled' as any,
+      };
+      const itinerary = await storage.updateItinerary(req.params.id, updates);
+      res.json(itinerary);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get proposed itineraries with RSVPs
+  app.get("/api/groups/:groupId/proposed-itineraries", async (req, res) => {
+    try {
+      const proposedItineraries = await storage.getProposedItineraries(req.params.groupId);
+      res.json(proposedItineraries);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Create an RSVP for an itinerary
+  app.post("/api/itineraries/:id/rsvps", async (req, res) => {
+    try {
+      const { response, constraintText, memberId, userId, memberName } = req.body;
+      const rsvp = await storage.createRsvp({
+        itineraryId: req.params.id,
+        response,
+        constraintText,
+        memberId,
+        userId,
+        memberName,
+      });
+      res.json(rsvp);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get RSVPs for an itinerary
+  app.get("/api/itineraries/:id/rsvps", async (req, res) => {
+    try {
+      const rsvps = await storage.getItineraryRsvps(req.params.id);
+      res.json(rsvps);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Admin endpoint to backfill coordinates for existing groups
   // Protected endpoint - requires authentication
   app.post("/api/admin/backfill-coordinates", isAuthenticated, async (req, res) => {

@@ -174,7 +174,11 @@ export const preferenceSignals = pgTable("preference_signals", {
 export const itineraries = pgTable("itineraries", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   groupId: varchar("group_id").notNull().references(() => groups.id, { onDelete: "cascade" }),
-  status: text("status").notNull().default("proposed"), // proposed, accepted, rejected
+  name: text("name"), // Optional name for saved itineraries (e.g., "SF Waterfront Day")
+  status: text("status").notNull().default("draft"), // draft, saved, proposed, scheduled, rejected
+  isSaved: boolean("is_saved").default(false).notNull(), // Is this a saved template for reuse
+  isPrimary: boolean("is_primary").default(false).notNull(), // Is this the primary proposed plan
+  backupForItineraryId: varchar("backup_for_itinerary_id").references(() => itineraries.id, { onDelete: "set null" }), // If this is a backup plan
   aiValidationNotes: text("ai_validation_notes"), // AI insights about flow, timing, proximity
   proposedOrder: jsonb("proposed_order").notNull(), // Array of item IDs in suggested sequence
   createdBy: varchar("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -194,6 +198,18 @@ export const itineraryItems = pgTable("itinerary_items", {
   rating: text("rating"),
   photoUrl: text("photo_url"),
   orderIndex: integer("order_index").notNull(), // Position in itinerary sequence
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// RSVPs table - member responses to proposed itineraries
+export const rsvps = pgTable("rsvps", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  itineraryId: varchar("itinerary_id").notNull().references(() => itineraries.id, { onDelete: "cascade" }),
+  memberId: varchar("member_id").references(() => members.id, { onDelete: "cascade" }), // Optional, for group members
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }), // Optional, for authenticated users
+  memberName: text("member_name"), // Name if not a registered member
+  response: text("response").notNull(), // 'yes', 'no', 'conditional'
+  constraintText: text("constraint_text"), // If response is conditional, what's the constraint (e.g., "only if it's in Oakland")
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -271,12 +287,32 @@ export const itinerariesRelations = relations(itineraries, ({ one, many }) => ({
     references: [users.id],
   }),
   items: many(itineraryItems),
+  rsvps: many(rsvps),
+  backupFor: one(itineraries, {
+    fields: [itineraries.backupForItineraryId],
+    references: [itineraries.id],
+  }),
 }));
 
 export const itineraryItemsRelations = relations(itineraryItems, ({ one }) => ({
   itinerary: one(itineraries, {
     fields: [itineraryItems.itineraryId],
     references: [itineraries.id],
+  }),
+}));
+
+export const rsvpsRelations = relations(rsvps, ({ one }) => ({
+  itinerary: one(itineraries, {
+    fields: [rsvps.itineraryId],
+    references: [itineraries.id],
+  }),
+  member: one(members, {
+    fields: [rsvps.memberId],
+    references: [members.id],
+  }),
+  user: one(users, {
+    fields: [rsvps.userId],
+    references: [users.id],
   }),
 }));
 
@@ -331,6 +367,11 @@ export const insertItineraryItemSchema = createInsertSchema(itineraryItems).omit
   createdAt: true,
 });
 
+export const insertRsvpSchema = createInsertSchema(rsvps).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Update schemas (partial versions for PATCH operations)
 export const updateGroupSchema = insertGroupSchema.partial().refine(
   (data) => {
@@ -380,3 +421,6 @@ export type UpdateItinerary = z.infer<typeof updateItinerarySchema>;
 
 export type InsertItineraryItem = z.infer<typeof insertItineraryItemSchema>;
 export type ItineraryItem = typeof itineraryItems.$inferSelect;
+
+export type InsertRsvp = z.infer<typeof insertRsvpSchema>;
+export type Rsvp = typeof rsvps.$inferSelect;

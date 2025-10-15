@@ -17,7 +17,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown } from "lucide-react";
+import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -424,6 +424,9 @@ export default function GroupDetail() {
   const [addedSuggestionPlaceIds, setAddedSuggestionPlaceIds] = useState<Set<string>>(new Set());
   const [venueSearchQuery, setVenueSearchQuery] = useState("");
   const [debouncedVenueSearchQuery, setDebouncedVenueSearchQuery] = useState("");
+  const [saveItineraryOpen, setSaveItineraryOpen] = useState(false);
+  const [itineraryName, setItineraryName] = useState("");
+  const [savingItineraryId, setSavingItineraryId] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -1001,6 +1004,30 @@ export default function GroupDetail() {
     onError: (error: Error) => {
       toast({
         title: "Error adding venue",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const saveItineraryMutation = useMutation({
+    mutationFn: async ({ itineraryId, name }: { itineraryId: string; name: string }) => {
+      return await apiRequest("POST", `/api/itineraries/${itineraryId}/save`, { name });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "saved-itineraries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "itineraries"] });
+      setSaveItineraryOpen(false);
+      setItineraryName("");
+      setSavingItineraryId(null);
+      toast({
+        title: "Itinerary saved",
+        description: "You can now send this itinerary to your group anytime",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error saving itinerary",
         description: error.message,
         variant: "destructive",
       });
@@ -3231,14 +3258,29 @@ export default function GroupDetail() {
                           AI has organized your selections - drag to reorder
                         </CardDescription>
                       </div>
-                      <Button
-                        variant="outline"
-                        onClick={() => setActiveTab("activities")}
-                        data-testid="button-add-more-stops"
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add More Stops
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            if (itineraries.length > 0) {
+                              setSavingItineraryId(itineraries[0].id);
+                              setSaveItineraryOpen(true);
+                            }
+                          }}
+                          data-testid="button-save-itinerary"
+                        >
+                          <Save className="h-4 w-4 mr-2" />
+                          Save Plan
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => setActiveTab("activities")}
+                          data-testid="button-add-more-stops"
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add More Stops
+                        </Button>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent>
@@ -3729,6 +3771,57 @@ export default function GroupDetail() {
               data-testid="button-save-group"
             >
               {updateGroupMutation.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Save Itinerary Dialog */}
+      <Dialog open={saveItineraryOpen} onOpenChange={setSaveItineraryOpen}>
+        <DialogContent data-testid="dialog-save-itinerary">
+          <DialogHeader>
+            <DialogTitle>Save Itinerary</DialogTitle>
+            <DialogDescription>
+              Give your itinerary a name so you can send it to the group later
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="itinerary-name">Itinerary Name</Label>
+              <Input
+                id="itinerary-name"
+                placeholder="e.g., SF Waterfront Day, Oakland Foodie Tour"
+                value={itineraryName}
+                onChange={(e) => setItineraryName(e.target.value)}
+                data-testid="input-itinerary-name"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSaveItineraryOpen(false);
+                setItineraryName("");
+                setSavingItineraryId(null);
+              }}
+              data-testid="button-cancel-save-itinerary"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (savingItineraryId && itineraryName.trim()) {
+                  saveItineraryMutation.mutate({
+                    itineraryId: savingItineraryId,
+                    name: itineraryName.trim(),
+                  });
+                }
+              }}
+              disabled={!itineraryName.trim() || saveItineraryMutation.isPending}
+              data-testid="button-confirm-save-itinerary"
+            >
+              {saveItineraryMutation.isPending ? "Saving..." : "Save Itinerary"}
             </Button>
           </DialogFooter>
         </DialogContent>
