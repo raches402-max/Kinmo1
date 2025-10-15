@@ -1378,16 +1378,14 @@ Looking forward to planning great activities together!
       }
 
       // Use Google Places Text Search with group location as context
-      const searchQuery = group.latitude && group.longitude
-        ? `${query.trim()} near ${group.locationBase}`
-        : query.trim();
-
+      const searchQuery = query.trim();
+      const location = group.locationBase;
       const radius = group.searchRadius || 10;
       const coordinates = group.latitude && group.longitude
-        ? { latitude: parseFloat(group.latitude), longitude: parseFloat(group.longitude) }
-        : null;
+        ? { lat: parseFloat(group.latitude), lng: parseFloat(group.longitude) }
+        : undefined;
 
-      const results = await searchPlaces(searchQuery, radius, 3.0, coordinates);
+      const results = await searchPlaces(searchQuery, location, radius, coordinates);
 
       // Return top 10 results
       const limitedResults = results.slice(0, 10).map(place => ({

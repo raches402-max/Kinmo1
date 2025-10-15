@@ -423,6 +423,7 @@ export default function GroupDetail() {
   const [activitiesSubTab, setActivitiesSubTab] = useState("ai-suggested");
   const [addedSuggestionPlaceIds, setAddedSuggestionPlaceIds] = useState<Set<string>>(new Set());
   const [venueSearchQuery, setVenueSearchQuery] = useState("");
+  const [debouncedVenueSearchQuery, setDebouncedVenueSearchQuery] = useState("");
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -501,6 +502,22 @@ export default function GroupDetail() {
     enabled: !!groupId && (selectedVenues.length > 0 || itineraries.length > 0),
   });
 
+  // Debounced venue search query
+  const { data: venueSearchResults = [] } = useQuery<any[]>({
+    queryKey: ["/api/groups", groupId, "search-venues", debouncedVenueSearchQuery.trim()],
+    queryFn: async () => {
+      if (!debouncedVenueSearchQuery.trim() || debouncedVenueSearchQuery.trim().length < 2) {
+        return [];
+      }
+      const response = await fetch(`/api/groups/${groupId}/search-venues?query=${encodeURIComponent(debouncedVenueSearchQuery.trim())}`);
+      if (!response.ok) throw new Error('Search failed');
+      const data = await response.json();
+      return data.results || [];
+    },
+    enabled: !!groupId && debouncedVenueSearchQuery.trim().length >= 2,
+    staleTime: 30000, // Cache for 30 seconds
+  });
+
   // Track previous generation status to detect when generation completes
   const prevStatusRef = useRef<string | undefined>();
   
@@ -512,6 +529,15 @@ export default function GroupDetail() {
     }
     prevStatusRef.current = group?.activityGenerationStatus;
   }, [group?.activityGenerationStatus, groupId]);
+
+  // Debounce venue search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedVenueSearchQuery(venueSearchQuery);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [venueSearchQuery]);
 
   // Initialize form fields from group data when it loads
   useEffect(() => {
@@ -2615,19 +2641,84 @@ export default function GroupDetail() {
                   </div>
 
                   {/* Search Results */}
-                  {venueSearchQuery.trim() && (
+                  {venueSearchQuery.trim() && venueSearchQuery.trim().length >= 2 && (
                     <div className="space-y-3">
                       <p className="text-sm text-muted-foreground">
                         Search results for "{venueSearchQuery}"
                       </p>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {/* Results will be populated here */}
+                      {venueSearchResults.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {venueSearchResults.map((result: any) => {
+                            const alreadySelected = activities.some(a => a.googlePlaceId === result.placeId) ||
+                              votingEvents.some(e => e.googlePlaceId === result.placeId) ||
+                              addedSuggestionPlaceIds.has(result.placeId);
+
+                            return (
+                              <button
+                                key={result.placeId}
+                                onClick={() => {
+                                  if (alreadySelected || addVotingEventMutation.isPending) return;
+                                  if (selectedVenues.length >= 5) {
+                                    toast({
+                                      title: "Maximum reached",
+                                      description: "You can select up to 5 venues",
+                                      variant: "destructive"
+                                    });
+                                    return;
+                                  }
+                                  
+                                  addVotingEventMutation.mutate({
+                                    title: result.name,
+                                    venueType: result.types?.[0] || 'venue',
+                                    venueAddress: result.address,
+                                    googlePlaceId: result.placeId,
+                                  });
+                                }}
+                                disabled={alreadySelected || addVotingEventMutation.isPending}
+                                className={`flex gap-3 p-3 rounded-md border text-left transition-all hover-elevate active-elevate-2 ${
+                                  alreadySelected || addVotingEventMutation.isPending ? 'opacity-50 cursor-not-allowed' : ''
+                                }`}
+                                data-testid={`search-result-${result.placeId}`}
+                              >
+                                {result.photoUrl && (
+                                  <img 
+                                    src={result.photoUrl} 
+                                    alt={result.name}
+                                    className="w-20 h-20 rounded object-cover flex-shrink-0"
+                                  />
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium truncate">{result.name}</p>
+                                  {result.rating && (
+                                    <div className="flex items-center gap-1 mt-1">
+                                      <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                                      <span className="text-xs font-medium">{result.rating}</span>
+                                      {result.reviewCount && (
+                                        <span className="text-xs text-muted-foreground">({result.reviewCount})</span>
+                                      )}
+                                    </div>
+                                  )}
+                                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                    {result.address}
+                                  </p>
+                                  {alreadySelected ? (
+                                    <p className="text-xs text-muted-foreground mt-2">✓ Added to cart</p>
+                                  ) : (
+                                    <p className="text-xs text-primary mt-2">Click to add to cart</p>
+                                  )}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
                         <Card>
-                          <CardContent className="p-4 text-center text-muted-foreground">
-                            <p className="text-sm">Type to search for venues near {group?.locationBase}</p>
+                          <CardContent className="p-8 text-center text-muted-foreground">
+                            <p className="text-sm">No results found for "{venueSearchQuery}"</p>
+                            <p className="text-xs mt-1">Try a different search term</p>
                           </CardContent>
                         </Card>
-                      </div>
+                      )}
                     </div>
                   )}
 
