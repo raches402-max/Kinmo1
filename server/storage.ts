@@ -1,6 +1,6 @@
 // Reference: javascript_database blueprint
 // Reference: javascript_log_in_with_replit blueprint
-import { 
+import {
   users, groups, members, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems,
   type User, type UpsertUser,
   type Group, type InsertGroup, type UpdateGroup,
@@ -20,7 +20,7 @@ export interface IStorage {
   // User operations (required for Replit Auth)
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
-  
+
   // Groups
   createGroup(group: InsertGroup, userId: string, memberInputs: Array<{name: string, email: string}>): Promise<Group>;
   getGroup(id: string): Promise<Group | undefined>;
@@ -29,7 +29,7 @@ export interface IStorage {
   getAllGroups(): Promise<Group[]>;
   updateGroup(id: string, updates: UpdateGroup): Promise<Group>;
   updateGroupStatus(id: string, status: string, error?: string): Promise<void>;
-  
+
   // Members
   getGroupMembers(groupId: string): Promise<Member[]>;
   getMember(id: string): Promise<Member | undefined>;
@@ -37,7 +37,7 @@ export interface IStorage {
   updateMember(id: string, updates: UpdateMember): Promise<Member>;
   deleteMember(id: string): Promise<void>;
   markInvitationsSent(groupId: string): Promise<void>;
-  
+
   // Activities
   getGroupActivities(groupId: string): Promise<Activity[]>;
   getAllGroupActivities(groupId: string): Promise<Activity[]>;
@@ -46,7 +46,7 @@ export interface IStorage {
   updateActivityFeedback(activityId: string, feedback: string): Promise<Activity>;
   archiveGroupActivities(groupId: string): Promise<void>;
   deleteAllGroupActivities(groupId: string): Promise<void>;
-  
+
   // Voting Events
   createVotingEvent(event: InsertVotingEvent, userId: string): Promise<VotingEvent>;
   getVotingEvents(): Promise<Array<VotingEvent & { upvotes: number; downvotes: number; netVotes: number }>>;
@@ -54,23 +54,25 @@ export interface IStorage {
   getVotingEvent(id: string): Promise<VotingEvent | undefined>;
   updateVotingEvent(id: string, updates: UpdateVotingEvent): Promise<VotingEvent>;
   deleteVotingEvent(id: string): Promise<void>;
-  
+
   // Votes
   castVote(eventId: string, userId: string, voteType: 'upvote' | 'downvote'): Promise<Vote>;
   removeVote(eventId: string, userId: string): Promise<void>;
   getEventVotes(eventId: string): Promise<Vote[]>;
   getUserVote(eventId: string, userId: string): Promise<Vote | undefined>;
-  
+
   // Preference Signals
   createPreferenceSignal(signal: InsertPreferenceSignal): Promise<PreferenceSignal>;
   getGroupPreferenceSignals(groupId: string): Promise<PreferenceSignal[]>;
-  
+
   // Itineraries
   createItinerary(itinerary: InsertItinerary, userId: string, items: Array<{sourceType: 'activity' | 'voting_event', sourceId: string}>): Promise<Itinerary>;
   getGroupItineraries(groupId: string): Promise<Array<Itinerary & { items: ItineraryItem[] }>>;
   getItinerary(id: string): Promise<(Itinerary & { items: ItineraryItem[] }) | undefined>;
   updateItinerary(id: string, updates: UpdateItinerary): Promise<Itinerary>;
   deleteItinerary(id: string): Promise<void>;
+  getItineraryItemById(itemId: string): Promise<any>;
+  deleteItineraryItem(itemId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -99,12 +101,12 @@ export class DatabaseStorage implements IStorage {
   async createGroup(insertGroup: InsertGroup, userId: string, memberInputs: Array<{name: string, email: string}>): Promise<Group> {
     // Generate unique shareable link
     const shareableLink = randomBytes(16).toString('hex');
-    
+
     const [group] = await db
       .insert(groups)
       .values({ ...insertGroup, userId, shareableLink })
       .returning();
-    
+
     // Create members if provided
     if (memberInputs.length > 0) {
       const membersData = memberInputs.map((m, index) => ({
@@ -115,10 +117,10 @@ export class DatabaseStorage implements IStorage {
         invitationSent: false,
         hasJoined: false,
       }));
-      
+
       await db.insert(members).values(membersData);
     }
-    
+
     return group;
   }
 
@@ -190,7 +192,7 @@ export class DatabaseStorage implements IStorage {
 
   async createActivities(insertActivities: InsertActivity[]): Promise<Activity[]> {
     if (insertActivities.length === 0) return [];
-    
+
     return await db
       .insert(activities)
       .values(insertActivities)
@@ -200,7 +202,7 @@ export class DatabaseStorage implements IStorage {
   async updateGroupStatus(id: string, status: string, error?: string): Promise<void> {
     await db
       .update(groups)
-      .set({ 
+      .set({
         activityGenerationStatus: status,
         activityGenerationError: error || null
       })
@@ -252,7 +254,7 @@ export class DatabaseStorage implements IStorage {
     if (member?.isOrganizer) {
       throw new Error("Cannot delete organizer member");
     }
-    
+
     await db
       .delete(members)
       .where(eq(members.id, id));
@@ -371,7 +373,7 @@ export class DatabaseStorage implements IStorage {
   // Votes operations
   async castVote(eventId: string, userId: string, voteType: 'upvote' | 'downvote'): Promise<Vote> {
     const existingVote = await this.getUserVote(eventId, userId);
-    
+
     if (existingVote) {
       if (existingVote.voteType === voteType) {
         return existingVote;
@@ -383,7 +385,7 @@ export class DatabaseStorage implements IStorage {
         .returning();
       return vote;
     }
-    
+
     const [vote] = await db
       .insert(votes)
       .values({ eventId, userId, voteType })
@@ -430,11 +432,11 @@ export class DatabaseStorage implements IStorage {
       .insert(itineraries)
       .values({ ...insertItinerary, createdBy: userId })
       .returning();
-    
+
     // Create itinerary items with venue data
     if (itemsData.length > 0) {
       const itemsToInsert: InsertItineraryItem[] = [];
-      
+
       for (let i = 0; i < itemsData.length; i++) {
         const item = itemsData[i];
         let venueName = '';
@@ -443,7 +445,7 @@ export class DatabaseStorage implements IStorage {
         let googlePlaceId = null;
         let rating = null;
         let photoUrl = null;
-        
+
         if (item.sourceType === 'activity') {
           const [activity] = await db.select().from(activities).where(eq(activities.id, item.sourceId));
           if (activity) {
@@ -465,7 +467,7 @@ export class DatabaseStorage implements IStorage {
             photoUrl = votingEvent.photoUrl;
           }
         }
-        
+
         itemsToInsert.push({
           itineraryId: itinerary.id,
           sourceType: item.sourceType,
@@ -479,10 +481,10 @@ export class DatabaseStorage implements IStorage {
           orderIndex: i,
         });
       }
-      
+
       await db.insert(itineraryItems).values(itemsToInsert);
     }
-    
+
     return itinerary;
   }
 
@@ -492,7 +494,7 @@ export class DatabaseStorage implements IStorage {
       .from(itineraries)
       .where(eq(itineraries.groupId, groupId))
       .orderBy(desc(itineraries.createdAt));
-    
+
     const result = [];
     for (const itinerary of foundItineraries) {
       const items = await db
@@ -510,15 +512,15 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(itineraries)
       .where(eq(itineraries.id, id));
-    
+
     if (!itinerary) return undefined;
-    
+
     const items = await db
       .select()
       .from(itineraryItems)
       .where(eq(itineraryItems.itineraryId, id))
       .orderBy(itineraryItems.orderIndex);
-    
+
     return { ...itinerary, items };
   }
 
@@ -534,6 +536,19 @@ export class DatabaseStorage implements IStorage {
   async deleteItinerary(id: string): Promise<void> {
     await db.delete(itineraries).where(eq(itineraries.id, id));
   }
-}
 
-export const storage = new DatabaseStorage();
+  async getItineraryItemById(itemId: string): Promise<any> {
+    const [item] = await db
+      .select()
+      .from(itineraryItems)
+      .where(eq(itineraryItems.id, itemId));
+    return item;
+  }
+
+  async deleteItineraryItem(itemId: string): Promise<void> {
+    await db
+      .delete(itineraryItems)
+      .where(eq(itineraryItems.id, itemId));
+  }
+
+  async updateItineraryItemOrder(itineraryId: string, proposedOrder: string[]): Promise<void> {

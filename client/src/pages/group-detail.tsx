@@ -146,7 +146,7 @@ function getActivityCategory(activity: { venueType: string; category?: string | 
 }
 
 // Sortable itinerary item component
-function SortableItineraryItem({ item, index }: { item: any; index: number }) {
+function SortableItineraryItem({ item, index, onRemove }: { item: any; index: number; onRemove: () => void }) {
   const {
     attributes,
     listeners,
@@ -185,12 +185,21 @@ function SortableItineraryItem({ item, index }: { item: any; index: number }) {
           {item.rating}
         </Badge>
       )}
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={onRemove}
+        className="h-8 w-8 p-0 flex-shrink-0"
+        data-testid={`button-remove-itinerary-${item.id}`}
+      >
+        <X className="h-4 w-4" />
+      </Button>
     </div>
   );
 }
 
 // Itinerary display component with drag-to-reorder
-function ItineraryDisplay({ itinerary }: { itinerary: any }) {
+function ItineraryDisplay({ itinerary, groupId }: { itinerary: any; groupId: string }) {
   const { toast } = useToast();
   const [items, setItems] = useState(itinerary.items || []);
   
@@ -222,6 +231,26 @@ function ItineraryDisplay({ itinerary }: { itinerary: any }) {
     },
   });
 
+  const deleteItemMutation = useMutation({
+    mutationFn: async (itemId: string) => {
+      return await apiRequest("DELETE", `/api/itinerary-items/${itemId}`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "itineraries"] });
+      toast({
+        title: "Venue removed",
+        description: "The venue has been removed from your itinerary",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error removing venue",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
 
@@ -237,6 +266,10 @@ function ItineraryDisplay({ itinerary }: { itinerary: any }) {
       updateOrderMutation.mutate(newOrder);
     }
   }
+
+  const handleRemoveItem = (itemId: string) => {
+    deleteItemMutation.mutate(itemId);
+  };
 
   return (
     <div className="space-y-3">
@@ -254,7 +287,12 @@ function ItineraryDisplay({ itinerary }: { itinerary: any }) {
       >
         <SortableContext items={items.map((i: any) => i.id)} strategy={verticalListSortingStrategy}>
           {items.map((item: any, index: number) => (
-            <SortableItineraryItem key={item.id} item={item} index={index} />
+            <SortableItineraryItem 
+              key={item.id} 
+              item={item} 
+              index={index} 
+              onRemove={() => handleRemoveItem(item.id)}
+            />
           ))}
         </SortableContext>
       </DndContext>
@@ -3127,7 +3165,7 @@ export default function GroupDetail() {
                   </CardHeader>
                   <CardContent>
                     {itineraries.map((itinerary: any) => (
-                      <ItineraryDisplay key={itinerary.id} itinerary={itinerary} />
+                      <ItineraryDisplay key={itinerary.id} itinerary={itinerary} groupId={groupId!} />
                     ))}
                   </CardContent>
                 </Card>

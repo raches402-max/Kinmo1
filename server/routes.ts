@@ -42,10 +42,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { members, ...groupData } = req.body;
       const userId = req.user.claims.sub;
-      
+
       // Validate group data
       const validatedGroup = insertGroupSchema.parse(groupData);
-      
+
       // Geocode location to get coordinates
       const geocoded = await geocodeLocation(validatedGroup.locationBase);
       if (geocoded) {
@@ -55,13 +55,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         console.warn(`Failed to geocode location: ${validatedGroup.locationBase}`);
       }
-      
+
       // Create group with members
       const group = await storage.createGroup(validatedGroup, userId, members || []);
-      
+
       // Generate AI activity suggestions in background
       generateAndStoreActivities(group.id, validatedGroup);
-      
+
       res.json(group);
     } catch (error: any) {
       console.error("Error creating group:", error);
@@ -91,7 +91,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const validatedUpdates = updateGroupSchema.parse(req.body);
-      
+
       // If location is being updated, geocode it
       let geocodingResult: 'success' | 'failed' | 'not_attempted' = 'not_attempted';
       if (validatedUpdates.locationBase) {
@@ -106,7 +106,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.warn(`Failed to geocode location: ${validatedUpdates.locationBase}`);
         }
       }
-      
+
       const updatedGroup = await storage.updateGroup(req.params.id, validatedUpdates);
       res.json({ ...updatedGroup, geocodingResult });
     } catch (error: any) {
@@ -118,7 +118,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/groups/:id/radius", async (req, res) => {
     try {
       const { searchRadius } = req.body;
-      
+
       if (![2, 10, 30, 50].includes(searchRadius)) {
         return res.status(400).json({ message: "Invalid search radius. Must be 2, 10, 30, or 50 miles." });
       }
@@ -181,7 +181,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/groups/:id/join", async (req, res) => {
     try {
       const { name, email, availability, preferences } = req.body;
-      
+
       const memberData = {
         groupId: req.params.id,
         name: name || null,
@@ -192,7 +192,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         invitationSent: false,
         hasJoined: true,
       };
-      
+
       const member = await storage.createMember(memberData);
       res.json(member);
     } catch (error: any) {
@@ -223,7 +223,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Voting Events Routes
-  
+
   // Get all voting events (top 10 with vote counts)
   app.get("/api/voting-events", async (req, res) => {
     try {
@@ -250,17 +250,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const validatedEvent = insertVotingEventSchema.parse(req.body);
       const skipEnrichmentCheck = req.body.skipEnrichmentCheck === true;
-      
+
       // Get the group to know the location for Google Places search
       const group = await storage.getGroup(validatedEvent.groupId);
       if (!group) {
         return res.status(404).json({ message: "Group not found" });
       }
-      
+
       // Search Google Places to enrich the event with venue details
       let enrichedEvent = { ...validatedEvent };
       let enrichmentStatus: 'success' | 'no_results' | 'error' | 'skipped' = 'error';
-      
+
       // Only check Google Places if not explicitly skipping
       if (!skipEnrichmentCheck) {
         try {
@@ -273,7 +273,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             group.searchRadius || 2, // Use group's search radius
             coordinates
           );
-          
+
           // Merge Google Places data if found
           if (places.length > 0) {
             const place = places[0];
@@ -288,7 +288,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               priceLevel: place.priceLevel || validatedEvent.priceLevel,
               photoUrl: place.photoUrl || validatedEvent.photoUrl,
             };
-            
+
             enrichmentStatus = 'success';
             console.log(`[Voting Event] Enriched "${validatedEvent.title}" with Google Places data:`, {
               name: place.name,
@@ -311,7 +311,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         enrichmentStatus = 'skipped';
         console.log(`[Voting Event] Skipping enrichment check for "${validatedEvent.title}"`);
       }
-      
+
       const event = await storage.createVotingEvent(enrichedEvent, userId);
       res.json({ event, enrichmentStatus });
     } catch (error: any) {
@@ -326,7 +326,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!event) {
         return res.status(404).json({ message: "Event not found" });
       }
-      
+
       const userId = req.user.claims.sub;
       if (event.createdBy !== userId) {
         return res.status(403).json({ message: "Unauthorized to edit this event" });
@@ -347,7 +347,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!event) {
         return res.status(404).json({ message: "Event not found" });
       }
-      
+
       const userId = req.user.claims.sub;
       if (event.createdBy !== userId) {
         return res.status(403).json({ message: "Unauthorized to delete this event" });
@@ -365,7 +365,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const { voteType } = req.body;
-      
+
       if (!['upvote', 'downvote'].includes(voteType)) {
         return res.status(400).json({ message: "Invalid vote type" });
       }
@@ -419,7 +419,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Accept temporary instructions from the request body
       const { tempInstructions } = req.body;
-      
+
       // Combine permanent and temporary instructions
       const combinedInstructions = [
         group.additionalInstructions,
@@ -428,7 +428,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Reset status and trigger regeneration
       await storage.updateGroupStatus(req.params.id, "pending");
-      
+
       generateAndStoreActivities(req.params.id, {
         locationBase: group.locationBase,
         budgetMin: group.budgetMin,
@@ -456,7 +456,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { category, currentVenueNames, checkedActivityIds } = req.body;
-      
+
       if (!category || !['meal', 'cafes', 'drinks', 'dessert', 'experiences'].includes(category)) {
         return res.status(400).json({ message: "Invalid category" });
       }
@@ -464,22 +464,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`[Category Regen] Regenerating ${category} for group ${req.params.id}`);
       console.log(`[Category Regen] Avoiding ${currentVenueNames?.length || 0} current venues`);
       console.log(`[Category Regen] Preserving ${checkedActivityIds?.length || 0} checked activities`);
-      
+
       // Calculate how many new activities we need
       const existingActivities = await storage.getGroupActivities(req.params.id);
       const checkedIds = new Set(checkedActivityIds || []);
       let checkedCount = 0;
-      
+
       for (const a of existingActivities) {
         const activityCategory = await categorizeVenue(a.venueType);
         if (activityCategory === category && checkedIds.has(a.id)) {
           checkedCount++;
         }
       }
-      
+
       const neededCount = 3 - checkedCount;
       console.log(`[Category Regen] Need ${neededCount} new activities (have ${checkedCount} checked)`);
-      
+
       if (neededCount <= 0) {
         console.log(`[Category Regen] Category already has 3 cards (all checked), skipping regeneration`);
         return res.json([]);
@@ -518,7 +518,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Retry logic to ensure we get enough quality venues
       let allValidActivities: any[] = [];
       const seenVenues = new Set<string>(); // Track across attempts
-      
+
       // Add existing venues (both checked and current) to prevent duplicates
       for (const venue of existingActivities) {
         const venueKey = venue.googlePlaceId || venue.venueName.toLowerCase();
@@ -527,14 +527,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const venue of currentVenueNames || []) {
         seenVenues.add(venue.toLowerCase());
       }
-      
+
       let attempt = 0;
       const maxAttempts = 3;
-      
+
       while (allValidActivities.length < neededCount && attempt < maxAttempts) {
         attempt++;
         console.log(`[Category Regen] Attempt ${attempt}/${maxAttempts}: Need ${neededCount - allValidActivities.length} more venues`);
-        
+
         // Generate suggestions for this specific category
         const suggestions = await generateActivitySuggestions({
           locationBase: group.locationBase,
@@ -647,7 +647,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const validActivities = enrichedActivities.filter(a => a !== null);
         console.log(`[Category Regen] Attempt ${attempt}: Got ${validActivities.length} enriched activities`);
-        
+
         // Add unique activities to our collection
         for (const activity of validActivities) {
           const venueKey = activity.googlePlaceId || activity.venueName.toLowerCase();
@@ -657,12 +657,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.log(`[Category Regen] Added unique venue: ${activity.venueName} (${allValidActivities.length}/${neededCount})`);
           }
         }
-        
+
         console.log(`[Category Regen] After attempt ${attempt}: Have ${allValidActivities.length}/${neededCount} venues`);
       }
-      
+
       console.log(`[Category Regen] Retry complete: Collected ${allValidActivities.length}/${neededCount} valid activities`);
-      
+
       // Check if we successfully collected enough venues
       if (allValidActivities.length < neededCount) {
         const errorMsg = `Could not find enough quality venues after ${maxAttempts} attempts. Found ${allValidActivities.length}/${neededCount} venues. Try adjusting search radius or preferences.`;
@@ -672,7 +672,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Delete unchecked activities in this category
       const uncheckedActivities = [];
-      
+
       for (const a of existingActivities) {
         const activityCategory = await categorizeVenue(a.venueType);
         if (activityCategory === category && !checkedIds.has(a.id)) {
@@ -681,7 +681,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       console.log(`[Category Regen] Category has ${checkedCount} checked activities, ${uncheckedActivities.length} unchecked`);
-      
+
       // Delete unchecked activities
       for (const activity of uncheckedActivities) {
         await db.delete(activitiesTable).where(eq(activitiesTable.id, activity.id));
@@ -691,7 +691,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Insert new activities to reach exactly 3 total for this category
       const newActivities = [];
       console.log(`[Category Regen] Inserting ${Math.min(neededCount, allValidActivities.length)}/${neededCount} new activities`);
-      
+
       for (let i = 0; i < Math.min(neededCount, allValidActivities.length); i++) {
         const activityData = allValidActivities[i];
         const activityCategory = await categorizeVenue(activityData.venueType);
@@ -738,7 +738,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const members = await storage.getGroupMembers(req.params.id);
       const inviteLink = `${req.headers.origin || 'http://localhost:5000'}/join/${group.shareableLink}`;
-      
+
       // For MVP: Log email invitations to console
       // In production, this would integrate with an email service
       const emailsSent = members
@@ -850,7 +850,7 @@ Looking forward to planning great activities together!
             const activities = await storage.getGroupActivities(groupId);
             const activity = activities.find(a => a.id === v.sourceId);
             if (!activity) return null;
-            
+
             // Fetch location from Google Places if we have a place ID
             let location: { lat: number; lng: number } | undefined;
             if (activity.googlePlaceId) {
@@ -859,7 +859,7 @@ Looking forward to planning great activities together!
                 location = placeDetails.location;
               }
             }
-            
+
             return {
               sourceType: 'activity' as const,
               sourceId: activity.id,
@@ -873,7 +873,7 @@ Looking forward to planning great activities together!
             const events = await storage.getGroupVotingEvents(groupId);
             const event = events.find(e => e.id === v.sourceId);
             if (!event) return null;
-            
+
             // Fetch location from Google Places if we have a place ID
             let location: { lat: number; lng: number } | undefined;
             if (event.googlePlaceId) {
@@ -882,7 +882,7 @@ Looking forward to planning great activities together!
                 location = placeDetails.location;
               }
             }
-            
+
             return {
               sourceType: 'voting_event' as const,
               sourceId: event.id,
@@ -897,7 +897,7 @@ Looking forward to planning great activities together!
       );
 
       const validVenues = venuesWithDetails.filter(Boolean);
-      
+
       if (validVenues.length === 0) {
         return res.status(400).json({ message: "No valid venues found" });
       }
@@ -963,10 +963,10 @@ Looking forward to planning great activities together!
             const activities = await storage.getGroupActivities(groupId);
             const activity = activities.find(a => a.id === v.sourceId);
             if (!activity?.googlePlaceId) return null;
-            
+
             const placeDetails = await import('./google-places').then(m => m.getPlaceDetails(activity.googlePlaceId!));
             if (!placeDetails?.location) return null;
-            
+
             return {
               location: placeDetails.location,
               placeId: activity.googlePlaceId,
@@ -976,10 +976,10 @@ Looking forward to planning great activities together!
             const events = await storage.getGroupVotingEvents(groupId);
             const event = events.find(e => e.id === v.sourceId);
             if (!event?.googlePlaceId) return null;
-            
+
             const placeDetails = await import('./google-places').then(m => m.getPlaceDetails(event.googlePlaceId!));
             if (!placeDetails?.location) return null;
-            
+
             return {
               location: placeDetails.location,
               placeId: event.googlePlaceId,
@@ -990,7 +990,7 @@ Looking forward to planning great activities together!
       );
 
       const validLocations = venuesWithLocations.filter(Boolean);
-      
+
       if (validLocations.length === 0) {
         return res.json({ suggestions: [] });
       }
@@ -998,7 +998,7 @@ Looking forward to planning great activities together!
       // Search for nearby high-rated places around the first venue
       const centerLocation = validLocations[0]!.location;
       const selectedPlaceIds = validLocations.map(v => v!.placeId);
-      
+
       // Search for various types of nearby venues
       const searchQueries = ['restaurant', 'cafe', 'bar', 'dessert', 'ice cream'];
       const allNearbyPlaces = await Promise.all(
@@ -1012,7 +1012,7 @@ Looking forward to planning great activities together!
       allNearbyPlaces.flat().forEach(place => {
         // Skip if it's one of the selected venues
         if (selectedPlaceIds.includes(place.placeId)) return;
-        
+
         if (!uniquePlaces.has(place.placeId)) {
           uniquePlaces.set(place.placeId, place);
         }
@@ -1044,15 +1044,36 @@ Looking forward to planning great activities together!
     }
   });
 
-  // Update itinerary order
+  // Delete itinerary item
+  app.delete("/api/itinerary-items/:id", async (req, res) => {
+    try {
+      const itemId = req.params.id;
+
+      // Get the item to find its itinerary
+      const item = await storage.getItineraryItemById(itemId);
+      if (!item) {
+        return res.status(404).json({ message: "Itinerary item not found" });
+      }
+
+      // Delete the item
+      await storage.deleteItineraryItem(itemId);
+
+      res.json({ message: "Itinerary item deleted successfully" });
+    } catch (error: any) {
+      console.error("[Delete Itinerary Item] Error:", error);
+      res.status(500).json({ message: error.message || "Failed to delete itinerary item" });
+    }
+  });
+
+  // Update itinerary item order
   app.patch("/api/itineraries/:id/order", isAuthenticated, async (req, res) => {
     try {
       const { proposedOrder } = req.body; // New array of sourceIds
-      
+
       const itinerary = await storage.updateItinerary(req.params.id, {
         proposedOrder,
       });
-      
+
       res.json(itinerary);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1077,20 +1098,20 @@ Looking forward to planning great activities together!
       let backfilled = 0;
       let failed = 0;
       let skipped = 0;
-      
+
       for (const group of groups) {
         // Skip if already has coordinates
         if (group.latitude && group.longitude) {
           skipped++;
           continue;
         }
-        
+
         // Skip if no location to geocode
         if (!group.locationBase || group.locationBase.trim() === '') {
           skipped++;
           continue;
         }
-        
+
         // Geocode the location
         const geocoded = await geocodeLocation(group.locationBase);
         if (geocoded) {
@@ -1105,7 +1126,7 @@ Looking forward to planning great activities together!
           failed++;
         }
       }
-      
+
       res.json({
         success: true,
         message: `Backfilled ${backfilled} groups, ${skipped} already had coordinates, ${failed} failed to geocode`,
@@ -1135,7 +1156,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
 
     // Get ALL activities (including archived) to avoid repeating venue names
     const allActivities = await storage.getAllGroupActivities(groupId);
-    
+
     // Track BOTH AI suggested types AND actual Google business names to prevent duplicates
     const previouslySuggestedVenues = [
       // AI suggested types (e.g., "Dessert Shop", "Public Park")
@@ -1154,7 +1175,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
         .filter(a => a.complementaryPlaceName2)
         .map(a => a.complementaryPlaceName2!)
     ].filter((name, index, self) => name && self.indexOf(name) === index); // Remove nulls and duplicates
-    
+
     // Get existing (non-archived) activities with feedback for this group
     const existingActivities = await storage.getGroupActivities(groupId);
     const previousFeedback = existingActivities
@@ -1204,7 +1225,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
     let attempt = 0;
     const maxAttempts = 5; // Try up to 5 times to ensure exactly 3 cards per category
     let targetCategories: string[] | undefined = undefined; // For targeted retry
-    
+
     // Helper function to check if we have exactly 3 cards per category
     const hasBalancedDistribution = (activities: any[]): boolean => {
       const categoryCounts: Record<string, number> = {
@@ -1214,14 +1235,14 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
         dessert: 0,
         experiences: 0
       };
-      
+
       for (const activity of activities) {
         if (activity.category) {
           categoryCounts[activity.category] = (categoryCounts[activity.category] || 0) + 1;
         }
       }
-      
-      // All categories must have exactly 3 cards
+
+      // All categories must have at least 3 cards
       return Object.values(categoryCounts).every(count => count >= 3);
     };
 
@@ -1265,20 +1286,20 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
             groupData.searchRadius || 2, // Use group's search radius (default 2 miles)
             coordinates
           );
-          
+
           // Apply quality filtering based on search radius
           // Farther venues must have higher ratings and review counts
           const searchRadius = groupData.searchRadius || 2;
           const qualityFiltered = places.filter(place => {
             const rating = parseFloat(place.rating || '0');
             const reviewCount = place.reviewCount || 0;
-            
+
             // Quality requirements by tier (stricter to ensure legitimacy):
             // < 2 miles (Nearby): 3.5+ stars, 20+ reviews
             // < 10 miles (Citywide): 3.8+ stars, 50+ reviews
             // < 30 miles (Special Trip): 4.0+ stars, 100+ reviews
             // < 50 miles (Road Trip): 4.2+ stars, 150+ reviews
-            
+
             if (searchRadius <= 2) {
               return rating >= 3.5 && reviewCount >= 20;
             } else if (searchRadius <= 10) {
@@ -1289,10 +1310,10 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
               return rating >= 4.2 && reviewCount >= 150;
             }
           });
-          
+
           // Only use venues that meet quality standards - no fallback to low-quality venues
           const finalPlaces = qualityFiltered;
-          
+
           // Also search for complementary food places if suggested
           let complementaryPlace = null;
           let complementaryPlace2 = null;
@@ -1313,7 +1334,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
               complementaryPlace2 = validFoodPlaces[1];
             }
           }
-          
+
           if (finalPlaces.length > 0) {
             const place = finalPlaces[0];
             return {
@@ -1385,7 +1406,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       );
 
       console.log(`[AI Generation] Attempt ${attempt}: Created ${activitiesData.length} activities from Google Places`);
-      
+
       // First, categorize all new activities
       await Promise.all(
         activitiesData.map(async (activity) => {
@@ -1394,7 +1415,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
           }
         })
       );
-      
+
       // Count current category distribution
       const currentCategoryCounts: Record<string, number> = {
         meal: 0,
@@ -1403,19 +1424,19 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
         dessert: 0,
         experiences: 0
       };
-      
+
       for (const activity of allUniqueActivities) {
         if (activity.category) {
           currentCategoryCounts[activity.category] = (currentCategoryCounts[activity.category] || 0) + 1;
         }
       }
-      
+
       // Add new unique activities from this batch, respecting category limits (max 3 per category)
       for (const activity of activitiesData) {
         // Create a unique key based on Google Place ID (if available) or venue name
         const venueKey = activity.googlePlaceId || activity.venueName.toLowerCase();
         const category = activity.category;
-        
+
         if (!seenVenues.has(venueKey) && category && currentCategoryCounts[category] < 3) {
           seenVenues.add(venueKey);
           allUniqueActivities.push(activity);
@@ -1427,9 +1448,9 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
           console.log(`[AI Generation] Skipping ${activity.venueName} - ${category.toUpperCase()} category already has 3 cards`);
         }
       }
-      
+
       console.log(`[AI Generation] After attempt ${attempt}: Have ${allUniqueActivities.length}/15 unique activities`);
-      
+
       // After each attempt, check category distribution if we aren't done yet
       if (!hasBalancedDistribution(allUniqueActivities) && attempt < maxAttempts) {
         // Count by category
@@ -1440,20 +1461,20 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
           dessert: 0,
           experiences: 0
         };
-        
+
         for (const activity of allUniqueActivities) {
           if (activity.category) {
             categoryCounts[activity.category] = (categoryCounts[activity.category] || 0) + 1;
           }
         }
-        
+
         console.log(`[AI Generation] 📊 Current category distribution after attempt ${attempt}:`, categoryCounts);
-        
+
         // Identify underrepresented categories (less than 3)
         const underrepresentedCategories = Object.entries(categoryCounts)
           .filter(([_, count]) => count < 3)
           .map(([category]) => category);
-        
+
         if (underrepresentedCategories.length > 0) {
           console.log(`[AI Generation] ⚠️ Underrepresented categories (< 3 cards): ${underrepresentedCategories.join(', ')}`);
           // Set target categories for next attempt
@@ -1468,7 +1489,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
     // Store the unique activities (up to 15)
     if (allUniqueActivities.length > 0) {
       console.log(`[AI Generation] Categorizing ${allUniqueActivities.length} activities with AI...`);
-      
+
       // Add AI categorization to each activity in parallel (for any not yet categorized)
       await Promise.all(
         allUniqueActivities.map(async (activity) => {
@@ -1477,7 +1498,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
           }
         })
       );
-      
+
       // Final category distribution logging
       const finalCategoryCounts: Record<string, number> = {
         meal: 0,
@@ -1486,27 +1507,27 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
         dessert: 0,
         experiences: 0
       };
-      
+
       for (const activity of allUniqueActivities) {
         if (activity.category) {
           finalCategoryCounts[activity.category] = (finalCategoryCounts[activity.category] || 0) + 1;
         }
       }
-      
+
       console.log(`[AI Generation] Final category distribution:`, finalCategoryCounts);
       console.log(`[AI Generation] Storing ${allUniqueActivities.length} unique activities`);
       await storage.createActivities(allUniqueActivities);
     } else {
       console.warn(`[AI Generation] WARNING: No unique activities generated after ${maxAttempts} attempts`);
     }
-    
+
     console.log(`[AI Generation] Successfully stored activities for group ${groupId}`);
-    
+
     // Update status to completed
     await storage.updateGroupStatus(groupId, "completed");
   } catch (error) {
     console.error("Error in generateAndStoreActivities:", error);
-    
+
     // Update status to failed with error message
     await storage.updateGroupStatus(
       groupId, 
