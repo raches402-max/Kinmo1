@@ -46,22 +46,24 @@ async function trackFeedbackAndMaybeAnalyze(groupId: string) {
             }));
 
           const votingFeedback = votingEvents.map(event => ({
-            venueName: event.venueName,
+            venueName: event.title,
             venueType: event.venueType || 'event',
             upvotes: event.upvotes,
             downvotes: event.downvotes,
+            netVotes: event.netVotes,
+            description: event.description || ''
           }));
 
           const likedConcepts = preferenceSignals
             .filter(s => s.feedback === 'like')
-            .map(s => ({ type: s.conceptType, description: s.conceptDescription }));
+            .map(s => s.conceptDescription);
 
           const passedConcepts = preferenceSignals
             .filter(s => s.feedback === 'pass')
-            .map(s => ({ type: s.conceptType, description: s.conceptDescription }));
+            .map(s => s.conceptDescription);
 
           const patterns = await analyzePreferencePatterns({
-            notThisFeedback,
+            notThisFeedback: notThisFeedback.map(f => ({ ...f, description: '' })),
             votingFeedback,
             likedConcepts,
             passedConcepts
@@ -71,7 +73,7 @@ async function trackFeedbackAndMaybeAnalyze(groupId: string) {
             .update(groupsTable)
             .set({
               preferenceInsights: patterns,
-              lastInsightsUpdate: new Date().toISOString()
+              lastInsightsUpdate: sql`NOW()`
             })
             .where(eq(groupsTable.id, groupId));
 
@@ -1580,10 +1582,12 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
 
     while (!hasBalancedDistribution(allUniqueActivities) && attempt < maxAttempts) {
       attempt++;
+      const attemptStart = Date.now();
       const needed = 15 - allUniqueActivities.length;
       console.log(`[AI Generation] Attempt ${attempt}/${maxAttempts}: Need ${needed} more unique activities (have ${allUniqueActivities.length})`);
 
       // Generate AI suggestions with feedback and list of venues to avoid
+      const aiPromptStart = Date.now();
       const suggestions = await generateActivitySuggestions({
         locationBase: groupData.locationBase,
         budgetMin: groupData.budgetMin,
@@ -1605,15 +1609,18 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
         memberConstraints: memberConstraints.length > 0 ? memberConstraints : undefined, // Pass member RSVP constraints
       });
 
+      const aiPromptEnd = Date.now();
+      console.log(`[AI Generation] Attempt ${attempt}: AI prompt took ${((aiPromptEnd - aiPromptStart) / 1000).toFixed(1)}s`);
       console.log(`[AI Generation] Attempt ${attempt}: Received ${suggestions.length} suggestions from OpenAI`);
 
+      const googleSearchStart = Date.now();
       // For each suggestion, search Google Places with group's search radius
       const coordinates = groupData.latitude && groupData.longitude 
         ? { lat: parseFloat(groupData.latitude), lng: parseFloat(groupData.longitude) }
         : undefined;
       
-      // Process suggestions in parallel batches of 20 (faster processing while respecting API limits)
-      const batchSize = 20;
+      // Process all suggestions in parallel (30 at once for maximum speed)
+      const batchSize = 30;
       const activitiesData: any[] = [];
       
       for (let i = 0; i < suggestions.length; i += batchSize) {
@@ -1743,6 +1750,8 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
         activitiesData.push(...batchResults);
       }
 
+      const googleSearchEnd = Date.now();
+      console.log(`[AI Generation] Attempt ${attempt}: Google Places search took ${((googleSearchEnd - googleSearchStart) / 1000).toFixed(1)}s`);
       console.log(`[AI Generation] Attempt ${attempt}: Created ${activitiesData.length} activities from Google Places`);
 
       // Filter out null activities (from failed Google Places searches)
@@ -1750,6 +1759,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       console.log(`[AI Generation] After filtering nulls: ${validActivities.length} valid activities`);
 
       // First, categorize all new activities in batches
+      const categorizationStart = Date.now();
       const uncategorized = validActivities.filter((a: any) => !a.category);
       for (let i = 0; i < uncategorized.length; i += batchSize) {
         const batch = uncategorized.slice(i, i + batchSize);
@@ -1759,6 +1769,8 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
           })
         );
       }
+      const categorizationEnd = Date.now();
+      console.log(`[AI Generation] Attempt ${attempt}: AI categorization took ${((categorizationEnd - categorizationStart) / 1000).toFixed(1)}s for ${uncategorized.length} venues`);
 
       // Count current category distribution
       const currentCategoryCounts: Record<string, number> = {
@@ -1828,6 +1840,9 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
           console.log(`[AI Generation] ✅ All categories have exactly 3 cards - balanced distribution achieved!`);
         }
       }
+
+      const attemptEnd = Date.now();
+      console.log(`[AI Generation] 🏁 Attempt ${attempt} total time: ${((attemptEnd - attemptStart) / 1000).toFixed(1)}s`);
     }
 
     // Store the unique activities (up to 15)
