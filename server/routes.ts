@@ -2,8 +2,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, activities as activitiesTable } from "@shared/schema";
-import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue } from "./openai";
+import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, activities as activitiesTable, groups as groupsTable } from "@shared/schema";
+import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue, analyzePreferencePatterns } from "./openai";
 import { searchPlaces, searchNearbyPlaces, geocodeLocation } from "./google-places";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { validateItinerary } from "./itinerary-validation";
@@ -879,6 +879,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(newActivities);
     } catch (error: any) {
       console.error("[Category Regen] Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Analyze preference patterns and generate insights
+  app.post("/api/groups/:id/analyze-patterns", async (req, res) => {
+    try {
+      const group = await storage.getGroup(req.params.id);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      console.log(`[AI Insights] Analyzing preference patterns for group ${req.params.id}`);
+
+      // Gather all feedback data
+      const activities = await storage.getAllGroupActivities(req.params.id);
+      const notThisFeedback = activities
+        .filter(a => a.feedback === 'less')
+        .map(a => ({
+          venueName: a.venueName,
+          venueType: a.venueType,
+          description: a.description
+        }));
+
+      const votingEvents = await storage.getGroupVotingEvents(req.params.id);
+      const votingFeedback = votingEvents
+        .filter(e => e.netVotes !== 0 && e.venueType)
+        .map(e => ({
+          venueName: e.title,
+          venueType: e.venueType!,
+          upvotes: e.upvotes,
+          downvotes: e.downvotes,
+          netVotes: e.netVotes
+        }));
+
+      const preferenceSignals = await storage.getGroupPreferenceSignals(req.params.id);
+      const likedConcepts = preferenceSignals
+        .filter(s => s.feedback === 'like')
+        .map(s => s.conceptDescription);
+      const passedConcepts = preferenceSignals
+        .filter(s => s.feedback === 'pass')
+        .map(s => s.conceptDescription);
+
+      console.log(`[AI Insights] Feedback data: ${notThisFeedback.length} not-this, ${votingFeedback.length} voting, ${likedConcepts.length} likes, ${passedConcepts.length} passes`);
+
+      // Generate insights using OpenAI
+      const patterns = await analyzePreferencePatterns({
+        notThisFeedback,
+        votingFeedback,
+        likedConcepts,
+        passedConcepts
+      });
+
+      // Update group with insights
+      await db.update(groupsTable)
+        .set({
+          preferenceInsights: patterns,
+          lastInsightsUpdate: new Date()
+        })
+        .where(eq(groupsTable.id, req.params.id));
+
+      console.log(`[AI Insights] Generated and saved ${patterns.length} patterns for group ${req.params.id}`);
+
+      res.json({ patterns });
+    } catch (error: any) {
+      console.error("[AI Insights] Error:", error);
       res.status(500).json({ message: error.message });
     }
   });
