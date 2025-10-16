@@ -103,11 +103,17 @@ Based on the group's availability and the venues, suggest:
    * ALWAYS use 24-hour time format (HH:MM) in your response
    * Use correct meal terminology (e.g., "brunch" for brunch venues, NOT "dinner")
 
-Return ONLY a JSON object with this exact structure:
+4. **Reasoning requirements (CRITICAL):**
+   * Your reasoning MUST reference the ACTUAL day of week you suggested (e.g., "Saturday", "Tuesday")
+   * Your reasoning MUST reference the ACTUAL meal type from the venues (e.g., "brunch", "drinks", "lunch")
+   * DO NOT use generic template text - make it specific to your actual suggestion
+   * Keep it concise (1-2 sentences, casual tone)
+
+Return ONLY a JSON object with this exact structure (DO NOT copy this example text - generate your own based on your actual suggestion):
 {
-  "date": "2025-10-25",
-  "time": "19:00",
-  "reasoning": "Friday evening works well for dinner at upscale venue, gives group 6 days to plan"
+  "date": "YYYY-MM-DD",
+  "time": "HH:MM",
+  "reasoning": "[Day of week] at [time] works well for [actual meal type] based on venue type and group availability"
 }`;
 
     const response = await openai.chat.completions.create({
