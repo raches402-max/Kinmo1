@@ -529,31 +529,44 @@ function generateFallbackTime(
 
   // Extract allowed days from availability constraint
   let allowedDayIndices: number[] = [];
+  const dayMap: {[key: string]: number} = {
+    'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 
+    'Thursday': 4, 'Friday': 5, 'Saturday': 6
+  };
+
+  // PRIORITY 1: Check for "only" constraint - this is a HARD constraint
   if (input.generalAvailability && input.generalAvailability.includes('only')) {
     const allowedDays = extractAllowedDays(input.generalAvailability);
-    console.log('[Fallback] Allowed days:', allowedDays);
-    
-    const dayMap: {[key: string]: number} = {
-      'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 
-      'Thursday': 4, 'Friday': 5, 'Saturday': 6
-    };
+    console.log('[Fallback] Hard constraint - allowed days from "only":', allowedDays);
     allowedDayIndices = allowedDays.map(d => dayMap[d]).filter(i => i !== undefined);
   }
-
-  // If no explicit constraints, default to reasonable days based on venue type
+  // PRIORITY 2: Check for soft keywords if no "only" constraint
+  else if (input.generalAvailability) {
+    const avail = input.generalAvailability.toLowerCase();
+    if (avail.includes('weekday') || avail.includes('week night')) {
+      allowedDayIndices = [1, 2, 3, 4, 5]; // Mon-Fri
+      console.log('[Fallback] Soft constraint - weekdays');
+    } else if (avail.includes('weekend')) {
+      allowedDayIndices = [6, 0]; // Sat-Sun
+      console.log('[Fallback] Soft constraint - weekends');
+    } else if (avail.includes('friday')) {
+      allowedDayIndices = [5]; // Friday
+      console.log('[Fallback] Soft constraint - Friday');
+    }
+  }
+  
+  // PRIORITY 3: Default based on venue type if no constraints found
   if (allowedDayIndices.length === 0) {
     if (venueTypes.includes('brunch') || venueTypes.includes('breakfast')) {
       allowedDayIndices = [6, 0]; // Saturday, Sunday for brunch
-    } else if (input.generalAvailability?.toLowerCase().includes('weekday')) {
-      allowedDayIndices = [1, 2, 3, 4, 5]; // Mon-Fri
-    } else if (input.generalAvailability?.toLowerCase().includes('weekend')) {
-      allowedDayIndices = [6, 0]; // Sat-Sun
+      console.log('[Fallback] Venue-based default - brunch weekends');
     } else {
       allowedDayIndices = [0, 1, 2, 3, 4, 5, 6]; // All days
+      console.log('[Fallback] No constraints - all days allowed');
     }
   }
 
-  console.log('[Fallback] Allowed day indices:', allowedDayIndices);
+  console.log('[Fallback] Final allowed day indices:', allowedDayIndices);
 
   // Pick a random allowed day
   const targetDayOfWeek = allowedDayIndices[Math.floor(Math.random() * allowedDayIndices.length)];
