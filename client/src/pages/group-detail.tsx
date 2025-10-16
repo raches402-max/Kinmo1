@@ -1076,8 +1076,8 @@ export default function GroupDetail() {
   });
 
   const getAiTimeSuggestionMutation = useMutation({
-    mutationFn: async (itineraryId: string) => {
-      return await apiRequest("POST", `/api/itineraries/${itineraryId}/suggest-time`, {});
+    mutationFn: async ({ itineraryId, venues }: { itineraryId: string; venues?: Array<{ name: string; type: string }> }) => {
+      return await apiRequest("POST", `/api/itineraries/${itineraryId}/suggest-time`, { venues });
     },
     onSuccess: (data: { eventDate: string; reasoning: string }) => {
       setAiSuggestedTime(data);
@@ -4295,7 +4295,14 @@ export default function GroupDetail() {
                 
                 {!aiSuggestedTime && !getAiTimeSuggestionMutation.isPending && (
                   <Button
-                    onClick={() => sendingItinerary && getAiTimeSuggestionMutation.mutate(sendingItinerary.id)}
+                    onClick={() => {
+                      if (!sendingItinerary) return;
+                      const venues = sendingItinerary.items?.map((item: any) => ({
+                        name: item.venueName,
+                        type: item.venueType,
+                      })) || [];
+                      getAiTimeSuggestionMutation.mutate({ itineraryId: sendingItinerary.id, venues });
+                    }}
                     className="w-full gap-2"
                     data-testid="button-get-ai-suggestion"
                   >
@@ -4334,7 +4341,12 @@ export default function GroupDetail() {
                       variant="outline"
                       onClick={() => {
                         setAiSuggestedTime(null);
-                        sendingItinerary && getAiTimeSuggestionMutation.mutate(sendingItinerary.id);
+                        if (!sendingItinerary) return;
+                        const venues = sendingItinerary.items?.map((item: any) => ({
+                          name: item.venueName,
+                          type: item.venueType,
+                        })) || [];
+                        getAiTimeSuggestionMutation.mutate({ itineraryId: sendingItinerary.id, venues });
                       }}
                       className="w-full gap-2"
                       disabled={getAiTimeSuggestionMutation.isPending}
