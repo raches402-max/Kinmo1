@@ -115,24 +115,9 @@ Consider:
 - Drinks/bars work well after dinner or before/after lighter fare
 - Dessert typically comes last
 
-Respond with:
-1. The optimal order (using venue numbers from the list above)
-2. ONE brief note (max 8 words) - only if there's something helpful to mention
-
-EXAMPLES OF GOOD NOTES:
-- "Dinner → drinks flow"
-- "Dessert moved to end"
-- "Bar before dinner works well"
-- "" (empty if order is obvious)
-
-EXAMPLES OF BAD NOTES (too wordy):
-- "As there is only one venue listed (Portal), it serves as the brunch spot for a full meal..."
-- "The itinerary follows a natural progression from dinner to drinks to dessert..."
-
-Format your response as JSON:
+Format your response as JSON with just the optimal order (using venue numbers from the list above):
 {
-  "order": [1, 3, 2],
-  "reasoning": "Dinner → drinks flow"
+  "order": [1, 3, 2]
 }`;
 
   try {
@@ -157,15 +142,8 @@ Format your response as JSON:
       selectedVenues[idx - 1]?.sourceId
     ).filter(Boolean);
 
-    // Build validation notes - keep them brief
-    let validationNotes = (aiResponse.reasoning || "").trim();
-    
-    // Add distance note if there's a proximity issue
-    if (proximityIssues.length > 0) {
-      validationNotes = validationNotes 
-        ? `${validationNotes}. ${proximityIssues[0]}`
-        : proximityIssues[0];
-    }
+    // Only include validation notes if there's a proximity issue
+    const validationNotes = proximityIssues.length > 0 ? proximityIssues[0] : "";
 
     return {
       isValid: true,
@@ -187,7 +165,7 @@ Format your response as JSON:
     return {
       isValid: true,
       proposedOrder: orderedVenues.map(v => v.sourceId),
-      validationNotes: "Order based on typical flow: meals first, then drinks/dessert",
+      validationNotes: proximityIssues.length > 0 ? proximityIssues[0] : "",
       issues: proximityIssues.length > 0 ? proximityIssues : undefined,
     };
   }
