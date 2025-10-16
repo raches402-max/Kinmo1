@@ -1762,9 +1762,9 @@ Looking forward to planning great activities together!
       const { suggestOptimalTime, convertAvailabilityToString } = await import('./ai-time-picker');
       
       // Convert availability object to natural language string
-      const availabilityString = convertAvailabilityToString(group.generalAvailability);
+      const availabilityString = convertAvailabilityToString(group.availability);
       
-      console.log('[Suggest Time] Group availability object:', JSON.stringify(group.generalAvailability));
+      console.log('[Suggest Time] Group availability object:', JSON.stringify(group.availability));
       console.log('[Suggest Time] Converted to string:', availabilityString);
       console.log('[Suggest Time] Venues:', JSON.stringify(venues));
       
@@ -2035,7 +2035,7 @@ Looking forward to planning great activities together!
       try {
         result = await generateOptimalTime(
           venueInfo,
-          group.generalAvailability || {},
+          group.availability || {},
           {
             avoidDays: constraints.avoidDays,
             preferEarlier: constraints.preferEarlier > constraints.preferLater,

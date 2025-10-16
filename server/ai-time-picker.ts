@@ -10,34 +10,86 @@ export function convertAvailabilityToString(availability: any): string {
     return 'Not specified';
   }
 
-  const parts: string[] = [];
+  // Availability grid structure: { [day]: { morning: boolean, afternoon: boolean, evening: boolean } }
+  const dayNames = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+  const dayLabels: { [key: string]: string } = {
+    monday: 'Monday',
+    tuesday: 'Tuesday',
+    wednesday: 'Wednesday',
+    thursday: 'Thursday',
+    friday: 'Friday',
+    saturday: 'Saturday',
+    sunday: 'Sunday'
+  };
 
-  if (availability.weekdayAfternoons) {
-    parts.push('Weekday afternoons');
-  }
-  if (availability.weekdayEvenings) {
-    parts.push('Weekday evenings');
-  }
-  if (availability.weekends) {
-    parts.push('Weekends');
-  }
-  if (availability.fridaySaturdayNights) {
-    parts.push('Friday/Saturday nights');
+  const availableDays: string[] = [];
+  const timeSlots: { [key: string]: Set<string> } = {
+    morning: new Set(),
+    afternoon: new Set(),
+    evening: new Set()
+  };
+
+  // Collect which days are available and which time slots
+  for (const day of dayNames) {
+    const dayData = availability[day];
+    if (dayData && typeof dayData === 'object') {
+      const hasAnySlot = dayData.morning || dayData.afternoon || dayData.evening;
+      if (hasAnySlot) {
+        availableDays.push(dayLabels[day]);
+        
+        if (dayData.morning) timeSlots.morning.add(dayLabels[day]);
+        if (dayData.afternoon) timeSlots.afternoon.add(dayLabels[day]);
+        if (dayData.evening) timeSlots.evening.add(dayLabels[day]);
+      }
+    }
   }
 
-  if (parts.length === 0) {
+  if (availableDays.length === 0) {
     return 'Not specified';
+  }
+
+  // Build a concise description
+  const parts: string[] = [];
+  
+  // Check if all time slots are selected for the available days (simpler description)
+  const allSlotsForDays = availableDays.every(day => 
+    timeSlots.morning.has(day) && timeSlots.afternoon.has(day) && timeSlots.evening.has(day)
+  );
+
+  if (allSlotsForDays) {
+    // Simple: just list the days
+    if (availableDays.length === 1) {
+      return `${availableDays[0]}s only`;
+    } else if (availableDays.length === 7) {
+      return 'Any day of the week';
+    } else {
+      const daysList = availableDays.slice(0, -1).join(', ') + ', and ' + availableDays[availableDays.length - 1];
+      return `${daysList} only`;
+    }
+  }
+
+  // Complex: describe time slots for each day
+  for (const [slot, days] of Object.entries(timeSlots)) {
+    if (days.size > 0) {
+      const daysList = Array.from(days);
+      const slotLabel = slot === 'morning' ? 'mornings' : slot === 'afternoon' ? 'afternoons' : 'evenings';
+      
+      if (daysList.length === 1) {
+        parts.push(`${daysList[0]} ${slotLabel}`);
+      } else {
+        const formatted = daysList.slice(0, -1).join(', ') + ', and ' + daysList[daysList.length - 1];
+        parts.push(`${formatted} ${slotLabel}`);
+      }
+    }
   }
 
   if (parts.length === 1) {
     return parts[0];
-  }
-
-  if (parts.length === 2) {
+  } else if (parts.length === 2) {
     return parts.join(' and ');
+  } else {
+    return parts.slice(0, -1).join(', ') + ', and ' + parts[parts.length - 1];
   }
-
-  return parts.slice(0, -1).join(', ') + ', and ' + parts[parts.length - 1];
 }
 
 interface VenueForScheduling {
@@ -85,11 +137,12 @@ Based on the group's availability and the venues, suggest:
 
 **Guidelines (CRITICAL - Follow in exact order):**
 1. **FIRST, check group availability - THIS IS THE HARD CONSTRAINT:**
+   * If group lists specific days (e.g., "Thursday, Friday, Saturday, and Sunday only") → ONLY pick from those exact days listed (NEVER other days)
    * If group says "Weekends" or "Saturday/Sunday" → MUST pick Saturday or Sunday (NEVER weekdays)
    * If group says "Weekday evenings" or "week nights" → MUST pick weekday (Mon-Fri) after 18:00 (NEVER weekends)
    * If group says "Weekday afternoons" → MUST pick weekday (Mon-Fri) 14:00-18:00 (NEVER weekends)
    * If group says "Friday/Saturday nights" → MUST pick Friday or Saturday evening (NEVER other days)
-   * Availability is NON-NEGOTIABLE - if it says weekends, you CANNOT suggest a weekday
+   * Availability is NON-NEGOTIABLE - you can ONLY suggest days explicitly mentioned in the availability constraint
 
 2. **THEN identify meal type and time within the allowed days:**
    * Brunch venues (brunch, breakfast cafe, morning spots) → 10:00-14:00 (10am-2pm), prefer weekends
