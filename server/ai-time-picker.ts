@@ -145,21 +145,27 @@ function getTimezoneName(tzIdentifier: string): string {
 
 // Convert availability object to natural language string
 export function convertAvailabilityToString(availability: any): string {
+  console.log('[convertAvailabilityToString] Input:', JSON.stringify(availability));
+  
   if (!availability || typeof availability !== 'object') {
+    console.log('[convertAvailabilityToString] Returning "Not specified" - input is null or not object');
     return 'Not specified';
   }
 
-  // Availability grid structure: { [day]: { morning: boolean, afternoon: boolean, evening: boolean } }
-  const dayNames = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-  const dayLabels: { [key: string]: string } = {
-    monday: 'Monday',
-    tuesday: 'Tuesday',
-    wednesday: 'Wednesday',
-    thursday: 'Thursday',
-    friday: 'Friday',
-    saturday: 'Saturday',
-    sunday: 'Sunday'
-  };
+  // Handle both formats:
+  // 1. Full lowercase: { monday: { morning: true, ... }, ... }
+  // 2. Abbreviated capitalized: { Mon: { morning: true, ... }, ... }
+  
+  // Define day order and all possible keys for each day
+  const daysInOrder = [
+    { label: 'Monday', keys: ['monday', 'Mon'] },
+    { label: 'Tuesday', keys: ['tuesday', 'Tue'] },
+    { label: 'Wednesday', keys: ['wednesday', 'Wed'] },
+    { label: 'Thursday', keys: ['thursday', 'Thu'] },
+    { label: 'Friday', keys: ['friday', 'Fri'] },
+    { label: 'Saturday', keys: ['saturday', 'Sat'] },
+    { label: 'Sunday', keys: ['sunday', 'Sun'] }
+  ];
 
   const availableDays: string[] = [];
   const timeSlots: { [key: string]: Set<string> } = {
@@ -168,22 +174,33 @@ export function convertAvailabilityToString(availability: any): string {
     evening: new Set()
   };
 
-  // Collect which days are available and which time slots
-  for (const day of dayNames) {
-    const dayData = availability[day];
-    if (dayData && typeof dayData === 'object') {
-      const hasAnySlot = dayData.morning || dayData.afternoon || dayData.evening;
-      if (hasAnySlot) {
-        availableDays.push(dayLabels[day]);
-        
-        if (dayData.morning) timeSlots.morning.add(dayLabels[day]);
-        if (dayData.afternoon) timeSlots.afternoon.add(dayLabels[day]);
-        if (dayData.evening) timeSlots.evening.add(dayLabels[day]);
+  // Collect which days are available and which time slots (in correct order)
+  for (const { label, keys } of daysInOrder) {
+    // Check all possible keys for this day
+    for (const key of keys) {
+      const dayData = availability[key];
+      if (dayData && typeof dayData === 'object') {
+        const hasAnySlot = dayData.morning || dayData.afternoon || dayData.evening;
+        console.log(`[convertAvailabilityToString] ${label} (${key}): morning=${dayData.morning}, afternoon=${dayData.afternoon}, evening=${dayData.evening}, hasAnySlot=${hasAnySlot}`);
+        if (hasAnySlot) {
+          availableDays.push(label);
+          
+          if (dayData.morning) timeSlots.morning.add(label);
+          if (dayData.afternoon) timeSlots.afternoon.add(label);
+          if (dayData.evening) timeSlots.evening.add(label);
+          
+          // Found data for this day, move to next day
+          break;
+        }
       }
     }
   }
 
+  console.log('[convertAvailabilityToString] availableDays:', availableDays);
+  console.log('[convertAvailabilityToString] timeSlots:', JSON.stringify(Array.from(timeSlots.morning)), JSON.stringify(Array.from(timeSlots.afternoon)), JSON.stringify(Array.from(timeSlots.evening)));
+
   if (availableDays.length === 0) {
+    console.log('[convertAvailabilityToString] Returning "Not specified" - no available days found');
     return 'Not specified';
   }
 
@@ -222,13 +239,22 @@ export function convertAvailabilityToString(availability: any): string {
     }
   }
 
+  let result = '';
   if (parts.length === 1) {
-    return parts[0];
+    result = parts[0];
   } else if (parts.length === 2) {
-    return parts.join(' and ');
+    result = parts.join(' and ');
   } else {
-    return parts.slice(0, -1).join(', ') + ', and ' + parts[parts.length - 1];
+    result = parts.slice(0, -1).join(', ') + ', and ' + parts[parts.length - 1];
   }
+  
+  // Add "only" to make the constraint explicit for AI (unless all 7 days are available)
+  if (availableDays.length < 7) {
+    result += ' only';
+  }
+  
+  console.log('[convertAvailabilityToString] Final result:', result);
+  return result;
 }
 
 interface VenueForScheduling {
