@@ -4,6 +4,42 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+// Convert availability object to natural language string
+export function convertAvailabilityToString(availability: any): string {
+  if (!availability || typeof availability !== 'object') {
+    return 'Not specified';
+  }
+
+  const parts: string[] = [];
+
+  if (availability.weekdayAfternoons) {
+    parts.push('Weekday afternoons');
+  }
+  if (availability.weekdayEvenings) {
+    parts.push('Weekday evenings');
+  }
+  if (availability.weekends) {
+    parts.push('Weekends');
+  }
+  if (availability.fridaySaturdayNights) {
+    parts.push('Friday/Saturday nights');
+  }
+
+  if (parts.length === 0) {
+    return 'Not specified';
+  }
+
+  if (parts.length === 1) {
+    return parts[0];
+  }
+
+  if (parts.length === 2) {
+    return parts.join(' and ');
+  }
+
+  return parts.slice(0, -1).join(', ') + ', and ' + parts[parts.length - 1];
+}
+
 interface VenueForScheduling {
   name: string;
   type: string;
@@ -109,6 +145,47 @@ Return ONLY a JSON object with this exact structure:
     const maxDate = new Date(now.getTime() + 21 * 24 * 60 * 60 * 1000);
     return generateFallbackTime(input, minDate, maxDate);
   }
+}
+
+// Wrapper function for auto-reschedule with feedback constraints
+export async function generateOptimalTime(
+  venues: VenueForScheduling[],
+  generalAvailability: any,
+  constraints?: {
+    avoidDays?: string[];
+    preferEarlier?: boolean;
+    preferLater?: boolean;
+    avoidThisWeek?: boolean;
+  }
+): Promise<{ suggestedTime: string; reasoning: string }> {
+  // Convert availability object to readable string
+  const availabilityString = convertAvailabilityToString(generalAvailability);
+  
+  // Build member constraints from feedback
+  const memberConstraints: string[] = [];
+  if (constraints?.avoidDays && constraints.avoidDays.length > 0) {
+    memberConstraints.push(`Not available on: ${constraints.avoidDays.join(', ')}`);
+  }
+  if (constraints?.preferEarlier) {
+    memberConstraints.push('Prefer earlier times');
+  }
+  if (constraints?.preferLater) {
+    memberConstraints.push('Prefer later times');
+  }
+  if (constraints?.avoidThisWeek) {
+    memberConstraints.push('Avoid this week');
+  }
+
+  const result = await suggestOptimalTime({
+    generalAvailability: availabilityString,
+    venues,
+    memberConstraints: memberConstraints.length > 0 ? memberConstraints : undefined,
+  });
+
+  return {
+    suggestedTime: result.eventDate.toISOString(),
+    reasoning: result.reasoning,
+  };
 }
 
 function generateFallbackTime(
