@@ -4159,15 +4159,15 @@ export default function GroupDetail() {
           <DialogHeader>
             <DialogTitle>Save Itinerary</DialogTitle>
             <DialogDescription>
-              Give your itinerary a name so you can send it to the group later
+              Name it yourself or let AI create a name based on your venues
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="itinerary-name">Itinerary Name</Label>
+              <Label htmlFor="itinerary-name">Itinerary Name (optional)</Label>
               <Input
                 id="itinerary-name"
-                placeholder="e.g., SF Waterfront Day, Oakland Foodie Tour"
+                placeholder="Leave blank for AI to name it (e.g., 'Dinner at Ryoko's - Oakland')"
                 value={itineraryName}
                 onChange={(e) => setItineraryName(e.target.value)}
                 data-testid="input-itinerary-name"
@@ -4188,14 +4188,14 @@ export default function GroupDetail() {
             </Button>
             <Button
               onClick={() => {
-                if (savingItineraryId && itineraryName.trim()) {
+                if (savingItineraryId) {
                   saveItineraryMutation.mutate({
                     itineraryId: savingItineraryId,
                     name: itineraryName.trim(),
                   });
                 }
               }}
-              disabled={!itineraryName.trim() || saveItineraryMutation.isPending}
+              disabled={saveItineraryMutation.isPending}
               data-testid="button-confirm-save-itinerary"
             >
               {saveItineraryMutation.isPending ? "Saving..." : "Save Itinerary"}
