@@ -1759,9 +1759,13 @@ Looking forward to planning great activities together!
         type: item.venueType,
       }));
 
-      const { suggestOptimalTime } = await import('./ai-time-picker');
+      const { suggestOptimalTime, convertAvailabilityToString } = await import('./ai-time-picker');
+      
+      // Convert availability object to natural language string
+      const availabilityString = convertAvailabilityToString(group.generalAvailability);
+      
       const result = await suggestOptimalTime({
-        generalAvailability: group.generalAvailability || undefined,
+        generalAvailability: availabilityString,
         venues,
         memberConstraints: memberConstraints.length > 0 ? memberConstraints : undefined,
       });
