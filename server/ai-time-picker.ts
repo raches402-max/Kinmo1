@@ -47,18 +47,25 @@ Based on the group's availability and the venues, suggest:
 1. An optimal event date (return as ISO 8601 datetime string)
 2. A brief reason why this time works (1-2 sentences, casual tone)
 
-**Guidelines:**
-- First, identify the meal/activity type from venue names and types:
-  * Brunch venues → suggest late morning/early afternoon (10am-2pm), typically weekends
-  * Breakfast venues → suggest morning (8am-11am)
-  * Lunch venues → suggest midday (11am-2pm)
-  * Dinner venues → suggest evening (6pm-9pm)
-  * Bars/drinks → suggest evening (7pm-11pm)
-  * Activities → match to appropriate time of day
-- Match the suggested time to the group's typical availability patterns
-- For upscale/reservation venues: suggest 6+ days out to allow planning time
-- For casual spots: 3-5 days out is fine
-- Use the correct meal terminology in your reasoning (e.g., "brunch" not "dinner" for brunch spots)
+**Guidelines (CRITICAL - Follow in order):**
+1. **FIRST, identify the meal type from venue names and types:**
+   * Brunch venues (brunch, breakfast cafe, morning spots) → 10:00-14:00 (10am-2pm), ALWAYS on weekends
+   * Breakfast venues → 08:00-11:00 (8am-11am)
+   * Lunch venues → 11:00-14:00 (11am-2pm)
+   * Dinner venues (restaurants, fine dining) → 18:00-21:00 (6pm-9pm)
+   * Bars/drinks → 19:00-23:00 (7pm-11pm)
+   * Activities → match to appropriate time of day
+
+2. **THEN match to group's availability:**
+   * If group says "Weekends" or "Saturday/Sunday" → pick Saturday or Sunday
+   * If group says "Weekday evenings" → pick weekday after 18:00
+   * If group says "Friday/Saturday nights" → pick Friday or Saturday evening
+
+3. **Timing rules:**
+   * For upscale/reservation venues: suggest 6+ days out
+   * For casual spots: 3-5 days out is fine
+   * ALWAYS use 24-hour time format (HH:MM) in your response
+   * Use correct meal terminology (e.g., "brunch" for brunch venues, NOT "dinner")
 
 Return ONLY a JSON object with this exact structure:
 {
@@ -118,9 +125,11 @@ function generateFallbackTime(
   let minutes = 0;
 
   if (venueTypes.includes('brunch') || venueTypes.includes('breakfast') || venueTypes.includes('coffee') || venueTypes.includes('cafe')) {
-    hours = 10; // 10 AM for morning activities
+    hours = 11; // 11 AM for brunch/morning activities
+    minutes = 0;
   } else if (venueTypes.includes('lunch')) {
     hours = 12; // Noon for lunch
+    minutes = 30;
   } else if (venueTypes.includes('bar') || venueTypes.includes('drinks') || venueTypes.includes('cocktail')) {
     hours = 20; // 8 PM for drinks
   }
@@ -128,7 +137,10 @@ function generateFallbackTime(
   // Determine day of week based on general availability
   let targetDayOfWeek = 6; // Default to Saturday
 
-  if (input.generalAvailability?.toLowerCase().includes('weekday') || input.generalAvailability?.toLowerCase().includes('week night')) {
+  // For brunch/breakfast, ALWAYS prefer weekends regardless of general availability
+  if (venueTypes.includes('brunch') || venueTypes.includes('breakfast')) {
+    targetDayOfWeek = 6; // Saturday for brunch
+  } else if (input.generalAvailability?.toLowerCase().includes('weekday') || input.generalAvailability?.toLowerCase().includes('week night')) {
     targetDayOfWeek = 5; // Friday (end of work week)
   } else if (input.generalAvailability?.toLowerCase().includes('friday')) {
     targetDayOfWeek = 5; // Friday
@@ -156,9 +168,13 @@ function generateFallbackTime(
   }
 
   const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][candidateDate.getDay()];
-
+  
+  // Format time correctly for 12-hour clock
+  const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+  const period = hours >= 12 ? 'PM' : 'AM';
+  
   return {
     eventDate: candidateDate,
-    reasoning: `${dayName} at ${hours === 12 ? '12' : hours > 12 ? hours - 12 : hours}:${minutes.toString().padStart(2, '0')} ${hours >= 12 ? 'PM' : 'AM'} based on venue type and typical group availability`,
+    reasoning: `${dayName} at ${displayHours}:${minutes.toString().padStart(2, '0')} ${period} works well for ${venueTypes.includes('brunch') ? 'brunch' : venueTypes.includes('lunch') ? 'lunch' : venueTypes.includes('bar') || venueTypes.includes('drink') ? 'drinks' : 'this outing'} based on venue type and group availability`,
   };
 }
