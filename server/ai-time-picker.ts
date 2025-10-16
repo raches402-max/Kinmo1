@@ -144,6 +144,21 @@ function getTimezoneName(tzIdentifier: string): string {
 }
 
 // Convert availability object to natural language string
+// Helper to extract allowed days from an availability string containing "only"
+function extractAllowedDays(availabilityString: string): string[] {
+  const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const allowedDays: string[] = [];
+  
+  // Find all day names mentioned in the string
+  for (const day of dayNames) {
+    if (availabilityString.includes(day)) {
+      allowedDays.push(day);
+    }
+  }
+  
+  return allowedDays;
+}
+
 export function convertAvailabilityToString(availability: any): string {
   console.log('[convertAvailabilityToString] Input:', JSON.stringify(availability));
   
@@ -378,7 +393,25 @@ Return ONLY a JSON object with this exact structure (DO NOT copy this example te
 
     // Validate it's within our range
     if (eventDate < minDate || eventDate > maxDate) {
+      console.log('[AI Time Picker] Date out of range, using fallback');
       return generateFallbackTime(input, minDate, maxDate, tzIdentifier);
+    }
+
+    // Validate day-of-week matches availability constraint
+    const dayOfWeek = eventDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const suggestedDay = dayNames[dayOfWeek];
+    
+    // Extract allowed days from availability string if it contains "only"
+    if (input.generalAvailability && input.generalAvailability.includes('only')) {
+      const allowedDays = extractAllowedDays(input.generalAvailability);
+      console.log('[AI Time Picker] Allowed days from availability:', allowedDays);
+      console.log('[AI Time Picker] AI suggested day:', suggestedDay);
+      
+      if (allowedDays.length > 0 && !allowedDays.includes(suggestedDay)) {
+        console.log('[AI Time Picker] INVALID: AI suggested', suggestedDay, 'but only', allowedDays.join(', '), 'are allowed - using fallback');
+        return generateFallbackTime(input, minDate, maxDate, tzIdentifier);
+      }
     }
 
     return {
