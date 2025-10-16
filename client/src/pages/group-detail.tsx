@@ -2334,7 +2334,7 @@ export default function GroupDetail() {
                                 size="sm"
                                 onClick={() => handleRegenerateCategory(category, categoryActivities)}
                                 disabled={allChecked || isRegenerating}
-                                className="h-8 w-8 p-0"
+                                className="h-8 w-8 p-0 text-[#ffffff] bg-[#6419e6]"
                                 data-testid={`button-regenerate-${category}`}
                               >
                                 {isRegenerating ? (
