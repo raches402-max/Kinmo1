@@ -284,13 +284,6 @@ function ItineraryDisplay({ itinerary, groupId }: { itinerary: any; groupId: str
 
   return (
     <div className="space-y-3">
-      {itinerary.aiValidationNotes && itinerary.aiValidationNotes.trim() && (
-        <div className="p-3 rounded-md bg-muted/50 text-sm text-muted-foreground">
-          <p className="font-medium mb-1">AI Notes:</p>
-          <p>{itinerary.aiValidationNotes}</p>
-        </div>
-      )}
-      
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
