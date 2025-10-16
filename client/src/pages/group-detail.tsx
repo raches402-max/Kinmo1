@@ -421,9 +421,6 @@ export default function GroupDetail() {
   const [saveItineraryOpen, setSaveItineraryOpen] = useState(false);
   const [itineraryName, setItineraryName] = useState("");
   const [savingItineraryId, setSavingItineraryId] = useState<string | null>(null);
-  const [sendConfirmOpen, setSendConfirmOpen] = useState(false);
-  const [sendingItinerary, setSendingItinerary] = useState<any | null>(null);
-  const [suggestedSchedule, setSuggestedSchedule] = useState<any | null>(null);
   const [aiSuggestedTime, setAiSuggestedTime] = useState<{ eventDate: string; reasoning: string } | null>(null);
   const [aiTimeLoading, setAiTimeLoading] = useState(false);
   const [selectedItineraryForScheduling, setSelectedItineraryForScheduling] = useState<any | null>(null);
@@ -1103,17 +1100,14 @@ export default function GroupDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "saved-itineraries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "proposed-itineraries"] });
-      setSendConfirmOpen(false);
-      setSendingItinerary(null);
-      setSuggestedSchedule(null);
       setAiSuggestedTime(null);
       setEventDate("");
       setEventTime("19:00");
+      setSelectedItineraryForScheduling(null);
+      setScheduleMethod('ai');
       toast({
         title: "Plan sent to group",
-        description: suggestedSchedule 
-          ? "Automated invites and reminders are scheduled" 
-          : "Members can now RSVP to your itinerary",
+        description: "Members can now RSVP to your itinerary",
       });
     },
     onError: (error: Error) => {
@@ -1125,12 +1119,6 @@ export default function GroupDetail() {
     },
   });
 
-  // Fetch AI-suggested schedule when dialog opens
-  const { data: scheduleData, isLoading: scheduleLoading } = useQuery({
-    queryKey: ["/api/itineraries", sendingItinerary?.id, "suggested-schedule"],
-    enabled: !!sendingItinerary?.id && sendConfirmOpen,
-    refetchOnWindowFocus: false,
-  });
 
   const createRsvpMutation = useMutation({
     mutationFn: async ({ itineraryId, response, constraintText }: { itineraryId: string; response: 'yes' | 'no' | 'yes_with_constraint'; constraintText?: string }) => {
@@ -3663,14 +3651,8 @@ export default function GroupDetail() {
                   <div className="grid md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <p className="text-sm font-medium">When is the group free?</p>
-                      {groupData?.availability ? (
-                        <div className="text-sm text-muted-foreground">
-                          <AvailabilityGrid
-                            availability={groupData.availability}
-                            onChange={() => {}}
-                            disabled={true}
-                          />
-                        </div>
+                      {group?.generalAvailability ? (
+                        <p className="text-sm text-muted-foreground">{group.generalAvailability}</p>
                       ) : (
                         <p className="text-sm text-muted-foreground">No availability set</p>
                       )}
@@ -3678,7 +3660,7 @@ export default function GroupDetail() {
                     <div className="space-y-2">
                       <p className="text-sm font-medium">Meeting Frequency</p>
                       <p className="text-sm text-muted-foreground">
-                        {groupData?.meetingFrequency ? formatMeetingFrequency(groupData.meetingFrequency) : 'Not specified'}
+                        {group?.meetingFrequency ? formatMeetingFrequency(group.meetingFrequency) : 'Not specified'}
                       </p>
                     </div>
                   </div>
@@ -4521,204 +4503,6 @@ export default function GroupDetail() {
               data-testid="button-confirm-save-itinerary"
             >
               {saveItineraryMutation.isPending ? "Saving..." : "Save Itinerary"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Send Confirmation Dialog with Automated Scheduling */}
-      <Dialog 
-        open={sendConfirmOpen} 
-        onOpenChange={(open) => {
-          setSendConfirmOpen(open);
-          if (!open) {
-            setSendingItinerary(null);
-            setSuggestedSchedule(null);
-            setAiSuggestedTime(null);
-            setEventDate("");
-            setEventTime("19:00");
-          }
-        }}
-      >
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="dialog-send-confirmation">
-          <DialogHeader>
-            <DialogTitle>Send Plan & Schedule Event</DialogTitle>
-            <DialogDescription>
-              Let AI pick the perfect time based on your group's availability
-            </DialogDescription>
-          </DialogHeader>
-          {sendingItinerary && (
-            <div className="space-y-6">
-              {/* Plan Preview */}
-              <div>
-                <h4 className="text-sm font-semibold mb-3">{sendingItinerary.name}</h4>
-                <div className="space-y-2">
-                  {sendingItinerary.items?.map((item: any, index: number) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center gap-3 p-2 rounded-md bg-accent/20 border"
-                      data-testid={`send-preview-item-${item.id}`}
-                    >
-                      <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary font-bold text-sm">
-                        {index + 1}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{item.venueName}</p>
-                        {item.venueType && (
-                          <p className="text-xs text-muted-foreground truncate">{item.venueType}</p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* AI-Driven Time Selection */}
-              <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
-                <h4 className="text-sm font-semibold">Event Date & Time</h4>
-                
-                {!aiSuggestedTime && !getAiTimeSuggestionMutation.isPending && (
-                  <Button
-                    onClick={() => {
-                      if (!sendingItinerary) return;
-                      const venues = sendingItinerary.items?.map((item: any) => ({
-                        name: item.venueName,
-                        type: item.venueType,
-                      })) || [];
-                      console.log('[Debug] Sending itinerary items:', sendingItinerary.items);
-                      console.log('[Debug] Extracted venues:', venues);
-                      getAiTimeSuggestionMutation.mutate({ itineraryId: sendingItinerary.id, venues });
-                    }}
-                    className="w-full gap-2"
-                    data-testid="button-get-ai-suggestion"
-                  >
-                    <Bot className="h-4 w-4" />
-                    Get AI Suggestion
-                  </Button>
-                )}
-
-                {getAiTimeSuggestionMutation.isPending && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
-                    <Bot className="h-4 w-4 animate-pulse" />
-                    <span>AI is analyzing the best time for your group...</span>
-                  </div>
-                )}
-
-                {aiSuggestedTime && (
-                  <div className="space-y-3">
-                    <div className="flex items-start gap-3 p-3 rounded-md bg-primary/5 border border-primary/20">
-                      <Bot className="h-5 w-5 mt-0.5 text-primary shrink-0" />
-                      <div className="flex-1 space-y-2">
-                        <p className="text-sm font-semibold">
-                          {new Date(aiSuggestedTime.eventDate).toLocaleDateString('en-US', { 
-                            weekday: 'long', 
-                            year: 'numeric', 
-                            month: 'long', 
-                            day: 'numeric' 
-                          })} at {new Date(aiSuggestedTime.eventDate).toLocaleTimeString('en-US', { 
-                            hour: 'numeric', 
-                            minute: '2-digit' 
-                          })}
-                        </p>
-                        <p className="text-xs text-muted-foreground">{aiSuggestedTime.reasoning}</p>
-                      </div>
-                    </div>
-                    <Button
-                      variant="outline"
-                      onClick={async () => {
-                        setAiSuggestedTime(null);
-                        if (!sendingItinerary) return;
-                        const venues = sendingItinerary.items?.map((item: any) => ({
-                          name: item.venueName,
-                          type: item.venueType,
-                        })) || [];
-                        // Use mutateAsync to ensure state updates properly
-                        await getAiTimeSuggestionMutation.mutateAsync({ itineraryId: sendingItinerary.id, venues });
-                      }}
-                      className="w-full gap-2"
-                      disabled={getAiTimeSuggestionMutation.isPending}
-                      data-testid="button-try-different-time"
-                    >
-                      <Bot className="h-4 w-4" />
-                      Try Different Time
-                    </Button>
-                  </div>
-                )}
-              </div>
-
-              {/* AI Schedule Preview */}
-              {eventDate && scheduleData && (
-                <div className="space-y-3 border rounded-lg p-4 bg-primary/5">
-                  <div className="flex items-start gap-2">
-                    <Bot className="h-5 w-5 mt-0.5 text-primary shrink-0" />
-                    <div className="flex-1 space-y-2">
-                      <h4 className="text-sm font-semibold">Automated Schedule</h4>
-                      <p className="text-xs text-muted-foreground">{scheduleData.reasoning}</p>
-                      <div className="space-y-2 mt-3">
-                        <div className="flex items-center gap-2 text-sm">
-                          <Mail className="h-4 w-4 text-muted-foreground" />
-                          <span>Invites sent <strong>{scheduleData.inviteAdvanceDays} days before</strong></span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm">
-                          <Clock className="h-4 w-4 text-muted-foreground" />
-                          <span>RSVP window: <strong>{scheduleData.rsvpWindowDays} days</strong></span>
-                        </div>
-                        {scheduleData.reminders?.map((r: any, idx: number) => (
-                          <div key={idx} className="flex items-center gap-2 text-sm">
-                            <Bell className="h-4 w-4 text-muted-foreground" />
-                            <span>
-                              {r.type === 'gentle_nudge' && 'Gentle nudge'}
-                              {r.type === 'final_call' && 'Final call'}
-                              {r.type === 'day_before' && 'Day-before reminder'}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {scheduleLoading && eventDate && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Bot className="h-4 w-4 animate-pulse" />
-                  <span>Analyzing venues for optimal schedule...</span>
-                </div>
-              )}
-            </div>
-          )}
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setSendConfirmOpen(false);
-                setSendingItinerary(null);
-                setSuggestedSchedule(null);
-                setEventDate("");
-                setEventTime("19:00");
-              }}
-              data-testid="button-cancel-send"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                if (sendingItinerary && aiSuggestedTime) {
-                  const params: any = { itineraryId: sendingItinerary.id };
-                  
-                  if (eventDate && scheduleData) {
-                    const dateTime = new Date(`${eventDate}T${eventTime}`);
-                    params.eventDate = dateTime.toISOString();
-                    params.autoScheduleConfig = scheduleData;
-                  }
-                  
-                  sendItineraryMutation.mutate(params);
-                }
-              }}
-              disabled={sendItineraryMutation.isPending || !aiSuggestedTime}
-              data-testid="button-confirm-send"
-            >
-              {sendItineraryMutation.isPending ? "Sending..." : "Send"}
             </Button>
           </DialogFooter>
         </DialogContent>
