@@ -560,6 +560,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         rsvp = inserted[0];
       }
 
+      // Trigger auto-reschedule check (non-blocking)
+      checkAndReschedule(itineraryId).catch(err => {
+        console.error(`[RSVP] Auto-reschedule check failed:`, err);
+      });
+
       res.json(rsvp);
     } catch (error: any) {
       console.error('[RSVP] Error:', error);
@@ -1902,6 +1907,241 @@ Looking forward to planning great activities together!
       res.status(500).json({ message: error.message });
     }
   });
+
+  // Helper function to analyze RSVP feedback and trigger auto-reschedule
+  async function checkAndReschedule(itineraryId: string) {
+    try {
+      console.log(`[Auto-Reschedule] Checking if reschedule needed for itinerary ${itineraryId}`);
+      
+      // Get itinerary
+      const itinerary = await storage.getItinerary(itineraryId);
+      if (!itinerary || !itinerary.eventDate) {
+        console.log(`[Auto-Reschedule] Itinerary not found or no event date`);
+        return;
+      }
+
+      // Check if already exceeded max reschedule attempts
+      const rescheduleAttempts = itinerary.rescheduleAttempts || 0;
+      if (rescheduleAttempts >= 2) {
+        console.log(`[Auto-Reschedule] Max reschedule attempts (2) reached`);
+        return;
+      }
+
+      // Get all RSVPs
+      const rsvps = await storage.db
+        .select()
+        .from(storage.schema.itineraryRsvps)
+        .where(storage.sql`itinerary_id = ${itineraryId}`);
+
+      if (rsvps.length === 0) {
+        console.log(`[Auto-Reschedule] No RSVPs yet`);
+        return;
+      }
+
+      // Count responses
+      const yesCount = rsvps.filter(r => r.response === 'yes').length;
+      const maybeCount = rsvps.filter(r => r.response === 'maybe').length;
+      const noCount = rsvps.filter(r => r.response === 'no').length;
+      const totalResponses = rsvps.length;
+
+      console.log(`[Auto-Reschedule] RSVP counts - Yes: ${yesCount}, Maybe: ${maybeCount}, No: ${noCount}`);
+
+      // Trigger reschedule if:
+      // 1. More than 50% said "no" or "maybe"
+      // 2. At least 3 people responded (to avoid premature rescheduling)
+      const negativeResponses = noCount + maybeCount;
+      const shouldReschedule = totalResponses >= 3 && (negativeResponses / totalResponses) > 0.5;
+
+      if (!shouldReschedule) {
+        console.log(`[Auto-Reschedule] Reschedule not needed yet`);
+        return;
+      }
+
+      console.log(`[Auto-Reschedule] Triggering reschedule (${negativeResponses}/${totalResponses} negative responses)`);
+
+      // ATOMIC: Try to acquire reschedule lock
+      // Only proceed if we successfully set the flag from false to true
+      const lockAcquired = await storage.db
+        .update(storage.schema.itineraries)
+        .set({
+          autoScheduleConfig: storage.sql`
+            CASE 
+              WHEN (auto_schedule_config->>'rescheduleInProgress')::boolean IS NOT TRUE
+              THEN jsonb_set(COALESCE(auto_schedule_config, '{}'::jsonb), '{rescheduleInProgress}', 'true'::jsonb)
+              ELSE auto_schedule_config
+            END
+          ` as any,
+        })
+        .where(storage.sql`
+          id = ${itineraryId} 
+          AND (auto_schedule_config->>'rescheduleInProgress')::boolean IS NOT TRUE
+        `)
+        .returning();
+
+      if (lockAcquired.length === 0) {
+        console.log(`[Auto-Reschedule] Another process already started reschedule, skipping`);
+        return;
+      }
+
+      console.log(`[Auto-Reschedule] Lock acquired, proceeding with reschedule`);
+
+      // Analyze feedback patterns
+      const feedback = rsvps
+        .map(r => r.rsvpFeedback)
+        .filter(f => f != null);
+
+      const constraints = {
+        avoidDays: [] as string[],
+        preferEarlier: 0,
+        preferLater: 0,
+        avoidThisWeek: false,
+      };
+
+      for (const f of feedback) {
+        if (f.tryEarlier) constraints.preferEarlier++;
+        if (f.tryLater) constraints.preferLater++;
+        if (f.notThisWeek) constraints.avoidThisWeek = true;
+        if (f.unavailableOn && Array.isArray(f.unavailableOn)) {
+          constraints.avoidDays.push(...f.unavailableOn);
+        }
+      }
+
+      console.log(`[Auto-Reschedule] Feedback constraints:`, constraints);
+
+      // Get group and venue info for AI
+      const group = await storage.getGroup(itinerary.groupId);
+      if (!group) {
+        console.log(`[Auto-Reschedule] Group not found`);
+        return;
+      }
+
+      const venueInfo = itinerary.items.map(item => ({
+        name: item.venueName,
+        type: item.venueType,
+      }));
+
+      // Call AI time picker with feedback constraints
+      const { generateOptimalTime } = await import('./ai-time-picker');
+      let result;
+      
+      try {
+        result = await generateOptimalTime(
+          venueInfo,
+          group.generalAvailability || {},
+          {
+            avoidDays: constraints.avoidDays,
+            preferEarlier: constraints.preferEarlier > constraints.preferLater,
+            preferLater: constraints.preferLater > constraints.preferEarlier,
+            avoidThisWeek: constraints.avoidThisWeek,
+          }
+        );
+      } catch (aiError) {
+        console.error(`[Auto-Reschedule] AI time picker failed:`, aiError);
+        
+        // Clear in-progress flag on failure
+        await storage.updateItinerary(itineraryId, {
+          autoScheduleConfig: {
+            ...(itinerary.autoScheduleConfig || {}),
+            rescheduleInProgress: false,
+          } as any,
+        });
+        
+        return;
+      }
+
+      if (!result.suggestedTime) {
+        console.log(`[Auto-Reschedule] AI could not find alternative time`);
+        
+        // Clear in-progress flag
+        await storage.updateItinerary(itineraryId, {
+          autoScheduleConfig: {
+            ...(itinerary.autoScheduleConfig || {}),
+            rescheduleInProgress: false,
+          } as any,
+        });
+        
+        return;
+      }
+
+      console.log(`[Auto-Reschedule] New time suggested: ${result.suggestedTime}, reasoning: ${result.reasoning}`);
+
+      // Update itinerary with new time and clear in-progress flag
+      const newEventDate = new Date(result.suggestedTime);
+      await storage.updateItinerary(itineraryId, {
+        eventDate: newEventDate as any,
+        rescheduleAttempts: (rescheduleAttempts + 1) as any,
+        autoScheduleConfig: {
+          ...(itinerary.autoScheduleConfig || {}),
+          lastRescheduleReason: result.reasoning,
+          rescheduleInProgress: false,
+        } as any,
+      });
+
+      // Clear all existing RSVPs so stale responses don't affect next reschedule check
+      await storage.db
+        .delete(storage.schema.itineraryRsvps)
+        .where(storage.sql`itinerary_id = ${itineraryId}`);
+
+      // Get all members
+      const members = await storage.getGroupMembers(group.id);
+
+      // Delete old invite tokens
+      await storage.db
+        .delete(storage.schema.itineraryInvites)
+        .where(storage.sql`itinerary_id = ${itineraryId}`);
+
+      // Create new invite tokens for each member
+      const memberInvites = new Map<string, string>();
+      for (const member of members) {
+        const inviteToken = crypto.randomUUID();
+        
+        await storage.db.insert(storage.schema.itineraryInvites).values({
+          itineraryId,
+          memberId: member.id,
+          inviteToken,
+        });
+        
+        memberInvites.set(member.id, inviteToken);
+      }
+
+      // Send reschedule emails to all members
+      for (const member of members) {
+        if (!member.email) continue;
+        
+        const inviteToken = memberInvites.get(member.id);
+        if (!inviteToken) continue;
+
+        try {
+          const rsvpLink = `${process.env.REPLIT_DOMAINS?.split(',')[0] || 'http://localhost:5000'}/rsvp/${itineraryId}/${inviteToken}`;
+          
+          const { sendItineraryReschedule } = await import('./email-service');
+          
+          await sendItineraryReschedule(
+            { email: member.email, name: member.name },
+            {
+              groupName: group.name,
+              eventDate: newEventDate.toLocaleDateString(),
+              eventTime: newEventDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              venues: itinerary.items.map(item => ({
+                name: item.venueName || 'Venue',
+                type: item.venueType || 'Activity',
+              })),
+              reason: result.reasoning,
+              rsvpLink,
+            }
+          );
+
+          console.log(`[Auto-Reschedule] Sent reschedule email to ${member.email}`);
+        } catch (emailError) {
+          console.error(`[Auto-Reschedule] Failed to send email to ${member.email}:`, emailError);
+        }
+      }
+
+      console.log(`[Auto-Reschedule] Reschedule complete for itinerary ${itineraryId}`);
+    } catch (error) {
+      console.error(`[Auto-Reschedule] Error:`, error);
+    }
+  }
 
   // Send a backup itinerary linked to another itinerary
   app.post("/api/itineraries/:id/send-backup", isAuthenticated, async (req, res) => {

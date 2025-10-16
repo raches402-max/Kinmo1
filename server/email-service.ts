@@ -31,6 +31,18 @@ export interface ReminderData {
   daysUntilEvent?: number;
 }
 
+export interface RescheduleData {
+  groupName: string;
+  eventDate: string;
+  eventTime: string;
+  venues: Array<{
+    name: string;
+    type: string;
+  }>;
+  reason: string;
+  rsvpLink: string;
+}
+
 export async function sendItineraryInvite(
   recipient: EmailRecipient,
   data: ItineraryInviteData
@@ -306,6 +318,91 @@ export async function sendDayBeforeReminder(
     return { success: true };
   } catch (error) {
     console.error('Error sending day-before reminder:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
+export async function sendItineraryReschedule(
+  recipient: EmailRecipient,
+  data: RescheduleData
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await resend.emails.send({
+      from: 'Kinmo.ai <invites@kinmo.ai>',
+      to: recipient.email,
+      subject: `Updated time! ${data.groupName} - New schedule`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.6; color: #333; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%); color: white; padding: 30px; border-radius: 8px; margin-bottom: 20px; }
+              .content { background: #f9fafb; padding: 30px; border-radius: 8px; }
+              .venue-list { background: white; padding: 20px; border-radius: 6px; margin: 20px 0; }
+              .venue-item { padding: 10px 0; border-bottom: 1px solid #e5e7eb; }
+              .venue-item:last-child { border-bottom: none; }
+              .button { display: inline-block; background: #f59e0b; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+              .footer { text-align: center; color: #6b7280; font-size: 14px; margin-top: 30px; }
+              .update-notice { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 4px; }
+              .reason { background: #e0e7ff; border-left: 4px solid #6366f1; padding: 15px; margin: 20px 0; border-radius: 4px; font-style: italic; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1 style="margin: 0;">📅 Schedule Update</h1>
+                <p style="margin: 10px 0 0 0; font-size: 18px;">${data.groupName}</p>
+              </div>
+              
+              <div class="content">
+                <p>Hi ${recipient.name}!</p>
+                
+                <div class="update-notice">
+                  <strong>🔄 We've adjusted the time based on everyone's feedback!</strong>
+                </div>
+                
+                <p><strong>📅 New time:</strong> ${data.eventDate} at ${data.eventTime}</p>
+                
+                <div class="reason">
+                  <strong>Why the change?</strong><br>
+                  ${data.reason}
+                </div>
+                
+                <div class="venue-list">
+                  <h3 style="margin-top: 0;">The Plan (same great venues!):</h3>
+                  ${data.venues.map((v, idx) => `
+                    <div class="venue-item">
+                      <strong>${idx + 1}. ${v.name}</strong><br>
+                      <span style="color: #6b7280;">${v.type}</span>
+                    </div>
+                  `).join('')}
+                </div>
+                
+                <p><strong>Can you make the new time?</strong> Please update your RSVP:</p>
+                
+                <center>
+                  <a href="${data.rsvpLink}" class="button">Update RSVP</a>
+                </center>
+                
+                <p style="font-size: 14px; color: #6b7280; margin-top: 30px;">
+                  We appreciate your flexibility! Let us know if this works better for you.
+                </p>
+              </div>
+              
+              <div class="footer">
+                <p>Powered by Kinmo.ai - Making group planning effortless</p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `,
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error sending reschedule email:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }
