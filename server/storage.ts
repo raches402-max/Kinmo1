@@ -14,7 +14,7 @@ import {
   type Rsvp, type InsertRsvp
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql, and } from "drizzle-orm";
+import { eq, desc, sql, and, or } from "drizzle-orm";
 import { randomBytes } from "crypto";
 
 export interface IStorage {
@@ -610,7 +610,7 @@ export class DatabaseStorage implements IStorage {
       .from(itineraries)
       .where(and(
         eq(itineraries.groupId, groupId),
-        eq(itineraries.status, 'proposed')
+        or(eq(itineraries.status, 'proposed'), eq(itineraries.status, 'scheduled'))
       ))
       .orderBy(desc(itineraries.createdAt));
 

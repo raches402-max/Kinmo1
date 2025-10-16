@@ -1142,6 +1142,26 @@ export default function GroupDetail() {
     },
   });
 
+  const finalizePlanMutation = useMutation({
+    mutationFn: async (itineraryId: string) => {
+      return await apiRequest("POST", `/api/itineraries/${itineraryId}/finalize`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "proposed-itineraries"] });
+      toast({
+        title: "Plan finalized! 🎉",
+        description: "This is now The Plan for your group",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error finalizing plan",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const deleteEventMutation = useMutation({
     mutationFn: async (eventId: string) => {
       return await apiRequest("DELETE", `/api/voting-events/${eventId}`);
@@ -3637,13 +3657,16 @@ export default function GroupDetail() {
                     const totalResponses = itinerary.rsvps?.length || 0;
                     
                     return (
-                      <Card key={itinerary.id} data-testid={`proposed-itinerary-${itinerary.id}`}>
+                      <Card key={itinerary.id} data-testid={`proposed-itinerary-${itinerary.id}`} className={itinerary.status === 'scheduled' ? 'border-primary' : ''}>
                         <CardHeader className="pb-3">
                           <div className="flex items-center justify-between gap-4">
                             <div className="flex-1 min-w-0">
                               <CardTitle className="text-lg truncate">
                                 {itinerary.name}
-                                {isPlanner && <Badge variant="secondary" className="ml-2">Your Plan</Badge>}
+                                {itinerary.status === 'scheduled' && (
+                                  <Badge variant="default" className="ml-2 bg-primary">✨ The Plan</Badge>
+                                )}
+                                {isPlanner && itinerary.status !== 'scheduled' && <Badge variant="secondary" className="ml-2">Your Plan</Badge>}
                               </CardTitle>
                               <CardDescription className="mt-1">
                                 {itinerary.items?.length || 0} stops • {totalResponses} responses
@@ -3699,6 +3722,17 @@ export default function GroupDetail() {
                                       </Badge>
                                     )}
                                   </div>
+
+                                  {yesCount > 0 && itinerary.status !== 'scheduled' && (
+                                    <Button
+                                      onClick={() => finalizePlanMutation.mutate(itinerary.id)}
+                                      disabled={finalizePlanMutation.isPending}
+                                      className="w-full"
+                                      data-testid={`button-finalize-${itinerary.id}`}
+                                    >
+                                      {finalizePlanMutation.isPending ? "Finalizing..." : "Finalize as The Plan"}
+                                    </Button>
+                                  )}
 
                                   {conditionalCount > 0 && (
                                     <div className="space-y-2">
