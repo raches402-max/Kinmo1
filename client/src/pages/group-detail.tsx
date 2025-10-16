@@ -2045,6 +2045,27 @@ export default function GroupDetail() {
                 </CardContent>
               </Card>
 
+              {/* AI Preference Actions */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>AI Preference Learning</CardTitle>
+                  <CardDescription>Refine AI understanding of your group's preferences</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button
+                    onClick={() => setShowSwipeSession(true)}
+                    variant="outline"
+                    data-testid="button-refine-ideas"
+                  >
+                    <Target className="mr-2 h-4 w-4" />
+                    Refine Ideas
+                  </Button>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Swipe through activity concepts to help AI learn your group's taste
+                  </p>
+                </CardContent>
+              </Card>
+
               {/* Save Button */}
               <div className="flex justify-end">
                 <Button 
@@ -2130,37 +2151,26 @@ export default function GroupDetail() {
                   />
                 </div>
                 <div className="flex flex-col gap-2">
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={() => {
-                        const isGenerating = retryGenerationMutation.isPending || group?.activityGenerationStatus === "generating" || group?.activityGenerationStatus === "pending";
-                        if (isGenerating) {
-                          toast({
-                            title: "Already generating",
-                            description: "Please wait for the current generation to complete. This usually takes 10-20 seconds.",
-                          });
-                        } else {
-                          retryGenerationMutation.mutate();
-                        }
-                      }}
-                      aria-disabled={retryGenerationMutation.isPending || group?.activityGenerationStatus === "generating" || group?.activityGenerationStatus === "pending"}
-                      className={(retryGenerationMutation.isPending || group?.activityGenerationStatus === "generating" || group?.activityGenerationStatus === "pending") ? "opacity-50 cursor-not-allowed" : ""}
-                      variant="default"
-                      data-testid="button-generate-suggestions"
-                    >
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      {retryGenerationMutation.isPending ? "Generating..." : "Generate New Ideas"}
-                    </Button>
-                    
-                    <Button
-                      onClick={() => setShowSwipeSession(true)}
-                      variant="outline"
-                      data-testid="button-refine-ideas"
-                    >
-                      <Target className="mr-2 h-4 w-4" />
-                      Refine Ideas
-                    </Button>
-                  </div>
+                  <Button
+                    onClick={() => {
+                      const isGenerating = retryGenerationMutation.isPending || group?.activityGenerationStatus === "generating" || group?.activityGenerationStatus === "pending";
+                      if (isGenerating) {
+                        toast({
+                          title: "Already generating",
+                          description: "Please wait for the current generation to complete. This usually takes 10-20 seconds.",
+                        });
+                      } else {
+                        retryGenerationMutation.mutate();
+                      }
+                    }}
+                    aria-disabled={retryGenerationMutation.isPending || group?.activityGenerationStatus === "generating" || group?.activityGenerationStatus === "pending"}
+                    className={(retryGenerationMutation.isPending || group?.activityGenerationStatus === "generating" || group?.activityGenerationStatus === "pending") ? "opacity-50 cursor-not-allowed" : ""}
+                    variant="default"
+                    data-testid="button-generate-suggestions"
+                  >
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    {retryGenerationMutation.isPending ? "Generating..." : "Generate New Ideas"}
+                  </Button>
                   
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
