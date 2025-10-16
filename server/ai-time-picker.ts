@@ -83,19 +83,21 @@ Based on the group's availability and the venues, suggest:
 1. An optimal event date (return as ISO 8601 datetime string)
 2. A brief reason why this time works (1-2 sentences, casual tone)
 
-**Guidelines (CRITICAL - Follow in order):**
-1. **FIRST, identify the meal type from venue names and types:**
-   * Brunch venues (brunch, breakfast cafe, morning spots) → 10:00-14:00 (10am-2pm), ALWAYS on weekends
+**Guidelines (CRITICAL - Follow in exact order):**
+1. **FIRST, check group availability - THIS IS THE HARD CONSTRAINT:**
+   * If group says "Weekends" or "Saturday/Sunday" → MUST pick Saturday or Sunday (NEVER weekdays)
+   * If group says "Weekday evenings" or "week nights" → MUST pick weekday (Mon-Fri) after 18:00 (NEVER weekends)
+   * If group says "Weekday afternoons" → MUST pick weekday (Mon-Fri) 14:00-18:00 (NEVER weekends)
+   * If group says "Friday/Saturday nights" → MUST pick Friday or Saturday evening (NEVER other days)
+   * Availability is NON-NEGOTIABLE - if it says weekends, you CANNOT suggest a weekday
+
+2. **THEN identify meal type and time within the allowed days:**
+   * Brunch venues (brunch, breakfast cafe, morning spots) → 10:00-14:00 (10am-2pm), prefer weekends
    * Breakfast venues → 08:00-11:00 (8am-11am)
    * Lunch venues → 11:00-14:00 (11am-2pm)
    * Dinner venues (restaurants, fine dining) → 18:00-21:00 (6pm-9pm)
    * Bars/drinks → 19:00-23:00 (7pm-11pm)
    * Activities → match to appropriate time of day
-
-2. **THEN match to group's availability:**
-   * If group says "Weekends" or "Saturday/Sunday" → pick Saturday or Sunday
-   * If group says "Weekday evenings" → pick weekday after 18:00
-   * If group says "Friday/Saturday nights" → pick Friday or Saturday evening
 
 3. **Timing rules:**
    * For upscale/reservation venues: suggest 6+ days out

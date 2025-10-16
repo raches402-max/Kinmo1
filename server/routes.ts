@@ -1764,6 +1764,10 @@ Looking forward to planning great activities together!
       // Convert availability object to natural language string
       const availabilityString = convertAvailabilityToString(group.generalAvailability);
       
+      console.log('[Suggest Time] Group availability object:', JSON.stringify(group.generalAvailability));
+      console.log('[Suggest Time] Converted to string:', availabilityString);
+      console.log('[Suggest Time] Venues:', JSON.stringify(venues));
+      
       const result = await suggestOptimalTime({
         generalAvailability: availabilityString,
         venues,
