@@ -3603,18 +3603,26 @@ export default function GroupDetail() {
                 <div className="space-y-4">
                   {proposedItineraries.map((itinerary: any) => {
                     const userRsvp = itinerary.rsvps?.find((r: any) => r.userId === user?.claims?.sub);
+                    const isPlanner = itinerary.createdBy === user?.claims?.sub;
+                    const yesCount = itinerary.rsvps?.filter((r: any) => r.response === 'yes').length || 0;
+                    const conditionalCount = itinerary.rsvps?.filter((r: any) => r.response === 'yes_with_constraint').length || 0;
+                    const noCount = itinerary.rsvps?.filter((r: any) => r.response === 'no').length || 0;
+                    const totalResponses = itinerary.rsvps?.length || 0;
                     
                     return (
                       <Card key={itinerary.id} data-testid={`proposed-itinerary-${itinerary.id}`}>
                         <CardHeader className="pb-3">
                           <div className="flex items-center justify-between gap-4">
                             <div className="flex-1 min-w-0">
-                              <CardTitle className="text-lg truncate">{itinerary.name}</CardTitle>
+                              <CardTitle className="text-lg truncate">
+                                {itinerary.name}
+                                {isPlanner && <Badge variant="secondary" className="ml-2">Your Plan</Badge>}
+                              </CardTitle>
                               <CardDescription className="mt-1">
-                                {itinerary.items?.length || 0} stops • {itinerary.rsvps?.length || 0} responses
+                                {itinerary.items?.length || 0} stops • {totalResponses} responses
                               </CardDescription>
                             </div>
-                            {userRsvp && (
+                            {!isPlanner && userRsvp && (
                               <Badge variant={userRsvp.response === 'yes' ? 'default' : userRsvp.response === 'yes_with_constraint' ? 'secondary' : 'outline'}>
                                 {userRsvp.response === 'yes' ? 'Yes' : userRsvp.response === 'yes_with_constraint' ? 'Yes, if...' : 'No'}
                               </Badge>
@@ -3643,7 +3651,50 @@ export default function GroupDetail() {
                               ))}
                             </div>
                             
-                            {!userRsvp && (
+                            {isPlanner && totalResponses > 0 && (
+                              <div className="pt-2 border-t">
+                                <p className="text-sm font-medium mb-3">RSVP Summary</p>
+                                <div className="space-y-3">
+                                  <div className="flex gap-2 text-sm">
+                                    <Badge variant="default" className="gap-1">
+                                      <Check className="h-3 w-3" />
+                                      {yesCount} Yes
+                                    </Badge>
+                                    {conditionalCount > 0 && (
+                                      <Badge variant="secondary" className="gap-1">
+                                        {conditionalCount} Conditional
+                                      </Badge>
+                                    )}
+                                    {noCount > 0 && (
+                                      <Badge variant="outline" className="gap-1">
+                                        <X className="h-3 w-3" />
+                                        {noCount} No
+                                      </Badge>
+                                    )}
+                                  </div>
+
+                                  {conditionalCount > 0 && (
+                                    <div className="space-y-2">
+                                      <p className="text-sm font-medium text-muted-foreground">Constraints:</p>
+                                      {itinerary.rsvps
+                                        ?.filter((r: any) => r.response === 'yes_with_constraint')
+                                        .map((rsvp: any) => (
+                                          <div
+                                            key={rsvp.id}
+                                            className="p-2 rounded-md bg-secondary/50 border border-secondary"
+                                            data-testid={`constraint-${rsvp.id}`}
+                                          >
+                                            <p className="text-xs font-medium">{rsvp.memberName || 'Member'}</p>
+                                            <p className="text-sm mt-1">{rsvp.constraintText}</p>
+                                          </div>
+                                        ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {!isPlanner && !userRsvp && (
                               <div className="pt-2 border-t">
                                 <p className="text-sm font-medium mb-3">Your RSVP</p>
                                 <div className="flex gap-2">
