@@ -1513,6 +1513,16 @@ Looking forward to planning great activities together!
     try {
       const { isPrimary, eventDate, autoScheduleConfig } = req.body;
       
+      const itinerary = await storage.getItinerary(req.params.id);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      const group = await storage.getGroup(itinerary.groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
       const updates: UpdateItinerary = {
         status: 'proposed' as any,
         isPrimary: (isPrimary || false) as any,
@@ -1527,12 +1537,80 @@ Looking forward to planning great activities together!
         updates.eventDate = date as any;
         updates.rsvpDeadline = rsvpDeadline as any;
         updates.autoScheduleConfig = autoScheduleConfig as any;
-        // inviteSentAt will be set by the reminder scheduler when it actually sends
+        updates.inviteSentAt = new Date() as any;
+
+        // Send initial invite emails immediately
+        const members = await storage.getGroupMembers(group.id);
+        const rsvpLink = `${req.headers.origin || 'http://localhost:5000'}/join/${group.shareableLink}?itinerary=${itinerary.id}`;
+
+        console.log(`[Send Itinerary] Found ${members.length} members for group ${group.id}`);
+        
+        // Collect recipients (members with emails + organizer)
+        const recipients: string[] = [];
+        for (const member of members) {
+          if (member.email) {
+            recipients.push(member.email);
+          }
+        }
+        
+        // If no members have emails, send to the group creator/organizer
+        if (recipients.length === 0) {
+          const user = await storage.getUser(group.userId);
+          if (user?.email) {
+            recipients.push(user.email);
+            console.log(`[Send Itinerary] No members with emails, sending to organizer ${user.email}`);
+          }
+        }
+
+        console.log(`[Send Itinerary] Sending to ${recipients.length} recipients`);
+
+        for (const email of recipients) {
+          try {
+            const { sendItineraryInvite } = await import('./email-service');
+            
+            await sendItineraryInvite(
+              { email, name: 'Member' },
+              {
+                groupName: group.name,
+                organizerName: 'Organizer',
+                eventDate: date.toLocaleDateString(),
+                eventTime: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                venues: itinerary.items.map(item => ({
+                  name: item.venueName || 'Venue',
+                  type: item.venueType || 'Activity',
+                })),
+                rsvpDeadline: rsvpDeadline.toLocaleDateString(),
+                rsvpLink,
+              }
+            );
+
+            // Log the reminder
+            await storage.logReminder({
+              itineraryId: itinerary.id,
+              reminderType: 'initial_invite',
+              recipientEmail: email,
+              emailStatus: 'sent',
+            });
+
+            console.log(`[Send Itinerary] Sent initial invite to ${email} for itinerary ${itinerary.id}`);
+          } catch (emailError) {
+            console.error(`[Send Itinerary] Failed to send email to ${email}:`, emailError);
+            
+            // Log failed attempt
+            await storage.logReminder({
+              itineraryId: itinerary.id,
+              reminderType: 'initial_invite',
+              recipientEmail: email,
+              emailStatus: 'failed',
+            });
+          }
+        }
       }
 
-      const itinerary = await storage.updateItinerary(req.params.id, updates);
-      res.json(itinerary);
+      const updatedItinerary = await storage.updateItinerary(req.params.id, updates);
+      res.json(updatedItinerary);
     } catch (error: any) {
+      console.error("[Send Itinerary] Error:", error);
       res.status(500).json({ message: error.message });
     }
   });

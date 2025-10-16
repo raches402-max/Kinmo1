@@ -1,7 +1,7 @@
 // Reference: javascript_database blueprint
 // Reference: javascript_log_in_with_replit blueprint
 import {
-  users, groups, members, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps,
+  users, groups, members, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, reminderLogs,
   type User, type UpsertUser,
   type Group, type InsertGroup, type UpdateGroup,
   type Member, type InsertMember, type UpdateMember,
@@ -11,7 +11,8 @@ import {
   type PreferenceSignal, type InsertPreferenceSignal,
   type Itinerary, type InsertItinerary, type UpdateItinerary,
   type ItineraryItem, type InsertItineraryItem,
-  type Rsvp, type InsertRsvp
+  type Rsvp, type InsertRsvp,
+  type ReminderLog, type InsertReminderLog
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, or } from "drizzle-orm";
@@ -82,6 +83,10 @@ export interface IStorage {
   getItineraryRsvps(itineraryId: string): Promise<Rsvp[]>;
   updateRsvp(id: string, updates: Partial<InsertRsvp>): Promise<Rsvp>;
   deleteRsvp(id: string): Promise<void>;
+
+  // Reminder Logs
+  logReminder(log: InsertReminderLog): Promise<ReminderLog>;
+  getReminderLogs(itineraryId: string): Promise<ReminderLog[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -660,6 +665,23 @@ export class DatabaseStorage implements IStorage {
 
   async deleteRsvp(id: string): Promise<void> {
     await db.delete(rsvps).where(eq(rsvps.id, id));
+  }
+
+  // Reminder Logs
+  async logReminder(log: InsertReminderLog): Promise<ReminderLog> {
+    const [reminderLog] = await db
+      .insert(reminderLogs)
+      .values(log)
+      .returning();
+    return reminderLog;
+  }
+
+  async getReminderLogs(itineraryId: string): Promise<ReminderLog[]> {
+    return await db
+      .select()
+      .from(reminderLogs)
+      .where(eq(reminderLogs.itineraryId, itineraryId))
+      .orderBy(desc(reminderLogs.sentAt));
   }
 }
 
