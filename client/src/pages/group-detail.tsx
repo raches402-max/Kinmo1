@@ -427,6 +427,8 @@ export default function GroupDetail() {
   const [saveItineraryOpen, setSaveItineraryOpen] = useState(false);
   const [itineraryName, setItineraryName] = useState("");
   const [savingItineraryId, setSavingItineraryId] = useState<string | null>(null);
+  const [sendConfirmOpen, setSendConfirmOpen] = useState(false);
+  const [sendingItinerary, setSendingItinerary] = useState<any | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -1066,6 +1068,8 @@ export default function GroupDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "saved-itineraries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "proposed-itineraries"] });
+      setSendConfirmOpen(false);
+      setSendingItinerary(null);
       toast({
         title: "Plan sent to group",
         description: "Members can now RSVP to your itinerary",
@@ -3484,8 +3488,10 @@ export default function GroupDetail() {
                               <Button
                                 variant="default"
                                 size="sm"
-                                onClick={() => sendItineraryMutation.mutate(itinerary.id)}
-                                disabled={sendItineraryMutation.isPending}
+                                onClick={() => {
+                                  setSendingItinerary(itinerary);
+                                  setSendConfirmOpen(true);
+                                }}
                                 data-testid={`button-send-itinerary-${itinerary.id}`}
                               >
                                 <Send className="h-4 w-4 mr-2" />
@@ -3942,6 +3948,75 @@ export default function GroupDetail() {
               data-testid="button-confirm-save-itinerary"
             >
               {saveItineraryMutation.isPending ? "Saving..." : "Save Itinerary"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Send Confirmation Dialog */}
+      <Dialog 
+        open={sendConfirmOpen} 
+        onOpenChange={(open) => {
+          setSendConfirmOpen(open);
+          if (!open) {
+            setSendingItinerary(null);
+          }
+        }}
+      >
+        <DialogContent data-testid="dialog-send-confirmation">
+          <DialogHeader>
+            <DialogTitle>Send Plan to Group?</DialogTitle>
+            <DialogDescription>
+              This will send "{sendingItinerary?.name}" to all group members for RSVP
+            </DialogDescription>
+          </DialogHeader>
+          {sendingItinerary && (
+            <div className="space-y-4">
+              <div>
+                <h4 className="text-sm font-semibold mb-3">Plan Details</h4>
+                <div className="space-y-2">
+                  {sendingItinerary.items?.map((item: any, index: number) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center gap-3 p-2 rounded-md bg-accent/20 border"
+                      data-testid={`send-preview-item-${item.id}`}
+                    >
+                      <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary font-bold text-sm">
+                        {index + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{item.venueName}</p>
+                        {item.venueType && (
+                          <p className="text-xs text-muted-foreground truncate">{item.venueType}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSendConfirmOpen(false);
+                setSendingItinerary(null);
+              }}
+              data-testid="button-cancel-send"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (sendingItinerary) {
+                  sendItineraryMutation.mutate(sendingItinerary.id);
+                }
+              }}
+              disabled={sendItineraryMutation.isPending}
+              data-testid="button-confirm-send"
+            >
+              {sendItineraryMutation.isPending ? "Sending..." : "Send to Group"}
             </Button>
           </DialogFooter>
         </DialogContent>
