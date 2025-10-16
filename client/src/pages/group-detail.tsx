@@ -429,6 +429,9 @@ export default function GroupDetail() {
   const [savingItineraryId, setSavingItineraryId] = useState<string | null>(null);
   const [sendConfirmOpen, setSendConfirmOpen] = useState(false);
   const [sendingItinerary, setSendingItinerary] = useState<any | null>(null);
+  const [rsvpConstraintOpen, setRsvpConstraintOpen] = useState(false);
+  const [rsvpItineraryId, setRsvpItineraryId] = useState<string | null>(null);
+  const [constraintText, setConstraintText] = useState("");
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -474,6 +477,11 @@ export default function GroupDetail() {
 
   const { data: savedItineraries = [], isLoading: savedItinerariesLoading } = useQuery<any[]>({
     queryKey: ["/api/groups", groupId, "saved-itineraries"],
+    enabled: !!groupId,
+  });
+
+  const { data: proposedItineraries = [], isLoading: proposedItinerariesLoading } = useQuery<any[]>({
+    queryKey: ["/api/groups", groupId, "proposed-itineraries"],
     enabled: !!groupId,
   });
 
@@ -1078,6 +1086,29 @@ export default function GroupDetail() {
     onError: (error: Error) => {
       toast({
         title: "Error sending plan",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const createRsvpMutation = useMutation({
+    mutationFn: async ({ itineraryId, response, constraintText }: { itineraryId: string; response: 'yes' | 'no' | 'yes_with_constraint'; constraintText?: string }) => {
+      return await apiRequest("POST", `/api/itineraries/${itineraryId}/rsvps`, { response, constraintText });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "proposed-itineraries"] });
+      setRsvpConstraintOpen(false);
+      setRsvpItineraryId(null);
+      setConstraintText("");
+      toast({
+        title: "RSVP submitted",
+        description: "Your response has been recorded",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error submitting RSVP",
         description: error.message,
         variant: "destructive",
       });
@@ -3544,20 +3575,125 @@ export default function GroupDetail() {
 
           {/* Tab 4: Schedule */}
           <TabsContent value="schedule" className="space-y-6">
-            <Card className="max-w-2xl mx-auto">
-              <CardHeader className="text-center">
-                <CardTitle className="text-2xl">Schedule Your Outing</CardTitle>
-                <CardDescription className="text-base mt-2">
-                  Coming Soon
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="text-center py-8">
-                <Calendar className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-2xl font-bold mb-2">Group Proposals</h2>
                 <p className="text-muted-foreground">
-                  Date scheduling and RSVP collection - launching soon!
+                  RSVP to proposed plans from your group
                 </p>
-              </CardContent>
-            </Card>
+              </div>
+
+              {proposedItinerariesLoading ? (
+                <Card>
+                  <CardContent className="text-center py-12">
+                    <p className="text-muted-foreground">Loading proposals...</p>
+                  </CardContent>
+                </Card>
+              ) : proposedItineraries.length === 0 ? (
+                <Card>
+                  <CardContent className="text-center py-12">
+                    <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                    <h3 className="text-lg font-semibold mb-2">No Proposals Yet</h3>
+                    <p className="text-muted-foreground">
+                      When someone sends a plan to the group, it will appear here for RSVP
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-4">
+                  {proposedItineraries.map((itinerary: any) => {
+                    const userRsvp = itinerary.rsvps?.find((r: any) => r.userId === user?.claims?.sub);
+                    
+                    return (
+                      <Card key={itinerary.id} data-testid={`proposed-itinerary-${itinerary.id}`}>
+                        <CardHeader className="pb-3">
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex-1 min-w-0">
+                              <CardTitle className="text-lg truncate">{itinerary.name}</CardTitle>
+                              <CardDescription className="mt-1">
+                                {itinerary.items?.length || 0} stops • {itinerary.rsvps?.length || 0} responses
+                              </CardDescription>
+                            </div>
+                            {userRsvp && (
+                              <Badge variant={userRsvp.response === 'yes' ? 'default' : userRsvp.response === 'yes_with_constraint' ? 'secondary' : 'outline'}>
+                                {userRsvp.response === 'yes' ? 'Yes' : userRsvp.response === 'yes_with_constraint' ? 'Yes, if...' : 'No'}
+                              </Badge>
+                            )}
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              {itinerary.items?.map((item: any, index: number) => (
+                                <div
+                                  key={item.id}
+                                  className="flex items-center gap-3 p-2 rounded-md bg-accent/20 border"
+                                  data-testid={`proposed-itinerary-item-${item.id}`}
+                                >
+                                  <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary font-bold text-sm">
+                                    {index + 1}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">{item.venueName}</p>
+                                    {item.venueType && (
+                                      <p className="text-xs text-muted-foreground truncate">{item.venueType}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            
+                            {!userRsvp && (
+                              <div className="pt-2 border-t">
+                                <p className="text-sm font-medium mb-3">Your RSVP</p>
+                                <div className="flex gap-2">
+                                  <Button
+                                    variant="default"
+                                    onClick={() => {
+                                      createRsvpMutation.mutate({
+                                        itineraryId: itinerary.id,
+                                        response: 'yes'
+                                      });
+                                    }}
+                                    disabled={createRsvpMutation.isPending}
+                                    data-testid={`button-rsvp-yes-${itinerary.id}`}
+                                  >
+                                    Yes, I'm In
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    onClick={() => {
+                                      setRsvpItineraryId(itinerary.id);
+                                      setRsvpConstraintOpen(true);
+                                    }}
+                                    data-testid={`button-rsvp-conditional-${itinerary.id}`}
+                                  >
+                                    Yes, if...
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    onClick={() => {
+                                      createRsvpMutation.mutate({
+                                        itineraryId: itinerary.id,
+                                        response: 'no'
+                                      });
+                                    }}
+                                    disabled={createRsvpMutation.isPending}
+                                    data-testid={`button-rsvp-no-${itinerary.id}`}
+                                  >
+                                    Can't Make It
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </TabsContent>
 
           {/* Tab 5: Feedback */}
@@ -4017,6 +4153,67 @@ export default function GroupDetail() {
               data-testid="button-confirm-send"
             >
               {sendItineraryMutation.isPending ? "Sending..." : "Send to Group"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* RSVP Constraint Dialog */}
+      <Dialog 
+        open={rsvpConstraintOpen} 
+        onOpenChange={(open) => {
+          setRsvpConstraintOpen(open);
+          if (!open) {
+            setRsvpItineraryId(null);
+            setConstraintText("");
+          }
+        }}
+      >
+        <DialogContent data-testid="dialog-rsvp-constraint">
+          <DialogHeader>
+            <DialogTitle>Conditional RSVP</DialogTitle>
+            <DialogDescription>
+              Let the group know what would make this work for you
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="constraint-text">Your Constraint</Label>
+              <Input
+                id="constraint-text"
+                placeholder="e.g., only if we meet in Oakland, only if we start after 7pm"
+                value={constraintText}
+                onChange={(e) => setConstraintText(e.target.value)}
+                data-testid="input-constraint-text"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setRsvpConstraintOpen(false);
+                setRsvpItineraryId(null);
+                setConstraintText("");
+              }}
+              data-testid="button-cancel-constraint"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (rsvpItineraryId && constraintText.trim()) {
+                  createRsvpMutation.mutate({
+                    itineraryId: rsvpItineraryId,
+                    response: 'yes_with_constraint',
+                    constraintText: constraintText.trim()
+                  });
+                }
+              }}
+              disabled={!constraintText.trim() || createRsvpMutation.isPending}
+              data-testid="button-confirm-constraint"
+            >
+              {createRsvpMutation.isPending ? "Submitting..." : "Submit RSVP"}
             </Button>
           </DialogFooter>
         </DialogContent>
