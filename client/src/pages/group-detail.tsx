@@ -432,6 +432,9 @@ export default function GroupDetail() {
   const [rsvpConstraintOpen, setRsvpConstraintOpen] = useState(false);
   const [rsvpItineraryId, setRsvpItineraryId] = useState<string | null>(null);
   const [constraintText, setConstraintText] = useState("");
+  const [sendBackupOpen, setSendBackupOpen] = useState(false);
+  const [backupForItineraryId, setBackupForItineraryId] = useState<string | null>(null);
+  const [selectedBackupId, setSelectedBackupId] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -1109,6 +1112,30 @@ export default function GroupDetail() {
     onError: (error: Error) => {
       toast({
         title: "Error submitting RSVP",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const sendBackupMutation = useMutation({
+    mutationFn: async ({ savedItineraryId, originalItineraryId }: { savedItineraryId: string; originalItineraryId: string }) => {
+      return await apiRequest("POST", `/api/itineraries/${savedItineraryId}/send-backup`, { originalItineraryId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "saved-itineraries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "proposed-itineraries"] });
+      setSendBackupOpen(false);
+      setBackupForItineraryId(null);
+      setSelectedBackupId(null);
+      toast({
+        title: "Backup plan sent",
+        description: "Alternative plan sent to members with constraints",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error sending backup",
         description: error.message,
         variant: "destructive",
       });
@@ -3675,7 +3702,21 @@ export default function GroupDetail() {
 
                                   {conditionalCount > 0 && (
                                     <div className="space-y-2">
-                                      <p className="text-sm font-medium text-muted-foreground">Constraints:</p>
+                                      <div className="flex items-center justify-between">
+                                        <p className="text-sm font-medium text-muted-foreground">Constraints:</p>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => {
+                                            setBackupForItineraryId(itinerary.id);
+                                            setSendBackupOpen(true);
+                                          }}
+                                          data-testid={`button-send-backup-${itinerary.id}`}
+                                        >
+                                          <Send className="h-4 w-4 mr-2" />
+                                          Send Backup Plan
+                                        </Button>
+                                      </div>
                                       {itinerary.rsvps
                                         ?.filter((r: any) => r.response === 'yes_with_constraint')
                                         .map((rsvp: any) => (
@@ -4265,6 +4306,84 @@ export default function GroupDetail() {
               data-testid="button-confirm-constraint"
             >
               {createRsvpMutation.isPending ? "Submitting..." : "Submit RSVP"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Send Backup Dialog */}
+      <Dialog 
+        open={sendBackupOpen} 
+        onOpenChange={(open) => {
+          setSendBackupOpen(open);
+          if (!open) {
+            setBackupForItineraryId(null);
+            setSelectedBackupId(null);
+          }
+        }}
+      >
+        <DialogContent data-testid="dialog-send-backup">
+          <DialogHeader>
+            <DialogTitle>Send Backup Plan</DialogTitle>
+            <DialogDescription>
+              Select an alternative plan to send to members with location constraints
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {savedItineraries.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-sm text-muted-foreground">
+                  No saved plans available. Save a plan first to send it as a backup.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label>Select Backup Plan</Label>
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {savedItineraries.map((itinerary: any) => (
+                    <button
+                      key={itinerary.id}
+                      onClick={() => setSelectedBackupId(itinerary.id)}
+                      className={`w-full text-left p-3 rounded-md border transition-all hover-elevate active-elevate-2 ${
+                        selectedBackupId === itinerary.id ? 'border-primary bg-primary/10' : ''
+                      }`}
+                      data-testid={`backup-option-${itinerary.id}`}
+                    >
+                      <p className="text-sm font-medium">{itinerary.name}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {itinerary.items?.length || 0} stops
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSendBackupOpen(false);
+                setBackupForItineraryId(null);
+                setSelectedBackupId(null);
+              }}
+              data-testid="button-cancel-backup"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (selectedBackupId && backupForItineraryId) {
+                  sendBackupMutation.mutate({
+                    savedItineraryId: selectedBackupId,
+                    originalItineraryId: backupForItineraryId
+                  });
+                }
+              }}
+              disabled={!selectedBackupId || sendBackupMutation.isPending}
+              data-testid="button-confirm-backup"
+            >
+              {sendBackupMutation.isPending ? "Sending..." : "Send Backup"}
             </Button>
           </DialogFooter>
         </DialogContent>
