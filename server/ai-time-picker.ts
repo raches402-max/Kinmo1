@@ -501,9 +501,8 @@ function generateFallbackTime(
   maxDate: Date,
   tzIdentifier: string
 ): TimeSelectionResult {
-  // Deterministic fallback based on heuristics
-  const now = new Date();
-
+  console.log('[Fallback] Generating fallback time with venues:', input.venues);
+  
   // Determine time of day based on venue type
   const venueTypes = input.venues.map(v => v.type.toLowerCase()).join(' ');
   let hours = 19; // Default to 7 PM
@@ -519,20 +518,48 @@ function generateFallbackTime(
     hours = 20; // 8 PM for drinks
   }
 
-  // Determine day of week based on general availability
-  let targetDayOfWeek = 6; // Default to Saturday
-
-  // For brunch/breakfast, ALWAYS prefer weekends regardless of general availability
-  if (venueTypes.includes('brunch') || venueTypes.includes('breakfast')) {
-    targetDayOfWeek = 6; // Saturday for brunch
-  } else if (input.generalAvailability?.toLowerCase().includes('weekday') || input.generalAvailability?.toLowerCase().includes('week night')) {
-    targetDayOfWeek = 5; // Friday (end of work week)
-  } else if (input.generalAvailability?.toLowerCase().includes('friday')) {
-    targetDayOfWeek = 5; // Friday
-  } else if (input.generalAvailability?.toLowerCase().includes('weekend')) {
-    targetDayOfWeek = 6; // Saturday
+  // Add slight randomness to time (±30 mins)
+  const timeVariation = Math.floor(Math.random() * 3) * 15 - 30; // -30, -15, 0, 15, or 30 minutes
+  minutes += timeVariation;
+  if (minutes < 0) {
+    hours -= 1;
+    minutes += 60;
+  } else if (minutes >= 60) {
+    hours += 1;
+    minutes -= 60;
   }
 
+  // Extract allowed days from availability constraint
+  let allowedDayIndices: number[] = [];
+  if (input.generalAvailability && input.generalAvailability.includes('only')) {
+    const allowedDays = extractAllowedDays(input.generalAvailability);
+    console.log('[Fallback] Allowed days:', allowedDays);
+    
+    const dayMap: {[key: string]: number} = {
+      'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 
+      'Thursday': 4, 'Friday': 5, 'Saturday': 6
+    };
+    allowedDayIndices = allowedDays.map(d => dayMap[d]).filter(i => i !== undefined);
+  }
+
+  // If no explicit constraints, default to reasonable days based on venue type
+  if (allowedDayIndices.length === 0) {
+    if (venueTypes.includes('brunch') || venueTypes.includes('breakfast')) {
+      allowedDayIndices = [6, 0]; // Saturday, Sunday for brunch
+    } else if (input.generalAvailability?.toLowerCase().includes('weekday')) {
+      allowedDayIndices = [1, 2, 3, 4, 5]; // Mon-Fri
+    } else if (input.generalAvailability?.toLowerCase().includes('weekend')) {
+      allowedDayIndices = [6, 0]; // Sat-Sun
+    } else {
+      allowedDayIndices = [0, 1, 2, 3, 4, 5, 6]; // All days
+    }
+  }
+
+  console.log('[Fallback] Allowed day indices:', allowedDayIndices);
+
+  // Pick a random allowed day
+  const targetDayOfWeek = allowedDayIndices[Math.floor(Math.random() * allowedDayIndices.length)];
+  
   // Find the next occurrence of target day within our window
   let candidateDate = new Date(minDate);
   candidateDate.setHours(hours, minutes, 0, 0);
@@ -546,19 +573,26 @@ function generateFallbackTime(
     candidateDate.setDate(candidateDate.getDate() + 7);
   }
 
-  // If somehow we're past maxDate, use minDate + 5 days
+  // Add some day variation (0-7 days) if still in range
+  const dayVariation = Math.floor(Math.random() * 2) * 7; // 0 or 7 days
+  const variedDate = new Date(candidateDate.getTime() + dayVariation * 24 * 60 * 60 * 1000);
+  if (variedDate <= maxDate && allowedDayIndices.includes(variedDate.getDay())) {
+    candidateDate = variedDate;
+  }
+
+  // If somehow we're past maxDate, use minDate + random offset
   if (candidateDate > maxDate) {
-    candidateDate = new Date(minDate.getTime() + 5 * 24 * 60 * 60 * 1000);
+    const daysInRange = Math.floor((maxDate.getTime() - minDate.getTime()) / (24 * 60 * 60 * 1000));
+    const randomOffset = Math.floor(Math.random() * Math.min(daysInRange, 14));
+    candidateDate = new Date(minDate.getTime() + randomOffset * 24 * 60 * 60 * 1000);
     candidateDate.setHours(hours, minutes, 0, 0);
   }
   
   // Convert to timezone-aware UTC date using date-fns-tz
-  // Create a "naive" Date using UTC to avoid server timezone interpretation
   const year = candidateDate.getFullYear();
   const month = candidateDate.getMonth();
   const day = candidateDate.getDate();
   const naiveDate = new Date(Date.UTC(year, month, day, hours, minutes));
-  // fromZonedTime treats this as local time in the target timezone and converts to UTC
   const finalDate = fromZonedTime(naiveDate, tzIdentifier);
 
   const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][candidateDate.getDay()];
@@ -566,6 +600,8 @@ function generateFallbackTime(
   // Format time correctly for 12-hour clock
   const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
   const period = hours >= 12 ? 'PM' : 'AM';
+  
+  console.log('[Fallback] Selected:', dayName, 'at', `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`);
   
   return {
     eventDate: finalDate,

@@ -4301,6 +4301,8 @@ export default function GroupDetail() {
                         name: item.venueName,
                         type: item.venueType,
                       })) || [];
+                      console.log('[Debug] Sending itinerary items:', sendingItinerary.items);
+                      console.log('[Debug] Extracted venues:', venues);
                       getAiTimeSuggestionMutation.mutate({ itineraryId: sendingItinerary.id, venues });
                     }}
                     className="w-full gap-2"
