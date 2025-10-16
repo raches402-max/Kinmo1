@@ -443,6 +443,10 @@ export default function GroupDetail() {
     })
   );
 
+  const { data: user } = useQuery<any>({
+    queryKey: ["/api/auth/user"],
+  });
+
   const { data: group, isLoading: groupLoading } = useQuery<Group>({
     queryKey: ["/api/groups", groupId],
     enabled: !!groupId,
