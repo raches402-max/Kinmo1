@@ -181,6 +181,13 @@ export const itineraries = pgTable("itineraries", {
   backupForItineraryId: varchar("backup_for_itinerary_id").references(() => itineraries.id, { onDelete: "set null" }), // If this is a backup plan
   aiValidationNotes: text("ai_validation_notes"), // AI insights about flow, timing, proximity
   proposedOrder: jsonb("proposed_order").notNull(), // Array of item IDs in suggested sequence
+  
+  // Automated scheduling fields
+  eventDate: timestamp("event_date"), // The actual scheduled date/time for the event
+  inviteSentAt: timestamp("invite_sent_at"), // When invites were sent
+  rsvpDeadline: timestamp("rsvp_deadline"), // When RSVPs must be in by
+  autoScheduleConfig: jsonb("auto_schedule_config"), // AI-suggested schedule config: {inviteAdvanceDays: 7, rsvpWindowDays: 3, reminders: [{type: "gentle_nudge", daysBeforeDeadline: 2}, ...]}
+  
   createdBy: varchar("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -210,6 +217,17 @@ export const rsvps = pgTable("rsvps", {
   memberName: text("member_name"), // Name if not a registered member
   response: text("response").notNull(), // 'yes', 'no', 'conditional'
   constraintText: text("constraint_text"), // If response is conditional, what's the constraint (e.g., "only if it's in Oakland")
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Reminder logs - track automated reminder emails sent
+export const reminderLogs = pgTable("reminder_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  itineraryId: varchar("itinerary_id").notNull().references(() => itineraries.id, { onDelete: "cascade" }),
+  reminderType: text("reminder_type").notNull(), // 'initial_invite', 'gentle_nudge', 'final_call', 'day_before'
+  sentAt: timestamp("sent_at").defaultNow().notNull(),
+  recipientEmail: text("recipient_email").notNull(),
+  emailStatus: text("email_status").notNull(), // 'sent', 'failed'
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -288,6 +306,7 @@ export const itinerariesRelations = relations(itineraries, ({ one, many }) => ({
   }),
   items: many(itineraryItems),
   rsvps: many(rsvps),
+  reminderLogs: many(reminderLogs),
   backupFor: one(itineraries, {
     fields: [itineraries.backupForItineraryId],
     references: [itineraries.id],
@@ -313,6 +332,13 @@ export const rsvpsRelations = relations(rsvps, ({ one }) => ({
   user: one(users, {
     fields: [rsvps.userId],
     references: [users.id],
+  }),
+}));
+
+export const reminderLogsRelations = relations(reminderLogs, ({ one }) => ({
+  itinerary: one(itineraries, {
+    fields: [reminderLogs.itineraryId],
+    references: [itineraries.id],
   }),
 }));
 
