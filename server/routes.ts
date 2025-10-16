@@ -1526,6 +1526,59 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Get AI-suggested time for an itinerary
+  app.post("/api/itineraries/:id/suggest-time", isAuthenticated, async (req, res) => {
+    try {
+      const itinerary = await storage.getItinerary(req.params.id);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      const group = await storage.getGroup(itinerary.groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      // Get member constraints if any
+      const members = await storage.getGroupMembers(group.id);
+      const memberConstraints = members
+        .filter(m => m.memberConstraints)
+        .map(m => {
+          const constraints = m.memberConstraints as any;
+          const parts: string[] = [];
+          if (constraints?.scheduleConflicts) {
+            parts.push(`Not available ${constraints.scheduleConflicts.join(', ')}`);
+          }
+          if (constraints?.notes) {
+            parts.push(constraints.notes);
+          }
+          return parts.join('; ');
+        })
+        .filter(Boolean);
+
+      // Prepare venues for AI
+      const venues = itinerary.items.map(item => ({
+        name: item.venueName,
+        type: item.venueType,
+      }));
+
+      const { suggestOptimalTime } = await import('./ai-time-picker');
+      const result = await suggestOptimalTime({
+        generalAvailability: group.generalAvailability || undefined,
+        venues,
+        memberConstraints: memberConstraints.length > 0 ? memberConstraints : undefined,
+      });
+
+      res.json({
+        eventDate: result.eventDate.toISOString(),
+        reasoning: result.reasoning,
+      });
+    } catch (error: any) {
+      console.error('[Suggest Time] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Send an itinerary as a proposal to the group
   app.post("/api/itineraries/:id/send", isAuthenticated, async (req, res) => {
     try {

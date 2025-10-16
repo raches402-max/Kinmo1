@@ -395,6 +395,7 @@ export default function GroupDetail() {
   const [editFrequencyNumber, setEditFrequencyNumber] = useState(1);
   const [editFrequencyUnit, setEditFrequencyUnit] = useState("weeks");
   const [editCategories, setEditCategories] = useState<string[]>([]);
+  const [editGeneralAvailability, setEditGeneralAvailability] = useState("");
   const [editGroupData, setEditGroupData] = useState({
     name: "",
     emoji: "🎉",
@@ -423,6 +424,8 @@ export default function GroupDetail() {
   const [sendConfirmOpen, setSendConfirmOpen] = useState(false);
   const [sendingItinerary, setSendingItinerary] = useState<any | null>(null);
   const [suggestedSchedule, setSuggestedSchedule] = useState<any | null>(null);
+  const [aiSuggestedTime, setAiSuggestedTime] = useState<{ eventDate: string; reasoning: string } | null>(null);
+  const [aiTimeLoading, setAiTimeLoading] = useState(false);
   const [eventDate, setEventDate] = useState("");
   const [eventTime, setEventTime] = useState("19:00");
   const [rsvpConstraintOpen, setRsvpConstraintOpen] = useState(false);
@@ -1072,6 +1075,25 @@ export default function GroupDetail() {
     },
   });
 
+  const getAiTimeSuggestionMutation = useMutation({
+    mutationFn: async (itineraryId: string) => {
+      return await apiRequest("POST", `/api/itineraries/${itineraryId}/suggest-time`, {});
+    },
+    onSuccess: (data: { eventDate: string; reasoning: string }) => {
+      setAiSuggestedTime(data);
+      const suggestedDate = new Date(data.eventDate);
+      setEventDate(suggestedDate.toISOString().split('T')[0]);
+      setEventTime(suggestedDate.toTimeString().slice(0, 5));
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error getting AI suggestion",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const sendItineraryMutation = useMutation({
     mutationFn: async (params: { itineraryId: string; eventDate?: string; autoScheduleConfig?: any }) => {
       return await apiRequest("POST", `/api/itineraries/${params.itineraryId}/send`, params);
@@ -1082,6 +1104,7 @@ export default function GroupDetail() {
       setSendConfirmOpen(false);
       setSendingItinerary(null);
       setSuggestedSchedule(null);
+      setAiSuggestedTime(null);
       setEventDate("");
       setEventTime("19:00");
       toast({
@@ -1295,6 +1318,7 @@ export default function GroupDetail() {
         ? group.availability
         : createEmptyAvailability();
       setEditAvailability(availability as any);
+      setEditGeneralAvailability(group.generalAvailability || "");
       setNewMembers([]);
       setEditGroupOpen(true);
     }
@@ -1326,6 +1350,7 @@ export default function GroupDetail() {
       noveltyPreference: editNovelty,
       activityCategories: editCategories.length > 0 ? editCategories : undefined,
       availability: editAvailability,
+      generalAvailability: editGeneralAvailability.trim() || undefined,
       pastPreferences: editGroupData.pastPreferences,
       additionalInstructions: editGroupData.additionalInstructions
     };
@@ -3950,6 +3975,19 @@ export default function GroupDetail() {
                     onChange={setEditAvailability}
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-general-availability">General Availability (Optional)</Label>
+                  <Input
+                    id="edit-general-availability"
+                    value={editGeneralAvailability}
+                    onChange={(e) => setEditGeneralAvailability(e.target.value)}
+                    placeholder="e.g., Weekday evenings, Weekends, Friday/Saturday nights"
+                    data-testid="input-edit-general-availability"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Simple description to help AI pick the best time for your group
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -4212,6 +4250,7 @@ export default function GroupDetail() {
           if (!open) {
             setSendingItinerary(null);
             setSuggestedSchedule(null);
+            setAiSuggestedTime(null);
             setEventDate("");
             setEventTime("19:00");
           }
@@ -4221,7 +4260,7 @@ export default function GroupDetail() {
           <DialogHeader>
             <DialogTitle>Send Plan & Schedule Event</DialogTitle>
             <DialogDescription>
-              Set the event date and we'll handle automated invites and reminders
+              Let AI pick the perfect time based on your group's availability
             </DialogDescription>
           </DialogHeader>
           {sendingItinerary && (
@@ -4250,32 +4289,62 @@ export default function GroupDetail() {
                 </div>
               </div>
 
-              {/* Event Date/Time Selection */}
+              {/* AI-Driven Time Selection */}
               <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
                 <h4 className="text-sm font-semibold">Event Date & Time</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="event-date">Date</Label>
-                    <Input
-                      id="event-date"
-                      type="date"
-                      value={eventDate}
-                      onChange={(e) => setEventDate(e.target.value)}
-                      min={new Date().toISOString().split('T')[0]}
-                      data-testid="input-event-date"
-                    />
+                
+                {!aiSuggestedTime && !getAiTimeSuggestionMutation.isPending && (
+                  <Button
+                    onClick={() => sendingItinerary && getAiTimeSuggestionMutation.mutate(sendingItinerary.id)}
+                    className="w-full gap-2"
+                    data-testid="button-get-ai-suggestion"
+                  >
+                    <Bot className="h-4 w-4" />
+                    Get AI Suggestion
+                  </Button>
+                )}
+
+                {getAiTimeSuggestionMutation.isPending && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                    <Bot className="h-4 w-4 animate-pulse" />
+                    <span>AI is analyzing the best time for your group...</span>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="event-time">Time</Label>
-                    <Input
-                      id="event-time"
-                      type="time"
-                      value={eventTime}
-                      onChange={(e) => setEventTime(e.target.value)}
-                      data-testid="input-event-time"
-                    />
+                )}
+
+                {aiSuggestedTime && (
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-3 p-3 rounded-md bg-primary/5 border border-primary/20">
+                      <Bot className="h-5 w-5 mt-0.5 text-primary shrink-0" />
+                      <div className="flex-1 space-y-2">
+                        <p className="text-sm font-semibold">
+                          {new Date(aiSuggestedTime.eventDate).toLocaleDateString('en-US', { 
+                            weekday: 'long', 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric' 
+                          })} at {new Date(aiSuggestedTime.eventDate).toLocaleTimeString('en-US', { 
+                            hour: 'numeric', 
+                            minute: '2-digit' 
+                          })}
+                        </p>
+                        <p className="text-xs text-muted-foreground">{aiSuggestedTime.reasoning}</p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setAiSuggestedTime(null);
+                        sendingItinerary && getAiTimeSuggestionMutation.mutate(sendingItinerary.id);
+                      }}
+                      className="w-full gap-2"
+                      disabled={getAiTimeSuggestionMutation.isPending}
+                      data-testid="button-try-different-time"
+                    >
+                      <Bot className="h-4 w-4" />
+                      Try Different Time
+                    </Button>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* AI Schedule Preview */}
@@ -4335,7 +4404,7 @@ export default function GroupDetail() {
             </Button>
             <Button
               onClick={() => {
-                if (sendingItinerary) {
+                if (sendingItinerary && aiSuggestedTime) {
                   const params: any = { itineraryId: sendingItinerary.id };
                   
                   if (eventDate && scheduleData) {
@@ -4347,10 +4416,10 @@ export default function GroupDetail() {
                   sendItineraryMutation.mutate(params);
                 }
               }}
-              disabled={sendItineraryMutation.isPending}
+              disabled={sendItineraryMutation.isPending || !aiSuggestedTime}
               data-testid="button-confirm-send"
             >
-              {sendItineraryMutation.isPending ? "Sending..." : eventDate ? "Schedule & Send" : "Send Now"}
+              {sendItineraryMutation.isPending ? "Sending..." : "Send"}
             </Button>
           </DialogFooter>
         </DialogContent>
