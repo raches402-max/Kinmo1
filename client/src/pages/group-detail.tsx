@@ -470,6 +470,11 @@ export default function GroupDetail() {
     enabled: !!groupId,
   });
 
+  const { data: savedItineraries = [], isLoading: savedItinerariesLoading } = useQuery<any[]>({
+    queryKey: ["/api/groups", groupId, "saved-itineraries"],
+    enabled: !!groupId,
+  });
+
   // Fetch nearby suggestions when venues are selected or itinerary exists
   const { data: nearbySuggestions = [] } = useQuery<any[]>({
     queryKey: [
@@ -1028,6 +1033,47 @@ export default function GroupDetail() {
     onError: (error: Error) => {
       toast({
         title: "Error saving itinerary",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteSavedItineraryMutation = useMutation({
+    mutationFn: async (itineraryId: string) => {
+      return await apiRequest("DELETE", `/api/itineraries/${itineraryId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "saved-itineraries"] });
+      toast({
+        title: "Plan deleted",
+        description: "The saved plan has been removed",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error deleting plan",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const sendItineraryMutation = useMutation({
+    mutationFn: async (itineraryId: string) => {
+      return await apiRequest("POST", `/api/itineraries/${itineraryId}/send`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "saved-itineraries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "proposed-itineraries"] });
+      toast({
+        title: "Plan sent to group",
+        description: "Members can now RSVP to your itinerary",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error sending plan",
         description: error.message,
         variant: "destructive",
       });
@@ -3413,6 +3459,80 @@ export default function GroupDetail() {
                   </div>
                 );
               })()}
+
+              {/* Saved Plans Section */}
+              {!savedItinerariesLoading && savedItineraries.length > 0 && (
+                <div className="mt-12 pt-8 border-t">
+                  <div className="mb-6">
+                    <h3 className="text-xl font-bold mb-2">Saved Plans</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Your library of saved itineraries - send any of these to your group
+                    </p>
+                  </div>
+                  <div className="space-y-4">
+                    {savedItineraries.map((itinerary: any) => (
+                      <Card key={itinerary.id} data-testid={`saved-itinerary-${itinerary.id}`}>
+                        <CardHeader className="pb-3">
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex-1 min-w-0">
+                              <CardTitle className="text-lg truncate">{itinerary.name}</CardTitle>
+                              <CardDescription className="mt-1">
+                                {itinerary.items?.length || 0} {(itinerary.items?.length || 0) === 1 ? 'stop' : 'stops'}
+                              </CardDescription>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => sendItineraryMutation.mutate(itinerary.id)}
+                                disabled={sendItineraryMutation.isPending}
+                                data-testid={`button-send-itinerary-${itinerary.id}`}
+                              >
+                                <Send className="h-4 w-4 mr-2" />
+                                Send to Group
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  if (confirm(`Delete "${itinerary.name}"?`)) {
+                                    deleteSavedItineraryMutation.mutate(itinerary.id);
+                                  }
+                                }}
+                                disabled={deleteSavedItineraryMutation.isPending}
+                                data-testid={`button-delete-itinerary-${itinerary.id}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            {itinerary.items?.map((item: any, index: number) => (
+                              <div
+                                key={item.id}
+                                className="flex items-center gap-3 p-2 rounded-md bg-accent/20 border"
+                                data-testid={`saved-itinerary-item-${item.id}`}
+                              >
+                                <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary font-bold text-sm">
+                                  {index + 1}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium truncate">{item.venueName}</p>
+                                  {item.venueType && (
+                                    <p className="text-xs text-muted-foreground truncate">{item.venueType}</p>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </TabsContent>
 
