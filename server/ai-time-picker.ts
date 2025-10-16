@@ -308,12 +308,21 @@ Based on the group's availability and the venues, suggest:
 
 **Guidelines (CRITICAL - Follow in exact order):**
 1. **FIRST, check group availability - THIS IS THE HARD CONSTRAINT:**
-   * If group lists specific days (e.g., "Thursday, Friday, Saturday, and Sunday only") → ONLY pick from those exact days listed (NEVER other days)
+   * When you see "only" in the availability (e.g., "Thursday, Friday, Saturday, and Sunday evenings only"):
+     - Extract the EXACT days mentioned BEFORE the word "only"
+     - You MUST pick ONLY from those exact days (Thursday, Friday, Saturday, Sunday in this example)
+     - NEVER pick Monday, Tuesday, or Wednesday if they are not listed
+     - The word "only" means HARD CONSTRAINT - no exceptions, no flexibility
    * If group says "Weekends" or "Saturday/Sunday" → MUST pick Saturday or Sunday (NEVER weekdays)
    * If group says "Weekday evenings" or "week nights" → MUST pick weekday (Mon-Fri) after 18:00 (NEVER weekends)
    * If group says "Weekday afternoons" → MUST pick weekday (Mon-Fri) 14:00-18:00 (NEVER weekends)
    * If group says "Friday/Saturday nights" → MUST pick Friday or Saturday evening (NEVER other days)
    * Availability is NON-NEGOTIABLE - you can ONLY suggest days explicitly mentioned in the availability constraint
+   
+   **EXAMPLE:** If availability is "Saturday, and Sunday afternoons and Thursday, Friday, Saturday, and Sunday evenings only"
+   - Valid days: Thursday, Friday, Saturday, Sunday
+   - INVALID days that will be REJECTED: Monday, Tuesday, Wednesday
+   - You must pick Thursday, Friday, Saturday, or Sunday - absolutely no other days allowed
 
 2. **THEN identify meal type and time within the allowed days:**
    * Brunch venues (brunch, breakfast cafe, morning spots) → 10:00-14:00 (10am-2pm), prefer weekends
