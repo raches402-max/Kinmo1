@@ -1754,10 +1754,18 @@ Looking forward to planning great activities together!
         .filter(Boolean);
 
       // Prepare venues for AI
-      const venues = itinerary.items.map(item => ({
-        name: item.venueName,
-        type: item.venueType,
-      }));
+      // Prefer venues from request body (current cart state) over saved itinerary venues
+      let venues;
+      if (req.body.venues && Array.isArray(req.body.venues) && req.body.venues.length > 0) {
+        venues = req.body.venues;
+        console.log('[Suggest Time] Using venues from request body (cart state)');
+      } else {
+        venues = itinerary.items.map(item => ({
+          name: item.venueName,
+          type: item.venueType,
+        }));
+        console.log('[Suggest Time] Using venues from saved itinerary');
+      }
 
       const { suggestOptimalTime, convertAvailabilityToString } = await import('./ai-time-picker');
       
