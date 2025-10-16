@@ -39,6 +39,7 @@ AI suggestion preferences:
 - **Shopping Cart Itinerary Builder**: Multi-select flow for building itineraries with an expandable cart preview, drag-to-reorder functionality, and real-time distance calculations. Supports 1-5 venues per itinerary.
     - **AI Validation**: Validates proximity, operating hours, and logical flow before itinerary creation.
     - **Nearby Add-On Suggestions**: Suggests high-rated nearby venues (<0.5 miles) to enhance the itinerary, displayed at the bottom of the Build tab.
+    - **AI Auto-Naming**: Automatically generates contextual itinerary names based on venues and location when users don't provide a name. Examples: "Dinner at Ryoko's - Oakland", "SF Coffee & Desserts Tour". Includes deterministic fallback for API failures.
 - **Location Radius Expansion**: 4-tier search radius selector (Nearby, Citywide, Special Trip, Road Trip) with corresponding quality filtering. AI prompts and Google Places searches adapt to the selected radius.
 - **Group Emoji Personalization**: Allows users to select or input custom emojis for group identification.
 - **Location-Based Filtering with Geocoding**: Converts location strings to latitude/longitude for precise search filtering using Google Geocoding API. Includes user feedback for geocoding failures and backfill support.
