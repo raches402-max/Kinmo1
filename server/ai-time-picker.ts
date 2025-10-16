@@ -345,14 +345,16 @@ Return ONLY a JSON object with this exact structure (DO NOT copy this example te
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [{ role: 'user', content: prompt }],
-      temperature: 0.7,
+      temperature: 0.3,
       max_tokens: 200,
       response_format: { type: "json_object" },
     });
 
     const result = JSON.parse(response.choices[0]?.message?.content || '{}');
+    console.log('[AI Time Picker] Raw AI response:', JSON.stringify(result));
 
     if (!result.date || !result.time) {
+      console.log('[AI Time Picker] Missing date or time in response, using fallback');
       return generateFallbackTime(input, minDate, maxDate, tzIdentifier);
     }
 
