@@ -426,6 +426,8 @@ export default function GroupDetail() {
   const [suggestedSchedule, setSuggestedSchedule] = useState<any | null>(null);
   const [aiSuggestedTime, setAiSuggestedTime] = useState<{ eventDate: string; reasoning: string } | null>(null);
   const [aiTimeLoading, setAiTimeLoading] = useState(false);
+  const [selectedItineraryForScheduling, setSelectedItineraryForScheduling] = useState<any | null>(null);
+  const [scheduleMethod, setScheduleMethod] = useState<'manual' | 'ai'>('ai');
   const [eventDate, setEventDate] = useState("");
   const [eventTime, setEventTime] = useState("19:00");
   const [rsvpConstraintOpen, setRsvpConstraintOpen] = useState(false);
@@ -3581,13 +3583,27 @@ export default function GroupDetail() {
                                 variant="default"
                                 size="sm"
                                 onClick={() => {
-                                  setSendingItinerary(itinerary);
-                                  setSendConfirmOpen(true);
+                                  setSelectedItineraryForScheduling(itinerary);
+                                  setActiveTab('schedule');
                                 }}
-                                data-testid={`button-send-itinerary-${itinerary.id}`}
+                                data-testid={`button-schedule-itinerary-${itinerary.id}`}
                               >
-                                <Send className="h-4 w-4 mr-2" />
-                                Send to Group
+                                <Calendar className="h-4 w-4 mr-2" />
+                                Schedule This →
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  // TODO: Load itinerary back into cart for editing
+                                  toast({
+                                    title: "Edit feature coming soon",
+                                    description: "This will load the itinerary back into your cart",
+                                  });
+                                }}
+                                data-testid={`button-edit-itinerary-${itinerary.id}`}
+                              >
+                                <Pencil className="h-4 w-4" />
                               </Button>
                               <Button
                                 variant="outline"
@@ -3636,27 +3652,295 @@ export default function GroupDetail() {
 
           {/* Tab 4: Schedule */}
           <TabsContent value="schedule" className="space-y-6">
-            <div className="space-y-6">
+            <div className="max-w-4xl mx-auto space-y-6">
+              {/* Group Availability Reminder */}
+              <Card data-testid="card-availability-reminder">
+                <CardHeader>
+                  <CardTitle className="text-lg">Group Availability</CardTitle>
+                  <CardDescription>Quick reference for scheduling</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">When is the group free?</p>
+                      {groupData?.availability ? (
+                        <div className="text-sm text-muted-foreground">
+                          <AvailabilityGrid
+                            availability={groupData.availability}
+                            onChange={() => {}}
+                            disabled={true}
+                          />
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No availability set</p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">Meeting Frequency</p>
+                      <p className="text-sm text-muted-foreground">
+                        {groupData?.meetingFrequency ? formatMeetingFrequency(groupData.meetingFrequency) : 'Not specified'}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Schedule Event Section */}
+              <Card data-testid="card-schedule-event">
+                <CardHeader>
+                  <CardTitle className="text-lg">Schedule Event</CardTitle>
+                  <CardDescription>Choose a saved plan and pick a time</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Itinerary Selection */}
+                  <div className="space-y-2">
+                    <Label htmlFor="select-itinerary">Select a Saved Plan</Label>
+                    <Select
+                      value={selectedItineraryForScheduling?.id || ""}
+                      onValueChange={(value) => {
+                        const itinerary = savedItineraries.find((i: any) => i.id === value);
+                        setSelectedItineraryForScheduling(itinerary || null);
+                        setAiSuggestedTime(null);
+                      }}
+                    >
+                      <SelectTrigger id="select-itinerary" data-testid="select-itinerary">
+                        <SelectValue placeholder="Choose an itinerary..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {savedItineraries.map((itinerary: any) => (
+                          <SelectItem key={itinerary.id} value={itinerary.id}>
+                            {itinerary.name} ({itinerary.items?.length || 0} stops)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {selectedItineraryForScheduling && (
+                    <>
+                      {/* Show selected itinerary preview */}
+                      <div className="space-y-2 p-3 bg-accent/10 rounded-lg border">
+                        <p className="text-sm font-medium">{selectedItineraryForScheduling.name}</p>
+                        <div className="space-y-1">
+                          {selectedItineraryForScheduling.items?.slice(0, 3).map((item: any, index: number) => (
+                            <p key={item.id} className="text-xs text-muted-foreground">
+                              {index + 1}. {item.venueName}
+                            </p>
+                          ))}
+                          {selectedItineraryForScheduling.items?.length > 3 && (
+                            <p className="text-xs text-muted-foreground">
+                              +{selectedItineraryForScheduling.items.length - 3} more
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Scheduling Method Selection */}
+                      <div className="space-y-4">
+                        <Label>Choose scheduling method</Label>
+                        <div className="space-y-3">
+                          <div className="flex items-start gap-3">
+                            <input
+                              type="radio"
+                              id="method-manual"
+                              name="schedule-method"
+                              checked={scheduleMethod === 'manual'}
+                              onChange={() => {
+                                setScheduleMethod('manual');
+                                setAiSuggestedTime(null);
+                              }}
+                              className="mt-1"
+                              data-testid="radio-manual-time"
+                            />
+                            <div className="flex-1">
+                              <Label htmlFor="method-manual" className="cursor-pointer">I have a time/date in mind</Label>
+                              {scheduleMethod === 'manual' && (
+                                <div className="mt-3 grid grid-cols-2 gap-3">
+                                  <div className="space-y-2">
+                                    <Label htmlFor="event-date">Date</Label>
+                                    <Input
+                                      id="event-date"
+                                      type="date"
+                                      value={eventDate}
+                                      onChange={(e) => setEventDate(e.target.value)}
+                                      data-testid="input-event-date"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label htmlFor="event-time">Time</Label>
+                                    <Input
+                                      id="event-time"
+                                      type="time"
+                                      value={eventTime}
+                                      onChange={(e) => setEventTime(e.target.value)}
+                                      data-testid="input-event-time"
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-start gap-3">
+                            <input
+                              type="radio"
+                              id="method-ai"
+                              name="schedule-method"
+                              checked={scheduleMethod === 'ai'}
+                              onChange={() => setScheduleMethod('ai')}
+                              className="mt-1"
+                              data-testid="radio-ai-time"
+                            />
+                            <div className="flex-1">
+                              <Label htmlFor="method-ai" className="cursor-pointer">AI generated time and date</Label>
+                              {scheduleMethod === 'ai' && (
+                                <div className="mt-3 space-y-3">
+                                  {!aiSuggestedTime && !getAiTimeSuggestionMutation.isPending && (
+                                    <Button
+                                      onClick={() => {
+                                        if (!selectedItineraryForScheduling) return;
+                                        const venues = selectedItineraryForScheduling.items?.map((item: any) => ({
+                                          name: item.venueName,
+                                          type: item.venueType,
+                                        })) || [];
+                                        getAiTimeSuggestionMutation.mutate({ 
+                                          itineraryId: selectedItineraryForScheduling.id, 
+                                          venues 
+                                        });
+                                      }}
+                                      className="w-full gap-2"
+                                      data-testid="button-get-ai-suggestion"
+                                    >
+                                      <Bot className="h-4 w-4" />
+                                      Get AI Suggestion
+                                    </Button>
+                                  )}
+
+                                  {getAiTimeSuggestionMutation.isPending && (
+                                    <div className="text-center py-4 text-sm text-muted-foreground">
+                                      Analyzing group availability...
+                                    </div>
+                                  )}
+
+                                  {aiSuggestedTime && (
+                                    <div className="space-y-3">
+                                      <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg">
+                                        <div className="flex items-start gap-3">
+                                          <Calendar className="h-5 w-5 text-primary mt-0.5" />
+                                          <div className="flex-1">
+                                            <p className="font-medium" data-testid="text-ai-suggestion">
+                                              {new Date(aiSuggestedTime.eventDate).toLocaleDateString('en-US', {
+                                                weekday: 'long',
+                                                year: 'numeric',
+                                                month: 'long',
+                                                day: 'numeric',
+                                                hour: 'numeric',
+                                                minute: '2-digit',
+                                                timeZone: 'America/Los_Angeles'
+                                              })}
+                                            </p>
+                                            <p className="text-sm text-muted-foreground mt-1">{aiSuggestedTime.reasoning}</p>
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <Button
+                                        variant="outline"
+                                        onClick={async () => {
+                                          setAiSuggestedTime(null);
+                                          if (!selectedItineraryForScheduling) return;
+                                          const venues = selectedItineraryForScheduling.items?.map((item: any) => ({
+                                            name: item.venueName,
+                                            type: item.venueType,
+                                          })) || [];
+                                          await getAiTimeSuggestionMutation.mutateAsync({ 
+                                            itineraryId: selectedItineraryForScheduling.id, 
+                                            venues 
+                                          });
+                                        }}
+                                        className="w-full gap-2"
+                                        disabled={getAiTimeSuggestionMutation.isPending}
+                                        data-testid="button-try-different-time"
+                                      >
+                                        <Bot className="h-4 w-4" />
+                                        Try Different Time
+                                      </Button>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Send Button */}
+                      <Button
+                        onClick={() => {
+                          if (!selectedItineraryForScheduling) return;
+                          
+                          let finalEventDate: string | undefined;
+                          if (scheduleMethod === 'manual' && eventDate && eventTime) {
+                            finalEventDate = `${eventDate}T${eventTime}:00`;
+                          } else if (scheduleMethod === 'ai' && aiSuggestedTime) {
+                            finalEventDate = aiSuggestedTime.eventDate;
+                          }
+
+                          if (finalEventDate) {
+                            sendItineraryMutation.mutate({
+                              itineraryId: selectedItineraryForScheduling.id,
+                              eventDate: finalEventDate,
+                            });
+                          } else {
+                            toast({
+                              title: "Missing time selection",
+                              description: "Please select a time before sending",
+                              variant: "destructive",
+                            });
+                          }
+                        }}
+                        disabled={
+                          sendItineraryMutation.isPending ||
+                          (scheduleMethod === 'manual' && (!eventDate || !eventTime)) ||
+                          (scheduleMethod === 'ai' && !aiSuggestedTime)
+                        }
+                        className="w-full gap-2"
+                        data-testid="button-send-to-group"
+                      >
+                        <Send className="h-4 w-4" />
+                        {sendItineraryMutation.isPending ? "Sending..." : "Send to Group"}
+                      </Button>
+                    </>
+                  )}
+
+                  {savedItineraries.length === 0 && (
+                    <div className="text-center py-8">
+                      <p className="text-sm text-muted-foreground">No saved plans yet. Build one in the Itinerary tab!</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Active Plans Section */}
               <div>
-                <h2 className="text-2xl font-bold mb-2">Group Proposals</h2>
-                <p className="text-muted-foreground">
-                  RSVP to proposed plans from your group
+                <h2 className="text-2xl font-bold mb-2">Active Plans</h2>
+                <p className="text-muted-foreground mb-4">
+                  Track RSVPs for plans you've sent to the group
                 </p>
               </div>
 
               {proposedItinerariesLoading ? (
                 <Card>
                   <CardContent className="text-center py-12">
-                    <p className="text-muted-foreground">Loading proposals...</p>
+                    <p className="text-muted-foreground">Loading active plans...</p>
                   </CardContent>
                 </Card>
               ) : proposedItineraries.length === 0 ? (
                 <Card>
                   <CardContent className="text-center py-12">
                     <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                    <h3 className="text-lg font-semibold mb-2">No Proposals Yet</h3>
+                    <h3 className="text-lg font-semibold mb-2">No Active Plans Yet</h3>
                     <p className="text-muted-foreground">
-                      When someone sends a plan to the group, it will appear here for RSVP
+                      When you send a plan to the group, it will appear here for RSVP tracking
                     </p>
                   </CardContent>
                 </Card>
