@@ -307,6 +307,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Member RSVP Routes
 
+  // Verify an invite token and return member data (no auth required)
+  app.get("/api/members/verify-claim/:inviteToken", async (req, res) => {
+    try {
+      const { inviteToken } = req.params;
+
+      if (!inviteToken) {
+        return res.status(400).json({ message: "Invite token required" });
+      }
+
+      // Find invite by token
+      const invites = await storage.db
+        .select()
+        .from(storage.schema.itineraryInvites)
+        .where(storage.sql`invite_token = ${inviteToken}`);
+
+      if (invites.length === 0) {
+        return res.status(404).json({ message: "Invalid or expired invite token" });
+      }
+
+      const invite = invites[0];
+      
+      // Get member data
+      const member = await storage.getMember(invite.memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+      
+      // Return member data (without sensitive fields)
+      res.json({
+        id: member.id,
+        name: member.name,
+        email: member.email,
+      });
+    } catch (error: any) {
+      console.error('[Verify Invite] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Claim a member identity (no auth required)
   app.post("/api/members/:id/claim", async (req, res) => {
     try {
@@ -439,6 +478,159 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updatedMember);
     } catch (error: any) {
       res.status(400).json({ message: error.message });
+    }
+  });
+
+  // RSVP Routes (for itinerary invites)
+
+  // Create or update RSVP for an itinerary (no auth required, validates invite token)
+  app.post("/api/rsvps", async (req, res) => {
+    try {
+      const { itineraryId, inviteToken, response, rsvpFeedback } = req.body;
+
+      if (!itineraryId || !inviteToken || !response) {
+        return res.status(400).json({ message: "Itinerary ID, invite token, and response required" });
+      }
+
+      if (!["yes", "maybe", "no"].includes(response)) {
+        return res.status(400).json({ message: "Invalid response. Must be yes, maybe, or no" });
+      }
+
+      // Verify invite token and get member
+      const invites = await storage.db
+        .select()
+        .from(storage.schema.itineraryInvites)
+        .where(storage.sql`invite_token = ${inviteToken}`);
+
+      if (invites.length === 0) {
+        return res.status(401).json({ message: "Invalid invite token" });
+      }
+
+      const invite = invites[0];
+
+      // Verify the invite is for this specific itinerary (critical security check)
+      if (invite.itineraryId !== itineraryId) {
+        return res.status(403).json({ message: "This invite is not valid for this itinerary" });
+      }
+
+      // Get member
+      const member = await storage.getMember(invite.memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+
+      // Fetch itinerary to verify it exists
+      const itinerary = await storage.getItinerary(itineraryId);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      // Check if RSVP already exists for this member/itinerary combo
+      const existingRsvps = await storage.db
+        .select()
+        .from(storage.schema.rsvps)
+        .where(
+          storage.sql`itinerary_id = ${itineraryId} AND member_id = ${member.id}`
+        );
+
+      let rsvp;
+      if (existingRsvps.length > 0) {
+        // Update existing RSVP
+        const updated = await storage.db
+          .update(storage.schema.rsvps)
+          .set({
+            response,
+            rsvpFeedback: rsvpFeedback || null,
+            updatedAt: new Date(),
+          })
+          .where(storage.sql`id = ${existingRsvps[0].id}`)
+          .returning();
+        rsvp = updated[0];
+      } else {
+        // Create new RSVP
+        const inserted = await storage.db
+          .insert(storage.schema.rsvps)
+          .values({
+            itineraryId,
+            memberId: member.id,
+            response,
+            rsvpFeedback: rsvpFeedback || null,
+          })
+          .returning();
+        rsvp = inserted[0];
+      }
+
+      res.json(rsvp);
+    } catch (error: any) {
+      console.error('[RSVP] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get RSVP for a specific member/itinerary (requires invite token validation)
+  app.get("/api/rsvps/itinerary/:itineraryId/member/:memberId", async (req, res) => {
+    try {
+      const { itineraryId, memberId } = req.params;
+      const inviteToken = req.query.inviteToken as string;
+
+      if (!inviteToken) {
+        return res.status(401).json({ message: "Invite token required" });
+      }
+
+      // Verify invite token
+      const invites = await storage.db
+        .select()
+        .from(storage.schema.itineraryInvites)
+        .where(storage.sql`invite_token = ${inviteToken}`);
+
+      if (invites.length === 0) {
+        return res.status(401).json({ message: "Invalid invite token" });
+      }
+
+      const invite = invites[0];
+
+      // Verify the invite is for this specific itinerary and member
+      if (invite.itineraryId !== itineraryId || invite.memberId !== memberId) {
+        return res.status(403).json({ message: "This invite is not valid for this itinerary/member" });
+      }
+
+      // Fetch itinerary to verify it exists
+      const itinerary = await storage.getItinerary(itineraryId);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      // Fetch RSVP
+      const rsvps = await storage.db
+        .select()
+        .from(storage.schema.rsvps)
+        .where(
+          storage.sql`itinerary_id = ${itineraryId} AND member_id = ${memberId}`
+        );
+
+      if (rsvps.length === 0) {
+        return res.status(404).json({ message: "RSVP not found" });
+      }
+
+      res.json(rsvps[0]);
+    } catch (error: any) {
+      console.error('[RSVP] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get all RSVPs for an itinerary (authenticated)
+  app.get("/api/rsvps/itinerary/:itineraryId", isAuthenticated, async (req, res) => {
+    try {
+      const rsvps = await storage.db
+        .select()
+        .from(storage.schema.rsvps)
+        .where(storage.sql`itinerary_id = ${req.params.itineraryId}`);
+
+      res.json(rsvps);
+    } catch (error: any) {
+      console.error('[RSVP] Error:', error);
+      res.status(500).json({ message: error.message });
     }
   });
 
@@ -1612,15 +1804,31 @@ Looking forward to planning great activities together!
 
         // Send initial invite emails immediately
         const members = await storage.getGroupMembers(group.id);
-        const rsvpLink = `${req.headers.origin || 'http://localhost:5000'}/join/${group.shareableLink}?itinerary=${itinerary.id}`;
 
         console.log(`[Send Itinerary] Found ${members.length} members for group ${group.id}`);
         
+        // Create itinerary-specific invite tokens for each member
+        const memberInvites = new Map<string, string>(); // memberId -> inviteToken
+        for (const member of members) {
+          const inviteToken = crypto.randomUUID();
+          
+          // Store invite in database
+          await storage.db.insert(storage.schema.itineraryInvites).values({
+            itineraryId: itinerary.id,
+            memberId: member.id,
+            inviteToken,
+          });
+          
+          memberInvites.set(member.id, inviteToken);
+        }
+        
         // Collect recipients (members with emails + organizer)
         const recipients: string[] = [];
+        const membersByEmail = new Map<string, typeof members[0]>();
         for (const member of members) {
           if (member.email) {
             recipients.push(member.email);
+            membersByEmail.set(member.email, member);
           }
         }
         
@@ -1637,10 +1845,19 @@ Looking forward to planning great activities together!
 
         for (const email of recipients) {
           try {
+            const member = membersByEmail.get(email);
+            if (!member) continue;
+            
+            const inviteToken = memberInvites.get(member.id);
+            if (!inviteToken) continue;
+            
+            // Create member-specific RSVP link with invite token
+            const rsvpLink = `${req.headers.origin || 'http://localhost:5000'}/rsvp/${itinerary.id}/${inviteToken}`;
+            
             const { sendItineraryInvite } = await import('./email-service');
             
             await sendItineraryInvite(
-              { email, name: 'Member' },
+              { email, name: member.name },
               {
                 groupName: group.name,
                 organizerName: 'Organizer',

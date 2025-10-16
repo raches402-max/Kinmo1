@@ -224,6 +224,16 @@ export const rsvps = pgTable("rsvps", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(), // Track when RSVP was last updated
 });
 
+// Itinerary invites - ties invite tokens to specific itinerary+member pairs for secure RSVPs
+export const itineraryInvites = pgTable("itinerary_invites", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  itineraryId: varchar("itinerary_id").notNull().references(() => itineraries.id, { onDelete: "cascade" }),
+  memberId: varchar("member_id").notNull().references(() => members.id, { onDelete: "cascade" }),
+  inviteToken: varchar("invite_token").notNull().unique(), // Unique token for this specific invite
+  sentAt: timestamp("sent_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Reminder logs - track automated reminder emails sent
 export const reminderLogs = pgTable("reminder_logs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -310,6 +320,7 @@ export const itinerariesRelations = relations(itineraries, ({ one, many }) => ({
   }),
   items: many(itineraryItems),
   rsvps: many(rsvps),
+  invites: many(itineraryInvites),
   reminderLogs: many(reminderLogs),
   backupFor: one(itineraries, {
     fields: [itineraries.backupForItineraryId],
@@ -336,6 +347,17 @@ export const rsvpsRelations = relations(rsvps, ({ one }) => ({
   user: one(users, {
     fields: [rsvps.userId],
     references: [users.id],
+  }),
+}));
+
+export const itineraryInvitesRelations = relations(itineraryInvites, ({ one }) => ({
+  itinerary: one(itineraries, {
+    fields: [itineraryInvites.itineraryId],
+    references: [itineraries.id],
+  }),
+  member: one(members, {
+    fields: [itineraryInvites.memberId],
+    references: [members.id],
   }),
 }));
 
