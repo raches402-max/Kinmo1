@@ -293,19 +293,24 @@ interface TimeSelectionResult {
 export async function suggestOptimalTime(
   input: TimeSelectionInput
 ): Promise<TimeSelectionResult> {
-  try {
-    const now = new Date();
-    const minDate = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000); // Min 2 days from now
-    const maxDate = new Date(now.getTime() + 21 * 24 * 60 * 60 * 1000); // Max 3 weeks out
+  const maxRetries = 3;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`[AI Time Picker] Attempt ${attempt} of ${maxRetries}`);
+      
+      const now = new Date();
+      const minDate = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000); // Min 2 days from now
+      const maxDate = new Date(now.getTime() + 21 * 24 * 60 * 60 * 1000); // Max 3 weeks out
 
-    const venueList = input.venues.map(v => `${v.name} (${v.type})`).join(', ');
-    const constraints = input.memberConstraints?.join('; ') || 'None';
-    
-    // Get timezone identifier for the location
-    const tzIdentifier = input.location ? getTimezoneIdentifier(input.location) : 'America/Los_Angeles';
-    const tzName = getTimezoneName(tzIdentifier);
+      const venueList = input.venues.map(v => `${v.name} (${v.type})`).join(', ');
+      const constraints = input.memberConstraints?.join('; ') || 'None';
+      
+      // Get timezone identifier for the location
+      const tzIdentifier = input.location ? getTimezoneIdentifier(input.location) : 'America/Los_Angeles';
+      const tzName = getTimezoneName(tzIdentifier);
 
-    const prompt = `You are scheduling a group outing. Pick ONE specific date and time.
+      const prompt = `You are scheduling a group outing. Pick ONE specific date and time.
 
 Venues: ${venueList}
 Group general availability: ${input.generalAvailability || 'Not specified'}
@@ -397,35 +402,54 @@ Return ONLY a JSON object with this exact structure (DO NOT copy this example te
       return generateFallbackTime(input, minDate, maxDate, tzIdentifier);
     }
 
-    // Validate day-of-week matches availability constraint
-    const dayOfWeek = eventDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
-    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const suggestedDay = dayNames[dayOfWeek];
-    
-    // Extract allowed days from availability string if it contains "only"
-    if (input.generalAvailability && input.generalAvailability.includes('only')) {
-      const allowedDays = extractAllowedDays(input.generalAvailability);
-      console.log('[AI Time Picker] Allowed days from availability:', allowedDays);
-      console.log('[AI Time Picker] AI suggested day:', suggestedDay);
+      // Validate day-of-week matches availability constraint
+      const dayOfWeek = eventDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const suggestedDay = dayNames[dayOfWeek];
       
-      if (allowedDays.length > 0 && !allowedDays.includes(suggestedDay)) {
-        console.log('[AI Time Picker] INVALID: AI suggested', suggestedDay, 'but only', allowedDays.join(', '), 'are allowed - using fallback');
+      // Extract allowed days from availability string if it contains "only"
+      if (input.generalAvailability && input.generalAvailability.includes('only')) {
+        const allowedDays = extractAllowedDays(input.generalAvailability);
+        console.log('[AI Time Picker] Allowed days from availability:', allowedDays);
+        console.log('[AI Time Picker] AI suggested day:', suggestedDay);
+        
+        if (allowedDays.length > 0 && !allowedDays.includes(suggestedDay)) {
+          console.log(`[AI Time Picker] INVALID (attempt ${attempt}): AI suggested ${suggestedDay} but only ${allowedDays.join(', ')} are allowed`);
+          
+          if (attempt < maxRetries) {
+            console.log('[AI Time Picker] Retrying with stricter prompt...');
+            continue; // Try again
+          } else {
+            console.log('[AI Time Picker] Max retries reached, using fallback');
+            return generateFallbackTime(input, minDate, maxDate, tzIdentifier);
+          }
+        }
+      }
+
+      console.log('[AI Time Picker] Validation passed, returning suggestion');
+      return {
+        eventDate,
+        reasoning: result.reasoning || 'AI-selected optimal time based on venue type and group availability',
+      };
+    } catch (error) {
+      console.error(`[AI Time Picker] Error on attempt ${attempt}:`, error);
+      
+      if (attempt === maxRetries) {
+        const now = new Date();
+        const minDate = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
+        const maxDate = new Date(now.getTime() + 21 * 24 * 60 * 60 * 1000);
+        const tzIdentifier = input.location ? getTimezoneIdentifier(input.location) : 'America/Los_Angeles';
         return generateFallbackTime(input, minDate, maxDate, tzIdentifier);
       }
     }
-
-    return {
-      eventDate,
-      reasoning: result.reasoning || 'AI-selected optimal time based on venue type and group availability',
-    };
-  } catch (error) {
-    console.error('[AI Time Picker] Error:', error);
-    const now = new Date();
-    const minDate = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
-    const maxDate = new Date(now.getTime() + 21 * 24 * 60 * 60 * 1000);
-    const tzIdentifier = input.location ? getTimezoneIdentifier(input.location) : 'America/Los_Angeles';
-    return generateFallbackTime(input, minDate, maxDate, tzIdentifier);
   }
+  
+  // Fallback if all retries fail (should not reach here)
+  const now = new Date();
+  const minDate = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
+  const maxDate = new Date(now.getTime() + 21 * 24 * 60 * 60 * 1000);
+  const tzIdentifier = input.location ? getTimezoneIdentifier(input.location) : 'America/Los_Angeles';
+  return generateFallbackTime(input, minDate, maxDate, tzIdentifier);
 }
 
 // Wrapper function for auto-reschedule with feedback constraints
