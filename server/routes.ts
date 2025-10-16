@@ -1474,13 +1474,31 @@ Looking forward to planning great activities together!
   // Save an itinerary (creates a copy so the draft remains editable)
   app.post("/api/itineraries/:id/save", isAuthenticated, async (req: any, res) => {
     try {
-      const { name } = req.body;
+      let { name } = req.body;
       const userId = req.user.claims.sub;
       
       // Get the original itinerary with items
       const original = await storage.getItinerary(req.params.id);
       if (!original) {
         return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      // Get the group to access location
+      const group = await storage.getGroup(original.groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      // Auto-generate name if not provided
+      if (!name || name.trim() === '') {
+        const { generateItineraryName } = await import('./ai-itinerary-naming');
+        const venuesForNaming = original.items.map(item => ({
+          name: item.venueName || 'Venue',
+          type: item.venueType || 'Activity'
+        }));
+        
+        name = await generateItineraryName(venuesForNaming, group.location);
+        console.log('[Save Itinerary] AI generated name:', name);
       }
 
       // Create a duplicate itinerary marked as saved
