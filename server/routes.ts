@@ -1767,11 +1767,13 @@ Looking forward to planning great activities together!
       console.log('[Suggest Time] Group availability object:', JSON.stringify(group.availability));
       console.log('[Suggest Time] Converted to string:', availabilityString);
       console.log('[Suggest Time] Venues:', JSON.stringify(venues));
+      console.log('[Suggest Time] Location:', group.locationBase);
       
       const result = await suggestOptimalTime({
         generalAvailability: availabilityString,
         venues,
         memberConstraints: memberConstraints.length > 0 ? memberConstraints : undefined,
+        location: group.locationBase, // Pass location for timezone detection
       });
 
       res.json({
@@ -2041,7 +2043,8 @@ Looking forward to planning great activities together!
             preferEarlier: constraints.preferEarlier > constraints.preferLater,
             preferLater: constraints.preferLater > constraints.preferEarlier,
             avoidThisWeek: constraints.avoidThisWeek,
-          }
+          },
+          group.locationBase // Pass location for timezone detection
         );
       } catch (aiError) {
         console.error(`[Auto-Reschedule] AI time picker failed:`, aiError);

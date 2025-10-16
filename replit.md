@@ -47,6 +47,7 @@ AI suggestion preferences:
 - **AI-Driven Scheduling System**: Fully automated scheduling where organizers set general group availability and AI automatically picks optimal times. Features include:
     - **Availability Conversion**: Converts group availability objects to natural language strings for AI comprehension (e.g., `{weekdayEvenings: true}` → "Weekday evenings")
     - **Venue-Type Awareness**: AI matches event times to venue types (brunch → weekend mornings, dinner → evenings, etc.)
+    - **DST-Aware Timezone Handling**: Comprehensive US timezone mapping (Pacific, Mountain, Arizona, Central, Eastern) with automatic DST adjustment using date-fns-tz. Maps 100+ cities and all US states to IANA timezone identifiers. Uses whole-word matching for state abbreviations to prevent false matches. Creates naive Date via Date.UTC then converts with fromZonedTime for correct local time interpretation year-round.
     - **Secure RSVP System**: Itinerary-specific invite tokens prevent cross-itinerary spoofing with atomic database locking
     - **RSVP Feedback Collection**: Structured feedback (tryEarlier, tryLater, unavailableDays) informs auto-rescheduling
     - **Auto-Reschedule Logic**: Triggers when >50% negative RSVPs with ≥3 responses, uses atomic conditional UPDATE for race condition prevention

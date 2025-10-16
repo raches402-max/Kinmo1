@@ -1,8 +1,147 @@
 import OpenAI from 'openai';
+import { fromZonedTime } from 'date-fns-tz';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+// Map location strings to IANA timezone identifiers
+function getTimezoneIdentifier(location: string): string {
+  const loc = location.toLowerCase().trim();
+  
+  // Helper to check if a pattern matches as a whole word (for state abbreviations)
+  const matchesWord = (text: string, pattern: string): boolean => {
+    // Match if pattern is a separate word (preceded/followed by space, comma, or start/end of string)
+    const regex = new RegExp(`(^|[\\s,])${pattern}($|[\\s,])`, 'i');
+    return regex.test(text);
+  };
+  
+  // Pacific Time (UTC-8/UTC-7) - WA, OR, CA, NV
+  const pacificCities = [
+    'san francisco', 'los angeles', 'oakland', 'san diego', 'san jose', 'sacramento',
+    'seattle', 'portland', 'spokane', 'tacoma', 'vancouver', 'eugene', 'salem',
+    'las vegas', 'reno', 'henderson'
+  ];
+  const pacificStates = ['california', 'oregon', 'nevada'];
+  const pacificAbbrevs = ['ca', 'or', 'nv', 'wa'];  // Check as whole words only
+  
+  // Mountain Time (UTC-7/UTC-6) - CO, UT, NM, WY, MT, ID
+  const mountainCities = [
+    'denver', 'colorado springs', 'aurora', 'boulder', 'fort collins',
+    'salt lake', 'provo', 'west jordan', 'orem',
+    'albuquerque', 'santa fe', 'las cruces',
+    'boise', 'nampa', 'meridian',
+    'billings', 'missoula', 'great falls',
+    'cheyenne', 'casper'
+  ];
+  const mountainStates = ['colorado', 'utah', 'new mexico', 'wyoming', 'montana', 'idaho'];
+  const mountainAbbrevs = ['co', 'ut', 'nm', 'wy', 'mt', 'id'];
+  
+  // Arizona (UTC-7, no DST)
+  const arizonaCities = ['phoenix', 'tucson', 'mesa', 'chandler', 'scottsdale', 'gilbert'];
+  const arizonaStates = ['arizona'];
+  const arizonaAbbrevs = ['az'];
+  
+  // Alaska (UTC-9/UTC-8)
+  const alaskaCities = ['anchorage', 'fairbanks', 'juneau', 'sitka', 'ketchikan', 'wasilla'];
+  const alaskaStates = ['alaska'];
+  const alaskaAbbrevs = ['ak'];
+  
+  // Hawaii (UTC-10, no DST)
+  const hawaiiCities = ['honolulu', 'pearl city', 'hilo', 'kailua', 'waipahu', 'kaneohe'];
+  const hawaiiStates = ['hawaii'];
+  const hawaiiAbbrevs = ['hi'];
+  
+  // Central Time (UTC-6/UTC-5) - TX, IL, MN, WI, MO, LA, TN, OK, IA, NE, KS, AR, AL, MS, ND, SD
+  const centralCities = [
+    'chicago', 'houston', 'dallas', 'austin', 'san antonio', 'fort worth', 'arlington',
+    'minneapolis', 'st paul', 'milwaukee', 'madison', 'kansas city', 'st louis',
+    'new orleans', 'baton rouge', 'nashville', 'memphis', 'oklahoma city', 'tulsa',
+    'des moines', 'omaha', 'lincoln', 'wichita', 'little rock', 'birmingham', 'jackson',
+    'fargo', 'bismarck', 'grand forks', 'minot',
+    'sioux falls', 'rapid city', 'aberdeen', 'brookings'
+  ];
+  const centralStates = [
+    'texas', 'illinois', 'minnesota', 'wisconsin', 'missouri',
+    'louisiana', 'tennessee', 'oklahoma', 'iowa', 'nebraska',
+    'kansas', 'arkansas', 'alabama', 'mississippi',
+    'north dakota', 'south dakota'
+  ];
+  const centralAbbrevs = ['tx', 'il', 'mn', 'wi', 'mo', 'la', 'tn', 'ok', 'ia', 'ne', 'ks', 'ar', 'al', 'ms', 'nd', 'sd'];
+  
+  // Eastern Time (UTC-5/UTC-4) - NY, MA, PA, FL, GA, NC, MI, IN, OH, VA, SC, KY, MD, DC, ME, NH, VT, CT, RI, NJ, DE, WV
+  const easternCities = [
+    'new york', 'nyc', 'brooklyn', 'queens', 'bronx', 'manhattan', 'buffalo', 'rochester', 'syracuse',
+    'boston', 'worcester', 'springfield', 'cambridge',
+    'philadelphia', 'pittsburgh', 'allentown',
+    'washington', 'baltimore',
+    'miami', 'tampa', 'orlando', 'jacksonville',
+    'atlanta', 'augusta', 'savannah',
+    'charlotte', 'raleigh', 'greensboro', 'durham',
+    'detroit', 'grand rapids', 'indianapolis', 'cleveland', 'cincinnati',
+    'richmond', 'virginia beach', 'charleston', 'louisville'
+  ];
+  const easternStates = [
+    'massachusetts', 'pennsylvania', 'florida', 'georgia',
+    'north carolina', 'michigan', 'indiana', 'ohio',
+    'virginia', 'south carolina', 'kentucky', 'maryland',
+    'district of columbia', 'maine', 'new hampshire', 'vermont',
+    'connecticut', 'rhode island', 'new jersey', 'delaware',
+    'west virginia', 'new york'
+  ];
+  const easternAbbrevs = ['ma', 'pa', 'fl', 'ga', 'nc', 'mi', 'in', 'oh', 'va', 'sc', 'ky', 'md', 'dc', 'd.c.', 'me', 'nh', 'vt', 'ct', 'ri', 'nj', 'de', 'wv', 'ny'];
+  
+  // Check for Washington state (must exclude DC patterns)
+  if ((loc.includes('washington') || matchesWord(loc, 'wa')) && 
+      !loc.includes('dc') && !loc.includes('d.c.') && 
+      !loc.includes('washington,') && !loc.includes('washington d')) {
+    return 'America/Los_Angeles';
+  }
+  
+  // Check cities first (most specific)
+  if (alaskaCities.some(p => loc.includes(p))) return 'America/Anchorage';
+  if (hawaiiCities.some(p => loc.includes(p))) return 'Pacific/Honolulu';
+  if (arizonaCities.some(p => loc.includes(p))) return 'America/Phoenix';
+  if (pacificCities.some(p => loc.includes(p))) return 'America/Los_Angeles';
+  if (mountainCities.some(p => loc.includes(p))) return 'America/Denver';
+  if (centralCities.some(p => loc.includes(p))) return 'America/Chicago';
+  if (easternCities.some(p => loc.includes(p))) return 'America/New_York';
+  
+  // Check full state names
+  if (alaskaStates.some(p => loc.includes(p))) return 'America/Anchorage';
+  if (hawaiiStates.some(p => loc.includes(p))) return 'Pacific/Honolulu';
+  if (arizonaStates.some(p => loc.includes(p))) return 'America/Phoenix';
+  if (pacificStates.some(p => loc.includes(p))) return 'America/Los_Angeles';
+  if (mountainStates.some(p => loc.includes(p))) return 'America/Denver';
+  if (centralStates.some(p => loc.includes(p))) return 'America/Chicago';
+  if (easternStates.some(p => loc.includes(p))) return 'America/New_York';
+  
+  // Check state abbreviations as whole words only
+  if (alaskaAbbrevs.some(p => matchesWord(loc, p))) return 'America/Anchorage';
+  if (hawaiiAbbrevs.some(p => matchesWord(loc, p))) return 'Pacific/Honolulu';
+  if (arizonaAbbrevs.some(p => matchesWord(loc, p))) return 'America/Phoenix';
+  if (pacificAbbrevs.some(p => matchesWord(loc, p))) return 'America/Los_Angeles';
+  if (mountainAbbrevs.some(p => matchesWord(loc, p))) return 'America/Denver';
+  if (centralAbbrevs.some(p => matchesWord(loc, p))) return 'America/Chicago';
+  if (easternAbbrevs.some(p => matchesWord(loc, p))) return 'America/New_York';
+  
+  // Default to Pacific Time for unrecognized US locations
+  return 'America/Los_Angeles';
+}
+
+// Get timezone display name from IANA identifier
+function getTimezoneName(tzIdentifier: string): string {
+  const names: { [key: string]: string } = {
+    'America/Los_Angeles': 'Pacific Time',
+    'America/Denver': 'Mountain Time',
+    'America/Phoenix': 'Mountain Time (no DST)',
+    'America/Chicago': 'Central Time',
+    'America/New_York': 'Eastern Time',
+    'America/Anchorage': 'Alaska Time',
+    'Pacific/Honolulu': 'Hawaii Time',
+  };
+  return names[tzIdentifier] || 'Pacific Time';
+}
 
 // Convert availability object to natural language string
 export function convertAvailabilityToString(availability: any): string {
@@ -102,6 +241,7 @@ interface TimeSelectionInput {
   venues: VenueForScheduling[];
   memberConstraints?: string[]; // e.g., ["Not available Thursdays", "Prefer weekends"]
   rescheduleReason?: string; // Why previous time didn't work (for rescheduling)
+  location?: string; // Group location for timezone context (e.g., "San Francisco, CA")
 }
 
 interface TimeSelectionResult {
@@ -119,6 +259,10 @@ export async function suggestOptimalTime(
 
     const venueList = input.venues.map(v => `${v.name} (${v.type})`).join(', ');
     const constraints = input.memberConstraints?.join('; ') || 'None';
+    
+    // Get timezone identifier for the location
+    const tzIdentifier = input.location ? getTimezoneIdentifier(input.location) : 'America/Los_Angeles';
+    const tzName = getTimezoneName(tzIdentifier);
 
     const prompt = `You are scheduling a group outing. Pick ONE specific date and time.
 
@@ -126,6 +270,7 @@ Venues: ${venueList}
 Group general availability: ${input.generalAvailability || 'Not specified'}
 Member constraints: ${constraints}
 ${input.rescheduleReason ? `Previous attempt failed: ${input.rescheduleReason}` : ''}
+Timezone: ${tzName} (all times should be in this timezone)
 
 Current date: ${now.toISOString().split('T')[0]}
 Date range: ${minDate.toISOString().split('T')[0]} to ${maxDate.toISOString().split('T')[0]}
@@ -182,17 +327,21 @@ Return ONLY a JSON object with this exact structure (DO NOT copy this example te
     const result = JSON.parse(response.choices[0]?.message?.content || '{}');
 
     if (!result.date || !result.time) {
-      return generateFallbackTime(input, minDate, maxDate);
+      return generateFallbackTime(input, minDate, maxDate, tzIdentifier);
     }
 
     // Parse and validate the AI-suggested time
+    // AI suggests time in the group's local timezone (e.g., 10:30 AM PST/PDT)
+    // Create a "naive" Date using UTC to avoid server timezone interpretation
     const [year, month, day] = result.date.split('-').map(Number);
     const [hours, minutes] = result.time.split(':').map(Number);
-    const eventDate = new Date(year, month - 1, day, hours, minutes);
+    const naiveDate = new Date(Date.UTC(year, month - 1, day, hours, minutes));
+    // fromZonedTime treats this as local time in the target timezone and converts to UTC
+    const eventDate = fromZonedTime(naiveDate, tzIdentifier);
 
     // Validate it's within our range
     if (eventDate < minDate || eventDate > maxDate) {
-      return generateFallbackTime(input, minDate, maxDate);
+      return generateFallbackTime(input, minDate, maxDate, tzIdentifier);
     }
 
     return {
@@ -204,7 +353,8 @@ Return ONLY a JSON object with this exact structure (DO NOT copy this example te
     const now = new Date();
     const minDate = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
     const maxDate = new Date(now.getTime() + 21 * 24 * 60 * 60 * 1000);
-    return generateFallbackTime(input, minDate, maxDate);
+    const tzIdentifier = input.location ? getTimezoneIdentifier(input.location) : 'America/Los_Angeles';
+    return generateFallbackTime(input, minDate, maxDate, tzIdentifier);
   }
 }
 
@@ -217,7 +367,8 @@ export async function generateOptimalTime(
     preferEarlier?: boolean;
     preferLater?: boolean;
     avoidThisWeek?: boolean;
-  }
+  },
+  location?: string
 ): Promise<{ suggestedTime: string; reasoning: string }> {
   // Convert availability object to readable string
   const availabilityString = convertAvailabilityToString(generalAvailability);
@@ -241,6 +392,7 @@ export async function generateOptimalTime(
     generalAvailability: availabilityString,
     venues,
     memberConstraints: memberConstraints.length > 0 ? memberConstraints : undefined,
+    location, // Pass location for timezone detection
   });
 
   return {
@@ -252,7 +404,8 @@ export async function generateOptimalTime(
 function generateFallbackTime(
   input: TimeSelectionInput,
   minDate: Date,
-  maxDate: Date
+  maxDate: Date,
+  tzIdentifier: string
 ): TimeSelectionResult {
   // Deterministic fallback based on heuristics
   const now = new Date();
@@ -304,6 +457,15 @@ function generateFallbackTime(
     candidateDate = new Date(minDate.getTime() + 5 * 24 * 60 * 60 * 1000);
     candidateDate.setHours(hours, minutes, 0, 0);
   }
+  
+  // Convert to timezone-aware UTC date using date-fns-tz
+  // Create a "naive" Date using UTC to avoid server timezone interpretation
+  const year = candidateDate.getFullYear();
+  const month = candidateDate.getMonth();
+  const day = candidateDate.getDate();
+  const naiveDate = new Date(Date.UTC(year, month, day, hours, minutes));
+  // fromZonedTime treats this as local time in the target timezone and converts to UTC
+  const finalDate = fromZonedTime(naiveDate, tzIdentifier);
 
   const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][candidateDate.getDay()];
   
@@ -312,7 +474,7 @@ function generateFallbackTime(
   const period = hours >= 12 ? 'PM' : 'AM';
   
   return {
-    eventDate: candidateDate,
+    eventDate: finalDate,
     reasoning: `${dayName} at ${displayHours}:${minutes.toString().padStart(2, '0')} ${period} works well for ${venueTypes.includes('brunch') ? 'brunch' : venueTypes.includes('lunch') ? 'lunch' : venueTypes.includes('bar') || venueTypes.includes('drink') ? 'drinks' : 'this outing'} based on venue type and group availability`,
   };
 }
