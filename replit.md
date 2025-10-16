@@ -44,6 +44,13 @@ AI suggestion preferences:
 - **Group Emoji Personalization**: Allows users to select or input custom emojis for group identification.
 - **Location-Based Filtering with Geocoding**: Converts location strings to latitude/longitude for precise search filtering using Google Geocoding API. Includes user feedback for geocoding failures and backfill support.
 - **AI Preference Insights**: Analyzes user feedback patterns to surface 3-5 key preference insights using GPT-4o-mini, refreshing automatically or manually.
+- **AI-Driven Scheduling System**: Fully automated scheduling where organizers set general group availability and AI automatically picks optimal times. Features include:
+    - **Availability Conversion**: Converts group availability objects to natural language strings for AI comprehension (e.g., `{weekdayEvenings: true}` → "Weekday evenings")
+    - **Venue-Type Awareness**: AI matches event times to venue types (brunch → weekend mornings, dinner → evenings, etc.)
+    - **Secure RSVP System**: Itinerary-specific invite tokens prevent cross-itinerary spoofing with atomic database locking
+    - **RSVP Feedback Collection**: Structured feedback (tryEarlier, tryLater, unavailableDays) informs auto-rescheduling
+    - **Auto-Reschedule Logic**: Triggers when >50% negative RSVPs with ≥3 responses, uses atomic conditional UPDATE for race condition prevention
+    - **Email Integration**: Sends RSVP invites and reschedule notifications via Resend API
 
 ## External Dependencies
 
