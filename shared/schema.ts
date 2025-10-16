@@ -39,6 +39,7 @@ export const groups = pgTable("groups", {
   budgetMax: integer("budget_max").notNull(),
   meetingFrequency: text("meeting_frequency").notNull(), // weekly, biweekly, monthly
   availability: jsonb("availability").notNull(), // Grid: {day: {morning: bool, afternoon: bool, evening: bool}}
+  generalAvailability: text("general_availability"), // Simple text: "Weekday evenings", "Weekends", "Friday/Saturday nights"
   closenessLevel: integer("closeness_level").notNull(), // 1-5 scale
   noveltyPreference: integer("novelty_preference").notNull(), // 1-5 scale (1=familiar, 5=new)
   activityCategories: text("activity_categories").array(), // Selected activity types (e.g., ["wine-bars", "karaoke", "concerts"])
@@ -187,6 +188,7 @@ export const itineraries = pgTable("itineraries", {
   inviteSentAt: timestamp("invite_sent_at"), // When invites were sent
   rsvpDeadline: timestamp("rsvp_deadline"), // When RSVPs must be in by
   autoScheduleConfig: jsonb("auto_schedule_config"), // AI-suggested schedule config: {inviteAdvanceDays: 7, rsvpWindowDays: 3, reminders: [{type: "gentle_nudge", daysBeforeDeadline: 2}, ...]}
+  rescheduleAttempts: integer("reschedule_attempts").default(0).notNull(), // Track how many times AI has tried to reschedule (max 2)
   
   createdBy: varchar("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -215,9 +217,11 @@ export const rsvps = pgTable("rsvps", {
   memberId: varchar("member_id").references(() => members.id, { onDelete: "cascade" }), // Optional, for group members
   userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }), // Optional, for authenticated users
   memberName: text("member_name"), // Name if not a registered member
-  response: text("response").notNull(), // 'yes', 'no', 'conditional'
+  response: text("response").notNull(), // 'yes', 'maybe', 'no'
   constraintText: text("constraint_text"), // If response is conditional, what's the constraint (e.g., "only if it's in Oakland")
+  rsvpFeedback: jsonb("rsvp_feedback"), // Structured feedback for maybe/no: {tryDifferentDay: bool, tryEarlier: bool, tryLater: bool, notThisWeek: bool, unavailableOn: ["Thursday"], freeformFeedback: "..."}
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(), // Track when RSVP was last updated
 });
 
 // Reminder logs - track automated reminder emails sent
