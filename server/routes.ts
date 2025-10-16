@@ -2,7 +2,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, activities as activitiesTable, groups as groupsTable } from "@shared/schema";
+import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, activities as activitiesTable, groups as groupsTable, itineraryInvites, rsvps as rsvpsTable, itineraries } from "@shared/schema";
 import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue, analyzePreferencePatterns } from "./openai";
 import { searchPlaces, searchNearbyPlaces, geocodeLocation } from "./google-places";
 import { setupAuth, isAuthenticated } from "./replitAuth";
@@ -317,10 +317,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Find invite by token
-      const invites = await storage.db
+      const invites = await db
         .select()
-        .from(storage.schema.itineraryInvites)
-        .where(storage.sql`invite_token = ${inviteToken}`);
+        .from(itineraryInvites)
+        .where(sql`invite_token = ${inviteToken}`);
 
       if (invites.length === 0) {
         return res.status(404).json({ message: "Invalid or expired invite token" });
@@ -497,10 +497,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Verify invite token and get member
-      const invites = await storage.db
+      const invites = await db
         .select()
-        .from(storage.schema.itineraryInvites)
-        .where(storage.sql`invite_token = ${inviteToken}`);
+        .from(itineraryInvites)
+        .where(sql`invite_token = ${inviteToken}`);
 
       if (invites.length === 0) {
         return res.status(401).json({ message: "Invalid invite token" });
@@ -526,30 +526,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Check if RSVP already exists for this member/itinerary combo
-      const existingRsvps = await storage.db
+      const existingRsvps = await db
         .select()
-        .from(storage.schema.rsvps)
+        .from(rsvpsTable)
         .where(
-          storage.sql`itinerary_id = ${itineraryId} AND member_id = ${member.id}`
+          sql`itinerary_id = ${itineraryId} AND member_id = ${member.id}`
         );
 
       let rsvp;
       if (existingRsvps.length > 0) {
         // Update existing RSVP
-        const updated = await storage.db
-          .update(storage.schema.rsvps)
+        const updated = await db
+          .update(rsvpsTable)
           .set({
             response,
             rsvpFeedback: rsvpFeedback || null,
             updatedAt: new Date(),
           })
-          .where(storage.sql`id = ${existingRsvps[0].id}`)
+          .where(sql`id = ${existingRsvps[0].id}`)
           .returning();
         rsvp = updated[0];
       } else {
         // Create new RSVP
-        const inserted = await storage.db
-          .insert(storage.schema.rsvps)
+        const inserted = await db
+          .insert(rsvpsTable)
           .values({
             itineraryId,
             memberId: member.id,
@@ -583,10 +583,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Verify invite token
-      const invites = await storage.db
+      const invites = await db
         .select()
-        .from(storage.schema.itineraryInvites)
-        .where(storage.sql`invite_token = ${inviteToken}`);
+        .from(itineraryInvites)
+        .where(sql`invite_token = ${inviteToken}`);
 
       if (invites.length === 0) {
         return res.status(401).json({ message: "Invalid invite token" });
@@ -606,11 +606,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Fetch RSVP
-      const rsvps = await storage.db
+      const rsvps = await db
         .select()
-        .from(storage.schema.rsvps)
+        .from(rsvpsTable)
         .where(
-          storage.sql`itinerary_id = ${itineraryId} AND member_id = ${memberId}`
+          sql`itinerary_id = ${itineraryId} AND member_id = ${memberId}`
         );
 
       if (rsvps.length === 0) {
@@ -627,10 +627,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all RSVPs for an itinerary (authenticated)
   app.get("/api/rsvps/itinerary/:itineraryId", isAuthenticated, async (req, res) => {
     try {
-      const rsvps = await storage.db
+      const rsvps = await db
         .select()
-        .from(storage.schema.rsvps)
-        .where(storage.sql`itinerary_id = ${req.params.itineraryId}`);
+        .from(rsvpsTable)
+        .where(sql`itinerary_id = ${req.params.itineraryId}`);
 
       res.json(rsvps);
     } catch (error: any) {
@@ -1818,7 +1818,7 @@ Looking forward to planning great activities together!
           const inviteToken = crypto.randomUUID();
           
           // Store invite in database
-          await storage.db.insert(storage.schema.itineraryInvites).values({
+          await db.insert(itineraryInvites).values({
             itineraryId: itinerary.id,
             memberId: member.id,
             inviteToken,
@@ -1928,10 +1928,10 @@ Looking forward to planning great activities together!
       }
 
       // Get all RSVPs
-      const rsvps = await storage.db
+      const rsvps = await db
         .select()
-        .from(storage.schema.itineraryRsvps)
-        .where(storage.sql`itinerary_id = ${itineraryId}`);
+        .from(rsvpsTable)
+        .where(sql`itinerary_id = ${itineraryId}`);
 
       if (rsvps.length === 0) {
         console.log(`[Auto-Reschedule] No RSVPs yet`);
@@ -1961,10 +1961,10 @@ Looking forward to planning great activities together!
 
       // ATOMIC: Try to acquire reschedule lock
       // Only proceed if we successfully set the flag from false to true
-      const lockAcquired = await storage.db
-        .update(storage.schema.itineraries)
+      const lockAcquired = await db
+        .update(itineraries)
         .set({
-          autoScheduleConfig: storage.sql`
+          autoScheduleConfig: sql`
             CASE 
               WHEN (auto_schedule_config->>'rescheduleInProgress')::boolean IS NOT TRUE
               THEN jsonb_set(COALESCE(auto_schedule_config, '{}'::jsonb), '{rescheduleInProgress}', 'true'::jsonb)
@@ -1972,7 +1972,7 @@ Looking forward to planning great activities together!
             END
           ` as any,
         })
-        .where(storage.sql`
+        .where(sql`
           id = ${itineraryId} 
           AND (auto_schedule_config->>'rescheduleInProgress')::boolean IS NOT TRUE
         `)
@@ -2078,24 +2078,24 @@ Looking forward to planning great activities together!
       });
 
       // Clear all existing RSVPs so stale responses don't affect next reschedule check
-      await storage.db
-        .delete(storage.schema.itineraryRsvps)
-        .where(storage.sql`itinerary_id = ${itineraryId}`);
+      await db
+        .delete(rsvpsTable)
+        .where(sql`itinerary_id = ${itineraryId}`);
 
       // Get all members
       const members = await storage.getGroupMembers(group.id);
 
       // Delete old invite tokens
-      await storage.db
-        .delete(storage.schema.itineraryInvites)
-        .where(storage.sql`itinerary_id = ${itineraryId}`);
+      await db
+        .delete(itineraryInvites)
+        .where(sql`itinerary_id = ${itineraryId}`);
 
       // Create new invite tokens for each member
       const memberInvites = new Map<string, string>();
       for (const member of members) {
         const inviteToken = crypto.randomUUID();
         
-        await storage.db.insert(storage.schema.itineraryInvites).values({
+        await db.insert(itineraryInvites).values({
           itineraryId,
           memberId: member.id,
           inviteToken,
