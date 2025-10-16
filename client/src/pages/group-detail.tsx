@@ -4341,14 +4341,15 @@ export default function GroupDetail() {
                     </div>
                     <Button
                       variant="outline"
-                      onClick={() => {
+                      onClick={async () => {
                         setAiSuggestedTime(null);
                         if (!sendingItinerary) return;
                         const venues = sendingItinerary.items?.map((item: any) => ({
                           name: item.venueName,
                           type: item.venueType,
                         })) || [];
-                        getAiTimeSuggestionMutation.mutate({ itineraryId: sendingItinerary.id, venues });
+                        // Use mutateAsync to ensure state updates properly
+                        await getAiTimeSuggestionMutation.mutateAsync({ itineraryId: sendingItinerary.id, venues });
                       }}
                       className="w-full gap-2"
                       disabled={getAiTimeSuggestionMutation.isPending}
