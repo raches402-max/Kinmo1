@@ -326,49 +326,47 @@ Based on the group's availability and the venues, suggest:
 1. An optimal event date (return as ISO 8601 datetime string)
 2. A brief reason why this time works (1-2 sentences, casual tone)
 
-**Guidelines (CRITICAL - Follow in exact order):**
-1. **FIRST, check group availability - THIS IS THE HARD CONSTRAINT:**
-   * When you see "only" in the availability (e.g., "Thursday, Friday, Saturday, and Sunday evenings only"):
-     - Extract the EXACT days mentioned BEFORE the word "only"
-     - You MUST pick ONLY from those exact days (Thursday, Friday, Saturday, Sunday in this example)
-     - NEVER pick Monday, Tuesday, or Wednesday if they are not listed
-     - The word "only" means HARD CONSTRAINT - no exceptions, no flexibility
-   * If group says "Weekends" or "Saturday/Sunday" → MUST pick Saturday or Sunday (NEVER weekdays)
-   * If group says "Weekday evenings" or "week nights" → MUST pick weekday (Mon-Fri) after 18:00 (NEVER weekends)
-   * If group says "Weekday afternoons" → MUST pick weekday (Mon-Fri) 14:00-18:00 (NEVER weekends)
-   * If group says "Friday/Saturday nights" → MUST pick Friday or Saturday evening (NEVER other days)
-   * Availability is NON-NEGOTIABLE - you can ONLY suggest days explicitly mentioned in the availability constraint
-   
-   **EXAMPLE:** If availability is "Saturday, and Sunday afternoons and Thursday, Friday, Saturday, and Sunday evenings only"
-   - Valid days: Thursday, Friday, Saturday, Sunday
-   - INVALID days that will be REJECTED: Monday, Tuesday, Wednesday
-   - You must pick Thursday, Friday, Saturday, or Sunday - absolutely no other days allowed
+**CRITICAL STEP-BY-STEP PROCESS:**
 
-2. **THEN identify meal type and time within the allowed days:**
-   * Brunch venues (brunch, breakfast cafe, morning spots) → 10:00-14:00 (10am-2pm), prefer weekends
-   * Breakfast venues → 08:00-11:00 (8am-11am)
-   * Lunch venues → 11:00-14:00 (11am-2pm)
-   * Dinner venues (restaurants, fine dining) → 18:00-21:00 (6pm-9pm)
-   * Bars/drinks → 19:00-23:00 (7pm-11pm)
-   * Activities → match to appropriate time of day
+**STEP 1: Extract allowed days from availability (THIS IS MANDATORY)**
+   * Look for "only" in the availability string - this indicates HARD constraints
+   * Extract the EXACT day names listed BEFORE "only"
+   * Example: "Thursday, Friday, Saturday, and Sunday evenings only" → Valid days: [Thursday, Friday, Saturday, Sunday]
+   * Example: "Saturday, and Sunday afternoons and Thursday, Friday, Saturday, and Sunday evenings only" → Valid days: [Thursday, Friday, Saturday, Sunday]
+   * These are the ONLY valid days - all other days are FORBIDDEN
+   * If availability says "Weekends" → Valid days: [Saturday, Sunday]
+   * If availability says "Weekday evenings" → Valid days: [Monday, Tuesday, Wednesday, Thursday, Friday]
 
-3. **Timing rules:**
-   * For upscale/reservation venues: suggest 6+ days out
-   * For casual spots: 3-5 days out is fine
-   * ALWAYS use 24-hour time format (HH:MM) in your response
-   * Use correct meal terminology (e.g., "brunch" for brunch venues, NOT "dinner")
+**STEP 2: Identify venue type and appropriate time**
+   * Brunch/Breakfast/Cafe → 10:00-13:00 (morning to early afternoon), prefer weekend from Step 1
+   * Lunch → 11:30-14:00 (midday)
+   * Dinner/Restaurant → 18:00-20:30 (evening)
+   * Ramen/Asian restaurant → can be lunch (12:00) or dinner (18:30)
+   * Bars/Drinks → 19:00-22:00 (evening)
+   * Matcha/Tea/Coffee → 10:00-16:00 (morning to afternoon)
 
-4. **Reasoning requirements (CRITICAL):**
-   * Your reasoning MUST reference the ACTUAL day of week you suggested (e.g., "Saturday", "Tuesday")
-   * Your reasoning MUST reference the ACTUAL meal type from the venues (e.g., "brunch", "drinks", "lunch")
-   * DO NOT use generic template text - make it specific to your actual suggestion
-   * Keep it concise (1-2 sentences, casual tone)
+**STEP 3: Select a valid date**
+   * Pick a day from your Step 1 list (NEVER pick a day not in that list)
+   * Pick a time from your Step 2 range
+   * Ensure it's 3-7 days in the future
+   * DOUBLE-CHECK: Is the day you picked in the Step 1 allowed list? If NO, pick a different day!
 
-Return ONLY a JSON object with this exact structure (DO NOT copy this example text - generate your own based on your actual suggestion):
+**STEP 4: Write reasoning**
+   * State the ACTUAL day name you selected (e.g., "Saturday", "Friday")  
+   * State the ACTUAL venue type/meal (e.g., "brunch", "ramen dinner", "matcha")
+   * Keep it casual and brief
+
+**COMMON MISTAKES TO AVOID:**
+❌ Suggesting Tuesday when only Thursday/Friday/Saturday/Sunday are allowed
+❌ Suggesting 18:30 (dinner time) for a brunch/cafe venue
+❌ Suggesting "dinner" in reasoning for a ramen restaurant at 12:00 (that's lunch!)
+❌ Writing "Tuesday at 18:30" in reasoning but returning different date in JSON
+
+Return ONLY a JSON object with this exact structure:
 {
   "date": "YYYY-MM-DD",
   "time": "HH:MM",
-  "reasoning": "[Day of week] at [time] works well for [actual meal type] based on venue type and group availability"
+  "reasoning": "[Actual day] at [time] works well for [actual meal type] at [venue name]"
 }`;
 
     const response = await openai.chat.completions.create({
