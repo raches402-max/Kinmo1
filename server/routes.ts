@@ -1511,11 +1511,25 @@ Looking forward to planning great activities together!
   // Send an itinerary as a proposal to the group
   app.post("/api/itineraries/:id/send", isAuthenticated, async (req, res) => {
     try {
-      const { isPrimary } = req.body;
+      const { isPrimary, eventDate, autoScheduleConfig } = req.body;
+      
       const updates: UpdateItinerary = {
         status: 'proposed' as any,
         isPrimary: (isPrimary || false) as any,
       };
+
+      // If event date and schedule config are provided, set them up
+      if (eventDate && autoScheduleConfig) {
+        const date = new Date(eventDate);
+        const rsvpDeadline = new Date(date);
+        rsvpDeadline.setDate(date.getDate() - (autoScheduleConfig.inviteAdvanceDays - autoScheduleConfig.rsvpWindowDays));
+
+        updates.eventDate = date as any;
+        updates.rsvpDeadline = rsvpDeadline as any;
+        updates.autoScheduleConfig = autoScheduleConfig as any;
+        // inviteSentAt will be set by the reminder scheduler when it actually sends
+      }
+
       const itinerary = await storage.updateItinerary(req.params.id, updates);
       res.json(itinerary);
     } catch (error: any) {
@@ -1534,6 +1548,40 @@ Looking forward to planning great activities together!
       };
       const itinerary = await storage.updateItinerary(req.params.id, updates);
       res.json(itinerary);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get AI-suggested schedule for an itinerary
+  app.get("/api/itineraries/:id/suggested-schedule", isAuthenticated, async (req, res) => {
+    try {
+      const itinerary = await storage.getItinerary(req.params.id);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      // Get group info for member count
+      const group = await storage.getGroup(itinerary.groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      const members = await storage.getGroupMembers(itinerary.groupId);
+      const groupSize = members.length || 2; // Default to 2 if no members
+
+      // Prepare venue info for AI
+      const venueInfo = itinerary.items.map(item => ({
+        name: item.venueName,
+        type: item.venueType,
+        requiresReservation: item.venueType.toLowerCase().includes('fine') || 
+                             item.venueType.toLowerCase().includes('upscale'),
+      }));
+
+      const { generateScheduleConfig } = await import('./ai-scheduling');
+      const scheduleConfig = await generateScheduleConfig(venueInfo, groupSize);
+      
+      res.json(scheduleConfig);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }

@@ -17,7 +17,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send } from "lucide-react";
+import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -422,6 +422,9 @@ export default function GroupDetail() {
   const [savingItineraryId, setSavingItineraryId] = useState<string | null>(null);
   const [sendConfirmOpen, setSendConfirmOpen] = useState(false);
   const [sendingItinerary, setSendingItinerary] = useState<any | null>(null);
+  const [suggestedSchedule, setSuggestedSchedule] = useState<any | null>(null);
+  const [eventDate, setEventDate] = useState("");
+  const [eventTime, setEventTime] = useState("19:00");
   const [rsvpConstraintOpen, setRsvpConstraintOpen] = useState(false);
   const [rsvpItineraryId, setRsvpItineraryId] = useState<string | null>(null);
   const [constraintText, setConstraintText] = useState("");
@@ -1070,17 +1073,22 @@ export default function GroupDetail() {
   });
 
   const sendItineraryMutation = useMutation({
-    mutationFn: async (itineraryId: string) => {
-      return await apiRequest("POST", `/api/itineraries/${itineraryId}/send`);
+    mutationFn: async (params: { itineraryId: string; eventDate?: string; autoScheduleConfig?: any }) => {
+      return await apiRequest("POST", `/api/itineraries/${params.itineraryId}/send`, params);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "saved-itineraries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "proposed-itineraries"] });
       setSendConfirmOpen(false);
       setSendingItinerary(null);
+      setSuggestedSchedule(null);
+      setEventDate("");
+      setEventTime("19:00");
       toast({
         title: "Plan sent to group",
-        description: "Members can now RSVP to your itinerary",
+        description: suggestedSchedule 
+          ? "Automated invites and reminders are scheduled" 
+          : "Members can now RSVP to your itinerary",
       });
     },
     onError: (error: Error) => {
@@ -1090,6 +1098,13 @@ export default function GroupDetail() {
         variant: "destructive",
       });
     },
+  });
+
+  // Fetch AI-suggested schedule when dialog opens
+  const { data: scheduleData, isLoading: scheduleLoading } = useQuery({
+    queryKey: ["/api/itineraries", sendingItinerary?.id, "suggested-schedule"],
+    enabled: !!sendingItinerary?.id && sendConfirmOpen,
+    refetchOnWindowFocus: false,
   });
 
   const createRsvpMutation = useMutation({
@@ -4189,27 +4204,31 @@ export default function GroupDetail() {
         </DialogContent>
       </Dialog>
 
-      {/* Send Confirmation Dialog */}
+      {/* Send Confirmation Dialog with Automated Scheduling */}
       <Dialog 
         open={sendConfirmOpen} 
         onOpenChange={(open) => {
           setSendConfirmOpen(open);
           if (!open) {
             setSendingItinerary(null);
+            setSuggestedSchedule(null);
+            setEventDate("");
+            setEventTime("19:00");
           }
         }}
       >
-        <DialogContent data-testid="dialog-send-confirmation">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="dialog-send-confirmation">
           <DialogHeader>
-            <DialogTitle>Send Plan to Group?</DialogTitle>
+            <DialogTitle>Send Plan & Schedule Event</DialogTitle>
             <DialogDescription>
-              This will send "{sendingItinerary?.name}" to all group members for RSVP
+              Set the event date and we'll handle automated invites and reminders
             </DialogDescription>
           </DialogHeader>
           {sendingItinerary && (
-            <div className="space-y-4">
+            <div className="space-y-6">
+              {/* Plan Preview */}
               <div>
-                <h4 className="text-sm font-semibold mb-3">Plan Details</h4>
+                <h4 className="text-sm font-semibold mb-3">{sendingItinerary.name}</h4>
                 <div className="space-y-2">
                   {sendingItinerary.items?.map((item: any, index: number) => (
                     <div
@@ -4230,6 +4249,74 @@ export default function GroupDetail() {
                   ))}
                 </div>
               </div>
+
+              {/* Event Date/Time Selection */}
+              <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
+                <h4 className="text-sm font-semibold">Event Date & Time</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="event-date">Date</Label>
+                    <Input
+                      id="event-date"
+                      type="date"
+                      value={eventDate}
+                      onChange={(e) => setEventDate(e.target.value)}
+                      min={new Date().toISOString().split('T')[0]}
+                      data-testid="input-event-date"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="event-time">Time</Label>
+                    <Input
+                      id="event-time"
+                      type="time"
+                      value={eventTime}
+                      onChange={(e) => setEventTime(e.target.value)}
+                      data-testid="input-event-time"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* AI Schedule Preview */}
+              {eventDate && scheduleData && (
+                <div className="space-y-3 border rounded-lg p-4 bg-primary/5">
+                  <div className="flex items-start gap-2">
+                    <Bot className="h-5 w-5 mt-0.5 text-primary shrink-0" />
+                    <div className="flex-1 space-y-2">
+                      <h4 className="text-sm font-semibold">Automated Schedule</h4>
+                      <p className="text-xs text-muted-foreground">{scheduleData.reasoning}</p>
+                      <div className="space-y-2 mt-3">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Mail className="h-4 w-4 text-muted-foreground" />
+                          <span>Invites sent <strong>{scheduleData.inviteAdvanceDays} days before</strong></span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <Clock className="h-4 w-4 text-muted-foreground" />
+                          <span>RSVP window: <strong>{scheduleData.rsvpWindowDays} days</strong></span>
+                        </div>
+                        {scheduleData.reminders?.map((r: any, idx: number) => (
+                          <div key={idx} className="flex items-center gap-2 text-sm">
+                            <Bell className="h-4 w-4 text-muted-foreground" />
+                            <span>
+                              {r.type === 'gentle_nudge' && 'Gentle nudge'}
+                              {r.type === 'final_call' && 'Final call'}
+                              {r.type === 'day_before' && 'Day-before reminder'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {scheduleLoading && eventDate && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Bot className="h-4 w-4 animate-pulse" />
+                  <span>Analyzing venues for optimal schedule...</span>
+                </div>
+              )}
             </div>
           )}
           <DialogFooter>
@@ -4238,6 +4325,9 @@ export default function GroupDetail() {
               onClick={() => {
                 setSendConfirmOpen(false);
                 setSendingItinerary(null);
+                setSuggestedSchedule(null);
+                setEventDate("");
+                setEventTime("19:00");
               }}
               data-testid="button-cancel-send"
             >
@@ -4246,13 +4336,21 @@ export default function GroupDetail() {
             <Button
               onClick={() => {
                 if (sendingItinerary) {
-                  sendItineraryMutation.mutate(sendingItinerary.id);
+                  const params: any = { itineraryId: sendingItinerary.id };
+                  
+                  if (eventDate && scheduleData) {
+                    const dateTime = new Date(`${eventDate}T${eventTime}`);
+                    params.eventDate = dateTime.toISOString();
+                    params.autoScheduleConfig = scheduleData;
+                  }
+                  
+                  sendItineraryMutation.mutate(params);
                 }
               }}
               disabled={sendItineraryMutation.isPending}
               data-testid="button-confirm-send"
             >
-              {sendItineraryMutation.isPending ? "Sending..." : "Send to Group"}
+              {sendItineraryMutation.isPending ? "Sending..." : eventDate ? "Schedule & Send" : "Send Now"}
             </Button>
           </DialogFooter>
         </DialogContent>
