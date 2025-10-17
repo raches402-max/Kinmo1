@@ -3813,19 +3813,93 @@ export default function GroupDetail() {
                                         <p className="text-sm font-medium">Choose a time:</p>
                                         <div className="grid grid-cols-2 gap-2">
                                           {aiTimeOptions.map((option) => (
-                                            <button
-                                              key={option.id}
-                                              onClick={() => setSelectedTimeOptionId(option.id)}
-                                              className={`p-3 rounded-lg border-2 text-left transition-colors ${
-                                                selectedTimeOptionId === option.id
-                                                  ? 'border-primary bg-primary/5'
-                                                  : 'border-border hover-elevate'
-                                              }`}
-                                              data-testid={`time-option-${option.id}`}
-                                            >
-                                              <p className="font-medium text-sm">{option.dayLabel}</p>
-                                              <p className="text-sm text-muted-foreground">{option.timeLabel}</p>
-                                            </button>
+                                            <div key={option.id} className="relative">
+                                              {editingOptionId === option.id ? (
+                                                <div className="p-3 rounded-lg border-2 border-primary bg-primary/5 space-y-2">
+                                                  <Input
+                                                    type="date"
+                                                    value={new Date(option.eventDate).toISOString().split('T')[0]}
+                                                    onChange={(e) => {
+                                                      const date = new Date(e.target.value);
+                                                      const time = new Date(option.eventDate).toTimeString().slice(0, 5);
+                                                      const newDateTime = `${e.target.value}T${time}:00`;
+                                                      setAiTimeOptions(prev => prev.map(opt => 
+                                                        opt.id === option.id 
+                                                          ? {
+                                                              ...opt,
+                                                              eventDate: new Date(newDateTime).toISOString(),
+                                                              dayLabel: new Date(newDateTime).toLocaleDateString('en-US', { 
+                                                                weekday: 'short', 
+                                                                month: 'short', 
+                                                                day: 'numeric' 
+                                                              }),
+                                                            }
+                                                          : opt
+                                                      ));
+                                                    }}
+                                                    className="text-sm"
+                                                    data-testid={`edit-date-${option.id}`}
+                                                  />
+                                                  <Input
+                                                    type="time"
+                                                    value={new Date(option.eventDate).toTimeString().slice(0, 5)}
+                                                    onChange={(e) => {
+                                                      const date = new Date(option.eventDate).toISOString().split('T')[0];
+                                                      const newDateTime = `${date}T${e.target.value}:00`;
+                                                      setAiTimeOptions(prev => prev.map(opt => 
+                                                        opt.id === option.id 
+                                                          ? {
+                                                              ...opt,
+                                                              eventDate: new Date(newDateTime).toISOString(),
+                                                              timeLabel: new Date(newDateTime).toLocaleTimeString('en-US', { 
+                                                                hour: 'numeric', 
+                                                                minute: '2-digit' 
+                                                              }),
+                                                            }
+                                                          : opt
+                                                      ));
+                                                    }}
+                                                    className="text-sm"
+                                                    data-testid={`edit-time-${option.id}`}
+                                                  />
+                                                  <Button
+                                                    size="sm"
+                                                    onClick={() => setEditingOptionId(null)}
+                                                    className="w-full"
+                                                    data-testid={`done-edit-${option.id}`}
+                                                  >
+                                                    Done
+                                                  </Button>
+                                                </div>
+                                              ) : (
+                                                <button
+                                                  onClick={() => setSelectedTimeOptionId(option.id)}
+                                                  className={`w-full p-3 rounded-lg border-2 text-left transition-colors ${
+                                                    selectedTimeOptionId === option.id
+                                                      ? 'border-primary bg-primary/5'
+                                                      : 'border-border hover-elevate'
+                                                  }`}
+                                                  data-testid={`time-option-${option.id}`}
+                                                >
+                                                  <div className="flex items-start justify-between gap-2">
+                                                    <div className="flex-1">
+                                                      <p className="font-medium text-sm">{option.dayLabel}</p>
+                                                      <p className="text-sm text-muted-foreground">{option.timeLabel}</p>
+                                                    </div>
+                                                    <button
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setEditingOptionId(option.id);
+                                                      }}
+                                                      className="p-1 hover-elevate rounded"
+                                                      data-testid={`edit-button-${option.id}`}
+                                                    >
+                                                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+                                                    </button>
+                                                  </div>
+                                                </button>
+                                              )}
+                                            </div>
                                           ))}
                                         </div>
                                       </div>
