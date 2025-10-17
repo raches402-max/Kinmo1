@@ -421,7 +421,9 @@ export default function GroupDetail() {
   const [saveItineraryOpen, setSaveItineraryOpen] = useState(false);
   const [itineraryName, setItineraryName] = useState("");
   const [savingItineraryId, setSavingItineraryId] = useState<string | null>(null);
-  const [aiSuggestedTime, setAiSuggestedTime] = useState<{ eventDate: string; reasoning: string } | null>(null);
+  const [aiTimeOptions, setAiTimeOptions] = useState<Array<{ id: string; eventDate: string; dayLabel: string; timeLabel: string }>>([]);
+  const [selectedTimeOptionId, setSelectedTimeOptionId] = useState<string | null>(null);
+  const [editingOptionId, setEditingOptionId] = useState<string | null>(null);
   const [aiTimeLoading, setAiTimeLoading] = useState(false);
   const [selectedItineraryForScheduling, setSelectedItineraryForScheduling] = useState<any | null>(null);
   const [scheduleMethod, setScheduleMethod] = useState<'manual' | 'ai'>('ai');
@@ -1078,11 +1080,12 @@ export default function GroupDetail() {
     mutationFn: async ({ itineraryId, venues }: { itineraryId: string; venues?: Array<{ name: string; type: string }> }) => {
       return await apiRequest("POST", `/api/itineraries/${itineraryId}/suggest-time`, { venues });
     },
-    onSuccess: (data: { eventDate: string; reasoning: string }) => {
-      setAiSuggestedTime(data);
-      const suggestedDate = new Date(data.eventDate);
-      setEventDate(suggestedDate.toISOString().split('T')[0]);
-      setEventTime(suggestedDate.toTimeString().slice(0, 5));
+    onSuccess: (data: { options: Array<{ id: string; eventDate: string; dayLabel: string; timeLabel: string }> }) => {
+      setAiTimeOptions(data.options);
+      // Auto-select first option
+      if (data.options.length > 0) {
+        setSelectedTimeOptionId(data.options[0].id);
+      }
     },
     onError: (error: Error) => {
       toast({
