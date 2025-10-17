@@ -17,7 +17,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell } from "lucide-react";
+import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell, Edit2 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -1103,7 +1103,8 @@ export default function GroupDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "saved-itineraries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "proposed-itineraries"] });
-      setAiSuggestedTime(null);
+      setAiTimeOptions([]);
+      setSelectedTimeOptionId(null);
       setEventDate("");
       setEventTime("19:00");
       setSelectedItineraryForScheduling(null);
@@ -3685,7 +3686,8 @@ export default function GroupDetail() {
                       onValueChange={(value) => {
                         const itinerary = savedItineraries.find((i: any) => i.id === value);
                         setSelectedItineraryForScheduling(itinerary || null);
-                        setAiSuggestedTime(null);
+                        setAiTimeOptions([]);
+                        setSelectedTimeOptionId(null);
                       }}
                     >
                       <SelectTrigger id="select-itinerary" data-testid="select-itinerary">
@@ -3732,7 +3734,8 @@ export default function GroupDetail() {
                               checked={scheduleMethod === 'manual'}
                               onChange={() => {
                                 setScheduleMethod('manual');
-                                setAiSuggestedTime(null);
+                                setAiTimeOptions([]);
+                                setSelectedTimeOptionId(null);
                               }}
                               className="mt-1"
                               data-testid="radio-manual-time"
@@ -3818,17 +3821,20 @@ export default function GroupDetail() {
                                                 <div className="p-3 rounded-lg border-2 border-primary bg-primary/5 space-y-2">
                                                   <Input
                                                     type="date"
-                                                    value={new Date(option.eventDate).toISOString().split('T')[0]}
+                                                    value={(() => {
+                                                      const d = new Date(option.eventDate);
+                                                      return d.toISOString().split('T')[0];
+                                                    })()}
                                                     onChange={(e) => {
-                                                      const date = new Date(e.target.value);
-                                                      const time = new Date(option.eventDate).toTimeString().slice(0, 5);
-                                                      const newDateTime = `${e.target.value}T${time}:00`;
+                                                      const currentDate = new Date(option.eventDate);
+                                                      const newDate = new Date(e.target.value);
+                                                      newDate.setHours(currentDate.getHours(), currentDate.getMinutes(), 0, 0);
                                                       setAiTimeOptions(prev => prev.map(opt => 
                                                         opt.id === option.id 
                                                           ? {
                                                               ...opt,
-                                                              eventDate: new Date(newDateTime).toISOString(),
-                                                              dayLabel: new Date(newDateTime).toLocaleDateString('en-US', { 
+                                                              eventDate: newDate.toISOString(),
+                                                              dayLabel: newDate.toLocaleDateString('en-US', { 
                                                                 weekday: 'short', 
                                                                 month: 'short', 
                                                                 day: 'numeric' 
@@ -3842,16 +3848,23 @@ export default function GroupDetail() {
                                                   />
                                                   <Input
                                                     type="time"
-                                                    value={new Date(option.eventDate).toTimeString().slice(0, 5)}
+                                                    value={(() => {
+                                                      const d = new Date(option.eventDate);
+                                                      const hours = String(d.getUTCHours()).padStart(2, '0');
+                                                      const minutes = String(d.getUTCMinutes()).padStart(2, '0');
+                                                      return `${hours}:${minutes}`;
+                                                    })()}
                                                     onChange={(e) => {
-                                                      const date = new Date(option.eventDate).toISOString().split('T')[0];
-                                                      const newDateTime = `${date}T${e.target.value}:00`;
+                                                      const currentDate = new Date(option.eventDate);
+                                                      const [hours, minutes] = e.target.value.split(':').map(Number);
+                                                      const newDate = new Date(currentDate);
+                                                      newDate.setUTCHours(hours, minutes, 0, 0);
                                                       setAiTimeOptions(prev => prev.map(opt => 
                                                         opt.id === option.id 
                                                           ? {
                                                               ...opt,
-                                                              eventDate: new Date(newDateTime).toISOString(),
-                                                              timeLabel: new Date(newDateTime).toLocaleTimeString('en-US', { 
+                                                              eventDate: newDate.toISOString(),
+                                                              timeLabel: newDate.toLocaleTimeString('en-US', { 
                                                                 hour: 'numeric', 
                                                                 minute: '2-digit' 
                                                               }),
@@ -3872,9 +3885,9 @@ export default function GroupDetail() {
                                                   </Button>
                                                 </div>
                                               ) : (
-                                                <button
+                                                <div
                                                   onClick={() => setSelectedTimeOptionId(option.id)}
-                                                  className={`w-full p-3 rounded-lg border-2 text-left transition-colors ${
+                                                  className={`w-full p-3 rounded-lg border-2 cursor-pointer text-left transition-colors ${
                                                     selectedTimeOptionId === option.id
                                                       ? 'border-primary bg-primary/5'
                                                       : 'border-border hover-elevate'
@@ -3886,18 +3899,20 @@ export default function GroupDetail() {
                                                       <p className="font-medium text-sm">{option.dayLabel}</p>
                                                       <p className="text-sm text-muted-foreground">{option.timeLabel}</p>
                                                     </div>
-                                                    <button
+                                                    <Button
+                                                      size="icon"
+                                                      variant="ghost"
                                                       onClick={(e) => {
                                                         e.stopPropagation();
                                                         setEditingOptionId(option.id);
                                                       }}
-                                                      className="p-1 hover-elevate rounded"
+                                                      className="h-6 w-6 shrink-0"
                                                       data-testid={`edit-button-${option.id}`}
                                                     >
-                                                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
-                                                    </button>
+                                                      <Edit2 className="w-3 h-3" />
+                                                    </Button>
                                                   </div>
-                                                </button>
+                                                </div>
                                               )}
                                             </div>
                                           ))}
