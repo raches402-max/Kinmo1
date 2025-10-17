@@ -3780,7 +3780,7 @@ export default function GroupDetail() {
                               <Label htmlFor="method-ai" className="cursor-pointer">AI generated time and date</Label>
                               {scheduleMethod === 'ai' && (
                                 <div className="mt-3 space-y-3">
-                                  {!aiSuggestedTime && !getAiTimeSuggestionMutation.isPending && (
+                                  {aiTimeOptions.length === 0 && !getAiTimeSuggestionMutation.isPending && (
                                     <Button
                                       onClick={() => {
                                         if (!selectedItineraryForScheduling) return;
@@ -3797,7 +3797,7 @@ export default function GroupDetail() {
                                       data-testid="button-get-ai-suggestion"
                                     >
                                       <Bot className="h-4 w-4" />
-                                      Get AI Suggestion
+                                      Get AI Suggestions
                                     </Button>
                                   )}
 
@@ -3807,31 +3807,33 @@ export default function GroupDetail() {
                                     </div>
                                   )}
 
-                                  {aiSuggestedTime && (
+                                  {aiTimeOptions.length > 0 && (
                                     <div className="space-y-3">
-                                      <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg">
-                                        <div className="flex items-start gap-3">
-                                          <Calendar className="h-5 w-5 text-primary mt-0.5" />
-                                          <div className="flex-1">
-                                            <p className="font-medium" data-testid="text-ai-suggestion">
-                                              {new Date(aiSuggestedTime.eventDate).toLocaleDateString('en-US', {
-                                                weekday: 'long',
-                                                year: 'numeric',
-                                                month: 'long',
-                                                day: 'numeric',
-                                                hour: 'numeric',
-                                                minute: '2-digit',
-                                                timeZone: 'America/Los_Angeles'
-                                              })}
-                                            </p>
-                                            <p className="text-sm text-muted-foreground mt-1">{aiSuggestedTime.reasoning}</p>
-                                          </div>
+                                      <div className="space-y-2">
+                                        <p className="text-sm font-medium">Choose a time:</p>
+                                        <div className="grid grid-cols-2 gap-2">
+                                          {aiTimeOptions.map((option) => (
+                                            <button
+                                              key={option.id}
+                                              onClick={() => setSelectedTimeOptionId(option.id)}
+                                              className={`p-3 rounded-lg border-2 text-left transition-colors ${
+                                                selectedTimeOptionId === option.id
+                                                  ? 'border-primary bg-primary/5'
+                                                  : 'border-border hover-elevate'
+                                              }`}
+                                              data-testid={`time-option-${option.id}`}
+                                            >
+                                              <p className="font-medium text-sm">{option.dayLabel}</p>
+                                              <p className="text-sm text-muted-foreground">{option.timeLabel}</p>
+                                            </button>
+                                          ))}
                                         </div>
                                       </div>
                                       <Button
                                         variant="outline"
                                         onClick={async () => {
-                                          setAiSuggestedTime(null);
+                                          setAiTimeOptions([]);
+                                          setSelectedTimeOptionId(null);
                                           if (!selectedItineraryForScheduling) return;
                                           const venues = selectedItineraryForScheduling.items?.map((item: any) => ({
                                             name: item.venueName,
@@ -3844,10 +3846,10 @@ export default function GroupDetail() {
                                         }}
                                         className="w-full gap-2"
                                         disabled={getAiTimeSuggestionMutation.isPending}
-                                        data-testid="button-try-different-time"
+                                        data-testid="button-try-different-times"
                                       >
                                         <Bot className="h-4 w-4" />
-                                        Try Different Time
+                                        Get Different Options
                                       </Button>
                                     </div>
                                   )}
@@ -3866,8 +3868,11 @@ export default function GroupDetail() {
                           let finalEventDate: string | undefined;
                           if (scheduleMethod === 'manual' && eventDate && eventTime) {
                             finalEventDate = `${eventDate}T${eventTime}:00`;
-                          } else if (scheduleMethod === 'ai' && aiSuggestedTime) {
-                            finalEventDate = aiSuggestedTime.eventDate;
+                          } else if (scheduleMethod === 'ai' && selectedTimeOptionId) {
+                            const selectedOption = aiTimeOptions.find(opt => opt.id === selectedTimeOptionId);
+                            if (selectedOption) {
+                              finalEventDate = selectedOption.eventDate;
+                            }
                           }
 
                           if (finalEventDate) {
@@ -3886,7 +3891,7 @@ export default function GroupDetail() {
                         disabled={
                           sendItineraryMutation.isPending ||
                           (scheduleMethod === 'manual' && (!eventDate || !eventTime)) ||
-                          (scheduleMethod === 'ai' && !aiSuggestedTime)
+                          (scheduleMethod === 'ai' && !selectedTimeOptionId)
                         }
                         className="w-full gap-2"
                         data-testid="button-send-to-group"
