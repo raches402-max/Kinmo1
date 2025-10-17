@@ -1767,7 +1767,7 @@ Looking forward to planning great activities together!
         console.log('[Suggest Time] Using venues from saved itinerary');
       }
 
-      const { suggestOptimalTime, convertAvailabilityToString } = await import('./ai-time-picker');
+      const { suggestMultipleTimeOptions, convertAvailabilityToString } = await import('./ai-time-picker');
       
       // Convert availability object to natural language string
       const availabilityString = convertAvailabilityToString(group.availability);
@@ -1777,17 +1777,14 @@ Looking forward to planning great activities together!
       console.log('[Suggest Time] Venues:', JSON.stringify(venues));
       console.log('[Suggest Time] Location:', group.locationBase);
       
-      const result = await suggestOptimalTime({
+      const result = await suggestMultipleTimeOptions({
         generalAvailability: availabilityString,
         venues,
         memberConstraints: memberConstraints.length > 0 ? memberConstraints : undefined,
         location: group.locationBase, // Pass location for timezone detection
       });
 
-      res.json({
-        eventDate: result.eventDate.toISOString(),
-        reasoning: result.reasoning,
-      });
+      res.json(result);
     } catch (error: any) {
       console.error('[Suggest Time] Error:', error);
       res.status(500).json({ message: error.message });

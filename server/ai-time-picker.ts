@@ -290,6 +290,176 @@ interface TimeSelectionResult {
   reasoning: string;
 }
 
+interface TimeOption {
+  id: string;
+  eventDate: string; // ISO string
+  dayLabel: string; // e.g., "Saturday, Jan 25"
+  timeLabel: string; // e.g., "7:00 PM"
+}
+
+interface MultipleTimeSelectionsResult {
+  options: TimeOption[];
+}
+
+export async function suggestMultipleTimeOptions(
+  input: TimeSelectionInput
+): Promise<MultipleTimeSelectionsResult> {
+  try {
+    const now = new Date();
+    const minDate = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000); // Min 2 days from now
+    const maxDate = new Date(now.getTime() + 21 * 24 * 60 * 60 * 1000); // Max 3 weeks out
+
+    const venueList = input.venues.map(v => `${v.name} (${v.type})`).join(', ');
+    const constraints = input.memberConstraints?.join('; ') || 'None';
+    
+    // Get timezone identifier for the location
+    const tzIdentifier = input.location ? getTimezoneIdentifier(input.location) : 'America/Los_Angeles';
+    const tzName = getTimezoneName(tzIdentifier);
+
+    const prompt = `You are scheduling a group outing. Suggest 3-5 DIFFERENT date and time options.
+
+Venues: ${venueList}
+Group general availability: ${input.generalAvailability || 'Not specified'}
+Member constraints: ${constraints}
+Timezone: ${tzName} (all times should be in this timezone)
+
+Current date: ${now.toISOString().split('T')[0]}
+Date range: ${minDate.toISOString().split('T')[0]} to ${maxDate.toISOString().split('T')[0]}
+
+**Your Task:**
+Suggest 3-5 DIFFERENT options that respect the group's availability. Each option should:
+1. Be on a DIFFERENT day if possible
+2. Have appropriate time for the venue type:
+   - Brunch/Breakfast/Cafe → 10:00-13:00 (weekend mornings preferred)
+   - Lunch → 11:30-14:00
+   - Dinner/Restaurant → 18:00-20:30
+   - Bars/Drinks → 19:00-22:00
+   - Matcha/Tea/Coffee → 10:00-16:00
+
+3. Respect "only" constraints (if availability says "Saturday and Sunday only", pick ONLY those days)
+
+Return ONLY a JSON object with this exact structure:
+{
+  "options": [
+    {
+      "date": "YYYY-MM-DD",
+      "time": "HH:MM"
+    }
+  ]
+}`;
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7, // Higher temp for variety
+      max_tokens: 300,
+      response_format: { type: "json_object" },
+    });
+
+    const result = JSON.parse(response.choices[0]?.message?.content || '{}');
+    console.log('[AI Time Picker] Multiple options response:', JSON.stringify(result));
+
+    if (!result.options || !Array.isArray(result.options) || result.options.length === 0) {
+      console.log('[AI Time Picker] Invalid response, using fallback options');
+      return generateFallbackOptions(input, minDate, maxDate, tzIdentifier);
+    }
+
+    // Convert each option to proper format
+    const options: TimeOption[] = result.options
+      .filter((opt: any) => opt.date && opt.time)
+      .slice(0, 5) // Max 5 options
+      .map((opt: any, index: number) => {
+        const [year, month, day] = opt.date.split('-').map(Number);
+        const [hours, minutes] = opt.time.split(':').map(Number);
+        const naiveDate = new Date(Date.UTC(year, month - 1, day, hours, minutes));
+        const eventDate = fromZonedTime(naiveDate, tzIdentifier);
+        
+        return {
+          id: `opt-${index}`,
+          eventDate: eventDate.toISOString(),
+          dayLabel: eventDate.toLocaleDateString('en-US', { 
+            weekday: 'short', 
+            month: 'short', 
+            day: 'numeric',
+            timeZone: tzIdentifier
+          }),
+          timeLabel: eventDate.toLocaleTimeString('en-US', { 
+            hour: 'numeric', 
+            minute: '2-digit',
+            timeZone: tzIdentifier
+          })
+        };
+      });
+
+    if (options.length === 0) {
+      return generateFallbackOptions(input, minDate, maxDate, tzIdentifier);
+    }
+
+    return { options };
+  } catch (error) {
+    console.error('[AI Time Picker] Error generating multiple options:', error);
+    const now = new Date();
+    const minDate = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
+    const maxDate = new Date(now.getTime() + 21 * 24 * 60 * 60 * 1000);
+    const tzIdentifier = input.location ? getTimezoneIdentifier(input.location) : 'America/Los_Angeles';
+    return generateFallbackOptions(input, minDate, maxDate, tzIdentifier);
+  }
+}
+
+function generateFallbackOptions(
+  input: TimeSelectionInput,
+  minDate: Date,
+  maxDate: Date,
+  tzIdentifier: string
+): MultipleTimeSelectionsResult {
+  // Generate 3 fallback options spread across different days
+  const options: TimeOption[] = [];
+  
+  for (let i = 0; i < 3; i++) {
+    const daysOffset = 3 + (i * 3); // 3, 6, 9 days out
+    const fallbackDate = new Date(minDate.getTime() + daysOffset * 24 * 60 * 60 * 1000);
+    
+    // Determine time based on venue type
+    const venueTypes = input.venues.map(v => v.type.toLowerCase()).join(' ');
+    let hours = 19;
+    
+    if (venueTypes.includes('brunch') || venueTypes.includes('breakfast')) {
+      hours = 11;
+    } else if (venueTypes.includes('lunch')) {
+      hours = 12;
+    } else if (venueTypes.includes('bar') || venueTypes.includes('drinks')) {
+      hours = 20;
+    }
+    
+    const naiveDate = new Date(Date.UTC(
+      fallbackDate.getFullYear(),
+      fallbackDate.getMonth(),
+      fallbackDate.getDate(),
+      hours,
+      0
+    ));
+    const eventDate = fromZonedTime(naiveDate, tzIdentifier);
+    
+    options.push({
+      id: `fallback-${i}`,
+      eventDate: eventDate.toISOString(),
+      dayLabel: eventDate.toLocaleDateString('en-US', { 
+        weekday: 'short', 
+        month: 'short', 
+        day: 'numeric',
+        timeZone: tzIdentifier
+      }),
+      timeLabel: eventDate.toLocaleTimeString('en-US', { 
+        hour: 'numeric', 
+        minute: '2-digit',
+        timeZone: tzIdentifier
+      })
+    });
+  }
+  
+  return { options };
+}
+
 export async function suggestOptimalTime(
   input: TimeSelectionInput
 ): Promise<TimeSelectionResult> {
