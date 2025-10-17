@@ -23,6 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Group, Activity, Member, VotingEvent, Vote } from "@shared/schema";
 import { AvailabilityGrid, createEmptyAvailability } from "@/components/AvailabilityGrid";
+import { ReadOnlyAvailabilityGrid } from "@/components/ReadOnlyAvailabilityGrid";
 import { SwipeSession } from "@/components/SwipeSession";
 import { calculateDistance, getDistanceCategory, formatDistance } from "@/lib/distance";
 import {
@@ -3652,15 +3653,22 @@ export default function GroupDetail() {
                   <CardDescription>Quick reference for scheduling</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium">When is the group free?</p>
-                      {group?.generalAvailability ? (
+                  <div className="space-y-4">
+                    {group?.availability && (
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">When is the group free?</p>
+                        <ReadOnlyAvailabilityGrid 
+                          value={group.availability as any} 
+                          compact={true}
+                        />
+                      </div>
+                    )}
+                    {group?.generalAvailability && (
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">Additional Notes</p>
                         <p className="text-sm text-muted-foreground">{group.generalAvailability}</p>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">No availability set</p>
-                      )}
-                    </div>
+                      </div>
+                    )}
                     <div className="space-y-2">
                       <p className="text-sm font-medium">Meeting Frequency</p>
                       <p className="text-sm text-muted-foreground">
