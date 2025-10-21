@@ -1086,13 +1086,14 @@ export default function GroupDetail() {
           setAddedSuggestionPlaceIds(prev => new Set(Array.from(prev).concat(variables.googlePlaceId!)));
         }
         
-        queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "voting-events"] });
-        
-        // Automatically add to selected venues
+        // Automatically add to selected venues BEFORE invalidating queries
+        // This prevents race condition where hydration effect clears selectedVenues
         setSelectedVenues(prev => [...prev, {
           sourceType: 'voting_event',
           sourceId: data.event.id
         }]);
+        
+        queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "voting-events"] });
         
         toast({
           title: "Added to itinerary",
