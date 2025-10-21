@@ -2483,7 +2483,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
           memberConstraints: memberConstraints.length > 0 ? memberConstraints : undefined, // Pass member RSVP constraints
         }),
         new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('AI generation timed out after 60 seconds')), 60000)
+          setTimeout(() => reject(new Error('AI generation timed out after 120 seconds')), 120000)
         )
       ]);
 

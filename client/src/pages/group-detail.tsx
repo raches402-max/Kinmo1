@@ -576,9 +576,9 @@ export default function GroupDetail() {
     if (generationStartTime && (status === "pending" || status === "generating")) {
       const checkTimeout = setInterval(() => {
         const elapsed = Date.now() - generationStartTime;
-        if (elapsed > 60000) {
-          // 60 seconds elapsed - force status to failed
-          console.warn("AI generation timed out after 60 seconds");
+        if (elapsed > 120000) {
+          // 120 seconds elapsed - force status to failed
+          console.warn("AI generation timed out after 120 seconds");
           setGenerationStartTime(null);
           toast({
             title: "Generation timed out",
