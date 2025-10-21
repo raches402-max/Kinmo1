@@ -2283,7 +2283,6 @@ export default function GroupDetail() {
                   </div>
                   <span className="text-lg">🛣️</span>
                   <span className="text-xs text-muted-foreground min-w-24">
-                    {group?.searchRadius === 2 && "Nearby"}
                     {group?.searchRadius === 10 && "Citywide"}
                     {group?.searchRadius === 30 && "Special Trip"}
                     {group?.searchRadius === 50 && "Road Trip"}
