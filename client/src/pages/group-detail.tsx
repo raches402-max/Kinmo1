@@ -514,6 +514,7 @@ export default function GroupDetail() {
   const [editingItinerary, setEditingItinerary] = useState<any | null>(null);
   const [editItineraryName, setEditItineraryName] = useState("");
   const [editItineraryItems, setEditItineraryItems] = useState<any[]>([]);
+  const [editTimingRecommendations, setEditTimingRecommendations] = useState("");
   const [addVenueDialogOpen, setAddVenueDialogOpen] = useState(false);
   const [venuesToAdd, setVenuesToAdd] = useState<Array<{sourceType: 'activity' | 'voting_event', sourceId: string}>>([]);
   const [expandedNearbyVenueId, setExpandedNearbyVenueId] = useState<string | null>(null);
@@ -3874,8 +3875,16 @@ export default function GroupDetail() {
                           <div className="flex items-center justify-between gap-4">
                             <div className="flex-1 min-w-0">
                               <CardTitle className="text-lg truncate">{itinerary.name}</CardTitle>
-                              <CardDescription className="mt-1">
-                                {itinerary.items?.length || 0} {(itinerary.items?.length || 0) === 1 ? 'stop' : 'stops'}
+                              <CardDescription className="mt-1 space-y-1">
+                                <div>
+                                  {itinerary.items?.length || 0} {(itinerary.items?.length || 0) === 1 ? 'stop' : 'stops'}
+                                </div>
+                                {itinerary.timingRecommendations && (
+                                  <div className="flex items-center gap-1.5 text-xs" data-testid={`timing-notes-${itinerary.id}`}>
+                                    <Clock className="h-3 w-3 flex-shrink-0" />
+                                    <span className="truncate">{itinerary.timingRecommendations}</span>
+                                  </div>
+                                )}
                               </CardDescription>
                             </div>
                             <div className="flex gap-2">
@@ -3898,6 +3907,7 @@ export default function GroupDetail() {
                                   setEditingItinerary(itinerary);
                                   setEditItineraryName(itinerary.name || "");
                                   setEditItineraryItems(itinerary.items || []);
+                                  setEditTimingRecommendations(itinerary.timingRecommendations || "");
                                   setEditItineraryOpen(true);
                                 }}
                                 data-testid={`button-edit-itinerary-${itinerary.id}`}
@@ -5143,6 +5153,7 @@ export default function GroupDetail() {
             setEditingItinerary(null);
             setEditItineraryName("");
             setEditItineraryItems([]);
+            setEditTimingRecommendations("");
           }
         }}
       >
@@ -5163,6 +5174,19 @@ export default function GroupDetail() {
                 onChange={(e) => setEditItineraryName(e.target.value)}
                 placeholder="Enter plan name"
                 data-testid="input-edit-itinerary-name"
+              />
+            </div>
+
+            {/* Timing Notes Input */}
+            <div className="space-y-3">
+              <Label htmlFor="edit-timing-recommendations">Timing Notes (optional)</Label>
+              <Textarea
+                id="edit-timing-recommendations"
+                value={editTimingRecommendations}
+                onChange={(e) => setEditTimingRecommendations(e.target.value)}
+                placeholder="e.g., 'Best for Saturday lunch, 12:00-2:00 PM'"
+                className="min-h-[80px]"
+                data-testid="textarea-edit-timing-recommendations"
               />
             </div>
 
@@ -5254,6 +5278,7 @@ export default function GroupDetail() {
                   updates: {
                     name: editItineraryName.trim(),
                     proposedOrder,
+                    timingRecommendations: editTimingRecommendations.trim() || null,
                   },
                 });
               }}
