@@ -26,6 +26,7 @@ import { AvailabilityGrid, createEmptyAvailability } from "@/components/Availabi
 import { ReadOnlyAvailabilityGrid } from "@/components/ReadOnlyAvailabilityGrid";
 import { SwipeSession } from "@/components/SwipeSession";
 import { calculateDistance, getDistanceCategory, formatDistance } from "@/lib/distance";
+import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 import {
   DndContext,
   closestCenter,
@@ -43,6 +44,110 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+
+// Timezone helper functions
+function getTimezoneIdentifier(location: string): string {
+  const loc = location.toLowerCase().trim();
+  
+  const matchesWord = (text: string, pattern: string): boolean => {
+    const regex = new RegExp(`(^|[\\s,])${pattern}($|[\\s,])`, 'i');
+    return regex.test(text);
+  };
+  
+  const pacificCities = [
+    'san francisco', 'los angeles', 'oakland', 'san diego', 'san jose', 'sacramento',
+    'seattle', 'portland', 'spokane', 'tacoma', 'vancouver', 'eugene', 'salem',
+    'las vegas', 'reno', 'henderson'
+  ];
+  const pacificStates = ['california', 'oregon', 'nevada'];
+  const pacificAbbrevs = ['ca', 'or', 'nv', 'wa'];
+  
+  const mountainCities = [
+    'denver', 'colorado springs', 'aurora', 'boulder', 'fort collins',
+    'salt lake', 'provo', 'west jordan', 'orem',
+    'albuquerque', 'santa fe', 'las cruces',
+    'boise', 'nampa', 'meridian',
+    'billings', 'missoula', 'great falls',
+    'cheyenne', 'casper'
+  ];
+  const mountainStates = ['colorado', 'utah', 'new mexico', 'wyoming', 'montana', 'idaho'];
+  const mountainAbbrevs = ['co', 'ut', 'nm', 'wy', 'mt', 'id'];
+  
+  const arizonaCities = ['phoenix', 'tucson', 'mesa', 'chandler', 'scottsdale', 'gilbert'];
+  const arizonaStates = ['arizona'];
+  const arizonaAbbrevs = ['az'];
+  
+  const centralCities = [
+    'chicago', 'houston', 'dallas', 'austin', 'san antonio', 'fort worth', 'arlington',
+    'minneapolis', 'st paul', 'milwaukee', 'madison', 'kansas city', 'st louis',
+    'new orleans', 'baton rouge', 'nashville', 'memphis', 'oklahoma city', 'tulsa',
+    'des moines', 'omaha', 'lincoln', 'wichita', 'little rock', 'birmingham', 'jackson'
+  ];
+  const centralStates = [
+    'texas', 'illinois', 'minnesota', 'wisconsin', 'missouri',
+    'louisiana', 'tennessee', 'oklahoma', 'iowa', 'nebraska',
+    'kansas', 'arkansas', 'alabama', 'mississippi'
+  ];
+  const centralAbbrevs = ['tx', 'il', 'mn', 'wi', 'mo', 'la', 'tn', 'ok', 'ia', 'ne', 'ks', 'ar', 'al', 'ms'];
+  
+  const easternCities = [
+    'new york', 'nyc', 'brooklyn', 'queens', 'bronx', 'manhattan', 'buffalo', 'rochester', 'syracuse',
+    'boston', 'worcester', 'springfield', 'cambridge',
+    'philadelphia', 'pittsburgh', 'allentown',
+    'washington', 'baltimore',
+    'miami', 'tampa', 'orlando', 'jacksonville',
+    'atlanta', 'augusta', 'savannah',
+    'charlotte', 'raleigh', 'greensboro', 'durham',
+    'detroit', 'grand rapids', 'indianapolis', 'cleveland', 'cincinnati',
+    'richmond', 'virginia beach', 'charleston', 'louisville'
+  ];
+  const easternStates = [
+    'massachusetts', 'pennsylvania', 'florida', 'georgia',
+    'north carolina', 'michigan', 'indiana', 'ohio',
+    'virginia', 'south carolina', 'kentucky', 'maryland',
+    'district of columbia', 'maine', 'new hampshire', 'vermont',
+    'connecticut', 'rhode island', 'new jersey', 'delaware',
+    'west virginia', 'new york'
+  ];
+  const easternAbbrevs = ['ma', 'pa', 'fl', 'ga', 'nc', 'mi', 'in', 'oh', 'va', 'sc', 'ky', 'md', 'dc', 'd.c.', 'me', 'nh', 'vt', 'ct', 'ri', 'nj', 'de', 'wv', 'ny'];
+  
+  if ((loc.includes('washington') || matchesWord(loc, 'wa')) && 
+      !loc.includes('dc') && !loc.includes('d.c.') && 
+      !loc.includes('washington,') && !loc.includes('washington d')) {
+    return 'America/Los_Angeles';
+  }
+  
+  if (pacificCities.some(p => loc.includes(p))) return 'America/Los_Angeles';
+  if (mountainCities.some(p => loc.includes(p))) return 'America/Denver';
+  if (arizonaCities.some(p => loc.includes(p))) return 'America/Phoenix';
+  if (centralCities.some(p => loc.includes(p))) return 'America/Chicago';
+  if (easternCities.some(p => loc.includes(p))) return 'America/New_York';
+  
+  if (pacificStates.some(p => loc.includes(p))) return 'America/Los_Angeles';
+  if (mountainStates.some(p => loc.includes(p))) return 'America/Denver';
+  if (arizonaStates.some(p => loc.includes(p))) return 'America/Phoenix';
+  if (centralStates.some(p => loc.includes(p))) return 'America/Chicago';
+  if (easternStates.some(p => loc.includes(p))) return 'America/New_York';
+  
+  if (pacificAbbrevs.some(p => matchesWord(loc, p))) return 'America/Los_Angeles';
+  if (mountainAbbrevs.some(p => matchesWord(loc, p))) return 'America/Denver';
+  if (arizonaAbbrevs.some(p => matchesWord(loc, p))) return 'America/Phoenix';
+  if (centralAbbrevs.some(p => matchesWord(loc, p))) return 'America/Chicago';
+  if (easternAbbrevs.some(p => matchesWord(loc, p))) return 'America/New_York';
+  
+  return 'America/Los_Angeles';
+}
+
+function getTimezoneName(tzIdentifier: string): string {
+  const names: { [key: string]: string } = {
+    'America/Los_Angeles': 'Pacific Time',
+    'America/Denver': 'Mountain Time',
+    'America/Phoenix': 'Mountain Time (no DST)',
+    'America/Chicago': 'Central Time',
+    'America/New_York': 'Eastern Time',
+  };
+  return names[tzIdentifier] || 'Pacific Time';
+}
 
 // Type for member constraints
 type MemberConstraints = {
@@ -4176,29 +4281,44 @@ export default function GroupDetail() {
                                       <div className="space-y-2">
                                         <p className="text-sm font-medium">Select one or more times to send:</p>
                                         <div className="grid grid-cols-2 gap-2">
-                                          {aiTimeOptions.map((option) => (
+                                          {aiTimeOptions.map((option) => {
+                                            const groupTz = group?.locationBase ? getTimezoneIdentifier(group.locationBase) : 'America/Los_Angeles';
+                                            const tzName = getTimezoneName(groupTz);
+                                            
+                                            return (
                                             <div key={option.id} className="relative">
                                               {editingOptionId === option.id ? (
                                                 <div className="p-3 rounded-lg border-2 border-primary bg-primary/5 space-y-2">
+                                                  <div className="text-xs text-muted-foreground mb-1">
+                                                    Times shown in {tzName}
+                                                  </div>
                                                   <Input
                                                     type="date"
                                                     value={(() => {
-                                                      const d = new Date(option.eventDate);
-                                                      return d.toISOString().split('T')[0];
+                                                      const utcDate = new Date(option.eventDate);
+                                                      const localDate = toZonedTime(utcDate, groupTz);
+                                                      const year = localDate.getFullYear();
+                                                      const month = String(localDate.getMonth() + 1).padStart(2, '0');
+                                                      const day = String(localDate.getDate()).padStart(2, '0');
+                                                      return `${year}-${month}-${day}`;
                                                     })()}
                                                     onChange={(e) => {
-                                                      const currentDate = new Date(option.eventDate);
-                                                      const newDate = new Date(e.target.value);
-                                                      newDate.setHours(currentDate.getHours(), currentDate.getMinutes(), 0, 0);
+                                                      const utcDate = new Date(option.eventDate);
+                                                      const localDate = toZonedTime(utcDate, groupTz);
+                                                      const [year, month, day] = e.target.value.split('-').map(Number);
+                                                      const newLocalDate = new Date(year, month - 1, day, localDate.getHours(), localDate.getMinutes(), 0, 0);
+                                                      const newUtcDate = fromZonedTime(newLocalDate, groupTz);
+                                                      
                                                       setAiTimeOptions(prev => prev.map(opt => 
                                                         opt.id === option.id 
                                                           ? {
                                                               ...opt,
-                                                              eventDate: newDate.toISOString(),
-                                                              dayLabel: newDate.toLocaleDateString('en-US', { 
+                                                              eventDate: newUtcDate.toISOString(),
+                                                              dayLabel: toZonedTime(newUtcDate, groupTz).toLocaleDateString('en-US', { 
                                                                 weekday: 'short', 
                                                                 month: 'short', 
-                                                                day: 'numeric' 
+                                                                day: 'numeric',
+                                                                timeZone: groupTz
                                                               }),
                                                             }
                                                           : opt
@@ -4210,24 +4330,36 @@ export default function GroupDetail() {
                                                   <Input
                                                     type="time"
                                                     value={(() => {
-                                                      const d = new Date(option.eventDate);
-                                                      const hours = String(d.getUTCHours()).padStart(2, '0');
-                                                      const minutes = String(d.getUTCMinutes()).padStart(2, '0');
+                                                      const utcDate = new Date(option.eventDate);
+                                                      const localDate = toZonedTime(utcDate, groupTz);
+                                                      const hours = String(localDate.getHours()).padStart(2, '0');
+                                                      const minutes = String(localDate.getMinutes()).padStart(2, '0');
                                                       return `${hours}:${minutes}`;
                                                     })()}
                                                     onChange={(e) => {
-                                                      const currentDate = new Date(option.eventDate);
+                                                      const utcDate = new Date(option.eventDate);
+                                                      const localDate = toZonedTime(utcDate, groupTz);
                                                       const [hours, minutes] = e.target.value.split(':').map(Number);
-                                                      const newDate = new Date(currentDate);
-                                                      newDate.setUTCHours(hours, minutes, 0, 0);
+                                                      const newLocalDate = new Date(
+                                                        localDate.getFullYear(),
+                                                        localDate.getMonth(),
+                                                        localDate.getDate(),
+                                                        hours,
+                                                        minutes,
+                                                        0,
+                                                        0
+                                                      );
+                                                      const newUtcDate = fromZonedTime(newLocalDate, groupTz);
+                                                      
                                                       setAiTimeOptions(prev => prev.map(opt => 
                                                         opt.id === option.id 
                                                           ? {
                                                               ...opt,
-                                                              eventDate: newDate.toISOString(),
-                                                              timeLabel: newDate.toLocaleTimeString('en-US', { 
+                                                              eventDate: newUtcDate.toISOString(),
+                                                              timeLabel: toZonedTime(newUtcDate, groupTz).toLocaleTimeString('en-US', { 
                                                                 hour: 'numeric', 
-                                                                minute: '2-digit' 
+                                                                minute: '2-digit',
+                                                                timeZone: groupTz
                                                               }),
                                                             }
                                                           : opt
@@ -4291,7 +4423,8 @@ export default function GroupDetail() {
                                                 </div>
                                               )}
                                             </div>
-                                          ))}
+                                          );
+                                          })}
                                         </div>
                                         {selectedTimeOptionIds.length > 0 && (
                                           <p className="text-sm text-muted-foreground">
