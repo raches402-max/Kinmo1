@@ -530,7 +530,10 @@ export class DatabaseStorage implements IStorage {
     const foundItineraries = await db
       .select()
       .from(itineraries)
-      .where(eq(itineraries.groupId, groupId))
+      .where(and(
+        eq(itineraries.groupId, groupId),
+        eq(itineraries.isSaved, false)
+      ))
       .orderBy(desc(itineraries.createdAt));
 
     const result = [];
