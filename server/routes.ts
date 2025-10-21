@@ -1126,6 +1126,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           
           console.log(`[Category Regen] Rejecting ${suggestion.venueName} - no Google Places results found`);
+          // Track rejected venue to prevent AI from suggesting it again
+          await storage.addRejectedVenue(req.params.id, suggestion.venueName);
           return null;
         })
       );
@@ -2624,6 +2626,8 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
           } else {
             // Reject suggestions with no Google Places results
             console.log(`[AI Generation] Rejecting ${suggestion.venueName} - no Google Places results found`);
+            // Track rejected venue to prevent AI from suggesting it again
+            await storage.addRejectedVenue(groupId, suggestion.venueName);
             return null;
           }
           })
