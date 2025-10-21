@@ -3527,7 +3527,7 @@ export default function GroupDetail() {
                       <div>
                         <CardTitle className="flex items-center gap-2">
                           <CheckCircle2 className="h-5 w-5 text-primary" />
-                          Your Evening Itinerary
+                          Your Itinerary
                         </CardTitle>
                         <CardDescription className="mt-1">
                           AI has organized your selections - drag to reorder
