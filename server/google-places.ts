@@ -6,6 +6,35 @@ export interface GeocodeResult {
   latitude: number;
   longitude: number;
   formattedAddress: string;
+  timezone?: string;
+}
+
+export async function getTimezoneForLocation(lat: number, lng: number): Promise<string | null> {
+  try {
+    if (!process.env.GOOGLE_PLACES_API_KEY) {
+      throw new Error("GOOGLE_PLACES_API_KEY is not set");
+    }
+
+    const timestamp = Math.floor(Date.now() / 1000);
+
+    const response = await client.timezone({
+      params: {
+        location: { lat, lng },
+        timestamp,
+        key: process.env.GOOGLE_PLACES_API_KEY,
+      },
+    });
+
+    if (response.data.status === "OK" && response.data.timeZoneId) {
+      return response.data.timeZoneId;
+    }
+
+    console.error(`Timezone lookup failed for coordinates: ${lat}, ${lng}. Status: ${response.data.status}`);
+    return null;
+  } catch (error) {
+    console.error("Error looking up timezone:", error);
+    return null;
+  }
 }
 
 export async function geocodeLocation(location: string): Promise<GeocodeResult | null> {
@@ -29,10 +58,14 @@ export async function geocodeLocation(location: string): Promise<GeocodeResult |
     const result = response.data.results[0];
     const { lat, lng } = result.geometry.location;
 
+    // Fetch timezone for the coordinates
+    const timezone = await getTimezoneForLocation(lat, lng);
+
     return {
       latitude: lat,
       longitude: lng,
       formattedAddress: result.formatted_address,
+      timezone: timezone || undefined,
     };
   } catch (error) {
     console.error("Error geocoding location:", error);

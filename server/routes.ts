@@ -124,12 +124,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate group data
       const validatedGroup = insertGroupSchema.parse(groupData);
 
-      // Geocode location to get coordinates
+      // Geocode location to get coordinates and timezone
       const geocoded = await geocodeLocation(validatedGroup.locationBase);
       if (geocoded) {
         validatedGroup.latitude = geocoded.latitude.toString();
         validatedGroup.longitude = geocoded.longitude.toString();
-        console.log(`Geocoded location: ${validatedGroup.locationBase} -> (${geocoded.latitude}, ${geocoded.longitude})`);
+        validatedGroup.timezone = geocoded.timezone;
+        console.log(`Geocoded location: ${validatedGroup.locationBase} -> (${geocoded.latitude}, ${geocoded.longitude}) timezone: ${geocoded.timezone}`);
       } else {
         console.warn(`Failed to geocode location: ${validatedGroup.locationBase}`);
       }
@@ -177,8 +178,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (geocoded) {
           validatedUpdates.latitude = geocoded.latitude.toString();
           validatedUpdates.longitude = geocoded.longitude.toString();
+          validatedUpdates.timezone = geocoded.timezone;
           geocodingResult = 'success';
-          console.log(`Geocoded location update: ${validatedUpdates.locationBase} -> (${geocoded.latitude}, ${geocoded.longitude})`);
+          console.log(`Geocoded location update: ${validatedUpdates.locationBase} -> (${geocoded.latitude}, ${geocoded.longitude}) timezone: ${geocoded.timezone}`);
         } else {
           geocodingResult = 'failed';
           console.warn(`Failed to geocode location: ${validatedUpdates.locationBase}`);
@@ -2482,8 +2484,8 @@ Looking forward to planning great activities together!
       let skipped = 0;
 
       for (const group of groups) {
-        // Skip if already has coordinates
-        if (group.latitude && group.longitude) {
+        // Skip if already has coordinates and timezone
+        if (group.latitude && group.longitude && group.timezone) {
           skipped++;
           continue;
         }
@@ -2494,14 +2496,15 @@ Looking forward to planning great activities together!
           continue;
         }
 
-        // Geocode the location
+        // Geocode the location and get timezone
         const geocoded = await geocodeLocation(group.locationBase);
         if (geocoded) {
           await storage.updateGroup(group.id, {
             latitude: geocoded.latitude.toString(),
             longitude: geocoded.longitude.toString(),
+            timezone: geocoded.timezone,
           });
-          console.log(`Backfilled coordinates for group ${group.id}: ${group.locationBase} -> (${geocoded.latitude}, ${geocoded.longitude})`);
+          console.log(`Backfilled coordinates and timezone for group ${group.id}: ${group.locationBase} -> (${geocoded.latitude}, ${geocoded.longitude}) timezone: ${geocoded.timezone}`);
           backfilled++;
         } else {
           console.warn(`Failed to geocode location for group ${group.id}: ${group.locationBase}`);
