@@ -31,6 +31,7 @@ export interface IStorage {
   getAllGroups(): Promise<Group[]>;
   updateGroup(id: string, updates: UpdateGroup): Promise<Group>;
   updateGroupStatus(id: string, status: string, error?: string): Promise<void>;
+  addRejectedVenue(groupId: string, venueName: string): Promise<void>;
 
   // Members
   getGroupMembers(groupId: string): Promise<Member[]>;
@@ -221,6 +222,21 @@ export class DatabaseStorage implements IStorage {
         activityGenerationError: error || null
       })
       .where(eq(groups.id, id));
+  }
+
+  async addRejectedVenue(groupId: string, venueName: string): Promise<void> {
+    const group = await this.getGroup(groupId);
+    if (!group) return;
+
+    const existingRejected = group.rejectedVenues || [];
+    if (existingRejected.includes(venueName)) return; // Already blacklisted
+
+    await db
+      .update(groups)
+      .set({
+        rejectedVenues: [...existingRejected, venueName]
+      })
+      .where(eq(groups.id, groupId));
   }
 
   async markInvitationsSent(groupId: string): Promise<void> {
