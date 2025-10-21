@@ -35,6 +35,7 @@ export const groups = pgTable("groups", {
   locationBase: text("location_base").notNull(),
   latitude: text("latitude"), // Geocoded latitude from locationBase
   longitude: text("longitude"), // Geocoded longitude from locationBase
+  timezone: text("timezone"), // IANA timezone identifier (e.g., "America/New_York", "Europe/London")
   budgetMin: integer("budget_min").notNull(),
   budgetMax: integer("budget_max").notNull(),
   meetingFrequency: text("meeting_frequency").notNull(), // weekly, biweekly, monthly
