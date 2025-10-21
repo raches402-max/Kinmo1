@@ -1348,7 +1348,7 @@ export default function GroupDetail() {
       setAiTimeOptions(data.options);
       // Auto-select first option
       if (data.options.length > 0) {
-        setSelectedTimeOptionId(data.options[0].id);
+        setSelectedTimeOptionIds([data.options[0].id]);
       }
     },
     onError: (error: Error) => {
@@ -4048,7 +4048,7 @@ export default function GroupDetail() {
                         const itinerary = savedItineraries.find((i: any) => i.id === value);
                         setSelectedItineraryForScheduling(itinerary || null);
                         setAiTimeOptions([]);
-                        setSelectedTimeOptionId(null);
+                        setSelectedTimeOptionIds([]);
                       }}
                     >
                       <SelectTrigger id="select-itinerary" data-testid="select-itinerary">
@@ -4096,7 +4096,7 @@ export default function GroupDetail() {
                               onChange={() => {
                                 setScheduleMethod('manual');
                                 setAiTimeOptions([]);
-                                setSelectedTimeOptionId(null);
+                                setSelectedTimeOptionIds([]);
                               }}
                               className="mt-1"
                               data-testid="radio-manual-time"
