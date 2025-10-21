@@ -870,6 +870,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Cancel AI generation
+  app.post("/api/groups/:id/activities/cancel-generation", async (req, res) => {
+    try {
+      const group = await storage.getGroup(req.params.id);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      // Update status to failed with cancellation message
+      await storage.updateGroupStatus(req.params.id, "failed", "Generation cancelled by user");
+      
+      res.json({ success: true, message: "Activity generation cancelled" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Regenerate specific category
   app.post("/api/groups/:id/activities/regenerate-category", async (req, res) => {
     try {
@@ -2430,27 +2447,33 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       console.log(`[AI Generation] Attempt ${attempt}/${maxAttempts}: Need ${needed} more unique activities (have ${allUniqueActivities.length})`);
 
       // Generate AI suggestions with feedback and list of venues to avoid
+      // Add 60-second timeout to prevent infinite hanging
       const aiPromptStart = Date.now();
-      const suggestions = await generateActivitySuggestions({
-        locationBase: groupData.locationBase,
-        budgetMin: groupData.budgetMin,
-        budgetMax: groupData.budgetMax,
-        meetingFrequency: groupData.meetingFrequency,
-        availability: groupData.availability,
-        closenessLevel: groupData.closenessLevel,
-        noveltyPreference: groupData.noveltyPreference,
-        activityCategories: groupData.activityCategories,
-        pastPreferences: groupData.pastPreferences,
-        additionalInstructions: groupData.additionalInstructions,
-        searchRadius: groupData.searchRadius, // Pass search radius to AI
-        previousFeedback: previousFeedback.length > 0 ? previousFeedback : undefined,
-        votingFeedback: votingFeedback.length > 0 ? votingFeedback : undefined,
-        likedConcepts: likedConcepts.length > 0 ? likedConcepts : undefined,
-        passedConcepts: passedConcepts.length > 0 ? passedConcepts : undefined,
-        previouslySuggestedVenues: previouslySuggestedVenues.length > 0 ? previouslySuggestedVenues : undefined,
-        targetCategories: targetCategories, // Pass underrepresented categories on retry
-        memberConstraints: memberConstraints.length > 0 ? memberConstraints : undefined, // Pass member RSVP constraints
-      });
+      const suggestions = await Promise.race([
+        generateActivitySuggestions({
+          locationBase: groupData.locationBase,
+          budgetMin: groupData.budgetMin,
+          budgetMax: groupData.budgetMax,
+          meetingFrequency: groupData.meetingFrequency,
+          availability: groupData.availability,
+          closenessLevel: groupData.closenessLevel,
+          noveltyPreference: groupData.noveltyPreference,
+          activityCategories: groupData.activityCategories,
+          pastPreferences: groupData.pastPreferences,
+          additionalInstructions: groupData.additionalInstructions,
+          searchRadius: groupData.searchRadius, // Pass search radius to AI
+          previousFeedback: previousFeedback.length > 0 ? previousFeedback : undefined,
+          votingFeedback: votingFeedback.length > 0 ? votingFeedback : undefined,
+          likedConcepts: likedConcepts.length > 0 ? likedConcepts : undefined,
+          passedConcepts: passedConcepts.length > 0 ? passedConcepts : undefined,
+          previouslySuggestedVenues: previouslySuggestedVenues.length > 0 ? previouslySuggestedVenues : undefined,
+          targetCategories: targetCategories, // Pass underrepresented categories on retry
+          memberConstraints: memberConstraints.length > 0 ? memberConstraints : undefined, // Pass member RSVP constraints
+        }),
+        new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('AI generation timed out after 60 seconds')), 60000)
+        )
+      ]);
 
       const aiPromptEnd = Date.now();
       console.log(`[AI Generation] Attempt ${attempt}: AI prompt took ${((aiPromptEnd - aiPromptStart) / 1000).toFixed(1)}s`);

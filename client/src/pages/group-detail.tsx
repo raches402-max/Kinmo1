@@ -436,6 +436,7 @@ export default function GroupDetail() {
   const [sendBackupOpen, setSendBackupOpen] = useState(false);
   const [backupForItineraryId, setBackupForItineraryId] = useState<string | null>(null);
   const [selectedBackupId, setSelectedBackupId] = useState<string | null>(null);
+  const [generationStartTime, setGenerationStartTime] = useState<number | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -552,9 +553,50 @@ export default function GroupDetail() {
         (prevStatusRef.current === "generating" || prevStatusRef.current === "pending")) {
       // Generation just completed - force refetch activities to show results immediately
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "activities"] });
+      setGenerationStartTime(null);
     }
     prevStatusRef.current = group?.activityGenerationStatus;
   }, [group?.activityGenerationStatus, groupId]);
+
+  // Track when generation starts and enforce 60-second timeout
+  useEffect(() => {
+    const status = group?.activityGenerationStatus;
+    
+    // Start timer when generation begins
+    if ((status === "pending" || status === "generating") && !generationStartTime) {
+      setGenerationStartTime(Date.now());
+    }
+    
+    // Clear timer when generation completes or fails
+    if (status === "completed" || status === "failed") {
+      setGenerationStartTime(null);
+    }
+    
+    // Check for timeout every second while generating
+    if (generationStartTime && (status === "pending" || status === "generating")) {
+      const checkTimeout = setInterval(() => {
+        const elapsed = Date.now() - generationStartTime;
+        if (elapsed > 60000) {
+          // 60 seconds elapsed - force status to failed
+          console.warn("AI generation timed out after 60 seconds");
+          setGenerationStartTime(null);
+          toast({
+            title: "Generation timed out",
+            description: "AI generation took too long. Please try again.",
+            variant: "destructive",
+          });
+          // Stop polling by invalidating
+          queryClient.setQueryData(["/api/groups", groupId], (old: any) => ({
+            ...old,
+            activityGenerationStatus: "failed",
+            activityGenerationError: "Generation timed out after 60 seconds"
+          }));
+        }
+      }, 1000);
+      
+      return () => clearInterval(checkTimeout);
+    }
+  }, [group?.activityGenerationStatus, generationStartTime, groupId, toast]);
 
   // Debounce venue search query
   useEffect(() => {
@@ -657,6 +699,27 @@ export default function GroupDetail() {
     onError: (error: Error) => {
       toast({
         title: "Error retrying",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const cancelGenerationMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("POST", `/api/groups/${groupId}/activities/cancel-generation`, {});
+    },
+    onSuccess: () => {
+      toast({
+        title: "Generation cancelled",
+        description: "Activity generation has been stopped.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "activities"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error cancelling",
         description: error.message,
         variant: "destructive",
       });
@@ -2237,9 +2300,19 @@ export default function GroupDetail() {
                       <h3 className="text-lg font-semibold mb-2">
                         AI is generating your suggestions...
                       </h3>
-                      <p className="text-sm text-muted-foreground mb-6">
+                      <p className="text-sm text-muted-foreground mb-4">
                         This usually takes 10-20 seconds
                       </p>
+                      <Button
+                        onClick={() => cancelGenerationMutation.mutate()}
+                        variant="outline"
+                        size="sm"
+                        disabled={cancelGenerationMutation.isPending}
+                        data-testid="button-cancel-generation"
+                        className="mb-6"
+                      >
+                        {cancelGenerationMutation.isPending ? "Cancelling..." : "Cancel Generation"}
+                      </Button>
                       
                       {/* Roadmap */}
                       <div className="max-w-2xl mx-auto mt-6">
