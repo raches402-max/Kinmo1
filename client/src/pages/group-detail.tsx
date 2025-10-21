@@ -437,6 +437,11 @@ export default function GroupDetail() {
   const [backupForItineraryId, setBackupForItineraryId] = useState<string | null>(null);
   const [selectedBackupId, setSelectedBackupId] = useState<string | null>(null);
   const [generationStartTime, setGenerationStartTime] = useState<number | null>(null);
+  const [editAvailabilityOpen, setEditAvailabilityOpen] = useState(false);
+  const [editAvailabilityData, setEditAvailabilityData] = useState(createEmptyAvailability());
+  const [editAvailabilityNotes, setEditAvailabilityNotes] = useState("");
+  const [editMeetingFreqNumber, setEditMeetingFreqNumber] = useState(1);
+  const [editMeetingFreqUnit, setEditMeetingFreqUnit] = useState("weeks");
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -3727,8 +3732,52 @@ export default function GroupDetail() {
               {/* Group Availability Reminder */}
               <Card data-testid="card-availability-reminder">
                 <CardHeader>
-                  <CardTitle className="text-lg">Group Availability</CardTitle>
-                  <CardDescription>Quick reference for scheduling</CardDescription>
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex-1">
+                      <CardTitle className="text-lg">Group Availability</CardTitle>
+                      <CardDescription>Quick reference for scheduling</CardDescription>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        // Initialize dialog with current values
+                        if (group?.availability) {
+                          setEditAvailabilityData(group.availability as any);
+                        }
+                        if (group?.generalAvailability) {
+                          setEditAvailabilityNotes(group.generalAvailability);
+                        }
+                        if (group?.meetingFrequency) {
+                          const freq = group.meetingFrequency;
+                          // Handle new format (e.g., "2-week")
+                          if (freq.includes("-")) {
+                            const [num, unit] = freq.split("-");
+                            setEditMeetingFreqNumber(parseInt(num));
+                            setEditMeetingFreqUnit(unit.endsWith("s") ? unit : unit + "s");
+                          }
+                          // Handle legacy formats
+                          else if (freq === "weekly") {
+                            setEditMeetingFreqNumber(1);
+                            setEditMeetingFreqUnit("weeks");
+                          } else if (freq === "biweekly") {
+                            setEditMeetingFreqNumber(2);
+                            setEditMeetingFreqUnit("weeks");
+                          } else if (freq === "monthly") {
+                            setEditMeetingFreqNumber(1);
+                            setEditMeetingFreqUnit("months");
+                          } else if (freq === "flexible") {
+                            setEditMeetingFreqNumber(1);
+                            setEditMeetingFreqUnit("months");
+                          }
+                        }
+                        setEditAvailabilityOpen(true);
+                      }}
+                      data-testid="button-edit-availability"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-4">
@@ -4825,6 +4874,95 @@ export default function GroupDetail() {
               data-testid="button-confirm-backup"
             >
               {sendBackupMutation.isPending ? "Sending..." : "Send Backup"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Availability Dialog */}
+      <Dialog open={editAvailabilityOpen} onOpenChange={setEditAvailabilityOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="dialog-edit-availability">
+          <DialogHeader>
+            <DialogTitle>Edit Group Availability</DialogTitle>
+            <DialogDescription>
+              Update when the group is typically free to meet
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6">
+            {/* Availability Grid */}
+            <div className="space-y-3">
+              <Label>When is the group free?</Label>
+              <AvailabilityGrid 
+                value={editAvailabilityData} 
+                onChange={setEditAvailabilityData}
+              />
+            </div>
+
+            {/* Meeting Frequency */}
+            <div className="space-y-3">
+              <Label>Meeting Frequency</Label>
+              <div className="flex gap-2 items-center">
+                <Input
+                  type="number"
+                  min="1"
+                  value={editMeetingFreqNumber}
+                  onChange={(e) => setEditMeetingFreqNumber(parseInt(e.target.value) || 1)}
+                  className="w-20"
+                  data-testid="input-frequency-number"
+                />
+                <Select
+                  value={editMeetingFreqUnit}
+                  onValueChange={setEditMeetingFreqUnit}
+                >
+                  <SelectTrigger className="flex-1" data-testid="select-frequency-unit">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="days">days</SelectItem>
+                    <SelectItem value="weeks">weeks</SelectItem>
+                    <SelectItem value="months">months</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Additional Notes */}
+            <div className="space-y-3">
+              <Label htmlFor="edit-availability-notes">Additional Notes (Optional)</Label>
+              <Input
+                id="edit-availability-notes"
+                value={editAvailabilityNotes}
+                onChange={(e) => setEditAvailabilityNotes(e.target.value)}
+                placeholder="e.g., Prefer evenings after 6pm"
+                data-testid="input-availability-notes"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditAvailabilityOpen(false)}
+              data-testid="button-cancel-edit-availability"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                const meetingFrequency = `${editMeetingFreqNumber}-${editMeetingFreqUnit.replace(/s$/, '')}`;
+                updateGroupMutation.mutate({
+                  updates: {
+                    availability: editAvailabilityData,
+                    generalAvailability: editAvailabilityNotes.trim() || null,
+                    meetingFrequency
+                  },
+                  newMembers: []
+                });
+                setEditAvailabilityOpen(false);
+              }}
+              disabled={updateGroupMutation.isPending}
+              data-testid="button-save-availability"
+            >
+              {updateGroupMutation.isPending ? "Saving..." : "Save Changes"}
             </Button>
           </DialogFooter>
         </DialogContent>
