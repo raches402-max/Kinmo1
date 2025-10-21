@@ -2458,8 +2458,11 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       const needed = 15 - allUniqueActivities.length;
       console.log(`[AI Generation] Attempt ${attempt}/${maxAttempts}: Need ${needed} more unique activities (have ${allUniqueActivities.length})`);
 
+      // Update progress in database so frontend can display it
+      await storage.updateGroupStatus(groupId, "generating", `Generating suggestions (attempt ${attempt} of ${maxAttempts})`);
+
       // Generate AI suggestions with feedback and list of venues to avoid
-      // Add 60-second timeout to prevent infinite hanging
+      // Add 120-second timeout to prevent infinite hanging
       const aiPromptStart = Date.now();
       const suggestions = await Promise.race([
         generateActivitySuggestions({

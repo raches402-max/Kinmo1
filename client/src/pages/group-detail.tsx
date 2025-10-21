@@ -2300,8 +2300,13 @@ export default function GroupDetail() {
                       <h3 className="text-lg font-semibold mb-2">
                         AI is generating your suggestions...
                       </h3>
+                      {group.activityGenerationError && (
+                        <p className="text-sm text-primary mb-2" data-testid="text-generation-progress">
+                          {group.activityGenerationError}
+                        </p>
+                      )}
                       <p className="text-sm text-muted-foreground mb-4">
-                        This usually takes 10-20 seconds
+                        This usually takes 30-90 seconds
                       </p>
                       <Button
                         onClick={() => cancelGenerationMutation.mutate()}
