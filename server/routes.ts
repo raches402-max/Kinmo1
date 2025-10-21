@@ -1617,6 +1617,52 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Get nearby suggestions for a specific venue by lat/lng
+  app.post("/api/groups/:groupId/venue-nearby-suggestions", async (req, res) => {
+    try {
+      const { lat, lng, placeId, excludePlaceIds } = req.body;
+      const { groupId } = req.params;
+
+      if (lat === undefined || lat === null || lng === undefined || lng === null) {
+        return res.json({ suggestions: [] });
+      }
+
+      const location = { lat: parseFloat(lat), lng: parseFloat(lng) };
+      const excludeIds = new Set([placeId, ...(excludePlaceIds || [])]);
+
+      // Search for various types of nearby venues
+      const searchQueries = ['restaurant', 'cafe', 'bar', 'dessert', 'ice cream'];
+      const allNearbyPlaces = await Promise.all(
+        searchQueries.map(query => 
+          searchNearbyPlaces(query, location, 805, 4.0) // 0.5 miles = 805 meters, 4.0+ rating
+        )
+      );
+
+      // Flatten and deduplicate
+      const uniquePlaces = new Map();
+      allNearbyPlaces.flat().forEach(place => {
+        if (excludeIds.has(place.placeId)) return;
+        if (!uniquePlaces.has(place.placeId)) {
+          uniquePlaces.set(place.placeId, place);
+        }
+      });
+
+      // Take top 3 suggestions by rating
+      const suggestions = Array.from(uniquePlaces.values())
+        .sort((a, b) => {
+          const ratingA = parseFloat(a.rating || '0');
+          const ratingB = parseFloat(b.rating || '0');
+          return ratingB - ratingA;
+        })
+        .slice(0, 3);
+
+      res.json({ suggestions });
+    } catch (error: any) {
+      console.error("Error fetching venue nearby suggestions:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Search for venues by query string
   app.get("/api/groups/:groupId/search-venues", async (req, res) => {
     try {

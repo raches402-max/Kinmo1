@@ -17,7 +17,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, ChevronRight, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell, Edit2 } from "lucide-react";
+import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, ChevronRight, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell, Edit2, Compass } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -305,7 +305,7 @@ function ItineraryDisplay({ itinerary, groupId }: { itinerary: any; groupId: str
   );
 }
 
-function SortableCartVenue({ id, index, venueName, venueType, photoUrl, onRemove, distanceToNext }: {
+function SortableCartVenue({ id, index, venueName, venueType, photoUrl, onRemove, distanceToNext, lat, lng, placeId, groupId, expandedNearbyId, onToggleNearby, nearbySuggestions, onAddNearby, addVenueLoading, selectedVenueIds }: {
   id: string;
   index: number;
   venueName: string;
@@ -313,6 +313,16 @@ function SortableCartVenue({ id, index, venueName, venueType, photoUrl, onRemove
   photoUrl: string;
   onRemove: () => void;
   distanceToNext?: { distance: number; category: 'close' | 'moderate' | 'far' } | null;
+  lat?: number;
+  lng?: number;
+  placeId?: string;
+  groupId?: string;
+  expandedNearbyId: string | null;
+  onToggleNearby: (venueId: string, lat?: number, lng?: number, placeId?: string) => void;
+  nearbySuggestions?: any[];
+  onAddNearby: (suggestion: any) => void;
+  addVenueLoading: boolean;
+  selectedVenueIds: string[];
 }) {
   const {
     attributes,
@@ -328,6 +338,9 @@ function SortableCartVenue({ id, index, venueName, venueType, photoUrl, onRemove
     transition,
     opacity: isDragging ? 0.5 : 1,
   };
+  
+  const isExpanded = expandedNearbyId === id;
+  const [loadingNearby, setLoadingNearby] = useState(false);
 
   return (
     <div>
@@ -355,6 +368,17 @@ function SortableCartVenue({ id, index, venueName, venueType, photoUrl, onRemove
             <p className="text-xs text-muted-foreground truncate">{venueType}</p>
           )}
         </div>
+        {lat && lng && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onToggleNearby(id, lat, lng, placeId)}
+            className="h-7 w-7 p-0 flex-shrink-0"
+            data-testid={`button-nearby-${id}`}
+          >
+            <Compass className={`h-4 w-4 ${isExpanded ? 'text-primary' : ''}`} />
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="sm"
@@ -365,6 +389,48 @@ function SortableCartVenue({ id, index, venueName, venueType, photoUrl, onRemove
           <X className="h-4 w-4" />
         </Button>
       </div>
+      
+      {/* Nearby suggestions inline expansion */}
+      {isExpanded && nearbySuggestions && nearbySuggestions.length > 0 && (
+        <div className="mt-2 ml-8 space-y-2 p-2 rounded-md bg-background/50 border">
+          <p className="text-xs text-muted-foreground mb-2">Within 0.5 miles:</p>
+          {nearbySuggestions.map((suggestion) => {
+            const alreadyAdded = selectedVenueIds.includes(suggestion.placeId);
+            return (
+              <button
+                key={suggestion.placeId}
+                onClick={() => onAddNearby(suggestion)}
+                disabled={alreadyAdded || addVenueLoading}
+                className={`flex gap-2 p-2 rounded-md border text-left w-full transition-all hover-elevate ${
+                  alreadyAdded || addVenueLoading ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+                data-testid={`nearby-suggestion-${suggestion.placeId}`}
+              >
+                {suggestion.photoUrl && (
+                  <img 
+                    src={suggestion.photoUrl} 
+                    alt={suggestion.name}
+                    className="w-12 h-12 rounded object-cover flex-shrink-0"
+                  />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium truncate">{suggestion.name}</p>
+                  {suggestion.rating && (
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <Star className="h-2.5 w-2.5 fill-yellow-400 text-yellow-400" />
+                      <span className="text-xs font-medium">{suggestion.rating}</span>
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground truncate mt-0.5">
+                    {suggestion.address}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      
       {distanceToNext && (
         <div className="flex items-center justify-center py-1">
           <div className={`text-xs font-medium ${
@@ -450,6 +516,8 @@ export default function GroupDetail() {
   const [editItineraryItems, setEditItineraryItems] = useState<any[]>([]);
   const [addVenueDialogOpen, setAddVenueDialogOpen] = useState(false);
   const [venuesToAdd, setVenuesToAdd] = useState<Array<{sourceType: 'activity' | 'voting_event', sourceId: string}>>([]);
+  const [expandedNearbyVenueId, setExpandedNearbyVenueId] = useState<string | null>(null);
+  const [venueNearbySuggestions, setVenueNearbySuggestions] = useState<Record<string, any[]>>({});
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -963,6 +1031,76 @@ export default function GroupDetail() {
         }
         return [...prev, { sourceType, sourceId }];
       }
+    });
+  };
+
+  // Handle nearby suggestions toggle
+  const handleToggleNearby = async (venueId: string, lat?: number, lng?: number, placeId?: string) => {
+    if (expandedNearbyVenueId === venueId) {
+      // Collapse if already expanded
+      setExpandedNearbyVenueId(null);
+      return;
+    }
+    
+    if (!lat || !lng || !groupId) return;
+    
+    // Expand and fetch suggestions
+    setExpandedNearbyVenueId(venueId);
+    
+    // Check if we already have suggestions for this venue
+    if (venueNearbySuggestions[venueId]) {
+      return; // Already fetched
+    }
+    
+    try {
+      // Get all selected place IDs to exclude from suggestions
+      const excludePlaceIds = selectedVenues.map(v => {
+        if (v.sourceType === 'activity') {
+          const activity = activities.find(a => a.id === v.sourceId);
+          return activity?.googlePlaceId;
+        } else {
+          const event = votingEvents.find(e => e.id === v.sourceId);
+          return event?.googlePlaceId;
+        }
+      }).filter(Boolean);
+      
+      const response = await apiRequest("POST", `/api/groups/${groupId}/venue-nearby-suggestions`, {
+        lat,
+        lng,
+        placeId,
+        excludePlaceIds,
+      });
+      
+      setVenueNearbySuggestions(prev => ({
+        ...prev,
+        [venueId]: response.suggestions || []
+      }));
+    } catch (error) {
+      console.error('Error fetching nearby suggestions:', error);
+      toast({
+        title: "Error",
+        description: "Could not fetch nearby suggestions",
+        variant: "destructive"
+      });
+    }
+  };
+  
+  // Handle adding a nearby suggestion to cart
+  const handleAddNearby = (suggestion: any) => {
+    if (selectedVenues.length >= 5) {
+      toast({
+        title: "Maximum reached",
+        description: "You can select up to 5 venues",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    addVotingEventMutation.mutate({
+      title: suggestion.name,
+      venueType: suggestion.types?.[0] || 'venue',
+      venueAddress: suggestion.address,
+      googlePlaceId: suggestion.placeId,
     });
   };
 
@@ -2833,6 +2971,7 @@ export default function GroupDetail() {
                             let venueType = '';
                             let photoUrl = '';
                             let lat = 0, lng = 0;
+                            let placeId = '';
                             
                             if (venue.sourceType === 'activity') {
                               const activity = activities.find(a => a.id === venue.sourceId);
@@ -2841,6 +2980,7 @@ export default function GroupDetail() {
                               photoUrl = activity?.photoUrl || '';
                               lat = parseFloat(activity?.latitude || '0');
                               lng = parseFloat(activity?.longitude || '0');
+                              placeId = activity?.googlePlaceId || '';
                             } else {
                               const event = votingEvents.find(e => e.id === venue.sourceId);
                               venueName = event?.title || 'Unknown';
@@ -2848,6 +2988,7 @@ export default function GroupDetail() {
                               photoUrl = event?.photoUrl || '';
                               lat = parseFloat(event?.latitude || '0');
                               lng = parseFloat(event?.longitude || '0');
+                              placeId = event?.googlePlaceId || '';
                             }
                             
                             // Calculate distance to next venue
@@ -2874,6 +3015,15 @@ export default function GroupDetail() {
                                 };
                               }
                             }
+                            
+                            // Get all selected place IDs for checking if a suggestion is already selected
+                            const selectedVenueIds = selectedVenues.map(v => {
+                              if (v.sourceType === 'activity') {
+                                return activities.find(a => a.id === v.sourceId)?.googlePlaceId;
+                              } else {
+                                return votingEvents.find(e => e.id === v.sourceId)?.googlePlaceId;
+                              }
+                            }).filter(Boolean) as string[];
 
                             return (
                               <SortableCartVenue
@@ -2885,6 +3035,16 @@ export default function GroupDetail() {
                                 photoUrl={photoUrl}
                                 onRemove={() => toggleVenueSelection(venue.sourceType, venue.sourceId)}
                                 distanceToNext={distanceToNext}
+                                lat={lat}
+                                lng={lng}
+                                placeId={placeId}
+                                groupId={groupId}
+                                expandedNearbyId={expandedNearbyVenueId}
+                                onToggleNearby={handleToggleNearby}
+                                nearbySuggestions={venueNearbySuggestions[venueId]}
+                                onAddNearby={handleAddNearby}
+                                addVenueLoading={addVotingEventMutation.isPending}
+                                selectedVenueIds={selectedVenueIds}
                               />
                             );
                           })}
@@ -3622,13 +3782,21 @@ export default function GroupDetail() {
                 }
 
                 return (
-                  <div className="mt-8 pt-8 border-t">
-                    <div className="mb-4">
-                      <h3 className="text-base font-medium text-muted-foreground mb-1">{contextualMessage}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        High-rated spots within 0.5 miles
-                      </p>
-                    </div>
+                  <Card className="mt-8 border-2 border-primary/20 bg-primary/5" data-testid="enhanced-nearby-suggestions">
+                    <CardHeader className="pb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                          <Compass className="h-5 w-5 text-primary" />
+                        </div>
+                        <div className="flex-1">
+                          <CardTitle className="text-lg">{contextualMessage}</CardTitle>
+                          <CardDescription>
+                            High-rated spots within 0.5 miles • Click to add to your itinerary
+                          </CardDescription>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="pt-0">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       {nearbySuggestions.map((suggestion: any) => {
                         const alreadySelected = activities.some(a => a.googlePlaceId === suggestion.placeId) ||
@@ -3685,7 +3853,8 @@ export default function GroupDetail() {
                         );
                       })}
                     </div>
-                  </div>
+                    </CardContent>
+                  </Card>
                 );
               })()}
 
