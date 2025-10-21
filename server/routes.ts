@@ -1692,6 +1692,46 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Update itinerary (for editing saved itineraries)
+  app.patch("/api/itineraries/:id", isAuthenticated, async (req, res) => {
+    try {
+      const updates = req.body;
+      const itineraryId = req.params.id;
+      
+      // If proposedOrder is being updated, handle item deletion and reordering
+      if (updates.proposedOrder) {
+        const currentItinerary = await storage.getItinerary(itineraryId);
+        if (currentItinerary) {
+          const newSourceIds = new Set(updates.proposedOrder);
+          const itemsToDelete = currentItinerary.items.filter(
+            (item: any) => !newSourceIds.has(item.sourceId)
+          );
+          
+          // Delete items that are no longer in the proposed order
+          for (const item of itemsToDelete) {
+            await storage.deleteItineraryItem(item.id);
+          }
+          
+          // Map sourceIds to item IDs for ordering
+          const sourceIdToItemId = new Map(
+            currentItinerary.items.map((item: any) => [item.sourceId, item.id])
+          );
+          const orderedItemIds = updates.proposedOrder
+            .map((sourceId: string) => sourceIdToItemId.get(sourceId))
+            .filter((id: string | undefined) => id !== undefined);
+          
+          // Update the order indices
+          await storage.updateItineraryItemOrder(itineraryId, orderedItemIds);
+        }
+      }
+      
+      const itinerary = await storage.updateItinerary(itineraryId, updates);
+      res.json(itinerary);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Update itinerary item order
   app.patch("/api/itineraries/:id/order", isAuthenticated, async (req, res) => {
     try {

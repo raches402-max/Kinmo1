@@ -442,6 +442,10 @@ export default function GroupDetail() {
   const [editAvailabilityNotes, setEditAvailabilityNotes] = useState("");
   const [editMeetingFreqNumber, setEditMeetingFreqNumber] = useState(1);
   const [editMeetingFreqUnit, setEditMeetingFreqUnit] = useState("weeks");
+  const [editItineraryOpen, setEditItineraryOpen] = useState(false);
+  const [editingItinerary, setEditingItinerary] = useState<any | null>(null);
+  const [editItineraryName, setEditItineraryName] = useState("");
+  const [editItineraryItems, setEditItineraryItems] = useState<any[]>([]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -1139,6 +1143,28 @@ export default function GroupDetail() {
     onError: (error: Error) => {
       toast({
         title: "Error deleting plan",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateItineraryMutation = useMutation({
+    mutationFn: async ({ itineraryId, updates }: { itineraryId: string; updates: any }) => {
+      return await apiRequest("PATCH", `/api/itineraries/${itineraryId}`, updates);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "saved-itineraries"] });
+      setEditItineraryOpen(false);
+      setEditingItinerary(null);
+      toast({
+        title: "Plan updated",
+        description: "Your changes have been saved",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error updating plan",
         description: error.message,
         variant: "destructive",
       });
@@ -3671,11 +3697,10 @@ export default function GroupDetail() {
                                 variant="outline"
                                 size="sm"
                                 onClick={() => {
-                                  // TODO: Load itinerary back into cart for editing
-                                  toast({
-                                    title: "Edit feature coming soon",
-                                    description: "This will load the itinerary back into your cart",
-                                  });
+                                  setEditingItinerary(itinerary);
+                                  setEditItineraryName(itinerary.name || "");
+                                  setEditItineraryItems(itinerary.items || []);
+                                  setEditItineraryOpen(true);
                                 }}
                                 data-testid={`button-edit-itinerary-${itinerary.id}`}
                               >
@@ -4874,6 +4899,127 @@ export default function GroupDetail() {
               data-testid="button-confirm-backup"
             >
               {sendBackupMutation.isPending ? "Sending..." : "Send Backup"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Itinerary Dialog */}
+      <Dialog 
+        open={editItineraryOpen} 
+        onOpenChange={(open) => {
+          setEditItineraryOpen(open);
+          if (!open) {
+            setEditingItinerary(null);
+            setEditItineraryName("");
+            setEditItineraryItems([]);
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="dialog-edit-itinerary">
+          <DialogHeader>
+            <DialogTitle>Edit Plan</DialogTitle>
+            <DialogDescription>
+              Update the plan name and reorder or remove venues
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6">
+            {/* Name Input */}
+            <div className="space-y-3">
+              <Label htmlFor="edit-itinerary-name">Plan Name</Label>
+              <Input
+                id="edit-itinerary-name"
+                value={editItineraryName}
+                onChange={(e) => setEditItineraryName(e.target.value)}
+                placeholder="Enter plan name"
+                data-testid="input-edit-itinerary-name"
+              />
+            </div>
+
+            {/* Venues List */}
+            <div className="space-y-3">
+              <Label>Venues ({editItineraryItems.length})</Label>
+              {editItineraryItems.length === 0 ? (
+                <div className="text-center py-8 text-sm text-muted-foreground">
+                  No venues in this plan
+                </div>
+              ) : (
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={(event: DragEndEvent) => {
+                    const { active, over } = event;
+                    if (over && active.id !== over.id) {
+                      const oldIndex = editItineraryItems.findIndex((item: any) => item.id === active.id);
+                      const newIndex = editItineraryItems.findIndex((item: any) => item.id === over.id);
+                      const newItems = arrayMove(editItineraryItems, oldIndex, newIndex);
+                      setEditItineraryItems(newItems);
+                    }
+                  }}
+                >
+                  <SortableContext
+                    items={editItineraryItems.map((item: any) => item.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="space-y-2">
+                      {editItineraryItems.map((item: any, index: number) => (
+                        <SortableItineraryItem
+                          key={item.id}
+                          item={item}
+                          index={index}
+                          onRemove={() => {
+                            setEditItineraryItems(prev => prev.filter(i => i.id !== item.id));
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditItineraryOpen(false)}
+              data-testid="button-cancel-edit-itinerary"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (!editingItinerary) return;
+                if (!editItineraryName.trim()) {
+                  toast({
+                    title: "Name required",
+                    description: "Please enter a name for the plan",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                if (editItineraryItems.length === 0) {
+                  toast({
+                    title: "No venues",
+                    description: "Please add at least one venue to the plan",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                
+                // Prepare updates
+                const proposedOrder = editItineraryItems.map((item: any) => item.sourceId);
+                updateItineraryMutation.mutate({
+                  itineraryId: editingItinerary.id,
+                  updates: {
+                    name: editItineraryName.trim(),
+                    proposedOrder,
+                  },
+                });
+              }}
+              disabled={updateItineraryMutation.isPending || !editItineraryName.trim() || editItineraryItems.length === 0}
+              data-testid="button-save-edit-itinerary"
+            >
+              {updateItineraryMutation.isPending ? "Saving..." : "Save Changes"}
             </Button>
           </DialogFooter>
         </DialogContent>
