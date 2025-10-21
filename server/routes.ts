@@ -1969,9 +1969,10 @@ Looking forward to planning great activities together!
   });
 
   // Send an itinerary as a proposal to the group
-  app.post("/api/itineraries/:id/send", isAuthenticated, async (req, res) => {
+  app.post("/api/itineraries/:id/send", isAuthenticated, async (req: any, res) => {
     try {
-      const { isPrimary, eventDate, autoScheduleConfig } = req.body;
+      const { isPrimary, eventDate, eventDates, autoScheduleConfig } = req.body;
+      const userId = req.user.claims.sub;
       
       const itinerary = await storage.getItinerary(req.params.id);
       if (!itinerary) {
@@ -1981,6 +1982,40 @@ Looking forward to planning great activities together!
       const group = await storage.getGroup(itinerary.groupId);
       if (!group) {
         return res.status(404).json({ message: "Group not found" });
+      }
+
+      // Handle multiple event dates by creating separate proposed itineraries
+      if (eventDates && Array.isArray(eventDates) && eventDates.length > 1) {
+        const createdItineraries = [];
+        const itemsData = itinerary.items.map((item: ItineraryItem) => ({
+          sourceType: item.sourceType as 'activity' | 'voting_event',
+          sourceId: item.sourceId
+        }));
+
+        for (const dateStr of eventDates) {
+          const proposedCopy = await storage.createItinerary(
+            {
+              groupId: itinerary.groupId,
+              name: itinerary.name,
+              status: 'proposed',
+              isSaved: false,
+              eventDate: new Date(dateStr),
+              aiValidationNotes: itinerary.aiValidationNotes,
+              proposedOrder: itinerary.proposedOrder,
+            },
+            userId,
+            itemsData
+          );
+          
+          // Fetch the full itinerary with items to return complete data
+          const fullItinerary = await storage.getItinerary(proposedCopy.id);
+          createdItineraries.push(fullItinerary);
+        }
+
+        console.log(`[Send Itinerary] Created ${createdItineraries.length} proposed itineraries with items for multiple times`);
+        // Return the first itinerary to match frontend expectations
+        // Note: Email notifications are not sent for multi-date sends (MVP limitation)
+        return res.json(createdItineraries[0]);
       }
 
       const updates: UpdateItinerary = {

@@ -491,7 +491,7 @@ export default function GroupDetail() {
   const [timingRecommendations, setTimingRecommendations] = useState("");
   const [timingNotesOpen, setTimingNotesOpen] = useState(false);
   const [aiTimeOptions, setAiTimeOptions] = useState<Array<{ id: string; eventDate: string; dayLabel: string; timeLabel: string }>>([]);
-  const [selectedTimeOptionId, setSelectedTimeOptionId] = useState<string | null>(null);
+  const [selectedTimeOptionIds, setSelectedTimeOptionIds] = useState<string[]>([]);
   const [editingOptionId, setEditingOptionId] = useState<string | null>(null);
   const [aiTimeLoading, setAiTimeLoading] = useState(false);
   const [selectedItineraryForScheduling, setSelectedItineraryForScheduling] = useState<any | null>(null);
@@ -1361,22 +1361,13 @@ export default function GroupDetail() {
   });
 
   const sendItineraryMutation = useMutation({
-    mutationFn: async (params: { itineraryId: string; eventDate?: string; autoScheduleConfig?: any }) => {
+    mutationFn: async (params: { itineraryId: string; eventDate?: string; eventDates?: string[]; autoScheduleConfig?: any }) => {
       return await apiRequest("POST", `/api/itineraries/${params.itineraryId}/send`, params);
     },
     onSuccess: () => {
+      // Only invalidate queries - state reset happens in button click handler
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "saved-itineraries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "proposed-itineraries"] });
-      setAiTimeOptions([]);
-      setSelectedTimeOptionId(null);
-      setEventDate("");
-      setEventTime("19:00");
-      setSelectedItineraryForScheduling(null);
-      setScheduleMethod('ai');
-      toast({
-        title: "Plan sent to group",
-        description: "Members can now RSVP to your itinerary",
-      });
     },
     onError: (error: Error) => {
       toast({
@@ -4183,7 +4174,7 @@ export default function GroupDetail() {
                                   {aiTimeOptions.length > 0 && (
                                     <div className="space-y-3">
                                       <div className="space-y-2">
-                                        <p className="text-sm font-medium">Choose a time:</p>
+                                        <p className="text-sm font-medium">Select one or more times to send:</p>
                                         <div className="grid grid-cols-2 gap-2">
                                           {aiTimeOptions.map((option) => (
                                             <div key={option.id} className="relative">
@@ -4256,18 +4247,33 @@ export default function GroupDetail() {
                                                 </div>
                                               ) : (
                                                 <div
-                                                  onClick={() => setSelectedTimeOptionId(option.id)}
+                                                  onClick={() => {
+                                                    setSelectedTimeOptionIds(prev => 
+                                                      prev.includes(option.id)
+                                                        ? prev.filter(id => id !== option.id)
+                                                        : [...prev, option.id]
+                                                    );
+                                                  }}
                                                   className={`w-full p-3 rounded-lg border-2 cursor-pointer text-left transition-colors ${
-                                                    selectedTimeOptionId === option.id
+                                                    selectedTimeOptionIds.includes(option.id)
                                                       ? 'border-primary bg-primary/5'
                                                       : 'border-border hover-elevate'
                                                   }`}
                                                   data-testid={`time-option-${option.id}`}
                                                 >
                                                   <div className="flex items-start justify-between gap-2">
-                                                    <div className="flex-1">
-                                                      <p className="font-medium text-sm">{option.dayLabel}</p>
-                                                      <p className="text-sm text-muted-foreground">{option.timeLabel}</p>
+                                                    <div className="flex items-start gap-2 flex-1">
+                                                      <input
+                                                        type="checkbox"
+                                                        checked={selectedTimeOptionIds.includes(option.id)}
+                                                        onChange={() => {}}
+                                                        className="mt-0.5"
+                                                        data-testid={`checkbox-time-${option.id}`}
+                                                      />
+                                                      <div className="flex-1">
+                                                        <p className="font-medium text-sm">{option.dayLabel}</p>
+                                                        <p className="text-sm text-muted-foreground">{option.timeLabel}</p>
+                                                      </div>
                                                     </div>
                                                     <Button
                                                       size="icon"
@@ -4287,12 +4293,17 @@ export default function GroupDetail() {
                                             </div>
                                           ))}
                                         </div>
+                                        {selectedTimeOptionIds.length > 0 && (
+                                          <p className="text-sm text-muted-foreground">
+                                            {selectedTimeOptionIds.length} time{selectedTimeOptionIds.length === 1 ? '' : 's'} selected
+                                          </p>
+                                        )}
                                       </div>
                                       <Button
                                         variant="outline"
                                         onClick={async () => {
                                           setAiTimeOptions([]);
-                                          setSelectedTimeOptionId(null);
+                                          setSelectedTimeOptionIds([]);
                                           if (!selectedItineraryForScheduling) return;
                                           const venues = selectedItineraryForScheduling.items?.map((item: any) => ({
                                             name: item.venueName,
@@ -4321,42 +4332,75 @@ export default function GroupDetail() {
 
                       {/* Send Button */}
                       <Button
-                        onClick={() => {
+                        onClick={async () => {
                           if (!selectedItineraryForScheduling) return;
                           
-                          let finalEventDate: string | undefined;
+                          const eventDates: string[] = [];
+                          
                           if (scheduleMethod === 'manual' && eventDate && eventTime) {
-                            finalEventDate = `${eventDate}T${eventTime}:00`;
-                          } else if (scheduleMethod === 'ai' && selectedTimeOptionId) {
-                            const selectedOption = aiTimeOptions.find(opt => opt.id === selectedTimeOptionId);
-                            if (selectedOption) {
-                              finalEventDate = selectedOption.eventDate;
-                            }
+                            eventDates.push(`${eventDate}T${eventTime}:00`);
+                          } else if (scheduleMethod === 'ai' && selectedTimeOptionIds.length > 0) {
+                            const selectedOptions = aiTimeOptions.filter(opt => 
+                              selectedTimeOptionIds.includes(opt.id)
+                            );
+                            eventDates.push(...selectedOptions.map(opt => opt.eventDate));
                           }
 
-                          if (finalEventDate) {
-                            sendItineraryMutation.mutate({
-                              itineraryId: selectedItineraryForScheduling.id,
-                              eventDate: finalEventDate,
-                            });
-                          } else {
+                          if (eventDates.length === 0) {
                             toast({
                               title: "Missing time selection",
-                              description: "Please select a time before sending",
+                              description: "Please select at least one time before sending",
                               variant: "destructive",
                             });
+                            return;
+                          }
+
+                          try {
+                            // If multiple dates, send as array; otherwise send single eventDate
+                            if (eventDates.length > 1) {
+                              await sendItineraryMutation.mutateAsync({
+                                itineraryId: selectedItineraryForScheduling.id,
+                                eventDates,
+                              });
+                            } else {
+                              await sendItineraryMutation.mutateAsync({
+                                itineraryId: selectedItineraryForScheduling.id,
+                                eventDate: eventDates[0],
+                              });
+                            }
+                            
+                            // Reset state after mutation completes
+                            setAiTimeOptions([]);
+                            setSelectedTimeOptionIds([]);
+                            setEventDate("");
+                            setEventTime("19:00");
+                            setSelectedItineraryForScheduling(null);
+                            setScheduleMethod('ai');
+                            
+                            toast({
+                              title: eventDates.length === 1 ? "Plan sent to group" : "Plans sent to group",
+                              description: eventDates.length === 1 
+                                ? "Members can now RSVP to your itinerary"
+                                : `${eventDates.length} time options sent - members can RSVP to their preferred time`,
+                            });
+                          } catch (error) {
+                            // Error toast is handled by mutation
                           }
                         }}
                         disabled={
                           sendItineraryMutation.isPending ||
                           (scheduleMethod === 'manual' && (!eventDate || !eventTime)) ||
-                          (scheduleMethod === 'ai' && !selectedTimeOptionId)
+                          (scheduleMethod === 'ai' && selectedTimeOptionIds.length === 0)
                         }
                         className="w-full gap-2"
                         data-testid="button-send-to-group"
                       >
                         <Send className="h-4 w-4" />
-                        {sendItineraryMutation.isPending ? "Sending..." : "Send to Group"}
+                        {sendItineraryMutation.isPending 
+                          ? "Sending..." 
+                          : scheduleMethod === 'ai' && selectedTimeOptionIds.length > 1
+                            ? `Send ${selectedTimeOptionIds.length} Time Options`
+                            : "Send to Group"}
                       </Button>
                     </>
                   )}
