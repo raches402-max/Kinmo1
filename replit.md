@@ -53,6 +53,7 @@ AI suggestion preferences:
     - **RSVP Feedback Collection**: Structured feedback (tryEarlier, tryLater, unavailableDays) informs auto-rescheduling
     - **Auto-Reschedule Logic**: Triggers when >50% negative RSVPs with ≥3 responses, uses atomic conditional UPDATE for race condition prevention
     - **Email Integration**: Sends RSVP invites and reschedule notifications via Resend API
+    - **Multi-Time Selection**: Organizers can select 2+ scheduling options (AI-generated or manual) and send all at once. Creates separate proposed itineraries for each selected time with full venue data. Members RSVP to each option independently via in-app flow. Email notifications not sent for multi-date sends (MVP limitation).
 
 ## External Dependencies
 
