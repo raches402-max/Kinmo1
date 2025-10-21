@@ -576,9 +576,9 @@ export default function GroupDetail() {
     if (generationStartTime && (status === "pending" || status === "generating")) {
       const checkTimeout = setInterval(() => {
         const elapsed = Date.now() - generationStartTime;
-        if (elapsed > 120000) {
-          // 120 seconds elapsed - force status to failed
-          console.warn("AI generation timed out after 120 seconds");
+        if (elapsed > 180000) {
+          // 180 seconds elapsed - force status to failed
+          console.warn("AI generation timed out after 180 seconds");
           setGenerationStartTime(null);
           toast({
             title: "Generation timed out",
@@ -2306,7 +2306,7 @@ export default function GroupDetail() {
                         </p>
                       )}
                       <p className="text-sm text-muted-foreground mb-4">
-                        This usually takes 30-90 seconds
+                        This can take 30-120 seconds for groups with history
                       </p>
                       <Button
                         onClick={() => cancelGenerationMutation.mutate()}
