@@ -665,7 +665,7 @@ export default function GroupDetail() {
       const availability = group.availability && typeof group.availability === 'object' && Object.keys(group.availability).length > 0
         ? group.availability
         : createEmptyAvailability();
-      setEditAvailability(availability as any);
+      setEditAvailability(availability as Record<string, {morning: boolean; afternoon: boolean; evening: boolean}>);
     }
   }, [group]);
 
@@ -1406,7 +1406,7 @@ export default function GroupDetail() {
       const availability = group.availability && typeof group.availability === 'object' && Object.keys(group.availability).length > 0
         ? group.availability
         : createEmptyAvailability();
-      setEditAvailability(availability as any);
+      setEditAvailability(availability as Record<string, {morning: boolean; afternoon: boolean; evening: boolean}>);
       setEditGeneralAvailability(group.generalAvailability || "");
       setNewMembers([]);
       setEditGroupOpen(true);
@@ -1723,10 +1723,12 @@ export default function GroupDetail() {
                   </div>
                   <div className="space-y-3">
                     <Label>Group Availability</Label>
-                    <AvailabilityGrid 
-                      value={editAvailability} 
-                      onChange={setEditAvailability}
-                    />
+                    <>
+                      <AvailabilityGrid 
+                        value={editAvailability} 
+                        onChange={setEditAvailability}
+                      />
+                    </>
                   </div>
                 </CardContent>
               </Card>
@@ -1812,7 +1814,7 @@ export default function GroupDetail() {
               </Card>
 
               {/* AI Preference Insights Section */}
-              {group.preferenceInsights && (group.preferenceInsights as any[]).length > 0 && (
+              {group.preferenceInsights && Array.isArray(group.preferenceInsights) && group.preferenceInsights.length > 0 && (
                 <Card>
                   <CardHeader>
                     <div className="flex items-center justify-between">
@@ -1828,9 +1830,7 @@ export default function GroupDetail() {
                         size="sm"
                         onClick={async () => {
                           try {
-                            await apiRequest(`/api/groups/${group.id}/analyze-patterns`, {
-                              method: "POST"
-                            });
+                            await apiRequest("POST", `/api/groups/${group.id}/analyze-patterns`, {});
                             queryClient.invalidateQueries({ queryKey: ["/api/groups", group.id] });
                             toast({ title: "Insights refreshed successfully" });
                           } catch (error: any) {
@@ -1850,7 +1850,7 @@ export default function GroupDetail() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    {(group.preferenceInsights as any[]).map((insight: any, index: number) => (
+                    {Array.isArray(group.preferenceInsights) && group.preferenceInsights.map((insight: {icon: string; pattern: string; description: string}, index: number) => (
                       <div key={index} className="flex gap-3 p-3 bg-muted/50 rounded-md">
                         <div className="text-2xl flex-shrink-0">{insight.icon}</div>
                         <div className="flex-1 min-w-0">
@@ -3768,7 +3768,7 @@ export default function GroupDetail() {
                       onClick={() => {
                         // Initialize dialog with current values
                         if (group?.availability) {
-                          setEditAvailabilityData(group.availability as any);
+                          setEditAvailabilityData(group.availability as Record<string, {morning: boolean; afternoon: boolean; evening: boolean}>);
                         }
                         if (group?.generalAvailability) {
                           setEditAvailabilityNotes(group.generalAvailability);
@@ -3809,10 +3809,12 @@ export default function GroupDetail() {
                     {group?.availability && (
                       <div className="space-y-2">
                         <p className="text-sm font-medium">When is the group free?</p>
-                        <ReadOnlyAvailabilityGrid 
-                          value={group.availability as any} 
-                          compact={true}
-                        />
+                        <>
+                          <ReadOnlyAvailabilityGrid 
+                            value={group.availability as Record<string, {morning: boolean; afternoon: boolean; evening: boolean}>} 
+                            compact={true}
+                          />
+                        </>
                       </div>
                     )}
                     {group?.generalAvailability && (

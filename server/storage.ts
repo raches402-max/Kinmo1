@@ -466,10 +466,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createItinerary(insertItinerary: InsertItinerary, userId: string, itemsData: Array<{sourceType: 'activity' | 'voting_event', sourceId: string}>): Promise<Itinerary> {
-    const [itinerary] = await db
+    const results = await db
       .insert(itineraries)
       .values({ ...insertItinerary, createdBy: userId })
-      .returning();
+      .returning() as Itinerary[];
+    const itinerary = results[0];
 
     // Create itinerary items with venue data
     if (itemsData.length > 0) {

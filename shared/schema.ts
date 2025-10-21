@@ -180,7 +180,7 @@ export const itineraries = pgTable("itineraries", {
   status: text("status").notNull().default("draft"), // draft, saved, proposed, scheduled, rejected
   isSaved: boolean("is_saved").default(false).notNull(), // Is this a saved template for reuse
   isPrimary: boolean("is_primary").default(false).notNull(), // Is this the primary proposed plan
-  backupForItineraryId: varchar("backup_for_itinerary_id").references(() => itineraries.id, { onDelete: "set null" }), // If this is a backup plan
+  backupForItineraryId: varchar("backup_for_itinerary_id"), // If this is a backup plan (self-reference handled separately)
   aiValidationNotes: text("ai_validation_notes"), // AI insights about flow, timing, proximity
   proposedOrder: jsonb("proposed_order").notNull(), // Array of item IDs in suggested sequence
   

@@ -2,7 +2,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, activities as activitiesTable, groups as groupsTable, itineraryInvites, rsvps as rsvpsTable, itineraries } from "@shared/schema";
+import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, activities as activitiesTable, groups as groupsTable, itineraryInvites, rsvps as rsvpsTable, itineraries, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
 import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue, analyzePreferencePatterns } from "./openai";
 import { searchPlaces, searchNearbyPlaces, geocodeLocation } from "./google-places";
 import { setupAuth, isAuthenticated } from "./replitAuth";
@@ -1486,7 +1486,7 @@ Looking forward to planning great activities together!
       }
 
       // Validate itinerary with AI
-      const validation = await validateItinerary(validVenues as any);
+      const validation = await validateItinerary(validVenues);
 
       if (!validation.isValid) {
         return res.status(400).json({
@@ -1507,7 +1507,7 @@ Looking forward to planning great activities together!
         validation.proposedOrder.map(sourceId => {
           const venue = validVenues.find(v => v?.sourceId === sourceId);
           return {
-            sourceType: venue?.sourceType || 'activity',
+            sourceType: (venue?.sourceType || 'activity') as 'activity' | 'voting_event',
             sourceId: sourceId,
           };
         })
@@ -1704,7 +1704,7 @@ Looking forward to planning great activities together!
         if (currentItinerary) {
           const newSourceIds = new Set(updates.proposedOrder);
           const itemsToDelete = currentItinerary.items.filter(
-            (item: any) => !newSourceIds.has(item.sourceId)
+            (item: ItineraryItem) => !newSourceIds.has(item.sourceId)
           );
           
           // Delete items that are no longer in the proposed order
@@ -1714,7 +1714,7 @@ Looking forward to planning great activities together!
           
           // Map sourceIds to item IDs for ordering
           const sourceIdToItemId = new Map(
-            currentItinerary.items.map((item: any) => [item.sourceId, item.id])
+            currentItinerary.items.map((item: ItineraryItem) => [item.sourceId, item.id])
           );
           const orderedItemIds = updates.proposedOrder
             .map((sourceId: string) => sourceIdToItemId.get(sourceId))
@@ -1788,17 +1788,17 @@ Looking forward to planning great activities together!
       // Auto-generate name if not provided
       if (!name || name.trim() === '') {
         const { generateItineraryName } = await import('./ai-itinerary-naming');
-        const venuesForNaming = original.items.map(item => ({
+        const venuesForNaming = original.items.map((item: ItineraryItem) => ({
           name: item.venueName || 'Venue',
           type: item.venueType || 'Activity'
         }));
         
-        name = await generateItineraryName(venuesForNaming, group.location);
+        name = await generateItineraryName(venuesForNaming, group.locationBase);
         console.log('[Save Itinerary] AI generated name:', name);
       }
 
       // Create a duplicate itinerary marked as saved
-      const itemsData = original.items.map(item => ({
+      const itemsData = original.items.map((item: ItineraryItem) => ({
         sourceType: item.sourceType as 'activity' | 'voting_event',
         sourceId: item.sourceId
       }));
@@ -1807,8 +1807,8 @@ Looking forward to planning great activities together!
         {
           groupId: original.groupId,
           name,
-          status: 'saved' as any,
-          isSaved: true as any,
+          status: 'saved',
+          isSaved: true,
           aiValidationNotes: original.aiValidationNotes,
           proposedOrder: original.proposedOrder,
         },
@@ -1843,13 +1843,15 @@ Looking forward to planning great activities together!
       const memberConstraints = members
         .filter(m => m.memberConstraints)
         .map(m => {
-          const constraints = m.memberConstraints as any;
+          const constraints = m.memberConstraints;
           const parts: string[] = [];
-          if (constraints?.scheduleConflicts) {
-            parts.push(`Not available ${constraints.scheduleConflicts.join(', ')}`);
+          if (constraints && typeof constraints === 'object' && 'scheduleConflicts' in constraints) {
+            const sc = (constraints as {scheduleConflicts?: string[]}).scheduleConflicts;
+            if (sc) parts.push(`Not available ${sc.join(', ')}`);
           }
-          if (constraints?.notes) {
-            parts.push(constraints.notes);
+          if (constraints && typeof constraints === 'object' && 'notes' in constraints) {
+            const notes = (constraints as {notes?: string}).notes;
+            if (notes) parts.push(notes);
           }
           return parts.join('; ');
         })
@@ -1862,7 +1864,7 @@ Looking forward to planning great activities together!
         venues = req.body.venues;
         console.log('[Suggest Time] Using venues from request body (cart state)');
       } else {
-        venues = itinerary.items.map(item => ({
+        venues = itinerary.items.map((item: ItineraryItem) => ({
           name: item.venueName,
           type: item.venueType,
         }));
@@ -1909,8 +1911,8 @@ Looking forward to planning great activities together!
       }
 
       const updates: UpdateItinerary = {
-        status: 'proposed' as any,
-        isPrimary: (isPrimary || false) as any,
+        status: 'proposed',
+        isPrimary: isPrimary || false,
       };
 
       // If event date and schedule config are provided, set them up
@@ -1919,10 +1921,10 @@ Looking forward to planning great activities together!
         const rsvpDeadline = new Date(date);
         rsvpDeadline.setDate(date.getDate() - (autoScheduleConfig.inviteAdvanceDays - autoScheduleConfig.rsvpWindowDays));
 
-        updates.eventDate = date as any;
-        updates.rsvpDeadline = rsvpDeadline as any;
-        updates.autoScheduleConfig = autoScheduleConfig as any;
-        updates.inviteSentAt = new Date() as any;
+        updates.eventDate = date;
+        updates.rsvpDeadline = rsvpDeadline;
+        updates.autoScheduleConfig = autoScheduleConfig;
+        updates.inviteSentAt = new Date();
 
         // Send initial invite emails immediately
         const members = await storage.getGroupMembers(group.id);
@@ -1979,13 +1981,13 @@ Looking forward to planning great activities together!
             const { sendItineraryInvite } = await import('./email-service');
             
             await sendItineraryInvite(
-              { email, name: member.name },
+              { email, name: member.name || 'Member' },
               {
                 groupName: group.name,
                 organizerName: 'Organizer',
                 eventDate: date.toLocaleDateString(),
                 eventTime: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                venues: itinerary.items.map(item => ({
+                venues: itinerary.items.map((item: ItineraryItem) => ({
                   name: item.venueName || 'Venue',
                   type: item.venueType || 'Activity',
                 })),
@@ -2087,7 +2089,7 @@ Looking forward to planning great activities together!
               THEN jsonb_set(COALESCE(auto_schedule_config, '{}'::jsonb), '{rescheduleInProgress}', 'true'::jsonb)
               ELSE auto_schedule_config
             END
-          ` as any,
+          `,
         })
         .where(sql`
           id = ${itineraryId} 
@@ -2105,7 +2107,7 @@ Looking forward to planning great activities together!
       // Analyze feedback patterns
       const feedback = rsvps
         .map(r => r.rsvpFeedback)
-        .filter(f => f != null);
+        .filter((f): f is NonNullable<typeof f> => f != null);
 
       const constraints = {
         avoidDays: [] as string[],
@@ -2115,10 +2117,10 @@ Looking forward to planning great activities together!
       };
 
       for (const f of feedback) {
-        if (f.tryEarlier) constraints.preferEarlier++;
-        if (f.tryLater) constraints.preferLater++;
-        if (f.notThisWeek) constraints.avoidThisWeek = true;
-        if (f.unavailableOn && Array.isArray(f.unavailableOn)) {
+        if (f?.tryEarlier) constraints.preferEarlier++;
+        if (f?.tryLater) constraints.preferLater++;
+        if (f?.notThisWeek) constraints.avoidThisWeek = true;
+        if (f?.unavailableOn && Array.isArray(f.unavailableOn)) {
           constraints.avoidDays.push(...f.unavailableOn);
         }
       }
@@ -2132,7 +2134,7 @@ Looking forward to planning great activities together!
         return;
       }
 
-      const venueInfo = itinerary.items.map(item => ({
+      const venueInfo = itinerary.items.map((item: any) => ({
         name: item.venueName,
         type: item.venueType,
       }));
@@ -2159,9 +2161,9 @@ Looking forward to planning great activities together!
         // Clear in-progress flag on failure
         await storage.updateItinerary(itineraryId, {
           autoScheduleConfig: {
-            ...(itinerary.autoScheduleConfig || {}),
+            ...(itinerary.autoScheduleConfig as object || {}),
             rescheduleInProgress: false,
-          } as any,
+          },
         });
         
         return;
@@ -2173,9 +2175,9 @@ Looking forward to planning great activities together!
         // Clear in-progress flag
         await storage.updateItinerary(itineraryId, {
           autoScheduleConfig: {
-            ...(itinerary.autoScheduleConfig || {}),
+            ...(itinerary.autoScheduleConfig as object || {}),
             rescheduleInProgress: false,
-          } as any,
+          },
         });
         
         return;
@@ -2186,13 +2188,13 @@ Looking forward to planning great activities together!
       // Update itinerary with new time and clear in-progress flag
       const newEventDate = new Date(result.suggestedTime);
       await storage.updateItinerary(itineraryId, {
-        eventDate: newEventDate as any,
-        rescheduleAttempts: (rescheduleAttempts + 1) as any,
+        eventDate: newEventDate,
+        rescheduleAttempts: rescheduleAttempts + 1,
         autoScheduleConfig: {
-          ...(itinerary.autoScheduleConfig || {}),
+          ...(itinerary.autoScheduleConfig as object || {}),
           lastRescheduleReason: result.reasoning,
           rescheduleInProgress: false,
-        } as any,
+        },
       });
 
       // Clear all existing RSVPs so stale responses don't affect next reschedule check
@@ -2235,12 +2237,12 @@ Looking forward to planning great activities together!
           const { sendItineraryReschedule } = await import('./email-service');
           
           await sendItineraryReschedule(
-            { email: member.email, name: member.name },
+            { email: member.email, name: member.name || 'Member' },
             {
               groupName: group.name,
               eventDate: newEventDate.toLocaleDateString(),
               eventTime: newEventDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              venues: itinerary.items.map(item => ({
+              venues: itinerary.items.map((item: ItineraryItem) => ({
                 name: item.venueName || 'Venue',
                 type: item.venueType || 'Activity',
               })),
@@ -2266,9 +2268,9 @@ Looking forward to planning great activities together!
     try {
       const { backupForItineraryId } = req.body;
       const updates: UpdateItinerary = {
-        status: 'proposed' as any,
-        isPrimary: false as any,
-        backupForItineraryId: backupForItineraryId as any,
+        status: 'proposed',
+        isPrimary: false,
+        backupForItineraryId: backupForItineraryId,
       };
       const itinerary = await storage.updateItinerary(req.params.id, updates);
       res.json(itinerary);
@@ -2295,8 +2297,8 @@ Looking forward to planning great activities together!
       const groupSize = members.length || 2; // Default to 2 if no members
 
       // Prepare venue info for AI
-      const venueInfo = itinerary.items.map(item => ({
-        name: item.venueName,
+      const venueInfo = itinerary.items.map((item: ItineraryItem) => ({
+        name: item.venueName || 'Venue',
         type: item.venueType,
         requiresReservation: item.venueType.toLowerCase().includes('fine') || 
                              item.venueType.toLowerCase().includes('upscale'),
@@ -2315,7 +2317,7 @@ Looking forward to planning great activities together!
   app.post("/api/itineraries/:id/finalize", isAuthenticated, async (req, res) => {
     try {
       const updates: UpdateItinerary = {
-        status: 'scheduled' as any,
+        status: 'scheduled',
       };
       const itinerary = await storage.updateItinerary(req.params.id, updates);
       res.json(itinerary);
@@ -2771,7 +2773,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       }
 
       // Add new unique activities from this batch, respecting category limits (max 3 per category)
-      for (const activity of validActivities as any[]) {
+      for (const activity of validActivities) {
         // Create a unique key based on Google Place ID (if available) or venue name
         const venueKey = activity.googlePlaceId || activity.venueName.toLowerCase();
         const category = activity.category;
