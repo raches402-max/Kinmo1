@@ -832,12 +832,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Retry activity generation
-  app.post("/api/groups/:id/retry-generation", async (req, res) => {
+  // Retry activity generation (protected)
+  app.post("/api/groups/:id/retry-generation", isAuthenticated, async (req: any, res) => {
     try {
       const group = await storage.getGroup(req.params.id);
       if (!group) {
         return res.status(404).json({ message: "Group not found" });
+      }
+
+      // Verify user owns this group
+      const userId = req.user.claims.sub;
+      if (group.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized to modify this group" });
       }
 
       // Accept temporary instructions from the request body
@@ -870,15 +876,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Cancel AI generation
-  app.post("/api/groups/:id/activities/cancel-generation", async (req, res) => {
+  // Cancel AI generation (protected)
+  app.post("/api/groups/:id/activities/cancel-generation", isAuthenticated, async (req: any, res) => {
     try {
       const group = await storage.getGroup(req.params.id);
       if (!group) {
         return res.status(404).json({ message: "Group not found" });
       }
 
-      // Update status to failed with cancellation message
+      // Verify user owns this group
+      const userId = req.user.claims.sub;
+      if (group.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized to modify this group" });
+      }
+
+      // Update status to failed with cancellation message (idempotent - safe to call multiple times)
       await storage.updateGroupStatus(req.params.id, "failed", "Generation cancelled by user");
       
       res.json({ success: true, message: "Activity generation cancelled" });
