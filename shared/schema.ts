@@ -52,6 +52,7 @@ export const groups = pgTable("groups", {
   preferenceInsights: jsonb("preference_insights"), // AI-analyzed preference patterns: [{pattern: "...", icon: "...", description: "..."}]
   lastInsightsUpdate: timestamp("last_insights_update"), // When insights were last generated
   feedbackCount: integer("feedback_count").default(0).notNull(), // Track feedback actions to trigger insight regeneration
+  rejectedVenues: text("rejected_venues").array(), // Venues that Google Places couldn't find (blacklist to avoid re-suggesting)
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
