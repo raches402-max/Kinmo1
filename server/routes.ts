@@ -1051,6 +1051,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             coordinates
           );
 
+          // If Google Places returns NO results at all, this is likely a fake/non-existent venue
+          if (places.length === 0) {
+            console.log(`[Category Regen] Rejecting ${suggestion.venueName} - no Google Places results found (fake venue)`);
+            await storage.addRejectedVenue(req.params.id, suggestion.venueName);
+            return null;
+          }
+
           const searchRadius = refreshedGroup.searchRadius || 2;
           const qualityFiltered = places.filter(place => {
             const rating = parseFloat(place.rating || '0');
@@ -1146,9 +1153,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             };
           }
           
-          console.log(`[Category Regen] Rejecting ${suggestion.venueName} - no Google Places results found`);
-          // Track rejected venue to prevent AI from suggesting it again
-          await storage.addRejectedVenue(req.params.id, suggestion.venueName);
+          // If we reach here, finalPlaces is empty due to quality/budget filtering
+          // This is NOT a fake venue - it's a real venue that doesn't meet our criteria
+          console.log(`[Category Regen] Skipping ${suggestion.venueName} - failed quality/budget filters (not a fake venue)`);
           return null;
         })
       );
@@ -2559,6 +2566,13 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
               coordinates
             );
 
+          // If Google Places returns NO results at all, this is likely a fake/non-existent venue
+          if (places.length === 0) {
+            console.log(`[AI Generation] Rejecting ${suggestion.venueName} - no Google Places results found (fake venue)`);
+            await storage.addRejectedVenue(groupId, suggestion.venueName);
+            return null;
+          }
+
           // Apply quality filtering based on search radius
           // Farther venues must have higher ratings and review counts
           const searchRadius = groupData.searchRadius || 2;
@@ -2666,10 +2680,9 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
               complementaryPlaceRating2: complementaryPlace2?.rating || null,
             };
           } else {
-            // Reject suggestions with no Google Places results
-            console.log(`[AI Generation] Rejecting ${suggestion.venueName} - no Google Places results found`);
-            // Track rejected venue to prevent AI from suggesting it again
-            await storage.addRejectedVenue(groupId, suggestion.venueName);
+            // If we reach here, finalPlaces is empty due to quality/budget filtering
+            // This is NOT a fake venue - it's a real venue that doesn't meet our criteria
+            console.log(`[AI Generation] Skipping ${suggestion.venueName} - failed quality/budget filters (not a fake venue)`);
             return null;
           }
           })
