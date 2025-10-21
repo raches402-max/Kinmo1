@@ -78,6 +78,8 @@ export interface IStorage {
   deleteItinerary(id: string): Promise<void>;
   getItineraryItemById(itemId: string): Promise<any>;
   deleteItineraryItem(itemId: string): Promise<void>;
+  addItineraryItems(itineraryId: string, items: Array<{sourceType: 'activity' | 'voting_event', sourceId: string}>): Promise<ItineraryItem[]>;
+  updateItineraryItemOrder(itineraryId: string, proposedOrder: string[]): Promise<void>;
 
   // RSVPs
   createRsvp(rsvp: InsertRsvp): Promise<Rsvp>;
@@ -591,6 +593,71 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(itineraryItems)
       .where(eq(itineraryItems.id, itemId));
+  }
+
+  async addItineraryItems(itineraryId: string, items: Array<{sourceType: 'activity' | 'voting_event', sourceId: string}>): Promise<ItineraryItem[]> {
+    const itemsToInsert: InsertItineraryItem[] = [];
+    
+    // Get current max order index
+    const existingItems = await db
+      .select()
+      .from(itineraryItems)
+      .where(eq(itineraryItems.itineraryId, itineraryId));
+    
+    const maxOrderIndex = existingItems.length > 0 
+      ? Math.max(...existingItems.map(item => item.orderIndex || 0))
+      : -1;
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      let venueName = '';
+      let venueAddress = '';
+      let venueType = '';
+      let googlePlaceId = null;
+      let rating = null;
+      let photoUrl = null;
+
+      if (item.sourceType === 'activity') {
+        const [activity] = await db.select().from(activities).where(eq(activities.id, item.sourceId));
+        if (activity) {
+          venueName = activity.venueName;
+          venueAddress = activity.venueAddress || '';
+          venueType = activity.venueType;
+          googlePlaceId = activity.googlePlaceId;
+          rating = activity.rating;
+          photoUrl = activity.photoUrl;
+        }
+      } else {
+        const [votingEvent] = await db.select().from(votingEvents).where(eq(votingEvents.id, item.sourceId));
+        if (votingEvent) {
+          venueName = votingEvent.title;
+          venueAddress = votingEvent.venueAddress || '';
+          venueType = votingEvent.venueType || 'venue';
+          googlePlaceId = votingEvent.googlePlaceId;
+          rating = votingEvent.rating;
+          photoUrl = votingEvent.photoUrl;
+        }
+      }
+
+      itemsToInsert.push({
+        itineraryId,
+        sourceType: item.sourceType,
+        sourceId: item.sourceId,
+        venueName,
+        venueAddress,
+        venueType,
+        googlePlaceId,
+        rating,
+        photoUrl,
+        orderIndex: maxOrderIndex + 1 + i,
+      });
+    }
+
+    if (itemsToInsert.length > 0) {
+      return await db.insert(itineraryItems).values(itemsToInsert).returning();
+    }
+    
+    return [];
   }
 
   async updateItineraryItemOrder(itineraryId: string, proposedOrder: string[]): Promise<void> {

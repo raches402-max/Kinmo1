@@ -1692,6 +1692,32 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Add items to an existing itinerary
+  app.post("/api/itineraries/:id/items", isAuthenticated, async (req, res) => {
+    try {
+      const itineraryId = req.params.id;
+      const { items } = req.body; // Array of { sourceType, sourceId }
+
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ message: "No items provided" });
+      }
+
+      // Verify itinerary exists
+      const itinerary = await storage.getItinerary(itineraryId);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      // Add the items
+      const newItems = await storage.addItineraryItems(itineraryId, items);
+
+      res.json(newItems);
+    } catch (error: any) {
+      console.error("[Add Itinerary Items] Error:", error);
+      res.status(500).json({ message: error.message || "Failed to add itinerary items" });
+    }
+  });
+
   // Update itinerary (for editing saved itineraries)
   app.patch("/api/itineraries/:id", isAuthenticated, async (req, res) => {
     try {

@@ -446,6 +446,8 @@ export default function GroupDetail() {
   const [editingItinerary, setEditingItinerary] = useState<any | null>(null);
   const [editItineraryName, setEditItineraryName] = useState("");
   const [editItineraryItems, setEditItineraryItems] = useState<any[]>([]);
+  const [addVenueDialogOpen, setAddVenueDialogOpen] = useState(false);
+  const [venuesToAdd, setVenuesToAdd] = useState<Array<{sourceType: 'activity' | 'voting_event', sourceId: string}>>([]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -1165,6 +1167,29 @@ export default function GroupDetail() {
     onError: (error: Error) => {
       toast({
         title: "Error updating plan",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const addItineraryItemsMutation = useMutation({
+    mutationFn: async ({ itineraryId, items }: { itineraryId: string; items: Array<{sourceType: 'activity' | 'voting_event', sourceId: string}> }) => {
+      return await apiRequest("POST", `/api/itineraries/${itineraryId}/items`, { items });
+    },
+    onSuccess: (newItems) => {
+      // Add the new items to the local state
+      setEditItineraryItems(prev => [...prev, ...newItems]);
+      setAddVenueDialogOpen(false);
+      setVenuesToAdd([]);
+      toast({
+        title: "Venues added",
+        description: `${newItems.length} venue(s) added to the plan`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error adding venues",
         description: error.message,
         variant: "destructive",
       });
@@ -4922,7 +4947,7 @@ export default function GroupDetail() {
           <DialogHeader>
             <DialogTitle>Edit Plan</DialogTitle>
             <DialogDescription>
-              Update the plan name and reorder or remove venues
+              Update the plan name, add new venues, reorder, or remove venues
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-6">
@@ -4940,7 +4965,18 @@ export default function GroupDetail() {
 
             {/* Venues List */}
             <div className="space-y-3">
-              <Label>Venues ({editItineraryItems.length})</Label>
+              <div className="flex items-center justify-between">
+                <Label>Venues ({editItineraryItems.length})</Label>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAddVenueDialogOpen(true)}
+                  data-testid="button-add-venue"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Venue
+                </Button>
+              </div>
               {editItineraryItems.length === 0 ? (
                 <div className="text-center py-8 text-sm text-muted-foreground">
                   No venues in this plan
@@ -5022,6 +5058,140 @@ export default function GroupDetail() {
               data-testid="button-save-edit-itinerary"
             >
               {updateItineraryMutation.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Venue to Itinerary Dialog */}
+      <Dialog open={addVenueDialogOpen} onOpenChange={setAddVenueDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="dialog-add-venue">
+          <DialogHeader>
+            <DialogTitle>Add Venues to Plan</DialogTitle>
+            <DialogDescription>
+              Select venues from your activities and voting events
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6">
+            {/* Activities */}
+            {activities.length > 0 && (
+              <div className="space-y-3">
+                <Label>AI Suggested Activities</Label>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {activities.map((activity: Activity) => {
+                    const isAlreadyInPlan = editItineraryItems.some((item: any) => item.sourceType === 'activity' && item.sourceId === activity.id);
+                    const isSelected = venuesToAdd.some(v => v.sourceType === 'activity' && v.sourceId === activity.id);
+                    
+                    return (
+                      <div
+                        key={activity.id}
+                        className={`flex items-center gap-3 p-3 rounded-md border transition-all ${
+                          isAlreadyInPlan ? 'opacity-50 cursor-not-allowed' :
+                          isSelected ? 'border-primary bg-primary/10 hover-elevate' : 'hover-elevate active-elevate-2 cursor-pointer'
+                        }`}
+                        onClick={() => {
+                          if (isAlreadyInPlan) return;
+                          if (isSelected) {
+                            setVenuesToAdd(prev => prev.filter(v => !(v.sourceType === 'activity' && v.sourceId === activity.id)));
+                          } else {
+                            setVenuesToAdd(prev => [...prev, { sourceType: 'activity', sourceId: activity.id }]);
+                          }
+                        }}
+                        data-testid={`add-venue-activity-${activity.id}`}
+                      >
+                        <Checkbox 
+                          checked={isSelected}
+                          disabled={isAlreadyInPlan}
+                          className="pointer-events-none"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{activity.venueName}</p>
+                          <p className="text-sm text-muted-foreground truncate">{activity.venueType}</p>
+                        </div>
+                        {isAlreadyInPlan && (
+                          <Badge variant="secondary" className="text-xs">Already added</Badge>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Voting Events */}
+            {votingEvents.length > 0 && (
+              <div className="space-y-3">
+                <Label>Member Suggested Venues</Label>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {votingEvents.map((event: VotingEvent) => {
+                    const isAlreadyInPlan = editItineraryItems.some((item: any) => item.sourceType === 'voting_event' && item.sourceId === event.id);
+                    const isSelected = venuesToAdd.some(v => v.sourceType === 'voting_event' && v.sourceId === event.id);
+                    
+                    return (
+                      <div
+                        key={event.id}
+                        className={`flex items-center gap-3 p-3 rounded-md border transition-all ${
+                          isAlreadyInPlan ? 'opacity-50 cursor-not-allowed' :
+                          isSelected ? 'border-primary bg-primary/10 hover-elevate' : 'hover-elevate active-elevate-2 cursor-pointer'
+                        }`}
+                        onClick={() => {
+                          if (isAlreadyInPlan) return;
+                          if (isSelected) {
+                            setVenuesToAdd(prev => prev.filter(v => !(v.sourceType === 'voting_event' && v.sourceId === event.id)));
+                          } else {
+                            setVenuesToAdd(prev => [...prev, { sourceType: 'voting_event', sourceId: event.id }]);
+                          }
+                        }}
+                        data-testid={`add-venue-event-${event.id}`}
+                      >
+                        <Checkbox 
+                          checked={isSelected}
+                          disabled={isAlreadyInPlan}
+                          className="pointer-events-none"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{event.title}</p>
+                          <p className="text-sm text-muted-foreground truncate">{event.venueType || 'Venue'}</p>
+                        </div>
+                        {isAlreadyInPlan && (
+                          <Badge variant="secondary" className="text-xs">Already added</Badge>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {activities.length === 0 && votingEvents.length === 0 && (
+              <div className="text-center py-8 text-sm text-muted-foreground">
+                No venues available to add
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setAddVenueDialogOpen(false);
+                setVenuesToAdd([]);
+              }}
+              data-testid="button-cancel-add-venue"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (!editingItinerary || venuesToAdd.length === 0) return;
+                addItineraryItemsMutation.mutate({
+                  itineraryId: editingItinerary.id,
+                  items: venuesToAdd
+                });
+              }}
+              disabled={venuesToAdd.length === 0 || addItineraryItemsMutation.isPending}
+              data-testid="button-confirm-add-venue"
+            >
+              {addItineraryItemsMutation.isPending ? "Adding..." : `Add ${venuesToAdd.length} Venue${venuesToAdd.length !== 1 ? 's' : ''}`}
             </Button>
           </DialogFooter>
         </DialogContent>
