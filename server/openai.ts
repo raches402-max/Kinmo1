@@ -66,6 +66,7 @@ export async function generateActivitySuggestions(groupData: {
   previouslySuggestedVenues?: string[];
   targetCategories?: string[]; // NEW: For category-specific generation
   memberConstraints?: { scheduleConflicts?: string[]; budgetConcern?: boolean; distanceConcern?: boolean; notes?: string }[]; // Member RSVP constraints
+  rejectedVenues?: string[]; // Venues that don't exist in Google Places (blacklist)
 }): Promise<ActivitySuggestion[]> {
   try {
     // Generate 30 suggestions to account for duplicates after Google Places enrichment
@@ -225,6 +226,12 @@ export async function generateActivitySuggestions(groupData: {
       avoidVenuesContext = `\n\nIMPORTANT - DO NOT suggest these venues again (already suggested): ${groupData.previouslySuggestedVenues.join(', ')}`;
     }
 
+    // Format rejected venues (venues that don't exist in Google Places)
+    let rejectedVenuesContext = '';
+    if (groupData.rejectedVenues && groupData.rejectedVenues.length > 0) {
+      rejectedVenuesContext = `\n\nCRITICAL - These venues DO NOT EXIST in Google Places. NEVER suggest them: ${groupData.rejectedVenues.join(', ')}`;
+    }
+
     // Format target categories for focused generation
     let targetCategoriesContext = '';
     if (groupData.targetCategories && groupData.targetCategories.length > 0) {
@@ -274,7 +281,7 @@ Budget Range: $${groupData.budgetMin}-${groupData.budgetMax} per person
 Meeting Frequency: ${groupData.meetingFrequency}
 Usual Availability: ${availabilityText}
 ${groupData.additionalInstructions ? `\n🚨 USER INSTRUCTIONS (OVERRIDES EVERYTHING): ${groupData.additionalInstructions}` : `${categoriesContext}
-${groupData.pastPreferences ? `Past Preferences: ${groupData.pastPreferences}` : ''}${feedbackContext}${votingContext}${swipeContext}`}${constraintsContext}${avoidVenuesContext}${targetCategoriesContext}
+${groupData.pastPreferences ? `Past Preferences: ${groupData.pastPreferences}` : ''}${feedbackContext}${votingContext}${swipeContext}`}${constraintsContext}${avoidVenuesContext}${rejectedVenuesContext}${targetCategoriesContext}
 
 CRITICAL - Availability Constraint:
 - The group is ONLY available during: ${availabilityText}

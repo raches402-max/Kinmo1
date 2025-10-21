@@ -987,25 +987,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         attempt++;
         console.log(`[Category Regen] Attempt ${attempt}/${maxAttempts}: Need ${neededCount - allValidActivities.length} more venues`);
 
+        // Refresh group data to get latest rejected venues
+        const refreshedGroup = await storage.getGroup(req.params.id);
+        if (!refreshedGroup) {
+          return res.status(404).json({ message: "Group not found" });
+        }
+        const rejectedVenues = refreshedGroup.rejectedVenues || [];
+        const rejectedSet = new Set(rejectedVenues.map(v => v.toLowerCase()));
+        console.log(`[Category Regen] Blacklisted venues: ${rejectedVenues.length}`);
+
         // Get member constraints for this category regeneration
-        const groupMembers = await storage.getGroupMembers(group.id);
+        const groupMembers = await storage.getGroupMembers(refreshedGroup.id);
         const memberConstraints = groupMembers
           .filter(m => m.memberConstraints)
           .map(m => m.memberConstraints as { scheduleConflicts?: string[]; budgetConcern?: boolean; distanceConcern?: boolean; notes?: string });
 
         // Generate suggestions for this specific category
         const suggestions = await generateActivitySuggestions({
-          locationBase: group.locationBase,
-          budgetMin: group.budgetMin,
-          budgetMax: group.budgetMax,
-          meetingFrequency: group.meetingFrequency,
-          availability: group.availability,
-          closenessLevel: group.closenessLevel,
-          noveltyPreference: group.noveltyPreference,
-          activityCategories: group.activityCategories || undefined,
-          pastPreferences: group.pastPreferences || undefined,
-          additionalInstructions: group.additionalInstructions || undefined,
-          searchRadius: group.searchRadius || undefined,
+          locationBase: refreshedGroup.locationBase,
+          budgetMin: refreshedGroup.budgetMin,
+          budgetMax: refreshedGroup.budgetMax,
+          meetingFrequency: refreshedGroup.meetingFrequency,
+          availability: refreshedGroup.availability,
+          closenessLevel: refreshedGroup.closenessLevel,
+          noveltyPreference: refreshedGroup.noveltyPreference,
+          activityCategories: refreshedGroup.activityCategories || undefined,
+          pastPreferences: refreshedGroup.pastPreferences || undefined,
+          additionalInstructions: refreshedGroup.additionalInstructions || undefined,
+          searchRadius: refreshedGroup.searchRadius || undefined,
           previousFeedback: previousFeedback.length > 0 ? previousFeedback : undefined,
           votingFeedback: votingFeedback.length > 0 ? votingFeedback : undefined,
           likedConcepts: likedConcepts.length > 0 ? likedConcepts : undefined,
@@ -1013,24 +1022,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
           previouslySuggestedVenues: currentVenueNames || [],
           targetCategories: [category],
           memberConstraints: memberConstraints.length > 0 ? memberConstraints : undefined,
+          rejectedVenues: rejectedVenues,
         });
 
         console.log(`[Category Regen] Attempt ${attempt}: Got ${suggestions.length} suggestions for ${category}`);
 
+        // Filter out rejected venues before calling Google Places
+        const filteredSuggestions = suggestions.filter(s => {
+          const normalized = s.venueName.trim().toLowerCase();
+          if (rejectedSet.has(normalized)) {
+            console.log(`[Category Regen] Skipping blacklisted venue: ${s.venueName}`);
+            return false;
+          }
+          return true;
+        });
+        console.log(`[Category Regen] After blacklist filter: ${filteredSuggestions.length}/${suggestions.length} suggestions`);
+
         // Enrich with Google Places
-        const coordinates = group.latitude && group.longitude 
-          ? { lat: parseFloat(group.latitude), lng: parseFloat(group.longitude) }
+        const coordinates = refreshedGroup.latitude && refreshedGroup.longitude 
+          ? { lat: parseFloat(refreshedGroup.latitude), lng: parseFloat(refreshedGroup.longitude) }
           : undefined;
         const enrichedActivities = await Promise.all(
-        suggestions.map(async (suggestion) => {
+        filteredSuggestions.map(async (suggestion) => {
           const places = await searchPlaces(
             suggestion.searchQuery,
-            group.locationBase,
-            group.searchRadius || 2,
+            refreshedGroup.locationBase,
+            refreshedGroup.searchRadius || 2,
             coordinates
           );
 
-          const searchRadius = group.searchRadius || 2;
+          const searchRadius = refreshedGroup.searchRadius || 2;
           const qualityFiltered = places.filter(place => {
             const rating = parseFloat(place.rating || '0');
             const reviewCount = place.reviewCount || 0;
@@ -2460,6 +2481,15 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       const needed = 15 - allUniqueActivities.length;
       console.log(`[AI Generation] Attempt ${attempt}/${maxAttempts}: Need ${needed} more unique activities (have ${allUniqueActivities.length})`);
 
+      // Refresh group data to get latest rejected venues
+      const refreshedGroup = await storage.getGroup(groupId);
+      if (!refreshedGroup) {
+        throw new Error("Group not found during generation");
+      }
+      const rejectedVenues = refreshedGroup.rejectedVenues || [];
+      const rejectedSet = new Set(rejectedVenues.map(v => v.toLowerCase()));
+      console.log(`[AI Generation] Blacklisted venues: ${rejectedVenues.length}`);
+
       // Update progress in database so frontend can display it
       await storage.updateGroupStatus(groupId, "generating", `Generating suggestions (attempt ${attempt} of ${maxAttempts})`);
 
@@ -2486,6 +2516,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
           previouslySuggestedVenues: previouslySuggestedVenues.length > 0 ? previouslySuggestedVenues : undefined,
           targetCategories: targetCategories, // Pass underrepresented categories on retry
           memberConstraints: memberConstraints.length > 0 ? memberConstraints : undefined, // Pass member RSVP constraints
+          rejectedVenues: rejectedVenues, // Pass rejected venues blacklist
         }),
         new Promise<never>((_, reject) => 
           setTimeout(() => reject(new Error('AI generation timed out after 180 seconds')), 180000)
@@ -2495,6 +2526,17 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       const aiPromptEnd = Date.now();
       console.log(`[AI Generation] Attempt ${attempt}: AI prompt took ${((aiPromptEnd - aiPromptStart) / 1000).toFixed(1)}s`);
       console.log(`[AI Generation] Attempt ${attempt}: Received ${suggestions.length} suggestions from OpenAI`);
+
+      // Filter out rejected venues before calling Google Places
+      const filteredSuggestions = suggestions.filter(s => {
+        const normalized = s.venueName.trim().toLowerCase();
+        if (rejectedSet.has(normalized)) {
+          console.log(`[AI Generation] Skipping blacklisted venue: ${s.venueName}`);
+          return false;
+        }
+        return true;
+      });
+      console.log(`[AI Generation] After blacklist filter: ${filteredSuggestions.length}/${suggestions.length} suggestions`);
 
       const googleSearchStart = Date.now();
       // For each suggestion, search Google Places with group's search radius
@@ -2506,8 +2548,8 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       const batchSize = 30;
       const activitiesData: any[] = [];
       
-      for (let i = 0; i < suggestions.length; i += batchSize) {
-        const batch = suggestions.slice(i, i + batchSize);
+      for (let i = 0; i < filteredSuggestions.length; i += batchSize) {
+        const batch = filteredSuggestions.slice(i, i + batchSize);
         const batchResults = await Promise.all(
           batch.map(async (suggestion) => {
             const places = await searchPlaces(

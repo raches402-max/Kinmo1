@@ -225,16 +225,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   async addRejectedVenue(groupId: string, venueName: string): Promise<void> {
-    const group = await this.getGroup(groupId);
-    if (!group) return;
-
-    const existingRejected = group.rejectedVenues || [];
-    if (existingRejected.includes(venueName)) return; // Already blacklisted
-
+    // Normalize venue name for consistent matching
+    const normalized = venueName.trim().toLowerCase();
+    
+    // Atomic update: only append if not already present
     await db
       .update(groups)
       .set({
-        rejectedVenues: [...existingRejected, venueName]
+        rejectedVenues: sql`CASE 
+          WHEN ${groups.rejectedVenues} IS NULL THEN ARRAY[${normalized}]::text[]
+          WHEN NOT ${groups.rejectedVenues} @> ARRAY[${normalized}]::text[] THEN array_append(${groups.rejectedVenues}, ${normalized})
+          ELSE ${groups.rejectedVenues}
+        END`
       })
       .where(eq(groups.id, groupId));
   }
