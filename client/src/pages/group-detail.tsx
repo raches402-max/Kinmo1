@@ -145,8 +145,26 @@ function getTimezoneName(tzIdentifier: string): string {
     'America/Phoenix': 'Mountain Time (no DST)',
     'America/Chicago': 'Central Time',
     'America/New_York': 'Eastern Time',
+    'Europe/London': 'UK Time',
+    'Europe/Paris': 'Central European Time',
+    'Europe/Berlin': 'Central European Time',
+    'Europe/Rome': 'Central European Time',
+    'Europe/Madrid': 'Central European Time',
+    'Europe/Amsterdam': 'Central European Time',
+    'Asia/Tokyo': 'Japan Time',
+    'Asia/Shanghai': 'China Time',
+    'Asia/Hong_Kong': 'Hong Kong Time',
+    'Asia/Singapore': 'Singapore Time',
+    'Asia/Dubai': 'UAE Time',
+    'Australia/Sydney': 'Australian Eastern Time',
+    'Australia/Melbourne': 'Australian Eastern Time',
+    'Australia/Perth': 'Australian Western Time',
+    'Pacific/Auckland': 'New Zealand Time',
+    'America/Toronto': 'Eastern Time',
+    'America/Vancouver': 'Pacific Time',
+    'America/Mexico_City': 'Central Time',
   };
-  return names[tzIdentifier] || 'Pacific Time';
+  return names[tzIdentifier] || tzIdentifier;
 }
 
 // Type for member constraints
@@ -4282,7 +4300,7 @@ export default function GroupDetail() {
                                         <p className="text-sm font-medium">Select one or more times to send:</p>
                                         <div className="grid grid-cols-2 gap-2">
                                           {aiTimeOptions.map((option) => {
-                                            const groupTz = group?.locationBase ? getTimezoneIdentifier(group.locationBase) : 'America/Los_Angeles';
+                                            const groupTz = group?.timezone || (group?.locationBase ? getTimezoneIdentifier(group.locationBase) : 'America/Los_Angeles');
                                             const tzName = getTimezoneName(groupTz);
                                             
                                             return (
