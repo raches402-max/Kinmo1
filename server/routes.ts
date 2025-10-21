@@ -1776,6 +1776,9 @@ Looking forward to planning great activities together!
         itemsData
       );
 
+      // Delete the original draft since we now have a saved copy
+      await storage.deleteItinerary(req.params.id);
+
       res.json(savedItinerary);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
