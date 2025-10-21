@@ -17,7 +17,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell, Edit2 } from "lucide-react";
+import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, ChevronRight, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell, Edit2 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -422,6 +422,8 @@ export default function GroupDetail() {
   const [saveItineraryOpen, setSaveItineraryOpen] = useState(false);
   const [itineraryName, setItineraryName] = useState("");
   const [savingItineraryId, setSavingItineraryId] = useState<string | null>(null);
+  const [timingRecommendations, setTimingRecommendations] = useState("");
+  const [timingNotesOpen, setTimingNotesOpen] = useState(false);
   const [aiTimeOptions, setAiTimeOptions] = useState<Array<{ id: string; eventDate: string; dayLabel: string; timeLabel: string }>>([]);
   const [selectedTimeOptionId, setSelectedTimeOptionId] = useState<string | null>(null);
   const [editingOptionId, setEditingOptionId] = useState<string | null>(null);
@@ -1108,14 +1110,16 @@ export default function GroupDetail() {
   });
 
   const saveItineraryMutation = useMutation({
-    mutationFn: async ({ itineraryId, name }: { itineraryId: string; name: string }) => {
-      return await apiRequest("POST", `/api/itineraries/${itineraryId}/save`, { name });
+    mutationFn: async ({ itineraryId, name, timingRecommendations }: { itineraryId: string; name: string; timingRecommendations?: string }) => {
+      return await apiRequest("POST", `/api/itineraries/${itineraryId}/save`, { name, timingRecommendations });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "saved-itineraries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "itineraries"] });
       setSaveItineraryOpen(false);
       setItineraryName("");
+      setTimingRecommendations("");
+      setTimingNotesOpen(false);
       setSavingItineraryId(null);
       toast({
         title: "Itinerary saved",
@@ -4761,6 +4765,33 @@ export default function GroupDetail() {
                 data-testid="input-itinerary-name"
               />
             </div>
+            
+            <Collapsible open={timingNotesOpen} onOpenChange={setTimingNotesOpen}>
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start gap-2 px-0"
+                  data-testid="button-toggle-timing-notes"
+                >
+                  <ChevronRight className={`h-4 w-4 transition-transform ${timingNotesOpen ? 'rotate-90' : ''}`} />
+                  <span className="text-sm text-muted-foreground">Add timing notes (optional)</span>
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-2 pt-2">
+                <Label htmlFor="timing-recommendations" className="text-xs text-muted-foreground">
+                  When does this plan work best?
+                </Label>
+                <Textarea
+                  id="timing-recommendations"
+                  placeholder="e.g., 'Best for Saturday brunch' or 'Sunday when there's a Monday holiday'"
+                  value={timingRecommendations}
+                  onChange={(e) => setTimingRecommendations(e.target.value)}
+                  className="min-h-[80px]"
+                  data-testid="textarea-timing-recommendations"
+                />
+              </CollapsibleContent>
+            </Collapsible>
           </div>
           <DialogFooter>
             <Button
@@ -4768,6 +4799,8 @@ export default function GroupDetail() {
               onClick={() => {
                 setSaveItineraryOpen(false);
                 setItineraryName("");
+                setTimingRecommendations("");
+                setTimingNotesOpen(false);
                 setSavingItineraryId(null);
               }}
               data-testid="button-cancel-save-itinerary"
@@ -4780,6 +4813,7 @@ export default function GroupDetail() {
                   saveItineraryMutation.mutate({
                     itineraryId: savingItineraryId,
                     name: itineraryName.trim(),
+                    timingRecommendations: timingRecommendations.trim() || undefined,
                   });
                 }
               }}

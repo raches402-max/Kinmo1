@@ -1796,7 +1796,7 @@ Looking forward to planning great activities together!
   // Save an itinerary (creates a copy so the draft remains editable)
   app.post("/api/itineraries/:id/save", isAuthenticated, async (req: any, res) => {
     try {
-      let { name } = req.body;
+      let { name, timingRecommendations } = req.body;
       const userId = req.user.claims.sub;
       
       // Get the original itinerary with items
@@ -1836,6 +1836,7 @@ Looking forward to planning great activities together!
           status: 'saved',
           isSaved: true,
           aiValidationNotes: original.aiValidationNotes,
+          timingRecommendations: timingRecommendations || null,
           proposedOrder: original.proposedOrder,
         },
         userId,

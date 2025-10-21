@@ -182,6 +182,7 @@ export const itineraries = pgTable("itineraries", {
   isPrimary: boolean("is_primary").default(false).notNull(), // Is this the primary proposed plan
   backupForItineraryId: varchar("backup_for_itinerary_id"), // If this is a backup plan (self-reference handled separately)
   aiValidationNotes: text("ai_validation_notes"), // AI insights about flow, timing, proximity
+  timingRecommendations: text("timing_recommendations"), // Organizer notes about when this itinerary works best (e.g., "Best for Saturday brunch", "Sunday when there's a Monday holiday")
   proposedOrder: jsonb("proposed_order").notNull(), // Array of item IDs in suggested sequence
   
   // Automated scheduling fields
