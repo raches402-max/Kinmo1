@@ -4773,6 +4773,62 @@ export default function GroupDetail() {
                               ))}
                             </div>
                             
+                            {/* Edit and Delete actions for proposed itineraries - always visible for owners */}
+                            {isOwner && itinerary.status !== 'scheduled' && (
+                              <div className="pt-2 border-t">
+                                <div className="flex gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="flex-1 gap-2"
+                                    onClick={() => {
+                                      setEditingItinerary(itinerary);
+                                      setEditItineraryName(itinerary.name || '');
+                                      setEditItineraryItems(itinerary.items || []);
+                                      setEditTimingRecommendations(itinerary.timingRecommendations || '');
+                                      setEditProposedDate(itinerary.eventDate || '');
+                                      setEditItineraryOpen(true);
+                                    }}
+                                    data-testid={`button-edit-proposed-${itinerary.id}`}
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                    Edit
+                                  </Button>
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="flex-1 gap-2 text-destructive hover:text-destructive"
+                                        data-testid={`button-delete-proposed-${itinerary.id}`}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                        Delete
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Delete this event?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          This will permanently delete "{itinerary.name || 'this event'}" and remove all RSVPs. This action cannot be undone.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          onClick={() => deleteSavedItineraryMutation.mutate(itinerary.id)}
+                                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                          data-testid="button-confirm-delete"
+                                        >
+                                          Delete Event
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </div>
+                              </div>
+                            )}
+                            
                             {isPlanner && totalResponses > 0 && (
                               <div className="pt-2 border-t">
                                 <p className="text-sm font-medium mb-3">RSVP Summary</p>
@@ -4804,60 +4860,6 @@ export default function GroupDetail() {
                                     >
                                       {finalizePlanMutation.isPending ? "Finalizing..." : "Finalize as The Plan"}
                                     </Button>
-                                  )}
-                                  
-                                  {/* Edit and Delete actions for proposed itineraries */}
-                                  {isOwner && itinerary.status !== 'scheduled' && (
-                                    <div className="flex gap-2">
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="flex-1 gap-2"
-                                        onClick={() => {
-                                          setEditingItinerary(itinerary);
-                                          setEditItineraryName(itinerary.name || '');
-                                          setEditItineraryItems(itinerary.items || []);
-                                          setEditTimingRecommendations(itinerary.timingRecommendations || '');
-                                          setEditProposedDate(itinerary.eventDate || '');
-                                          setEditItineraryOpen(true);
-                                        }}
-                                        data-testid={`button-edit-proposed-${itinerary.id}`}
-                                      >
-                                        <Edit className="h-4 w-4" />
-                                        Edit
-                                      </Button>
-                                      <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="flex-1 gap-2 text-destructive hover:text-destructive"
-                                            data-testid={`button-delete-proposed-${itinerary.id}`}
-                                          >
-                                            <Trash2 className="h-4 w-4" />
-                                            Delete
-                                          </Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                          <AlertDialogHeader>
-                                            <AlertDialogTitle>Delete this event?</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                              This will permanently delete "{itinerary.name || 'this event'}" and remove all RSVPs. This action cannot be undone.
-                                            </AlertDialogDescription>
-                                          </AlertDialogHeader>
-                                          <AlertDialogFooter>
-                                            <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
-                                            <AlertDialogAction
-                                              onClick={() => deleteSavedItineraryMutation.mutate(itinerary.id)}
-                                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                              data-testid="button-confirm-delete"
-                                            >
-                                              Delete Event
-                                            </AlertDialogAction>
-                                          </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                      </AlertDialog>
-                                    </div>
                                   )}
 
                                   {conditionalCount > 0 && (
