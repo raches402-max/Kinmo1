@@ -2493,6 +2493,10 @@ Looking forward to planning great activities together!
           sourceId: item.sourceId
         }));
 
+        // Get members once for all itineraries
+        const members = await storage.getGroupMembers(group.id);
+        console.log(`[Send Itinerary Multi-Date] Found ${members.length} members for group ${group.id}`);
+
         for (const dateStr of eventDates) {
           const proposedCopy = await storage.createItinerary(
             {
@@ -2507,6 +2511,19 @@ Looking forward to planning great activities together!
             userId,
             itemsData
           );
+          
+          // Create invites for each member for this proposed itinerary
+          for (const member of members) {
+            const inviteToken = crypto.randomUUID();
+            
+            await db.insert(itineraryInvites).values({
+              itineraryId: proposedCopy.id,
+              memberId: member.id,
+              inviteToken,
+            });
+          }
+          
+          console.log(`[Send Itinerary Multi-Date] Created ${members.length} invites for itinerary ${proposedCopy.id}`);
           
           // Fetch the full itinerary with items to return complete data
           const fullItinerary = await storage.getItinerary(proposedCopy.id);
