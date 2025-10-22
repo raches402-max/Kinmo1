@@ -55,10 +55,7 @@ export default function Dashboard() {
   // RSVP mutation
   const rsvpMutation = useMutation({
     mutationFn: async ({ itineraryId, inviteToken, response }: { itineraryId: string; inviteToken: string; response: string }) => {
-      return await apiRequest(`/api/rsvps`, {
-        method: "POST",
-        body: JSON.stringify({ itineraryId, inviteToken, response }),
-      });
+      return await apiRequest("POST", `/api/rsvps`, { itineraryId, inviteToken, response });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });

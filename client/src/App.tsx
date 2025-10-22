@@ -16,6 +16,7 @@ import JoinGroup from "@/pages/join-group";
 import YasThis from "@/pages/yas-this";
 import InvitePage from "@/pages/invite";
 import RsvpItineraryPage from "@/pages/rsvp-itinerary";
+import ClaimMemberPage from "@/pages/claim-member";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -30,6 +31,7 @@ function Router() {
           <Route path="/join/:shareableLink" component={JoinGroup} />
           <Route path="/invite/:token" component={InvitePage} />
           <Route path="/rsvp/:itineraryId/:memberToken" component={RsvpItineraryPage} />
+          <Route path="/claim/:claimToken" component={ClaimMemberPage} />
         </>
       ) : (
         <>
@@ -41,6 +43,7 @@ function Router() {
           <Route path="/join/:shareableLink" component={JoinGroup} />
           <Route path="/invite/:token" component={InvitePage} />
           <Route path="/rsvp/:itineraryId/:memberToken" component={RsvpItineraryPage} />
+          <Route path="/claim/:claimToken" component={ClaimMemberPage} />
         </>
       )}
       <Route component={NotFound} />

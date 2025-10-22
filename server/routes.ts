@@ -2,11 +2,12 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, activities as activitiesTable, groups as groupsTable, itineraryInvites, rsvps as rsvpsTable, itineraries, itineraryItems, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
+import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, activities as activitiesTable, groups as groupsTable, members as membersTable, itineraryInvites, rsvps as rsvpsTable, itineraries, itineraryItems, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
 import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue, analyzePreferencePatterns } from "./openai";
 import { searchPlaces, searchNearbyPlaces, geocodeLocation } from "./google-places";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { validateItinerary } from "./itinerary-validation";
+import { sendMemberWelcome, type EmailRecipient, type MemberWelcomeData } from "./email-service";
 import { db } from "./db";
 import { eq, sql } from "drizzle-orm";
 
@@ -253,6 +254,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Generate AI activity suggestions in background
       generateAndStoreActivities(group.id, validatedGroup);
+
+      // Send welcome emails to new members in background
+      if (members && members.length > 0) {
+        setImmediate(async () => {
+          try {
+            const createdMembers = await storage.getGroupMembers(group.id);
+            for (const member of createdMembers) {
+              if (member.email && member.claimToken) {
+                const claimLink = `${process.env.FRONTEND_URL || 'http://localhost:5000'}/claim/${member.claimToken}`;
+                const recipient: EmailRecipient = {
+                  email: member.email,
+                  name: member.name || 'there',
+                };
+                const welcomeData: MemberWelcomeData = {
+                  groupName: group.name,
+                  groupEmoji: group.emoji || '🎉',
+                  organizerName: group.name,
+                  claimLink,
+                };
+                await sendMemberWelcome(recipient, welcomeData);
+                console.log(`Sent welcome email to ${member.email} for group ${group.name}`);
+              }
+            }
+          } catch (error) {
+            console.error('Error sending welcome emails:', error);
+          }
+        });
+      }
 
       res.json(group);
     } catch (error: any) {
@@ -622,6 +651,113 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updatedMember);
     } catch (error: any) {
       res.status(400).json({ message: error.message });
+    }
+  });
+
+  // Authenticated Member Claim Routes
+
+  // Verify claim token and get member info (no auth required)
+  app.get("/api/members/claim/verify/:claimToken", async (req, res) => {
+    try {
+      const { claimToken } = req.params;
+
+      if (!claimToken) {
+        return res.status(400).json({ message: "Claim token required" });
+      }
+
+      // Find member by claim token
+      const members = await db
+        .select({
+          id: membersTable.id,
+          name: membersTable.name,
+          email: membersTable.email,
+          userId: membersTable.userId,
+          claimedAt: membersTable.claimedAt,
+          groupId: membersTable.groupId,
+        })
+        .from(membersTable)
+        .where(sql`claim_token = ${claimToken}`);
+
+      if (members.length === 0) {
+        return res.status(404).json({ message: "Invalid or expired claim token" });
+      }
+
+      const member = members[0];
+
+      // Get group info
+      const group = await storage.getGroup(member.groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      // Check if already claimed
+      const alreadyClaimed = !!member.userId && !!member.claimedAt;
+
+      res.json({
+        id: member.id,
+        name: member.name,
+        email: member.email,
+        groupName: group.name,
+        groupEmoji: group.emoji || "🎉",
+        alreadyClaimed,
+      });
+    } catch (error: any) {
+      console.error('[Verify Claim Token] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Claim membership (authenticated - links userId to member record)
+  app.post("/api/members/claim", isAuthenticated, async (req: any, res) => {
+    try {
+      const { claimToken } = req.body;
+      const userId = req.user.claims.sub;
+
+      if (!claimToken) {
+        return res.status(400).json({ message: "Claim token required" });
+      }
+
+      // Find member by claim token
+      const members = await db
+        .select()
+        .from(membersTable)
+        .where(sql`claim_token = ${claimToken}`);
+
+      if (members.length === 0) {
+        return res.status(404).json({ message: "Invalid claim token" });
+      }
+
+      const member = members[0];
+
+      // Check if already claimed by a different user
+      if (member.userId && member.userId !== userId) {
+        return res.status(409).json({ 
+          message: "This membership has already been claimed by another account" 
+        });
+      }
+
+      // If already claimed by this user, just return success
+      if (member.userId === userId) {
+        return res.json({
+          message: "Membership already claimed",
+          member,
+        });
+      }
+
+      // Claim the membership - link userId to member record
+      const updatedMember = await storage.updateMember(member.id, {
+        userId,
+        claimedAt: new Date(),
+        hasJoined: true,
+      });
+
+      res.json({
+        message: "Membership claimed successfully",
+        member: updatedMember,
+      });
+    } catch (error: any) {
+      console.error('[Claim Membership] Error:', error);
+      res.status(500).json({ message: error.message });
     }
   });
 

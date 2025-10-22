@@ -83,6 +83,7 @@ export const members = pgTable("members", {
   memberBudgetMax: integer("member_budget_max"), // Member's max budget preference
   memberAvailability: jsonb("member_availability"), // Dates that work for this member: ["2025-01-15", "2025-01-16"]
   claimToken: text("claim_token").unique(), // Session token for claiming identity without login
+  claimedAt: timestamp("claimed_at"), // When member claimed their account and linked to userId
   
   // Smart preference learning from RSVP follow-ups
   memberConstraints: jsonb("member_constraints"), // {scheduleConflicts: ["Thursdays"], budgetConcern: true, distanceConcern: true, notes: "..."}

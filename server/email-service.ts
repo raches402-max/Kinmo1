@@ -322,6 +322,97 @@ export async function sendDayBeforeReminder(
   }
 }
 
+export interface MemberWelcomeData {
+  groupName: string;
+  groupEmoji: string;
+  organizerName: string;
+  claimLink: string;
+}
+
+export async function sendMemberWelcome(
+  recipient: EmailRecipient,
+  data: MemberWelcomeData
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await resend.emails.send({
+      from: 'Kinmo.ai <invites@kinmo.ai>',
+      to: recipient.email,
+      subject: `Welcome to ${data.groupName}!`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.6; color: #333; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%); color: white; padding: 30px; border-radius: 8px; margin-bottom: 20px; text-align: center; }
+              .content { background: #f9fafb; padding: 30px; border-radius: 8px; }
+              .button { display: inline-block; background: #7c3aed; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+              .footer { text-align: center; color: #6b7280; font-size: 14px; margin-top: 30px; }
+              .feature-list { background: white; padding: 20px; border-radius: 6px; margin: 20px 0; }
+              .feature-item { padding: 10px 0; display: flex; align-items: start; }
+              .feature-icon { margin-right: 10px; font-size: 20px; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <div style="font-size: 48px; margin-bottom: 10px;">${data.groupEmoji}</div>
+                <h1 style="margin: 0;">Welcome to ${data.groupName}!</h1>
+              </div>
+              
+              <div class="content">
+                <p>Hi ${recipient.name}!</p>
+                
+                <p>${data.organizerName} has added you to <strong>${data.groupName}</strong> on Kinmo.ai - the easiest way to plan group activities.</p>
+                
+                <div class="feature-list">
+                  <h3 style="margin-top: 0;">What you can do:</h3>
+                  <div class="feature-item">
+                    <span class="feature-icon">🎉</span>
+                    <span>RSVP to group events and outings</span>
+                  </div>
+                  <div class="feature-item">
+                    <span class="feature-icon">🗳️</span>
+                    <span>Vote on venue suggestions</span>
+                  </div>
+                  <div class="feature-item">
+                    <span class="feature-icon">📍</span>
+                    <span>See upcoming plans and itineraries</span>
+                  </div>
+                  <div class="feature-item">
+                    <span class="feature-icon">💬</span>
+                    <span>Share your availability and preferences</span>
+                  </div>
+                </div>
+                
+                <p><strong>Get started by claiming your membership:</strong></p>
+                
+                <center>
+                  <a href="${data.claimLink}" class="button">Claim Your Membership</a>
+                </center>
+                
+                <p style="font-size: 14px; color: #6b7280; margin-top: 30px;">
+                  You'll be able to sign in with your Replit account and see all the group's activities.
+                </p>
+              </div>
+              
+              <div class="footer">
+                <p>Powered by Kinmo.ai - Making group planning effortless</p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `,
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error sending member welcome email:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
 export async function sendItineraryReschedule(
   recipient: EmailRecipient,
   data: RescheduleData

@@ -153,14 +153,9 @@ async function sendInitialInvites(itinerary: any, group: any): Promise<void> {
       .from(members)
       .where(eq(members.groupId, group.id));
 
-    const recipients: EmailRecipient[] = groupMembers
-      .filter(m => m.email)
-      .map(m => ({
-        email: m.email!,
-        name: m.name || 'there',
-      }));
+    const membersWithEmails = groupMembers.filter(m => m.email);
 
-    if (recipients.length === 0) {
+    if (membersWithEmails.length === 0) {
       console.log('No recipients with emails for itinerary:', itinerary.id);
       return;
     }
@@ -173,9 +168,9 @@ async function sendInitialInvites(itinerary: any, group: any): Promise<void> {
     const eventDate = new Date(itinerary.eventDate);
     const rsvpDeadline = itinerary.rsvpDeadline ? new Date(itinerary.rsvpDeadline) : null;
 
-    const inviteData: ItineraryInviteData = {
+    const baseInviteData = {
       groupName: group.name,
-      organizerName: group.name, // Could enhance this with actual organizer name
+      organizerName: group.name,
       eventDate: eventDate.toLocaleDateString('en-US', { 
         weekday: 'long', 
         month: 'long', 
@@ -194,11 +189,40 @@ async function sendInitialInvites(itinerary: any, group: any): Promise<void> {
         month: 'long', 
         day: 'numeric' 
       }) || 'soon',
-      rsvpLink: `${process.env.FRONTEND_URL || 'http://localhost:5000'}/invite/${group.shareableLink}`,
     };
 
-    // Send to all recipients
-    for (const recipient of recipients) {
+    // Send individual invite to each member with their unique RSVP link
+    for (const member of membersWithEmails) {
+      // Get the invite token for this member and itinerary
+      const invites = await db
+        .select()
+        .from(itineraryInvites)
+        .where(
+          and(
+            eq(itineraryInvites.itineraryId, itinerary.id),
+            eq(itineraryInvites.memberId, member.id)
+          )
+        )
+        .limit(1);
+
+      if (invites.length === 0) {
+        console.log(`No invite token found for member ${member.id} and itinerary ${itinerary.id}`);
+        continue;
+      }
+
+      const invite = invites[0];
+      const rsvpLink = `${process.env.FRONTEND_URL || 'http://localhost:5000'}/rsvp/${itinerary.id}/${invite.inviteToken}`;
+
+      const inviteData: ItineraryInviteData = {
+        ...baseInviteData,
+        rsvpLink,
+      };
+
+      const recipient: EmailRecipient = {
+        email: member.email!,
+        name: member.name || 'there',
+      };
+
       const result = await sendItineraryInvite(recipient, inviteData);
       
       // Log the attempt
@@ -216,7 +240,7 @@ async function sendInitialInvites(itinerary: any, group: any): Promise<void> {
       .set({ inviteSentAt: new Date() })
       .where(eq(itineraries.id, itinerary.id));
 
-    console.log(`Sent ${recipients.length} initial invites for itinerary ${itinerary.id}`);
+    console.log(`Sent ${membersWithEmails.length} initial invites for itinerary ${itinerary.id}`);
   } catch (error) {
     console.error('Error sending initial invites:', error);
   }
@@ -234,36 +258,16 @@ async function sendReminderEmails(
       .from(members)
       .where(eq(members.groupId, group.id));
 
-    let recipients: EmailRecipient[] = [];
+    const membersWithEmails = groupMembers.filter(m => m.email);
 
-    if (reminderType === 'day_before') {
-      // Send to everyone who RSVP'd yes
-      // For now, send to all members with emails
-      recipients = groupMembers
-        .filter(m => m.email)
-        .map(m => ({
-          email: m.email!,
-          name: m.name || 'there',
-        }));
-    } else {
-      // Send nudge/final call only to people who haven't RSVP'd
-      // For now, send to all members (can enhance with RSVP tracking)
-      recipients = groupMembers
-        .filter(m => m.email)
-        .map(m => ({
-          email: m.email!,
-          name: m.name || 'there',
-        }));
-    }
-
-    if (recipients.length === 0) {
+    if (membersWithEmails.length === 0) {
       return;
     }
 
     const eventDate = new Date(itinerary.eventDate);
     const rsvpDeadline = itinerary.rsvpDeadline ? new Date(itinerary.rsvpDeadline) : null;
 
-    const reminderData: ReminderData = {
+    const baseReminderData = {
       groupName: group.name,
       organizerName: group.name,
       eventDate: eventDate.toLocaleDateString('en-US', { 
@@ -279,7 +283,6 @@ async function sendReminderEmails(
         month: 'long', 
         day: 'numeric' 
       }),
-      rsvpLink: `${process.env.FRONTEND_URL || 'http://localhost:5000'}/invite/${group.shareableLink}`,
     };
 
     let sendFunction;
@@ -295,8 +298,38 @@ async function sendReminderEmails(
         break;
     }
 
-    // Send to all recipients
-    for (const recipient of recipients) {
+    // Send to each member with their unique RSVP link
+    for (const member of membersWithEmails) {
+      // Get the invite token for this member and itinerary
+      const invites = await db
+        .select()
+        .from(itineraryInvites)
+        .where(
+          and(
+            eq(itineraryInvites.itineraryId, itinerary.id),
+            eq(itineraryInvites.memberId, member.id)
+          )
+        )
+        .limit(1);
+
+      if (invites.length === 0) {
+        console.log(`No invite token found for member ${member.id} and itinerary ${itinerary.id}`);
+        continue;
+      }
+
+      const invite = invites[0];
+      const rsvpLink = `${process.env.FRONTEND_URL || 'http://localhost:5000'}/rsvp/${itinerary.id}/${invite.inviteToken}`;
+
+      const reminderData: ReminderData = {
+        ...baseReminderData,
+        rsvpLink,
+      };
+
+      const recipient: EmailRecipient = {
+        email: member.email!,
+        name: member.name || 'there',
+      };
+
       const result = await sendFunction(recipient, reminderData);
       
       // Log the attempt
@@ -308,7 +341,7 @@ async function sendReminderEmails(
       });
     }
 
-    console.log(`Sent ${recipients.length} ${reminderType} reminders for itinerary ${itinerary.id}`);
+    console.log(`Sent ${membersWithEmails.length} ${reminderType} reminders for itinerary ${itinerary.id}`);
   } catch (error) {
     console.error(`Error sending ${reminderType} reminders:`, error);
   }
