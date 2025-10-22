@@ -1,6 +1,7 @@
 import { db } from './db';
-import { itineraries, members, reminderLogs, groups } from '../shared/schema';
+import { itineraries, members, reminderLogs, groups, autoScheduledEvents, itineraryInvites } from '../shared/schema';
 import { eq, and, isNull, sql, or, lt } from 'drizzle-orm';
+import { addDays } from 'date-fns';
 import {
   sendItineraryInvite,
   sendGentleNudge,
@@ -10,6 +11,9 @@ import {
   type ItineraryInviteData,
   type ReminderData,
 } from './email-service';
+import { storage } from './storage';
+import { selectBestItineraryForAutoSchedule, shouldTriggerAutoSchedule } from './auto-scheduler';
+import { randomBytes } from 'crypto';
 
 interface ReminderToSend {
   itineraryId: string;
@@ -310,17 +314,181 @@ async function sendReminderEmails(
   }
 }
 
-// Run every 5 minutes
+/**
+ * Auto-Scheduling Worker: Creates pending events for groups that need them
+ * Runs once per day to check if groups need their next event created
+ */
+export async function processAutoScheduling(): Promise<void> {
+  try {
+    // Get all groups with auto-scheduling enabled
+    const autoEnabledGroups = await db
+      .select()
+      .from(groups)
+      .where(eq(groups.autoScheduleEnabled, true));
+
+    for (const group of autoEnabledGroups) {
+      // Check if there's already a pending auto-event
+      const pendingEvent = await storage.getPendingAutoScheduledEvent(group.id);
+      
+      // Determine if we should trigger auto-scheduling
+      if (shouldTriggerAutoSchedule(group, !!pendingEvent)) {
+        console.log(`Creating auto-scheduled event for group: ${group.name}`);
+        
+        // Select best itinerary/venues for this event
+        const selection = await selectBestItineraryForAutoSchedule(storage, group);
+        
+        if (!selection.itineraryId && (!selection.selectedVenues || selection.selectedVenues.length === 0)) {
+          console.log(`No viable options for auto-scheduling group ${group.name}`);
+          continue;
+        }
+
+        // Create or duplicate itinerary for this auto-event
+        let itineraryId: string;
+        
+        if (selection.itineraryId) {
+          // Duplicate the saved itinerary
+          const original = await storage.getItinerary(selection.itineraryId);
+          if (!original) continue;
+
+          const itemsData = original.items.map(item => ({
+            sourceType: item.sourceType as 'activity' | 'voting_event',
+            sourceId: item.sourceId
+          }));
+
+          const newItinerary = await storage.createItinerary(
+            {
+              groupId: group.id,
+              name: `${original.name} (Auto-Scheduled)`,
+              status: 'draft',
+              isSaved: false,
+              proposedOrder: {},
+            },
+            group.userId,
+            itemsData
+          );
+          itineraryId = newItinerary.id;
+        } else if (selection.selectedVenues) {
+          // Create new itinerary from selected venues
+          const newItinerary = await storage.createItinerary(
+            {
+              groupId: group.id,
+              name: 'Upcoming Hangout',
+              status: 'draft',
+              isSaved: false,
+              proposedOrder: {},
+            },
+            group.userId,
+            selection.selectedVenues
+          );
+          itineraryId = newItinerary.id;
+        } else {
+          continue;
+        }
+
+        // Use the next event due date, or default to 14 days from now
+        const proposedDate = group.nextEventDueDate 
+          ? new Date(group.nextEventDueDate)
+          : addDays(new Date(), 14);
+
+        // Calculate auto-send deadline (3 days before proposed date)
+        const autoSendAt = addDays(proposedDate, -3);
+
+        // Create auto-scheduled event record
+        await storage.createAutoScheduledEvent({
+          groupId: group.id,
+          itineraryId,
+          proposedDate,
+          autoSendAt,
+          status: 'pending',
+        });
+
+        console.log(`Created pending auto-event for group ${group.name}, proposed date: ${proposedDate.toISOString()}`);
+      }
+    }
+  } catch (error) {
+    console.error('Error processing auto-scheduling:', error);
+  }
+}
+
+/**
+ * Auto-Send Worker: Sends pending events that have reached their deadline
+ * Runs every hour to check for events ready to auto-send
+ */
+export async function processAutoSend(): Promise<void> {
+  try {
+    // Get all pending events that are ready to auto-send
+    const readyEvents = await storage.getAutoScheduledEventsReadyForAutoSend();
+
+    for (const event of readyEvents) {
+      console.log(`Auto-sending event ${event.id} for group ${event.groupId}`);
+      
+      try {
+        const group = await storage.getGroup(event.groupId);
+        const itinerary = event.itineraryId ? await storage.getItinerary(event.itineraryId) : null;
+        
+        if (!group || !itinerary) {
+          console.error(`Missing group or itinerary for auto-event ${event.id}`);
+          continue;
+        }
+
+        // Update itinerary to proposed status with event date
+        await storage.updateItinerary(itinerary.id, {
+          status: 'proposed',
+          eventDate: event.proposedDate,
+        });
+
+        // Send invites to all group members
+        const groupMembers = await storage.getGroupMembers(group.id);
+        
+        for (const member of groupMembers) {
+          if (!member.email) continue;
+
+          // Create invite token
+          const inviteToken = randomBytes(16).toString('hex');
+          
+          await db.insert(itineraryInvites).values({
+            itineraryId: itinerary.id,
+            memberId: member.id,
+            inviteToken,
+          });
+        }
+
+        // Mark auto-event as sent
+        await storage.updateAutoScheduledEventStatus(event.id, 'auto_sent');
+
+        console.log(`Auto-sent event ${event.id} successfully`);
+      } catch (error) {
+        console.error(`Error auto-sending event ${event.id}:`, error);
+      }
+    }
+  } catch (error) {
+    console.error('Error processing auto-send:', error);
+  }
+}
+
+// Run every 5 minutes for reminders, once per day for auto-scheduling
 export function startReminderScheduler(): void {
-  const INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+  const REMINDER_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+  const AUTO_SCHEDULE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+  const AUTO_SEND_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
   
   console.log('Starting reminder scheduler...');
   
-  // Run immediately on start
+  // Run reminders immediately and every 5 minutes
   processScheduledReminders();
-  
-  // Then run every 5 minutes
   setInterval(() => {
     processScheduledReminders();
-  }, INTERVAL_MS);
+  }, REMINDER_INTERVAL_MS);
+
+  // Run auto-scheduling immediately and daily
+  processAutoScheduling();
+  setInterval(() => {
+    processAutoScheduling();
+  }, AUTO_SCHEDULE_INTERVAL_MS);
+
+  // Run auto-send immediately and every hour
+  processAutoSend();
+  setInterval(() => {
+    processAutoSend();
+  }, AUTO_SEND_INTERVAL_MS);
 }
