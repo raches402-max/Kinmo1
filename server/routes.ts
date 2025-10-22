@@ -761,6 +761,180 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get member's events (pending invitations, upcoming, past)
+  // Supports both authenticated users and unclaimed members via claim token
+  app.get("/api/members/me/events", async (req: any, res) => {
+    try {
+      const { claimToken } = req.query;
+      const userId = req.user?.claims?.sub;
+
+      if (!userId && !claimToken) {
+        return res.status(401).json({ message: "Authentication or claim token required" });
+      }
+
+      let memberIds: string[] = [];
+
+      // If authenticated, find all member records linked to this user
+      if (userId) {
+        const userMembers = await db
+          .select({ id: membersTable.id })
+          .from(membersTable)
+          .where(eq(membersTable.userId, userId));
+        memberIds = userMembers.map(m => m.id);
+      }
+
+      // If claim token provided, find member by claim token
+      if (claimToken && typeof claimToken === 'string') {
+        const claimMembers = await db
+          .select({ id: membersTable.id })
+          .from(membersTable)
+          .where(eq(membersTable.claimToken, claimToken));
+        
+        // Add to memberIds if not already present
+        claimMembers.forEach(m => {
+          if (!memberIds.includes(m.id)) {
+            memberIds.push(m.id);
+          }
+        });
+      }
+
+      if (memberIds.length === 0) {
+        return res.json({
+          pending: [],
+          upcoming: [],
+          past: [],
+        });
+      }
+
+      // Get all invites for this member
+      const invites = await db
+        .select()
+        .from(itineraryInvites)
+        .where(sql`member_id IN (${sql.join(memberIds.map(id => sql`${id}`), sql`, `)})`);
+
+      const invitesByItinerary = new Map(invites.map(inv => [inv.itineraryId, inv]));
+
+      // Get all RSVPs for this member
+      const rsvps = await db
+        .select()
+        .from(rsvpsTable)
+        .where(sql`member_id IN (${sql.join(memberIds.map(id => sql`${id}`), sql`, `)})`);
+
+      const rsvpsByItinerary = new Map(rsvps.map(rsvp => [rsvp.itineraryId, rsvp]));
+
+      // Get all itineraries this member has been invited to
+      const itineraryIds = Array.from(invitesByItinerary.keys());
+      
+      if (itineraryIds.length === 0) {
+        return res.json({
+          pending: [],
+          upcoming: [],
+          past: [],
+        });
+      }
+
+      // Fetch itineraries with items
+      const itinerariesData = await db
+        .select()
+        .from(itineraries)
+        .where(sql`id IN (${sql.join(itineraryIds.map(id => sql`${id}`), sql`, `)})`);
+
+      // Fetch items for each itinerary
+      const allItems = await db
+        .select()
+        .from(itineraryItems)
+        .where(sql`itinerary_id IN (${sql.join(itineraryIds.map(id => sql`${id}`), sql`, `)})`);
+
+      const itemsByItinerary = new Map<string, any[]>();
+      allItems.forEach(item => {
+        if (!itemsByItinerary.has(item.itineraryId)) {
+          itemsByItinerary.set(item.itineraryId, []);
+        }
+        itemsByItinerary.get(item.itineraryId)!.push(item);
+      });
+
+      // Fetch groups for context
+      const groupIds = Array.from(new Set(itinerariesData.map(it => it.groupId)));
+      const groups = await db
+        .select()
+        .from(groupsTable)
+        .where(sql`id IN (${sql.join(groupIds.map(id => sql`${id}`), sql`, `)})`);
+
+      const groupsById = new Map(groups.map(g => [g.id, g]));
+
+      // Categorize itineraries
+      const now = new Date();
+      const pending: any[] = [];
+      const upcoming: any[] = [];
+      const past: any[] = [];
+
+      itinerariesData.forEach(itinerary => {
+        const invite = invitesByItinerary.get(itinerary.id);
+        const rsvp = rsvpsByItinerary.get(itinerary.id);
+        const group = groupsById.get(itinerary.groupId);
+        const items = itemsByItinerary.get(itinerary.id) || [];
+
+        const eventData = {
+          id: itinerary.id,
+          name: itinerary.name,
+          status: itinerary.status,
+          eventDate: itinerary.eventDate,
+          inviteToken: invite?.inviteToken,
+          rsvpResponse: rsvp?.response || null,
+          rsvpFeedback: rsvp?.rsvpFeedback || null,
+          group: group ? {
+            id: group.id,
+            name: group.name,
+            emoji: group.emoji,
+          } : null,
+          items: items.map(item => ({
+            id: item.id,
+            venueName: item.venueName,
+            venueType: item.venueType,
+            venueAddress: item.venueAddress,
+            photoUrl: item.photoUrl,
+          })),
+        };
+
+        // Categorize based on RSVP status and event date
+        if (!rsvp) {
+          // No RSVP yet - this is a pending invitation
+          pending.push(eventData);
+        } else if (itinerary.eventDate && new Date(itinerary.eventDate) < now) {
+          // Event date in past
+          past.push(eventData);
+        } else if (rsvp.response === 'yes' || rsvp.response === 'maybe') {
+          // RSVP'd yes/maybe and event is in future (or no date set)
+          upcoming.push(eventData);
+        } else {
+          // RSVP'd no - could go in past or just not show
+          past.push(eventData);
+        }
+      });
+
+      // Sort by event date (most recent first for each category)
+      const sortByDate = (a: any, b: any) => {
+        if (!a.eventDate && !b.eventDate) return 0;
+        if (!a.eventDate) return 1;
+        if (!b.eventDate) return -1;
+        return new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime();
+      };
+
+      pending.sort(sortByDate);
+      upcoming.sort(sortByDate);
+      past.sort(sortByDate);
+
+      res.json({
+        pending,
+        upcoming,
+        past,
+      });
+    } catch (error: any) {
+      console.error('[Get Member Events] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // RSVP Routes (for itinerary invites)
 
   // Create or update RSVP for an itinerary (no auth required, validates invite token)

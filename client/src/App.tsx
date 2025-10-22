@@ -17,6 +17,7 @@ import YasThis from "@/pages/yas-this";
 import InvitePage from "@/pages/invite";
 import RsvpItineraryPage from "@/pages/rsvp-itinerary";
 import ClaimMemberPage from "@/pages/claim-member";
+import MemberEventsPage from "@/pages/member-events";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -32,6 +33,7 @@ function Router() {
           <Route path="/invite/:token" component={InvitePage} />
           <Route path="/rsvp/:itineraryId/:inviteToken" component={RsvpItineraryPage} />
           <Route path="/claim/:claimToken" component={ClaimMemberPage} />
+          <Route path="/events" component={MemberEventsPage} />
         </>
       ) : (
         <>
@@ -44,6 +46,7 @@ function Router() {
           <Route path="/invite/:token" component={InvitePage} />
           <Route path="/rsvp/:itineraryId/:inviteToken" component={RsvpItineraryPage} />
           <Route path="/claim/:claimToken" component={ClaimMemberPage} />
+          <Route path="/events" component={MemberEventsPage} />
         </>
       )}
       <Route component={NotFound} />

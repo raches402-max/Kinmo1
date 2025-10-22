@@ -105,6 +105,21 @@ export default function Dashboard() {
             <h1 className="text-xl font-bold">Kinmo.ai</h1>
           </div>
           <div className="flex items-center gap-4">
+            <Link href="/events">
+              <Button variant="outline" className="relative" data-testid="button-my-events">
+                <Calendar className="mr-2 h-4 w-4" />
+                My Events
+                {pendingInvites.length > 0 && (
+                  <Badge 
+                    variant="destructive" 
+                    className="ml-2 px-1.5 min-w-5 h-5 flex items-center justify-center"
+                    data-testid="badge-pending-count"
+                  >
+                    {pendingInvites.length}
+                  </Badge>
+                )}
+              </Button>
+            </Link>
             <Link href="/create-group">
               <Button data-testid="button-create-group">
                 <Plus className="mr-2 h-4 w-4" />

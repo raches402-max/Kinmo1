@@ -57,6 +57,14 @@ export default function ClaimMemberPage() {
     },
   });
 
+  // Store claim token in localStorage for later use (e.g., accessing /events)
+  useEffect(() => {
+    if (claimToken && claimData && !claimData.alreadyClaimed) {
+      localStorage.setItem('claimToken', claimToken);
+      console.log("[Claim Page] Stored claim token in localStorage");
+    }
+  }, [claimToken, claimData]);
+
   // Auto-claim when user is authenticated and claim data is loaded
   const hasAttemptedClaim = useRef(false);
   useEffect(() => {
@@ -77,6 +85,8 @@ export default function ClaimMemberPage() {
     ) {
       console.log("[Claim Page] Auto-claiming membership...");
       hasAttemptedClaim.current = true;
+      // Clear claim token from localStorage after claiming
+      localStorage.removeItem('claimToken');
       claimMutation.mutate();
     }
   }, [user, claimData, claimMutation.isPending]);
