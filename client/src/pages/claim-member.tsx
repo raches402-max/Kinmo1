@@ -60,6 +60,14 @@ export default function ClaimMemberPage() {
   // Auto-claim when user is authenticated and claim data is loaded
   const hasAttemptedClaim = useRef(false);
   useEffect(() => {
+    console.log("[Claim Page] Auto-claim check:", {
+      hasUser: !!user,
+      hasClaimData: !!claimData,
+      alreadyClaimed: claimData?.alreadyClaimed,
+      isPending: claimMutation.isPending,
+      hasAttempted: hasAttemptedClaim.current
+    });
+    
     if (
       user && 
       claimData && 
@@ -67,10 +75,11 @@ export default function ClaimMemberPage() {
       !claimMutation.isPending &&
       !hasAttemptedClaim.current
     ) {
+      console.log("[Claim Page] Auto-claiming membership...");
       hasAttemptedClaim.current = true;
       claimMutation.mutate();
     }
-  }, [user, claimData, claimMutation]);
+  }, [user, claimData, claimMutation.isPending]);
 
   // Loading state
   if (isLoading) {

@@ -164,33 +164,11 @@ export class DatabaseStorage implements IStorage {
 
     // Get groups where user is a member
     const memberGroups = await db
-      .select({
-        id: groups.id,
-        userId: groups.userId,
-        name: groups.name,
-        emoji: groups.emoji,
-        locationBase: groups.locationBase,
-        latitude: groups.latitude,
-        longitude: groups.longitude,
-        timezone: groups.timezone,
-        shareableLink: groups.shareableLink,
-        searchRadius: groups.searchRadius,
-        createdAt: groups.createdAt,
-        status: groups.status,
-        errorMessage: groups.errorMessage,
-        rejectedVenues: groups.rejectedVenues,
-        autoScheduleEnabled: groups.autoScheduleEnabled,
-        autoScheduleFrequency: groups.autoScheduleFrequency,
-        autoScheduleDayOfWeek: groups.autoScheduleDayOfWeek,
-        autoScheduleTime: groups.autoScheduleTime,
-        lastAutoEventAt: groups.lastAutoEventAt,
-        preferenceInsights: groups.preferenceInsights,
-        feedbackCount: groups.feedbackCount,
-        lastInsightsUpdate: groups.lastInsightsUpdate,
-      })
+      .selectDistinct()
       .from(groups)
       .innerJoin(members, eq(members.groupId, groups.id))
-      .where(eq(members.userId, userId));
+      .where(eq(members.userId, userId))
+      .then(rows => rows.map(row => row.groups));
 
     // Combine and deduplicate by group ID
     const allGroups = [...organizedGroups, ...memberGroups];
