@@ -28,6 +28,12 @@ AI suggestion preferences:
     - **Auto-Claim**: Claim page automatically claims membership when user is authenticated (via useEffect hook).
     - **Group Access**: `getUserGroups` API returns groups where user is either organizer or claimed member (via members.userId join).
     - **RSVP Routes**: RSVP links use format `/rsvp/:itineraryId/:inviteToken` for secure member authentication.
+    - **Member Events Dashboard**: Dedicated `/events` page where members can view all pending invitations, upcoming events, and past events in one place, reducing reliance on email. Features include:
+        - **Dual Access Pattern**: Supports both authenticated users (via session) and unclaimed members (via claim token stored in localStorage)
+        - **Event Categorization**: Automatically separates events into pending invitations (awaiting RSVP), upcoming events (RSVP'd or organizing), and past events
+        - **Navigation Integration**: "My Events" button in dashboard header with badge showing pending invitation count
+        - **Email Integration**: All email templates (invites, reminders, welcome, reschedule) include footer links to `/events` page using robust URL API parsing via `getEventsUrl` helper
+        - **Claim Token Persistence**: Claim tokens stored in localStorage for seamless access to events page without re-authenticating, cleared after successful account claim
 
 ### Feature Specifications
 - **AI Suggestion Generation**: GPT-4o-mini generates 15 diverse venue suggestions across 5 categories (MEAL, CAFES, DRINKS, DESSERT, EXPERIENCES), ensuring 3 cards per category. Includes category-aware retry logic and per-category regeneration.
