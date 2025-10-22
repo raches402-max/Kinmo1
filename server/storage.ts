@@ -1,7 +1,7 @@
 // Reference: javascript_database blueprint
 // Reference: javascript_log_in_with_replit blueprint
 import {
-  users, groups, members, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, itineraryInvites, reminderLogs,
+  users, groups, members, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, itineraryInvites, reminderLogs, autoScheduledEvents, frequencyFeedback,
   type User, type UpsertUser,
   type Group, type InsertGroup, type UpdateGroup,
   type Member, type InsertMember, type UpdateMember,
@@ -12,7 +12,9 @@ import {
   type Itinerary, type InsertItinerary, type UpdateItinerary,
   type ItineraryItem, type InsertItineraryItem,
   type Rsvp, type InsertRsvp,
-  type ReminderLog, type InsertReminderLog
+  type ReminderLog, type InsertReminderLog,
+  type AutoScheduledEvent, type InsertAutoScheduledEvent,
+  type FrequencyFeedback, type InsertFrequencyFeedback
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, or, inArray } from "drizzle-orm";
@@ -90,6 +92,17 @@ export interface IStorage {
   // Reminder Logs
   logReminder(log: InsertReminderLog): Promise<ReminderLog>;
   getReminderLogs(itineraryId: string): Promise<ReminderLog[]>;
+
+  // Auto-scheduled Events
+  createAutoScheduledEvent(event: InsertAutoScheduledEvent): Promise<AutoScheduledEvent>;
+  getPendingAutoScheduledEvent(groupId: string): Promise<AutoScheduledEvent | undefined>;
+  getAutoScheduledEvent(id: string): Promise<AutoScheduledEvent | undefined>;
+  updateAutoScheduledEventStatus(id: string, status: string): Promise<AutoScheduledEvent>;
+  getAutoScheduledEventsReadyForAutoSend(): Promise<AutoScheduledEvent[]>;
+
+  // Frequency Feedback
+  createFrequencyFeedback(feedback: InsertFrequencyFeedback): Promise<FrequencyFeedback>;
+  getGroupFrequencyFeedback(groupId: string): Promise<FrequencyFeedback[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -786,6 +799,73 @@ export class DatabaseStorage implements IStorage {
       .from(reminderLogs)
       .where(eq(reminderLogs.itineraryId, itineraryId))
       .orderBy(desc(reminderLogs.sentAt));
+  }
+
+  // Auto-scheduled Events
+  async createAutoScheduledEvent(event: InsertAutoScheduledEvent): Promise<AutoScheduledEvent> {
+    const [autoEvent] = await db
+      .insert(autoScheduledEvents)
+      .values(event)
+      .returning();
+    return autoEvent;
+  }
+
+  async getPendingAutoScheduledEvent(groupId: string): Promise<AutoScheduledEvent | undefined> {
+    const [event] = await db
+      .select()
+      .from(autoScheduledEvents)
+      .where(and(
+        eq(autoScheduledEvents.groupId, groupId),
+        eq(autoScheduledEvents.status, 'pending')
+      ))
+      .orderBy(desc(autoScheduledEvents.createdAt))
+      .limit(1);
+    return event;
+  }
+
+  async getAutoScheduledEvent(id: string): Promise<AutoScheduledEvent | undefined> {
+    const [event] = await db
+      .select()
+      .from(autoScheduledEvents)
+      .where(eq(autoScheduledEvents.id, id));
+    return event;
+  }
+
+  async updateAutoScheduledEventStatus(id: string, status: string): Promise<AutoScheduledEvent> {
+    const [event] = await db
+      .update(autoScheduledEvents)
+      .set({ status })
+      .where(eq(autoScheduledEvents.id, id))
+      .returning();
+    return event;
+  }
+
+  async getAutoScheduledEventsReadyForAutoSend(): Promise<AutoScheduledEvent[]> {
+    const now = new Date();
+    return await db
+      .select()
+      .from(autoScheduledEvents)
+      .where(and(
+        eq(autoScheduledEvents.status, 'pending'),
+        sql`${autoScheduledEvents.autoSendAt} <= ${now}`
+      ));
+  }
+
+  // Frequency Feedback
+  async createFrequencyFeedback(feedback: InsertFrequencyFeedback): Promise<FrequencyFeedback> {
+    const [created] = await db
+      .insert(frequencyFeedback)
+      .values(feedback)
+      .returning();
+    return created;
+  }
+
+  async getGroupFrequencyFeedback(groupId: string): Promise<FrequencyFeedback[]> {
+    return await db
+      .select()
+      .from(frequencyFeedback)
+      .where(eq(frequencyFeedback.groupId, groupId))
+      .orderBy(desc(frequencyFeedback.createdAt));
   }
 }
 
