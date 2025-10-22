@@ -26,6 +26,7 @@ import { AvailabilityGrid, createEmptyAvailability } from "@/components/Availabi
 import { ReadOnlyAvailabilityGrid } from "@/components/ReadOnlyAvailabilityGrid";
 import { SwipeSession } from "@/components/SwipeSession";
 import { calculateDistance, getDistanceCategory, formatDistance } from "@/lib/distance";
+import { format } from 'date-fns';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 import {
   DndContext,
@@ -700,7 +701,7 @@ export default function GroupDetail() {
   });
 
   // Check if user is group owner
-  const isOwner = user?.claims?.sub === group?.userId;
+  const isOwner = user?.id === group?.userId;
 
   // Track copied state for invite links
   const [copiedLinks, setCopiedLinks] = useState<Record<string, boolean>>({});
@@ -4699,8 +4700,8 @@ export default function GroupDetail() {
               ) : (
                 <div className="space-y-4">
                   {proposedItineraries.map((itinerary: any) => {
-                    const userRsvp = itinerary.rsvps?.find((r: any) => r.userId === user?.claims?.sub);
-                    const isPlanner = itinerary.createdBy === user?.claims?.sub;
+                    const userRsvp = itinerary.rsvps?.find((r: any) => r.userId === user?.id);
+                    const isPlanner = itinerary.createdBy === user?.id;
                     const yesCount = itinerary.rsvps?.filter((r: any) => r.response === 'yes').length || 0;
                     const conditionalCount = itinerary.rsvps?.filter((r: any) => r.response === 'yes_with_constraint').length || 0;
                     const noCount = itinerary.rsvps?.filter((r: any) => r.response === 'no').length || 0;
