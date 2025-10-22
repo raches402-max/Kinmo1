@@ -639,6 +639,7 @@ export default function GroupDetail() {
   const [editItineraryName, setEditItineraryName] = useState("");
   const [editItineraryItems, setEditItineraryItems] = useState<any[]>([]);
   const [editTimingRecommendations, setEditTimingRecommendations] = useState("");
+  const [editProposedDate, setEditProposedDate] = useState("");
   const [addVenueDialogOpen, setAddVenueDialogOpen] = useState(false);
   const [venuesToAdd, setVenuesToAdd] = useState<Array<{sourceType: 'activity' | 'voting_event', sourceId: string}>>([]);
   const [expandedNearbyVenueId, setExpandedNearbyVenueId] = useState<string | null>(null);
@@ -1455,6 +1456,8 @@ export default function GroupDetail() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "saved-itineraries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "proposed-itineraries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/members/me/events"] });
       setEditItineraryOpen(false);
       setEditingItinerary(null);
       toast({
@@ -4723,14 +4726,14 @@ export default function GroupDetail() {
                               </CardTitle>
                               <CardDescription className="mt-1 space-y-1">
                                 <div>{itinerary.items?.length || 0} stops • {totalResponses} responses</div>
-                                {itinerary.proposedDate && (
+                                {itinerary.eventDate && (
                                   <div className="flex items-center gap-1.5 text-foreground font-medium">
                                     <Calendar className="h-3.5 w-3.5" />
                                     <span>
                                       {format(
                                         group?.timezone 
-                                          ? toZonedTime(new Date(itinerary.proposedDate), group.timezone)
-                                          : new Date(itinerary.proposedDate),
+                                          ? toZonedTime(new Date(itinerary.eventDate), group.timezone)
+                                          : new Date(itinerary.eventDate),
                                         "EEE, MMM d 'at' h:mm a"
                                       )}
                                       {group?.timezone && group.timezone !== 'America/Los_Angeles' && group.timezone !== 'America/New_York' && (
@@ -4817,6 +4820,7 @@ export default function GroupDetail() {
                                           setEditItineraryName(itinerary.name || '');
                                           setEditItineraryItems(itinerary.items || []);
                                           setEditTimingRecommendations(itinerary.timingRecommendations || '');
+                                          setEditProposedDate(itinerary.eventDate || '');
                                           setEditItineraryOpen(true);
                                         }}
                                         data-testid={`button-edit-proposed-${itinerary.id}`}
@@ -5531,6 +5535,7 @@ export default function GroupDetail() {
             setEditItineraryName("");
             setEditItineraryItems([]);
             setEditTimingRecommendations("");
+            setEditProposedDate("");
           }
         }}
       >
@@ -5553,6 +5558,38 @@ export default function GroupDetail() {
                 data-testid="input-edit-itinerary-name"
               />
             </div>
+
+            {/* Event Date/Time Input */}
+            {editingItinerary?.eventDate && (
+              <div className="space-y-3">
+                <Label htmlFor="edit-event-date">Event Date & Time</Label>
+                <Input
+                  id="edit-event-date"
+                  type="datetime-local"
+                  value={editProposedDate ? format(
+                    group?.timezone 
+                      ? toZonedTime(new Date(editProposedDate), group.timezone)
+                      : new Date(editProposedDate),
+                    "yyyy-MM-dd'T'HH:mm"
+                  ) : ''}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      const localDateTime = new Date(e.target.value);
+                      const zonedDateTime = group?.timezone 
+                        ? fromZonedTime(localDateTime, group.timezone)
+                        : localDateTime;
+                      setEditProposedDate(zonedDateTime.toISOString());
+                    } else {
+                      setEditProposedDate('');
+                    }
+                  }}
+                  data-testid="input-edit-event-date"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {group?.timezone ? `Times shown in ${group.timezone.split('/')[1]?.replace('_', ' ') || 'group\'s local'} time` : 'Times shown in your local time'}
+                </p>
+              </div>
+            )}
 
             {/* Timing Notes Input */}
             <div className="space-y-3">
@@ -5650,13 +5687,20 @@ export default function GroupDetail() {
                 
                 // Prepare updates
                 const proposedOrder = editItineraryItems.map((item: any) => item.sourceId);
+                const updates: any = {
+                  name: editItineraryName.trim(),
+                  proposedOrder,
+                  timingRecommendations: editTimingRecommendations.trim() || null,
+                };
+                
+                // Include eventDate if it was edited
+                if (editingItinerary.eventDate && editProposedDate) {
+                  updates.eventDate = editProposedDate;
+                }
+                
                 updateItineraryMutation.mutate({
                   itineraryId: editingItinerary.id,
-                  updates: {
-                    name: editItineraryName.trim(),
-                    proposedOrder,
-                    timingRecommendations: editTimingRecommendations.trim() || null,
-                  },
+                  updates,
                 });
               }}
               disabled={updateItineraryMutation.isPending || !editItineraryName.trim() || editItineraryItems.length === 0}
