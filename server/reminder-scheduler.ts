@@ -431,27 +431,28 @@ export async function processAutoSend(): Promise<void> {
           continue;
         }
 
-        // Update itinerary to proposed status with event date
+        // Update itinerary to proposed status with event date and schedule config
+        const inviteAdvanceDays = 14;
+        const eventDate = new Date(event.proposedDate);
+        const rsvpDeadline = addDays(eventDate, -3);
+        
         await storage.updateItinerary(itinerary.id, {
           status: 'proposed',
           eventDate: event.proposedDate,
+          rsvpDeadline,
+          autoScheduleConfig: {
+            inviteAdvanceDays,
+            rsvpWindowDays: 11,
+            reminders: [
+              { type: 'gentle_nudge', daysBeforeDeadline: 7 },
+              { type: 'final_call', daysBeforeDeadline: 1 },
+              { type: 'day_before', daysBeforeEvent: 1 }
+            ]
+          }
         });
 
-        // Send invites to all group members
-        const groupMembers = await storage.getGroupMembers(group.id);
-        
-        for (const member of groupMembers) {
-          if (!member.email) continue;
-
-          // Create invite token
-          const inviteToken = randomBytes(16).toString('hex');
-          
-          await db.insert(itineraryInvites).values({
-            itineraryId: itinerary.id,
-            memberId: member.id,
-            inviteToken,
-          });
-        }
+        // Send initial invites
+        await sendInitialInvites(itinerary, group);
 
         // Mark auto-event as sent
         await storage.updateAutoScheduledEventStatus(event.id, 'auto_sent');
