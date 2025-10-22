@@ -2552,6 +2552,48 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Get invite summary with RSVP counts and shareable link
+  app.get("/api/itineraries/:id/invite-summary", isAuthenticated, async (req, res) => {
+    try {
+      const itinerary = await storage.getItinerary(req.params.id);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      // Get all invites for this itinerary
+      const invites = await db
+        .select()
+        .from(itineraryInvites)
+        .where(eq(itineraryInvites.itineraryId, req.params.id));
+
+      // Get all RSVPs
+      const rsvps = await storage.getItineraryRsvps(req.params.id);
+      
+      // Count RSVP responses
+      const rsvpCounts = {
+        yes: rsvps.filter(r => r.response === 'yes').length,
+        maybe: rsvps.filter(r => r.response === 'maybe').length,
+        no: rsvps.filter(r => r.response === 'no').length,
+        pending: invites.length - rsvps.length,
+      };
+
+      // Get shareable link using first invite token
+      const shareableLink = invites.length > 0 
+        ? `${process.env.REPLIT_DEV_DOMAIN || 'http://localhost:5000'}/rsvp/${itinerary.id}/${invites[0].inviteToken}`
+        : null;
+
+      res.json({
+        itinerary,
+        rsvpCounts,
+        shareableLink,
+        totalInvited: invites.length,
+        totalResponses: rsvps.length,
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Get pending auto-scheduled event for a group
   app.get("/api/groups/:groupId/pending-auto-event", isAuthenticated, async (req, res) => {
     try {
