@@ -7,7 +7,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Sparkles, Users, MapPin, Calendar, CheckCircle, XCircle, HelpCircle, ExternalLink, Settings } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Plus, Sparkles, Users, MapPin, Calendar, CheckCircle, XCircle, HelpCircle, ExternalLink, Settings, LogOut, User as UserIcon } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -123,33 +124,52 @@ export default function Dashboard() {
                 )}
               </Button>
             </Link>
-            <Link href="/profile">
-              <Button variant="ghost" size="icon" data-testid="button-profile">
-                <Settings className="h-4 w-4" />
-              </Button>
-            </Link>
             <Link href="/create-group">
               <Button data-testid="button-create-group">
                 <Plus className="mr-2 h-4 w-4" />
                 New Group
               </Button>
             </Link>
-            <Button
-              variant="ghost"
-              onClick={() => window.location.href = "/api/logout"}
-              data-testid="button-logout"
-            >
-              Sign Out
-            </Button>
             {user && (
-              <Avatar className="h-8 w-8">
-                <AvatarImage 
-                  src={user.profileImageUrl || undefined} 
-                  alt={displayName}
-                  className="object-cover"
-                />
-                <AvatarFallback>{getFirstInitial(displayName)}</AvatarFallback>
-              </Avatar>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="relative h-8 w-8 rounded-full p-0" data-testid="button-user-menu">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage 
+                        src={user.profileImageUrl || undefined} 
+                        alt={displayName}
+                        className="object-cover"
+                      />
+                      <AvatarFallback>{getFirstInitial(displayName)}</AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none">{displayName}</p>
+                      <p className="text-xs leading-none text-muted-foreground">
+                        {user.email}
+                      </p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <Link href="/profile">
+                    <DropdownMenuItem data-testid="menu-profile">
+                      <Settings className="mr-2 h-4 w-4" />
+                      Profile Settings
+                    </DropdownMenuItem>
+                  </Link>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onClick={() => window.location.href = "/api/logout"}
+                    data-testid="menu-logout"
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Sign Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </div>
         </div>
