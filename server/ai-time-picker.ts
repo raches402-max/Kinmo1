@@ -316,10 +316,29 @@ export async function suggestMultipleTimeOptions(
     const tzIdentifier = input.location ? getTimezoneIdentifier(input.location) : 'America/Los_Angeles';
     const tzName = getTimezoneName(tzIdentifier);
 
+    // Extract allowed days from availability string
+    const allowedDays = extractAllowedDays(input.generalAvailability || '');
+    const allDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const excludedDays = allowedDays.length > 0 ? allDays.filter(d => !allowedDays.includes(d)) : [];
+    
+    let availabilityConstraint = '';
+    if (allowedDays.length > 0) {
+      availabilityConstraint = `
+**CRITICAL CONSTRAINT - READ THIS FIRST:**
+Group availability: ${input.generalAvailability}
+ALLOWED DAYS ONLY: ${allowedDays.join(', ')}
+EXCLUDED DAYS (DO NOT USE): ${excludedDays.join(', ')}
+
+You MUST ONLY suggest dates that fall on: ${allowedDays.join(', ')}
+DO NOT suggest dates on: ${excludedDays.join(', ')}`;
+    } else {
+      availabilityConstraint = `Group availability: ${input.generalAvailability || 'Not specified'} - suggest times appropriate for the venue type`;
+    }
+    
     const prompt = `You are scheduling a group outing. Suggest 3-5 DIFFERENT date and time options.
+${availabilityConstraint}
 
 Venues: ${venueList}
-Group general availability: ${input.generalAvailability || 'Not specified'}
 Member constraints: ${constraints}
 Timezone: ${tzName} (all times should be in this timezone)
 
@@ -327,16 +346,23 @@ Current date: ${now.toISOString().split('T')[0]}
 Date range: ${minDate.toISOString().split('T')[0]} to ${maxDate.toISOString().split('T')[0]}
 
 **Your Task:**
-Suggest 3-5 DIFFERENT options that respect the group's availability. Each option should:
-1. Be on a DIFFERENT day if possible
-2. Have appropriate time for the venue type:
+${allowedDays.length > 0 
+  ? `1. First, identify which days between ${minDate.toISOString().split('T')[0]} and ${maxDate.toISOString().split('T')[0]} are ${allowedDays.join(', ')}
+2. From those valid days, pick 3-5 DIFFERENT dates
+3. For each date, choose an appropriate time for the venue type:
    - Brunch/Breakfast/Cafe → 10:00-13:00 (weekend mornings preferred)
    - Lunch → 11:30-14:00
    - Dinner/Restaurant → 18:00-20:30
    - Bars/Drinks → 19:00-22:00
    - Matcha/Tea/Coffee → 10:00-16:00
 
-3. Respect "only" constraints (if availability says "Saturday and Sunday only", pick ONLY those days)
+VERIFY: Before returning, double-check that ALL suggested dates fall on ${allowedDays.join(' OR ')}.`
+  : `Suggest 3-5 DIFFERENT dates with appropriate times for the venue type:
+   - Brunch/Breakfast/Cafe → 10:00-13:00 (weekend mornings preferred)
+   - Lunch → 11:30-14:00
+   - Dinner/Restaurant → 18:00-20:30
+   - Bars/Drinks → 19:00-22:00
+   - Matcha/Tea/Coffee → 10:00-16:00`}
 
 Return ONLY a JSON object with this exact structure:
 {
