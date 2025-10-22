@@ -2,7 +2,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, activities as activitiesTable, groups as groupsTable, itineraryInvites, rsvps as rsvpsTable, itineraries, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
+import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, activities as activitiesTable, groups as groupsTable, itineraryInvites, rsvps as rsvpsTable, itineraries, itineraryItems, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
 import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue, analyzePreferencePatterns } from "./openai";
 import { searchPlaces, searchNearbyPlaces, geocodeLocation } from "./google-places";
 import { setupAuth, isAuthenticated } from "./replitAuth";
@@ -111,6 +111,119 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const groups = await storage.getUserGroups(userId);
       res.json(groups);
     } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get user's events (all itinerary invites for this user)
+  app.get("/api/user/events", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+
+      // Find all itinerary invites for this user
+      // This includes both member invites and organizer invites (memberId = null)
+      const invitesQuery = await db
+        .select({
+          inviteId: itineraryInvites.id,
+          inviteToken: itineraryInvites.inviteToken,
+          itineraryId: itineraryInvites.itineraryId,
+          memberId: itineraryInvites.memberId,
+          itineraryName: itineraries.name,
+          eventDate: itineraries.eventDate,
+          status: itineraries.status,
+          groupId: itineraries.groupId,
+          groupName: groupsTable.name,
+          groupEmoji: groupsTable.emoji,
+          groupUserId: groupsTable.userId,
+        })
+        .from(itineraryInvites)
+        .leftJoin(itineraries, eq(itineraryInvites.itineraryId, itineraries.id))
+        .leftJoin(groupsTable, eq(itineraries.groupId, groupsTable.id));
+
+      // Filter to only invites relevant to this user
+      const userInvites = invitesQuery.filter(invite => {
+        // Organizer invites (memberId = null, group owned by user)
+        if (!invite.memberId && invite.groupUserId === userId) {
+          return true;
+        }
+        
+        // Member invites - need to check if this memberId belongs to this user
+        // We'll fetch member data separately for security
+        return !!invite.memberId;
+      });
+
+      // For member invites, verify membership
+      const verifiedInvites = [];
+      for (const invite of userInvites) {
+        if (!invite.memberId) {
+          // Organizer invite - already verified above
+          verifiedInvites.push(invite);
+        } else {
+          // Member invite - verify the member belongs to this user
+          const member = await storage.getMember(invite.memberId);
+          if (member && member.userId === userId) {
+            verifiedInvites.push(invite);
+          }
+        }
+      }
+
+      // Fetch RSVP status and itinerary items for each invite
+      const events = await Promise.all(verifiedInvites.map(async (invite) => {
+        // Get RSVP if it exists
+        let rsvp = null;
+        if (invite.memberId) {
+          const rsvps = await db
+            .select()
+            .from(rsvpsTable)
+            .where(
+              sql`itinerary_id = ${invite.itineraryId} AND member_id = ${invite.memberId}`
+            );
+          rsvp = rsvps[0] || null;
+        }
+
+        // Get itinerary items
+        const items = await db
+          .select()
+          .from(itineraryItems)
+          .where(eq(itineraryItems.itineraryId, invite.itineraryId))
+          .orderBy(itineraryItems.orderIndex);
+
+        return {
+          inviteId: invite.inviteId,
+          inviteToken: invite.inviteToken,
+          itineraryId: invite.itineraryId,
+          itineraryName: invite.itineraryName,
+          eventDate: invite.eventDate,
+          status: invite.status,
+          groupId: invite.groupId,
+          groupName: invite.groupName,
+          groupEmoji: invite.groupEmoji,
+          isOrganizer: !invite.memberId,
+          rsvp: rsvp ? {
+            response: rsvp.response,
+            rsvpFeedback: rsvp.rsvpFeedback,
+          } : null,
+          items: items.map(item => ({
+            id: item.id,
+            venueName: item.venueName,
+            venueType: item.venueType,
+            venueAddress: item.venueAddress,
+            photoUrl: item.photoUrl,
+          })),
+        };
+      }));
+
+      // Sort by event date (upcoming first, then past)
+      events.sort((a, b) => {
+        if (!a.eventDate && !b.eventDate) return 0;
+        if (!a.eventDate) return 1;
+        if (!b.eventDate) return -1;
+        return new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime();
+      });
+
+      res.json(events);
+    } catch (error: any) {
+      console.error('[User Events] Error:', error);
       res.status(500).json({ message: error.message });
     }
   });

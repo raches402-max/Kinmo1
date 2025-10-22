@@ -67,6 +67,7 @@ export const groups = pgTable("groups", {
 export const members = pgTable("members", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   groupId: varchar("group_id").notNull().references(() => groups.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }), // Link member to logged-in user account (optional)
   name: text("name"),
   email: text("email"),
   availability: text("availability"),
