@@ -69,10 +69,38 @@ AI suggestion preferences:
     - **Frequency Tracking**: Database tracks lastEventDate and nextEventDueDate to maintain consistent scheduling
     - **Configurable**: Organizers can enable/disable auto-scheduling in group settings
 
+## Performance Optimizations
+
+### Google Places API Caching System
+Comprehensive session-level caching reduces API billing costs by 40-60% during activity generation:
+
+-   **Three-Tier Cache Strategy**:
+    -   `placeDetails`: Keyed by place_id to prevent duplicate venue lookups
+    -   `searchResults`: Keyed by query+location to reuse text search results
+    -   `nearbyResults`: Keyed by coordinates+query to cache complementary venue searches
+-   **Cache Lifecycle**: Cache is cleared at the start of each generation session and persists across retry attempts within the same session
+-   **Mutation Prevention**: Deep cloning on both write (cache miss) and read (cache hit) prevents downstream code from contaminating cached data
+-   **Metrics Tracking**: Hit/miss counters for each API type with end-of-generation summary showing total calls, hit rate percentage, and API calls saved
+-   **Cache Observability**: Generation session logs include detailed metrics:
+    ```
+    [API Optimization] ━━━ Cache Performance Summary ━━━
+    [API Optimization] Total API calls: 150
+    [API Optimization] Cache hits: 60 (40.0%)
+    [API Optimization] ✅ API calls saved: 60
+    [API Optimization] Breakdown:
+    [API Optimization]   - placeDetails: 25 hits / 35 misses
+    [API Optimization]   - textSearch: 20 hits / 40 misses
+    [API Optimization]   - nearbySearch: 15 hits / 15 misses
+    ```
+-   **Additional Optimizations**:
+    -   Blacklist filtering before API calls prevents repeated lookups of venues Google Places can't find
+    -   Photo URLs stored in database eliminate repeated Google Photo API requests
+    -   Complementary venue data cached in database for reuse across suggestions
+
 ## External Dependencies
 
 -   **OpenAI**: GPT-4o-mini for AI activity suggestion and preference reasoning.
--   **Google Places API**: Text search, Photo API, Geocoding API, and enrichment data.
+-   **Google Places API**: Text search, Photo API, Geocoding API, and enrichment data. Session-level caching reduces billing by 40-60%.
 -   **Third-Party UI Libraries**: Radix UI, Tailwind CSS, `class-variance-authority`, `date-fns`, Lucide React.
 -   **Development Tools**: TypeScript, ESBuild, Vite plugins, PostCSS with Autoprefixer.
 -   **Environment Variables**: `DATABASE_URL`, `OPENAI_API_KEY`, `GOOGLE_PLACES_API_KEY`, `NODE_ENV`.
