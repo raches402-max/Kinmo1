@@ -4721,8 +4721,26 @@ export default function GroupDetail() {
                                 )}
                                 {isPlanner && itinerary.status !== 'scheduled' && <Badge variant="secondary" className="ml-2">Your Plan</Badge>}
                               </CardTitle>
-                              <CardDescription className="mt-1">
-                                {itinerary.items?.length || 0} stops • {totalResponses} responses
+                              <CardDescription className="mt-1 space-y-1">
+                                <div>{itinerary.items?.length || 0} stops • {totalResponses} responses</div>
+                                {itinerary.proposedDate && (
+                                  <div className="flex items-center gap-1.5 text-foreground font-medium">
+                                    <Calendar className="h-3.5 w-3.5" />
+                                    <span>
+                                      {format(
+                                        group?.timezone 
+                                          ? toZonedTime(new Date(itinerary.proposedDate), group.timezone)
+                                          : new Date(itinerary.proposedDate),
+                                        "EEE, MMM d 'at' h:mm a"
+                                      )}
+                                      {group?.timezone && group.timezone !== 'America/Los_Angeles' && group.timezone !== 'America/New_York' && (
+                                        <span className="text-muted-foreground ml-1">
+                                          ({group.timezone.split('/')[1]?.replace('_', ' ') || 'Local'} Time)
+                                        </span>
+                                      )}
+                                    </span>
+                                  </div>
+                                )}
                               </CardDescription>
                             </div>
                             {!isPlanner && userRsvp && (
