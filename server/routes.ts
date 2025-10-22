@@ -169,28 +169,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .leftJoin(groupsTable, eq(itineraries.groupId, groupsTable.id));
 
       // Filter to only invites relevant to this user
-      const userInvites = invitesQuery.filter(invite => {
-        // Organizer invites (memberId = null, group owned by user)
-        if (!invite.memberId && invite.groupUserId === userId) {
-          return true;
-        }
-        
-        // Member invites - need to check if this memberId belongs to this user
-        // We'll fetch member data separately for security
-        return !!invite.memberId;
-      });
-
-      // For member invites, verify membership
       const verifiedInvites = [];
-      for (const invite of userInvites) {
-        if (!invite.memberId) {
-          // Organizer invite - already verified above
-          verifiedInvites.push(invite);
-        } else {
-          // Member invite - verify the member belongs to this user
+      for (const invite of invitesQuery) {
+        // Check if user is the group organizer
+        const isGroupOrganizer = invite.groupUserId === userId;
+        
+        if (isGroupOrganizer) {
+          // User owns the group - include all invites for their groups
+          verifiedInvites.push({ ...invite, isOrganizer: true });
+        } else if (invite.memberId) {
+          // Not the organizer - check if they're a claimed member
           const member = await storage.getMember(invite.memberId);
           if (member && member.userId === userId) {
-            verifiedInvites.push(invite);
+            verifiedInvites.push({ ...invite, isOrganizer: false });
           }
         }
       }
@@ -226,7 +217,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           groupId: invite.groupId,
           groupName: invite.groupName,
           groupEmoji: invite.groupEmoji,
-          isOrganizer: !invite.memberId,
+          isOrganizer: invite.isOrganizer,
           rsvp: rsvp ? {
             response: rsvp.response,
             rsvpFeedback: rsvp.rsvpFeedback,
