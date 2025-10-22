@@ -17,7 +17,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, ChevronRight, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell, Edit2, Compass } from "lucide-react";
+import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, ChevronRight, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell, Edit2, Edit, Compass } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -1411,9 +1411,11 @@ export default function GroupDetail() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "saved-itineraries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "proposed-itineraries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/members/me/events"] });
       toast({
-        title: "Plan deleted",
-        description: "The saved plan has been removed",
+        title: "Event deleted",
+        description: "The event has been removed",
       });
     },
     onError: (error: Error) => {
@@ -4783,6 +4785,59 @@ export default function GroupDetail() {
                                     >
                                       {finalizePlanMutation.isPending ? "Finalizing..." : "Finalize as The Plan"}
                                     </Button>
+                                  )}
+                                  
+                                  {/* Edit and Delete actions for proposed itineraries */}
+                                  {isOwner && itinerary.status !== 'scheduled' && (
+                                    <div className="flex gap-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="flex-1 gap-2"
+                                        onClick={() => {
+                                          setEditingItinerary(itinerary);
+                                          setEditItineraryName(itinerary.name || '');
+                                          setEditItineraryItems(itinerary.items || []);
+                                          setEditTimingRecommendations(itinerary.timingRecommendations || '');
+                                          setEditItineraryOpen(true);
+                                        }}
+                                        data-testid={`button-edit-proposed-${itinerary.id}`}
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                        Edit
+                                      </Button>
+                                      <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="flex-1 gap-2 text-destructive hover:text-destructive"
+                                            data-testid={`button-delete-proposed-${itinerary.id}`}
+                                          >
+                                            <Trash2 className="h-4 w-4" />
+                                            Delete
+                                          </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                          <AlertDialogHeader>
+                                            <AlertDialogTitle>Delete this event?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                              This will permanently delete "{itinerary.name || 'this event'}" and remove all RSVPs. This action cannot be undone.
+                                            </AlertDialogDescription>
+                                          </AlertDialogHeader>
+                                          <AlertDialogFooter>
+                                            <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+                                            <AlertDialogAction
+                                              onClick={() => deleteSavedItineraryMutation.mutate(itinerary.id)}
+                                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                              data-testid="button-confirm-delete"
+                                            >
+                                              Delete Event
+                                            </AlertDialogAction>
+                                          </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                      </AlertDialog>
+                                    </div>
                                   )}
 
                                   {conditionalCount > 0 && (
