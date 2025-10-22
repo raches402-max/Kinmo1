@@ -12,7 +12,7 @@ import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { Group, User } from "@shared/schema";
+import type { Group, User, UserProfile } from "@shared/schema";
 
 type UserEvent = {
   inviteId: string;
@@ -52,6 +52,11 @@ export default function Dashboard() {
     enabled: !!user,
   });
 
+  const { data: profile } = useQuery<UserProfile | null>({
+    queryKey: ["/api/user/profile"],
+    enabled: !!user,
+  });
+
   // RSVP mutation
   const rsvpMutation = useMutation({
     mutationFn: async ({ itineraryId, inviteToken, response }: { itineraryId: string; inviteToken: string; response: string }) => {
@@ -85,15 +90,13 @@ export default function Dashboard() {
   });
   const pastEvents = events.filter(e => e.eventDate && new Date(e.eventDate) <= now);
 
-  const getInitials = (name?: string | null) => {
+  const getFirstInitial = (name?: string | null) => {
     if (!name) return "U";
-    return name
-      .split(" ")
-      .map(n => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
+    const firstWord = name.trim().split(" ")[0];
+    return firstWord[0]?.toUpperCase() || "U";
   };
+
+  const displayName = profile?.displayName || user?.firstName || "User";
 
   return (
     <div className="min-h-screen bg-background">
@@ -142,10 +145,10 @@ export default function Dashboard() {
               <Avatar className="h-8 w-8">
                 <AvatarImage 
                   src={user.profileImageUrl || undefined} 
-                  alt={user.firstName || "User"}
+                  alt={displayName}
                   className="object-cover"
                 />
-                <AvatarFallback>{getInitials(user.firstName)}</AvatarFallback>
+                <AvatarFallback>{getFirstInitial(displayName)}</AvatarFallback>
               </Avatar>
             )}
           </div>
@@ -156,7 +159,7 @@ export default function Dashboard() {
       <main className="max-w-7xl mx-auto px-6 py-8">
         <div className="mb-8">
           <h2 className="text-3xl font-bold mb-2">
-            {user?.firstName ? `Welcome back, ${user.firstName}!` : "Welcome back!"}
+            Welcome back, {displayName.split(" ")[0]}!
           </h2>
           <p className="text-muted-foreground">
             Manage your group activities and get AI-powered suggestions
