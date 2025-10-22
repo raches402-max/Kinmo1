@@ -65,7 +65,11 @@ AI suggestion preferences:
     - **Auto-Reschedule Logic**: Triggers when >50% negative RSVPs with ≥3 responses, uses atomic conditional UPDATE for race condition prevention
     - **Email Integration**: Sends RSVP invites and reschedule notifications via Resend API
     - **Multi-Time Selection**: Organizers can select 2+ scheduling options (AI-generated or manual) and send all at once. Creates separate proposed itineraries for each selected time with full venue data. Members RSVP to each option independently via in-app flow. Email notifications not sent for multi-date sends (MVP limitation).
-    - **Proposed Itinerary Management**: Organizers can edit and delete proposed (sent-out) itineraries before they are finalized. Edit button opens existing edit dialog with pre-populated data (name, venues, timing notes). Delete button shows confirmation dialog warning that deletion is permanent and removes all RSVPs. Both actions only available to group owners for non-scheduled itineraries. Cache invalidation updates saved itineraries, proposed itineraries, and member events dashboard.
+    - **Proposed Itinerary Management**: Organizers can edit and delete proposed (sent-out) itineraries before they are finalized. Features include:
+        - **Edit Functionality**: Opens edit dialog with pre-populated data (name, venues, event date/time, timing notes). Event date/time picker shows in group's timezone with proper conversion handling. Supports editing venues (add, remove, reorder) via drag-and-drop interface.
+        - **Delete Functionality**: Shows confirmation dialog warning that deletion is permanent and removes all RSVPs.
+        - **Access Control**: Both actions only available to group owners for non-scheduled itineraries.
+        - **Cache Invalidation**: Updates saved itineraries, proposed itineraries, and member events dashboard after changes.
 - **AI Auto-Scheduling**: Proactive event generation to maintain group meeting cadence. Features include:
     - **Automatic Event Creation**: 10 days before next event due date, AI creates pending proposal for organizer approval
     - **Smart Itinerary Selection**: Prioritizes saved itineraries → favorites → AI-generated content similar to group preferences

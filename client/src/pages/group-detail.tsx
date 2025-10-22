@@ -27,7 +27,7 @@ import { ReadOnlyAvailabilityGrid } from "@/components/ReadOnlyAvailabilityGrid"
 import { SwipeSession } from "@/components/SwipeSession";
 import { calculateDistance, getDistanceCategory, formatDistance } from "@/lib/distance";
 import { format } from 'date-fns';
-import { toZonedTime, fromZonedTime } from 'date-fns-tz';
+import { toZonedTime, fromZonedTime, formatInTimeZone } from 'date-fns-tz';
 import {
   DndContext,
   closestCenter,
@@ -4730,12 +4730,10 @@ export default function GroupDetail() {
                                   <div className="flex items-center gap-1.5 text-foreground font-medium">
                                     <Calendar className="h-3.5 w-3.5" />
                                     <span>
-                                      {format(
-                                        group?.timezone 
-                                          ? toZonedTime(new Date(itinerary.eventDate), group.timezone)
-                                          : new Date(itinerary.eventDate),
-                                        "EEE, MMM d 'at' h:mm a"
-                                      )}
+                                      {group?.timezone 
+                                        ? formatInTimeZone(new Date(itinerary.eventDate), group.timezone, "EEE, MMM d 'at' h:mm a")
+                                        : format(new Date(itinerary.eventDate), "EEE, MMM d 'at' h:mm a")
+                                      }
                                       {group?.timezone && group.timezone !== 'America/Los_Angeles' && group.timezone !== 'America/New_York' && (
                                         <span className="text-muted-foreground ml-1">
                                           ({group.timezone.split('/')[1]?.replace('_', ' ') || 'Local'} Time)
@@ -5566,19 +5564,30 @@ export default function GroupDetail() {
                 <Input
                   id="edit-event-date"
                   type="datetime-local"
-                  value={editProposedDate ? format(
+                  value={editProposedDate ? (
                     group?.timezone 
-                      ? toZonedTime(new Date(editProposedDate), group.timezone)
-                      : new Date(editProposedDate),
-                    "yyyy-MM-dd'T'HH:mm"
+                      ? formatInTimeZone(new Date(editProposedDate), group.timezone, "yyyy-MM-dd'T'HH:mm")
+                      : format(new Date(editProposedDate), "yyyy-MM-dd'T'HH:mm")
                   ) : ''}
                   onChange={(e) => {
                     if (e.target.value) {
-                      const localDateTime = new Date(e.target.value);
-                      const zonedDateTime = group?.timezone 
-                        ? fromZonedTime(localDateTime, group.timezone)
-                        : localDateTime;
-                      setEditProposedDate(zonedDateTime.toISOString());
+                      const dateString = e.target.value; // Format: "2025-10-23T19:30"
+                      if (group?.timezone) {
+                        // Parse components from the datetime-local string
+                        const [datePart, timePart] = dateString.split('T');
+                        const [year, month, day] = datePart.split('-').map(Number);
+                        const [hour, minute] = timePart.split(':').map(Number);
+                        
+                        // Create Date with these components - they become the viewer's local time
+                        // but fromZonedTime will use these component values as the group's timezone
+                        const wallTime = new Date(year, month - 1, day, hour, minute);
+                        
+                        // fromZonedTime interprets the Date's local components as being in the specified timezone
+                        const utcTime = fromZonedTime(wallTime, group.timezone);
+                        setEditProposedDate(utcTime.toISOString());
+                      } else {
+                        setEditProposedDate(new Date(dateString).toISOString());
+                      }
                     } else {
                       setEditProposedDate('');
                     }
