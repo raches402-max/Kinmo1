@@ -2470,14 +2470,45 @@ Looking forward to planning great activities together!
     }
   });
 
-  // Finalize an itinerary as "The Plan"
+  // Finalize an itinerary as "The Plan" and trigger next auto-event
   app.post("/api/itineraries/:id/finalize", isAuthenticated, async (req, res) => {
     try {
+      const itinerary = await storage.getItinerary(req.params.id);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
       const updates: UpdateItinerary = {
         status: 'scheduled',
       };
-      const itinerary = await storage.updateItinerary(req.params.id, updates);
-      res.json(itinerary);
+      const updatedItinerary = await storage.updateItinerary(req.params.id, updates);
+
+      // Update group's lastEventDate and nextEventDueDate
+      if (itinerary.eventDate) {
+        const group = await storage.getGroup(itinerary.groupId);
+        if (group) {
+          const eventDate = new Date(itinerary.eventDate);
+          const meetingFrequency = group.meetingFrequency || 'monthly';
+          const { addDays } = await import('date-fns');
+          
+          const frequencyDays: Record<string, number> = {
+            'weekly': 7,
+            'biweekly': 14,
+            'monthly': 30,
+            'bimonthly': 60,
+          };
+          
+          const daysToAdd = frequencyDays[meetingFrequency] || 30;
+          const nextDue = addDays(eventDate, daysToAdd);
+          
+          await storage.updateGroup(itinerary.groupId, {
+            lastEventDate: eventDate,
+            nextEventDueDate: nextDue,
+          });
+        }
+      }
+
+      res.json(updatedItinerary);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -2516,6 +2547,99 @@ Looking forward to planning great activities together!
     try {
       const rsvps = await storage.getItineraryRsvps(req.params.id);
       res.json(rsvps);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get pending auto-scheduled event for a group
+  app.get("/api/groups/:groupId/pending-auto-event", isAuthenticated, async (req, res) => {
+    try {
+      const pendingEvent = await storage.getPendingAutoEvent(req.params.groupId);
+      res.json(pendingEvent || null);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Approve/finalize a pending auto-scheduled event
+  app.post("/api/auto-schedule/:id/approve", isAuthenticated, async (req, res) => {
+    try {
+      const event = await storage.getAutoScheduledEvent(req.params.id);
+      if (!event) {
+        return res.status(404).json({ message: "Auto-scheduled event not found" });
+      }
+
+      // Mark event as approved (will be sent immediately)
+      await storage.updateAutoScheduledEvent(req.params.id, {
+        approvedByOrganizer: true,
+      });
+
+      res.json({ success: true, message: "Event approved and will be sent to group" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Submit frequency feedback
+  app.post("/api/frequency-feedback", isAuthenticated, async (req, res) => {
+    try {
+      const { groupId, feedback } = req.body;
+      const userId = req.user.claims.sub;
+
+      // Store feedback
+      await storage.createFrequencyFeedback({
+        groupId,
+        userId,
+        feedback,
+      });
+
+      // Check if we should adjust frequency
+      const allFeedback = await storage.getGroupFrequencyFeedback(groupId);
+      const total = allFeedback.length;
+      
+      if (total >= 3) {
+        const moreOften = allFeedback.filter(f => f.feedback === 'more_often').length;
+        const lessOften = allFeedback.filter(f => f.feedback === 'less_often').length;
+        
+        const threshold = total * 0.5;
+        
+        if (moreOften > threshold || lessOften > threshold) {
+          const group = await storage.getGroup(groupId);
+          if (group) {
+            const current = group.meetingFrequency || 'monthly';
+            const frequencies = ['weekly', 'biweekly', 'monthly', 'bimonthly'];
+            const currentIndex = frequencies.indexOf(current);
+            
+            let newFrequency = current;
+            if (moreOften > threshold && currentIndex > 0) {
+              newFrequency = frequencies[currentIndex - 1];
+            } else if (lessOften > threshold && currentIndex < frequencies.length - 1) {
+              newFrequency = frequencies[currentIndex + 1];
+            }
+            
+            if (newFrequency !== current) {
+              await storage.updateGroup(groupId, { meetingFrequency: newFrequency });
+              
+              // Update nextEventDueDate based on new frequency
+              if (group.lastEventDate) {
+                const { addDays } = await import('date-fns');
+                const frequencyDays: Record<string, number> = {
+                  'weekly': 7,
+                  'biweekly': 14,
+                  'monthly': 30,
+                  'bimonthly': 60,
+                };
+                const daysToAdd = frequencyDays[newFrequency] || 30;
+                const nextDue = addDays(new Date(group.lastEventDate), daysToAdd);
+                await storage.updateGroup(groupId, { nextEventDueDate: nextDue });
+              }
+            }
+          }
+        }
+      }
+
+      res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
