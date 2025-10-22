@@ -1900,6 +1900,53 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Duplicate a saved itinerary to create an editable draft copy
+  app.post("/api/itineraries/:id/duplicate", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Get the original itinerary with items
+      const original = await storage.getItinerary(req.params.id);
+      if (!original) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      // Get the group to check ownership
+      const group = await storage.getGroup(original.groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      // Verify user is the group owner
+      if (group.userId !== userId) {
+        return res.status(403).json({ message: "You do not have permission to duplicate this itinerary" });
+      }
+
+      // Create a duplicate as a draft
+      const itemsData = original.items.map((item: ItineraryItem) => ({
+        sourceType: item.sourceType as 'activity' | 'voting_event',
+        sourceId: item.sourceId
+      }));
+
+      const duplicatedItinerary = await storage.createItinerary(
+        {
+          groupId: original.groupId,
+          name: `${original.name} (Copy)`,
+          status: 'draft',
+          isSaved: false,
+          aiValidationNotes: original.aiValidationNotes,
+          proposedOrder: original.proposedOrder,
+        },
+        userId,
+        itemsData
+      );
+
+      res.json(duplicatedItinerary);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Get AI-suggested time for an itinerary
   app.post("/api/itineraries/:id/suggest-time", isAuthenticated, async (req, res) => {
     try {

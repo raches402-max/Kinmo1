@@ -1418,6 +1418,28 @@ export default function GroupDetail() {
     },
   });
 
+  const duplicateItineraryMutation = useMutation({
+    mutationFn: async (itineraryId: string) => {
+      return await apiRequest("POST", `/api/itineraries/${itineraryId}/duplicate`);
+    },
+    onSuccess: (duplicatedItinerary) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "itineraries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "saved-itineraries"] });
+      setActiveTab('build');
+      toast({
+        title: "Plan duplicated",
+        description: "The copy is now in your Build tab where you can edit it",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error duplicating plan",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const updateItineraryMutation = useMutation({
     mutationFn: async ({ itineraryId, updates }: { itineraryId: string; updates: any }) => {
       return await apiRequest("PATCH", `/api/itineraries/${itineraryId}`, updates);
@@ -4027,6 +4049,17 @@ export default function GroupDetail() {
                                 data-testid={`button-edit-itinerary-${itinerary.id}`}
                               >
                                 <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  duplicateItineraryMutation.mutate(itinerary.id);
+                                }}
+                                disabled={duplicateItineraryMutation.isPending}
+                                data-testid={`button-duplicate-itinerary-${itinerary.id}`}
+                              >
+                                <Copy className="h-4 w-4" />
                               </Button>
                               <Button
                                 variant="outline"
