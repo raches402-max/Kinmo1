@@ -23,6 +23,11 @@ AI suggestion preferences:
 - **Data Storage**: PostgreSQL via Neon serverless, Drizzle ORM for type-safe operations, Drizzle Kit for migrations.
     - **Schema**: Includes `groups`, `members`, `activities`, `itineraries`, and `itinerary_items` tables with UUID primary keys and cryptographically random tokens for shareable links.
     - **Data Access**: `IStorage` interface, `DatabaseStorage` class, transaction support, and cascade deletion.
+- **Member Management**: Members can claim their accounts through unique claim tokens, linking their email to a Replit Auth user account.
+    - **Claim Flow**: Members receive welcome emails with `/claim/:claimToken` links that allow them to authenticate and link their account.
+    - **Auto-Claim**: Claim page automatically claims membership when user is authenticated (via useEffect hook).
+    - **Group Access**: `getUserGroups` API returns groups where user is either organizer or claimed member (via members.userId join).
+    - **RSVP Routes**: RSVP links use format `/rsvp/:itineraryId/:inviteToken` for secure member authentication.
 
 ### Feature Specifications
 - **AI Suggestion Generation**: GPT-4o-mini generates 15 diverse venue suggestions across 5 categories (MEAL, CAFES, DRINKS, DESSERT, EXPERIENCES), ensuring 3 cards per category. Includes category-aware retry logic and per-category regeneration.
