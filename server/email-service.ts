@@ -43,6 +43,19 @@ export interface RescheduleData {
   rsvpLink: string;
 }
 
+// Helper to build events dashboard URL from any RSVP/claim link
+function getEventsUrl(fullUrl: string): string {
+  try {
+    const url = new URL(fullUrl);
+    url.pathname = '/events';
+    url.search = '';
+    return url.toString();
+  } catch {
+    // Fallback if URL parsing fails
+    return fullUrl.split('/rsvp/')[0].split('/claim/')[0] + '/events';
+  }
+}
+
 export async function sendItineraryInvite(
   recipient: EmailRecipient,
   data: ItineraryInviteData
@@ -51,6 +64,8 @@ export async function sendItineraryInvite(
     const venueList = data.venues.map((v, idx) => 
       `${idx + 1}. ${v.name} (${v.type})${v.address ? ` - ${v.address}` : ''}`
     ).join('\n');
+    
+    const eventsUrl = getEventsUrl(data.rsvpLink);
 
     await resend.emails.send({
       from: 'Kinmo.ai <invites@kinmo.ai>',
@@ -109,6 +124,10 @@ export async function sendItineraryInvite(
                 <p style="font-size: 14px; color: #6b7280; margin-top: 30px;">
                   Can't make it? No worries - just let us know through the RSVP link above.
                 </p>
+                
+                <p style="font-size: 14px; color: #6b7280; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 20px; margin-top: 20px;">
+                  💡 View all your upcoming events anytime at <a href="${eventsUrl}" style="color: #7c3aed;">kinmo.ai/events</a>
+                </p>
               </div>
               
               <div class="footer">
@@ -132,6 +151,7 @@ export async function sendGentleNudge(
   data: ReminderData
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const eventsUrl = getEventsUrl(data.rsvpLink);
     await resend.emails.send({
       from: 'Kinmo.ai <invites@kinmo.ai>',
       to: recipient.email,
@@ -173,6 +193,10 @@ export async function sendGentleNudge(
                 <p style="font-size: 14px; color: #6b7280; margin-top: 30px;">
                   Takes just a moment - click the button above to let us know!
                 </p>
+                
+                <p style="font-size: 14px; color: #6b7280; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 20px; margin-top: 20px;">
+                  💡 View all your upcoming events anytime at <a href="${eventsUrl}" style="color: #7c3aed;">kinmo.ai/events</a>
+                </p>
               </div>
               
               <div class="footer">
@@ -196,6 +220,7 @@ export async function sendFinalCall(
   data: ReminderData
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const eventsUrl = getEventsUrl(data.rsvpLink);
     await resend.emails.send({
       from: 'Kinmo.ai <invites@kinmo.ai>',
       to: recipient.email,
@@ -239,6 +264,10 @@ export async function sendFinalCall(
                 <p style="font-size: 14px; color: #6b7280; margin-top: 30px;">
                   Even if you can't make it, please respond so we can plan accordingly. Thanks!
                 </p>
+                
+                <p style="font-size: 14px; color: #6b7280; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 20px; margin-top: 20px;">
+                  💡 View all your upcoming events anytime at <a href="${eventsUrl}" style="color: #dc2626;">kinmo.ai/events</a>
+                </p>
               </div>
               
               <div class="footer">
@@ -262,6 +291,7 @@ export async function sendDayBeforeReminder(
   data: ReminderData
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const eventsUrl = getEventsUrl(data.rsvpLink);
     await resend.emails.send({
       from: 'Kinmo.ai <invites@kinmo.ai>',
       to: recipient.email,
@@ -304,6 +334,10 @@ export async function sendDayBeforeReminder(
                 <p style="font-size: 14px; color: #6b7280; margin-top: 30px;">
                   Questions? Reply to this email or check the event page for full details.
                 </p>
+                
+                <p style="font-size: 14px; color: #6b7280; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 20px; margin-top: 20px;">
+                  💡 View all your upcoming events anytime at <a href="${eventsUrl}" style="color: #10b981;">kinmo.ai/events</a>
+                </p>
               </div>
               
               <div class="footer">
@@ -334,6 +368,7 @@ export async function sendMemberWelcome(
   data: MemberWelcomeData
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const eventsUrl = getEventsUrl(data.claimLink);
     await resend.emails.send({
       from: 'Kinmo.ai <invites@kinmo.ai>',
       to: recipient.email,
@@ -393,7 +428,16 @@ export async function sendMemberWelcome(
                 </center>
                 
                 <p style="font-size: 14px; color: #6b7280; margin-top: 30px;">
-                  You'll be able to sign in with your Replit account and see all the group's activities.
+                  Once you claim your membership, you'll be able to:
+                </p>
+                <ul style="font-size: 14px; color: #6b7280;">
+                  <li>View all upcoming events in one place</li>
+                  <li>RSVP to invitations anytime</li>
+                  <li>See past events and group history</li>
+                </ul>
+                
+                <p style="font-size: 14px; color: #6b7280; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 20px; margin-top: 20px;">
+                  💡 After claiming, visit <a href="${eventsUrl}" style="color: #7c3aed;">kinmo.ai/events</a> anytime to manage your group invitations
                 </p>
               </div>
               
@@ -418,6 +462,7 @@ export async function sendItineraryReschedule(
   data: RescheduleData
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const eventsUrl = getEventsUrl(data.rsvpLink);
     await resend.emails.send({
       from: 'Kinmo.ai <invites@kinmo.ai>',
       to: recipient.email,
@@ -479,6 +524,10 @@ export async function sendItineraryReschedule(
                 
                 <p style="font-size: 14px; color: #6b7280; margin-top: 30px;">
                   We appreciate your flexibility! Let us know if this works better for you.
+                </p>
+                
+                <p style="font-size: 14px; color: #6b7280; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 20px; margin-top: 20px;">
+                  💡 View all your upcoming events anytime at <a href="${eventsUrl}" style="color: #f59e0b;">kinmo.ai/events</a>
                 </p>
               </div>
               
