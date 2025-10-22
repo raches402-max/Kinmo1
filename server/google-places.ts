@@ -2,6 +2,84 @@ import { Client } from "@googlemaps/google-maps-services-js";
 
 const client = new Client({});
 
+// Session-level cache for Google Places API results
+// This dramatically reduces API calls by caching results during activity generation
+interface PlacesCache {
+  placeDetails: Map<string, PlaceResult | null>;
+  searchResults: Map<string, PlaceResult[]>;
+  nearbyResults: Map<string, PlaceResult[]>;
+  // Track actual cache hits/misses for metrics
+  stats: {
+    placeDetailsHits: number;
+    placeDetailsMisses: number;
+    searchHits: number;
+    searchMisses: number;
+    nearbyHits: number;
+    nearbyMisses: number;
+  };
+}
+
+const sessionCache: PlacesCache = {
+  placeDetails: new Map(),
+  searchResults: new Map(),
+  nearbyResults: new Map(),
+  stats: {
+    placeDetailsHits: 0,
+    placeDetailsMisses: 0,
+    searchHits: 0,
+    searchMisses: 0,
+    nearbyHits: 0,
+    nearbyMisses: 0,
+  },
+};
+
+// Deep clone a PlaceResult to prevent cache mutation
+function clonePlaceResult(result: PlaceResult): PlaceResult {
+  return {
+    ...result,
+    types: [...result.types],
+    location: result.location ? { ...result.location } : undefined,
+  };
+}
+
+// Clear cache (call at the start of each generation session)
+export function clearPlacesCache() {
+  sessionCache.placeDetails.clear();
+  sessionCache.searchResults.clear();
+  sessionCache.nearbyResults.clear();
+  sessionCache.stats = {
+    placeDetailsHits: 0,
+    placeDetailsMisses: 0,
+    searchHits: 0,
+    searchMisses: 0,
+    nearbyHits: 0,
+    nearbyMisses: 0,
+  };
+  console.log('[Google Places Cache] Cache cleared');
+}
+
+// Get cache stats for monitoring (actual hits/misses)
+export function getCacheStats() {
+  const totalHits = sessionCache.stats.placeDetailsHits + sessionCache.stats.searchHits + sessionCache.stats.nearbyHits;
+  const totalMisses = sessionCache.stats.placeDetailsMisses + sessionCache.stats.searchMisses + sessionCache.stats.nearbyMisses;
+  const totalCalls = totalHits + totalMisses;
+  const hitRate = totalCalls > 0 ? ((totalHits / totalCalls) * 100).toFixed(1) : '0.0';
+  
+  return {
+    placeDetailsHits: sessionCache.stats.placeDetailsHits,
+    placeDetailsMisses: sessionCache.stats.placeDetailsMisses,
+    searchHits: sessionCache.stats.searchHits,
+    searchMisses: sessionCache.stats.searchMisses,
+    nearbyHits: sessionCache.stats.nearbyHits,
+    nearbyMisses: sessionCache.stats.nearbyMisses,
+    totalHits,
+    totalMisses,
+    totalCalls,
+    hitRate,
+    apiCallsSaved: totalHits,
+  };
+}
+
 export interface GeocodeResult {
   latitude: number;
   longitude: number;
@@ -92,6 +170,21 @@ export async function searchPlaces(
   radiusMiles: number = 2,
   coordinates?: { lat: number; lng: number }
 ): Promise<PlaceResult[]> {
+  // Create cache key from search parameters
+  const cacheKey = `${query}|${location}|${radiusMiles}|${coordinates?.lat}|${coordinates?.lng}`;
+  
+  // Check cache first
+  if (sessionCache.searchResults.has(cacheKey)) {
+    sessionCache.stats.searchHits++;
+    console.log(`[Google Places Cache] HIT - searchPlaces for "${query}"`);
+    const cached = sessionCache.searchResults.get(cacheKey)!;
+    // Return deep copy to prevent mutation
+    return cached.map(result => clonePlaceResult(result));
+  }
+
+  sessionCache.stats.searchMisses++;
+  console.log(`[Google Places Cache] MISS - fetching searchPlaces for "${query}"`);
+
   try {
     if (!process.env.GOOGLE_PLACES_API_KEY) {
       throw new Error("GOOGLE_PLACES_API_KEY is not set");
@@ -116,6 +209,7 @@ export async function searchPlaces(
     });
 
     if (!response.data.results || response.data.results.length === 0) {
+      sessionCache.searchResults.set(cacheKey, []);
       return [];
     }
 
@@ -131,10 +225,15 @@ export async function searchPlaces(
           ? { lat: place.geometry.location.lat, lng: place.geometry.location.lng }
           : undefined;
         
-        return [{
+        const result = [{
           ...detailedPlace,
           location: placeLocation,
         }];
+
+        // Cache a clone to prevent mutations from affecting cached data
+        sessionCache.searchResults.set(cacheKey, result.map(r => clonePlaceResult(r)));
+        // Return original (caller can mutate without affecting cache)
+        return result;
       }
     }
 
@@ -149,7 +248,7 @@ export async function searchPlaces(
       ? { lat: place.geometry.location.lat, lng: place.geometry.location.lng }
       : undefined;
 
-    return [{
+    const result = [{
       placeId: place.place_id || "",
       name: place.name || query,
       address: place.formatted_address || "",
@@ -159,9 +258,15 @@ export async function searchPlaces(
       types: place.types || [],
       location: placeLocation,
     }];
+
+    // Cache a clone to prevent mutations from affecting cached data
+    sessionCache.searchResults.set(cacheKey, result.map(r => clonePlaceResult(r)));
+    // Return original (caller can mutate without affecting cache)
+    return result;
   } catch (error) {
     console.error("Error searching Google Places:", error);
-    // Return empty array instead of throwing to allow the app to continue
+    // Cache empty result to avoid retrying failed searches
+    sessionCache.searchResults.set(cacheKey, []);
     return [];
   }
 }
@@ -172,6 +277,21 @@ export async function searchNearbyPlaces(
   radiusMeters: number = 805,
   minRating: number = 3.5
 ): Promise<PlaceResult[]> {
+  // Create cache key from search parameters
+  const cacheKey = `${query}|${nearLocation.lat}|${nearLocation.lng}|${radiusMeters}|${minRating}`;
+  
+  // Check cache first
+  if (sessionCache.nearbyResults.has(cacheKey)) {
+    sessionCache.stats.nearbyHits++;
+    console.log(`[Google Places Cache] HIT - searchNearbyPlaces for "${query}"`);
+    const cached = sessionCache.nearbyResults.get(cacheKey)!;
+    // Return deep copy to prevent mutation
+    return cached.map(result => clonePlaceResult(result));
+  }
+
+  sessionCache.stats.nearbyMisses++;
+  console.log(`[Google Places Cache] MISS - fetching searchNearbyPlaces for "${query}"`);
+
   try {
     if (!process.env.GOOGLE_PLACES_API_KEY) {
       throw new Error("GOOGLE_PLACES_API_KEY is not set");
@@ -187,6 +307,7 @@ export async function searchNearbyPlaces(
     });
 
     if (!response.data.results || response.data.results.length === 0) {
+      sessionCache.nearbyResults.set(cacheKey, []);
       return [];
     }
 
@@ -213,9 +334,14 @@ export async function searchNearbyPlaces(
       }
     }
 
+    // Cache clones to prevent mutations from affecting cached data
+    sessionCache.nearbyResults.set(cacheKey, results.map(r => clonePlaceResult(r)));
+    // Return originals (caller can mutate without affecting cache)
     return results;
   } catch (error) {
     console.error("Error searching nearby places:", error);
+    // Cache empty result to avoid retrying failed searches
+    sessionCache.nearbyResults.set(cacheKey, []);
     return [];
   }
 }
@@ -336,6 +462,18 @@ function selectBestReview(reviews?: any[]): string | undefined {
 }
 
 export async function getPlaceDetails(placeId: string): Promise<PlaceResult | null> {
+  // Check cache first
+  if (sessionCache.placeDetails.has(placeId)) {
+    sessionCache.stats.placeDetailsHits++;
+    console.log(`[Google Places Cache] HIT - placeDetails for ${placeId}`);
+    const cached = sessionCache.placeDetails.get(placeId);
+    // Return deep copy to prevent mutation
+    return cached ? clonePlaceResult(cached) : null;
+  }
+
+  sessionCache.stats.placeDetailsMisses++;
+  console.log(`[Google Places Cache] MISS - fetching placeDetails for ${placeId}`);
+
   try {
     if (!process.env.GOOGLE_PLACES_API_KEY) {
       throw new Error("GOOGLE_PLACES_API_KEY is not set");
@@ -350,7 +488,10 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceResult | nu
     });
 
     const place = response.data.result;
-    if (!place) return null;
+    if (!place) {
+      sessionCache.placeDetails.set(placeId, null);
+      return null;
+    }
 
     let photoUrl: string | undefined;
     if (place.photos && place.photos.length > 0) {
@@ -361,7 +502,7 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceResult | nu
     // Select best review
     const review = selectBestReview(place.reviews);
 
-    return {
+    const result = {
       placeId: place.place_id || "",
       name: place.name || "",
       address: place.formatted_address || "",
@@ -372,8 +513,15 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceResult | nu
       types: place.types || [],
       review,
     };
+
+    // Cache a clone to prevent mutations from affecting cached data
+    sessionCache.placeDetails.set(placeId, clonePlaceResult(result));
+
+    // Return the original (caller can mutate this without affecting cache)
+    return result;
   } catch (error) {
     console.error("Error getting place details:", error);
+    sessionCache.placeDetails.set(placeId, null);
     return null;
   }
 }

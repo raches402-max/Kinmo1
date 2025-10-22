@@ -4,7 +4,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, activities as activitiesTable, groups as groupsTable, members as membersTable, itineraryInvites, rsvps as rsvpsTable, itineraries, itineraryItems, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
 import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue, analyzePreferencePatterns } from "./openai";
-import { searchPlaces, searchNearbyPlaces, geocodeLocation } from "./google-places";
+import { searchPlaces, searchNearbyPlaces, geocodeLocation, clearPlacesCache, getCacheStats } from "./google-places";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { validateItinerary } from "./itinerary-validation";
 import { sendMemberWelcome, type EmailRecipient, type MemberWelcomeData } from "./email-service";
@@ -3056,6 +3056,9 @@ Looking forward to planning great activities together!
 // Helper function to generate and store activities
 async function generateAndStoreActivities(groupId: string, groupData: any) {
   try {
+    // Clear Google Places cache at start of generation to get fresh session
+    clearPlacesCache();
+    
     // Update status to generating
     await storage.updateGroupStatus(groupId, "generating");
 
@@ -3213,13 +3216,17 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       console.log(`[AI Generation] Attempt ${attempt}: AI prompt took ${((aiPromptEnd - aiPromptStart) / 1000).toFixed(1)}s`);
       console.log(`[AI Generation] Attempt ${attempt}: Received ${suggestions.length} suggestions from OpenAI`);
 
-      // Filter out rejected venues before calling Google Places
+      // Filter out rejected venues BEFORE calling Google Places
+      // (Duplicate checking happens after Google Places returns actual venue names)
       const filteredSuggestions = suggestions.filter(s => {
         const normalized = s.venueName.trim().toLowerCase();
+        
+        // Skip blacklisted venues
         if (rejectedSet.has(normalized)) {
-          console.log(`[AI Generation] Skipping blacklisted venue: ${s.venueName}`);
+          console.log(`[API Optimization] Skipping blacklisted venue: ${s.venueName}`);
           return false;
         }
+        
         return true;
       });
       console.log(`[AI Generation] After blacklist filter: ${filteredSuggestions.length}/${suggestions.length} suggestions`);
@@ -3500,6 +3507,18 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
     }
 
     console.log(`[AI Generation] Successfully stored activities for group ${groupId}`);
+    
+    // Log cache stats to show optimization impact
+    const cacheStats = getCacheStats();
+    console.log(`[API Optimization] ━━━ Cache Performance Summary ━━━`);
+    console.log(`[API Optimization] Total API calls: ${cacheStats.totalCalls}`);
+    console.log(`[API Optimization] Cache hits: ${cacheStats.totalHits} (${cacheStats.hitRate}%)`);
+    console.log(`[API Optimization] Cache misses: ${cacheStats.totalMisses}`);
+    console.log(`[API Optimization] ✅ API calls saved: ${cacheStats.apiCallsSaved}`);
+    console.log(`[API Optimization] Breakdown:`);
+    console.log(`[API Optimization]   - placeDetails: ${cacheStats.placeDetailsHits} hits / ${cacheStats.placeDetailsMisses} misses`);
+    console.log(`[API Optimization]   - textSearch: ${cacheStats.searchHits} hits / ${cacheStats.searchMisses} misses`);
+    console.log(`[API Optimization]   - nearbySearch: ${cacheStats.nearbyHits} hits / ${cacheStats.nearbyMisses} misses`);
 
     // Update status to completed
     await storage.updateGroupStatus(groupId, "completed");
