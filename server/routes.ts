@@ -2102,17 +2102,37 @@ Looking forward to planning great activities together!
         
         // Create itinerary-specific invite tokens for each member
         const memberInvites = new Map<string, string>(); // memberId -> inviteToken
-        for (const member of members) {
+        
+        // If there are no members, create a special invite for the organizer
+        if (members.length === 0) {
           const inviteToken = crypto.randomUUID();
           
-          // Store invite in database
+          // Create a pseudo-member ID for the organizer (use group's userId)
+          const organizerPseudoMemberId = `organizer-${group.userId}`;
+          
+          // Store invite in database with a special marker
           await db.insert(itineraryInvites).values({
             itineraryId: itinerary.id,
-            memberId: member.id,
+            memberId: null, // No actual member record yet
             inviteToken,
           });
           
-          memberInvites.set(member.id, inviteToken);
+          memberInvites.set(organizerPseudoMemberId, inviteToken);
+          console.log(`[Send Itinerary] Created invite for organizer (no members yet)`);
+        } else {
+          // Create invites for existing members
+          for (const member of members) {
+            const inviteToken = crypto.randomUUID();
+            
+            // Store invite in database
+            await db.insert(itineraryInvites).values({
+              itineraryId: itinerary.id,
+              memberId: member.id,
+              inviteToken,
+            });
+            
+            memberInvites.set(member.id, inviteToken);
+          }
         }
         
         // Collect recipients (members with emails + organizer)
