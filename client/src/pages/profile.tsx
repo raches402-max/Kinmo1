@@ -10,7 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, User } from "lucide-react";
+import { Loader2, User, ArrowLeft } from "lucide-react";
+import { Link } from "wouter";
 
 const profileFormSchema = z.object({
   displayName: z.string().max(100).optional(),
@@ -72,6 +73,12 @@ export default function Profile() {
     <div className="min-h-screen bg-background">
       <div className="max-w-3xl mx-auto p-6 space-y-6">
         <div className="space-y-2">
+          <Link href="/">
+            <Button variant="ghost" size="sm" data-testid="button-back-home">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Dashboard
+            </Button>
+          </Link>
           <h1 className="text-3xl font-bold">Profile Settings</h1>
           <p className="text-muted-foreground">
             Manage your personal information and preferences
