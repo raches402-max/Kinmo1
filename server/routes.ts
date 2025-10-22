@@ -330,7 +330,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const invite = invites[0];
       
-      // Get member data
+      // Handle organizer invites (no member yet - memberId is null)
+      if (!invite.memberId) {
+        // Get itinerary to find the group
+        const itinerary = await storage.getItinerary(invite.itineraryId);
+        if (!itinerary) {
+          return res.status(404).json({ message: "Itinerary not found" });
+        }
+        
+        // Get group to find organizer
+        const group = await storage.getGroup(itinerary.groupId);
+        if (!group) {
+          return res.status(404).json({ message: "Group not found" });
+        }
+        
+        // Get organizer user data
+        const organizer = await storage.getUser(group.userId);
+        if (!organizer) {
+          return res.status(404).json({ message: "Organizer not found" });
+        }
+        
+        // Return organizer data as if they were a member
+        return res.json({
+          id: null, // No member ID yet
+          name: `${organizer.firstName} ${organizer.lastName}`,
+          email: organizer.email,
+          isOrganizer: true,
+        });
+      }
+      
+      // Get member data for regular member invites
       const member = await storage.getMember(invite.memberId);
       if (!member) {
         return res.status(404).json({ message: "Member not found" });

@@ -237,7 +237,7 @@ export const rsvps = pgTable("rsvps", {
 export const itineraryInvites = pgTable("itinerary_invites", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   itineraryId: varchar("itinerary_id").notNull().references(() => itineraries.id, { onDelete: "cascade" }),
-  memberId: varchar("member_id").notNull().references(() => members.id, { onDelete: "cascade" }),
+  memberId: varchar("member_id").references(() => members.id, { onDelete: "cascade" }), // Optional - null for organizer invites when group has no members
   inviteToken: varchar("invite_token").notNull().unique(), // Unique token for this specific invite
   sentAt: timestamp("sent_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
