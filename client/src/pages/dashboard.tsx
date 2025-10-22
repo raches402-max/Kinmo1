@@ -58,10 +58,31 @@ export default function Dashboard() {
     enabled: !!user,
   });
 
-  // RSVP mutation
+  // RSVP mutation for members
   const rsvpMutation = useMutation({
     mutationFn: async ({ itineraryId, inviteToken, response }: { itineraryId: string; inviteToken: string; response: string }) => {
       return await apiRequest("POST", `/api/rsvps`, { itineraryId, inviteToken, response });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
+      toast({
+        title: "RSVP submitted!",
+        description: "Your response has been recorded",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to submit RSVP",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // RSVP mutation for organizers
+  const organizerRsvpMutation = useMutation({
+    mutationFn: async ({ itineraryId, response }: { itineraryId: string; response: string }) => {
+      return await apiRequest("POST", `/api/itineraries/${itineraryId}/organizer-rsvp`, { response });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
@@ -291,13 +312,21 @@ export default function Dashboard() {
                   <h3 className="text-xl font-bold mb-4">Upcoming Events ({upcomingEvents.length})</h3>
                   <div className="space-y-3">
                     {upcomingEvents.map((event) => {
-                      // Organizer events get special badge
+                      // Organizer events get RSVP status badge and buttons
                       if (event.isOrganizer) {
-                        const badge = { variant: "default" as const, icon: Sparkles, text: "Organizer", className: "" };
+                        const rsvpResponse = event.rsvp?.response;
+                        const badgeConfig = {
+                          yes: { variant: "default" as const, icon: CheckCircle, text: "Going", className: "" },
+                          maybe: { variant: "secondary" as const, icon: HelpCircle, text: "Maybe", className: "" },
+                          no: { variant: "outline" as const, icon: XCircle, text: "Declined", className: "" },
+                        };
+                        const organizerBadge = { variant: "default" as const, icon: Sparkles, text: "Organizer", className: "" };
+                        const badge = rsvpResponse ? badgeConfig[rsvpResponse as 'yes' | 'maybe' | 'no'] : organizerBadge;
+
                         return (
-                          <Card key={event.inviteId} className="hover-elevate border-primary/50" data-testid={`upcoming-event-${event.itineraryId}`}>
+                          <Card key={event.inviteId} className={`hover-elevate ${rsvpResponse === 'yes' ? 'border-primary/50' : ''}`} data-testid={`upcoming-event-${event.itineraryId}`}>
                             <CardHeader className="pb-3">
-                              <div className="flex items-center justify-between gap-4">
+                              <div className="flex items-center justify-between gap-4 flex-wrap">
                                 <div className="flex-1">
                                   <CardTitle className="text-lg flex items-center gap-2">
                                     <span className="text-xl">{event.groupEmoji}</span>
@@ -307,10 +336,18 @@ export default function Dashboard() {
                                     {event.groupName} • {event.eventDate ? format(new Date(event.eventDate), 'MMM d, yyyy • h:mm a') : 'Date TBD'}
                                   </CardDescription>
                                 </div>
-                                <Badge variant={badge.variant} className={`gap-1 ${badge.className}`}>
-                                  <badge.icon className="h-3 w-3" />
-                                  {badge.text}
-                                </Badge>
+                                <div className="flex gap-2 flex-wrap">
+                                  <Badge variant="outline" className="gap-1">
+                                    <Sparkles className="h-3 w-3" />
+                                    Organizer
+                                  </Badge>
+                                  {rsvpResponse && (
+                                    <Badge variant={badge.variant} className={`gap-1 ${badge.className}`}>
+                                      <badge.icon className="h-3 w-3" />
+                                      {badge.text}
+                                    </Badge>
+                                  )}
+                                </div>
                               </div>
                             </CardHeader>
                             <CardContent className="space-y-4">
@@ -324,12 +361,49 @@ export default function Dashboard() {
                                   <Badge variant="secondary">+{event.items.length - 3} more</Badge>
                                 )}
                               </div>
-                              <Link href={`/group/${event.groupId}`}>
-                                <Button variant="outline" className="gap-2" data-testid={`button-manage-${event.itineraryId}`}>
-                                  <Users className="h-4 w-4" />
-                                  Manage Event
+                              
+                              {/* RSVP Buttons */}
+                              <div className="flex gap-2 flex-wrap">
+                                <Button 
+                                  variant={rsvpResponse === 'yes' ? 'default' : 'outline'}
+                                  size="sm"
+                                  onClick={() => organizerRsvpMutation.mutate({ itineraryId: event.itineraryId, response: 'yes' })}
+                                  disabled={organizerRsvpMutation.isPending}
+                                  className="gap-1"
+                                  data-testid={`button-yes-${event.itineraryId}`}
+                                >
+                                  <CheckCircle className="h-4 w-4" />
+                                  Going
                                 </Button>
-                              </Link>
+                                <Button 
+                                  variant={rsvpResponse === 'maybe' ? 'default' : 'outline'}
+                                  size="sm"
+                                  onClick={() => organizerRsvpMutation.mutate({ itineraryId: event.itineraryId, response: 'maybe' })}
+                                  disabled={organizerRsvpMutation.isPending}
+                                  className="gap-1"
+                                  data-testid={`button-maybe-${event.itineraryId}`}
+                                >
+                                  <HelpCircle className="h-4 w-4" />
+                                  Maybe
+                                </Button>
+                                <Button 
+                                  variant={rsvpResponse === 'no' ? 'default' : 'outline'}
+                                  size="sm"
+                                  onClick={() => organizerRsvpMutation.mutate({ itineraryId: event.itineraryId, response: 'no' })}
+                                  disabled={organizerRsvpMutation.isPending}
+                                  className="gap-1"
+                                  data-testid={`button-no-${event.itineraryId}`}
+                                >
+                                  <XCircle className="h-4 w-4" />
+                                  Can't Make It
+                                </Button>
+                                <Link href={`/group/${event.groupId}`}>
+                                  <Button variant="ghost" size="sm" className="gap-1" data-testid={`button-manage-${event.itineraryId}`}>
+                                    <Users className="h-4 w-4" />
+                                    Manage
+                                  </Button>
+                                </Link>
+                              </div>
                             </CardContent>
                           </Card>
                         );

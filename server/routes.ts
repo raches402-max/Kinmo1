@@ -190,7 +190,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const events = await Promise.all(verifiedInvites.map(async (invite) => {
         // Get RSVP if it exists
         let rsvp = null;
-        if (invite.memberId) {
+        if (invite.isOrganizer) {
+          // For organizers, check for RSVP by userId (no memberId)
+          const rsvps = await db
+            .select()
+            .from(rsvpsTable)
+            .where(
+              sql`itinerary_id = ${invite.itineraryId} AND user_id = ${userId} AND member_id IS NULL`
+            );
+          rsvp = rsvps[0] || null;
+        } else if (invite.memberId) {
+          // For members, check by memberId
           const rsvps = await db
             .select()
             .from(rsvpsTable)
@@ -1107,6 +1117,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(rsvps);
     } catch (error: any) {
       console.error('[RSVP] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Organizer RSVP - allows authenticated group owners to RSVP to their own events
+  app.post("/api/itineraries/:itineraryId/organizer-rsvp", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { itineraryId } = req.params;
+      const { response, rsvpFeedback } = req.body;
+
+      if (!response || !["yes", "maybe", "no"].includes(response)) {
+        return res.status(400).json({ message: "Valid response required (yes, maybe, or no)" });
+      }
+
+      // Verify itinerary exists and user is the group owner
+      const itinerary = await storage.getItinerary(itineraryId);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      const group = await storage.getGroup(itinerary.groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      if (group.userId !== userId) {
+        return res.status(403).json({ message: "Only the group organizer can use this endpoint" });
+      }
+
+      // Check if organizer RSVP already exists (using userId, no memberId)
+      const existingRsvps = await db
+        .select()
+        .from(rsvpsTable)
+        .where(
+          sql`itinerary_id = ${itineraryId} AND user_id = ${userId} AND member_id IS NULL`
+        );
+
+      let rsvp;
+      if (existingRsvps.length > 0) {
+        // Update existing RSVP
+        const updated = await db
+          .update(rsvpsTable)
+          .set({
+            response,
+            rsvpFeedback: rsvpFeedback || null,
+            updatedAt: new Date(),
+          })
+          .where(sql`id = ${existingRsvps[0].id}`)
+          .returning();
+        rsvp = updated[0];
+      } else {
+        // Create new organizer RSVP
+        const inserted = await db
+          .insert(rsvpsTable)
+          .values({
+            itineraryId,
+            userId,
+            memberId: null,
+            response,
+            rsvpFeedback: rsvpFeedback || null,
+          })
+          .returning();
+        rsvp = inserted[0];
+      }
+
+      res.json(rsvp);
+    } catch (error: any) {
+      console.error('[Organizer RSVP] Error:', error);
       res.status(500).json({ message: error.message });
     }
   });
