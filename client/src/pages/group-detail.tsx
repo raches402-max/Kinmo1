@@ -699,6 +699,12 @@ export default function GroupDetail() {
     enabled: !!groupId,
   });
 
+  // Check if user is group owner
+  const isOwner = user?.claims?.sub === group?.userId;
+
+  // Track copied state for invite links
+  const [copiedLinks, setCopiedLinks] = useState<Record<string, boolean>>({});
+
   // Fetch nearby suggestions when venues are selected or itinerary exists
   const { data: nearbySuggestions = [] } = useQuery<any[]>({
     queryKey: [
@@ -4601,6 +4607,70 @@ export default function GroupDetail() {
               {/* {isOwner && (
                 <PendingEventCard groupId={groupId} onApprove={() => queryClient.invalidateQueries({ queryKey: ['/api/groups', groupId, 'pending-auto-event'] })} />
               )} */}
+
+              {/* Sent Invites Section */}
+              {isOwner && proposedItineraries.length > 0 && (
+                <Card data-testid="card-sent-invites">
+                  <CardHeader>
+                    <CardTitle className="text-lg">Share Invite Links</CardTitle>
+                    <CardDescription>Copy these links to share in your group chat</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {proposedItineraries.map((itinerary: any) => (
+                      <div key={itinerary.id} className="flex items-center gap-3 p-3 rounded-md border bg-accent/10" data-testid={`sent-invite-${itinerary.id}`}>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{itinerary.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {itinerary.eventDate ? format(new Date(itinerary.eventDate), 'MMM d, yyyy • h:mm a') : 'No date set'}
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-2"
+                          onClick={async () => {
+                            try {
+                              // Fetch the shareable link
+                              const response = await fetch(`/api/itineraries/${itinerary.id}/invite-summary`, {
+                                credentials: 'include',
+                              });
+                              const data = await response.json();
+                              
+                              if (data.shareableLink) {
+                                await navigator.clipboard.writeText(data.shareableLink);
+                                setCopiedLinks(prev => ({ ...prev, [itinerary.id]: true }));
+                                setTimeout(() => {
+                                  setCopiedLinks(prev => ({ ...prev, [itinerary.id]: false }));
+                                }, 2000);
+                                toast({
+                                  title: "Link copied!",
+                                  description: "Share this in your group chat",
+                                });
+                              } else {
+                                toast({
+                                  title: "No invites sent yet",
+                                  description: "This plan hasn't been sent to the group",
+                                  variant: "destructive",
+                                });
+                              }
+                            } catch (error) {
+                              toast({
+                                title: "Error",
+                                description: "Couldn't copy link",
+                                variant: "destructive",
+                              });
+                            }
+                          }}
+                          data-testid={`button-copy-link-${itinerary.id}`}
+                        >
+                          {copiedLinks[itinerary.id] ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                          {copiedLinks[itinerary.id] ? 'Copied!' : 'Copy Link'}
+                        </Button>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Active Plans Section */}
               <div>
