@@ -2072,15 +2072,27 @@ Looking forward to planning great activities together!
         isPrimary: isPrimary || false,
       };
 
-      // If event date and schedule config are provided, set them up
-      if (eventDate && autoScheduleConfig) {
+      // If event date is provided, set it up and send invites
+      if (eventDate) {
         const date = new Date(eventDate);
+        
+        // Setup schedule config with defaults if not provided
+        const scheduleConfig = autoScheduleConfig || {
+          inviteAdvanceDays: 14,
+          rsvpWindowDays: 11,
+          reminders: [
+            { type: 'gentle_nudge', daysBeforeDeadline: 7 },
+            { type: 'final_call', daysBeforeDeadline: 1 },
+            { type: 'day_before', daysBeforeEvent: 1 }
+          ]
+        };
+        
         const rsvpDeadline = new Date(date);
-        rsvpDeadline.setDate(date.getDate() - (autoScheduleConfig.inviteAdvanceDays - autoScheduleConfig.rsvpWindowDays));
+        rsvpDeadline.setDate(date.getDate() - (scheduleConfig.inviteAdvanceDays - scheduleConfig.rsvpWindowDays));
 
         updates.eventDate = date;
         updates.rsvpDeadline = rsvpDeadline;
-        updates.autoScheduleConfig = autoScheduleConfig;
+        updates.autoScheduleConfig = scheduleConfig;
         updates.inviteSentAt = new Date();
 
         // Send initial invite emails immediately
