@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Sparkles, Users, MapPin, Calendar, CheckCircle, XCircle, HelpCircle, ExternalLink } from "lucide-react";
+import { Plus, Sparkles, Users, MapPin, Calendar, CheckCircle, XCircle, HelpCircle, ExternalLink, Settings } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -118,6 +118,11 @@ export default function Dashboard() {
                     {pendingInvites.length}
                   </Badge>
                 )}
+              </Button>
+            </Link>
+            <Link href="/profile">
+              <Button variant="ghost" size="icon" data-testid="button-profile">
+                <Settings className="h-4 w-4" />
               </Button>
             </Link>
             <Link href="/create-group">

@@ -18,6 +18,7 @@ import InvitePage from "@/pages/invite";
 import RsvpItineraryPage from "@/pages/rsvp-itinerary";
 import ClaimMemberPage from "@/pages/claim-member";
 import MemberEventsPage from "@/pages/member-events";
+import Profile from "@/pages/profile";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -47,6 +48,7 @@ function Router() {
           <Route path="/rsvp/:itineraryId/:inviteToken" component={RsvpItineraryPage} />
           <Route path="/claim/:claimToken" component={ClaimMemberPage} />
           <Route path="/events" component={MemberEventsPage} />
+          <Route path="/profile" component={Profile} />
         </>
       )}
       <Route component={NotFound} />

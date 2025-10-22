@@ -2,7 +2,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, activities as activitiesTable, groups as groupsTable, members as membersTable, itineraryInvites, rsvps as rsvpsTable, itineraries, itineraryItems, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
+import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, updateUserProfileSchema, activities as activitiesTable, groups as groupsTable, members as membersTable, itineraryInvites, rsvps as rsvpsTable, itineraries, itineraryItems, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
 import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue, analyzePreferencePatterns } from "./openai";
 import { searchPlaces, searchNearbyPlaces, geocodeLocation, clearPlacesCache, getCacheStats } from "./google-places";
 import { setupAuth, isAuthenticated } from "./replitAuth";
@@ -102,6 +102,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // User profile routes
+  app.get("/api/user/profile", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const profile = await storage.getUserProfile(userId);
+      res.json(profile || { displayName: '', bio: '', emailNotifications: true });
+    } catch (error: any) {
+      console.error("Error fetching user profile:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.patch("/api/user/profile", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const validatedData = updateUserProfileSchema.parse(req.body);
+      const profile = await storage.upsertUserProfile(userId, validatedData);
+      res.json(profile);
+    } catch (error: any) {
+      console.error("Error updating user profile:", error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: "Invalid profile data", errors: error.errors });
+      }
+      res.status(500).json({ message: error.message });
     }
   });
 

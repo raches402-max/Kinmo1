@@ -1,7 +1,7 @@
 // Reference: javascript_database blueprint
 // Reference: javascript_log_in_with_replit blueprint
 import {
-  users, groups, members, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, itineraryInvites, reminderLogs, autoScheduledEvents, frequencyFeedback,
+  users, groups, members, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, itineraryInvites, reminderLogs, autoScheduledEvents, frequencyFeedback, userProfiles,
   type User, type UpsertUser,
   type Group, type InsertGroup, type UpdateGroup,
   type Member, type InsertMember, type UpdateMember,
@@ -14,7 +14,8 @@ import {
   type Rsvp, type InsertRsvp,
   type ReminderLog, type InsertReminderLog,
   type AutoScheduledEvent, type InsertAutoScheduledEvent,
-  type FrequencyFeedback, type InsertFrequencyFeedback
+  type FrequencyFeedback, type InsertFrequencyFeedback,
+  type UserProfile, type InsertUserProfile, type UpdateUserProfile
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, or, inArray } from "drizzle-orm";
@@ -103,6 +104,10 @@ export interface IStorage {
   // Frequency Feedback
   createFrequencyFeedback(feedback: InsertFrequencyFeedback): Promise<FrequencyFeedback>;
   getGroupFrequencyFeedback(groupId: string): Promise<FrequencyFeedback[]>;
+
+  // User Profiles
+  getUserProfile(userId: string): Promise<UserProfile | undefined>;
+  upsertUserProfile(userId: string, profile: InsertUserProfile): Promise<UserProfile>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -887,6 +892,30 @@ export class DatabaseStorage implements IStorage {
       .from(frequencyFeedback)
       .where(eq(frequencyFeedback.groupId, groupId))
       .orderBy(desc(frequencyFeedback.createdAt));
+  }
+
+  // User Profiles
+  async getUserProfile(userId: string): Promise<UserProfile | undefined> {
+    const [profile] = await db
+      .select()
+      .from(userProfiles)
+      .where(eq(userProfiles.userId, userId));
+    return profile;
+  }
+
+  async upsertUserProfile(userId: string, profile: InsertUserProfile): Promise<UserProfile> {
+    const [result] = await db
+      .insert(userProfiles)
+      .values({ ...profile, userId })
+      .onConflictDoUpdate({
+        target: userProfiles.userId,
+        set: {
+          ...profile,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return result;
   }
 }
 

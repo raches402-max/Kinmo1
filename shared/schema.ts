@@ -26,6 +26,17 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// User profiles table (extended user information)
+export const userProfiles = pgTable("user_profiles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
+  displayName: text("display_name"), // User's preferred display name
+  bio: text("bio"), // Short bio or description
+  emailNotifications: boolean("email_notifications").default(true).notNull(), // Whether to receive email notifications
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // Groups table
 export const groups = pgTable("groups", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -503,6 +514,13 @@ export const insertFrequencyFeedbackSchema = createInsertSchema(frequencyFeedbac
   createdAt: true,
 });
 
+export const insertUserProfileSchema = createInsertSchema(userProfiles).omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Update schemas (partial versions for PATCH operations)
 export const updateGroupSchema = insertGroupSchema.partial().refine(
   (data) => {
@@ -520,6 +538,7 @@ export const updateGroupSchema = insertGroupSchema.partial().refine(
 export const updateMemberSchema = insertMemberSchema.partial();
 export const updateVotingEventSchema = insertVotingEventSchema.partial();
 export const updateItinerarySchema = insertItinerarySchema.partial();
+export const updateUserProfileSchema = insertUserProfileSchema.partial();
 
 // Types
 export type UpsertUser = typeof users.$inferInsert;
@@ -564,3 +583,7 @@ export type AutoScheduledEvent = typeof autoScheduledEvents.$inferSelect;
 
 export type InsertFrequencyFeedback = z.infer<typeof insertFrequencyFeedbackSchema>;
 export type FrequencyFeedback = typeof frequencyFeedback.$inferSelect;
+
+export type InsertUserProfile = z.infer<typeof insertUserProfileSchema>;
+export type UserProfile = typeof userProfiles.$inferSelect;
+export type UpdateUserProfile = z.infer<typeof updateUserProfileSchema>;
