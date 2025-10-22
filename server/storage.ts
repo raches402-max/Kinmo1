@@ -1,7 +1,7 @@
 // Reference: javascript_database blueprint
 // Reference: javascript_log_in_with_replit blueprint
 import {
-  users, groups, members, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, reminderLogs,
+  users, groups, members, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, itineraryInvites, reminderLogs,
   type User, type UpsertUser,
   type Group, type InsertGroup, type UpdateGroup,
   type Member, type InsertMember, type UpdateMember,
@@ -15,7 +15,7 @@ import {
   type ReminderLog, type InsertReminderLog
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql, and, or } from "drizzle-orm";
+import { eq, desc, sql, and, or, inArray } from "drizzle-orm";
 import { randomBytes } from "crypto";
 
 export interface IStorage {
@@ -699,12 +699,27 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getProposedItineraries(groupId: string): Promise<Array<Itinerary & { items: ItineraryItem[], rsvps: Rsvp[] }>> {
+    // Get all itineraries that have been sent (have invite records)
+    const itinerariesWithInvites = await db
+      .selectDistinct({ itineraryId: itineraryInvites.itineraryId })
+      .from(itineraryInvites)
+      .innerJoin(itineraries, eq(itineraries.id, itineraryInvites.itineraryId))
+      .where(eq(itineraries.groupId, groupId));
+
+    const itineraryIds = itinerariesWithInvites.map(i => i.itineraryId);
+
+    if (itineraryIds.length === 0) {
+      return [];
+    }
+
+    // Fetch the full itinerary data for those that have invites
     const foundItineraries = await db
       .select()
       .from(itineraries)
       .where(and(
         eq(itineraries.groupId, groupId),
-        or(eq(itineraries.status, 'proposed'), eq(itineraries.status, 'scheduled'))
+        or(eq(itineraries.status, 'proposed'), eq(itineraries.status, 'scheduled')),
+        inArray(itineraries.id, itineraryIds)
       ))
       .orderBy(desc(itineraries.createdAt));
 
