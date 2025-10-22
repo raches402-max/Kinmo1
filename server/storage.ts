@@ -156,7 +156,49 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserGroups(userId: string): Promise<Group[]> {
-    return await db.select().from(groups).where(eq(groups.userId, userId));
+    // Get groups where user is the organizer
+    const organizedGroups = await db
+      .select()
+      .from(groups)
+      .where(eq(groups.userId, userId));
+
+    // Get groups where user is a member
+    const memberGroups = await db
+      .select({
+        id: groups.id,
+        userId: groups.userId,
+        name: groups.name,
+        emoji: groups.emoji,
+        locationBase: groups.locationBase,
+        latitude: groups.latitude,
+        longitude: groups.longitude,
+        timezone: groups.timezone,
+        shareableLink: groups.shareableLink,
+        searchRadius: groups.searchRadius,
+        createdAt: groups.createdAt,
+        status: groups.status,
+        errorMessage: groups.errorMessage,
+        rejectedVenues: groups.rejectedVenues,
+        autoScheduleEnabled: groups.autoScheduleEnabled,
+        autoScheduleFrequency: groups.autoScheduleFrequency,
+        autoScheduleDayOfWeek: groups.autoScheduleDayOfWeek,
+        autoScheduleTime: groups.autoScheduleTime,
+        lastAutoEventAt: groups.lastAutoEventAt,
+        preferenceInsights: groups.preferenceInsights,
+        feedbackCount: groups.feedbackCount,
+        lastInsightsUpdate: groups.lastInsightsUpdate,
+      })
+      .from(groups)
+      .innerJoin(members, eq(members.groupId, groups.id))
+      .where(eq(members.userId, userId));
+
+    // Combine and deduplicate by group ID
+    const allGroups = [...organizedGroups, ...memberGroups];
+    const uniqueGroups = Array.from(
+      new Map(allGroups.map(g => [g.id, g])).values()
+    );
+
+    return uniqueGroups;
   }
 
   async getAllGroups(): Promise<Group[]> {

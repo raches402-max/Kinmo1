@@ -1,5 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, useLocation } from "wouter";
+import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -55,6 +56,21 @@ export default function ClaimMemberPage() {
       });
     },
   });
+
+  // Auto-claim when user is authenticated and claim data is loaded
+  const hasAttemptedClaim = useRef(false);
+  useEffect(() => {
+    if (
+      user && 
+      claimData && 
+      !claimData.alreadyClaimed && 
+      !claimMutation.isPending &&
+      !hasAttemptedClaim.current
+    ) {
+      hasAttemptedClaim.current = true;
+      claimMutation.mutate();
+    }
+  }, [user, claimData, claimMutation]);
 
   // Loading state
   if (isLoading) {

@@ -30,7 +30,7 @@ function Router() {
           <Route path="/join-entry" component={JoinEntry} />
           <Route path="/join/:shareableLink" component={JoinGroup} />
           <Route path="/invite/:token" component={InvitePage} />
-          <Route path="/rsvp/:itineraryId/:memberToken" component={RsvpItineraryPage} />
+          <Route path="/rsvp/:itineraryId/:inviteToken" component={RsvpItineraryPage} />
           <Route path="/claim/:claimToken" component={ClaimMemberPage} />
         </>
       ) : (
@@ -42,7 +42,7 @@ function Router() {
           <Route path="/join-entry" component={JoinEntry} />
           <Route path="/join/:shareableLink" component={JoinGroup} />
           <Route path="/invite/:token" component={InvitePage} />
-          <Route path="/rsvp/:itineraryId/:memberToken" component={RsvpItineraryPage} />
+          <Route path="/rsvp/:itineraryId/:inviteToken" component={RsvpItineraryPage} />
           <Route path="/claim/:claimToken" component={ClaimMemberPage} />
         </>
       )}
