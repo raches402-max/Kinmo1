@@ -54,6 +54,15 @@ AI suggestion preferences:
     - **Auto-Reschedule Logic**: Triggers when >50% negative RSVPs with ≥3 responses, uses atomic conditional UPDATE for race condition prevention
     - **Email Integration**: Sends RSVP invites and reschedule notifications via Resend API
     - **Multi-Time Selection**: Organizers can select 2+ scheduling options (AI-generated or manual) and send all at once. Creates separate proposed itineraries for each selected time with full venue data. Members RSVP to each option independently via in-app flow. Email notifications not sent for multi-date sends (MVP limitation).
+- **AI Auto-Scheduling**: Proactive event generation to maintain group meeting cadence. Features include:
+    - **Automatic Event Creation**: 10 days before next event due date, AI creates pending proposal for organizer approval
+    - **Smart Itinerary Selection**: Prioritizes saved itineraries → favorites → AI-generated content similar to group preferences
+    - **Organizer Approval Flow**: Pending events shown in Plans tab with countdown timer for review
+    - **Auto-Send Fallback**: If organizer doesn't act 3 days before target date, system automatically sends best option to group
+    - **Frequency Feedback**: RSVP flow includes question about meeting frequency (more often/just right/less often)
+    - **Adaptive Scheduling**: When >50% of members vote for frequency change, system adjusts group's meeting cadence
+    - **Frequency Tracking**: Database tracks lastEventDate and nextEventDueDate to maintain consistent scheduling
+    - **Configurable**: Organizers can enable/disable auto-scheduling in group settings
 
 ## External Dependencies
 

@@ -54,6 +54,12 @@ export const groups = pgTable("groups", {
   lastInsightsUpdate: timestamp("last_insights_update"), // When insights were last generated
   feedbackCount: integer("feedback_count").default(0).notNull(), // Track feedback actions to trigger insight regeneration
   rejectedVenues: text("rejected_venues").array(), // Venues that Google Places couldn't find (blacklist to avoid re-suggesting)
+  
+  // Auto-scheduling fields
+  autoScheduleEnabled: boolean("auto_schedule_enabled").default(false).notNull(), // Enable AI auto-scheduling
+  lastEventDate: timestamp("last_event_date"), // Date of most recent finalized event
+  nextEventDueDate: timestamp("next_event_due_date"), // When next event should happen (calculated from frequency)
+  
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -248,6 +254,28 @@ export const reminderLogs = pgTable("reminder_logs", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Auto-scheduled events - AI-generated pending events awaiting organizer approval
+export const autoScheduledEvents = pgTable("auto_scheduled_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  groupId: varchar("group_id").notNull().references(() => groups.id, { onDelete: "cascade" }),
+  itineraryId: varchar("itinerary_id").references(() => itineraries.id, { onDelete: "cascade" }), // Links to proposed itinerary
+  proposedDate: timestamp("proposed_date").notNull(), // AI-suggested event date/time
+  status: text("status").default("pending").notNull(), // 'pending', 'approved', 'rejected', 'auto_sent'
+  autoSendAt: timestamp("auto_send_at").notNull(), // When to auto-send if no organizer action (3 days before target)
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Frequency feedback - track member preferences for meeting frequency
+export const frequencyFeedback = pgTable("frequency_feedback", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  groupId: varchar("group_id").notNull().references(() => groups.id, { onDelete: "cascade" }),
+  memberId: varchar("member_id").references(() => members.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  feedback: text("feedback").notNull(), // 'more_often', 'just_right', 'less_often'
+  itineraryId: varchar("itinerary_id").references(() => itineraries.id, { onDelete: "cascade" }), // Which event prompted this feedback
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   groups: many(groups),
@@ -371,6 +399,36 @@ export const reminderLogsRelations = relations(reminderLogs, ({ one }) => ({
   }),
 }));
 
+export const autoScheduledEventsRelations = relations(autoScheduledEvents, ({ one }) => ({
+  group: one(groups, {
+    fields: [autoScheduledEvents.groupId],
+    references: [groups.id],
+  }),
+  itinerary: one(itineraries, {
+    fields: [autoScheduledEvents.itineraryId],
+    references: [itineraries.id],
+  }),
+}));
+
+export const frequencyFeedbackRelations = relations(frequencyFeedback, ({ one }) => ({
+  group: one(groups, {
+    fields: [frequencyFeedback.groupId],
+    references: [groups.id],
+  }),
+  member: one(members, {
+    fields: [frequencyFeedback.memberId],
+    references: [members.id],
+  }),
+  user: one(users, {
+    fields: [frequencyFeedback.userId],
+    references: [users.id],
+  }),
+  itinerary: one(itineraries, {
+    fields: [frequencyFeedback.itineraryId],
+    references: [itineraries.id],
+  }),
+}));
+
 // Insert schemas
 export const insertGroupSchema = createInsertSchema(groups).omit({
   id: true,
@@ -433,6 +491,16 @@ export const insertReminderLogSchema = createInsertSchema(reminderLogs).omit({
   createdAt: true,
 });
 
+export const insertAutoScheduledEventSchema = createInsertSchema(autoScheduledEvents).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertFrequencyFeedbackSchema = createInsertSchema(frequencyFeedback).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Update schemas (partial versions for PATCH operations)
 export const updateGroupSchema = insertGroupSchema.partial().refine(
   (data) => {
@@ -488,3 +556,9 @@ export type Rsvp = typeof rsvps.$inferSelect;
 
 export type InsertReminderLog = z.infer<typeof insertReminderLogSchema>;
 export type ReminderLog = typeof reminderLogs.$inferSelect;
+
+export type InsertAutoScheduledEvent = z.infer<typeof insertAutoScheduledEventSchema>;
+export type AutoScheduledEvent = typeof autoScheduledEvents.$inferSelect;
+
+export type InsertFrequencyFeedback = z.infer<typeof insertFrequencyFeedbackSchema>;
+export type FrequencyFeedback = typeof frequencyFeedback.$inferSelect;
