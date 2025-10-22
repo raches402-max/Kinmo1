@@ -29,10 +29,7 @@ export default function Profile() {
 
   const updateProfileMutation = useMutation({
     mutationFn: async (data: ProfileFormValues) => {
-      return await apiRequest('/api/user/profile', {
-        method: 'PATCH',
-        body: JSON.stringify(data),
-      });
+      return await apiRequest('PATCH', '/api/user/profile', data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/user/profile'] });
@@ -104,7 +101,7 @@ export default function Profile() {
                         <Input
                           placeholder="Your name"
                           {...field}
-                          data-testid="input-display-name"
+                          data-testid="input-displayName"
                         />
                       </FormControl>
                       <FormDescription>
@@ -153,7 +150,7 @@ export default function Profile() {
                         <Switch
                           checked={field.value}
                           onCheckedChange={field.onChange}
-                          data-testid="switch-email-notifications"
+                          data-testid="switch-emailNotifications"
                         />
                       </FormControl>
                     </FormItem>
