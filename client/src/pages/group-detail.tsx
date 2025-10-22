@@ -4597,6 +4597,11 @@ export default function GroupDetail() {
                 </CardContent>
               </Card>
 
+              {/* Pending Auto-Scheduled Event - Temporarily hidden until component is added */}
+              {/* {isOwner && (
+                <PendingEventCard groupId={groupId} onApprove={() => queryClient.invalidateQueries({ queryKey: ['/api/groups', groupId, 'pending-auto-event'] })} />
+              )} */}
+
               {/* Active Plans Section */}
               <div>
                 <h2 className="text-2xl font-bold mb-2">Active Plans</h2>
