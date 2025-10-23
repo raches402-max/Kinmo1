@@ -2380,6 +2380,143 @@ Looking forward to planning great activities together!
     }
   });
 
+  // ========== TIME SLOT MANAGEMENT ==========
+  
+  // Get time slots for an itinerary
+  app.get("/api/itineraries/:itineraryId/time-slots", async (req, res) => {
+    try {
+      const { itineraryId } = req.params;
+      const timeSlots = await storage.getItineraryTimeSlots(itineraryId);
+      const voteCounts = await storage.getItineraryTimeSlotVoteCounts(itineraryId);
+      
+      const timeSlotsWithVotes = timeSlots.map(slot => ({
+        ...slot,
+        voteCount: voteCounts.find(vc => vc.timeSlotId === slot.id)?.voteCount || 0
+      }));
+      
+      res.json(timeSlotsWithVotes);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+  
+  // Create time slots for an itinerary (organizer only)
+  app.post("/api/itineraries/:itineraryId/time-slots", isAuthenticated, async (req: any, res) => {
+    try {
+      const { itineraryId } = req.params;
+      const { timeSlots } = req.body; // Array of { proposedDateTime, label }
+      const userId = req.user.claims.sub;
+      
+      const itinerary = await storage.getItinerary(itineraryId);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+      
+      const group = await storage.getGroup(itinerary.groupId);
+      if (!group || group.userId !== userId) {
+        return res.status(403).json({ message: "Only the group organizer can add time slots" });
+      }
+      
+      const timeSlotsToCreate = timeSlots.map((slot: any) => ({
+        itineraryId,
+        proposedDateTime: new Date(slot.proposedDateTime),
+        label: slot.label || null,
+        isSelected: false,
+      }));
+      
+      const created = await storage.createProposedTimeSlots(timeSlotsToCreate);
+      res.json(created);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+  
+  // Vote for a time slot
+  app.post("/api/time-slots/:timeSlotId/vote", async (req: any, res) => {
+    try {
+      const { timeSlotId } = req.params;
+      const { memberId, memberName } = req.body;
+      
+      let userId = null;
+      if (req.user) {
+        userId = req.user.claims.sub;
+      }
+      
+      if (!userId && !memberId) {
+        return res.status(400).json({ message: "Either userId or memberId is required" });
+      }
+      
+      const vote = await storage.voteForTimeSlot({
+        timeSlotId,
+        userId,
+        memberId,
+        memberName: memberName || null,
+      });
+      
+      res.json(vote);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+  
+  // Remove vote for a time slot
+  app.delete("/api/time-slots/:timeSlotId/vote", async (req: any, res) => {
+    try {
+      const { timeSlotId } = req.params;
+      
+      let userId = null;
+      let memberId = null;
+      
+      if (req.user) {
+        userId = req.user.claims.sub;
+      } else if (req.body.memberId) {
+        memberId = req.body.memberId;
+      }
+      
+      if (!userId && !memberId) {
+        return res.status(400).json({ message: "Either userId or memberId is required" });
+      }
+      
+      await storage.removeTimeSlotVote(timeSlotId, userId, memberId);
+      res.json({ message: "Vote removed" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+  
+  // Select a time slot (organizer only)
+  app.patch("/api/time-slots/:timeSlotId/select", isAuthenticated, async (req: any, res) => {
+    try {
+      const { timeSlotId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const timeSlot = await storage.getItineraryTimeSlots(timeSlotId);
+      if (!timeSlot || timeSlot.length === 0) {
+        return res.status(404).json({ message: "Time slot not found" });
+      }
+      
+      const itinerary = await storage.getItinerary(timeSlot[0].itineraryId);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+      
+      const group = await storage.getGroup(itinerary.groupId);
+      if (!group || group.userId !== userId) {
+        return res.status(403).json({ message: "Only the group organizer can select a time slot" });
+      }
+      
+      const updated = await storage.updateTimeSlotSelection(timeSlotId, true);
+      
+      await storage.updateItinerary(itinerary.id, {
+        eventDate: updated.proposedDateTime,
+      });
+      
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Get saved itineraries for a group
   app.get("/api/groups/:groupId/saved-itineraries", async (req, res) => {
     try {
