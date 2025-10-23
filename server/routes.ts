@@ -2383,15 +2383,24 @@ Looking forward to planning great activities together!
   // ========== TIME SLOT MANAGEMENT ==========
   
   // Get time slots for an itinerary
-  app.get("/api/itineraries/:itineraryId/time-slots", async (req, res) => {
+  app.get("/api/itineraries/:itineraryId/time-slots", async (req: any, res) => {
     try {
       const { itineraryId } = req.params;
       const timeSlots = await storage.getItineraryTimeSlots(itineraryId);
       const voteCounts = await storage.getItineraryTimeSlotVoteCounts(itineraryId);
       
-      const timeSlotsWithVotes = timeSlots.map(slot => ({
-        ...slot,
-        voteCount: voteCounts.find(vc => vc.timeSlotId === slot.id)?.voteCount || 0
+      let userId = null;
+      if (req.user) {
+        userId = req.user.claims.sub;
+      }
+      
+      const timeSlotsWithVotes = await Promise.all(timeSlots.map(async slot => {
+        const userVote = userId ? await storage.getUserTimeSlotVote(slot.id, userId) : null;
+        return {
+          ...slot,
+          voteCount: voteCounts.find(vc => vc.timeSlotId === slot.id)?.voteCount || 0,
+          userHasVoted: !!userVote,
+        };
       }));
       
       res.json(timeSlotsWithVotes);

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ interface TimeSlot {
   label?: string;
   isSelected: boolean;
   voteCount: number;
+  userHasVoted?: boolean;
 }
 
 interface TimeSlotVotingProps {
@@ -30,6 +31,15 @@ export function TimeSlotVoting({ itineraryId, userId, memberId, isOrganizer = fa
   const { data: timeSlots = [], isLoading } = useQuery<TimeSlot[]>({
     queryKey: ["/api/itineraries", itineraryId, "time-slots"],
   });
+
+  useEffect(() => {
+    if (timeSlots.length > 0 && !votedSlotId) {
+      const userVotedSlot = timeSlots.find(slot => slot.userHasVoted);
+      if (userVotedSlot) {
+        setVotedSlotId(userVotedSlot.id);
+      }
+    }
+  }, [timeSlots, votedSlotId]);
 
   const voteMutation = useMutation({
     mutationFn: async (timeSlotId: string) => {
