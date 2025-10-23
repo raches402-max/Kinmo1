@@ -32,7 +32,7 @@ export interface IStorage {
   createGroup(group: InsertGroup, userId: string, memberInputs: Array<{name: string, email: string}>): Promise<Group>;
   getGroup(id: string): Promise<Group | undefined>;
   getGroupByShareableLink(link: string): Promise<Group | undefined>;
-  getUserGroups(userId: string): Promise<Group[]>;
+  getUserGroups(userId: string): Promise<Array<Group & { members: Array<{ id: string; name: string | null; email: string | null }> }>>;
   getAllGroups(): Promise<Group[]>;
   updateGroup(id: string, updates: UpdateGroup): Promise<Group>;
   updateGroupStatus(id: string, status: string, error?: string): Promise<void>;
@@ -184,7 +184,7 @@ export class DatabaseStorage implements IStorage {
     return group;
   }
 
-  async getUserGroups(userId: string): Promise<Group[]> {
+  async getUserGroups(userId: string): Promise<Array<Group & { members: Array<{ id: string; name: string | null; email: string | null }> }>> {
     // Get groups where user is the organizer
     const organizedGroups = await db
       .select()
@@ -205,7 +205,24 @@ export class DatabaseStorage implements IStorage {
       new Map(allGroups.map(g => [g.id, g])).values()
     );
 
-    return uniqueGroups;
+    // Fetch members for each group (sanitized - only safe fields)
+    const groupsWithMembers = await Promise.all(
+      uniqueGroups.map(async (group) => {
+        const groupMembers = await this.getGroupMembers(group.id);
+        // Sanitize member data - only return safe fields for preview
+        const sanitizedMembers = groupMembers.map(member => ({
+          id: member.id,
+          name: member.name,
+          email: member.email
+        }));
+        return {
+          ...group,
+          members: sanitizedMembers
+        };
+      })
+    );
+
+    return groupsWithMembers;
   }
 
   async getAllGroups(): Promise<Group[]> {

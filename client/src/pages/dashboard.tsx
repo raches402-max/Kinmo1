@@ -14,6 +14,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Group, User, UserProfile } from "@shared/schema";
+
+type SafeMember = {
+  id: string;
+  name: string | null;
+  email: string | null;
+};
 import { TimeSlotVoting } from "@/components/TimeSlotVoting";
 
 type UserEvent = {
@@ -44,7 +50,7 @@ export default function Dashboard() {
   const { user } = useAuth() as { user: User | undefined };
   const { toast } = useToast();
   
-  const { data: groups = [], isLoading } = useQuery<Group[]>({
+  const { data: groups = [], isLoading } = useQuery<Array<Group & { members: SafeMember[] }>>({
     queryKey: ["/api/user/groups"],
     enabled: !!user,
   });
@@ -611,6 +617,27 @@ export default function Dashboard() {
                     {group.activityGenerationStatus === "failed" && (
                       <div className="text-sm text-destructive">
                         Generation failed
+                      </div>
+                    )}
+                    {group.members && group.members.length > 0 && (
+                      <div className="flex items-center gap-1.5 pt-1">
+                        <div className="flex -space-x-2" data-testid={`members-preview-${group.id}`}>
+                          {group.members.slice(0, 3).map((member, idx) => (
+                            <Avatar key={member.id} className="h-6 w-6 border-2 border-background" data-testid={`avatar-member-${idx}`}>
+                              <AvatarFallback className="text-xs bg-muted">
+                                {getFirstInitial(member.name)}
+                              </AvatarFallback>
+                            </Avatar>
+                          ))}
+                          {group.members.length > 3 && (
+                            <div className="h-6 w-6 rounded-full border-2 border-background bg-muted flex items-center justify-center" data-testid="members-overflow">
+                              <span className="text-xs text-muted-foreground">+{group.members.length - 3}</span>
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {group.members.length} {group.members.length === 1 ? 'member' : 'members'}
+                        </span>
                       </div>
                     )}
                   </CardContent>
