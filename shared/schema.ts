@@ -289,6 +289,26 @@ export const frequencyFeedback = pgTable("frequency_feedback", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Proposed time slots - multiple date/time options for an event
+export const proposedTimeSlots = pgTable("proposed_time_slots", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  itineraryId: varchar("itinerary_id").notNull().references(() => itineraries.id, { onDelete: "cascade" }),
+  proposedDateTime: timestamp("proposed_date_time").notNull(), // The proposed date and time
+  label: text("label"), // Optional label (e.g., "Friday Evening", "Saturday Afternoon")
+  isSelected: boolean("is_selected").default(false).notNull(), // Whether this time was chosen as final
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Time slot votes - track which members/users vote for which time slots
+export const timeSlotVotes = pgTable("time_slot_votes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  timeSlotId: varchar("time_slot_id").notNull().references(() => proposedTimeSlots.id, { onDelete: "cascade" }),
+  memberId: varchar("member_id").references(() => members.id, { onDelete: "cascade" }), // Optional, for group members
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }), // Optional, for authenticated users (including organizer)
+  memberName: text("member_name"), // Name if not a registered member
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   groups: many(groups),
@@ -366,6 +386,7 @@ export const itinerariesRelations = relations(itineraries, ({ one, many }) => ({
   rsvps: many(rsvps),
   invites: many(itineraryInvites),
   reminderLogs: many(reminderLogs),
+  proposedTimeSlots: many(proposedTimeSlots),
   backupFor: one(itineraries, {
     fields: [itineraries.backupForItineraryId],
     references: [itineraries.id],
@@ -439,6 +460,29 @@ export const frequencyFeedbackRelations = relations(frequencyFeedback, ({ one })
   itinerary: one(itineraries, {
     fields: [frequencyFeedback.itineraryId],
     references: [itineraries.id],
+  }),
+}));
+
+export const proposedTimeSlotsRelations = relations(proposedTimeSlots, ({ one, many }) => ({
+  itinerary: one(itineraries, {
+    fields: [proposedTimeSlots.itineraryId],
+    references: [itineraries.id],
+  }),
+  votes: many(timeSlotVotes),
+}));
+
+export const timeSlotVotesRelations = relations(timeSlotVotes, ({ one }) => ({
+  timeSlot: one(proposedTimeSlots, {
+    fields: [timeSlotVotes.timeSlotId],
+    references: [proposedTimeSlots.id],
+  }),
+  member: one(members, {
+    fields: [timeSlotVotes.memberId],
+    references: [members.id],
+  }),
+  user: one(users, {
+    fields: [timeSlotVotes.userId],
+    references: [users.id],
   }),
 }));
 
@@ -521,6 +565,16 @@ export const insertUserProfileSchema = createInsertSchema(userProfiles).omit({
   updatedAt: true,
 });
 
+export const insertProposedTimeSlotSchema = createInsertSchema(proposedTimeSlots).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertTimeSlotVoteSchema = createInsertSchema(timeSlotVotes).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Update schemas (partial versions for PATCH operations)
 export const updateGroupSchema = insertGroupSchema.partial().refine(
   (data) => {
@@ -587,3 +641,9 @@ export type FrequencyFeedback = typeof frequencyFeedback.$inferSelect;
 export type InsertUserProfile = z.infer<typeof insertUserProfileSchema>;
 export type UserProfile = typeof userProfiles.$inferSelect;
 export type UpdateUserProfile = z.infer<typeof updateUserProfileSchema>;
+
+export type InsertProposedTimeSlot = z.infer<typeof insertProposedTimeSlotSchema>;
+export type ProposedTimeSlot = typeof proposedTimeSlots.$inferSelect;
+
+export type InsertTimeSlotVote = z.infer<typeof insertTimeSlotVoteSchema>;
+export type TimeSlotVote = typeof timeSlotVotes.$inferSelect;
