@@ -2728,55 +2728,47 @@ Looking forward to planning great activities together!
         return res.status(404).json({ message: "Group not found" });
       }
 
-      // Handle multiple event dates by creating separate proposed itineraries
+      // Handle multiple event dates by creating proposed time slots
       if (eventDates && Array.isArray(eventDates) && eventDates.length > 1) {
-        const createdItineraries = [];
-        const itemsData = itinerary.items.map((item: ItineraryItem) => ({
-          sourceType: item.sourceType as 'activity' | 'voting_event',
-          sourceId: item.sourceId
-        }));
-
-        // Get members once for all itineraries
+        console.log(`[Send Itinerary Multi-Date] Creating 1 event with ${eventDates.length} time slot options`);
+        
+        // Update the itinerary to proposed status with the first date as the primary eventDate
+        const firstDate = new Date(eventDates[0]);
+        const updates: UpdateItinerary = {
+          status: 'proposed',
+          eventDate: firstDate,
+          isPrimary: isPrimary || false,
+        };
+        
+        await storage.updateItinerary(req.params.id, updates);
+        
+        // Create proposed time slots for each date option
+        for (const dateStr of eventDates) {
+          await storage.createProposedTimeSlot({
+            itineraryId: req.params.id,
+            proposedTime: new Date(dateStr),
+          });
+        }
+        
+        // Create invites for members
         const members = await storage.getGroupMembers(group.id);
         console.log(`[Send Itinerary Multi-Date] Found ${members.length} members for group ${group.id}`);
-
-        for (const dateStr of eventDates) {
-          const proposedCopy = await storage.createItinerary(
-            {
-              groupId: itinerary.groupId,
-              name: itinerary.name,
-              status: 'proposed',
-              isSaved: false,
-              eventDate: new Date(dateStr),
-              aiValidationNotes: itinerary.aiValidationNotes,
-              proposedOrder: itinerary.proposedOrder,
-            },
-            userId,
-            itemsData
-          );
+        
+        for (const member of members) {
+          const inviteToken = crypto.randomUUID();
           
-          // Create invites for each member for this proposed itinerary
-          for (const member of members) {
-            const inviteToken = crypto.randomUUID();
-            
-            await db.insert(itineraryInvites).values({
-              itineraryId: proposedCopy.id,
-              memberId: member.id,
-              inviteToken,
-            });
-          }
-          
-          console.log(`[Send Itinerary Multi-Date] Created ${members.length} invites for itinerary ${proposedCopy.id}`);
-          
-          // Fetch the full itinerary with items to return complete data
-          const fullItinerary = await storage.getItinerary(proposedCopy.id);
-          createdItineraries.push(fullItinerary);
+          await db.insert(itineraryInvites).values({
+            itineraryId: req.params.id,
+            memberId: member.id,
+            inviteToken,
+          });
         }
-
-        console.log(`[Send Itinerary] Created ${createdItineraries.length} proposed itineraries with items for multiple times`);
-        // Return the first itinerary to match frontend expectations
-        // Note: Email notifications are not sent for multi-date sends (MVP limitation)
-        return res.json(createdItineraries[0]);
+        
+        console.log(`[Send Itinerary Multi-Date] Created 1 event with ${eventDates.length} time options for members to vote on`);
+        
+        // Return the updated itinerary
+        const updatedItinerary = await storage.getItinerary(req.params.id);
+        return res.json(updatedItinerary);
       }
 
       const updates: UpdateItinerary = {
