@@ -2268,6 +2268,37 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Get single itinerary (public endpoint for RSVP page)
+  app.get("/api/itineraries/:id", async (req, res) => {
+    try {
+      const itinerary = await storage.getItinerary(req.params.id);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      // Get proposed time slots if any
+      const timeSlots = await storage.getItineraryTimeSlots(req.params.id);
+
+      // Get vote counts for each time slot
+      const timeSlotsWithVotes = await Promise.all(
+        timeSlots.map(async (slot) => {
+          const voteCount = await storage.getTimeSlotVoteCount(slot.id);
+          return {
+            ...slot,
+            voteCount,
+          };
+        })
+      );
+
+      res.json({
+        ...itinerary,
+        proposedTimeSlots: timeSlotsWithVotes,
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Delete itinerary item
   app.delete("/api/itinerary-items/:id", async (req, res) => {
     try {
@@ -2746,7 +2777,7 @@ Looking forward to planning great activities together!
         for (const dateStr of eventDates) {
           await storage.createProposedTimeSlot({
             itineraryId: req.params.id,
-            proposedTime: new Date(dateStr),
+            proposedDateTime: new Date(dateStr),
           });
         }
         
