@@ -1459,6 +1459,7 @@ export default function GroupDetail() {
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "saved-itineraries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "proposed-itineraries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/members/me/events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
       setEditItineraryOpen(false);
       setEditingItinerary(null);
       toast({
@@ -1526,6 +1527,7 @@ export default function GroupDetail() {
       // Only invalidate queries - state reset happens in button click handler
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "saved-itineraries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "proposed-itineraries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
     },
     onError: (error: Error) => {
       toast({
