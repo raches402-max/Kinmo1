@@ -37,7 +37,8 @@ export function TimeSlotVoting({ itineraryId, userId, memberId, isOrganizer = fa
   const voteMutation = useMutation({
     mutationFn: async ({ timeSlotId, voteType }: { timeSlotId: string; voteType: "yes" | "maybe" | "no" }) => {
       return apiRequest("POST", `/api/time-slots/${timeSlotId}/vote`, {
-        body: { memberId, voteType },
+        memberId,
+        voteType,
       });
     },
     onSuccess: (_, { voteType }) => {

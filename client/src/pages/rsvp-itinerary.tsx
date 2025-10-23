@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Calendar, MapPin, Clock, Check, X, HelpCircle } from "lucide-react";
 import { format } from "date-fns";
+import { TimeSlotVoting } from "@/components/TimeSlotVoting";
 
 type Member = {
   id: string;
@@ -28,6 +29,14 @@ type Itinerary = {
     venueType: string;
     venueAddress: string;
     photoUrl: string | null;
+  }>;
+  proposedTimeSlots?: Array<{
+    id: string;
+    proposedDateTime: string;
+    label?: string;
+    yesCount: number;
+    maybeCount: number;
+    noCount: number;
   }>;
 };
 
@@ -230,6 +239,19 @@ export default function RsvpItineraryPage() {
                   </span>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Time Slot Voting - show when there are proposed time slots */}
+        {itinerary.proposedTimeSlots && itinerary.proposedTimeSlots.length > 0 && (
+          <Card>
+            <CardContent className="pt-6">
+              <TimeSlotVoting 
+                itineraryId={itinerary.id}
+                memberId={memberData.id}
+                isOrganizer={false}
+              />
             </CardContent>
           </Card>
         )}
