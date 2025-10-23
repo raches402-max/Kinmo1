@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Calendar, Users, Check } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -16,6 +17,9 @@ interface TimeSlot {
   yesCount: number;
   maybeCount: number;
   noCount: number;
+  yesVoters?: string[];
+  maybeVoters?: string[];
+  noVoters?: string[];
   userVoteType?: string | null;
   userHasVoted?: boolean;
 }
@@ -165,15 +169,80 @@ export function TimeSlotVoting({ itineraryId, userId, memberId, isOrganizer = fa
                 </div>
                 
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <div className="flex items-center gap-1">
+                  {/* Yes votes */}
+                  {slot.yesCount > 0 && slot.yesVoters && slot.yesVoters.length > 0 ? (
+                    <HoverCard>
+                      <HoverCardTrigger asChild>
+                        <button className="flex items-center gap-1 hover-elevate px-2 py-0.5 rounded cursor-pointer" data-testid={`yes-voters-${slot.id}`}>
+                          <span className="text-green-600 dark:text-green-400 font-medium">{slot.yesCount} Yes</span>
+                        </button>
+                      </HoverCardTrigger>
+                      <HoverCardContent className="w-auto max-w-xs p-3" side="top">
+                        <div className="space-y-1">
+                          <p className="text-xs font-semibold text-green-600 dark:text-green-400">Can attend:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {slot.yesVoters.map((name, idx) => (
+                              <Badge key={idx} variant="secondary" className="text-xs">
+                                {name}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      </HoverCardContent>
+                    </HoverCard>
+                  ) : (
                     <span className="text-green-600 dark:text-green-400 font-medium">{slot.yesCount} Yes</span>
-                  </div>
-                  <div className="flex items-center gap-1">
+                  )}
+
+                  {/* Maybe votes */}
+                  {slot.maybeCount > 0 && slot.maybeVoters && slot.maybeVoters.length > 0 ? (
+                    <HoverCard>
+                      <HoverCardTrigger asChild>
+                        <button className="flex items-center gap-1 hover-elevate px-2 py-0.5 rounded cursor-pointer" data-testid={`maybe-voters-${slot.id}`}>
+                          <span className="text-yellow-600 dark:text-yellow-400 font-medium">{slot.maybeCount} Maybe</span>
+                        </button>
+                      </HoverCardTrigger>
+                      <HoverCardContent className="w-auto max-w-xs p-3" side="top">
+                        <div className="space-y-1">
+                          <p className="text-xs font-semibold text-yellow-600 dark:text-yellow-400">Might attend:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {slot.maybeVoters.map((name, idx) => (
+                              <Badge key={idx} variant="secondary" className="text-xs">
+                                {name}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      </HoverCardContent>
+                    </HoverCard>
+                  ) : (
                     <span className="text-yellow-600 dark:text-yellow-400 font-medium">{slot.maybeCount} Maybe</span>
-                  </div>
-                  <div className="flex items-center gap-1">
+                  )}
+
+                  {/* No votes */}
+                  {slot.noCount > 0 && slot.noVoters && slot.noVoters.length > 0 ? (
+                    <HoverCard>
+                      <HoverCardTrigger asChild>
+                        <button className="flex items-center gap-1 hover-elevate px-2 py-0.5 rounded cursor-pointer" data-testid={`no-voters-${slot.id}`}>
+                          <span className="text-red-600 dark:text-red-400 font-medium">{slot.noCount} No</span>
+                        </button>
+                      </HoverCardTrigger>
+                      <HoverCardContent className="w-auto max-w-xs p-3" side="top">
+                        <div className="space-y-1">
+                          <p className="text-xs font-semibold text-red-600 dark:text-red-400">Can't attend:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {slot.noVoters.map((name, idx) => (
+                              <Badge key={idx} variant="secondary" className="text-xs">
+                                {name}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      </HoverCardContent>
+                    </HoverCard>
+                  ) : (
                     <span className="text-red-600 dark:text-red-400 font-medium">{slot.noCount} No</span>
-                  </div>
+                  )}
                 </div>
 
                 <div className="flex gap-2">

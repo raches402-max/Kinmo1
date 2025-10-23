@@ -123,7 +123,15 @@ export interface IStorage {
   getTimeSlotVotes(timeSlotId: string): Promise<TimeSlotVote[]>;
   getUserTimeSlotVote(timeSlotId: string, userId?: string, memberId?: string): Promise<TimeSlotVote | undefined>;
   removeTimeSlotVote(timeSlotId: string, userId?: string, memberId?: string): Promise<void>;
-  getItineraryTimeSlotVoteCounts(itineraryId: string): Promise<Array<{ timeSlotId: string; yesCount: number; maybeCount: number; noCount: number }>>;
+  getItineraryTimeSlotVoteCounts(itineraryId: string): Promise<Array<{ 
+    timeSlotId: string; 
+    yesCount: number; 
+    maybeCount: number; 
+    noCount: number;
+    yesVoters: string[];
+    maybeVoters: string[];
+    noVoters: string[];
+  }>>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -965,7 +973,7 @@ export class DatabaseStorage implements IStorage {
 
   // Time Slot Votes
   async voteForTimeSlot(vote: InsertTimeSlotVote): Promise<TimeSlotVote> {
-    const existing = await this.getUserTimeSlotVote(vote.timeSlotId, vote.userId, vote.memberId);
+    const existing = await this.getUserTimeSlotVote(vote.timeSlotId, vote.userId || undefined, vote.memberId || undefined);
     
     if (existing) {
       const [result] = await db
@@ -1013,20 +1021,40 @@ export class DatabaseStorage implements IStorage {
     await db.delete(timeSlotVotes).where(and(...conditions));
   }
 
-  async getItineraryTimeSlotVoteCounts(itineraryId: string): Promise<Array<{ timeSlotId: string; yesCount: number; maybeCount: number; noCount: number }>> {
+  async getItineraryTimeSlotVoteCounts(itineraryId: string): Promise<Array<{ 
+    timeSlotId: string; 
+    yesCount: number; 
+    maybeCount: number; 
+    noCount: number;
+    yesVoters: string[];
+    maybeVoters: string[];
+    noVoters: string[];
+  }>> {
     const result = await db
       .select({
         timeSlotId: timeSlotVotes.timeSlotId,
         yesCount: sql<number>`count(*) FILTER (WHERE ${timeSlotVotes.voteType} = 'yes')::int`,
         maybeCount: sql<number>`count(*) FILTER (WHERE ${timeSlotVotes.voteType} = 'maybe')::int`,
         noCount: sql<number>`count(*) FILTER (WHERE ${timeSlotVotes.voteType} = 'no')::int`,
+        yesVoters: sql<string[]>`array_agg(DISTINCT COALESCE(${userProfiles.displayName}, concat_ws(' ', ${users.firstName}, ${users.lastName}), ${members.name}, ${users.email})) FILTER (WHERE ${timeSlotVotes.voteType} = 'yes')`,
+        maybeVoters: sql<string[]>`array_agg(DISTINCT COALESCE(${userProfiles.displayName}, concat_ws(' ', ${users.firstName}, ${users.lastName}), ${members.name}, ${users.email})) FILTER (WHERE ${timeSlotVotes.voteType} = 'maybe')`,
+        noVoters: sql<string[]>`array_agg(DISTINCT COALESCE(${userProfiles.displayName}, concat_ws(' ', ${users.firstName}, ${users.lastName}), ${members.name}, ${users.email})) FILTER (WHERE ${timeSlotVotes.voteType} = 'no')`,
       })
       .from(timeSlotVotes)
       .innerJoin(proposedTimeSlots, eq(timeSlotVotes.timeSlotId, proposedTimeSlots.id))
+      .leftJoin(members, eq(timeSlotVotes.memberId, members.id))
+      .leftJoin(userProfiles, eq(timeSlotVotes.userId, userProfiles.userId))
+      .leftJoin(users, eq(timeSlotVotes.userId, users.id))
       .where(eq(proposedTimeSlots.itineraryId, itineraryId))
       .groupBy(timeSlotVotes.timeSlotId);
     
-    return result;
+    // Clean up the voter arrays (remove null entries)
+    return result.map(r => ({
+      ...r,
+      yesVoters: (r.yesVoters || []).filter(name => name && name.trim()),
+      maybeVoters: (r.maybeVoters || []).filter(name => name && name.trim()),
+      noVoters: (r.noVoters || []).filter(name => name && name.trim()),
+    }));
   }
 }
 

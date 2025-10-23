@@ -2282,7 +2282,7 @@ Looking forward to planning great activities together!
       // Get vote counts for all time slots
       const voteCounts = await storage.getItineraryTimeSlotVoteCounts(req.params.id);
 
-      // Combine time slots with their vote counts
+      // Combine time slots with their vote counts and voter names
       const timeSlotsWithVotes = timeSlots.map((slot) => {
         const counts = voteCounts.find(vc => vc.timeSlotId === slot.id);
         return {
@@ -2290,6 +2290,9 @@ Looking forward to planning great activities together!
           yesCount: counts?.yesCount || 0,
           maybeCount: counts?.maybeCount || 0,
           noCount: counts?.noCount || 0,
+          yesVoters: counts?.yesVoters || [],
+          maybeVoters: counts?.maybeVoters || [],
+          noVoters: counts?.noVoters || [],
         };
       });
 
@@ -2436,6 +2439,9 @@ Looking forward to planning great activities together!
           yesCount: counts?.yesCount || 0,
           maybeCount: counts?.maybeCount || 0,
           noCount: counts?.noCount || 0,
+          yesVoters: counts?.yesVoters || [],
+          maybeVoters: counts?.maybeVoters || [],
+          noVoters: counts?.noVoters || [],
           userVoteType: userVote?.voteType || null,
           userHasVoted: !!userVote,
         };
