@@ -123,7 +123,7 @@ export interface IStorage {
   getTimeSlotVotes(timeSlotId: string): Promise<TimeSlotVote[]>;
   getUserTimeSlotVote(timeSlotId: string, userId?: string, memberId?: string): Promise<TimeSlotVote | undefined>;
   removeTimeSlotVote(timeSlotId: string, userId?: string, memberId?: string): Promise<void>;
-  getItineraryTimeSlotVoteCounts(itineraryId: string): Promise<Array<{ timeSlotId: string; voteCount: number }>>;
+  getItineraryTimeSlotVoteCounts(itineraryId: string): Promise<Array<{ timeSlotId: string; yesCount: number; maybeCount: number; noCount: number }>>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1013,11 +1013,13 @@ export class DatabaseStorage implements IStorage {
     await db.delete(timeSlotVotes).where(and(...conditions));
   }
 
-  async getItineraryTimeSlotVoteCounts(itineraryId: string): Promise<Array<{ timeSlotId: string; voteCount: number }>> {
+  async getItineraryTimeSlotVoteCounts(itineraryId: string): Promise<Array<{ timeSlotId: string; yesCount: number; maybeCount: number; noCount: number }>> {
     const result = await db
       .select({
         timeSlotId: timeSlotVotes.timeSlotId,
-        voteCount: sql<number>`count(*)::int`,
+        yesCount: sql<number>`count(*) FILTER (WHERE ${timeSlotVotes.voteType} = 'yes')::int`,
+        maybeCount: sql<number>`count(*) FILTER (WHERE ${timeSlotVotes.voteType} = 'maybe')::int`,
+        noCount: sql<number>`count(*) FILTER (WHERE ${timeSlotVotes.voteType} = 'no')::int`,
       })
       .from(timeSlotVotes)
       .innerJoin(proposedTimeSlots, eq(timeSlotVotes.timeSlotId, proposedTimeSlots.id))
