@@ -306,6 +306,7 @@ export const timeSlotVotes = pgTable("time_slot_votes", {
   memberId: varchar("member_id").references(() => members.id, { onDelete: "cascade" }), // Optional, for group members
   userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }), // Optional, for authenticated users (including organizer)
   memberName: text("member_name"), // Name if not a registered member
+  voteType: text("vote_type").notNull().default("yes"), // yes, maybe, no
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
