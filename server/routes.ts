@@ -2,7 +2,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, updateUserProfileSchema, activities as activitiesTable, groups as groupsTable, members as membersTable, itineraryInvites, rsvps as rsvpsTable, itineraries, itineraryItems, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
+import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, updateUserProfileSchema, activities as activitiesTable, groups as groupsTable, members as membersTable, itineraryInvites, rsvps as rsvpsTable, itineraries, itineraryItems, proposedTimeSlots, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
 import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue, analyzePreferencePatterns } from "./openai";
 import { searchPlaces, searchNearbyPlaces, geocodeLocation, clearPlacesCache, getCacheStats } from "./google-places";
 import { setupAuth, isAuthenticated } from "./replitAuth";
@@ -2773,6 +2773,11 @@ Looking forward to planning great activities together!
         
         await storage.updateItinerary(req.params.id, updates);
         
+        // Delete any existing time slots to prevent duplicates (in case of retry/resubmit)
+        await db
+          .delete(proposedTimeSlots)
+          .where(eq(proposedTimeSlots.itineraryId, req.params.id));
+        
         // Create proposed time slots for each date option
         for (const dateStr of eventDates) {
           await storage.createProposedTimeSlot({
@@ -2780,6 +2785,11 @@ Looking forward to planning great activities together!
             proposedDateTime: new Date(dateStr),
           });
         }
+        
+        // Delete existing invites (in case of retry)
+        await db
+          .delete(itineraryInvites)
+          .where(eq(itineraryInvites.itineraryId, req.params.id));
         
         // Create invites for members
         const members = await storage.getGroupMembers(group.id);
