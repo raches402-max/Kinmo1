@@ -4577,10 +4577,10 @@ export default function GroupDetail() {
                             setScheduleMethod('ai');
                             
                             toast({
-                              title: eventDates.length === 1 ? "Plan sent to group" : "Plans sent to group",
+                              title: eventDates.length === 1 ? "Plan sent to group" : "Plan sent to group",
                               description: eventDates.length === 1 
                                 ? "Members can now RSVP to your itinerary"
-                                : `${eventDates.length} time options sent - members can RSVP to their preferred time`,
+                                : `Sent with ${eventDates.length} time options - members can vote on their preferred time`,
                             });
                           } catch (error) {
                             // Error toast is handled by mutation
