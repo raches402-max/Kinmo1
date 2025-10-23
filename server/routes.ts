@@ -2279,16 +2279,19 @@ Looking forward to planning great activities together!
       // Get proposed time slots if any
       const timeSlots = await storage.getItineraryTimeSlots(req.params.id);
 
-      // Get vote counts for each time slot
-      const timeSlotsWithVotes = await Promise.all(
-        timeSlots.map(async (slot) => {
-          const voteCount = await storage.getTimeSlotVoteCount(slot.id);
-          return {
-            ...slot,
-            voteCount,
-          };
-        })
-      );
+      // Get vote counts for all time slots
+      const voteCounts = await storage.getItineraryTimeSlotVoteCounts(req.params.id);
+
+      // Combine time slots with their vote counts
+      const timeSlotsWithVotes = timeSlots.map((slot) => {
+        const counts = voteCounts.find(vc => vc.timeSlotId === slot.id);
+        return {
+          ...slot,
+          yesCount: counts?.yesCount || 0,
+          maybeCount: counts?.maybeCount || 0,
+          noCount: counts?.noCount || 0,
+        };
+      });
 
       res.json({
         ...itinerary,
@@ -2427,9 +2430,13 @@ Looking forward to planning great activities together!
       
       const timeSlotsWithVotes = await Promise.all(timeSlots.map(async slot => {
         const userVote = userId ? await storage.getUserTimeSlotVote(slot.id, userId) : null;
+        const counts = voteCounts.find(vc => vc.timeSlotId === slot.id);
         return {
           ...slot,
-          voteCount: voteCounts.find(vc => vc.timeSlotId === slot.id)?.voteCount || 0,
+          yesCount: counts?.yesCount || 0,
+          maybeCount: counts?.maybeCount || 0,
+          noCount: counts?.noCount || 0,
+          userVoteType: userVote?.voteType || null,
           userHasVoted: !!userVote,
         };
       }));
@@ -2475,7 +2482,12 @@ Looking forward to planning great activities together!
   app.post("/api/time-slots/:timeSlotId/vote", async (req: any, res) => {
     try {
       const { timeSlotId } = req.params;
-      const { memberId, memberName } = req.body;
+      const { memberId, memberName, voteType = "yes" } = req.body;
+      
+      // Validate voteType
+      if (!["yes", "maybe", "no"].includes(voteType)) {
+        return res.status(400).json({ message: "voteType must be 'yes', 'maybe', or 'no'" });
+      }
       
       let userId = null;
       if (req.user) {
@@ -2491,6 +2503,7 @@ Looking forward to planning great activities together!
         userId,
         memberId,
         memberName: memberName || null,
+        voteType,
       });
       
       res.json(vote);
