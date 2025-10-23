@@ -13,7 +13,10 @@ interface TimeSlot {
   proposedDateTime: string;
   label?: string;
   isSelected: boolean;
-  voteCount: number;
+  yesCount: number;
+  maybeCount: number;
+  noCount: number;
+  userVoteType?: string | null;
   userHasVoted?: boolean;
 }
 
@@ -26,33 +29,22 @@ interface TimeSlotVotingProps {
 
 export function TimeSlotVoting({ itineraryId, userId, memberId, isOrganizer = false }: TimeSlotVotingProps) {
   const { toast } = useToast();
-  const [votedSlotId, setVotedSlotId] = useState<string | null>(null);
 
   const { data: timeSlots = [], isLoading } = useQuery<TimeSlot[]>({
     queryKey: ["/api/itineraries", itineraryId, "time-slots"],
   });
 
-  useEffect(() => {
-    if (timeSlots.length > 0 && !votedSlotId) {
-      const userVotedSlot = timeSlots.find(slot => slot.userHasVoted);
-      if (userVotedSlot) {
-        setVotedSlotId(userVotedSlot.id);
-      }
-    }
-  }, [timeSlots, votedSlotId]);
-
   const voteMutation = useMutation({
-    mutationFn: async (timeSlotId: string) => {
+    mutationFn: async ({ timeSlotId, voteType }: { timeSlotId: string; voteType: "yes" | "maybe" | "no" }) => {
       return apiRequest("POST", `/api/time-slots/${timeSlotId}/vote`, {
-        body: { memberId },
+        body: { memberId, voteType },
       });
     },
-    onSuccess: (_, timeSlotId) => {
-      setVotedSlotId(timeSlotId);
+    onSuccess: (_, { voteType }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/itineraries", itineraryId, "time-slots"] });
       toast({
         title: "Vote recorded!",
-        description: "Your preferred time has been noted.",
+        description: `You voted "${voteType}" for this time.`,
       });
     },
     onError: (error: Error) => {
@@ -97,7 +89,7 @@ export function TimeSlotVoting({ itineraryId, userId, memberId, isOrganizer = fa
     return null;
   }
 
-  const maxVotes = Math.max(...timeSlots.map(slot => slot.voteCount), 0);
+  const maxYesVotes = Math.max(...timeSlots.map(slot => slot.yesCount), 0);
   const selectedSlot = timeSlots.find(slot => slot.isSelected);
 
   if (selectedSlot) {
@@ -137,61 +129,96 @@ export function TimeSlotVoting({ itineraryId, userId, memberId, isOrganizer = fa
         <span className="font-medium">Vote for your preferred time:</span>
       </div>
       
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {timeSlots.map((slot) => {
-          const isTopChoice = slot.voteCount === maxVotes && maxVotes > 0;
-          const hasVoted = votedSlotId === slot.id;
+          const isTopChoice = slot.yesCount === maxYesVotes && maxYesVotes > 0;
+          const userVote = slot.userVoteType;
           
           return (
             <Card 
               key={slot.id}
-              className={`p-3 transition-all hover-elevate cursor-pointer ${
-                hasVoted ? 'border-primary/50 bg-primary/5' : ''
-              } ${isTopChoice ? 'border-green-500/50' : ''}`}
-              onClick={() => !isOrganizer && voteMutation.mutate(slot.id)}
+              className={`p-3 transition-all ${isTopChoice ? 'border-green-500/50' : ''}`}
               data-testid={`time-slot-${slot.id}`}
             >
               <div className="space-y-2">
-                <div className="text-center">
-                  <div className="font-semibold text-sm">
-                    {format(new Date(slot.proposedDateTime), "EEE, MMM d")}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {format(new Date(slot.proposedDateTime), "h:mm a")}
-                  </div>
-                  {slot.label && (
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {slot.label}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-semibold">
+                      {format(new Date(slot.proposedDateTime), "EEE, MMM d")}
                     </div>
+                    <div className="text-sm text-muted-foreground">
+                      {format(new Date(slot.proposedDateTime), "h:mm a")}
+                    </div>
+                    {slot.label && (
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {slot.label}
+                      </div>
+                    )}
+                  </div>
+                  
+                  {isTopChoice && slot.yesCount > 0 && (
+                    <Badge variant="outline" className="text-xs h-5 px-1 bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/30">
+                      Most Popular
+                    </Badge>
                   )}
                 </div>
                 
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Users className="h-3 w-3" />
-                    <span>{slot.voteCount}</span>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-1">
+                    <span className="text-green-600 dark:text-green-400 font-medium">{slot.yesCount} Yes</span>
                   </div>
-                  
-                  {isTopChoice && slot.voteCount > 0 && (
-                    <Badge variant="outline" className="text-xs h-5 px-1 bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/30">
-                      Top
-                    </Badge>
-                  )}
-                  
-                  {hasVoted && (
-                    <Check className="h-4 w-4 text-primary" data-testid={`voted-${slot.id}`} />
-                  )}
+                  <div className="flex items-center gap-1">
+                    <span className="text-yellow-600 dark:text-yellow-400 font-medium">{slot.maybeCount} Maybe</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-red-600 dark:text-red-400 font-medium">{slot.noCount} No</span>
+                  </div>
                 </div>
+
+                {!isOrganizer && (
+                  <div className="flex gap-2">
+                    <Button 
+                      size="sm" 
+                      variant={userVote === "yes" ? "default" : "outline"}
+                      className="flex-1 text-xs h-8"
+                      onClick={() => voteMutation.mutate({ timeSlotId: slot.id, voteType: "yes" })}
+                      disabled={voteMutation.isPending}
+                      data-testid={`vote-yes-${slot.id}`}
+                    >
+                      {userVote === "yes" && <Check className="h-3 w-3 mr-1" />}
+                      Yes
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant={userVote === "maybe" ? "default" : "outline"}
+                      className="flex-1 text-xs h-8"
+                      onClick={() => voteMutation.mutate({ timeSlotId: slot.id, voteType: "maybe" })}
+                      disabled={voteMutation.isPending}
+                      data-testid={`vote-maybe-${slot.id}`}
+                    >
+                      {userVote === "maybe" && <Check className="h-3 w-3 mr-1" />}
+                      Maybe
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant={userVote === "no" ? "default" : "outline"}
+                      className="flex-1 text-xs h-8"
+                      onClick={() => voteMutation.mutate({ timeSlotId: slot.id, voteType: "no" })}
+                      disabled={voteMutation.isPending}
+                      data-testid={`vote-no-${slot.id}`}
+                    >
+                      {userVote === "no" && <Check className="h-3 w-3 mr-1" />}
+                      No
+                    </Button>
+                  </div>
+                )}
 
                 {isOrganizer && (
                   <Button 
                     size="sm" 
                     variant="outline" 
                     className="w-full text-xs h-7"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      selectMutation.mutate(slot.id);
-                    }}
+                    onClick={() => selectMutation.mutate(slot.id)}
                     disabled={selectMutation.isPending}
                     data-testid={`select-time-${slot.id}`}
                   >
@@ -206,7 +233,7 @@ export function TimeSlotVoting({ itineraryId, userId, memberId, isOrganizer = fa
       
       {!isOrganizer && (
         <p className="text-xs text-muted-foreground text-center">
-          Click a time to vote for it
+          Vote on each time option with Yes, Maybe, or No
         </p>
       )}
     </div>
