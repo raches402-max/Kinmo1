@@ -1,7 +1,7 @@
 // Reference: javascript_database blueprint
 // Reference: javascript_log_in_with_replit blueprint
 import {
-  users, groups, members, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, itineraryInvites, reminderLogs, autoScheduledEvents, frequencyFeedback, userProfiles,
+  users, groups, members, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, itineraryInvites, reminderLogs, autoScheduledEvents, frequencyFeedback, userProfiles, proposedTimeSlots, timeSlotVotes,
   type User, type UpsertUser,
   type Group, type InsertGroup, type UpdateGroup,
   type Member, type InsertMember, type UpdateMember,
@@ -15,7 +15,9 @@ import {
   type ReminderLog, type InsertReminderLog,
   type AutoScheduledEvent, type InsertAutoScheduledEvent,
   type FrequencyFeedback, type InsertFrequencyFeedback,
-  type UserProfile, type InsertUserProfile, type UpdateUserProfile
+  type UserProfile, type InsertUserProfile, type UpdateUserProfile,
+  type ProposedTimeSlot, type InsertProposedTimeSlot,
+  type TimeSlotVote, type InsertTimeSlotVote
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, or, inArray } from "drizzle-orm";
@@ -108,6 +110,20 @@ export interface IStorage {
   // User Profiles
   getUserProfile(userId: string): Promise<UserProfile | undefined>;
   upsertUserProfile(userId: string, profile: InsertUserProfile): Promise<UserProfile>;
+
+  // Proposed Time Slots
+  createProposedTimeSlot(timeSlot: InsertProposedTimeSlot): Promise<ProposedTimeSlot>;
+  createProposedTimeSlots(timeSlots: InsertProposedTimeSlot[]): Promise<ProposedTimeSlot[]>;
+  getItineraryTimeSlots(itineraryId: string): Promise<ProposedTimeSlot[]>;
+  updateTimeSlotSelection(timeSlotId: string, isSelected: boolean): Promise<ProposedTimeSlot>;
+  deleteTimeSlot(timeSlotId: string): Promise<void>;
+
+  // Time Slot Votes
+  voteForTimeSlot(vote: InsertTimeSlotVote): Promise<TimeSlotVote>;
+  getTimeSlotVotes(timeSlotId: string): Promise<TimeSlotVote[]>;
+  getUserTimeSlotVote(timeSlotId: string, userId?: string, memberId?: string): Promise<TimeSlotVote | undefined>;
+  removeTimeSlotVote(timeSlotId: string, userId?: string, memberId?: string): Promise<void>;
+  getItineraryTimeSlotVoteCounts(itineraryId: string): Promise<Array<{ timeSlotId: string; voteCount: number }>>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -915,6 +931,99 @@ export class DatabaseStorage implements IStorage {
         },
       })
       .returning();
+    return result;
+  }
+
+  // Proposed Time Slots
+  async createProposedTimeSlot(timeSlot: InsertProposedTimeSlot): Promise<ProposedTimeSlot> {
+    const [result] = await db.insert(proposedTimeSlots).values(timeSlot).returning();
+    return result;
+  }
+
+  async createProposedTimeSlots(timeSlots: InsertProposedTimeSlot[]): Promise<ProposedTimeSlot[]> {
+    if (timeSlots.length === 0) return [];
+    const results = await db.insert(proposedTimeSlots).values(timeSlots).returning();
+    return results;
+  }
+
+  async getItineraryTimeSlots(itineraryId: string): Promise<ProposedTimeSlot[]> {
+    return await db.select().from(proposedTimeSlots).where(eq(proposedTimeSlots.itineraryId, itineraryId)).orderBy(proposedTimeSlots.proposedDateTime);
+  }
+
+  async updateTimeSlotSelection(timeSlotId: string, isSelected: boolean): Promise<ProposedTimeSlot> {
+    const [result] = await db
+      .update(proposedTimeSlots)
+      .set({ isSelected })
+      .where(eq(proposedTimeSlots.id, timeSlotId))
+      .returning();
+    return result;
+  }
+
+  async deleteTimeSlot(timeSlotId: string): Promise<void> {
+    await db.delete(proposedTimeSlots).where(eq(proposedTimeSlots.id, timeSlotId));
+  }
+
+  // Time Slot Votes
+  async voteForTimeSlot(vote: InsertTimeSlotVote): Promise<TimeSlotVote> {
+    const existing = await this.getUserTimeSlotVote(vote.timeSlotId, vote.userId, vote.memberId);
+    
+    if (existing) {
+      const [result] = await db
+        .update(timeSlotVotes)
+        .set({ ...vote, createdAt: new Date() })
+        .where(eq(timeSlotVotes.id, existing.id))
+        .returning();
+      return result;
+    }
+
+    const [result] = await db.insert(timeSlotVotes).values(vote).returning();
+    return result;
+  }
+
+  async getTimeSlotVotes(timeSlotId: string): Promise<TimeSlotVote[]> {
+    return await db.select().from(timeSlotVotes).where(eq(timeSlotVotes.timeSlotId, timeSlotId));
+  }
+
+  async getUserTimeSlotVote(timeSlotId: string, userId?: string, memberId?: string): Promise<TimeSlotVote | undefined> {
+    const conditions = [eq(timeSlotVotes.timeSlotId, timeSlotId)];
+    
+    if (userId) {
+      conditions.push(eq(timeSlotVotes.userId, userId));
+    } else if (memberId) {
+      conditions.push(eq(timeSlotVotes.memberId, memberId));
+    } else {
+      return undefined;
+    }
+
+    const [vote] = await db.select().from(timeSlotVotes).where(and(...conditions));
+    return vote;
+  }
+
+  async removeTimeSlotVote(timeSlotId: string, userId?: string, memberId?: string): Promise<void> {
+    const conditions = [eq(timeSlotVotes.timeSlotId, timeSlotId)];
+    
+    if (userId) {
+      conditions.push(eq(timeSlotVotes.userId, userId));
+    } else if (memberId) {
+      conditions.push(eq(timeSlotVotes.memberId, memberId));
+    } else {
+      return;
+    }
+
+    await db.delete(timeSlotVotes).where(and(...conditions));
+  }
+
+  async getItineraryTimeSlotVoteCounts(itineraryId: string): Promise<Array<{ timeSlotId: string; voteCount: number }>> {
+    const result = await db
+      .select({
+        timeSlotId: timeSlotVotes.timeSlotId,
+        voteCount: sql<number>`count(*)::int`,
+      })
+      .from(timeSlotVotes)
+      .innerJoin(proposedTimeSlots, eq(timeSlotVotes.timeSlotId, proposedTimeSlots.id))
+      .where(eq(proposedTimeSlots.itineraryId, itineraryId))
+      .groupBy(timeSlotVotes.timeSlotId);
+    
     return result;
   }
 }
