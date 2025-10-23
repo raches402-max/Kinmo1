@@ -14,6 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Group, User, UserProfile } from "@shared/schema";
+import { TimeSlotVoting } from "@/components/TimeSlotVoting";
 
 type UserEvent = {
   inviteId: string;
@@ -258,6 +259,13 @@ export default function Dashboard() {
                               <Badge variant="secondary">+{event.items.length - 3} more</Badge>
                             )}
                           </div>
+
+                          <TimeSlotVoting 
+                            itineraryId={event.itineraryId}
+                            userId={user?.id}
+                            isOrganizer={false}
+                          />
+
                           <div className="flex gap-2 flex-wrap">
                             <Button 
                               variant="default"
@@ -361,6 +369,12 @@ export default function Dashboard() {
                                   <Badge variant="secondary">+{event.items.length - 3} more</Badge>
                                 )}
                               </div>
+
+                              <TimeSlotVoting 
+                                itineraryId={event.itineraryId}
+                                userId={user?.id}
+                                isOrganizer={true}
+                              />
                               
                               {/* RSVP Buttons */}
                               <div className="flex gap-2 flex-wrap">
@@ -448,6 +462,13 @@ export default function Dashboard() {
                                 <Badge variant="secondary">+{event.items.length - 3} more</Badge>
                               )}
                             </div>
+
+                            <TimeSlotVoting 
+                              itineraryId={event.itineraryId}
+                              userId={user?.id}
+                              isOrganizer={false}
+                            />
+
                             <Link href={`/rsvp/${event.itineraryId}/${event.inviteToken}`}>
                               <Button variant="outline" className="gap-2" data-testid={`button-view-${event.itineraryId}`}>
                                 <ExternalLink className="h-4 w-4" />
