@@ -380,6 +380,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update automation settings
+  app.patch("/api/groups/:id/automation", async (req, res) => {
+    try {
+      const group = await storage.getGroup(req.params.id);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      // Validate automation settings - must be boolean if provided
+      const { autoActivitiesEnabled, autoItineraryEnabled, autoScheduleEnabled } = req.body;
+      
+      const updates: any = {};
+      if (autoActivitiesEnabled !== undefined) {
+        if (typeof autoActivitiesEnabled !== 'boolean') {
+          return res.status(400).json({ message: "autoActivitiesEnabled must be a boolean" });
+        }
+        updates.autoActivitiesEnabled = autoActivitiesEnabled;
+      }
+      if (autoItineraryEnabled !== undefined) {
+        if (typeof autoItineraryEnabled !== 'boolean') {
+          return res.status(400).json({ message: "autoItineraryEnabled must be a boolean" });
+        }
+        updates.autoItineraryEnabled = autoItineraryEnabled;
+      }
+      if (autoScheduleEnabled !== undefined) {
+        if (typeof autoScheduleEnabled !== 'boolean') {
+          return res.status(400).json({ message: "autoScheduleEnabled must be a boolean" });
+        }
+        updates.autoScheduleEnabled = autoScheduleEnabled;
+      }
+
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ message: "No valid automation settings provided" });
+      }
+
+      const updatedGroup = await storage.updateGroup(req.params.id, updates);
+      res.json(updatedGroup);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
   // Get group by shareable link
   app.get("/api/groups/by-link/:shareableLink", async (req, res) => {
     try {

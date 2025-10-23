@@ -66,10 +66,14 @@ export const groups = pgTable("groups", {
   feedbackCount: integer("feedback_count").default(0).notNull(), // Track feedback actions to trigger insight regeneration
   rejectedVenues: text("rejected_venues").array(), // Venues that Google Places couldn't find (blacklist to avoid re-suggesting)
   
-  // Auto-scheduling fields
+  // AI Automation fields
+  autoActivitiesEnabled: boolean("auto_activities_enabled").default(false).notNull(), // Enable AI auto-generation of activities
+  autoItineraryEnabled: boolean("auto_itinerary_enabled").default(false).notNull(), // Enable AI auto-creation of itineraries
   autoScheduleEnabled: boolean("auto_schedule_enabled").default(false).notNull(), // Enable AI auto-scheduling
   lastEventDate: timestamp("last_event_date"), // Date of most recent finalized event
   nextEventDueDate: timestamp("next_event_due_date"), // When next event should happen (calculated from frequency)
+  lastActivitiesUpdate: timestamp("last_activities_update"), // When activities were last auto-generated
+  lastItineraryUpdate: timestamp("last_itinerary_update"), // When itinerary was last auto-created
   
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

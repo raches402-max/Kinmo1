@@ -16,6 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, ChevronRight, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell, Edit2, Edit, Compass } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
@@ -953,6 +954,33 @@ export default function GroupDetail() {
     onError: (error: Error) => {
       toast({
         title: "Error clearing activities",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const toggleAutomationMutation = useMutation({
+    mutationFn: async ({ field, value }: { field: string; value: boolean }) => {
+      return await apiRequest("PATCH", `/api/groups/${groupId}/automation`, {
+        [field]: value
+      });
+    },
+    onSuccess: (_, variables) => {
+      const fieldNames: Record<string, string> = {
+        autoActivitiesEnabled: "Auto-generate Activities",
+        autoItineraryEnabled: "Auto-create Itinerary Drafts",
+        autoScheduleEnabled: "Auto-schedule Events"
+      };
+      toast({
+        title: variables.value ? "Automation enabled" : "Automation disabled",
+        description: `${fieldNames[variables.field]} ${variables.value ? 'turned on' : 'turned off'}`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error updating automation",
         description: error.message,
         variant: "destructive",
       });
@@ -1925,6 +1953,90 @@ export default function GroupDetail() {
 
       <div className="max-w-7xl mx-auto px-6 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          {/* AI Automation Toggles */}
+          {isOwner && (
+            <Card className="max-w-3xl mx-auto">
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Bot className="h-4 w-4" />
+                      AI Automation
+                    </CardTitle>
+                    <CardDescription className="text-sm">
+                      Let AI handle planning tasks automatically in the background
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex-1">
+                    <Label htmlFor="auto-activities" className="text-sm font-medium cursor-pointer">
+                      Auto-generate Activities
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Automatically refresh activity suggestions weekly
+                    </p>
+                  </div>
+                  <Switch
+                    id="auto-activities"
+                    checked={group?.autoActivitiesEnabled || false}
+                    onCheckedChange={(checked) => {
+                      toggleAutomationMutation.mutate({ 
+                        field: 'autoActivitiesEnabled', 
+                        value: checked 
+                      });
+                    }}
+                    data-testid="switch-auto-activities"
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex-1">
+                    <Label htmlFor="auto-itinerary" className="text-sm font-medium cursor-pointer">
+                      Auto-create Itinerary Drafts
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      AI creates draft itineraries from your loved activities
+                    </p>
+                  </div>
+                  <Switch
+                    id="auto-itinerary"
+                    checked={group?.autoItineraryEnabled || false}
+                    onCheckedChange={(checked) => {
+                      toggleAutomationMutation.mutate({ 
+                        field: 'autoItineraryEnabled', 
+                        value: checked 
+                      });
+                    }}
+                    data-testid="switch-auto-itinerary"
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex-1">
+                    <Label htmlFor="auto-schedule" className="text-sm font-medium cursor-pointer">
+                      Auto-schedule Events
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      AI proposes event dates based on your meeting frequency
+                    </p>
+                  </div>
+                  <Switch
+                    id="auto-schedule"
+                    checked={group?.autoScheduleEnabled || false}
+                    onCheckedChange={(checked) => {
+                      toggleAutomationMutation.mutate({ 
+                        field: 'autoScheduleEnabled', 
+                        value: checked 
+                      });
+                    }}
+                    data-testid="switch-auto-schedule"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <TabsList className="grid w-full max-w-3xl mx-auto grid-cols-5">
             <TabsTrigger value="preferences" data-testid="tab-preferences">1. Group Details</TabsTrigger>
             <TabsTrigger value="activities" data-testid="tab-activities">2. Activities</TabsTrigger>
