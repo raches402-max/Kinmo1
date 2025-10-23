@@ -1414,6 +1414,7 @@ export default function GroupDetail() {
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "saved-itineraries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "proposed-itineraries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/members/me/events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
       toast({
         title: "Event deleted",
         description: "The event has been removed",
