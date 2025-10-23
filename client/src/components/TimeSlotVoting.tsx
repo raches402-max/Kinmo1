@@ -176,54 +176,53 @@ export function TimeSlotVoting({ itineraryId, userId, memberId, isOrganizer = fa
                   </div>
                 </div>
 
-                {!isOrganizer && (
-                  <div className="flex gap-2">
-                    <Button 
-                      size="sm" 
-                      variant={userVote === "yes" ? "default" : "outline"}
-                      className="flex-1 text-xs h-8"
-                      onClick={() => voteMutation.mutate({ timeSlotId: slot.id, voteType: "yes" })}
-                      disabled={voteMutation.isPending}
-                      data-testid={`vote-yes-${slot.id}`}
-                    >
-                      {userVote === "yes" && <Check className="h-3 w-3 mr-1" />}
-                      Yes
-                    </Button>
-                    <Button 
-                      size="sm" 
-                      variant={userVote === "maybe" ? "default" : "outline"}
-                      className="flex-1 text-xs h-8"
-                      onClick={() => voteMutation.mutate({ timeSlotId: slot.id, voteType: "maybe" })}
-                      disabled={voteMutation.isPending}
-                      data-testid={`vote-maybe-${slot.id}`}
-                    >
-                      {userVote === "maybe" && <Check className="h-3 w-3 mr-1" />}
-                      Maybe
-                    </Button>
-                    <Button 
-                      size="sm" 
-                      variant={userVote === "no" ? "default" : "outline"}
-                      className="flex-1 text-xs h-8"
-                      onClick={() => voteMutation.mutate({ timeSlotId: slot.id, voteType: "no" })}
-                      disabled={voteMutation.isPending}
-                      data-testid={`vote-no-${slot.id}`}
-                    >
-                      {userVote === "no" && <Check className="h-3 w-3 mr-1" />}
-                      No
-                    </Button>
-                  </div>
-                )}
+                <div className="flex gap-2">
+                  <Button 
+                    size="sm" 
+                    variant={userVote === "yes" ? "default" : "outline"}
+                    className="flex-1 text-xs h-8"
+                    onClick={() => voteMutation.mutate({ timeSlotId: slot.id, voteType: "yes" })}
+                    disabled={voteMutation.isPending}
+                    data-testid={`vote-yes-${slot.id}`}
+                  >
+                    {userVote === "yes" && <Check className="h-3 w-3 mr-1" />}
+                    Yes
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant={userVote === "maybe" ? "default" : "outline"}
+                    className="flex-1 text-xs h-8"
+                    onClick={() => voteMutation.mutate({ timeSlotId: slot.id, voteType: "maybe" })}
+                    disabled={voteMutation.isPending}
+                    data-testid={`vote-maybe-${slot.id}`}
+                  >
+                    {userVote === "maybe" && <Check className="h-3 w-3 mr-1" />}
+                    Maybe
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant={userVote === "no" ? "default" : "outline"}
+                    className="flex-1 text-xs h-8"
+                    onClick={() => voteMutation.mutate({ timeSlotId: slot.id, voteType: "no" })}
+                    disabled={voteMutation.isPending}
+                    data-testid={`vote-no-${slot.id}`}
+                  >
+                    {userVote === "no" && <Check className="h-3 w-3 mr-1" />}
+                    No
+                  </Button>
+                </div>
 
                 {isOrganizer && (
                   <Button 
                     size="sm" 
-                    variant="outline" 
-                    className="w-full text-xs h-7"
+                    variant="secondary" 
+                    className="w-full text-xs h-7 mt-1"
                     onClick={() => selectMutation.mutate(slot.id)}
                     disabled={selectMutation.isPending}
                     data-testid={`select-time-${slot.id}`}
                   >
-                    Select This Time
+                    <Check className="h-3 w-3 mr-1" />
+                    Finalize This Time
                   </Button>
                 )}
               </div>
@@ -232,11 +231,12 @@ export function TimeSlotVoting({ itineraryId, userId, memberId, isOrganizer = fa
         })}
       </div>
       
-      {!isOrganizer && (
-        <p className="text-xs text-muted-foreground text-center">
-          Vote on each time option with Yes, Maybe, or No
-        </p>
-      )}
+      <p className="text-xs text-muted-foreground text-center">
+        {isOrganizer 
+          ? "Vote on each time, then finalize your choice when everyone has responded"
+          : "Vote on each time option with Yes, Maybe, or No"
+        }
+      </p>
     </div>
   );
 }
