@@ -18,7 +18,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, ChevronRight, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell, Edit2, Edit, Compass, Home } from "lucide-react";
+import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, ChevronRight, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell, Edit2, Edit, Compass, Home, UserCheck } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -4885,13 +4885,31 @@ export default function GroupDetail() {
                         <CardHeader className="pb-3">
                           <div className="flex items-center justify-between gap-4">
                             <div className="flex-1 min-w-0">
-                              <CardTitle className="text-lg truncate">
-                                {itinerary.name}
-                                {itinerary.status === 'scheduled' && (
-                                  <Badge variant="default" className="ml-2 bg-primary">✨ The Plan</Badge>
+                              <div className="flex flex-col gap-2">
+                                <CardTitle className="text-lg truncate">
+                                  {itinerary.name}
+                                  {itinerary.status === 'scheduled' && (
+                                    <Badge variant="default" className="ml-2 bg-primary">✨ The Plan</Badge>
+                                  )}
+                                  {isPlanner && itinerary.status !== 'scheduled' && <Badge variant="secondary" className="ml-2">Your Plan</Badge>}
+                                </CardTitle>
+                                {itinerary.hostMemberId ? (
+                                  (() => {
+                                    const hostMember = members.find((m: Member) => m.id === itinerary.hostMemberId);
+                                    return hostMember ? (
+                                      <Badge variant="outline" className="gap-1 w-fit" data-testid={`badge-host-${itinerary.id}`}>
+                                        <UserCheck className="h-3 w-3" />
+                                        Hosted by {hostMember.name || hostMember.email}
+                                      </Badge>
+                                    ) : null;
+                                  })()
+                                ) : itinerary.status === 'proposed' && (
+                                  <Badge variant="outline" className="gap-1 w-fit text-muted-foreground" data-testid={`badge-ai-hosted-${itinerary.id}`}>
+                                    <Bot className="h-3 w-3" />
+                                    AI-hosted
+                                  </Badge>
                                 )}
-                                {isPlanner && itinerary.status !== 'scheduled' && <Badge variant="secondary" className="ml-2">Your Plan</Badge>}
-                              </CardTitle>
+                              </div>
                               <CardDescription className="mt-1 space-y-1">
                                 <div>{itinerary.items?.length || 0} stops • {totalResponses} responses</div>
                                 {itinerary.proposedTimeSlots && itinerary.proposedTimeSlots.length > 0 ? (
