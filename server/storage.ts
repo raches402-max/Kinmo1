@@ -792,7 +792,7 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
-  async getProposedItineraries(groupId: string): Promise<Array<Itinerary & { items: ItineraryItem[], rsvps: Rsvp[] }>> {
+  async getProposedItineraries(groupId: string): Promise<Array<Itinerary & { items: ItineraryItem[], rsvps: Rsvp[], proposedTimeSlots?: any[] }>> {
     // Get all itineraries that have been sent (have invite records)
     const itinerariesWithInvites = await db
       .selectDistinct({ itineraryId: itineraryInvites.itineraryId })
@@ -831,7 +831,27 @@ export class DatabaseStorage implements IStorage {
         .where(eq(rsvps.itineraryId, itinerary.id))
         .orderBy(desc(rsvps.createdAt));
 
-      result.push({ ...itinerary, items, rsvps: itineraryRsvps });
+      // Get proposed time slots if any
+      const timeSlots = await this.getItineraryTimeSlots(itinerary.id);
+      
+      // Get vote counts for all time slots
+      const voteCounts = await this.getItineraryTimeSlotVoteCounts(itinerary.id);
+
+      // Combine time slots with their vote counts
+      const timeSlotsWithVotes = timeSlots.map((slot) => {
+        const counts = voteCounts.find(vc => vc.timeSlotId === slot.id);
+        return {
+          ...slot,
+          yesCount: counts?.yesCount || 0,
+          maybeCount: counts?.maybeCount || 0,
+          noCount: counts?.noCount || 0,
+          yesVoters: counts?.yesVoters || [],
+          maybeVoters: counts?.maybeVoters || [],
+          noVoters: counts?.noVoters || [],
+        };
+      });
+
+      result.push({ ...itinerary, items, rsvps: itineraryRsvps, proposedTimeSlots: timeSlotsWithVotes });
     }
     return result;
   }
