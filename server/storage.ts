@@ -142,6 +142,12 @@ export interface IStorage {
   reorderGroupCollections(collectionOrders: Array<{ id: string; orderIndex: number }>): Promise<void>;
   updateGroupCollectionAssignment(groupId: string, collectionId: string | null, orderIndex: number): Promise<void>;
   reorderGroupsInCollection(groupOrders: Array<{ id: string; orderIndex: number }>): Promise<void>;
+
+  // Event Hosting
+  toggleMemberHosting(memberId: string, openToHosting: boolean): Promise<Member>;
+  volunteerToHost(itineraryId: string, memberId: string): Promise<Itinerary>;
+  handOffHost(itineraryId: string, newHostMemberId: string): Promise<Itinerary>;
+  getHostingAvailableMembers(groupId: string): Promise<Member[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1183,6 +1189,46 @@ export class DatabaseStorage implements IStorage {
         .set({ orderIndex })
         .where(eq(groups.id, id));
     }
+  }
+
+  // Event Hosting
+  async toggleMemberHosting(memberId: string, openToHosting: boolean): Promise<Member> {
+    const [result] = await db
+      .update(members)
+      .set({ openToHosting })
+      .where(eq(members.id, memberId))
+      .returning();
+    return result;
+  }
+
+  async volunteerToHost(itineraryId: string, memberId: string): Promise<Itinerary> {
+    const [result] = await db
+      .update(itineraries)
+      .set({ hostMemberId: memberId })
+      .where(eq(itineraries.id, itineraryId))
+      .returning();
+    return result;
+  }
+
+  async handOffHost(itineraryId: string, newHostMemberId: string): Promise<Itinerary> {
+    const [result] = await db
+      .update(itineraries)
+      .set({ hostMemberId: newHostMemberId })
+      .where(eq(itineraries.id, itineraryId))
+      .returning();
+    return result;
+  }
+
+  async getHostingAvailableMembers(groupId: string): Promise<Member[]> {
+    return await db
+      .select()
+      .from(members)
+      .where(
+        and(
+          eq(members.groupId, groupId),
+          eq(members.openToHosting, true)
+        )
+      );
   }
 }
 
