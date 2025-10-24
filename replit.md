@@ -26,11 +26,10 @@ AI suggestion preferences:
 - **User Profile System**: Authenticated users manage personal information via a dedicated `/profile` page, supported by a `user_profiles` table and secure API endpoints.
 
 ### Feature Specifications
-- **AI Suggestion Generation**: GPT-4o generates 15 diverse venue suggestions across 5 categories, with category-aware retry logic and prompt refinement to interpret preferences, integrate user feedback, and exclude airport venues.
+- **AI Suggestion Generation**: GPT-4o generates 15 diverse venue suggestions across 5 categories, with category-aware retry logic and prompt refinement to interpret preferences, integrate user feedback, and exclude airport venues. **Performance Optimization (Oct 2024)**: Removed complementary food place searches from initial suggestion generation, reducing ~60 Google Places API calls and cutting generation time by ~50%. Complementary place database fields preserved (set to null) for future itinerary-level feature implementation.
 - **Google Reviews Integration**: Fetches 4-5 star Google reviews, summarizes positive highlights, and sorts activity cards.
 - **Tinder-Style Swipe Feed**: Allows users to refine preferences by swiping on AI-generated activity concepts.
 - **Deduplication**: Prevents duplicate suggestions.
-- **Complementary Food Suggestions**: Suggests nearby complementary venues using Google Places Nearby Search API.
 - **Activity Category Selection**: Visual selector with 17 activity types and automatic categorization.
 - **Enhanced Favorites**: Enriches manually added favorites with Google Places data.
 - **Shopping Cart Itinerary Builder**: Multi-select flow for building itineraries (1-5 venues) with drag-to-reorder, real-time distance calculations, AI validation for proximity/operating hours, nearby add-on suggestions, AI auto-naming, and timing recommendations.

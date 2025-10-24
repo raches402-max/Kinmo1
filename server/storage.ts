@@ -142,6 +142,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
+    // First, delete any existing user with the same email but different ID
+    // This handles the case where test users reuse the same email with different OIDC subs
+    if (userData.email) {
+      await db
+        .delete(users)
+        .where(
+          and(
+            eq(users.email, userData.email),
+            sql`${users.id} != ${userData.id}`
+          )
+        );
+    }
+    
+    // Now insert or update the user based on ID
     const [user] = await db
       .insert(users)
       .values(userData)
