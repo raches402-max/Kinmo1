@@ -27,6 +27,7 @@ type SafeMember = {
   name: string | null;
   email: string | null;
   openToHosting?: boolean;
+  profileCompleted?: boolean;
 };
 import { TimeSlotVoting } from "@/components/TimeSlotVoting";
 
@@ -1099,6 +1100,32 @@ export default function Dashboard() {
                   New Collection
                 </Button>
               </div>
+
+              {/* Incomplete Profile Banner */}
+              {!isLoading && groups.length > 0 && groups.some(g => 
+                g.members.some(m => m.profileCompleted === false)
+              ) && (
+                <Card className="bg-primary/5 border-primary/20" data-testid="banner-complete-profile">
+                  <CardContent className="py-4">
+                    <div className="flex items-start gap-4">
+                      <div className="flex-shrink-0 p-2 rounded-lg bg-primary/10">
+                        <Sparkles className="h-5 w-5 text-primary" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-semibold mb-1">Complete Your Profile</h3>
+                        <p className="text-sm text-muted-foreground mb-3">
+                          Help us personalize your experience by sharing your location, activity preferences, and availability. This helps AI suggest better activities for your groups.
+                        </p>
+                        <Link href={`/member-profile-setup/${groups.find(g => g.members.find(m => m.profileCompleted === false))?.members.find(m => m.profileCompleted === false)?.id}`}>
+                          <Button size="sm" data-testid="button-banner-complete-profile">
+                            Complete Profile
+                          </Button>
+                        </Link>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               {isLoading || collectionsLoading ? (
                 <div className="space-y-4">

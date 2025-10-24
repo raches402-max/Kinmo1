@@ -243,7 +243,8 @@ export class DatabaseStorage implements IStorage {
         const sanitizedMembers = groupMembers.map(member => ({
           id: member.id,
           name: member.name,
-          email: member.email
+          email: member.email,
+          profileCompleted: member.userId === userId ? member.profileCompleted : undefined
         }));
         return {
           ...group,
