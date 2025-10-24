@@ -585,7 +585,7 @@ export default function GroupDetail() {
   const [editGroupOpen, setEditGroupOpen] = useState(false);
   const [editBudgetRange, setEditBudgetRange] = useState<number[]>([50, 250]);
   const [showInstructions, setShowInstructions] = useState(true);
-  const [activeTab, setActiveTab] = useState("activities");
+  const [activeTab, setActiveTab] = useState("home");
   const [editCloseness, setEditCloseness] = useState(3);
   const [editNovelty, setEditNovelty] = useState(3);
   const [editAvailability, setEditAvailability] = useState(createEmptyAvailability());
@@ -2126,15 +2126,247 @@ export default function GroupDetail() {
             </Collapsible>
           )}
 
-          <TabsList className="grid w-full max-w-3xl mx-auto grid-cols-5">
-            <TabsTrigger value="preferences" data-testid="tab-preferences">1. Group Details</TabsTrigger>
-            <TabsTrigger value="activities" data-testid="tab-activities">2. Activities</TabsTrigger>
-            <TabsTrigger value="build" data-testid="tab-build">3. Itinerary</TabsTrigger>
-            <TabsTrigger value="schedule" data-testid="tab-schedule">4. Schedule</TabsTrigger>
-            <TabsTrigger value="feedback" data-testid="tab-feedback">5. Feedback</TabsTrigger>
+          <TabsList className="grid w-full max-w-3xl mx-auto grid-cols-6">
+            <TabsTrigger value="home" data-testid="tab-home">Home</TabsTrigger>
+            <TabsTrigger value="preferences" data-testid="tab-preferences">Group</TabsTrigger>
+            <TabsTrigger value="activities" data-testid="tab-activities">Activities</TabsTrigger>
+            <TabsTrigger value="build" data-testid="tab-build">Plans</TabsTrigger>
+            <TabsTrigger value="schedule" data-testid="tab-schedule">Schedule</TabsTrigger>
+            <TabsTrigger value="feedback" data-testid="tab-feedback">Insights</TabsTrigger>
           </TabsList>
 
-          {/* Tab 1: Group Details */}
+          {/* Home Tab */}
+          <TabsContent value="home" className="space-y-6">
+            <div className="max-w-4xl mx-auto space-y-6">
+              {(() => {
+                const now = new Date();
+                const upcomingEvents = itineraries
+                  .filter(i => i.status === 'proposed' && i.eventDate && new Date(i.eventDate) > now)
+                  .sort((a, b) => new Date(a.eventDate!).getTime() - new Date(b.eventDate!).getTime());
+                
+                const pastEvents = itineraries
+                  .filter(i => i.status === 'proposed' && i.eventDate && new Date(i.eventDate) <= now)
+                  .sort((a, b) => new Date(b.eventDate!).getTime() - new Date(a.eventDate!).getTime())
+                  .slice(0, 5); // Show last 5 past events
+                
+                const nextEvent = upcomingEvents[0];
+                const hasAnyEvents = upcomingEvents.length > 0 || pastEvents.length > 0;
+
+                if (!hasAnyEvents) {
+                  return (
+                    <Card>
+                      <CardContent className="py-12 text-center">
+                        <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                        <h3 className="text-lg font-semibold mb-2">No Events Yet</h3>
+                        <p className="text-muted-foreground mb-4">
+                          Get started by creating your first event for this group
+                        </p>
+                        <Button 
+                          onClick={() => setActiveTab('build')}
+                          data-testid="button-create-first-event"
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Create Event
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  );
+                }
+
+                return (
+                  <>
+                    {/* Next Event Hero */}
+                    {nextEvent && (
+                      <Card className="border-primary/20 bg-primary/5">
+                        <CardHeader>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <CardTitle className="flex items-center gap-2">
+                                <Calendar className="h-5 w-5" />
+                                Next Event
+                              </CardTitle>
+                              <CardDescription>
+                                {formatInTimeZone(
+                                  new Date(nextEvent.eventDate!), 
+                                  group.timezone || 'America/Los_Angeles',
+                                  "EEEE, MMMM d 'at' h:mm a"
+                                )}
+                              </CardDescription>
+                            </div>
+                            {nextEvent.hostMemberId && (
+                              <Badge variant="outline" className="gap-1">
+                                <UserCheck className="h-3 w-3" />
+                                Hosted by {members.find(m => m.id === nextEvent.hostMemberId)?.name || 'Member'}
+                              </Badge>
+                            )}
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <h3 className="font-semibold text-lg">{nextEvent.name}</h3>
+                          
+                          {/* Venues */}
+                          <div className="space-y-2">
+                            {nextEvent.items.slice(0, 3).map((item: any, idx: number) => {
+                              const venue = item.sourceType === 'activity' 
+                                ? activities.find(a => a.id === item.sourceId)
+                                : votingEvents.find(v => v.id === item.sourceId);
+                              
+                              if (!venue) return null;
+                              
+                              return (
+                                <div key={item.id} className="flex items-start gap-3 p-3 bg-background rounded-lg">
+                                  <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-sm font-medium flex-shrink-0">
+                                    {idx + 1}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-medium">{venue.title}</p>
+                                    {venue.venueAddress && (
+                                      <p className="text-sm text-muted-foreground truncate">{venue.venueAddress}</p>
+                                    )}
+                                  </div>
+                                  {venue.rating && (
+                                    <Badge variant="secondary" className="gap-1 flex-shrink-0">
+                                      <Star className="h-3 w-3 fill-current" />
+                                      {venue.rating}
+                                    </Badge>
+                                  )}
+                                </div>
+                              );
+                            })}
+                            {nextEvent.items.length > 3 && (
+                              <p className="text-sm text-muted-foreground text-center">
+                                +{nextEvent.items.length - 3} more venue{nextEvent.items.length - 3 !== 1 ? 's' : ''}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2 pt-2">
+                            <Button 
+                              size="sm"
+                              onClick={() => {
+                                setActiveTab('schedule');
+                              }}
+                              data-testid="button-view-event-details"
+                            >
+                              View Details
+                            </Button>
+                            <Button 
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const inviteUrl = `${window.location.origin}/rsvp/${nextEvent.id}`;
+                                navigator.clipboard.writeText(inviteUrl);
+                                toast({ title: "Invite link copied!" });
+                              }}
+                              data-testid="button-copy-invite-link"
+                            >
+                              <Share2 className="h-4 w-4 mr-2" />
+                              Share
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Upcoming Events */}
+                    {upcomingEvents.length > 0 && (
+                      <div className="space-y-4">
+                        <h2 className="text-xl font-bold">Upcoming Events</h2>
+                        <div className="grid gap-4">
+                          {upcomingEvents.map((event) => (
+                            <Card key={event.id} data-testid={`card-upcoming-event-${event.id}`}>
+                              <CardContent className="p-4">
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <h3 className="font-semibold">{event.name}</h3>
+                                      {event.hostMemberId && (
+                                        <Badge variant="outline" className="gap-1 text-xs">
+                                          <UserCheck className="h-3 w-3" />
+                                          {members.find(m => m.id === event.hostMemberId)?.name || 'Hosted'}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <p className="text-sm text-muted-foreground mb-2">
+                                      {formatInTimeZone(
+                                        new Date(event.eventDate!), 
+                                        group.timezone || 'America/Los_Angeles',
+                                        "EEE, MMM d 'at' h:mm a"
+                                      )}
+                                    </p>
+                                    <p className="text-sm">
+                                      {event.items.length} venue{event.items.length !== 1 ? 's' : ''}
+                                    </p>
+                                  </div>
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => setActiveTab('schedule')}
+                                    data-testid={`button-view-upcoming-${event.id}`}
+                                  >
+                                    View
+                                  </Button>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Past Events */}
+                    {pastEvents.length > 0 && (
+                      <div className="space-y-4">
+                        <h2 className="text-xl font-bold">Recent Past Events</h2>
+                        <div className="grid gap-4">
+                          {pastEvents.map((event) => (
+                            <Card key={event.id} className="opacity-75" data-testid={`card-past-event-${event.id}`}>
+                              <CardContent className="p-4">
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <h3 className="font-semibold">{event.name}</h3>
+                                      {event.hostMemberId && (
+                                        <Badge variant="outline" className="gap-1 text-xs">
+                                          <UserCheck className="h-3 w-3" />
+                                          {members.find(m => m.id === event.hostMemberId)?.name || 'Hosted'}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <p className="text-sm text-muted-foreground mb-2">
+                                      {formatInTimeZone(
+                                        new Date(event.eventDate!), 
+                                        group.timezone || 'America/Los_Angeles',
+                                        "EEE, MMM d, yyyy 'at' h:mm a"
+                                      )}
+                                    </p>
+                                    <p className="text-sm">
+                                      {event.items.length} venue{event.items.length !== 1 ? 's' : ''}
+                                    </p>
+                                  </div>
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => setActiveTab('feedback')}
+                                    data-testid={`button-feedback-past-${event.id}`}
+                                  >
+                                    <MessageCircle className="h-4 w-4 mr-2" />
+                                    Feedback
+                                  </Button>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+          </TabsContent>
+
+          {/* Tab 2: Group Details */}
           <TabsContent value="preferences" className="space-y-6">
             <div className="max-w-3xl mx-auto space-y-6">
               {/* Group Details Section */}
