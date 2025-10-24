@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from "@/components/ui/dropdown-menu";
 import { Plus, Sparkles, Users, MapPin, Calendar, CheckCircle, XCircle, HelpCircle, ExternalLink, Settings, LogOut, MoreVertical, ChevronDown, ChevronRight, Pencil, Trash2, FolderOpen, UserCheck, Bot, UserPlus } from "lucide-react";
@@ -66,6 +68,16 @@ export default function Dashboard() {
   const [renamingCollectionId, setRenamingCollectionId] = useState<string | null>(null);
   const [renameCollectionName, setRenameCollectionName] = useState("");
   const [openCollections, setOpenCollections] = useState<Set<string>>(new Set());
+  
+  // Feedback dialog state
+  const [showFeedbackDialog, setShowFeedbackDialog] = useState(false);
+  const [feedbackEvent, setFeedbackEvent] = useState<{event: UserEvent, response: string} | null>(null);
+  const [budgetConcern, setBudgetConcern] = useState(false);
+  const [timeConcern, setTimeConcern] = useState(false);
+  const [locationConcern, setLocationConcern] = useState(false);
+  const [activityTypeConcern, setActivityTypeConcern] = useState(false);
+  const [otherConcern, setOtherConcern] = useState(false);
+  const [feedbackText, setFeedbackText] = useState("");
   
   const { data: groups = [], isLoading } = useQuery<Array<Group & { members: SafeMember[] }>>({
     queryKey: ["/api/user/groups"],
@@ -180,11 +192,13 @@ export default function Dashboard() {
 
   // RSVP mutation for members
   const rsvpMutation = useMutation({
-    mutationFn: async ({ itineraryId, inviteToken, response }: { itineraryId: string; inviteToken: string; response: string }) => {
-      return await apiRequest("POST", `/api/rsvps`, { itineraryId, inviteToken, response });
+    mutationFn: async ({ itineraryId, inviteToken, response, rsvpFeedback }: { itineraryId: string; inviteToken: string; response: string; rsvpFeedback?: any }) => {
+      return await apiRequest("POST", `/api/rsvps`, { itineraryId, inviteToken, response, rsvpFeedback });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
+      setShowFeedbackDialog(false);
+      resetFeedbackForm();
       toast({
         title: "RSVP submitted!",
         description: "Your response has been recorded",
@@ -201,11 +215,13 @@ export default function Dashboard() {
 
   // RSVP mutation for organizers
   const organizerRsvpMutation = useMutation({
-    mutationFn: async ({ itineraryId, response }: { itineraryId: string; response: string }) => {
-      return await apiRequest("POST", `/api/itineraries/${itineraryId}/organizer-rsvp`, { response });
+    mutationFn: async ({ itineraryId, response, rsvpFeedback }: { itineraryId: string; response: string; rsvpFeedback?: any }) => {
+      return await apiRequest("POST", `/api/itineraries/${itineraryId}/organizer-rsvp`, { response, rsvpFeedback });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
+      setShowFeedbackDialog(false);
+      resetFeedbackForm();
       toast({
         title: "RSVP submitted!",
         description: "Your response has been recorded",
@@ -261,6 +277,61 @@ export default function Dashboard() {
       });
     },
   });
+
+  // Feedback helper functions
+  const resetFeedbackForm = () => {
+    setBudgetConcern(false);
+    setTimeConcern(false);
+    setLocationConcern(false);
+    setActivityTypeConcern(false);
+    setOtherConcern(false);
+    setFeedbackText("");
+    setFeedbackEvent(null);
+  };
+
+  const handleRsvpClick = (event: UserEvent, response: string) => {
+    if (response === 'yes') {
+      // Yes responses don't need feedback - submit directly
+      if (event.isOrganizer) {
+        organizerRsvpMutation.mutate({ itineraryId: event.itineraryId, response });
+      } else {
+        rsvpMutation.mutate({ itineraryId: event.itineraryId, inviteToken: event.inviteToken, response });
+      }
+    } else {
+      // Maybe/No responses - show feedback dialog
+      setFeedbackEvent({ event, response });
+      setShowFeedbackDialog(true);
+    }
+  };
+
+  const handleSubmitFeedback = () => {
+    if (!feedbackEvent) return;
+
+    const feedback: any = {};
+    if (budgetConcern) feedback.budgetConcern = true;
+    if (timeConcern) feedback.timeConcern = true;
+    if (locationConcern) feedback.locationConcern = true;
+    if (activityTypeConcern) feedback.activityTypeConcern = true;
+    if (otherConcern) feedback.otherConcern = true;
+    if (feedbackText.trim()) feedback.notes = feedbackText.trim();
+
+    const rsvpFeedback = Object.keys(feedback).length > 0 ? feedback : undefined;
+
+    if (feedbackEvent.event.isOrganizer) {
+      organizerRsvpMutation.mutate({ 
+        itineraryId: feedbackEvent.event.itineraryId, 
+        response: feedbackEvent.response,
+        rsvpFeedback 
+      });
+    } else {
+      rsvpMutation.mutate({ 
+        itineraryId: feedbackEvent.event.itineraryId, 
+        inviteToken: feedbackEvent.event.inviteToken, 
+        response: feedbackEvent.response,
+        rsvpFeedback 
+      });
+    }
+  };
 
   // Categorize events
   const now = new Date();
@@ -574,7 +645,7 @@ export default function Dashboard() {
                               <Button 
                                 variant="default"
                                 size="sm"
-                                onClick={() => rsvpMutation.mutate({ itineraryId: event.itineraryId, inviteToken: event.inviteToken, response: 'yes' })}
+                                onClick={() => handleRsvpClick(event, 'yes')}
                                 disabled={rsvpMutation.isPending}
                                 className="gap-1"
                                 data-testid={`button-yes-${event.itineraryId}`}
@@ -585,7 +656,7 @@ export default function Dashboard() {
                               <Button 
                                 variant="outline"
                                 size="sm"
-                                onClick={() => rsvpMutation.mutate({ itineraryId: event.itineraryId, inviteToken: event.inviteToken, response: 'maybe' })}
+                                onClick={() => handleRsvpClick(event, 'maybe')}
                                 disabled={rsvpMutation.isPending}
                                 className="gap-1"
                                 data-testid={`button-maybe-${event.itineraryId}`}
@@ -596,7 +667,7 @@ export default function Dashboard() {
                               <Button 
                                 variant="outline"
                                 size="sm"
-                                onClick={() => rsvpMutation.mutate({ itineraryId: event.itineraryId, inviteToken: event.inviteToken, response: 'no' })}
+                                onClick={() => handleRsvpClick(event, 'no')}
                                 disabled={rsvpMutation.isPending}
                                 className="gap-1"
                                 data-testid={`button-no-${event.itineraryId}`}
@@ -699,7 +770,7 @@ export default function Dashboard() {
                                 <Button 
                                   variant={rsvpResponse === 'yes' ? 'default' : 'outline'}
                                   size="sm"
-                                  onClick={() => organizerRsvpMutation.mutate({ itineraryId: event.itineraryId, response: 'yes' })}
+                                  onClick={() => handleRsvpClick(event, 'yes')}
                                   disabled={organizerRsvpMutation.isPending}
                                   className="gap-1"
                                   data-testid={`button-yes-${event.itineraryId}`}
@@ -710,7 +781,7 @@ export default function Dashboard() {
                                 <Button 
                                   variant={rsvpResponse === 'maybe' ? 'default' : 'outline'}
                                   size="sm"
-                                  onClick={() => organizerRsvpMutation.mutate({ itineraryId: event.itineraryId, response: 'maybe' })}
+                                  onClick={() => handleRsvpClick(event, 'maybe')}
                                   disabled={organizerRsvpMutation.isPending}
                                   className="gap-1"
                                   data-testid={`button-maybe-${event.itineraryId}`}
@@ -721,7 +792,7 @@ export default function Dashboard() {
                                 <Button 
                                   variant={rsvpResponse === 'no' ? 'default' : 'outline'}
                                   size="sm"
-                                  onClick={() => organizerRsvpMutation.mutate({ itineraryId: event.itineraryId, response: 'no' })}
+                                  onClick={() => handleRsvpClick(event, 'no')}
                                   disabled={organizerRsvpMutation.isPending}
                                   className="gap-1"
                                   data-testid={`button-no-${event.itineraryId}`}
@@ -1161,6 +1232,116 @@ export default function Dashboard() {
               data-testid="button-create-collection"
             >
               Create Collection
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Feedback Dialog */}
+      <Dialog open={showFeedbackDialog} onOpenChange={(open) => {
+        if (!open) {
+          resetFeedbackForm();
+        }
+        setShowFeedbackDialog(open);
+      }}>
+        <DialogContent data-testid="dialog-rsvp-feedback">
+          <DialogHeader>
+            <DialogTitle>
+              {feedbackEvent?.response === 'maybe' ? 'What concerns do you have?' : 'Help us understand why'}
+            </DialogTitle>
+            <DialogDescription>
+              {feedbackEvent?.response === 'maybe' 
+                ? 'Your feedback helps us plan better events for the group'
+                : 'Your feedback helps us understand what to adjust for future events'
+              }
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-3">
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="budget-concern" 
+                  checked={budgetConcern} 
+                  onCheckedChange={(checked) => setBudgetConcern(checked as boolean)}
+                  data-testid="checkbox-budget-concern"
+                />
+                <Label htmlFor="budget-concern" className="cursor-pointer">
+                  Budget concerns
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="time-concern" 
+                  checked={timeConcern} 
+                  onCheckedChange={(checked) => setTimeConcern(checked as boolean)}
+                  data-testid="checkbox-time-concern"
+                />
+                <Label htmlFor="time-concern" className="cursor-pointer">
+                  Time doesn't work
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="location-concern" 
+                  checked={locationConcern} 
+                  onCheckedChange={(checked) => setLocationConcern(checked as boolean)}
+                  data-testid="checkbox-location-concern"
+                />
+                <Label htmlFor="location-concern" className="cursor-pointer">
+                  Location is inconvenient
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="activity-type-concern" 
+                  checked={activityTypeConcern} 
+                  onCheckedChange={(checked) => setActivityTypeConcern(checked as boolean)}
+                  data-testid="checkbox-activity-type-concern"
+                />
+                <Label htmlFor="activity-type-concern" className="cursor-pointer">
+                  Not interested in these activities
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="other-concern" 
+                  checked={otherConcern} 
+                  onCheckedChange={(checked) => setOtherConcern(checked as boolean)}
+                  data-testid="checkbox-other-concern"
+                />
+                <Label htmlFor="other-concern" className="cursor-pointer">
+                  Other reason
+                </Label>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="feedback-text">Additional details (optional)</Label>
+              <Textarea
+                id="feedback-text"
+                placeholder="Any other details you'd like to share..."
+                value={feedbackText}
+                onChange={(e) => setFeedbackText(e.target.value)}
+                data-testid="textarea-feedback"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowFeedbackDialog(false);
+                resetFeedbackForm();
+              }}
+              data-testid="button-cancel-feedback"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmitFeedback}
+              disabled={rsvpMutation.isPending || organizerRsvpMutation.isPending}
+              data-testid="button-submit-feedback"
+            >
+              Submit Response
             </Button>
           </DialogFooter>
         </DialogContent>
