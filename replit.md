@@ -26,7 +26,7 @@ AI suggestion preferences:
 - **User Profile System**: Authenticated users manage personal information via a dedicated `/profile` page, supported by a `user_profiles` table and secure API endpoints.
 
 ### Feature Specifications
-- **AI Suggestion Generation**: GPT-4o-mini generates 15 diverse venue suggestions across 5 categories, with category-aware retry logic and prompt refinement to interpret preferences, integrate user feedback, and exclude airport venues.
+- **AI Suggestion Generation**: GPT-4o generates 15 diverse venue suggestions across 5 categories, with category-aware retry logic and prompt refinement to interpret preferences, integrate user feedback, and exclude airport venues.
 - **Google Reviews Integration**: Fetches 4-5 star Google reviews, summarizes positive highlights, and sorts activity cards.
 - **Tinder-Style Swipe Feed**: Allows users to refine preferences by swiping on AI-generated activity concepts.
 - **Deduplication**: Prevents duplicate suggestions.
@@ -45,7 +45,9 @@ AI suggestion preferences:
 
 ## External Dependencies
 
--   **OpenAI**: GPT-4o-mini for AI activity suggestion and preference reasoning.
+-   **OpenAI**: Hybrid model approach for optimal quality-to-cost ratio:
+    -   **GPT-4o**: Used for main activity suggestion generation (complex reasoning with constraints, preferences, and novelty balancing)
+    -   **GPT-4o-mini**: Used for all other AI features (swipe concepts, venue categorization, preference insights, itinerary naming, time selection, scheduling configuration)
 -   **Google Places API**: Text search, Photo API, Geocoding API, and enrichment data, with session-level caching for cost reduction.
 -   **Third-Party UI Libraries**: Radix UI, Tailwind CSS, `class-variance-authority`, `date-fns`, Lucide React.
 -   **Development Tools**: TypeScript, ESBuild, Vite plugins, PostCSS with Autoprefixer.
