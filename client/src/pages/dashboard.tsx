@@ -14,7 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from "@/components/ui/dropdown-menu";
-import { Plus, Sparkles, Users, MapPin, Calendar, CheckCircle, XCircle, HelpCircle, ExternalLink, Settings, LogOut, MoreVertical, ChevronDown, ChevronRight, Pencil, Trash2, FolderOpen, UserCheck, Bot, UserPlus } from "lucide-react";
+import { Plus, Sparkles, Users, MapPin, Calendar, CheckCircle, XCircle, HelpCircle, ExternalLink, Settings, LogOut, MoreVertical, ChevronDown, ChevronRight, Pencil, Trash2, FolderOpen, UserCheck, Bot, UserPlus, Star, MessageSquare } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -49,6 +49,7 @@ type UserEvent = {
   rsvp: {
     response: string;
     rsvpFeedback: any;
+    postEventFeedback: any;
   } | null;
   items: Array<{
     id: string;
@@ -69,7 +70,7 @@ export default function Dashboard() {
   const [renameCollectionName, setRenameCollectionName] = useState("");
   const [openCollections, setOpenCollections] = useState<Set<string>>(new Set());
   
-  // Feedback dialog state
+  // Feedback dialog state (for RSVP feedback)
   const [showFeedbackDialog, setShowFeedbackDialog] = useState(false);
   const [feedbackEvent, setFeedbackEvent] = useState<{event: UserEvent, response: string} | null>(null);
   const [budgetConcern, setBudgetConcern] = useState(false);
@@ -78,6 +79,14 @@ export default function Dashboard() {
   const [activityTypeConcern, setActivityTypeConcern] = useState(false);
   const [otherConcern, setOtherConcern] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
+  
+  // Post-event feedback dialog state
+  const [showPostEventFeedback, setShowPostEventFeedback] = useState(false);
+  const [postEventData, setPostEventData] = useState<UserEvent | null>(null);
+  const [venueRating, setVenueRating] = useState<number>(0);
+  const [frequencyPreference, setFrequencyPreference] = useState<string>("");
+  const [wouldDoAgain, setWouldDoAgain] = useState<string>("");
+  const [improvementNotes, setImprovementNotes] = useState("");
   
   const { data: groups = [], isLoading } = useQuery<Array<Group & { members: SafeMember[] }>>({
     queryKey: ["/api/user/groups"],
@@ -278,6 +287,40 @@ export default function Dashboard() {
     },
   });
 
+  // Post-event feedback mutation
+  const postEventFeedbackMutation = useMutation({
+    mutationFn: async ({ itineraryId, venueRating, frequencyPreference, wouldDoAgain, improvementNotes }: { 
+      itineraryId: string; 
+      venueRating: number; 
+      frequencyPreference: string; 
+      wouldDoAgain: string; 
+      improvementNotes: string;
+    }) => {
+      return await apiRequest("POST", `/api/itineraries/${itineraryId}/post-event-feedback`, {
+        venueRating,
+        frequencyPreference,
+        wouldDoAgain,
+        improvementNotes
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
+      setShowPostEventFeedback(false);
+      resetPostEventForm();
+      toast({
+        title: "Thank you for your feedback!",
+        description: "Your insights help us plan better events",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to submit feedback",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Feedback helper functions
   const resetFeedbackForm = () => {
     setBudgetConcern(false);
@@ -287,6 +330,31 @@ export default function Dashboard() {
     setOtherConcern(false);
     setFeedbackText("");
     setFeedbackEvent(null);
+  };
+
+  const resetPostEventForm = () => {
+    setVenueRating(0);
+    setFrequencyPreference("");
+    setWouldDoAgain("");
+    setImprovementNotes("");
+    setPostEventData(null);
+  };
+
+  const handlePostEventFeedback = (event: UserEvent) => {
+    setPostEventData(event);
+    setShowPostEventFeedback(true);
+  };
+
+  const handleSubmitPostEventFeedback = () => {
+    if (!postEventData) return;
+    
+    postEventFeedbackMutation.mutate({
+      itineraryId: postEventData.itineraryId,
+      venueRating,
+      frequencyPreference,
+      wouldDoAgain,
+      improvementNotes
+    });
   };
 
   const handleRsvpClick = (event: UserEvent, response: string) => {
@@ -966,7 +1034,7 @@ export default function Dashboard() {
                             )}
                           </div>
                         </CardHeader>
-                        <CardContent>
+                        <CardContent className="space-y-3">
                           <div className="flex gap-2 flex-wrap">
                             {event.items.slice(0, 3).map((venue, idx) => (
                               <Badge key={venue.id} variant="secondary">
@@ -977,6 +1045,26 @@ export default function Dashboard() {
                               <Badge variant="secondary">+{event.items.length - 3} more</Badge>
                             )}
                           </div>
+                          {/* Show feedback button if user attended and hasn't submitted feedback yet */}
+                          {(event.rsvp?.response === 'yes' || event.isOrganizer) && !event.rsvp?.postEventFeedback && (
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => handlePostEventFeedback(event)}
+                              className="gap-2"
+                              data-testid={`button-feedback-${event.itineraryId}`}
+                            >
+                              <MessageSquare className="h-4 w-4" />
+                              Leave Feedback
+                            </Button>
+                          )}
+                          {/* Show feedback submitted badge if already provided */}
+                          {event.rsvp?.postEventFeedback && (
+                            <Badge variant="secondary" className="gap-1">
+                              <Star className="h-3 w-3" />
+                              Feedback Submitted
+                            </Badge>
+                          )}
                         </CardContent>
                       </Card>
                     ))}
@@ -1342,6 +1430,135 @@ export default function Dashboard() {
               data-testid="button-submit-feedback"
             >
               Submit Response
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Post-Event Feedback Dialog */}
+      <Dialog open={showPostEventFeedback} onOpenChange={(open) => {
+        if (!open) {
+          resetPostEventForm();
+        }
+        setShowPostEventFeedback(open);
+      }}>
+        <DialogContent data-testid="dialog-post-event-feedback">
+          <DialogHeader>
+            <DialogTitle>How was the event?</DialogTitle>
+            <DialogDescription>
+              Your feedback helps us plan better future events
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>How would you rate the venue?</Label>
+              <div className="flex gap-2">
+                {[1, 2, 3, 4, 5].map((rating) => (
+                  <Button
+                    key={rating}
+                    variant={venueRating === rating ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setVenueRating(rating)}
+                    className="gap-1"
+                    data-testid={`button-rating-${rating}`}
+                  >
+                    <Star className={`h-4 w-4 ${venueRating >= rating ? 'fill-current' : ''}`} />
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>How often would you like events like this?</Label>
+              <div className="space-y-2">
+                <Button
+                  variant={frequencyPreference === "more_frequent" ? "default" : "outline"}
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setFrequencyPreference("more_frequent")}
+                  data-testid="button-frequency-more"
+                >
+                  More often
+                </Button>
+                <Button
+                  variant={frequencyPreference === "just_right" ? "default" : "outline"}
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setFrequencyPreference("just_right")}
+                  data-testid="button-frequency-right"
+                >
+                  This is perfect
+                </Button>
+                <Button
+                  variant={frequencyPreference === "less_frequent" ? "default" : "outline"}
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setFrequencyPreference("less_frequent")}
+                  data-testid="button-frequency-less"
+                >
+                  Less often
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Would you do this again?</Label>
+              <div className="flex gap-2">
+                <Button
+                  variant={wouldDoAgain === "yes" ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => setWouldDoAgain("yes")}
+                  data-testid="button-again-yes"
+                >
+                  Yes
+                </Button>
+                <Button
+                  variant={wouldDoAgain === "maybe" ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => setWouldDoAgain("maybe")}
+                  data-testid="button-again-maybe"
+                >
+                  Maybe
+                </Button>
+                <Button
+                  variant={wouldDoAgain === "no" ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => setWouldDoAgain("no")}
+                  data-testid="button-again-no"
+                >
+                  No
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="improvement-notes">What would make it better? (optional)</Label>
+              <Textarea
+                id="improvement-notes"
+                placeholder="Share your thoughts..."
+                value={improvementNotes}
+                onChange={(e) => setImprovementNotes(e.target.value)}
+                data-testid="textarea-improvement"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowPostEventFeedback(false);
+                resetPostEventForm();
+              }}
+              data-testid="button-cancel-post-feedback"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmitPostEventFeedback}
+              disabled={postEventFeedbackMutation.isPending}
+              data-testid="button-submit-post-feedback"
+            >
+              Submit Feedback
             </Button>
           </DialogFooter>
         </DialogContent>
