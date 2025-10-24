@@ -3788,6 +3788,98 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Get aggregated RSVP feedback for a group
+  app.get("/api/groups/:groupId/feedback-summary", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { groupId } = req.params;
+
+      // Verify user owns the group
+      const group = await storage.getGroup(groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+      if (group.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized to view this group's feedback" });
+      }
+
+      // Get all itineraries for the group
+      const itineraries = await db
+        .select()
+        .from(itinerariesTable)
+        .where(eq(itinerariesTable.groupId, groupId));
+
+      const itineraryIds = itineraries.map(i => i.id);
+      
+      if (itineraryIds.length === 0) {
+        return res.json({
+          totalResponses: 0,
+          budgetConcerns: 0,
+          timeConcerns: 0,
+          locationConcerns: 0,
+          activityTypeConcerns: 0,
+          otherConcerns: 0,
+          recentFeedback: [],
+        });
+      }
+
+      // Get all RSVPs with feedback for this group's itineraries
+      const rsvps = await db
+        .select()
+        .from(rsvpsTable)
+        .where(sql`itinerary_id IN (${sql.join(itineraryIds.map(id => sql`${id}`), sql`, `)}) AND rsvp_feedback IS NOT NULL`);
+
+      // Aggregate feedback
+      let budgetConcerns = 0;
+      let timeConcerns = 0;
+      let locationConcerns = 0;
+      let activityTypeConcerns = 0;
+      let otherConcerns = 0;
+      
+      const recentFeedback: any[] = [];
+
+      for (const rsvp of rsvps) {
+        const feedback = rsvp.rsvpFeedback as any;
+        if (!feedback) continue;
+
+        if (feedback.budgetConcern) budgetConcerns++;
+        if (feedback.timeConcern) timeConcerns++;
+        if (feedback.locationConcern) locationConcerns++;
+        if (feedback.activityTypeConcern) activityTypeConcerns++;
+        if (feedback.otherConcern) otherConcerns++;
+
+        // Add to recent feedback if it has a notes field
+        if (feedback.notes) {
+          const itinerary = itineraries.find(i => i.id === rsvp.itineraryId);
+          recentFeedback.push({
+            id: rsvp.id,
+            itineraryName: itinerary?.name || 'Event',
+            response: rsvp.response,
+            feedback,
+            createdAt: rsvp.createdAt,
+          });
+        }
+      }
+
+      // Sort recent feedback by date (newest first) and limit to 10
+      recentFeedback.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      const limitedFeedback = recentFeedback.slice(0, 10);
+
+      res.json({
+        totalResponses: rsvps.length,
+        budgetConcerns,
+        timeConcerns,
+        locationConcerns,
+        activityTypeConcerns,
+        otherConcerns,
+        recentFeedback: limitedFeedback,
+      });
+    } catch (error: any) {
+      console.error('[Get Feedback Summary] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Get pending auto-scheduled event for a group
   app.get("/api/groups/:groupId/pending-auto-event", isAuthenticated, async (req, res) => {
     try {
