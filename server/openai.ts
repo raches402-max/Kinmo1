@@ -66,6 +66,12 @@ export async function generateActivitySuggestions(groupData: {
   targetCategories?: string[]; // NEW: For category-specific generation
   memberConstraints?: { scheduleConflicts?: string[]; budgetConcern?: boolean; distanceConcern?: boolean; notes?: string }[]; // Member RSVP constraints
   rejectedVenues?: string[]; // Venues that don't exist in Google Places (blacklist)
+  // High-level category filters
+  mealEnabled?: boolean;
+  cafeEnabled?: boolean;
+  drinksEnabled?: boolean;
+  dessertEnabled?: boolean;
+  experiencesEnabled?: boolean;
 }): Promise<ActivitySuggestion[]> {
   try {
     // Generate 30 suggestions to account for duplicates after Google Places enrichment
@@ -253,6 +259,37 @@ export async function generateActivitySuggestions(groupData: {
 - This is a retry to fill gaps - prioritize these categories above all else`;
     }
 
+    // Format high-level category filters - hard exclusions
+    let categoryFilterContext = '';
+    const enabledBuckets: string[] = [];
+    const disabledBuckets: string[] = [];
+    
+    // Check which buckets are enabled (default true if not specified)
+    if (groupData.mealEnabled !== false) enabledBuckets.push('MEAL');
+    else disabledBuckets.push('MEAL (restaurants, brunch, food markets, potlucks)');
+    
+    if (groupData.cafeEnabled !== false) enabledBuckets.push('CAFE');
+    else disabledBuckets.push('CAFE (cafes, coffee shops)');
+    
+    if (groupData.drinksEnabled !== false) enabledBuckets.push('DRINKS');
+    else disabledBuckets.push('DRINKS (wine bars, cocktail bars, breweries, beer gardens)');
+    
+    if (groupData.dessertEnabled !== false) enabledBuckets.push('DESSERT');
+    else disabledBuckets.push('DESSERT (dessert shops, ice cream, boba, bakeries)');
+    
+    if (groupData.experiencesEnabled !== false) enabledBuckets.push('EXPERIENCES');
+    else disabledBuckets.push('EXPERIENCES (concerts, museums, outdoor activities, games, shows, etc.)');
+    
+    if (disabledBuckets.length > 0) {
+      categoryFilterContext = `\n\n🚫 CRITICAL - HARD CATEGORY EXCLUSIONS (ABSOLUTE REQUIREMENT):
+- The group has DISABLED these categories - you MUST generate ZERO suggestions from them:
+  ${disabledBuckets.map(b => `  ❌ ${b}`).join('\n')}
+- ONLY generate suggestions from these ENABLED categories: ${enabledBuckets.join(', ')}
+- Redistribute the full 30 suggestions across ONLY the enabled categories
+- If you suggest ANY venue from a disabled category, that suggestion will be REJECTED
+- Example: If CAFE is disabled, DO NOT suggest any cafes or coffee shops - suggest more meals/drinks/experiences instead`;
+    }
+
     // Format search radius for prompt - ensure valid value
     const searchRadius = groupData.searchRadius && [2, 10, 30, 50].includes(groupData.searchRadius) 
       ? groupData.searchRadius 
@@ -280,7 +317,7 @@ Budget Range: $${groupData.budgetMin}-${groupData.budgetMax} per person
 Meeting Frequency: ${groupData.meetingFrequency}
 Usual Availability: ${availabilityText}
 ${groupData.additionalInstructions ? `\n🚨 USER INSTRUCTIONS (OVERRIDES EVERYTHING): ${groupData.additionalInstructions}` : `${categoriesContext}
-${groupData.pastPreferences ? `Past Preferences: ${groupData.pastPreferences}` : ''}${feedbackContext}${votingContext}${swipeContext}`}${constraintsContext}${avoidVenuesContext}${rejectedVenuesContext}${targetCategoriesContext}
+${groupData.pastPreferences ? `Past Preferences: ${groupData.pastPreferences}` : ''}${feedbackContext}${votingContext}${swipeContext}`}${constraintsContext}${avoidVenuesContext}${rejectedVenuesContext}${targetCategoriesContext}${categoryFilterContext}
 
 CRITICAL - Availability Constraint:
 - The group is ONLY available during: ${availabilityText}

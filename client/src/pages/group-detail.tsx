@@ -593,7 +593,12 @@ export default function GroupDetail() {
     emoji: "🎉",
     locationBase: "",
     pastPreferences: "",
-    additionalInstructions: ""
+    additionalInstructions: "",
+    mealEnabled: true,
+    cafeEnabled: true,
+    drinksEnabled: true,
+    dessertEnabled: true,
+    experiencesEnabled: true
   });
   const [newMembers, setNewMembers] = useState<{ name: string; email: string }[]>([]);
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
@@ -829,7 +834,12 @@ export default function GroupDetail() {
         emoji: group.emoji || "🎉",
         locationBase: group.locationBase,
         pastPreferences: group.pastPreferences || "",
-        additionalInstructions: group.additionalInstructions || ""
+        additionalInstructions: group.additionalInstructions || "",
+        mealEnabled: group.mealEnabled ?? true,
+        cafeEnabled: group.cafeEnabled ?? true,
+        drinksEnabled: group.drinksEnabled ?? true,
+        dessertEnabled: group.dessertEnabled ?? true,
+        experiencesEnabled: group.experiencesEnabled ?? true
       });
       setEditBudgetRange([group.budgetMin, group.budgetMax]);
       setEditCloseness(group.closenessLevel);
@@ -1713,7 +1723,12 @@ export default function GroupDetail() {
         emoji: group.emoji || "🎉",
         locationBase: group.locationBase,
         pastPreferences: group.pastPreferences || "",
-        additionalInstructions: group.additionalInstructions || ""
+        additionalInstructions: group.additionalInstructions || "",
+        mealEnabled: group.mealEnabled ?? true,
+        cafeEnabled: group.cafeEnabled ?? true,
+        drinksEnabled: group.drinksEnabled ?? true,
+        dessertEnabled: group.dessertEnabled ?? true,
+        experiencesEnabled: group.experiencesEnabled ?? true
       });
       setEditBudgetRange([group.budgetMin, group.budgetMax]);
       setEditCloseness(group.closenessLevel);
@@ -1788,6 +1803,11 @@ export default function GroupDetail() {
       activityCategories: editCategories.length > 0 ? editCategories : undefined,
       availability: editAvailability,
       generalAvailability: editGeneralAvailability.trim() || undefined,
+      mealEnabled: editGroupData.mealEnabled,
+      cafeEnabled: editGroupData.cafeEnabled,
+      drinksEnabled: editGroupData.drinksEnabled,
+      dessertEnabled: editGroupData.dessertEnabled,
+      experiencesEnabled: editGroupData.experiencesEnabled,
       pastPreferences: editGroupData.pastPreferences,
       additionalInstructions: editGroupData.additionalInstructions
     };
@@ -2197,7 +2217,72 @@ export default function GroupDetail() {
 
                   <div className="space-y-3">
                     <Label className="text-base">What types of activities interest your group?</Label>
-                    <p className="text-sm text-muted-foreground">Select all that apply (optional)</p>
+                    <p className="text-sm text-muted-foreground">First, choose which broad categories to enable - AI will only generate suggestions from enabled categories</p>
+                    
+                    {/* High-level category filters */}
+                    <div className="space-y-2 p-4 bg-muted/30 rounded-lg border">
+                      <Label className="text-sm font-semibold">Enable/Disable Activity Categories</Label>
+                      <p className="text-xs text-muted-foreground">Toggle to control which types of suggestions AI generates</p>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        <Button
+                          type="button"
+                          variant={editGroupData.mealEnabled !== false ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setEditGroupData({ ...editGroupData, mealEnabled: editGroupData.mealEnabled === false ? true : false })}
+                          className="gap-1.5"
+                          data-testid="button-toggle-meal"
+                        >
+                          <span>🍽️</span>
+                          <span>Meals</span>
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={editGroupData.cafeEnabled !== false ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setEditGroupData({ ...editGroupData, cafeEnabled: editGroupData.cafeEnabled === false ? true : false })}
+                          className="gap-1.5"
+                          data-testid="button-toggle-cafe"
+                        >
+                          <span>☕</span>
+                          <span>Cafes</span>
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={editGroupData.drinksEnabled !== false ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setEditGroupData({ ...editGroupData, drinksEnabled: editGroupData.drinksEnabled === false ? true : false })}
+                          className="gap-1.5"
+                          data-testid="button-toggle-drinks"
+                        >
+                          <span>🍷</span>
+                          <span>Drinks</span>
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={editGroupData.dessertEnabled !== false ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setEditGroupData({ ...editGroupData, dessertEnabled: editGroupData.dessertEnabled === false ? true : false })}
+                          className="gap-1.5"
+                          data-testid="button-toggle-dessert"
+                        >
+                          <span>🍰</span>
+                          <span>Dessert</span>
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={editGroupData.experiencesEnabled !== false ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setEditGroupData({ ...editGroupData, experiencesEnabled: editGroupData.experiencesEnabled === false ? true : false })}
+                          className="gap-1.5"
+                          data-testid="button-toggle-experiences"
+                        >
+                          <span>🎭</span>
+                          <span>Experiences</span>
+                        </Button>
+                      </div>
+                    </div>
+
+                    <p className="text-sm text-muted-foreground">Then select specific activity types within enabled categories (optional)</p>
                     <div className="flex flex-wrap gap-2">
                       {activityCategories.map((category) => {
                         const Icon = category.icon;

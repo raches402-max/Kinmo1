@@ -1612,6 +1612,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           votingFeedback: votingFeedback.length > 0 ? votingFeedback : undefined,
           likedConcepts: likedConcepts.length > 0 ? likedConcepts : undefined,
           passedConcepts: passedConcepts.length > 0 ? passedConcepts : undefined,
+          mealEnabled: refreshedGroup.mealEnabled ?? true,
+          cafeEnabled: refreshedGroup.cafeEnabled ?? true,
+          drinksEnabled: refreshedGroup.drinksEnabled ?? true,
+          dessertEnabled: refreshedGroup.dessertEnabled ?? true,
+          experiencesEnabled: refreshedGroup.experiencesEnabled ?? true,
           previouslySuggestedVenues: currentVenueNames || [],
           targetCategories: [category],
           memberConstraints: memberConstraints.length > 0 ? memberConstraints : undefined,
@@ -3734,6 +3739,11 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
           targetCategories: targetCategories, // Pass underrepresented categories on retry
           memberConstraints: memberConstraints.length > 0 ? memberConstraints : undefined, // Pass member RSVP constraints
           rejectedVenues: rejectedVenues, // Pass rejected venues blacklist
+          mealEnabled: groupData.mealEnabled ?? true,
+          cafeEnabled: groupData.cafeEnabled ?? true,
+          drinksEnabled: groupData.drinksEnabled ?? true,
+          dessertEnabled: groupData.dessertEnabled ?? true,
+          experiencesEnabled: groupData.experiencesEnabled ?? true,
         }),
         new Promise<never>((_, reject) => 
           setTimeout(() => reject(new Error('AI generation timed out after 180 seconds')), 180000)
