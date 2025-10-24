@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Users, ArrowRight } from "lucide-react";
@@ -19,6 +20,7 @@ const formSchema = z.object({
   email: z.string().email("Valid email is required"),
   availability: z.string().optional(),
   preferences: z.string().optional(),
+  openToHosting: z.boolean().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -41,6 +43,7 @@ export default function JoinGroup() {
       email: "",
       availability: "",
       preferences: "",
+      openToHosting: false,
     },
   });
 
@@ -172,6 +175,30 @@ export default function JoinGroup() {
                       <Input placeholder="I love outdoor activities..." {...field} data-testid="input-preferences" />
                     </FormControl>
                     <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="openToHosting"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        data-testid="checkbox-open-to-hosting"
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel className="cursor-pointer">
+                        I'm open to hosting events
+                      </FormLabel>
+                      <p className="text-sm text-muted-foreground">
+                        Volunteer to coordinate and host group events when available
+                      </p>
+                    </div>
                   </FormItem>
                 )}
               />

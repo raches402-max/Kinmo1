@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from "@/components/ui/dropdown-menu";
-import { Plus, Sparkles, Users, MapPin, Calendar, CheckCircle, XCircle, HelpCircle, ExternalLink, Settings, LogOut, MoreVertical, ChevronDown, ChevronRight, Pencil, Trash2, FolderOpen } from "lucide-react";
+import { Plus, Sparkles, Users, MapPin, Calendar, CheckCircle, XCircle, HelpCircle, ExternalLink, Settings, LogOut, MoreVertical, ChevronDown, ChevronRight, Pencil, Trash2, FolderOpen, UserCheck, Bot, UserPlus } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -24,6 +24,7 @@ type SafeMember = {
   id: string;
   name: string | null;
   email: string | null;
+  openToHosting?: boolean;
 };
 import { TimeSlotVoting } from "@/components/TimeSlotVoting";
 
@@ -38,6 +39,11 @@ type UserEvent = {
   groupName: string;
   groupEmoji: string;
   isOrganizer: boolean;
+  hostMemberId: string | null;
+  hostMemberName: string | null;
+  currentUserMemberId: string | null;
+  currentUserOpenToHosting: boolean;
+  members: SafeMember[];
   rsvp: {
     response: string;
     rsvpFeedback: any;
@@ -209,6 +215,48 @@ export default function Dashboard() {
       toast({
         title: "Error",
         description: error.message || "Failed to submit RSVP",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Volunteer to host mutation
+  const volunteerToHostMutation = useMutation({
+    mutationFn: async ({ itineraryId }: { itineraryId: string }) => {
+      return await apiRequest("POST", `/api/itineraries/${itineraryId}/volunteer-host`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
+      toast({
+        title: "You're now hosting!",
+        description: "You've been set as the event host and RSVP'd as attending",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to volunteer as host",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Hand off host mutation
+  const handOffHostMutation = useMutation({
+    mutationFn: async ({ itineraryId, newHostMemberId }: { itineraryId: string; newHostMemberId: string }) => {
+      return await apiRequest("POST", `/api/itineraries/${itineraryId}/hand-off-host`, { newHostMemberId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
+      toast({
+        title: "Host handed off",
+        description: "The hosting role has been transferred",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to hand off host",
         variant: "destructive",
       });
     },
@@ -469,86 +517,117 @@ export default function Dashboard() {
                 <div>
                   <h3 className="text-xl font-bold mb-4">Pending Invites ({pendingInvites.length})</h3>
                   <div className="space-y-3">
-                    {pendingInvites.map((event) => (
-                      <Card key={event.inviteId} className="hover-elevate" data-testid={`event-card-${event.itineraryId}`}>
-                        <CardHeader className="pb-3">
-                          <div className="flex items-center justify-between gap-4">
-                            <div className="flex-1">
-                              <CardTitle className="text-lg flex items-center gap-2">
-                                <span className="text-xl">{event.groupEmoji}</span>
-                                {event.itineraryName}
-                              </CardTitle>
-                              <CardDescription className="mt-1">
-                                {event.groupName} • {event.eventDate ? format(new Date(event.eventDate), 'MMM d, yyyy • h:mm a') : 'Date TBD'}
-                              </CardDescription>
+                    {pendingInvites.map((event) => {
+                      const canVolunteerToHost = !event.isOrganizer && event.currentUserOpenToHosting && !event.hostMemberId && event.currentUserMemberId;
+                      
+                      return (
+                        <Card key={event.inviteId} className="hover-elevate" data-testid={`event-card-${event.itineraryId}`}>
+                          <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between gap-4 flex-wrap">
+                              <div className="flex-1">
+                                <CardTitle className="text-lg flex items-center gap-2">
+                                  <span className="text-xl">{event.groupEmoji}</span>
+                                  {event.itineraryName}
+                                </CardTitle>
+                                <CardDescription className="mt-1">
+                                  {event.groupName} • {event.eventDate ? format(new Date(event.eventDate), 'MMM d, yyyy • h:mm a') : 'Date TBD'}
+                                </CardDescription>
+                              </div>
+                              <div className="flex gap-2 flex-wrap">
+                                <Badge variant="outline" className="bg-yellow-500/10 text-yellow-700 dark:text-yellow-400">
+                                  RSVP Needed
+                                </Badge>
+                                {event.hostMemberId && event.hostMemberName && (
+                                  <Badge variant="default" className="gap-1" data-testid={`badge-host-${event.itineraryId}`}>
+                                    <UserCheck className="h-3 w-3" />
+                                    Hosted by {event.hostMemberName}
+                                  </Badge>
+                                )}
+                                {!event.hostMemberId && (
+                                  <Badge variant="secondary" className="gap-1" data-testid={`badge-ai-hosted-${event.itineraryId}`}>
+                                    <Bot className="h-3 w-3" />
+                                    AI-hosted
+                                  </Badge>
+                                )}
+                              </div>
                             </div>
-                            <Badge variant="outline" className="bg-yellow-500/10 text-yellow-700 dark:text-yellow-400">
-                              RSVP Needed
-                            </Badge>
-                          </div>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                          <div className="flex gap-2 flex-wrap">
-                            {event.items.slice(0, 3).map((venue, idx) => (
-                              <Badge key={venue.id} variant="secondary">
-                                {idx + 1}. {venue.venueName}
-                              </Badge>
-                            ))}
-                            {event.items.length > 3 && (
-                              <Badge variant="secondary">+{event.items.length - 3} more</Badge>
-                            )}
-                          </div>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            <div className="flex gap-2 flex-wrap">
+                              {event.items.slice(0, 3).map((venue, idx) => (
+                                <Badge key={venue.id} variant="secondary">
+                                  {idx + 1}. {venue.venueName}
+                                </Badge>
+                              ))}
+                              {event.items.length > 3 && (
+                                <Badge variant="secondary">+{event.items.length - 3} more</Badge>
+                              )}
+                            </div>
 
-                          <TimeSlotVoting 
-                            itineraryId={event.itineraryId}
-                            userId={user?.id}
-                            isOrganizer={false}
-                          />
+                            <TimeSlotVoting 
+                              itineraryId={event.itineraryId}
+                              userId={user?.id}
+                              isOrganizer={false}
+                            />
 
-                          <div className="flex gap-2 flex-wrap">
-                            <Button 
-                              variant="default"
-                              size="sm"
-                              onClick={() => rsvpMutation.mutate({ itineraryId: event.itineraryId, inviteToken: event.inviteToken, response: 'yes' })}
-                              disabled={rsvpMutation.isPending}
-                              className="gap-1"
-                              data-testid={`button-yes-${event.itineraryId}`}
-                            >
-                              <CheckCircle className="h-4 w-4" />
-                              Yes, I'm In
-                            </Button>
-                            <Button 
-                              variant="outline"
-                              size="sm"
-                              onClick={() => rsvpMutation.mutate({ itineraryId: event.itineraryId, inviteToken: event.inviteToken, response: 'maybe' })}
-                              disabled={rsvpMutation.isPending}
-                              className="gap-1"
-                              data-testid={`button-maybe-${event.itineraryId}`}
-                            >
-                              <HelpCircle className="h-4 w-4" />
-                              Yes, if...
-                            </Button>
-                            <Button 
-                              variant="outline"
-                              size="sm"
-                              onClick={() => rsvpMutation.mutate({ itineraryId: event.itineraryId, inviteToken: event.inviteToken, response: 'no' })}
-                              disabled={rsvpMutation.isPending}
-                              className="gap-1"
-                              data-testid={`button-no-${event.itineraryId}`}
-                            >
-                              <XCircle className="h-4 w-4" />
-                              Can't Make It
-                            </Button>
-                            <Link href={`/rsvp/${event.itineraryId}/${event.inviteToken}`}>
-                              <Button variant="ghost" size="sm" className="gap-1">
-                                <ExternalLink className="h-4 w-4" />
-                                Details
+                            <div className="flex gap-2 flex-wrap">
+                              <Button 
+                                variant="default"
+                                size="sm"
+                                onClick={() => rsvpMutation.mutate({ itineraryId: event.itineraryId, inviteToken: event.inviteToken, response: 'yes' })}
+                                disabled={rsvpMutation.isPending}
+                                className="gap-1"
+                                data-testid={`button-yes-${event.itineraryId}`}
+                              >
+                                <CheckCircle className="h-4 w-4" />
+                                Yes, I'm In
                               </Button>
-                            </Link>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+                              <Button 
+                                variant="outline"
+                                size="sm"
+                                onClick={() => rsvpMutation.mutate({ itineraryId: event.itineraryId, inviteToken: event.inviteToken, response: 'maybe' })}
+                                disabled={rsvpMutation.isPending}
+                                className="gap-1"
+                                data-testid={`button-maybe-${event.itineraryId}`}
+                              >
+                                <HelpCircle className="h-4 w-4" />
+                                Yes, if...
+                              </Button>
+                              <Button 
+                                variant="outline"
+                                size="sm"
+                                onClick={() => rsvpMutation.mutate({ itineraryId: event.itineraryId, inviteToken: event.inviteToken, response: 'no' })}
+                                disabled={rsvpMutation.isPending}
+                                className="gap-1"
+                                data-testid={`button-no-${event.itineraryId}`}
+                              >
+                                <XCircle className="h-4 w-4" />
+                                Can't Make It
+                              </Button>
+                              {canVolunteerToHost && (
+                                <Button 
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => volunteerToHostMutation.mutate({ itineraryId: event.itineraryId })}
+                                  disabled={volunteerToHostMutation.isPending}
+                                  className="gap-1"
+                                  data-testid={`button-volunteer-host-${event.itineraryId}`}
+                                >
+                                  <UserPlus className="h-4 w-4" />
+                                  Volunteer to Host
+                                </Button>
+                              )}
+                              <Link href={`/rsvp/${event.itineraryId}/${event.inviteToken}`}>
+                                <Button variant="ghost" size="sm" className="gap-1">
+                                  <ExternalLink className="h-4 w-4" />
+                                  Details
+                                </Button>
+                              </Link>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -670,11 +749,15 @@ export default function Dashboard() {
                         no: { variant: "outline" as const, icon: XCircle, text: "Declined", className: "" },
                       };
                       const badge = badgeConfig[rsvpResponse as 'yes' | 'maybe' | 'no'] || badgeConfig.yes;
+                      
+                      const isCurrentHost = event.hostMemberId === event.currentUserMemberId;
+                      const canVolunteerToHost = !event.isOrganizer && event.currentUserOpenToHosting && !event.hostMemberId && event.currentUserMemberId;
+                      const hostableMembers = event.members.filter(m => m.openToHosting && m.id !== event.currentUserMemberId);
 
                       return (
                         <Card key={event.inviteId} className={`hover-elevate ${rsvpResponse === 'yes' ? 'border-primary/50' : ''}`} data-testid={`upcoming-event-${event.itineraryId}`}>
                           <CardHeader className="pb-3">
-                            <div className="flex items-center justify-between gap-4">
+                            <div className="flex items-center justify-between gap-4 flex-wrap">
                               <div className="flex-1">
                                 <CardTitle className="text-lg flex items-center gap-2">
                                   <span className="text-xl">{event.groupEmoji}</span>
@@ -684,10 +767,24 @@ export default function Dashboard() {
                                   {event.groupName} • {event.eventDate ? format(new Date(event.eventDate), 'MMM d, yyyy • h:mm a') : 'Date TBD'}
                                 </CardDescription>
                               </div>
-                              <Badge variant={badge.variant} className={`gap-1 ${badge.className}`}>
-                                <badge.icon className="h-3 w-3" />
-                                {badge.text}
-                              </Badge>
+                              <div className="flex gap-2 flex-wrap">
+                                <Badge variant={badge.variant} className={`gap-1 ${badge.className}`}>
+                                  <badge.icon className="h-3 w-3" />
+                                  {badge.text}
+                                </Badge>
+                                {event.hostMemberId && event.hostMemberName && (
+                                  <Badge variant="default" className="gap-1" data-testid={`badge-host-${event.itineraryId}`}>
+                                    <UserCheck className="h-3 w-3" />
+                                    {isCurrentHost ? 'You\'re hosting' : `Hosted by ${event.hostMemberName}`}
+                                  </Badge>
+                                )}
+                                {!event.hostMemberId && (
+                                  <Badge variant="secondary" className="gap-1" data-testid={`badge-ai-hosted-${event.itineraryId}`}>
+                                    <Bot className="h-3 w-3" />
+                                    AI-hosted
+                                  </Badge>
+                                )}
+                              </div>
                             </div>
                           </CardHeader>
                           <CardContent className="space-y-4">
@@ -708,12 +805,58 @@ export default function Dashboard() {
                               isOrganizer={false}
                             />
 
-                            <Link href={`/rsvp/${event.itineraryId}/${event.inviteToken}`}>
-                              <Button variant="outline" className="gap-2" data-testid={`button-view-${event.itineraryId}`}>
-                                <ExternalLink className="h-4 w-4" />
-                                View Details
-                              </Button>
-                            </Link>
+                            <div className="flex gap-2 flex-wrap">
+                              {canVolunteerToHost && (
+                                <Button 
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => volunteerToHostMutation.mutate({ itineraryId: event.itineraryId })}
+                                  disabled={volunteerToHostMutation.isPending}
+                                  className="gap-1"
+                                  data-testid={`button-volunteer-host-${event.itineraryId}`}
+                                >
+                                  <UserPlus className="h-4 w-4" />
+                                  Volunteer to Host
+                                </Button>
+                              )}
+                              {isCurrentHost && hostableMembers.length > 0 && (
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button 
+                                      variant="outline"
+                                      size="sm"
+                                      className="gap-1"
+                                      data-testid={`button-hand-off-${event.itineraryId}`}
+                                    >
+                                      <Users className="h-4 w-4" />
+                                      Hand Off Host
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuLabel>Select New Host</DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    {hostableMembers.map(member => (
+                                      <DropdownMenuItem
+                                        key={member.id}
+                                        onClick={() => handOffHostMutation.mutate({ 
+                                          itineraryId: event.itineraryId, 
+                                          newHostMemberId: member.id
+                                        })}
+                                        data-testid={`menu-hand-off-${member.id}`}
+                                      >
+                                        {member.name || member.email}
+                                      </DropdownMenuItem>
+                                    ))}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              )}
+                              <Link href={`/rsvp/${event.itineraryId}/${event.inviteToken}`}>
+                                <Button variant="ghost" size="sm" className="gap-2" data-testid={`button-view-${event.itineraryId}`}>
+                                  <ExternalLink className="h-4 w-4" />
+                                  View Details
+                                </Button>
+                              </Link>
+                            </div>
                           </CardContent>
                         </Card>
                       );

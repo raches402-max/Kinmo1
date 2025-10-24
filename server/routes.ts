@@ -359,6 +359,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .where(eq(itineraryItems.itineraryId, invite.itineraryId))
           .orderBy(itineraryItems.orderIndex);
 
+        // Get itinerary to check hosting info
+        const [itinerary] = await db
+          .select()
+          .from(itineraries)
+          .where(eq(itineraries.id, invite.itineraryId));
+
+        // Get host member info if exists
+        let hostMemberName = null;
+        if (itinerary?.hostMemberId) {
+          const [hostMember] = await db
+            .select({ name: membersTable.name })
+            .from(membersTable)
+            .where(eq(membersTable.id, itinerary.hostMemberId));
+          hostMemberName = hostMember?.name || null;
+        }
+
+        // Get group members for hosting info
+        const groupMembers = await db
+          .select({
+            id: membersTable.id,
+            name: membersTable.name,
+            email: membersTable.email,
+            openToHosting: membersTable.openToHosting,
+          })
+          .from(membersTable)
+          .where(eq(membersTable.groupId, invite.groupId));
+
+        // Get current user's member ID and hosting status
+        let currentUserMemberId = null;
+        let currentUserOpenToHosting = false;
+        if (!invite.isOrganizer && invite.memberId) {
+          currentUserMemberId = invite.memberId;
+          const member = groupMembers.find(m => m.id === invite.memberId);
+          currentUserOpenToHosting = member?.openToHosting || false;
+        }
+
         return {
           inviteId: invite.inviteId,
           inviteToken: invite.inviteToken,
@@ -370,6 +406,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           groupName: invite.groupName,
           groupEmoji: invite.groupEmoji,
           isOrganizer: invite.isOrganizer,
+          hostMemberId: itinerary?.hostMemberId || null,
+          hostMemberName,
+          currentUserMemberId,
+          currentUserOpenToHosting,
+          members: groupMembers.map(m => ({
+            id: m.id,
+            name: m.name,
+            email: m.email,
+            openToHosting: m.openToHosting || false,
+          })),
           rsvp: rsvp ? {
             response: rsvp.response,
             rsvpFeedback: rsvp.rsvpFeedback,
@@ -861,6 +907,169 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       res.json(updatedMember);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  // Event Hosting Routes
+
+  // Toggle member hosting availability (authenticated or via claim token)
+  app.patch("/api/members/:id/hosting-toggle", async (req: any, res) => {
+    try {
+      const { openToHosting, claimToken } = req.body;
+      const userId = req.user?.claims?.sub;
+
+      if (!userId && !claimToken) {
+        return res.status(401).json({ message: "Authentication or claim token required" });
+      }
+
+      // Get the member
+      const member = await storage.getMember(req.params.id);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+
+      // Authorization: must be the linked user or have claim token
+      if (claimToken && member.claimToken !== claimToken) {
+        return res.status(403).json({ message: "Invalid claim token" });
+      }
+      if (userId && member.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized to modify this member" });
+      }
+
+      const updatedMember = await storage.toggleMemberHosting(req.params.id, openToHosting);
+      res.json(updatedMember);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  // Volunteer to host an event (authenticated or via claim token)
+  app.post("/api/itineraries/:id/volunteer-host", async (req: any, res) => {
+    try {
+      const { claimToken } = req.body;
+      const userId = req.user?.claims?.sub;
+
+      if (!userId && !claimToken) {
+        return res.status(401).json({ message: "Authentication or claim token required" });
+      }
+
+      // Get the itinerary to find the group
+      const itinerary = await storage.getItinerary(req.params.id);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      // Find the member record for this user in this group
+      const groupMembers = await storage.getGroupMembers(itinerary.groupId);
+      let member;
+      
+      if (claimToken) {
+        member = groupMembers.find(m => m.claimToken === claimToken);
+      } else if (userId) {
+        member = groupMembers.find(m => m.userId === userId);
+      }
+
+      if (!member) {
+        return res.status(404).json({ message: "You are not a member of this group" });
+      }
+
+      // Check if member is open to hosting
+      if (!member.openToHosting) {
+        return res.status(400).json({ message: "You must be open to hosting to volunteer" });
+      }
+
+      // Volunteer to host
+      const updatedItinerary = await storage.volunteerToHost(req.params.id, member.id);
+      
+      // Also auto-RSVP the host as "yes" since hosts must attend
+      // Check if there's already an RSVP for this member
+      const existingRsvps = await storage.getItineraryRsvps(req.params.id);
+      const existingRsvp = existingRsvps.find(r => r.memberId === member.id);
+      
+      if (!existingRsvp) {
+        await storage.createRsvp({
+          itineraryId: req.params.id,
+          memberId: member.id,
+          memberName: member.name || undefined,
+          response: 'yes',
+        });
+      } else if (existingRsvp.response !== 'yes') {
+        await storage.updateRsvp(existingRsvp.id, { response: 'yes' });
+      }
+
+      res.json(updatedItinerary);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  // Hand off hosting to another member (authenticated or via claim token)
+  app.post("/api/itineraries/:id/hand-off-host", async (req: any, res) => {
+    try {
+      const { newHostMemberId, claimToken } = req.body;
+      const userId = req.user?.claims?.sub;
+
+      if (!userId && !claimToken) {
+        return res.status(401).json({ message: "Authentication or claim token required" });
+      }
+
+      // Get the itinerary
+      const itinerary = await storage.getItinerary(req.params.id);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      // Find the current user's member record in this group
+      const groupMembers = await storage.getGroupMembers(itinerary.groupId);
+      let currentMember;
+      
+      if (claimToken) {
+        currentMember = groupMembers.find(m => m.claimToken === claimToken);
+      } else if (userId) {
+        currentMember = groupMembers.find(m => m.userId === userId);
+      }
+
+      if (!currentMember) {
+        return res.status(404).json({ message: "You are not a member of this group" });
+      }
+
+      // Verify they are the current host
+      if (itinerary.hostMemberId !== currentMember.id) {
+        return res.status(403).json({ message: "You are not the current host" });
+      }
+
+      // Get new host member
+      const newHostMember = await storage.getMember(newHostMemberId);
+      if (!newHostMember) {
+        return res.status(404).json({ message: "New host member not found" });
+      }
+
+      // Verify new host is open to hosting
+      if (!newHostMember.openToHosting) {
+        return res.status(400).json({ message: "New host must be open to hosting" });
+      }
+
+      // Hand off
+      const updatedItinerary = await storage.handOffHost(req.params.id, newHostMemberId);
+      
+      // Auto-RSVP the new host as "yes"
+      const existingRsvps = await storage.getItineraryRsvps(req.params.id);
+      const existingRsvp = existingRsvps.find(r => r.memberId === newHostMemberId);
+      
+      if (!existingRsvp) {
+        await storage.createRsvp({
+          itineraryId: req.params.id,
+          memberId: newHostMemberId,
+          memberName: newHostMember.name || undefined,
+          response: 'yes',
+        });
+      } else if (existingRsvp.response !== 'yes') {
+        await storage.updateRsvp(existingRsvp.id, { response: 'yes' });
+      }
+
+      res.json(updatedItinerary);
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }

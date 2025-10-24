@@ -423,8 +423,9 @@ export async function processAutoScheduling(): Promise<void> {
           ? new Date(group.nextEventDueDate)
           : addDays(new Date(), 14);
 
-        // Calculate auto-send deadline (3 days before proposed date)
-        const autoSendAt = addDays(proposedDate, -3);
+        // Calculate auto-send deadline: 48 hours from now (volunteer window)
+        // If no one volunteers to host within 48 hours, AI auto-approves and sends
+        const autoSendAt = addDays(new Date(), 2);
 
         // Create auto-scheduled event record
         await storage.createAutoScheduledEvent({
@@ -435,7 +436,7 @@ export async function processAutoScheduling(): Promise<void> {
           status: 'pending',
         });
 
-        console.log(`Created pending auto-event for group ${group.name}, proposed date: ${proposedDate.toISOString()}`);
+        console.log(`Created pending auto-event for group ${group.name}, proposed date: ${proposedDate.toISOString()}, auto-send at: ${autoSendAt.toISOString()} (48hr volunteer window)`);
       }
     }
   } catch (error) {
@@ -463,6 +464,23 @@ export async function processAutoSend(): Promise<void> {
           console.error(`Missing group or itinerary for auto-event ${event.id}`);
           continue;
         }
+
+        // Check if someone volunteered to host
+        // If there's a host, skip auto-sending (host should manually approve the event)
+        const itineraryDetails = await db
+          .select()
+          .from(itineraries)
+          .where(eq(itineraries.id, itinerary.id));
+        
+        const hasHost = itineraryDetails[0]?.hostMemberId !== null;
+        
+        if (hasHost) {
+          console.log(`Event ${event.id} has a volunteer host - skipping auto-send, waiting for host approval`);
+          // Don't auto-send, but keep the pending status so host can still approve
+          continue;
+        }
+
+        console.log(`Event ${event.id} has no volunteer host - AI auto-approving and sending`);
 
         // Update itinerary to proposed status with event date and schedule config
         const inviteAdvanceDays = 14;
