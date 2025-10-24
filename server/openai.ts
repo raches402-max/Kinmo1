@@ -496,8 +496,10 @@ REMINDER: The suggestions array MUST contain EXACTLY 30 items. Count them if nee
 
     console.log(`[OpenAI] Sending prompt with availability: ${availabilityText}`);
     
+    // Use GPT-4o for activity suggestions - better at understanding complex preferences and constraints
+    // All other AI features use gpt-4o-mini for cost efficiency
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4o",
       messages: [
         {
           role: "system",
