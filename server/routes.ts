@@ -3830,27 +3830,6 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
           // Only use venues that meet quality AND budget standards
           const finalPlaces = budgetFiltered;
 
-          // Also search for complementary food places if suggested
-          let complementaryPlace = null;
-          let complementaryPlace2 = null;
-          if (suggestion.complementaryFoodPlace && finalPlaces.length > 0 && finalPlaces[0].location) {
-            // Use nearby search with distance and rating constraints (<0.5 miles, 3.5+ stars)
-            const foodPlaces = await searchNearbyPlaces(
-              suggestion.complementaryFoodPlace,
-              finalPlaces[0].location,
-              805, // 0.5 miles in meters
-              3.5  // minimum rating
-            );
-            // Filter out the main venue from complementary results (avoid suggesting venue as its own complement)
-            const validFoodPlaces = foodPlaces.filter(fp => fp.placeId !== finalPlaces[0].placeId);
-            if (validFoodPlaces.length > 0) {
-              complementaryPlace = validFoodPlaces[0];
-            }
-            if (validFoodPlaces.length > 1) {
-              complementaryPlace2 = validFoodPlaces[1];
-            }
-          }
-
           if (finalPlaces.length > 0) {
             const place = finalPlaces[0];
             
@@ -3882,16 +3861,16 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
               priceEstimate: suggestion.priceEstimate || null,
               timeConstraints: suggestion.timeConstraints || null,
               timeCategory: categorizeByTime(suggestion.venueType), // Categorize by time commitment
-              complementaryPlaceName: complementaryPlace?.name || null,
-              complementaryPlaceAddress: complementaryPlace?.address || null,
-              complementaryPlaceId: complementaryPlace?.placeId || null,
-              complementaryPlacePhotoUrl: complementaryPlace?.photoUrl || null,
-              complementaryPlaceRating: complementaryPlace?.rating || null,
-              complementaryPlaceName2: complementaryPlace2?.name || null,
-              complementaryPlaceAddress2: complementaryPlace2?.address || null,
-              complementaryPlaceId2: complementaryPlace2?.placeId || null,
-              complementaryPlacePhotoUrl2: complementaryPlace2?.photoUrl || null,
-              complementaryPlaceRating2: complementaryPlace2?.rating || null,
+              complementaryPlaceName: null,
+              complementaryPlaceAddress: null,
+              complementaryPlaceId: null,
+              complementaryPlacePhotoUrl: null,
+              complementaryPlaceRating: null,
+              complementaryPlaceName2: null,
+              complementaryPlaceAddress2: null,
+              complementaryPlaceId2: null,
+              complementaryPlacePhotoUrl2: null,
+              complementaryPlaceRating2: null,
             };
           } else {
             // If we reach here, finalPlaces is empty due to quality/budget filtering
