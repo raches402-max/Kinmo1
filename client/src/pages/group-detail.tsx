@@ -2034,88 +2034,74 @@ export default function GroupDetail() {
 
       <div className="max-w-7xl mx-auto px-6 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          {/* AI Automation Toggles */}
+          {/* AI Automation Toggles - Low Profile */}
           {isOwner && (
-            <Card className="max-w-3xl mx-auto">
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <Bot className="h-4 w-4" />
-                      AI Automation
-                    </CardTitle>
-                    <CardDescription className="text-sm">
-                      Let AI handle planning tasks automatically in the background
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex-1">
-                    <Label htmlFor="auto-activities" className="text-sm font-medium cursor-pointer">
+            <Collapsible className="max-w-3xl mx-auto">
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start gap-2 h-8 text-xs text-muted-foreground hover:text-foreground"
+                  data-testid="button-toggle-automation"
+                >
+                  <Bot className="h-3 w-3" />
+                  <span>Automation Settings</span>
+                  <ChevronDown className="h-3 w-3 ml-auto" />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-2">
+                <div className="border rounded-md p-3 space-y-2 bg-muted/20">
+                  <div className="flex items-center justify-between gap-3">
+                    <Label htmlFor="auto-activities" className="text-xs cursor-pointer flex-1">
                       Auto-generate Activities
                     </Label>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Automatically refresh activity suggestions weekly
-                    </p>
+                    <Switch
+                      id="auto-activities"
+                      checked={group?.autoActivitiesEnabled || false}
+                      onCheckedChange={(checked) => {
+                        toggleAutomationMutation.mutate({ 
+                          field: 'autoActivitiesEnabled', 
+                          value: checked 
+                        });
+                      }}
+                      data-testid="switch-auto-activities"
+                    />
                   </div>
-                  <Switch
-                    id="auto-activities"
-                    checked={group?.autoActivitiesEnabled || false}
-                    onCheckedChange={(checked) => {
-                      toggleAutomationMutation.mutate({ 
-                        field: 'autoActivitiesEnabled', 
-                        value: checked 
-                      });
-                    }}
-                    data-testid="switch-auto-activities"
-                  />
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex-1">
-                    <Label htmlFor="auto-itinerary" className="text-sm font-medium cursor-pointer">
+                  <div className="flex items-center justify-between gap-3">
+                    <Label htmlFor="auto-itinerary" className="text-xs cursor-pointer flex-1">
                       Auto-create Itinerary Drafts
                     </Label>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      AI creates draft itineraries from your loved activities
-                    </p>
+                    <Switch
+                      id="auto-itinerary"
+                      checked={group?.autoItineraryEnabled || false}
+                      onCheckedChange={(checked) => {
+                        toggleAutomationMutation.mutate({ 
+                          field: 'autoItineraryEnabled', 
+                          value: checked 
+                        });
+                      }}
+                      data-testid="switch-auto-itinerary"
+                    />
                   </div>
-                  <Switch
-                    id="auto-itinerary"
-                    checked={group?.autoItineraryEnabled || false}
-                    onCheckedChange={(checked) => {
-                      toggleAutomationMutation.mutate({ 
-                        field: 'autoItineraryEnabled', 
-                        value: checked 
-                      });
-                    }}
-                    data-testid="switch-auto-itinerary"
-                  />
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex-1">
-                    <Label htmlFor="auto-schedule" className="text-sm font-medium cursor-pointer">
+                  <div className="flex items-center justify-between gap-3">
+                    <Label htmlFor="auto-schedule" className="text-xs cursor-pointer flex-1">
                       Auto-schedule Events
                     </Label>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      AI proposes event dates based on your meeting frequency
-                    </p>
+                    <Switch
+                      id="auto-schedule"
+                      checked={group?.autoScheduleEnabled || false}
+                      onCheckedChange={(checked) => {
+                        toggleAutomationMutation.mutate({ 
+                          field: 'autoScheduleEnabled', 
+                          value: checked 
+                        });
+                      }}
+                      data-testid="switch-auto-schedule"
+                    />
                   </div>
-                  <Switch
-                    id="auto-schedule"
-                    checked={group?.autoScheduleEnabled || false}
-                    onCheckedChange={(checked) => {
-                      toggleAutomationMutation.mutate({ 
-                        field: 'autoScheduleEnabled', 
-                        value: checked 
-                      });
-                    }}
-                    data-testid="switch-auto-schedule"
-                  />
                 </div>
-              </CardContent>
-            </Card>
+              </CollapsibleContent>
+            </Collapsible>
           )}
 
           <TabsList className="grid w-full max-w-3xl mx-auto grid-cols-5">
