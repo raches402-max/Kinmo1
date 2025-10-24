@@ -2140,19 +2140,27 @@ export default function GroupDetail() {
             <div className="max-w-4xl mx-auto space-y-6">
               {(() => {
                 const now = new Date();
+                
+                // Active plans (saved but not scheduled yet)
+                const activePlans = itineraries
+                  .filter(i => i.status === 'saved')
+                  .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+                
+                // Upcoming events (scheduled in the future)
                 const upcomingEvents = itineraries
                   .filter(i => i.status === 'proposed' && i.eventDate && new Date(i.eventDate) > now)
                   .sort((a, b) => new Date(a.eventDate!).getTime() - new Date(b.eventDate!).getTime());
                 
+                // Past events (scheduled in the past)
                 const pastEvents = itineraries
                   .filter(i => i.status === 'proposed' && i.eventDate && new Date(i.eventDate) <= now)
                   .sort((a, b) => new Date(b.eventDate!).getTime() - new Date(a.eventDate!).getTime())
                   .slice(0, 5); // Show last 5 past events
                 
                 const nextEvent = upcomingEvents[0];
-                const hasAnyEvents = upcomingEvents.length > 0 || pastEvents.length > 0;
+                const hasAnyContent = activePlans.length > 0 || upcomingEvents.length > 0 || pastEvents.length > 0;
 
-                if (!hasAnyEvents) {
+                if (!hasAnyContent) {
                   return (
                     <Card>
                       <CardContent className="py-12 text-center">
@@ -2175,6 +2183,71 @@ export default function GroupDetail() {
 
                 return (
                   <>
+                    {/* Active Plans (Not Scheduled Yet) */}
+                    {activePlans.length > 0 && (
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h2 className="text-xl font-bold">Active Plans</h2>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => setActiveTab('build')}
+                            data-testid="button-view-all-plans"
+                          >
+                            View All Plans
+                          </Button>
+                        </div>
+                        <div className="grid gap-4">
+                          {activePlans.map((plan) => (
+                            <Card key={plan.id} data-testid={`card-active-plan-${plan.id}`} className="border-primary/30">
+                              <CardContent className="p-4">
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <h3 className="font-semibold">{plan.name}</h3>
+                                      <Badge variant="secondary" className="gap-1 text-xs">
+                                        <Clock className="h-3 w-3" />
+                                        Ready to Schedule
+                                      </Badge>
+                                    </div>
+                                    <p className="text-sm mb-2">
+                                      {plan.items.length} venue{plan.items.length !== 1 ? 's' : ''}
+                                    </p>
+                                    {plan.items.slice(0, 2).map((item: any, idx: number) => {
+                                      const venue = item.sourceType === 'activity' 
+                                        ? activities.find(a => a.id === item.sourceId)
+                                        : votingEvents.find(v => v.id === item.sourceId);
+                                      
+                                      if (!venue) return null;
+                                      
+                                      return (
+                                        <p key={item.id} className="text-xs text-muted-foreground">
+                                          {idx + 1}. {venue.title}
+                                        </p>
+                                      );
+                                    })}
+                                    {plan.items.length > 2 && (
+                                      <p className="text-xs text-muted-foreground">
+                                        +{plan.items.length - 2} more
+                                      </p>
+                                    )}
+                                  </div>
+                                  <Button 
+                                    variant="default" 
+                                    size="sm"
+                                    onClick={() => setActiveTab('schedule')}
+                                    data-testid={`button-schedule-plan-${plan.id}`}
+                                  >
+                                    <Calendar className="h-4 w-4 mr-2" />
+                                    Schedule
+                                  </Button>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     {/* Next Event Hero */}
                     {nextEvent && (
                       <Card className="border-primary/20 bg-primary/5">
