@@ -269,7 +269,8 @@ export const rsvps = pgTable("rsvps", {
   memberName: text("member_name"), // Name if not a registered member
   response: text("response").notNull(), // 'yes', 'maybe', 'no'
   constraintText: text("constraint_text"), // If response is conditional, what's the constraint (e.g., "only if it's in Oakland")
-  rsvpFeedback: jsonb("rsvp_feedback"), // Structured feedback for maybe/no: {tryDifferentDay: bool, tryEarlier: bool, tryLater: bool, notThisWeek: bool, unavailableOn: ["Thursday"], freeformFeedback: "..."}
+  rsvpFeedback: jsonb("rsvp_feedback"), // Structured feedback for maybe/no: {budgetConcern, timeConcern, locationConcern, activityTypeConcern, otherConcern, notes}
+  postEventFeedback: jsonb("post_event_feedback"), // Post-event survey: {venueRating: 1-5, frequencyPreference: 'too_frequent'|'just_right'|'not_frequent_enough', wouldDoAgain: 'yes'|'no'|'maybe', improvementNotes: "..."}
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(), // Track when RSVP was last updated
 });
