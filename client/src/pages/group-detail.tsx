@@ -575,6 +575,10 @@ export default function GroupDetail() {
   const [, params] = useRoute("/group/:id");
   const groupId = params?.id;
   const { toast } = useToast();
+  
+  // Parse URL search params for auto-opening edit dialog
+  const urlParams = new URLSearchParams(window.location.search);
+  const editItineraryIdFromUrl = urlParams.get('edit');
   const [copied, setCopied] = useState(false);
   const [tempInstructions, setTempInstructions] = useState("");
   const [editGroupOpen, setEditGroupOpen] = useState(false);
@@ -825,6 +829,24 @@ export default function GroupDetail() {
 
     return () => clearTimeout(timer);
   }, [venueSearchQuery]);
+
+  // Auto-open edit dialog when URL contains ?edit=<itineraryId>
+  useEffect(() => {
+    if (editItineraryIdFromUrl && proposedItineraries.length > 0 && !editItineraryOpen) {
+      const itinerary = proposedItineraries.find((it: any) => it.id === editItineraryIdFromUrl);
+      if (itinerary) {
+        setEditingItinerary(itinerary);
+        setEditItineraryName(itinerary.name || "");
+        setEditItineraryItems(itinerary.items || []);
+        setEditTimingRecommendations(itinerary.timingRecommendations || "");
+        setEditProposedDate(itinerary.eventDate || "");
+        setEditItineraryOpen(true);
+        
+        // Clear URL parameter after opening (optional - keeps URL cleaner)
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    }
+  }, [editItineraryIdFromUrl, proposedItineraries, editItineraryOpen]);
 
   // Initialize form fields from group data when it loads
   useEffect(() => {
