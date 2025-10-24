@@ -3017,12 +3017,12 @@ Looking forward to planning great activities together!
       const { timeSlotId } = req.params;
       const userId = req.user.claims.sub;
       
-      const timeSlot = await storage.getItineraryTimeSlots(timeSlotId);
-      if (!timeSlot || timeSlot.length === 0) {
+      const timeSlot = await storage.getTimeSlot(timeSlotId);
+      if (!timeSlot) {
         return res.status(404).json({ message: "Time slot not found" });
       }
       
-      const itinerary = await storage.getItinerary(timeSlot[0].itineraryId);
+      const itinerary = await storage.getItinerary(timeSlot.itineraryId);
       if (!itinerary) {
         return res.status(404).json({ message: "Itinerary not found" });
       }

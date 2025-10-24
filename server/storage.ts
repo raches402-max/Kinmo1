@@ -115,6 +115,7 @@ export interface IStorage {
   // Proposed Time Slots
   createProposedTimeSlot(timeSlot: InsertProposedTimeSlot): Promise<ProposedTimeSlot>;
   createProposedTimeSlots(timeSlots: InsertProposedTimeSlot[]): Promise<ProposedTimeSlot[]>;
+  getTimeSlot(timeSlotId: string): Promise<ProposedTimeSlot | undefined>;
   getItineraryTimeSlots(itineraryId: string): Promise<ProposedTimeSlot[]>;
   updateTimeSlotSelection(timeSlotId: string, isSelected: boolean): Promise<ProposedTimeSlot>;
   deleteTimeSlot(timeSlotId: string): Promise<void>;
@@ -1020,6 +1021,11 @@ export class DatabaseStorage implements IStorage {
     if (timeSlots.length === 0) return [];
     const results = await db.insert(proposedTimeSlots).values(timeSlots).returning();
     return results;
+  }
+
+  async getTimeSlot(timeSlotId: string): Promise<ProposedTimeSlot | undefined> {
+    const [result] = await db.select().from(proposedTimeSlots).where(eq(proposedTimeSlots.id, timeSlotId));
+    return result;
   }
 
   async getItineraryTimeSlots(itineraryId: string): Promise<ProposedTimeSlot[]> {
