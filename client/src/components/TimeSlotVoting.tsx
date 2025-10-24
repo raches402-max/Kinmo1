@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
-import { Calendar, Users, Check } from "lucide-react";
+import { Calendar, Users, Check, Circle, CheckCircle2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -39,7 +39,7 @@ export function TimeSlotVoting({ itineraryId, userId, memberId, isOrganizer = fa
   });
 
   const voteMutation = useMutation({
-    mutationFn: async ({ timeSlotId, voteType }: { timeSlotId: string; voteType: "yes" | "maybe" | "no" }) => {
+    mutationFn: async ({ timeSlotId, voteType }: { timeSlotId: string; voteType: "yes" | "maybe" }) => {
       return apiRequest("POST", `/api/time-slots/${timeSlotId}/vote`, {
         memberId,
         voteType,
@@ -49,7 +49,7 @@ export function TimeSlotVoting({ itineraryId, userId, memberId, isOrganizer = fa
       queryClient.invalidateQueries({ queryKey: ["/api/itineraries", itineraryId, "time-slots"] });
       toast({
         title: "Vote recorded!",
-        description: `You voted "${voteType}" for this time.`,
+        description: voteType === "yes" ? "Marked as can attend" : "Marked as maybe",
       });
     },
     onError: (error: Error) => {
@@ -131,179 +131,141 @@ export function TimeSlotVoting({ itineraryId, userId, memberId, isOrganizer = fa
     <div className="space-y-3" data-testid="time-slot-voting">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Calendar className="h-4 w-4" />
-        <span className="font-medium">Vote for your preferred time:</span>
+        <span className="font-medium">When works best?</span>
       </div>
       
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {timeSlots.map((slot) => {
+      <Card className="divide-y">
+        {timeSlots.map((slot, index) => {
           const isTopChoice = slot.yesCount === maxYesVotes && maxYesVotes > 0;
           const userVote = slot.userVoteType;
           
           return (
-            <Card 
+            <div 
               key={slot.id}
-              className={`p-3 transition-all ${isTopChoice ? 'border-green-500/50' : ''}`}
+              className={`p-4 transition-all ${isTopChoice ? 'bg-green-500/5' : ''}`}
               data-testid={`time-slot-${slot.id}`}
             >
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-semibold">
-                      {format(new Date(slot.proposedDateTime), "EEE, MMM d")}
+              <div className="flex items-start justify-between gap-4">
+                {/* Date/Time */}
+                <div className="flex-1">
+                  <div className="font-semibold">
+                    {format(new Date(slot.proposedDateTime), "EEE, MMM d • h:mm a")}
+                  </div>
+                  {slot.label && (
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      {slot.label}
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                      {format(new Date(slot.proposedDateTime), "h:mm a")}
-                    </div>
-                    {slot.label && (
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {slot.label}
-                      </div>
+                  )}
+                  
+                  {/* Vote counts with hover cards */}
+                  <div className="flex items-center gap-3 mt-2 text-xs">
+                    {/* Can attend */}
+                    {slot.yesCount > 0 && slot.yesVoters && slot.yesVoters.length > 0 ? (
+                      <HoverCard>
+                        <HoverCardTrigger asChild>
+                          <button className="flex items-center gap-1 hover-elevate px-1.5 py-0.5 rounded cursor-pointer" data-testid={`yes-voters-${slot.id}`}>
+                            <span className="text-green-600 dark:text-green-400 font-medium">{slot.yesCount} can attend</span>
+                          </button>
+                        </HoverCardTrigger>
+                        <HoverCardContent className="w-auto max-w-xs p-3" side="top">
+                          <div className="space-y-1">
+                            <p className="text-xs font-semibold text-green-600 dark:text-green-400">Can attend:</p>
+                            <div className="flex flex-wrap gap-1">
+                              {slot.yesVoters.map((name, idx) => (
+                                <Badge key={idx} variant="secondary" className="text-xs">
+                                  {name}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        </HoverCardContent>
+                      </HoverCard>
+                    ) : slot.yesCount > 0 ? (
+                      <span className="text-green-600 dark:text-green-400 font-medium">{slot.yesCount} can attend</span>
+                    ) : null}
+
+                    {/* Maybe */}
+                    {slot.maybeCount > 0 && slot.maybeVoters && slot.maybeVoters.length > 0 ? (
+                      <HoverCard>
+                        <HoverCardTrigger asChild>
+                          <button className="flex items-center gap-1 hover-elevate px-1.5 py-0.5 rounded cursor-pointer" data-testid={`maybe-voters-${slot.id}`}>
+                            <span className="text-yellow-600 dark:text-yellow-400 font-medium">{slot.maybeCount} maybe</span>
+                          </button>
+                        </HoverCardTrigger>
+                        <HoverCardContent className="w-auto max-w-xs p-3" side="top">
+                          <div className="space-y-1">
+                            <p className="text-xs font-semibold text-yellow-600 dark:text-yellow-400">Might attend:</p>
+                            <div className="flex flex-wrap gap-1">
+                              {slot.maybeVoters.map((name, idx) => (
+                                <Badge key={idx} variant="secondary" className="text-xs">
+                                  {name}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        </HoverCardContent>
+                      </HoverCard>
+                    ) : slot.maybeCount > 0 ? (
+                      <span className="text-yellow-600 dark:text-yellow-400 font-medium">{slot.maybeCount} maybe</span>
+                    ) : null}
+                    
+                    {isTopChoice && slot.yesCount > 0 && (
+                      <Badge variant="outline" className="text-xs h-5 px-1.5 bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/30">
+                        Most Popular
+                      </Badge>
                     )}
                   </div>
-                  
-                  {isTopChoice && slot.yesCount > 0 && (
-                    <Badge variant="outline" className="text-xs h-5 px-1 bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/30">
-                      Most Popular
-                    </Badge>
-                  )}
-                </div>
-                
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  {/* Yes votes */}
-                  {slot.yesCount > 0 && slot.yesVoters && slot.yesVoters.length > 0 ? (
-                    <HoverCard>
-                      <HoverCardTrigger asChild>
-                        <button className="flex items-center gap-1 hover-elevate px-2 py-0.5 rounded cursor-pointer" data-testid={`yes-voters-${slot.id}`}>
-                          <span className="text-green-600 dark:text-green-400 font-medium">{slot.yesCount} Yes</span>
-                        </button>
-                      </HoverCardTrigger>
-                      <HoverCardContent className="w-auto max-w-xs p-3" side="top">
-                        <div className="space-y-1">
-                          <p className="text-xs font-semibold text-green-600 dark:text-green-400">Can attend:</p>
-                          <div className="flex flex-wrap gap-1">
-                            {slot.yesVoters.map((name, idx) => (
-                              <Badge key={idx} variant="secondary" className="text-xs">
-                                {name}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      </HoverCardContent>
-                    </HoverCard>
-                  ) : (
-                    <span className="text-green-600 dark:text-green-400 font-medium">{slot.yesCount} Yes</span>
-                  )}
-
-                  {/* Maybe votes */}
-                  {slot.maybeCount > 0 && slot.maybeVoters && slot.maybeVoters.length > 0 ? (
-                    <HoverCard>
-                      <HoverCardTrigger asChild>
-                        <button className="flex items-center gap-1 hover-elevate px-2 py-0.5 rounded cursor-pointer" data-testid={`maybe-voters-${slot.id}`}>
-                          <span className="text-yellow-600 dark:text-yellow-400 font-medium">{slot.maybeCount} Maybe</span>
-                        </button>
-                      </HoverCardTrigger>
-                      <HoverCardContent className="w-auto max-w-xs p-3" side="top">
-                        <div className="space-y-1">
-                          <p className="text-xs font-semibold text-yellow-600 dark:text-yellow-400">Might attend:</p>
-                          <div className="flex flex-wrap gap-1">
-                            {slot.maybeVoters.map((name, idx) => (
-                              <Badge key={idx} variant="secondary" className="text-xs">
-                                {name}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      </HoverCardContent>
-                    </HoverCard>
-                  ) : (
-                    <span className="text-yellow-600 dark:text-yellow-400 font-medium">{slot.maybeCount} Maybe</span>
-                  )}
-
-                  {/* No votes */}
-                  {slot.noCount > 0 && slot.noVoters && slot.noVoters.length > 0 ? (
-                    <HoverCard>
-                      <HoverCardTrigger asChild>
-                        <button className="flex items-center gap-1 hover-elevate px-2 py-0.5 rounded cursor-pointer" data-testid={`no-voters-${slot.id}`}>
-                          <span className="text-red-600 dark:text-red-400 font-medium">{slot.noCount} No</span>
-                        </button>
-                      </HoverCardTrigger>
-                      <HoverCardContent className="w-auto max-w-xs p-3" side="top">
-                        <div className="space-y-1">
-                          <p className="text-xs font-semibold text-red-600 dark:text-red-400">Can't attend:</p>
-                          <div className="flex flex-wrap gap-1">
-                            {slot.noVoters.map((name, idx) => (
-                              <Badge key={idx} variant="secondary" className="text-xs">
-                                {name}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      </HoverCardContent>
-                    </HoverCard>
-                  ) : (
-                    <span className="text-red-600 dark:text-red-400 font-medium">{slot.noCount} No</span>
-                  )}
                 </div>
 
-                <div className="flex gap-2">
+                {/* Vote buttons */}
+                <div className="flex items-center gap-2">
                   <Button 
                     size="sm" 
                     variant={userVote === "yes" ? "default" : "outline"}
-                    className="flex-1 text-xs h-8"
+                    className="gap-1.5 text-xs h-8"
                     onClick={() => voteMutation.mutate({ timeSlotId: slot.id, voteType: "yes" })}
                     disabled={voteMutation.isPending}
                     data-testid={`vote-yes-${slot.id}`}
                   >
-                    {userVote === "yes" && <Check className="h-3 w-3 mr-1" />}
+                    {userVote === "yes" ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}
                     Yes
                   </Button>
                   <Button 
                     size="sm" 
-                    variant={userVote === "maybe" ? "default" : "outline"}
-                    className="flex-1 text-xs h-8"
+                    variant={userVote === "maybe" ? "secondary" : "outline"}
+                    className="gap-1.5 text-xs h-8"
                     onClick={() => voteMutation.mutate({ timeSlotId: slot.id, voteType: "maybe" })}
                     disabled={voteMutation.isPending}
                     data-testid={`vote-maybe-${slot.id}`}
                   >
-                    {userVote === "maybe" && <Check className="h-3 w-3 mr-1" />}
+                    {userVote === "maybe" ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}
                     Maybe
                   </Button>
-                  <Button 
-                    size="sm" 
-                    variant={userVote === "no" ? "default" : "outline"}
-                    className="flex-1 text-xs h-8"
-                    onClick={() => voteMutation.mutate({ timeSlotId: slot.id, voteType: "no" })}
-                    disabled={voteMutation.isPending}
-                    data-testid={`vote-no-${slot.id}`}
-                  >
-                    {userVote === "no" && <Check className="h-3 w-3 mr-1" />}
-                    No
-                  </Button>
+                  
+                  {isOrganizer && (
+                    <Button 
+                      size="sm" 
+                      variant="ghost"
+                      className="gap-1 text-xs h-8"
+                      onClick={() => selectMutation.mutate(slot.id)}
+                      disabled={selectMutation.isPending}
+                      data-testid={`select-time-${slot.id}`}
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                      Finalize
+                    </Button>
+                  )}
                 </div>
-
-                {isOrganizer && (
-                  <Button 
-                    size="sm" 
-                    variant="secondary" 
-                    className="w-full text-xs h-7 mt-1"
-                    onClick={() => selectMutation.mutate(slot.id)}
-                    disabled={selectMutation.isPending}
-                    data-testid={`select-time-${slot.id}`}
-                  >
-                    <Check className="h-3 w-3 mr-1" />
-                    Finalize This Time
-                  </Button>
-                )}
               </div>
-            </Card>
+            </div>
           );
         })}
-      </div>
+      </Card>
       
       <p className="text-xs text-muted-foreground text-center">
         {isOrganizer 
           ? "Vote on each time, then finalize your choice when everyone has responded"
-          : "Vote on each time option with Yes, Maybe, or No"
+          : "Select all times that work for you"
         }
       </p>
     </div>
