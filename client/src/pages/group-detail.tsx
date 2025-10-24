@@ -4887,8 +4887,8 @@ export default function GroupDetail() {
                                                 >
                                                   <Calendar className="h-3 w-3 mr-1" />
                                                   {group?.timezone 
-                                                    ? formatInTimeZone(new Date(slot.proposedDate), group.timezone, "MMM d, h:mm a")
-                                                    : format(new Date(slot.proposedDate), "MMM d, h:mm a")
+                                                    ? formatInTimeZone(new Date(slot.proposedDateTime), group.timezone, "MMM d, h:mm a")
+                                                    : format(new Date(slot.proposedDateTime), "MMM d, h:mm a")
                                                   }
                                                   {votes > 0 && (
                                                     <span className="ml-1 font-semibold">• {votes}</span>
@@ -4902,8 +4902,8 @@ export default function GroupDetail() {
                                                 <div className="space-y-2">
                                                   <div className="font-medium">
                                                     {group?.timezone 
-                                                      ? formatInTimeZone(new Date(slot.proposedDate), group.timezone, "EEE, MMM d 'at' h:mm a")
-                                                      : format(new Date(slot.proposedDate), "EEE, MMM d 'at' h:mm a")
+                                                      ? formatInTimeZone(new Date(slot.proposedDateTime), group.timezone, "EEE, MMM d 'at' h:mm a")
+                                                      : format(new Date(slot.proposedDateTime), "EEE, MMM d 'at' h:mm a")
                                                     }
                                                   </div>
                                                   <div className="text-muted-foreground space-y-1">
