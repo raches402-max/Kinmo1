@@ -1,10 +1,11 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, useLocation } from "wouter";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Sparkles, CheckCircle } from "lucide-react";
+import { Sparkles, CheckCircle, UserPlus } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -24,6 +25,10 @@ export default function ClaimMemberPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  
+  // Profile completion dialog
+  const [showProfileDialog, setShowProfileDialog] = useState(false);
+  const [claimedMemberId, setClaimedMemberId] = useState<string | null>(null);
 
   // Verify claim token and get member data
   const { data: claimData, isLoading, error } = useQuery<MemberClaimData>({
@@ -38,15 +43,17 @@ export default function ClaimMemberPage() {
         claimToken,
       });
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/user/groups"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
       toast({
         title: "Account claimed!",
         description: "You can now see your group's events and activities",
       });
-      // Redirect to dashboard
-      setLocation("/");
+      
+      // Show optional profile setup dialog
+      setClaimedMemberId(data.id);
+      setShowProfileDialog(true);
     },
     onError: (error: Error) => {
       toast({
@@ -215,6 +222,52 @@ export default function ClaimMemberPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Profile Completion Dialog */}
+        <Dialog open={showProfileDialog} onOpenChange={setShowProfileDialog}>
+          <DialogContent data-testid="dialog-profile-setup">
+            <DialogHeader>
+              <div className="flex items-center gap-2 mb-2">
+                <UserPlus className="h-5 w-5 text-primary" />
+                <DialogTitle>Complete Your Profile</DialogTitle>
+              </div>
+              <DialogDescription>
+                Help us personalize your experience by sharing your location, activity preferences, and availability. This is optional and can be done later.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <p className="text-sm font-medium">What we'll ask:</p>
+                <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                  <li>Your home base location (for nearby suggestions)</li>
+                  <li>Types of activities you enjoy</li>
+                  <li>When you're typically free</li>
+                </ul>
+              </div>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowProfileDialog(false);
+                  setLocation("/");
+                }}
+                data-testid="button-skip-profile"
+              >
+                Skip for Now
+              </Button>
+              <Button 
+                onClick={() => {
+                  setShowProfileDialog(false);
+                  setLocation(`/member-profile-setup/${claimedMemberId}`);
+                }}
+                data-testid="button-complete-profile"
+              >
+                Complete Profile
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
