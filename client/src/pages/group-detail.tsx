@@ -4862,7 +4862,97 @@ export default function GroupDetail() {
                               </CardTitle>
                               <CardDescription className="mt-1 space-y-1">
                                 <div>{itinerary.items?.length || 0} stops • {totalResponses} responses</div>
-                                {itinerary.eventDate && (
+                                {itinerary.proposedTimeSlots && itinerary.proposedTimeSlots.length > 0 ? (
+                                  <div className="space-y-1.5">
+                                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                      <Calendar className="h-3 w-3" />
+                                      <span>Time Options:</span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {(() => {
+                                        const totalVotes = (slot: any) => (slot.yesCount || 0) + (slot.maybeCount || 0);
+                                        const maxVotes = Math.max(...itinerary.proposedTimeSlots.map(totalVotes));
+                                        
+                                        return itinerary.proposedTimeSlots.map((slot: any) => {
+                                          const votes = totalVotes(slot);
+                                          const isMostPopular = votes > 0 && votes === maxVotes;
+                                          
+                                          return (
+                                            <HoverCard key={slot.id}>
+                                              <HoverCardTrigger asChild>
+                                                <Badge 
+                                                  variant={slot.isSelected ? "default" : "outline"}
+                                                  className="cursor-pointer text-xs py-0.5 px-2"
+                                                  data-testid={`time-slot-${slot.id}`}
+                                                >
+                                                  <Calendar className="h-3 w-3 mr-1" />
+                                                  {group?.timezone 
+                                                    ? formatInTimeZone(new Date(slot.proposedDate), group.timezone, "MMM d, h:mm a")
+                                                    : format(new Date(slot.proposedDate), "MMM d, h:mm a")
+                                                  }
+                                                  {votes > 0 && (
+                                                    <span className="ml-1 font-semibold">• {votes}</span>
+                                                  )}
+                                                  {isMostPopular && (
+                                                    <span className="ml-1">⭐</span>
+                                                  )}
+                                                </Badge>
+                                              </HoverCardTrigger>
+                                              <HoverCardContent className="w-64 text-sm">
+                                                <div className="space-y-2">
+                                                  <div className="font-medium">
+                                                    {group?.timezone 
+                                                      ? formatInTimeZone(new Date(slot.proposedDate), group.timezone, "EEE, MMM d 'at' h:mm a")
+                                                      : format(new Date(slot.proposedDate), "EEE, MMM d 'at' h:mm a")
+                                                    }
+                                                  </div>
+                                                  <div className="text-muted-foreground space-y-1">
+                                                    <div className="flex items-center justify-between">
+                                                      <span>Yes:</span>
+                                                      <span className="font-medium">{slot.yesCount || 0}</span>
+                                                    </div>
+                                                    <div className="flex items-center justify-between">
+                                                      <span>Maybe:</span>
+                                                      <span className="font-medium">{slot.maybeCount || 0}</span>
+                                                    </div>
+                                                    <div className="flex items-center justify-between">
+                                                      <span>No:</span>
+                                                      <span className="font-medium">{slot.noCount || 0}</span>
+                                                    </div>
+                                                    {isMostPopular && (
+                                                      <div className="pt-1 text-xs text-primary font-medium">
+                                                        ⭐ Most Popular
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                  {(slot.yesVoters?.length > 0 || slot.maybeVoters?.length > 0 || slot.noVoters?.length > 0) && (
+                                                    <div className="text-xs text-muted-foreground border-t pt-2 space-y-1">
+                                                      {slot.yesVoters?.length > 0 && (
+                                                        <div>
+                                                          <span className="font-medium">Yes:</span> {slot.yesVoters.join(', ')}
+                                                        </div>
+                                                      )}
+                                                      {slot.maybeVoters?.length > 0 && (
+                                                        <div>
+                                                          <span className="font-medium">Maybe:</span> {slot.maybeVoters.join(', ')}
+                                                        </div>
+                                                      )}
+                                                      {slot.noVoters?.length > 0 && (
+                                                        <div>
+                                                          <span className="font-medium">No:</span> {slot.noVoters.join(', ')}
+                                                        </div>
+                                                      )}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              </HoverCardContent>
+                                            </HoverCard>
+                                          );
+                                        });
+                                      })()}
+                                    </div>
+                                  </div>
+                                ) : itinerary.eventDate ? (
                                   <div className="flex items-center gap-1.5 text-foreground font-medium">
                                     <Calendar className="h-3.5 w-3.5" />
                                     <span>
@@ -4877,7 +4967,7 @@ export default function GroupDetail() {
                                       )}
                                     </span>
                                   </div>
-                                )}
+                                ) : null}
                               </CardDescription>
                             </div>
                             {!isPlanner && userRsvp && (
