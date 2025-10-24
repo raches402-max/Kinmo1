@@ -84,6 +84,13 @@ export default function CreateGroup() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [showSwipeSession, setShowSwipeSession] = useState(false);
   const [createdGroupId, setCreatedGroupId] = useState<string | null>(null);
+  const [categoryToggles, setCategoryToggles] = useState({
+    mealEnabled: true,
+    cafeEnabled: true,
+    drinksEnabled: true,
+    dessertEnabled: true,
+    experiencesEnabled: true,
+  });
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -161,6 +168,7 @@ export default function CreateGroup() {
       activityCategories: selectedCategories.length > 0 ? selectedCategories : undefined,
       availability,
       members: validMembers,
+      ...categoryToggles,
     });
   };
 
@@ -391,7 +399,64 @@ export default function CreateGroup() {
 
                 <div className="space-y-3">
                   <Label className="text-base">What types of activities interest your group?</Label>
-                  <p className="text-sm text-muted-foreground">Select all that apply (optional)</p>
+                  <p className="text-sm text-muted-foreground">Choose broad categories, then select specific types (optional)</p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant={categoryToggles.mealEnabled ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setCategoryToggles({ ...categoryToggles, mealEnabled: !categoryToggles.mealEnabled })}
+                      className="gap-1.5"
+                      data-testid="button-toggle-meal"
+                    >
+                      <span>🍽️</span>
+                      <span>Meals</span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={categoryToggles.cafeEnabled ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setCategoryToggles({ ...categoryToggles, cafeEnabled: !categoryToggles.cafeEnabled })}
+                      className="gap-1.5"
+                      data-testid="button-toggle-cafe"
+                    >
+                      <span>☕</span>
+                      <span>Cafes</span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={categoryToggles.drinksEnabled ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setCategoryToggles({ ...categoryToggles, drinksEnabled: !categoryToggles.drinksEnabled })}
+                      className="gap-1.5"
+                      data-testid="button-toggle-drinks"
+                    >
+                      <span>🍺</span>
+                      <span>Drinks</span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={categoryToggles.dessertEnabled ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setCategoryToggles({ ...categoryToggles, dessertEnabled: !categoryToggles.dessertEnabled })}
+                      className="gap-1.5"
+                      data-testid="button-toggle-dessert"
+                    >
+                      <span>🍰</span>
+                      <span>Dessert</span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={categoryToggles.experiencesEnabled ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setCategoryToggles({ ...categoryToggles, experiencesEnabled: !categoryToggles.experiencesEnabled })}
+                      className="gap-1.5"
+                      data-testid="button-toggle-experiences"
+                    >
+                      <span>🎭</span>
+                      <span>Experiences</span>
+                    </Button>
+                  </div>
                   <div className="flex flex-wrap gap-2">
                     {activityCategories.map((category) => {
                       const Icon = category.icon;
