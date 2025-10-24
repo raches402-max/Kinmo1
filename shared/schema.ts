@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, jsonb, boolean, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, jsonb, boolean, index, numeric } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -124,7 +124,16 @@ export const members = pgTable("members", {
   // Event hosting
   openToHosting: boolean("open_to_hosting").default(false).notNull(), // Whether this member is willing to host events
   
+  // Optional member profile fields
+  homeBaseLocation: text("home_base_location"), // Member's home base (e.g., "San Francisco, CA")
+  homeBaseLatitude: numeric("home_base_latitude"), // Geocoded latitude
+  homeBaseLongitude: numeric("home_base_longitude"), // Geocoded longitude
+  activityPreferences: jsonb("activity_preferences"), // Array of preferred activity categories: ["restaurants", "museums", "concerts"]
+  personalAvailability: jsonb("personal_availability"), // Personal availability grid: {Monday: {morning: true, afternoon: false, evening: true}, ...}
+  profileCompleted: boolean("profile_completed").default(false).notNull(), // Whether member has completed optional profile setup
+  
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 // Activities table (AI-generated suggestions)
