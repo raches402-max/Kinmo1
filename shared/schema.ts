@@ -37,10 +37,21 @@ export const userProfiles = pgTable("user_profiles", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// Group collections table (organize groups into custom collections)
+export const groupCollections = pgTable("group_collections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  orderIndex: integer("order_index").notNull().default(0), // Display order of collections
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Groups table
 export const groups = pgTable("groups", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  collectionId: varchar("collection_id").references(() => groupCollections.id, { onDelete: "set null" }), // Optional: group can be in a collection
+  orderIndex: integer("order_index").notNull().default(0), // Display order within collection (or uncategorized)
   name: text("name").notNull(),
   emoji: text("emoji").default("🎉"), // Group emoji icon
   locationBase: text("location_base").notNull(),
@@ -577,6 +588,11 @@ export const insertUserProfileSchema = createInsertSchema(userProfiles).omit({
   updatedAt: true,
 });
 
+export const insertGroupCollectionSchema = createInsertSchema(groupCollections).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertProposedTimeSlotSchema = createInsertSchema(proposedTimeSlots).omit({
   id: true,
   createdAt: true,
@@ -605,6 +621,7 @@ export const updateMemberSchema = insertMemberSchema.partial();
 export const updateVotingEventSchema = insertVotingEventSchema.partial();
 export const updateItinerarySchema = insertItinerarySchema.partial();
 export const updateUserProfileSchema = insertUserProfileSchema.partial();
+export const updateGroupCollectionSchema = insertGroupCollectionSchema.partial();
 
 // Types
 export type UpsertUser = typeof users.$inferInsert;
@@ -653,6 +670,10 @@ export type FrequencyFeedback = typeof frequencyFeedback.$inferSelect;
 export type InsertUserProfile = z.infer<typeof insertUserProfileSchema>;
 export type UserProfile = typeof userProfiles.$inferSelect;
 export type UpdateUserProfile = z.infer<typeof updateUserProfileSchema>;
+
+export type InsertGroupCollection = z.infer<typeof insertGroupCollectionSchema>;
+export type GroupCollection = typeof groupCollections.$inferSelect;
+export type UpdateGroupCollection = z.infer<typeof updateGroupCollectionSchema>;
 
 export type InsertProposedTimeSlot = z.infer<typeof insertProposedTimeSlotSchema>;
 export type ProposedTimeSlot = typeof proposedTimeSlots.$inferSelect;

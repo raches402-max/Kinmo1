@@ -1,7 +1,7 @@
 // Reference: javascript_database blueprint
 // Reference: javascript_log_in_with_replit blueprint
 import {
-  users, groups, members, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, itineraryInvites, reminderLogs, autoScheduledEvents, frequencyFeedback, userProfiles, proposedTimeSlots, timeSlotVotes,
+  users, groups, members, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, itineraryInvites, reminderLogs, autoScheduledEvents, frequencyFeedback, userProfiles, proposedTimeSlots, timeSlotVotes, groupCollections,
   type User, type UpsertUser,
   type Group, type InsertGroup, type UpdateGroup,
   type Member, type InsertMember, type UpdateMember,
@@ -17,7 +17,8 @@ import {
   type FrequencyFeedback, type InsertFrequencyFeedback,
   type UserProfile, type InsertUserProfile, type UpdateUserProfile,
   type ProposedTimeSlot, type InsertProposedTimeSlot,
-  type TimeSlotVote, type InsertTimeSlotVote
+  type TimeSlotVote, type InsertTimeSlotVote,
+  type GroupCollection, type InsertGroupCollection, type UpdateGroupCollection
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, or, inArray } from "drizzle-orm";
@@ -132,6 +133,15 @@ export interface IStorage {
     maybeVoters: string[];
     noVoters: string[];
   }>>;
+
+  // Group Collections
+  createGroupCollection(userId: string, collection: InsertGroupCollection): Promise<GroupCollection>;
+  getUserGroupCollections(userId: string): Promise<GroupCollection[]>;
+  updateGroupCollection(id: string, updates: UpdateGroupCollection): Promise<GroupCollection>;
+  deleteGroupCollection(id: string): Promise<void>;
+  reorderGroupCollections(collectionOrders: Array<{ id: string; orderIndex: number }>): Promise<void>;
+  updateGroupCollectionAssignment(groupId: string, collectionId: string | null, orderIndex: number): Promise<void>;
+  reorderGroupsInCollection(groupOrders: Array<{ id: string; orderIndex: number }>): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1106,6 +1116,73 @@ export class DatabaseStorage implements IStorage {
       maybeVoters: (r.maybeVoters || []).filter(name => name && name.trim()),
       noVoters: (r.noVoters || []).filter(name => name && name.trim()),
     }));
+  }
+
+  // Group Collections
+  async createGroupCollection(userId: string, collection: InsertGroupCollection): Promise<GroupCollection> {
+    const [result] = await db.insert(groupCollections).values({
+      ...collection,
+      userId,
+    }).returning();
+    return result;
+  }
+
+  async getUserGroupCollections(userId: string): Promise<GroupCollection[]> {
+    return await db
+      .select()
+      .from(groupCollections)
+      .where(eq(groupCollections.userId, userId))
+      .orderBy(groupCollections.orderIndex);
+  }
+
+  async updateGroupCollection(id: string, updates: UpdateGroupCollection): Promise<GroupCollection> {
+    const [result] = await db
+      .update(groupCollections)
+      .set(updates)
+      .where(eq(groupCollections.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteGroupCollection(id: string): Promise<void> {
+    // When a collection is deleted, set all groups' collectionId to null
+    await db
+      .update(groups)
+      .set({ collectionId: null })
+      .where(eq(groups.collectionId, id));
+    
+    // Then delete the collection
+    await db.delete(groupCollections).where(eq(groupCollections.id, id));
+  }
+
+  async reorderGroupCollections(collectionOrders: Array<{ id: string; orderIndex: number }>): Promise<void> {
+    // Update each collection's order in a transaction-like manner
+    for (const { id, orderIndex } of collectionOrders) {
+      await db
+        .update(groupCollections)
+        .set({ orderIndex })
+        .where(eq(groupCollections.id, id));
+    }
+  }
+
+  async updateGroupCollectionAssignment(groupId: string, collectionId: string | null, orderIndex: number): Promise<void> {
+    await db
+      .update(groups)
+      .set({ 
+        collectionId, 
+        orderIndex 
+      })
+      .where(eq(groups.id, groupId));
+  }
+
+  async reorderGroupsInCollection(groupOrders: Array<{ id: string; orderIndex: number }>): Promise<void> {
+    // Update each group's order within its collection
+    for (const { id, orderIndex } of groupOrders) {
+      await db
+        .update(groups)
+        .set({ orderIndex })
+        .where(eq(groups.id, id));
+    }
   }
 }
 

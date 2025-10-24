@@ -143,6 +143,143 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get user's group collections
+  app.get("/api/user/collections", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const collections = await storage.getUserGroupCollections(userId);
+      res.json(collections);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Create a new group collection
+  app.post("/api/user/collections", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { name, orderIndex } = req.body;
+      const collection = await storage.createGroupCollection(userId, { name, orderIndex });
+      res.json(collection);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Update a group collection
+  app.patch("/api/user/collections/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user.claims.sub;
+      const { name } = req.body;
+      
+      // Verify ownership
+      const collections = await storage.getUserGroupCollections(userId);
+      const collection = collections.find(c => c.id === id);
+      if (!collection) {
+        return res.status(404).json({ message: "Collection not found" });
+      }
+      
+      const updated = await storage.updateGroupCollection(id, { name });
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Delete a group collection
+  app.delete("/api/user/collections/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user.claims.sub;
+      
+      // Verify ownership
+      const collections = await storage.getUserGroupCollections(userId);
+      const collection = collections.find(c => c.id === id);
+      if (!collection) {
+        return res.status(404).json({ message: "Collection not found" });
+      }
+      
+      await storage.deleteGroupCollection(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Reorder group collections
+  app.patch("/api/user/collections/reorder", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { collectionOrders } = req.body; // Array of { id, orderIndex }
+      
+      // Verify all collections belong to this user
+      const userCollections = await storage.getUserGroupCollections(userId);
+      const userCollectionIds = new Set(userCollections.map(c => c.id));
+      const allOwned = collectionOrders.every((order: any) => userCollectionIds.has(order.id));
+      
+      if (!allOwned) {
+        return res.status(403).json({ message: "You don't own all these collections" });
+      }
+      
+      await storage.reorderGroupCollections(collectionOrders);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Update group's collection assignment
+  app.patch("/api/groups/:id/collection", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user.claims.sub;
+      const { collectionId, orderIndex } = req.body;
+      
+      // Verify user owns the group
+      const group = await storage.getGroup(id);
+      if (!group || group.userId !== userId) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+      
+      // If collectionId is provided, verify user owns that collection too
+      if (collectionId) {
+        const collections = await storage.getUserGroupCollections(userId);
+        const collection = collections.find(c => c.id === collectionId);
+        if (!collection) {
+          return res.status(404).json({ message: "Collection not found" });
+        }
+      }
+      
+      await storage.updateGroupCollectionAssignment(id, collectionId, orderIndex);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Reorder groups within a collection or uncategorized
+  app.patch("/api/groups/reorder", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { groupOrders } = req.body; // Array of { id, orderIndex }
+      
+      // Verify all groups belong to this user
+      const userGroups = await storage.getUserGroups(userId);
+      const userGroupIds = new Set(userGroups.map(g => g.id));
+      const allOwned = groupOrders.every((order: any) => userGroupIds.has(order.id));
+      
+      if (!allOwned) {
+        return res.status(403).json({ message: "You don't own all these groups" });
+      }
+      
+      await storage.reorderGroupsInCollection(groupOrders);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Get user's events (all itinerary invites for this user)
   app.get("/api/user/events", isAuthenticated, async (req: any, res) => {
     try {
