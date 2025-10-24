@@ -3539,35 +3539,42 @@ export default function GroupDetail() {
                       {venueSearchResults.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                           {venueSearchResults.map((result: any) => {
-                            const alreadySelected = activities.some(a => a.googlePlaceId === result.placeId) ||
-                              votingEvents.some(e => e.googlePlaceId === result.placeId) ||
-                              addedSuggestionPlaceIds.has(result.placeId);
+                            // Check if already favorited (ONLY in activities OR voting events - NOT optimistic tracker)
+                            const alreadyFavorited = activities.some(a => a.googlePlaceId === result.placeId) ||
+                              votingEvents.some(e => e.googlePlaceId === result.placeId);
+                            
+                            // Check if already in cart (selected venues OR existing itineraries OR optimistically added)
+                            const inSelectedVenues = selectedVenues.some(v => {
+                              if (v.sourceType === 'voting_event') {
+                                const votingEvent = votingEvents.find(e => e.id === v.sourceId);
+                                return votingEvent?.googlePlaceId === result.placeId;
+                              } else if (v.sourceType === 'activity') {
+                                const activity = activities.find(a => a.id === v.sourceId);
+                                return activity?.googlePlaceId === result.placeId;
+                              }
+                              return false;
+                            });
+                            
+                            const inExistingItinerary = itineraries.some(itinerary => 
+                              itinerary.items.some(item => {
+                                if (item.sourceType === 'voting_event') {
+                                  const votingEvent = votingEvents.find(e => e.id === item.sourceId);
+                                  return votingEvent?.googlePlaceId === result.placeId;
+                                } else if (item.sourceType === 'activity') {
+                                  const activity = activities.find(a => a.id === item.sourceId);
+                                  return activity?.googlePlaceId === result.placeId;
+                                }
+                                return false;
+                              })
+                            );
+                            
+                            // Use optimistic tracker ONLY for cart state, not favorite state
+                            const alreadyInCart = inSelectedVenues || inExistingItinerary || addedSuggestionPlaceIds.has(result.placeId);
 
                             return (
-                              <button
+                              <div
                                 key={result.placeId}
-                                onClick={() => {
-                                  if (alreadySelected || addVotingEventMutation.isPending) return;
-                                  if (selectedVenues.length >= 5) {
-                                    toast({
-                                      title: "Maximum reached",
-                                      description: "You can select up to 5 venues",
-                                      variant: "destructive"
-                                    });
-                                    return;
-                                  }
-                                  
-                                  addVotingEventMutation.mutate({
-                                    title: result.name,
-                                    venueType: result.types?.[0] || 'venue',
-                                    venueAddress: result.address,
-                                    googlePlaceId: result.placeId,
-                                  });
-                                }}
-                                disabled={alreadySelected || addVotingEventMutation.isPending}
-                                className={`flex gap-3 p-3 rounded-md border text-left transition-all hover-elevate active-elevate-2 ${
-                                  alreadySelected || addVotingEventMutation.isPending ? 'opacity-50 cursor-not-allowed' : ''
-                                }`}
+                                className="flex gap-3 p-3 rounded-md border"
                                 data-testid={`search-result-${result.placeId}`}
                               >
                                 {result.photoUrl && (
@@ -3591,13 +3598,96 @@ export default function GroupDetail() {
                                   <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
                                     {result.address}
                                   </p>
-                                  {alreadySelected ? (
-                                    <p className="text-xs text-muted-foreground mt-2">✓ Added to cart</p>
-                                  ) : (
-                                    <p className="text-xs text-primary mt-2">Click to add to cart</p>
-                                  )}
+                                  <div className="flex items-center gap-2 mt-2">
+                                    <Button
+                                      variant={alreadyFavorited ? "default" : "outline"}
+                                      size="sm"
+                                      onClick={() => {
+                                        if (!alreadyFavorited && !addVotingEventMutation.isPending) {
+                                          addVotingEventMutation.mutate({
+                                            title: result.name,
+                                            venueType: result.types?.[0] || 'venue',
+                                            venueAddress: result.address,
+                                            googlePlaceId: result.placeId,
+                                          });
+                                        }
+                                      }}
+                                      disabled={alreadyFavorited || addVotingEventMutation.isPending}
+                                      className="gap-1.5"
+                                      data-testid={`button-favorite-search-${result.placeId}`}
+                                    >
+                                      <Heart className={`h-3.5 w-3.5 ${alreadyFavorited ? 'fill-current' : ''}`} />
+                                      {alreadyFavorited ? "Favorited" : "Favorite"}
+                                    </Button>
+                                    <Button
+                                      variant={alreadyInCart ? "default" : "outline"}
+                                      size="sm"
+                                      onClick={() => {
+                                        if (alreadyInCart) return;
+                                        
+                                        // Optimistically track this placeId
+                                        setAddedSuggestionPlaceIds(prev => new Set(Array.from(prev).concat(result.placeId)));
+                                        
+                                        // First add to favorites if not already there
+                                        if (!alreadyFavorited && !addVotingEventMutation.isPending) {
+                                          addVotingEventMutation.mutate(
+                                            {
+                                              title: result.name,
+                                              venueType: result.types?.[0] || 'venue',
+                                              venueAddress: result.address,
+                                              googlePlaceId: result.placeId,
+                                            },
+                                            {
+                                              onSuccess: (data) => {
+                                                // Add to cart after favoriting
+                                                if (data.event) {
+                                                  if (selectedVenues.length >= 5) {
+                                                    toast({
+                                                      title: "Maximum reached",
+                                                      description: "You can select up to 5 venues",
+                                                      variant: "destructive"
+                                                    });
+                                                    return;
+                                                  }
+                                                  setSelectedVenues([...selectedVenues, { sourceType: 'voting_event', sourceId: data.event.id }]);
+                                                }
+                                              }
+                                            }
+                                          );
+                                        } else if (alreadyFavorited) {
+                                          // Already favorited, just add to cart
+                                          // Check if it's in activities or voting events
+                                          const activity = activities.find(a => a.googlePlaceId === result.placeId);
+                                          const votingEvent = votingEvents.find(e => e.googlePlaceId === result.placeId);
+                                          
+                                          if (activity || votingEvent) {
+                                            if (selectedVenues.length >= 5) {
+                                              toast({
+                                                title: "Maximum reached",
+                                                description: "You can select up to 5 venues",
+                                                variant: "destructive"
+                                              });
+                                              return;
+                                            }
+                                            
+                                            if (activity) {
+                                              setSelectedVenues([...selectedVenues, { sourceType: 'activity', sourceId: activity.id }]);
+                                            } else if (votingEvent) {
+                                              setSelectedVenues([...selectedVenues, { sourceType: 'voting_event', sourceId: votingEvent.id }]);
+                                            }
+                                          }
+                                        }
+                                      }}
+                                      disabled={alreadyInCart}
+                                      className="gap-1.5"
+                                      data-testid={`button-add-cart-search-${result.placeId}`}
+                                    >
+                                      <Plus className="h-3.5 w-3.5" />
+                                      {alreadyInCart ? "In Cart" : "Add to Cart"}
+                                    </Button>
+                                  </div>
                                 </div>
-                              </button>
+                              </div>
                             );
                           })}
                         </div>
