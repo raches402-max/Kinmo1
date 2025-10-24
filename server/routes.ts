@@ -170,13 +170,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Filter to only invites relevant to this user
       const verifiedInvites = [];
+      const seenItineraryIds = new Set<string>();
+      
       for (const invite of invitesQuery) {
         // Check if user is the group organizer
         const isGroupOrganizer = invite.groupUserId === userId;
         
         if (isGroupOrganizer) {
-          // User owns the group - include all invites for their groups
-          verifiedInvites.push({ ...invite, isOrganizer: true });
+          // User owns the group - only add once per itinerary (deduplicate)
+          if (!seenItineraryIds.has(invite.itineraryId)) {
+            verifiedInvites.push({ ...invite, isOrganizer: true });
+            seenItineraryIds.add(invite.itineraryId);
+          }
         } else if (invite.memberId) {
           // Not the organizer - check if they're a claimed member
           const member = await storage.getMember(invite.memberId);
