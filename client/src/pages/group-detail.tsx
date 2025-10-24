@@ -1011,6 +1011,25 @@ export default function GroupDetail() {
         [field]: value
       });
     },
+    onMutate: async ({ field, value }) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["/api/groups", groupId] });
+      
+      // Snapshot the previous value
+      const previousGroup = queryClient.getQueryData(["/api/groups", groupId]);
+      
+      // Optimistically update the cache
+      queryClient.setQueryData(["/api/groups", groupId], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          [field]: value
+        };
+      });
+      
+      // Return context with the snapshot
+      return { previousGroup };
+    },
     onSuccess: (_, variables) => {
       const fieldNames: Record<string, string> = {
         autoActivitiesEnabled: "Auto-generate Activities",
@@ -1021,9 +1040,12 @@ export default function GroupDetail() {
         title: variables.value ? "Automation enabled" : "Automation disabled",
         description: `${fieldNames[variables.field]} ${variables.value ? 'turned on' : 'turned off'}`,
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId] });
     },
-    onError: (error: Error) => {
+    onError: (error: Error, _, context) => {
+      // Roll back to previous value on error
+      if (context?.previousGroup) {
+        queryClient.setQueryData(["/api/groups", groupId], context.previousGroup);
+      }
       toast({
         title: "Error updating automation",
         description: error.message,
