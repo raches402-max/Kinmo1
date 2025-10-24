@@ -912,6 +912,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update member profile (authenticated only)
+  app.patch("/api/members/:id/profile", async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const { homeBaseLocation, homeBaseLatitude, homeBaseLongitude, activityPreferences, personalAvailability } = req.body;
+
+      // Get the member
+      const member = await storage.getMember(req.params.id);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+
+      // Authorization: must be the linked user
+      if (member.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized to modify this member" });
+      }
+
+      // Update profile fields
+      const updatedMember = await storage.updateMember(req.params.id, {
+        homeBaseLocation,
+        homeBaseLatitude: homeBaseLatitude ? String(homeBaseLatitude) : undefined,
+        homeBaseLongitude: homeBaseLongitude ? String(homeBaseLongitude) : undefined,
+        activityPreferences,
+        personalAvailability,
+        profileCompleted: true, // Mark profile as completed
+      });
+
+      res.json(updatedMember);
+    } catch (error: any) {
+      console.error('[Update Member Profile] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Event Hosting Routes
 
   // Toggle member hosting availability (authenticated or via claim token)
