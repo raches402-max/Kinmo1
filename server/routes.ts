@@ -2826,6 +2826,12 @@ Looking forward to planning great activities together!
         delete updates.proposedOrder;
       }
       
+      // Convert eventDate string to Date object if present
+      // (drizzle-zod expects Date objects for timestamp fields)
+      if (updates.eventDate && typeof updates.eventDate === 'string') {
+        updates.eventDate = new Date(updates.eventDate);
+      }
+      
       const itinerary = await storage.updateItinerary(itineraryId, updates);
       res.json(itinerary);
     } catch (error: any) {
