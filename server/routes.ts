@@ -3788,6 +3788,52 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Submit post-event feedback
+  app.post("/api/itineraries/:id/post-event-feedback", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { itineraryId } = { itineraryId: req.params.id };
+      const { venueRating, frequencyPreference, wouldDoAgain, improvementNotes } = req.body;
+
+      // Find the user's RSVP for this itinerary
+      const rsvp = await db
+        .select()
+        .from(rsvpsTable)
+        .where(
+          and(
+            eq(rsvpsTable.itineraryId, itineraryId),
+            eq(rsvpsTable.userId, userId)
+          )
+        )
+        .limit(1);
+
+      if (!rsvp || rsvp.length === 0) {
+        return res.status(404).json({ message: "RSVP not found. You must RSVP to an event before leaving feedback." });
+      }
+
+      // Update the RSVP with post-event feedback
+      const updated = await db
+        .update(rsvpsTable)
+        .set({
+          postEventFeedback: {
+            venueRating,
+            frequencyPreference,
+            wouldDoAgain,
+            improvementNotes,
+            submittedAt: new Date().toISOString(),
+          },
+          updatedAt: new Date(),
+        })
+        .where(eq(rsvpsTable.id, rsvp[0].id))
+        .returning();
+
+      res.json(updated[0]);
+    } catch (error: any) {
+      console.error('[Post Event Feedback] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Get aggregated RSVP feedback for a group
   app.get("/api/groups/:groupId/feedback-summary", isAuthenticated, async (req: any, res) => {
     try {
