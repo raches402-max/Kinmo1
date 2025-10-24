@@ -2845,9 +2845,29 @@ Looking forward to planning great activities together!
   });
 
   // Delete itinerary
-  app.delete("/api/itineraries/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/itineraries/:id", isAuthenticated, async (req: any, res) => {
     try {
-      await storage.deleteItinerary(req.params.id);
+      const itineraryId = req.params.id;
+      const userId = req.user.claims.sub;
+      
+      // Get the itinerary and verify authorization
+      const itinerary = await storage.getItinerary(itineraryId);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+      
+      // Get the group to check ownership
+      const group = await storage.getGroup(itinerary.groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+      
+      // Only the group owner can delete itineraries
+      if (group.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized to delete this itinerary" });
+      }
+      
+      await storage.deleteItinerary(itineraryId);
       res.json({ message: "Itinerary deleted" });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
