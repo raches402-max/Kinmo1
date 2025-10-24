@@ -2829,6 +2829,7 @@ Looking forward to planning great activities together!
       const itinerary = await storage.updateItinerary(itineraryId, updates);
       res.json(itinerary);
     } catch (error: any) {
+      console.error("[Update Itinerary] Error:", error);
       res.status(500).json({ message: error.message });
     }
   });
