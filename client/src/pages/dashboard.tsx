@@ -417,7 +417,7 @@ export default function Dashboard() {
                                   <XCircle className="h-4 w-4" />
                                   Can't Make It
                                 </Button>
-                                <Link href={`/group/${event.groupId}`}>
+                                <Link href={`/group/${event.groupId}?edit=${event.itineraryId}`}>
                                   <Button variant="ghost" size="sm" className="gap-1" data-testid={`button-manage-${event.itineraryId}`}>
                                     <Users className="h-4 w-4" />
                                     Manage
