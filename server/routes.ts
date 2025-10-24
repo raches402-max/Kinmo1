@@ -2820,6 +2820,10 @@ Looking forward to planning great activities together!
           // Update the order indices
           await storage.updateItineraryItemOrder(itineraryId, orderedItemIds);
         }
+        
+        // Remove proposedOrder from updates since it's already handled
+        // (database expects item IDs, but updates contains source IDs)
+        delete updates.proposedOrder;
       }
       
       const itinerary = await storage.updateItinerary(itineraryId, updates);
