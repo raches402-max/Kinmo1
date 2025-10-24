@@ -58,6 +58,13 @@ export const groups = pgTable("groups", {
   pastPreferences: text("past_preferences"), // comma-separated or text description
   additionalInstructions: text("additional_instructions"), // Custom AI instructions from user
   searchRadius: integer("search_radius").default(2).notNull(), // Search radius in miles (2, 10, 30, 50)
+  
+  // High-level category filters (control which types of suggestions AI generates)
+  mealEnabled: boolean("meal_enabled").default(true).notNull(), // Restaurants, brunch spots, food markets, potlucks
+  cafeEnabled: boolean("cafe_enabled").default(true).notNull(), // Cafes, coffee shops
+  drinksEnabled: boolean("drinks_enabled").default(true).notNull(), // Wine bars, cocktail bars, breweries
+  dessertEnabled: boolean("dessert_enabled").default(true).notNull(), // Dessert shops, ice cream, bakeries
+  experiencesEnabled: boolean("experiences_enabled").default(true).notNull(), // Concerts, museums, outdoor activities, games, etc.
   shareableLink: text("shareable_link").notNull().unique(),
   activityGenerationStatus: text("activity_generation_status").default("pending").notNull(), // pending, generating, completed, failed
   activityGenerationError: text("activity_generation_error"),
