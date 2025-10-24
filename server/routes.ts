@@ -3804,12 +3804,12 @@ Looking forward to planning great activities together!
       }
 
       // Get all itineraries for the group
-      const itineraries = await db
+      const itinerariesData = await db
         .select()
-        .from(itinerariesTable)
-        .where(eq(itinerariesTable.groupId, groupId));
+        .from(itineraries)
+        .where(eq(itineraries.groupId, groupId));
 
-      const itineraryIds = itineraries.map(i => i.id);
+      const itineraryIds = itinerariesData.map(i => i.id);
       
       if (itineraryIds.length === 0) {
         return res.json({
@@ -3850,7 +3850,7 @@ Looking forward to planning great activities together!
 
         // Add to recent feedback if it has a notes field
         if (feedback.notes) {
-          const itinerary = itineraries.find(i => i.id === rsvp.itineraryId);
+          const itinerary = itinerariesData.find(i => i.id === rsvp.itineraryId);
           recentFeedback.push({
             id: rsvp.id,
             itineraryName: itinerary?.name || 'Event',
