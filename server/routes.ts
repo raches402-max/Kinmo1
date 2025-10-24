@@ -3926,6 +3926,115 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Get aggregated post-event feedback for a group
+  app.get("/api/groups/:groupId/post-event-feedback-summary", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { groupId } = req.params;
+
+      // Verify user owns the group
+      const group = await storage.getGroup(groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+      if (group.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized to view this group's feedback" });
+      }
+
+      // Get all itineraries for the group
+      const itinerariesData = await db
+        .select()
+        .from(itineraries)
+        .where(eq(itineraries.groupId, groupId));
+
+      const itineraryIds = itinerariesData.map(i => i.id);
+      
+      if (itineraryIds.length === 0) {
+        return res.json({
+          totalResponses: 0,
+          averageRating: 0,
+          moreFrequent: 0,
+          justRight: 0,
+          lessFrequent: 0,
+          wouldDoAgainYes: 0,
+          wouldDoAgainMaybe: 0,
+          wouldDoAgainNo: 0,
+          recentComments: [],
+        });
+      }
+
+      // Get all RSVPs with post-event feedback for this group's itineraries
+      const rsvps = await db
+        .select()
+        .from(rsvpsTable)
+        .where(sql`itinerary_id IN (${sql.join(itineraryIds.map(id => sql`${id}`), sql`, `)}) AND post_event_feedback IS NOT NULL`);
+
+      // Aggregate feedback
+      let totalRating = 0;
+      let ratingCount = 0;
+      let moreFrequent = 0;
+      let justRight = 0;
+      let lessFrequent = 0;
+      let wouldDoAgainYes = 0;
+      let wouldDoAgainMaybe = 0;
+      let wouldDoAgainNo = 0;
+      
+      const recentComments: any[] = [];
+
+      for (const rsvp of rsvps) {
+        const feedback = rsvp.postEventFeedback as any;
+        if (!feedback) continue;
+
+        // Aggregate ratings
+        if (feedback.venueRating) {
+          totalRating += feedback.venueRating;
+          ratingCount++;
+        }
+
+        // Aggregate frequency preferences
+        if (feedback.frequencyPreference === 'more_frequent') moreFrequent++;
+        if (feedback.frequencyPreference === 'just_right') justRight++;
+        if (feedback.frequencyPreference === 'less_frequent') lessFrequent++;
+
+        // Aggregate repeat willingness
+        if (feedback.wouldDoAgain === 'yes') wouldDoAgainYes++;
+        if (feedback.wouldDoAgain === 'maybe') wouldDoAgainMaybe++;
+        if (feedback.wouldDoAgain === 'no') wouldDoAgainNo++;
+
+        // Add to recent comments if there are improvement notes
+        if (feedback.improvementNotes && feedback.improvementNotes.trim()) {
+          const itinerary = itinerariesData.find(i => i.id === rsvp.itineraryId);
+          recentComments.push({
+            id: rsvp.id,
+            itineraryName: itinerary?.name || 'Event',
+            rating: feedback.venueRating,
+            notes: feedback.improvementNotes,
+            submittedAt: feedback.submittedAt || rsvp.createdAt,
+          });
+        }
+      }
+
+      // Sort recent comments by date (newest first) and limit to 10
+      recentComments.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+      const limitedComments = recentComments.slice(0, 10);
+
+      res.json({
+        totalResponses: rsvps.length,
+        averageRating: ratingCount > 0 ? (totalRating / ratingCount).toFixed(1) : 0,
+        moreFrequent,
+        justRight,
+        lessFrequent,
+        wouldDoAgainYes,
+        wouldDoAgainMaybe,
+        wouldDoAgainNo,
+        recentComments: limitedComments,
+      });
+    } catch (error: any) {
+      console.error('[Get Post Event Feedback Summary] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Get pending auto-scheduled event for a group
   app.get("/api/groups/:groupId/pending-auto-event", isAuthenticated, async (req, res) => {
     try {

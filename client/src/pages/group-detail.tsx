@@ -718,6 +718,12 @@ export default function GroupDetail() {
     enabled: !!groupId && !!user,
   });
 
+  // Fetch post-event feedback summary
+  const { data: postEventFeedbackSummary, isLoading: postEventFeedbackLoading } = useQuery<any>({
+    queryKey: ["/api/groups", groupId, "post-event-feedback-summary"],
+    enabled: !!groupId && !!user,
+  });
+
   // Check if user is group owner
   const isOwner = user?.id === group?.userId;
 
@@ -5391,6 +5397,124 @@ export default function GroupDetail() {
                     )}
                   </CardContent>
                 </Card>
+
+                {/* Post-Event Feedback Card */}
+                {!postEventFeedbackLoading && postEventFeedbackSummary && postEventFeedbackSummary.totalResponses > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Star className="h-5 w-5" />
+                        Post-Event Feedback
+                      </CardTitle>
+                      <CardDescription>
+                        Insights from {postEventFeedbackSummary.totalResponses} event {postEventFeedbackSummary.totalResponses === 1 ? 'attendee' : 'attendees'}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      {/* Average Venue Rating */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Star className="h-4 w-4 text-muted-foreground" />
+                            <Label className="font-medium">Average venue rating</Label>
+                          </div>
+                          <span className="text-lg font-semibold">
+                            {postEventFeedbackSummary.averageRating}/5
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Frequency Preferences */}
+                      <div className="space-y-2">
+                        <Label className="font-medium">Event frequency preferences</Label>
+                        <div className="space-y-2">
+                          {postEventFeedbackSummary.moreFrequent > 0 && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm">More often</span>
+                              <span className="text-sm text-muted-foreground">
+                                {postEventFeedbackSummary.moreFrequent} {postEventFeedbackSummary.moreFrequent === 1 ? 'vote' : 'votes'}
+                              </span>
+                            </div>
+                          )}
+                          {postEventFeedbackSummary.justRight > 0 && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm">This is perfect</span>
+                              <span className="text-sm text-muted-foreground">
+                                {postEventFeedbackSummary.justRight} {postEventFeedbackSummary.justRight === 1 ? 'vote' : 'votes'}
+                              </span>
+                            </div>
+                          )}
+                          {postEventFeedbackSummary.lessFrequent > 0 && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm">Less often</span>
+                              <span className="text-sm text-muted-foreground">
+                                {postEventFeedbackSummary.lessFrequent} {postEventFeedbackSummary.lessFrequent === 1 ? 'vote' : 'votes'}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Willingness to Repeat */}
+                      <div className="space-y-2">
+                        <Label className="font-medium">Would do this again?</Label>
+                        <div className="space-y-2">
+                          {postEventFeedbackSummary.wouldDoAgainYes > 0 && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm">Yes</span>
+                              <span className="text-sm text-muted-foreground">
+                                {postEventFeedbackSummary.wouldDoAgainYes} {postEventFeedbackSummary.wouldDoAgainYes === 1 ? 'response' : 'responses'}
+                              </span>
+                            </div>
+                          )}
+                          {postEventFeedbackSummary.wouldDoAgainMaybe > 0 && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm">Maybe</span>
+                              <span className="text-sm text-muted-foreground">
+                                {postEventFeedbackSummary.wouldDoAgainMaybe} {postEventFeedbackSummary.wouldDoAgainMaybe === 1 ? 'response' : 'responses'}
+                              </span>
+                            </div>
+                          )}
+                          {postEventFeedbackSummary.wouldDoAgainNo > 0 && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm">No</span>
+                              <span className="text-sm text-muted-foreground">
+                                {postEventFeedbackSummary.wouldDoAgainNo} {postEventFeedbackSummary.wouldDoAgainNo === 1 ? 'response' : 'responses'}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Recent Improvement Suggestions */}
+                      {postEventFeedbackSummary.recentComments && postEventFeedbackSummary.recentComments.length > 0 && (
+                        <div className="space-y-2">
+                          <Label className="font-medium">Recent improvement suggestions</Label>
+                          <div className="space-y-3">
+                            {postEventFeedbackSummary.recentComments.map((comment: any) => (
+                              <div key={comment.id} className="border-l-2 border-primary/20 pl-4 py-2 space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium">{comment.itineraryName}</span>
+                                  <div className="flex items-center gap-1">
+                                    {[...Array(5)].map((_, i) => (
+                                      <Star 
+                                        key={i} 
+                                        className={`h-3 w-3 ${i < comment.rating ? 'fill-current text-primary' : 'text-muted-foreground'}`} 
+                                      />
+                                    ))}
+                                  </div>
+                                </div>
+                                <p className="text-sm text-muted-foreground italic">
+                                  "{comment.notes}"
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Recent Feedback Comments */}
                 {feedbackSummary.recentFeedback && feedbackSummary.recentFeedback.length > 0 && (
