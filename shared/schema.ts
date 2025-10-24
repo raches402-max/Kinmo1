@@ -121,6 +121,9 @@ export const members = pgTable("members", {
   // Smart preference learning from RSVP follow-ups
   memberConstraints: jsonb("member_constraints"), // {scheduleConflicts: ["Thursdays"], budgetConcern: true, distanceConcern: true, notes: "..."}
   
+  // Event hosting
+  openToHosting: boolean("open_to_hosting").default(false).notNull(), // Whether this member is willing to host events
+  
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -233,6 +236,9 @@ export const itineraries = pgTable("itineraries", {
   rsvpDeadline: timestamp("rsvp_deadline"), // When RSVPs must be in by
   autoScheduleConfig: jsonb("auto_schedule_config"), // AI-suggested schedule config: {inviteAdvanceDays: 7, rsvpWindowDays: 3, reminders: [{type: "gentle_nudge", daysBeforeDeadline: 2}, ...]}
   rescheduleAttempts: integer("reschedule_attempts").default(0).notNull(), // Track how many times AI has tried to reschedule (max 2)
+  
+  // Event hosting
+  hostMemberId: varchar("host_member_id").references(() => members.id, { onDelete: "set null" }), // Member who volunteered to host this event (null = organizer or AI-hosted)
   
   createdBy: varchar("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
