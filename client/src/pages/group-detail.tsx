@@ -1549,6 +1549,32 @@ export default function GroupDetail() {
     },
   });
 
+  const deleteItineraryMutation = useMutation({
+    mutationFn: async (itineraryId: string) => {
+      return await apiRequest("DELETE", `/api/itineraries/${itineraryId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "saved-itineraries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "proposed-itineraries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "itineraries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/members/me/events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
+      setEditItineraryOpen(false);
+      setEditingItinerary(null);
+      toast({
+        title: "Event deleted",
+        description: "The event has been removed",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error deleting event",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const addItineraryItemsMutation = useMutation({
     mutationFn: async ({ itineraryId, items }: { itineraryId: string; items: Array<{sourceType: 'activity' | 'voting_event', sourceId: string}> }) => {
       return await apiRequest("POST", `/api/itineraries/${itineraryId}/items`, { items });
@@ -6269,7 +6295,43 @@ export default function GroupDetail() {
               )}
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="gap-2">
+            <div className="flex-1">
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="destructive"
+                    disabled={deleteItineraryMutation.isPending}
+                    data-testid="button-delete-itinerary"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Event
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent data-testid="dialog-confirm-delete-itinerary">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Event?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete this event. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => {
+                        if (editingItinerary) {
+                          deleteItineraryMutation.mutate(editingItinerary.id);
+                        }
+                      }}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      data-testid="button-confirm-delete"
+                    >
+                      {deleteItineraryMutation.isPending ? "Deleting..." : "Delete"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
             <Button
               variant="outline"
               onClick={() => setEditItineraryOpen(false)}
