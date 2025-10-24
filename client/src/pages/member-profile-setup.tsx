@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
@@ -41,6 +41,7 @@ export default function MemberProfileSetup() {
   const [, setLocation] = useLocation();
 
   const [step, setStep] = useState(1);
+  const hasAutoAdvanced = useRef(false);
 
   // Step 1: Home base location
   const [homeLocation, setHomeLocation] = useState("");
@@ -62,10 +63,45 @@ export default function MemberProfileSetup() {
   });
 
   // Fetch member data to verify ownership
-  const { data: member, isLoading: memberLoading } = useQuery<any>({
+  const { data: member, isLoading: memberLoading } = useQuery<{
+    id: string;
+    name: string | null;
+    homeBaseLocation: string | null;
+    homeBaseLatitude: string | null;
+    homeBaseLongitude: string | null;
+    activityPreferences: string[] | null;
+    personalAvailability: AvailabilityGridType | null;
+    profileCompleted: boolean;
+  }>({
     queryKey: ["/api/members", memberId],
     enabled: !!memberId && !!user,
   });
+  
+  // Preload existing profile data
+  useEffect(() => {
+    if (member) {
+      if (member.homeBaseLocation) {
+        setHomeLocation(member.homeBaseLocation);
+      }
+      if (member.homeBaseLatitude && member.homeBaseLongitude) {
+        setGeocodedData({
+          lat: parseFloat(member.homeBaseLatitude),
+          lng: parseFloat(member.homeBaseLongitude)
+        });
+        // If coordinates exist and we haven't auto-advanced yet, start on step 2 (skip location entry)
+        if (!hasAutoAdvanced.current) {
+          setStep(2);
+          hasAutoAdvanced.current = true;
+        }
+      }
+      if (member.activityPreferences) {
+        setSelectedCategories(member.activityPreferences);
+      }
+      if (member.personalAvailability) {
+        setAvailability(member.personalAvailability);
+      }
+    }
+  }, [member]);
 
   // Geocode location
   const handleGeocodeLocation = async () => {
@@ -119,6 +155,7 @@ export default function MemberProfileSetup() {
         homeBaseLongitude: geocodedData?.lng,
         activityPreferences: selectedCategories,
         personalAvailability: availability,
+        profileCompleted: true,
       });
     },
     onSuccess: () => {
