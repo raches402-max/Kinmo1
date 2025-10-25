@@ -58,6 +58,8 @@ type UserEvent = {
     venueType: string;
     venueAddress: string;
     photoUrl: string | null;
+    rating: string | null;
+    googlePlaceId: string | null;
   }>;
 };
 
@@ -670,7 +672,7 @@ export default function Dashboard() {
                                   {event.itineraryName}
                                 </CardTitle>
                                 <CardDescription className="mt-1">
-                                  {event.groupName} • {event.eventDate ? format(new Date(event.eventDate), 'MMM d, yyyy • h:mm a') : 'Date TBD'}
+                                  {event.groupName}
                                 </CardDescription>
                               </div>
                               <div className="flex gap-2 flex-wrap">
@@ -693,15 +695,36 @@ export default function Dashboard() {
                             </div>
                           </CardHeader>
                           <CardContent className="space-y-4">
-                            <div className="flex gap-2 flex-wrap">
-                              {event.items.slice(0, 3).map((venue, idx) => (
-                                <Badge key={venue.id} variant="secondary">
-                                  {idx + 1}. {venue.venueName}
-                                </Badge>
+                            <div className="space-y-2">
+                              {event.items.map((venue, idx) => (
+                                <div key={venue.id} className="flex items-start gap-2 text-sm">
+                                  <Badge variant="outline" className="h-5 shrink-0">{idx + 1}</Badge>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="font-medium">{venue.venueName}</div>
+                                    {venue.venueAddress && (
+                                      <div className="text-xs text-muted-foreground">{venue.venueAddress}</div>
+                                    )}
+                                    <div className="flex items-center gap-3 mt-1">
+                                      {venue.rating && (
+                                        <span className="text-xs text-muted-foreground">
+                                          ⭐ {venue.rating}
+                                        </span>
+                                      )}
+                                      {venue.googlePlaceId && (
+                                        <a 
+                                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venue.venueName || venue.venueAddress || 'Location')}&query_place_id=${venue.googlePlaceId}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-xs text-primary hover:underline"
+                                          data-testid={`link-maps-${venue.id}`}
+                                        >
+                                          View on Maps
+                                        </a>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
                               ))}
-                              {event.items.length > 3 && (
-                                <Badge variant="secondary">+{event.items.length - 3} more</Badge>
-                              )}
                             </div>
 
                             <TimeSlotVoting 
@@ -799,7 +822,7 @@ export default function Dashboard() {
                                     {event.itineraryName}
                                   </CardTitle>
                                   <CardDescription className="mt-1">
-                                    {event.groupName} • {event.eventDate ? format(new Date(event.eventDate), 'MMM d, yyyy • h:mm a') : 'Date TBD'}
+                                    {event.groupName}
                                   </CardDescription>
                                 </div>
                                 <div className="flex gap-2 flex-wrap">
@@ -904,7 +927,7 @@ export default function Dashboard() {
                                   {event.itineraryName}
                                 </CardTitle>
                                 <CardDescription className="mt-1">
-                                  {event.groupName} • {event.eventDate ? format(new Date(event.eventDate), 'MMM d, yyyy • h:mm a') : 'Date TBD'}
+                                  {event.groupName}
                                 </CardDescription>
                               </div>
                               <div className="flex gap-2 flex-wrap">
@@ -928,15 +951,36 @@ export default function Dashboard() {
                             </div>
                           </CardHeader>
                           <CardContent className="space-y-4">
-                            <div className="flex gap-2 flex-wrap">
-                              {event.items.slice(0, 3).map((venue, idx) => (
-                                <Badge key={venue.id} variant="secondary">
-                                  {idx + 1}. {venue.venueName}
-                                </Badge>
+                            <div className="space-y-2">
+                              {event.items.map((venue, idx) => (
+                                <div key={venue.id} className="flex items-start gap-2 text-sm">
+                                  <Badge variant="outline" className="h-5 shrink-0">{idx + 1}</Badge>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="font-medium">{venue.venueName}</div>
+                                    {venue.venueAddress && (
+                                      <div className="text-xs text-muted-foreground">{venue.venueAddress}</div>
+                                    )}
+                                    <div className="flex items-center gap-3 mt-1">
+                                      {venue.rating && (
+                                        <span className="text-xs text-muted-foreground">
+                                          ⭐ {venue.rating}
+                                        </span>
+                                      )}
+                                      {venue.googlePlaceId && (
+                                        <a 
+                                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venue.venueName || venue.venueAddress || 'Location')}&query_place_id=${venue.googlePlaceId}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-xs text-primary hover:underline"
+                                          data-testid={`link-maps-${venue.id}`}
+                                        >
+                                          View on Maps
+                                        </a>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
                               ))}
-                              {event.items.length > 3 && (
-                                <Badge variant="secondary">+{event.items.length - 3} more</Badge>
-                              )}
                             </div>
 
                             <TimeSlotVoting 
@@ -1036,15 +1080,36 @@ export default function Dashboard() {
                           </div>
                         </CardHeader>
                         <CardContent className="space-y-3">
-                          <div className="flex gap-2 flex-wrap">
-                            {event.items.slice(0, 3).map((venue, idx) => (
-                              <Badge key={venue.id} variant="secondary">
-                                {idx + 1}. {venue.venueName}
-                              </Badge>
+                          <div className="space-y-2">
+                            {event.items.map((venue, idx) => (
+                              <div key={venue.id} className="flex items-start gap-2 text-sm">
+                                <Badge variant="outline" className="h-5 shrink-0">{idx + 1}</Badge>
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium">{venue.venueName}</div>
+                                  {venue.venueAddress && (
+                                    <div className="text-xs text-muted-foreground">{venue.venueAddress}</div>
+                                  )}
+                                  <div className="flex items-center gap-3 mt-1">
+                                    {venue.rating && (
+                                      <span className="text-xs text-muted-foreground">
+                                        ⭐ {venue.rating}
+                                      </span>
+                                    )}
+                                    {venue.googlePlaceId && (
+                                      <a 
+                                        href={`https://www.google.com/maps/search/?api=1&query=Google&query_place_id=${venue.googlePlaceId}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-xs text-primary hover:underline"
+                                        data-testid={`link-maps-${venue.id}`}
+                                      >
+                                        View on Maps
+                                      </a>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
                             ))}
-                            {event.items.length > 3 && (
-                              <Badge variant="secondary">+{event.items.length - 3} more</Badge>
-                            )}
                           </div>
                           {/* Show feedback button if user attended and hasn't submitted feedback yet */}
                           {(event.rsvp?.response === 'yes' || event.isOrganizer) && !event.rsvp?.postEventFeedback && (

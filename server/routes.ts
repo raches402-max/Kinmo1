@@ -426,6 +426,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             venueType: item.venueType,
             venueAddress: item.venueAddress,
             photoUrl: item.photoUrl,
+            rating: item.rating,
+            googlePlaceId: item.googlePlaceId,
           })),
         };
       }));
@@ -1353,6 +1355,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             venueType: item.venueType,
             venueAddress: item.venueAddress,
             photoUrl: item.photoUrl,
+            rating: item.rating,
+            googlePlaceId: item.googlePlaceId,
           })),
         };
 
