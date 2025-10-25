@@ -3991,6 +3991,50 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Create a guest RSVP for an itinerary (public endpoint - no auth required)
+  app.post("/api/itineraries/:id/guest-rsvp", async (req, res) => {
+    try {
+      const { guestName, guestEmail, response } = req.body;
+      const { id: itineraryId } = req.params;
+
+      // Validate required fields
+      if (!guestName || !guestName.trim()) {
+        return res.status(400).json({ message: "Guest name is required" });
+      }
+      if (!response || !["yes", "maybe", "no"].includes(response)) {
+        return res.status(400).json({ message: "Valid response required (yes, maybe, or no)" });
+      }
+
+      // Verify itinerary exists and is sent (not proposed)
+      const itinerary = await storage.getItinerary(itineraryId);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+      if (itinerary.status !== "sent") {
+        return res.status(400).json({ message: "This event is not yet finalized" });
+      }
+
+      // Create guest RSVP
+      const rsvp = await db
+        .insert(rsvpsTable)
+        .values({
+          itineraryId,
+          isGuest: true,
+          guestName: guestName.trim(),
+          guestEmail: guestEmail?.trim() || null,
+          response,
+          memberName: null,
+          memberId: null,
+          userId: null,
+        })
+        .returning();
+
+      res.json(rsvp[0]);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Get RSVPs for an itinerary
   app.get("/api/itineraries/:id/rsvps", async (req, res) => {
     try {
