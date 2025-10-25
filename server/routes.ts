@@ -395,6 +395,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
           currentUserOpenToHosting = member?.openToHosting || false;
         }
 
+        // Get all RSVPs for this itinerary
+        const allRsvps = await db
+          .select({
+            memberId: rsvpsTable.memberId,
+            userId: rsvpsTable.userId,
+            response: rsvpsTable.response,
+          })
+          .from(rsvpsTable)
+          .where(eq(rsvpsTable.itineraryId, invite.itineraryId));
+
+        // Map RSVPs to member/user names
+        const rsvpSummary = {
+          yes: [] as string[],
+          maybe: [] as string[],
+          no: [] as string[],
+        };
+
+        for (const r of allRsvps) {
+          let name = '';
+          if (r.memberId) {
+            const member = groupMembers.find(m => m.id === r.memberId);
+            name = member?.name || member?.email || 'Unknown';
+          } else if (r.userId) {
+            // Organizer RSVP - get user profile name
+            const [userProfile] = await db
+              .select({ firstName: userProfiles.firstName, lastName: userProfiles.lastName })
+              .from(userProfiles)
+              .where(eq(userProfiles.userId, r.userId));
+            if (userProfile) {
+              name = `${userProfile.firstName || ''} ${userProfile.lastName || ''}`.trim() || 'Organizer';
+            } else {
+              name = 'Organizer';
+            }
+          }
+          
+          if (name && r.response) {
+            rsvpSummary[r.response as 'yes' | 'maybe' | 'no'].push(name);
+          }
+        }
+
         return {
           inviteId: invite.inviteId,
           inviteToken: invite.inviteToken,
@@ -419,7 +459,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           rsvp: rsvp ? {
             response: rsvp.response,
             rsvpFeedback: rsvp.rsvpFeedback,
+            postEventFeedback: rsvp.postEventFeedback,
           } : null,
+          rsvpSummary,
           items: items.map(item => ({
             id: item.id,
             venueName: item.venueName,
