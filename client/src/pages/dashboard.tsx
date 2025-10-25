@@ -14,7 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from "@/components/ui/dropdown-menu";
-import { Plus, Sparkles, Users, MapPin, Calendar, CheckCircle, XCircle, HelpCircle, ExternalLink, Settings, LogOut, MoreVertical, ChevronDown, ChevronRight, Pencil, Trash2, FolderOpen, UserCheck, Bot, UserPlus, Star, MessageSquare } from "lucide-react";
+import { Plus, Sparkles, Users, MapPin, Calendar, CheckCircle, XCircle, HelpCircle, ExternalLink, Settings, LogOut, MoreVertical, ChevronDown, ChevronRight, Pencil, Trash2, FolderOpen, UserCheck, Bot, UserPlus, Star, MessageSquare, Copy } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -409,6 +409,22 @@ export default function Dashboard() {
     }
   };
 
+  const copyInviteLink = (event: UserEvent) => {
+    const url = `${window.location.origin}/rsvp/${event.itineraryId}/${event.inviteToken}`;
+    navigator.clipboard.writeText(url).then(() => {
+      toast({
+        title: "Link copied!",
+        description: "Event invite link copied to clipboard",
+      });
+    }).catch(() => {
+      toast({
+        title: "Failed to copy",
+        description: "Please try again",
+        variant: "destructive",
+      });
+    });
+  };
+
   // Categorize events
   const now = new Date();
   // Pending: Non-organizer events with no RSVP
@@ -785,6 +801,16 @@ export default function Dashboard() {
                                   Volunteer to Host
                                 </Button>
                               )}
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => copyInviteLink(event)}
+                                className="gap-1"
+                                data-testid={`button-copy-link-${event.itineraryId}`}
+                              >
+                                <Copy className="h-4 w-4" />
+                                Copy Link
+                              </Button>
                               <Link href={`/rsvp/${event.itineraryId}/${event.inviteToken}`}>
                                 <Button variant="ghost" size="sm" className="gap-1">
                                   <ExternalLink className="h-4 w-4" />
@@ -952,6 +978,16 @@ export default function Dashboard() {
                                   <XCircle className="h-4 w-4" />
                                   Can't Make It
                                 </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => copyInviteLink(event)}
+                                  className="gap-1"
+                                  data-testid={`button-copy-link-${event.itineraryId}`}
+                                >
+                                  <Copy className="h-4 w-4" />
+                                  Copy Link
+                                </Button>
                                 <Link href={`/group/${event.groupId}?edit=${event.itineraryId}`}>
                                   <Button variant="ghost" size="sm" className="gap-1" data-testid={`button-manage-${event.itineraryId}`}>
                                     <Users className="h-4 w-4" />
@@ -1094,6 +1130,16 @@ export default function Dashboard() {
                                   </DropdownMenuContent>
                                 </DropdownMenu>
                               )}
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => copyInviteLink(event)}
+                                className="gap-1"
+                                data-testid={`button-copy-link-${event.itineraryId}`}
+                              >
+                                <Copy className="h-4 w-4" />
+                                Copy Link
+                              </Button>
                               <Link href={`/rsvp/${event.itineraryId}/${event.inviteToken}`}>
                                 <Button variant="ghost" size="sm" className="gap-2" data-testid={`button-view-${event.itineraryId}`}>
                                   <ExternalLink className="h-4 w-4" />
