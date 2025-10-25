@@ -411,18 +411,75 @@ export default function Dashboard() {
 
   const copyInviteLink = (event: UserEvent) => {
     const url = `${window.location.origin}/rsvp/${event.itineraryId}/${event.inviteToken}`;
-    navigator.clipboard.writeText(url).then(() => {
-      toast({
-        title: "Link copied!",
-        description: "Event invite link copied to clipboard",
+    
+    // Fallback function using textarea and execCommand - returns true on success
+    const fallbackCopy = (): boolean => {
+      // Check if execCommand is supported
+      if (!document.queryCommandSupported || !document.queryCommandSupported('copy')) {
+        return false;
+      }
+      
+      let textarea: HTMLTextAreaElement | null = null;
+      try {
+        textarea = document.createElement('textarea');
+        textarea.value = url;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-999999px';
+        textarea.style.top = '-999999px';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        textarea.setSelectionRange(0, url.length); // For mobile support
+        const success = document.execCommand('copy');
+        return success;
+      } catch (error) {
+        return false;
+      } finally {
+        if (textarea && textarea.parentNode) {
+          document.body.removeChild(textarea);
+        }
+      }
+    };
+    
+    // Try modern Clipboard API first (requires secure context)
+    if (window.isSecureContext && navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(() => {
+        toast({
+          title: "Link copied!",
+          description: "Event invite link copied to clipboard",
+        });
+      }).catch(() => {
+        // If Clipboard API fails (e.g., permission denied), try fallback
+        const fallbackSuccess = fallbackCopy();
+        if (fallbackSuccess) {
+          toast({
+            title: "Link copied!",
+            description: "Event invite link copied to clipboard",
+          });
+        } else {
+          toast({
+            title: "Failed to copy",
+            description: "Please try again",
+            variant: "destructive",
+          });
+        }
       });
-    }).catch(() => {
-      toast({
-        title: "Failed to copy",
-        description: "Please try again",
-        variant: "destructive",
-      });
-    });
+    } else {
+      // Non-secure context or Clipboard API unavailable - use fallback directly
+      const fallbackSuccess = fallbackCopy();
+      if (fallbackSuccess) {
+        toast({
+          title: "Link copied!",
+          description: "Event invite link copied to clipboard",
+        });
+      } else {
+        toast({
+          title: "Failed to copy",
+          description: "Please try again",
+          variant: "destructive",
+        });
+      }
+    }
   };
 
   // Categorize events
