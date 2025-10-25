@@ -317,7 +317,7 @@ export default function RsvpItineraryPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <RadioGroup 
-                value={claimedIdentity === 'member' ? claimedMemberId || 'guest' : 'guest'}
+                value={claimedMemberId || 'guest'}
                 onValueChange={(value) => {
                   if (value === 'guest') {
                     setClaimedIdentity('guest');
