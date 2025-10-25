@@ -1,6 +1,6 @@
 // Reference: javascript_log_in_with_replit blueprint
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,6 +15,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from "@/components/ui/dropdown-menu";
 import { Plus, Sparkles, Users, MapPin, Calendar, CheckCircle, XCircle, HelpCircle, ExternalLink, Settings, LogOut, MoreVertical, ChevronDown, ChevronRight, Pencil, Trash2, FolderOpen, UserCheck, Bot, UserPlus, Star, MessageSquare, Copy, Check, Baby } from "lucide-react";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -85,12 +87,17 @@ type UserEvent = {
 export default function Dashboard() {
   const { user } = useAuth() as { user: User | undefined };
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   
   const [createCollectionOpen, setCreateCollectionOpen] = useState(false);
   const [newCollectionName, setNewCollectionName] = useState("");
   const [renamingCollectionId, setRenamingCollectionId] = useState<string | null>(null);
   const [renameCollectionName, setRenameCollectionName] = useState("");
   const [openCollections, setOpenCollections] = useState<Set<string>>(new Set());
+  
+  // Create event dialog state
+  const [showCreateEventDialog, setShowCreateEventDialog] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState<string>("");
   
   // Feedback dialog state (for RSVP feedback)
   const [showFeedbackDialog, setShowFeedbackDialog] = useState(false);
@@ -770,23 +777,16 @@ export default function Dashboard() {
             <h1 className="text-xl font-bold">Kinmo.ai</h1>
           </div>
           <div className="flex items-center gap-4">
-            <Link href="/events">
-              <Button variant="outline" className="relative" data-testid="button-my-events">
-                <Calendar className="mr-2 h-4 w-4" />
-                My Events
-                {pendingInvites.length > 0 && (
-                  <Badge 
-                    variant="destructive" 
-                    className="ml-2 px-1.5 min-w-5 h-5 flex items-center justify-center"
-                    data-testid="badge-pending-count"
-                  >
-                    {pendingInvites.length}
-                  </Badge>
-                )}
-              </Button>
-            </Link>
+            <Button 
+              variant="default" 
+              onClick={() => setShowCreateEventDialog(true)}
+              data-testid="button-create-event"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Create Event
+            </Button>
             <Link href="/create-group">
-              <Button data-testid="button-create-group">
+              <Button variant="outline" data-testid="button-create-group">
                 <Plus className="mr-2 h-4 w-4" />
                 New Group
               </Button>
@@ -2106,6 +2106,99 @@ export default function Dashboard() {
               data-testid="button-submit-post-feedback"
             >
               Submit Feedback
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Event Dialog */}
+      <Dialog open={showCreateEventDialog} onOpenChange={setShowCreateEventDialog}>
+        <DialogContent className="sm:max-w-md" data-testid="dialog-create-event">
+          <DialogHeader>
+            <DialogTitle>Create an Event</DialogTitle>
+            <DialogDescription>
+              Select a group to create an event for, or create a new group first.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {groups.length > 0 ? (
+              <>
+                <div className="space-y-2">
+                  <Label>Select a Group</Label>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {groups.map((group) => (
+                      <button
+                        key={group.id}
+                        onClick={() => setSelectedGroupId(group.id)}
+                        className={`w-full text-left p-3 rounded-md border transition-colors hover-elevate ${
+                          selectedGroupId === group.id 
+                            ? 'border-primary bg-primary/10' 
+                            : 'border-border'
+                        }`}
+                        data-testid={`button-select-group-${group.id}`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-2xl">{group.emoji || '👥'}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium">{group.name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {group.members?.length || 0} members
+                            </div>
+                          </div>
+                          {selectedGroupId === group.id && (
+                            <Check className="h-5 w-5 text-primary" />
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">
+                      Or
+                    </span>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="text-center text-muted-foreground py-4">
+                <p className="mb-4">You don't have any groups yet.</p>
+              </div>
+            )}
+            <Link href="/create-group">
+              <Button variant="outline" className="w-full" data-testid="button-create-new-group">
+                <Plus className="mr-2 h-4 w-4" />
+                Create New Group
+              </Button>
+            </Link>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowCreateEventDialog(false);
+                setSelectedGroupId("");
+              }}
+              data-testid="button-cancel-create-event"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (selectedGroupId) {
+                  setShowCreateEventDialog(false);
+                  setLocation(`/groups/${selectedGroupId}`);
+                  setSelectedGroupId("");
+                }
+              }}
+              disabled={!selectedGroupId}
+              data-testid="button-continue-create-event"
+            >
+              Continue
             </Button>
           </DialogFooter>
         </DialogContent>
