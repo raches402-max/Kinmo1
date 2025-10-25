@@ -2,7 +2,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, updateUserProfileSchema, activities as activitiesTable, groups as groupsTable, members as membersTable, itineraryInvites, rsvps as rsvpsTable, itineraries, itineraryItems, proposedTimeSlots, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
+import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, updateUserProfileSchema, activities as activitiesTable, groups as groupsTable, members as membersTable, itineraryInvites, rsvps as rsvpsTable, itineraries, itineraryItems, proposedTimeSlots, userProfiles, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
 import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue, analyzePreferencePatterns } from "./openai";
 import { searchPlaces, searchNearbyPlaces, geocodeLocation, clearPlacesCache, getCacheStats } from "./google-places";
 import { setupAuth, isAuthenticated } from "./replitAuth";
@@ -420,14 +420,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           } else if (r.userId) {
             // Organizer RSVP - get user profile name
             const [userProfile] = await db
-              .select({ firstName: userProfiles.firstName, lastName: userProfiles.lastName })
+              .select({ displayName: userProfiles.displayName })
               .from(userProfiles)
               .where(eq(userProfiles.userId, r.userId));
-            if (userProfile) {
-              name = `${userProfile.firstName || ''} ${userProfile.lastName || ''}`.trim() || 'Organizer';
-            } else {
-              name = 'Organizer';
-            }
+            name = userProfile?.displayName || 'Organizer';
           }
           
           if (name && r.response) {

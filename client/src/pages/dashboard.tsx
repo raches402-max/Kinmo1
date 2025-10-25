@@ -52,6 +52,11 @@ type UserEvent = {
     rsvpFeedback: any;
     postEventFeedback: any;
   } | null;
+  rsvpSummary: {
+    yes: string[];
+    maybe: string[];
+    no: string[];
+  };
   items: Array<{
     id: string;
     venueName: string;
@@ -840,15 +845,37 @@ export default function Dashboard() {
                               </div>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                              <div className="flex gap-2 flex-wrap">
-                                {event.items.slice(0, 3).map((venue, idx) => (
-                                  <Badge key={venue.id} variant="secondary">
-                                    {idx + 1}. {venue.venueName}
-                                  </Badge>
+                              {/* Venue Details */}
+                              <div className="space-y-2">
+                                {event.items.map((venue, idx) => (
+                                  <div key={venue.id} className="flex items-start gap-2 text-sm">
+                                    <Badge variant="outline" className="h-5 shrink-0">{idx + 1}</Badge>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="font-medium">{venue.venueName}</div>
+                                      {venue.venueAddress && (
+                                        <div className="text-xs text-muted-foreground">{venue.venueAddress}</div>
+                                      )}
+                                      <div className="flex items-center gap-3 mt-1">
+                                        {venue.rating && (
+                                          <span className="text-xs text-muted-foreground">
+                                            ⭐ {venue.rating}
+                                          </span>
+                                        )}
+                                        {venue.googlePlaceId && (
+                                          <a 
+                                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venue.venueName || venue.venueAddress || 'Location')}&query_place_id=${venue.googlePlaceId}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-xs text-primary hover:underline"
+                                            data-testid={`link-maps-${venue.id}`}
+                                          >
+                                            View on Maps
+                                          </a>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
                                 ))}
-                                {event.items.length > 3 && (
-                                  <Badge variant="secondary">+{event.items.length - 3} more</Badge>
-                                )}
                               </div>
 
                               <TimeSlotVoting 
@@ -856,6 +883,39 @@ export default function Dashboard() {
                                 userId={user?.id}
                                 isOrganizer={true}
                               />
+
+                              {/* RSVP Summary */}
+                              {(event.rsvpSummary.yes.length > 0 || event.rsvpSummary.maybe.length > 0 || event.rsvpSummary.no.length > 0) && (
+                                <div className="space-y-2 text-sm">
+                                  <div className="font-medium text-muted-foreground">RSVPs</div>
+                                  <div className="flex flex-wrap gap-2">
+                                    {event.rsvpSummary.yes.length > 0 && (
+                                      <div className="flex items-center gap-1.5">
+                                        <CheckCircle className="h-3.5 w-3.5 text-green-600" />
+                                        <span className="text-xs text-muted-foreground">
+                                          {event.rsvpSummary.yes.join(', ')}
+                                        </span>
+                                      </div>
+                                    )}
+                                    {event.rsvpSummary.maybe.length > 0 && (
+                                      <div className="flex items-center gap-1.5">
+                                        <HelpCircle className="h-3.5 w-3.5 text-yellow-600" />
+                                        <span className="text-xs text-muted-foreground">
+                                          {event.rsvpSummary.maybe.join(', ')}
+                                        </span>
+                                      </div>
+                                    )}
+                                    {event.rsvpSummary.no.length > 0 && (
+                                      <div className="flex items-center gap-1.5">
+                                        <XCircle className="h-3.5 w-3.5 text-red-600" />
+                                        <span className="text-xs text-muted-foreground">
+                                          {event.rsvpSummary.no.join(', ')}
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
                               
                               {/* RSVP Buttons */}
                               <div className="flex gap-2 flex-wrap">
