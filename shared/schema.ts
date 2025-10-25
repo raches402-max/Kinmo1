@@ -276,7 +276,9 @@ export const rsvps = pgTable("rsvps", {
   memberId: varchar("member_id").references(() => members.id, { onDelete: "cascade" }), // Optional, for group members
   userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }), // Optional, for authenticated users
   memberName: text("member_name"), // Name if not a registered member
+  isGuest: boolean("is_guest").default(false).notNull(), // Whether this is a guest RSVP (invited after event is planned)
   guestName: text("guest_name"), // Name for non-member guest RSVPs
+  guestEmail: text("guest_email"), // Email for guest RSVPs (optional contact info)
   response: text("response").notNull(), // 'yes', 'maybe', 'no'
   constraintText: text("constraint_text"), // If response is conditional, what's the constraint (e.g., "only if it's in Oakland")
   rsvpFeedback: jsonb("rsvp_feedback"), // Structured feedback for maybe/no: {budgetConcern, timeConcern, locationConcern, activityTypeConcern, otherConcern, notes}
