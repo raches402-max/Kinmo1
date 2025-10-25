@@ -395,22 +395,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
           currentUserOpenToHosting = member?.openToHosting || false;
         }
 
-        // Get all RSVPs for this itinerary
+        // Get all RSVPs for this itinerary (excluding pending guest approvals)
         const allRsvps = await db
-          .select({
-            memberId: rsvpsTable.memberId,
-            userId: rsvpsTable.userId,
-            response: rsvpsTable.response,
-          })
+          .select()
           .from(rsvpsTable)
-          .where(eq(rsvpsTable.itineraryId, invite.itineraryId));
+          .where(
+            sql`itinerary_id = ${invite.itineraryId} AND (requires_approval = false OR approved = true)`
+          );
 
-        // Map RSVPs to member/user names
+        // Map RSVPs to member/user names for summary
         const rsvpSummary = {
           yes: [] as string[],
           maybe: [] as string[],
           no: [] as string[],
         };
+
+        // Build detailed RSVP list with additional attendees and kids count
+        const detailedRsvps = [];
 
         for (const r of allRsvps) {
           let name = '';
@@ -424,10 +425,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
               .from(userProfiles)
               .where(eq(userProfiles.userId, r.userId));
             name = userProfile?.displayName || 'Organizer';
+          } else if (r.guestName) {
+            // Guest RSVP
+            name = r.guestName;
           }
           
           if (name && r.response) {
             rsvpSummary[r.response as 'yes' | 'maybe' | 'no'].push(name);
+            
+            // Add detailed RSVP info
+            detailedRsvps.push({
+              name,
+              response: r.response,
+              additionalAttendees: r.additionalAttendees || [],
+              numberOfKids: r.numberOfKids || 0,
+              isGuest: !!r.guestName,
+            });
           }
         }
 
@@ -466,6 +479,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             postEventFeedback: rsvp.postEventFeedback,
           } : null,
           rsvpSummary,
+          detailedRsvps,
           pendingGuestRsvps: pendingGuestRsvps.map(gr => ({
             id: gr.id,
             guestName: gr.guestName,

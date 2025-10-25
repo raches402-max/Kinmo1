@@ -57,6 +57,13 @@ type UserEvent = {
     maybe: string[];
     no: string[];
   };
+  detailedRsvps: Array<{
+    name: string;
+    response: string;
+    additionalAttendees: any[];
+    numberOfKids: number;
+    isGuest: boolean;
+  }>;
   items: Array<{
     id: string;
     venueName: string;
@@ -571,6 +578,30 @@ export default function Dashboard() {
   };
 
   const displayName = profile?.displayName || user?.firstName || "User";
+
+  const formatRsvpName = (rsvp: any) => {
+    const parts = [];
+    
+    // Add additional attendees
+    if (rsvp.additionalAttendees && rsvp.additionalAttendees.length > 0) {
+      const attendee = rsvp.additionalAttendees[0];
+      // Show name if available, otherwise show "+1 guest"
+      if (attendee.name) {
+        parts.push(`+${attendee.name}`);
+      } else {
+        parts.push('+1 guest');
+      }
+    }
+    
+    // Add kids count
+    if (rsvp.numberOfKids > 0) {
+      parts.push(`${rsvp.numberOfKids} kids`);
+    }
+    
+    // Combine all parts inside parentheses if there are any
+    const suffix = parts.length > 0 ? ` (${parts.join(', ')})` : '';
+    return `${rsvp.name}${suffix}`;
+  };
 
   const GroupCard = ({ group, showMenu = true }: { group: Group & { members: SafeMember[] }; showMenu?: boolean }) => (
     <Card className="hover-elevate active-elevate-2 transition-all h-full relative group" data-testid={`card-group-${group.id}`}>
@@ -1122,31 +1153,31 @@ export default function Dashboard() {
                               />
 
                               {/* RSVP Summary */}
-                              {(event.rsvpSummary.yes.length > 0 || event.rsvpSummary.maybe.length > 0 || event.rsvpSummary.no.length > 0) && (
+                              {event.detailedRsvps && event.detailedRsvps.length > 0 && (
                                 <div className="space-y-2 text-sm">
                                   <div className="font-medium text-muted-foreground">RSVPs</div>
                                   <div className="flex flex-wrap gap-2">
-                                    {event.rsvpSummary.yes.length > 0 && (
+                                    {event.detailedRsvps.filter(r => r.response === 'yes').length > 0 && (
                                       <div className="flex items-center gap-1.5">
                                         <CheckCircle className="h-3.5 w-3.5 text-green-600" />
                                         <span className="text-xs text-muted-foreground">
-                                          {event.rsvpSummary.yes.join(', ')}
+                                          {event.detailedRsvps.filter(r => r.response === 'yes').map(formatRsvpName).join(', ')}
                                         </span>
                                       </div>
                                     )}
-                                    {event.rsvpSummary.maybe.length > 0 && (
+                                    {event.detailedRsvps.filter(r => r.response === 'maybe').length > 0 && (
                                       <div className="flex items-center gap-1.5">
                                         <HelpCircle className="h-3.5 w-3.5 text-yellow-600" />
                                         <span className="text-xs text-muted-foreground">
-                                          {event.rsvpSummary.maybe.join(', ')}
+                                          {event.detailedRsvps.filter(r => r.response === 'maybe').map(formatRsvpName).join(', ')}
                                         </span>
                                       </div>
                                     )}
-                                    {event.rsvpSummary.no.length > 0 && (
+                                    {event.detailedRsvps.filter(r => r.response === 'no').length > 0 && (
                                       <div className="flex items-center gap-1.5">
                                         <XCircle className="h-3.5 w-3.5 text-red-600" />
                                         <span className="text-xs text-muted-foreground">
-                                          {event.rsvpSummary.no.join(', ')}
+                                          {event.detailedRsvps.filter(r => r.response === 'no').map(formatRsvpName).join(', ')}
                                         </span>
                                       </div>
                                     )}
