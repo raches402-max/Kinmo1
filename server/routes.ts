@@ -1442,7 +1442,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create or update RSVP for an itinerary (no auth required, validates invite token)
   app.post("/api/rsvps", async (req, res) => {
     try {
-      const { itineraryId, inviteToken, response, rsvpFeedback } = req.body;
+      const { itineraryId, inviteToken, response, rsvpFeedback, claimedMemberId, guestName, additionalAttendees, numberOfKids } = req.body;
 
       if (!itineraryId || !inviteToken || !response) {
         return res.status(400).json({ message: "Itinerary ID, invite token, and response required" });
@@ -1452,7 +1452,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid response. Must be yes, maybe, or no" });
       }
 
-      // Verify invite token and get member
+      // Verify invite token
       const invites = await db
         .select()
         .from(itineraryInvites)
@@ -1469,36 +1469,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "This invite is not valid for this itinerary" });
       }
 
-      // Get member
-      const member = await storage.getMember(invite.memberId);
-      if (!member) {
-        return res.status(404).json({ message: "Member not found" });
-      }
-
       // Fetch itinerary to verify it exists
       const itinerary = await storage.getItinerary(itineraryId);
       if (!itinerary) {
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
-      // Check if RSVP already exists for this member/itinerary combo
+      // Determine which member to use
+      let memberId = claimedMemberId || invite.memberId;
+      
+      // If guest RSVP, memberId should be null
+      if (guestName && !claimedMemberId) {
+        memberId = null;
+      }
+
+      // For member RSVPs, verify member exists
+      if (memberId) {
+        const member = await storage.getMember(memberId);
+        if (!member) {
+          return res.status(404).json({ message: "Member not found" });
+        }
+      }
+
+      // Check if RSVP already exists for this member/guest/itinerary combo
       const existingRsvps = await db
         .select()
         .from(rsvpsTable)
         .where(
-          sql`itinerary_id = ${itineraryId} AND member_id = ${member.id}`
+          memberId 
+            ? sql`itinerary_id = ${itineraryId} AND member_id = ${memberId}`
+            : sql`itinerary_id = ${itineraryId} AND guest_name = ${guestName}`
         );
 
       let rsvp;
+      const rsvpData: any = {
+        response,
+        rsvpFeedback: rsvpFeedback || null,
+        guestName: guestName || null,
+        additionalAttendees: additionalAttendees || null,
+        numberOfKids: numberOfKids || 0,
+        requiresApproval: guestName ? true : false,
+        updatedAt: new Date(),
+      };
+
       if (existingRsvps.length > 0) {
         // Update existing RSVP
         const updated = await db
           .update(rsvpsTable)
-          .set({
-            response,
-            rsvpFeedback: rsvpFeedback || null,
-            updatedAt: new Date(),
-          })
+          .set(rsvpData)
           .where(sql`id = ${existingRsvps[0].id}`)
           .returning();
         rsvp = updated[0];
@@ -1508,9 +1526,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .insert(rsvpsTable)
           .values({
             itineraryId,
-            memberId: member.id,
-            response,
-            rsvpFeedback: rsvpFeedback || null,
+            memberId: memberId || null,
+            ...rsvpData,
           })
           .returning();
         rsvp = inserted[0];
