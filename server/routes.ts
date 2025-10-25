@@ -9,7 +9,7 @@ import { setupAuth, isAuthenticated } from "./replitAuth";
 import { validateItinerary } from "./itinerary-validation";
 import { sendMemberWelcome, type EmailRecipient, type MemberWelcomeData } from "./email-service";
 import { db } from "./db";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and } from "drizzle-orm";
 
 async function trackFeedbackAndMaybeAnalyze(groupId: string) {
   try {
