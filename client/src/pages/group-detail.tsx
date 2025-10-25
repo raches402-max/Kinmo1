@@ -620,6 +620,7 @@ export default function GroupDetail() {
   const [addedSuggestionPlaceIds, setAddedSuggestionPlaceIds] = useState<Set<string>>(new Set());
   const [venueSearchQuery, setVenueSearchQuery] = useState("");
   const [debouncedVenueSearchQuery, setDebouncedVenueSearchQuery] = useState("");
+  const [addMoreStopsOpen, setAddMoreStopsOpen] = useState(false);
   const [saveItineraryOpen, setSaveItineraryOpen] = useState(false);
   const [itineraryName, setItineraryName] = useState("");
   const [savingItineraryId, setSavingItineraryId] = useState<string | null>(null);
@@ -4539,11 +4540,20 @@ export default function GroupDetail() {
                         </Button>
                         <Button
                           variant="outline"
-                          onClick={() => setActiveTab("activities")}
+                          onClick={() => setAddMoreStopsOpen(!addMoreStopsOpen)}
                           data-testid="button-add-more-stops"
                         >
-                          <Plus className="h-4 w-4 mr-2" />
-                          Add More Stops
+                          {addMoreStopsOpen ? (
+                            <>
+                              <ChevronDown className="h-4 w-4 mr-2" />
+                              Hide Search
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="h-4 w-4 mr-2" />
+                              Add More Stops
+                            </>
+                          )}
                         </Button>
                       </div>
                     </div>
@@ -4552,6 +4562,140 @@ export default function GroupDetail() {
                     {itineraries.map((itinerary: any) => (
                       <ItineraryDisplay key={itinerary.id} itinerary={itinerary} groupId={groupId!} />
                     ))}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Add More Stops Search - Collapsible */}
+              {itineraries.length > 0 && addMoreStopsOpen && (
+                <Card className="mt-4">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Search className="h-5 w-5" />
+                      Search for More Venues
+                    </CardTitle>
+                    <CardDescription>
+                      Find additional stops to add to your itinerary
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Search Input */}
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        type="text"
+                        placeholder="Search for parks, restaurants, cafes, or any venue..."
+                        value={venueSearchQuery}
+                        onChange={(e) => setVenueSearchQuery(e.target.value)}
+                        className="pl-9"
+                        data-testid="input-add-more-stops-search"
+                      />
+                    </div>
+
+                    {/* Search Results */}
+                    {venueSearchQuery.trim() && venueSearchQuery.trim().length >= 2 && (
+                      <div className="space-y-3">
+                        <p className="text-sm text-muted-foreground">
+                          Search results for "{venueSearchQuery}"
+                        </p>
+                        {venueSearchResults.length > 0 ? (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {venueSearchResults.map((result: any) => {
+                              // Check if already added to itinerary
+                              const alreadyInItinerary = itineraries.some((itinerary: any) => 
+                                itinerary.items?.some((item: any) => {
+                                  if (item.sourceType === 'voting_event') {
+                                    const votingEvent = votingEvents.find(e => e.id === item.sourceId);
+                                    return votingEvent?.googlePlaceId === result.placeId;
+                                  } else if (item.sourceType === 'activity') {
+                                    const activity = activities.find(a => a.id === item.sourceId);
+                                    return activity?.googlePlaceId === result.placeId;
+                                  }
+                                  return false;
+                                })
+                              );
+
+                              const alreadyAdded = activities.some(a => a.googlePlaceId === result.placeId) ||
+                                votingEvents.some(e => e.googlePlaceId === result.placeId) ||
+                                addedSuggestionPlaceIds.has(result.placeId);
+
+                              const disabled = alreadyInItinerary || alreadyAdded || addVotingEventMutation.isPending;
+
+                              return (
+                                <button
+                                  key={result.placeId}
+                                  onClick={() => {
+                                    if (disabled) return;
+                                    
+                                    addVotingEventMutation.mutate({
+                                      title: result.name,
+                                      venueType: result.types?.[0] || 'venue',
+                                      venueAddress: result.address,
+                                      googlePlaceId: result.placeId,
+                                    });
+                                  }}
+                                  disabled={disabled}
+                                  className={`flex gap-3 p-3 rounded-md border text-left transition-all hover-elevate active-elevate-2 ${
+                                    disabled ? 'opacity-50 cursor-not-allowed' : ''
+                                  }`}
+                                  data-testid={`search-result-add-more-${result.placeId}`}
+                                >
+                                  {result.photoUrl && (
+                                    <img 
+                                      src={result.photoUrl} 
+                                      alt={result.name}
+                                      className="w-16 h-16 rounded object-cover flex-shrink-0"
+                                    />
+                                  )}
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">{result.name}</p>
+                                    {result.rating && (
+                                      <div className="flex items-center gap-1 mt-1">
+                                        <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                                        <span className="text-xs font-medium">{result.rating}</span>
+                                      </div>
+                                    )}
+                                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                      {result.address}
+                                    </p>
+                                    {(alreadyInItinerary || alreadyAdded) && (
+                                      <Badge variant="secondary" className="mt-1 text-xs">
+                                        <Check className="h-3 w-3 mr-1" />
+                                        Added
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-center py-8">
+                            <p className="text-sm text-muted-foreground">No venues found. Try a different search.</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Or Browse Activities CTA */}
+                    {!venueSearchQuery.trim() && (
+                      <div className="pt-4 border-t text-center">
+                        <p className="text-sm text-muted-foreground mb-3">
+                          Or browse AI-generated suggestions
+                        </p>
+                        <Button 
+                          onClick={() => {
+                            setActiveTab("activities");
+                            setAddMoreStopsOpen(false);
+                          }} 
+                          variant="outline"
+                          data-testid="button-go-to-activities-from-add-more"
+                        >
+                          <Sparkles className="h-4 w-4 mr-2" />
+                          Browse Activities
+                        </Button>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               )}
