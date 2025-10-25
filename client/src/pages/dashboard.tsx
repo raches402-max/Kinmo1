@@ -1165,11 +1165,11 @@ export default function Dashboard() {
                                         </span>
                                       </div>
                                     )}
-                                    {event.detailedRsvps.filter(r => r.response === 'maybe').length > 0 && (
+                                    {event.detailedRsvps.filter(r => r.response === 'maybe' || r.response === 'yes_with_constraint').length > 0 && (
                                       <div className="flex items-center gap-1.5">
                                         <HelpCircle className="h-3.5 w-3.5 text-yellow-600" />
                                         <span className="text-xs text-muted-foreground">
-                                          {event.detailedRsvps.filter(r => r.response === 'maybe').map(formatRsvpName).join(', ')}
+                                          {event.detailedRsvps.filter(r => r.response === 'maybe' || r.response === 'yes_with_constraint').map(formatRsvpName).join(', ')}
                                         </span>
                                       </div>
                                     )}
@@ -1422,7 +1422,7 @@ export default function Dashboard() {
                               </Badge>
                             ) : event.rsvp && (
                               <Badge variant={event.rsvp.response === 'yes' ? 'default' : 'outline'}>
-                                {event.rsvp.response === 'yes' ? 'Attended' : event.rsvp.response === 'maybe' ? 'Maybe' : 'Declined'}
+                                {event.rsvp.response === 'yes' ? 'Attended' : (event.rsvp.response === 'maybe' || event.rsvp.response === 'yes_with_constraint') ? 'Maybe' : 'Declined'}
                               </Badge>
                             )}
                           </div>
@@ -1775,10 +1775,10 @@ export default function Dashboard() {
         <DialogContent data-testid="dialog-rsvp-feedback">
           <DialogHeader>
             <DialogTitle>
-              {feedbackEvent?.response === 'maybe' ? 'What concerns do you have?' : 'Help us understand why'}
+              {(feedbackEvent?.response === 'maybe' || feedbackEvent?.response === 'yes_with_constraint') ? 'What concerns do you have?' : 'Help us understand why'}
             </DialogTitle>
             <DialogDescription>
-              {feedbackEvent?.response === 'maybe' 
+              {(feedbackEvent?.response === 'maybe' || feedbackEvent?.response === 'yes_with_constraint')
                 ? 'Your feedback helps us plan better events for the group'
                 : 'Your feedback helps us understand what to adjust for future events'
               }

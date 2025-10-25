@@ -658,6 +658,12 @@ export default function GroupDetail() {
   const [debouncedDialogSearchQuery, setDebouncedDialogSearchQuery] = useState("");
   const [expandedNearbyVenueId, setExpandedNearbyVenueId] = useState<string | null>(null);
   const [venueNearbySuggestions, setVenueNearbySuggestions] = useState<Record<string, any[]>>({});
+  
+  // Guest invitation state
+  const [inviteGuestDialogOpen, setInviteGuestDialogOpen] = useState(false);
+  const [inviteGuestItineraryId, setInviteGuestItineraryId] = useState<string | null>(null);
+  const [guestName, setGuestName] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -1007,6 +1013,35 @@ export default function GroupDetail() {
     onError: (error: Error) => {
       toast({
         title: "Error cancelling",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const inviteGuestMutation = useMutation({
+    mutationFn: async ({ itineraryId, guestName, guestEmail, response }: { itineraryId: string; guestName: string; guestEmail: string; response: string }) => {
+      return await apiRequest("POST", `/api/itineraries/${itineraryId}/guest-rsvp`, {
+        guestName,
+        guestEmail,
+        response,
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Guest invited!",
+        description: "Guest RSVP has been added to the event.",
+      });
+      // Reset form
+      setGuestName("");
+      setGuestEmail("");
+      setInviteGuestDialogOpen(false);
+      // Invalidate queries to refresh
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "itineraries"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error inviting guest",
         description: error.message,
         variant: "destructive",
       });
@@ -2283,11 +2318,20 @@ export default function GroupDetail() {
                     )}
                     {/* Next Event Hero */}
                     {nextEvent && (() => {
-                      // Calculate RSVP counts
-                      const yesCount = nextEvent.rsvps?.filter((r: any) => r.response === 'yes').length || 0;
-                      const conditionalCount = nextEvent.rsvps?.filter((r: any) => r.response === 'yes_with_constraint').length || 0;
-                      const noCount = nextEvent.rsvps?.filter((r: any) => r.response === 'no').length || 0;
-                      const totalAttending = yesCount + conditionalCount;
+                      // Calculate RSVP counts - separate members from guests
+                      const memberRsvps = nextEvent.rsvps?.filter((r: any) => !r.isGuest) || [];
+                      const guestRsvps = nextEvent.rsvps?.filter((r: any) => r.isGuest) || [];
+                      
+                      const memberYes = memberRsvps.filter((r: any) => r.response === 'yes').length;
+                      // Handle both 'maybe' and legacy 'yes_with_constraint'
+                      const memberConditional = memberRsvps.filter((r: any) => r.response === 'maybe' || r.response === 'yes_with_constraint').length;
+                      const totalMemberAttending = memberYes + memberConditional;
+                      
+                      const guestYes = guestRsvps.filter((r: any) => r.response === 'yes').length;
+                      const guestConditional = guestRsvps.filter((r: any) => r.response === 'maybe' || r.response === 'yes_with_constraint').length;
+                      const totalGuestAttending = guestYes + guestConditional;
+                      
+                      const totalAttending = totalMemberAttending + totalGuestAttending;
                       
                       // Get first venue for primary location
                       const firstItem = nextEvent.items?.[0];
@@ -2330,9 +2374,20 @@ export default function GroupDetail() {
                                   {totalAttending > 0 && (
                                     <div className="flex items-center gap-1.5 text-sm">
                                       <Users className="h-4 w-4" />
-                                      <span>{totalAttending} {totalAttending === 1 ? 'person' : 'people'} attending</span>
-                                      {conditionalCount > 0 && (
-                                        <span className="text-muted-foreground">({conditionalCount} conditional)</span>
+                                      {totalGuestAttending > 0 ? (
+                                        <span>
+                                          {totalMemberAttending} {totalMemberAttending === 1 ? 'member' : 'members'} + {totalGuestAttending} {totalGuestAttending === 1 ? 'guest' : 'guests'} attending
+                                          {(memberConditional + guestConditional) > 0 && (
+                                            <span className="text-muted-foreground"> ({memberConditional + guestConditional} conditional)</span>
+                                          )}
+                                        </span>
+                                      ) : (
+                                        <span>
+                                          {totalMemberAttending} {totalMemberAttending === 1 ? 'person' : 'people'} attending
+                                          {memberConditional > 0 && (
+                                            <span className="text-muted-foreground"> ({memberConditional} conditional)</span>
+                                          )}
+                                        </span>
                                       )}
                                     </div>
                                   )}
@@ -2426,6 +2481,18 @@ export default function GroupDetail() {
                               <Share2 className="h-4 w-4 mr-2" />
                               Share
                             </Button>
+                            <Button 
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setInviteGuestItineraryId(nextEvent.id);
+                                setInviteGuestDialogOpen(true);
+                              }}
+                              data-testid="button-invite-guests"
+                            >
+                              <UserPlus className="h-4 w-4 mr-2" />
+                              Invite Guests
+                            </Button>
                           </div>
                         </CardContent>
                       </Card>
@@ -2446,10 +2513,20 @@ export default function GroupDetail() {
                             const firstVenueName = firstVenue ? ('venueName' in firstVenue ? firstVenue.venueName : firstVenue.title) : '';
                             const googlePlaceId = firstVenue?.googlePlaceId;
                             
-                            // Calculate RSVP counts
-                            const yesRsvps = event.rsvps?.filter((r: any) => r.response === 'yes').length || 0;
-                            const conditionalRsvps = event.rsvps?.filter((r: any) => r.response === 'maybe').length || 0;
-                            const totalAttending = yesRsvps + conditionalRsvps;
+                            // Calculate RSVP counts - separate members from guests
+                            const memberRsvps = event.rsvps?.filter((r: any) => !r.isGuest) || [];
+                            const guestRsvps = event.rsvps?.filter((r: any) => r.isGuest) || [];
+                            
+                            const memberYes = memberRsvps.filter((r: any) => r.response === 'yes').length;
+                            // Handle both 'maybe' and legacy 'yes_with_constraint'
+                            const memberConditional = memberRsvps.filter((r: any) => r.response === 'maybe' || r.response === 'yes_with_constraint').length;
+                            const totalMemberAttending = memberYes + memberConditional;
+                            
+                            const guestYes = guestRsvps.filter((r: any) => r.response === 'yes').length;
+                            const guestConditional = guestRsvps.filter((r: any) => r.response === 'maybe' || r.response === 'yes_with_constraint').length;
+                            const totalGuestAttending = guestYes + guestConditional;
+                            
+                            const totalAttending = totalMemberAttending + totalGuestAttending;
 
                             return (
                               <Card key={event.id} data-testid={`card-upcoming-event-${event.id}`}>
@@ -2487,9 +2564,20 @@ export default function GroupDetail() {
                                         {totalAttending > 0 && (
                                           <div className="flex items-center gap-1.5 text-sm">
                                             <Users className="h-4 w-4" />
-                                            <span>{totalAttending} {totalAttending === 1 ? 'person' : 'people'} attending</span>
-                                            {conditionalRsvps > 0 && (
-                                              <span className="text-muted-foreground">({conditionalRsvps} conditional)</span>
+                                            {totalGuestAttending > 0 ? (
+                                              <span>
+                                                {totalMemberAttending} {totalMemberAttending === 1 ? 'member' : 'members'} + {totalGuestAttending} {totalGuestAttending === 1 ? 'guest' : 'guests'} attending
+                                                {(memberConditional + guestConditional) > 0 && (
+                                                  <span className="text-muted-foreground"> ({memberConditional + guestConditional} conditional)</span>
+                                                )}
+                                              </span>
+                                            ) : (
+                                              <span>
+                                                {totalMemberAttending} {totalMemberAttending === 1 ? 'person' : 'people'} attending
+                                                {memberConditional > 0 && (
+                                                  <span className="text-muted-foreground"> ({memberConditional} conditional)</span>
+                                                )}
+                                              </span>
                                             )}
                                           </div>
                                         )}
@@ -5710,7 +5798,8 @@ export default function GroupDetail() {
                     const userRsvp = itinerary.rsvps?.find((r: any) => r.userId === user?.id);
                     const isPlanner = itinerary.createdBy === user?.id;
                     const yesCount = itinerary.rsvps?.filter((r: any) => r.response === 'yes').length || 0;
-                    const conditionalCount = itinerary.rsvps?.filter((r: any) => r.response === 'yes_with_constraint').length || 0;
+                    // Handle both 'maybe' and legacy 'yes_with_constraint'
+                    const conditionalCount = itinerary.rsvps?.filter((r: any) => r.response === 'maybe' || r.response === 'yes_with_constraint').length || 0;
                     const noCount = itinerary.rsvps?.filter((r: any) => r.response === 'no').length || 0;
                     const totalResponses = itinerary.rsvps?.length || 0;
                     
@@ -5855,8 +5944,8 @@ export default function GroupDetail() {
                               </CardDescription>
                             </div>
                             {!isPlanner && userRsvp && (
-                              <Badge variant={userRsvp.response === 'yes' ? 'default' : userRsvp.response === 'yes_with_constraint' ? 'secondary' : 'outline'}>
-                                {userRsvp.response === 'yes' ? 'Yes' : userRsvp.response === 'yes_with_constraint' ? 'Yes, if...' : 'No'}
+                              <Badge variant={userRsvp.response === 'yes' ? 'default' : (userRsvp.response === 'yes_with_constraint' || userRsvp.response === 'maybe') ? 'secondary' : 'outline'}>
+                                {userRsvp.response === 'yes' ? 'Yes' : (userRsvp.response === 'yes_with_constraint' || userRsvp.response === 'maybe') ? 'Yes, if...' : 'No'}
                               </Badge>
                             )}
                           </div>
@@ -6031,7 +6120,7 @@ export default function GroupDetail() {
                                         </Button>
                                       </div>
                                       {itinerary.rsvps
-                                        ?.filter((r: any) => r.response === 'yes_with_constraint')
+                                        ?.filter((r: any) => r.response === 'maybe' || r.response === 'yes_with_constraint')
                                         .map((rsvp: any) => (
                                           <div
                                             key={rsvp.id}
@@ -7516,6 +7605,137 @@ export default function GroupDetail() {
               data-testid="button-save-availability"
             >
               {updateGroupMutation.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Invite Guest Dialog */}
+      <Dialog open={inviteGuestDialogOpen} onOpenChange={setInviteGuestDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Invite Additional Guests</DialogTitle>
+            <DialogDescription>
+              Add guests to this event. Guests will be able to RSVP but won't affect the group's preferences.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="guest-name">Guest Name *</Label>
+              <Input
+                id="guest-name"
+                value={guestName}
+                onChange={(e) => setGuestName(e.target.value)}
+                placeholder="e.g., Sarah Johnson"
+                data-testid="input-guest-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="guest-email">Guest Email (Optional)</Label>
+              <Input
+                id="guest-email"
+                type="email"
+                value={guestEmail}
+                onChange={(e) => setGuestEmail(e.target.value)}
+                placeholder="e.g., sarah@example.com"
+                data-testid="input-guest-email"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Guest RSVP Response</Label>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (!guestName.trim()) {
+                      toast({
+                        title: "Name required",
+                        description: "Please enter the guest's name",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    inviteGuestMutation.mutate({
+                      itineraryId: inviteGuestItineraryId!,
+                      guestName: guestName.trim(),
+                      guestEmail: guestEmail.trim(),
+                      response: "yes",
+                    });
+                  }}
+                  disabled={inviteGuestMutation.isPending || !guestName.trim()}
+                  data-testid="button-guest-rsvp-yes"
+                  className="flex-1"
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Yes
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (!guestName.trim()) {
+                      toast({
+                        title: "Name required",
+                        description: "Please enter the guest's name",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    inviteGuestMutation.mutate({
+                      itineraryId: inviteGuestItineraryId!,
+                      guestName: guestName.trim(),
+                      guestEmail: guestEmail.trim(),
+                      response: "maybe",
+                    });
+                  }}
+                  disabled={inviteGuestMutation.isPending || !guestName.trim()}
+                  data-testid="button-guest-rsvp-maybe"
+                  className="flex-1"
+                >
+                  <Circle className="h-4 w-4 mr-2" />
+                  Maybe
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (!guestName.trim()) {
+                      toast({
+                        title: "Name required",
+                        description: "Please enter the guest's name",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    inviteGuestMutation.mutate({
+                      itineraryId: inviteGuestItineraryId!,
+                      guestName: guestName.trim(),
+                      guestEmail: guestEmail.trim(),
+                      response: "no",
+                    });
+                  }}
+                  disabled={inviteGuestMutation.isPending || !guestName.trim()}
+                  data-testid="button-guest-rsvp-no"
+                  className="flex-1"
+                >
+                  <XCircle className="h-4 w-4 mr-2" />
+                  No
+                </Button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setInviteGuestDialogOpen(false);
+                setGuestName("");
+                setGuestEmail("");
+              }}
+              data-testid="button-cancel-invite-guest"
+            >
+              Cancel
             </Button>
           </DialogFooter>
         </DialogContent>
