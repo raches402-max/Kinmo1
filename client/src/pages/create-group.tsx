@@ -355,26 +355,6 @@ export default function CreateGroup() {
               </CardHeader>
               <CardContent className="space-y-8">
                 <div className="space-y-4">
-                  <Label>How Close Is This Group?</Label>
-                  <div className="space-y-4">
-                    <Slider
-                      min={1}
-                      max={5}
-                      step={1}
-                      value={[closeness]}
-                      onValueChange={(value) => setCloseness(value[0])}
-                      className="w-full"
-                      data-testid="slider-closeness"
-                    />
-                    <div className="text-center">
-                      <span className="text-sm font-medium text-primary" data-testid="text-closeness-level">
-                        {closenessLabels[closeness - 1]}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
                   <Label className="text-base">How willing is your group to try new things?</Label>
                   <div className="space-y-3">
                     <div className="text-center text-sm text-muted-foreground">
