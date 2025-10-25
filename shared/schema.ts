@@ -276,10 +276,15 @@ export const rsvps = pgTable("rsvps", {
   memberId: varchar("member_id").references(() => members.id, { onDelete: "cascade" }), // Optional, for group members
   userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }), // Optional, for authenticated users
   memberName: text("member_name"), // Name if not a registered member
+  guestName: text("guest_name"), // Name for non-member guest RSVPs
   response: text("response").notNull(), // 'yes', 'maybe', 'no'
   constraintText: text("constraint_text"), // If response is conditional, what's the constraint (e.g., "only if it's in Oakland")
   rsvpFeedback: jsonb("rsvp_feedback"), // Structured feedback for maybe/no: {budgetConcern, timeConcern, locationConcern, activityTypeConcern, otherConcern, notes}
   postEventFeedback: jsonb("post_event_feedback"), // Post-event survey: {venueRating: 1-5, frequencyPreference: 'too_frequent'|'just_right'|'not_frequent_enough', wouldDoAgain: 'yes'|'no'|'maybe', improvementNotes: "..."}
+  requiresApproval: boolean("requires_approval").default(false).notNull(), // Whether this RSVP needs organizer approval (guest RSVPs)
+  approved: boolean("approved").default(false).notNull(), // Whether organizer approved this guest RSVP
+  additionalAttendees: jsonb("additional_attendees"), // Array of additional people: [{type: 'member'|'guest', memberId?: string, name: string}]
+  numberOfKids: integer("number_of_kids").default(0), // Optional: number of kids attending
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(), // Track when RSVP was last updated
 });
