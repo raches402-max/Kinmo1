@@ -2282,31 +2282,86 @@ export default function GroupDetail() {
                       </div>
                     )}
                     {/* Next Event Hero */}
-                    {nextEvent && (
-                      <Card className="border-primary/20 bg-primary/5">
-                        <CardHeader>
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <CardTitle className="flex items-center gap-2">
-                                <Calendar className="h-5 w-5" />
-                                Next Event
-                              </CardTitle>
-                              <CardDescription>
-                                {formatInTimeZone(
-                                  new Date(nextEvent.eventDate!), 
-                                  group.timezone || 'America/Los_Angeles',
-                                  "EEEE, MMMM d 'at' h:mm a"
+                    {nextEvent && (() => {
+                      // Calculate RSVP counts
+                      const yesCount = nextEvent.rsvps?.filter((r: any) => r.response === 'yes').length || 0;
+                      const conditionalCount = nextEvent.rsvps?.filter((r: any) => r.response === 'yes_with_constraint').length || 0;
+                      const noCount = nextEvent.rsvps?.filter((r: any) => r.response === 'no').length || 0;
+                      const totalAttending = yesCount + conditionalCount;
+                      
+                      // Get first venue for primary location
+                      const firstItem = nextEvent.items?.[0];
+                      const firstVenue = firstItem ? (
+                        firstItem.sourceType === 'activity' 
+                          ? activities.find(a => a.id === firstItem.sourceId)
+                          : votingEvents.find(v => v.id === firstItem.sourceId)
+                      ) : null;
+                      const firstVenueName = firstVenue ? ('venueName' in firstVenue ? firstVenue.venueName : firstVenue.title) : null;
+                      const googlePlaceId = firstVenue?.googlePlaceId;
+                      
+                      return (
+                        <Card className="border-primary/20 bg-primary/5">
+                          <CardHeader>
+                            <div className="flex items-center justify-between gap-4">
+                              <div className="flex-1 min-w-0">
+                                <CardTitle className="flex items-center gap-2">
+                                  <Calendar className="h-5 w-5" />
+                                  Next Event
+                                </CardTitle>
+                                <CardDescription className="space-y-1 mt-1">
+                                  <div className="font-medium text-base">
+                                    {formatInTimeZone(
+                                      new Date(nextEvent.eventDate!), 
+                                      group.timezone || 'America/Los_Angeles',
+                                      "EEEE, MMMM d 'at' h:mm a"
+                                    )}
+                                  </div>
+                                  {firstVenueName && (
+                                    <div className="flex items-start gap-1.5 text-sm">
+                                      <MapPin className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                                      <div className="flex-1 min-w-0">
+                                        <span className="font-medium">{firstVenueName}</span>
+                                        {firstVenue?.venueAddress && (
+                                          <span className="text-muted-foreground block truncate">{firstVenue.venueAddress}</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {totalAttending > 0 && (
+                                    <div className="flex items-center gap-1.5 text-sm">
+                                      <Users className="h-4 w-4" />
+                                      <span>{totalAttending} {totalAttending === 1 ? 'person' : 'people'} attending</span>
+                                      {conditionalCount > 0 && (
+                                        <span className="text-muted-foreground">({conditionalCount} conditional)</span>
+                                      )}
+                                    </div>
+                                  )}
+                                </CardDescription>
+                              </div>
+                              <div className="flex flex-col gap-2 items-end">
+                                {nextEvent.hostMemberId && (
+                                  <Badge variant="outline" className="gap-1">
+                                    <UserCheck className="h-3 w-3" />
+                                    Hosted by {members.find(m => m.id === nextEvent.hostMemberId)?.name || 'Member'}
+                                  </Badge>
                                 )}
-                              </CardDescription>
+                                {googlePlaceId && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      window.open(`https://www.google.com/maps/search/?api=1&query=Google&query_place_id=${googlePlaceId}`, '_blank');
+                                    }}
+                                    className="gap-1.5"
+                                    data-testid="button-open-google-maps"
+                                  >
+                                    <MapPin className="h-3.5 w-3.5" />
+                                    Open in Maps
+                                  </Button>
+                                )}
+                              </div>
                             </div>
-                            {nextEvent.hostMemberId && (
-                              <Badge variant="outline" className="gap-1">
-                                <UserCheck className="h-3 w-3" />
-                                Hosted by {members.find(m => m.id === nextEvent.hostMemberId)?.name || 'Member'}
-                              </Badge>
-                            )}
-                          </div>
-                        </CardHeader>
+                          </CardHeader>
                         <CardContent className="space-y-4">
                           <h3 className="font-semibold text-lg">{nextEvent.name}</h3>
                           
@@ -2374,7 +2429,8 @@ export default function GroupDetail() {
                           </div>
                         </CardContent>
                       </Card>
-                    )}
+                    );
+                    })()}
 
                     {/* Upcoming Events */}
                     {upcomingEvents.length > 0 && (
