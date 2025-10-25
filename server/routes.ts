@@ -4166,8 +4166,27 @@ Looking forward to planning great activities together!
       const { itineraryId } = { itineraryId: req.params.id };
       const { actuallyAttended, venueRating, frequencyPreference, wouldDoAgain, improvementNotes } = req.body;
 
+      // Get the itinerary to check group ownership
+      const [itinerary] = await db
+        .select()
+        .from(itineraries)
+        .where(eq(itineraries.id, itineraryId))
+        .limit(1);
+
+      if (!itinerary) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      // Get the group to check ownership
+      const group = await storage.getGroup(itinerary.groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      const isGroupOwner = group.userId === userId;
+
       // Find the user's RSVP for this itinerary
-      const rsvp = await db
+      let rsvp = await db
         .select()
         .from(rsvpsTable)
         .where(
@@ -4177,6 +4196,19 @@ Looking forward to planning great activities together!
           )
         )
         .limit(1);
+
+      // If no RSVP exists and user is the group owner, create one
+      if ((!rsvp || rsvp.length === 0) && isGroupOwner) {
+        rsvp = await db
+          .insert(rsvpsTable)
+          .values({
+            itineraryId,
+            userId,
+            response: 'yes',
+            isGuest: false,
+          })
+          .returning();
+      }
 
       if (!rsvp || rsvp.length === 0) {
         return res.status(404).json({ message: "RSVP not found. You must RSVP to an event before leaving feedback." });
