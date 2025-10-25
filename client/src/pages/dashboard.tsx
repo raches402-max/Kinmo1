@@ -20,7 +20,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Group, User, UserProfile, GroupCollection } from "@shared/schema";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 type SafeMember = {
   id: string;
@@ -105,6 +105,7 @@ export default function Dashboard() {
   // Post-event feedback dialog state
   const [showPostEventFeedback, setShowPostEventFeedback] = useState(false);
   const [postEventData, setPostEventData] = useState<UserEvent | null>(null);
+  const [actuallyAttended, setActuallyAttended] = useState<string>(""); // "yes" or "no"
   const [venueRating, setVenueRating] = useState<number>(0);
   const [frequencyPreference, setFrequencyPreference] = useState<string>("");
   const [wouldDoAgain, setWouldDoAgain] = useState<string>("");
@@ -129,6 +130,51 @@ export default function Dashboard() {
     queryKey: ["/api/user/profile"],
     enabled: !!user,
   });
+
+  // Calculate past events needing feedback
+  const currentTime = new Date();
+  const pastEventsNeedingFeedback = events.filter(event => {
+    const isPast = event.eventDate && new Date(event.eventDate) < currentTime;
+    const attendedOrOrganizer = event.rsvp?.response === 'yes' || event.isOrganizer;
+    const noFeedbackYet = !event.rsvp?.postEventFeedback;
+    return isPast && attendedOrOrganizer && noFeedbackYet;
+  });
+
+  // Auto-open feedback dialog for most recent past event (one-time per event)
+  // Create stable signature of events needing feedback for dependency tracking
+  const pendingFeedbackSignature = pastEventsNeedingFeedback
+    .map(e => e.itineraryId)
+    .sort()
+    .join(',');
+
+  useEffect(() => {
+    if (eventsLoading || pastEventsNeedingFeedback.length === 0) return;
+    
+    // Sort by most recent first
+    const sortedEvents = [...pastEventsNeedingFeedback].sort((a, b) => {
+      const dateA = a.eventDate ? new Date(a.eventDate).getTime() : 0;
+      const dateB = b.eventDate ? new Date(b.eventDate).getTime() : 0;
+      return dateB - dateA;
+    });
+
+    // Get list of already-prompted events
+    const promptedEvents = JSON.parse(localStorage.getItem('feedbackPrompted') || '[]');
+    
+    // Find the first event that hasn't been prompted yet
+    const unpromptedEvent = sortedEvents.find(event => !promptedEvents.includes(event.itineraryId));
+    
+    if (unpromptedEvent) {
+      // Mark as prompted and show dialog after short delay
+      const timeoutId = setTimeout(() => {
+        const updatedPrompted = [...promptedEvents, unpromptedEvent.itineraryId];
+        localStorage.setItem('feedbackPrompted', JSON.stringify(updatedPrompted));
+        handlePostEventFeedback(unpromptedEvent);
+      }, 1500);
+      
+      // Cleanup timeout on unmount to prevent calling on unmounted component
+      return () => clearTimeout(timeoutId);
+    }
+  }, [eventsLoading, pendingFeedbackSignature]);
 
   // Collection mutations
   const createCollectionMutation = useMutation({
@@ -311,14 +357,16 @@ export default function Dashboard() {
 
   // Post-event feedback mutation
   const postEventFeedbackMutation = useMutation({
-    mutationFn: async ({ itineraryId, venueRating, frequencyPreference, wouldDoAgain, improvementNotes }: { 
-      itineraryId: string; 
+    mutationFn: async ({ itineraryId, actuallyAttended, venueRating, frequencyPreference, wouldDoAgain, improvementNotes }: { 
+      itineraryId: string;
+      actuallyAttended: string;
       venueRating: number; 
       frequencyPreference: string; 
       wouldDoAgain: string; 
       improvementNotes: string;
     }) => {
       return await apiRequest("POST", `/api/itineraries/${itineraryId}/post-event-feedback`, {
+        actuallyAttended,
         venueRating,
         frequencyPreference,
         wouldDoAgain,
@@ -397,6 +445,7 @@ export default function Dashboard() {
   };
 
   const resetPostEventForm = () => {
+    setActuallyAttended("");
     setVenueRating(0);
     setFrequencyPreference("");
     setWouldDoAgain("");
@@ -414,6 +463,7 @@ export default function Dashboard() {
     
     postEventFeedbackMutation.mutate({
       itineraryId: postEventData.itineraryId,
+      actuallyAttended,
       venueRating,
       frequencyPreference,
       wouldDoAgain,
@@ -805,6 +855,34 @@ export default function Dashboard() {
 
           <TabsContent value="my-events" data-testid="content-my-events">
             <div className="space-y-8">
+              {/* Feedback Banner */}
+              {!eventsLoading && pastEventsNeedingFeedback.length > 0 && (
+                <Card className="bg-primary/5 border-primary/20" data-testid="banner-pending-feedback">
+                  <CardContent className="py-4">
+                    <div className="flex items-start gap-4">
+                      <div className="flex-shrink-0 p-2 rounded-lg bg-primary/10">
+                        <MessageSquare className="h-5 w-5 text-primary" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-semibold mb-1">Share Your Feedback</h3>
+                        <p className="text-sm text-muted-foreground mb-3">
+                          {pastEventsNeedingFeedback.length} past {pastEventsNeedingFeedback.length === 1 ? 'event needs' : 'events need'} your feedback. Help us plan better future activities!
+                        </p>
+                        <Button 
+                          size="sm" 
+                          onClick={() => handlePostEventFeedback(pastEventsNeedingFeedback[0])}
+                          className="gap-2"
+                          data-testid="button-banner-feedback"
+                        >
+                          <MessageSquare className="h-4 w-4" />
+                          Leave Feedback
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Loading State */}
               {eventsLoading && (
                 <div className="space-y-4">
@@ -1891,7 +1969,34 @@ export default function Dashboard() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>How would you rate the venue?</Label>
+              <Label>Did you actually attend this event?</Label>
+              <div className="flex gap-2">
+                <Button
+                  variant={actuallyAttended === "yes" ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => setActuallyAttended("yes")}
+                  data-testid="button-attended-yes"
+                >
+                  Yes
+                </Button>
+                <Button
+                  variant={actuallyAttended === "no" ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => setActuallyAttended("no")}
+                  data-testid="button-attended-no"
+                >
+                  No
+                </Button>
+              </div>
+            </div>
+
+            {/* Only show venue questions if they attended */}
+            {actuallyAttended === "yes" && (
+              <>
+                <div className="space-y-2">
+                  <Label>How would you rate the venue?</Label>
               <div className="flex gap-2">
                 {[1, 2, 3, 4, 5].map((rating) => (
                   <Button
@@ -1981,6 +2086,8 @@ export default function Dashboard() {
                 data-testid="textarea-improvement"
               />
             </div>
+              </>
+            )}
           </div>
           <DialogFooter>
             <Button

@@ -4164,7 +4164,7 @@ Looking forward to planning great activities together!
     try {
       const userId = req.user.claims.sub;
       const { itineraryId } = { itineraryId: req.params.id };
-      const { venueRating, frequencyPreference, wouldDoAgain, improvementNotes } = req.body;
+      const { actuallyAttended, venueRating, frequencyPreference, wouldDoAgain, improvementNotes } = req.body;
 
       // Find the user's RSVP for this itinerary
       const rsvp = await db
@@ -4187,6 +4187,7 @@ Looking forward to planning great activities together!
         .update(rsvpsTable)
         .set({
           postEventFeedback: {
+            actuallyAttended,
             venueRating,
             frequencyPreference,
             wouldDoAgain,
