@@ -2141,18 +2141,21 @@ export default function GroupDetail() {
               {(() => {
                 const now = new Date();
                 
+                // Combine saved and proposed itineraries for the Home tab
+                const allItineraries = [...savedItineraries, ...proposedItineraries];
+                
                 // Active plans (saved but not scheduled yet)
-                const activePlans = itineraries
+                const activePlans = savedItineraries
                   .filter(i => i.status === 'saved')
                   .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
                 
                 // Upcoming events (scheduled in the future)
-                const upcomingEvents = itineraries
+                const upcomingEvents = proposedItineraries
                   .filter(i => i.status === 'proposed' && i.eventDate && new Date(i.eventDate) > now)
                   .sort((a, b) => new Date(a.eventDate!).getTime() - new Date(b.eventDate!).getTime());
                 
                 // Past events (scheduled in the past)
-                const pastEvents = itineraries
+                const pastEvents = proposedItineraries
                   .filter(i => i.status === 'proposed' && i.eventDate && new Date(i.eventDate) <= now)
                   .sort((a, b) => new Date(b.eventDate!).getTime() - new Date(a.eventDate!).getTime())
                   .slice(0, 5); // Show last 5 past events
