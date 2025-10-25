@@ -2191,7 +2191,7 @@ export default function Dashboard() {
               onClick={() => {
                 if (selectedGroupId) {
                   setShowCreateEventDialog(false);
-                  setLocation(`/groups/${selectedGroupId}`);
+                  setLocation(`/group/${selectedGroupId}`);
                   setSelectedGroupId("");
                 }
               }}
