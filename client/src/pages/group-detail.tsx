@@ -2223,9 +2223,11 @@ export default function GroupDetail() {
                                       
                                       if (!venue) return null;
                                       
+                                      const venueName = 'venueName' in venue ? venue.venueName : venue.title;
+                                      
                                       return (
                                         <p key={item.id} className="text-xs text-muted-foreground">
-                                          {idx + 1}. {venue.title}
+                                          {idx + 1}. {venueName}
                                         </p>
                                       );
                                     })}
@@ -2289,13 +2291,15 @@ export default function GroupDetail() {
                               
                               if (!venue) return null;
                               
+                              const venueName = 'venueName' in venue ? venue.venueName : venue.title;
+                              
                               return (
                                 <div key={item.id} className="flex items-start gap-3 p-3 bg-background rounded-lg">
                                   <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-sm font-medium flex-shrink-0">
                                     {idx + 1}
                                   </div>
                                   <div className="flex-1 min-w-0">
-                                    <p className="font-medium">{venue.title}</p>
+                                    <p className="font-medium">{venueName}</p>
                                     {venue.venueAddress && (
                                       <p className="text-sm text-muted-foreground truncate">{venue.venueAddress}</p>
                                     )}
@@ -4552,18 +4556,126 @@ export default function GroupDetail() {
                 </Card>
               )}
 
-              {/* Empty State */}
+              {/* Venue Search - Empty State */}
               {selectedVenues.length === 0 && itineraries.length === 0 && (
                 <Card>
-                  <CardContent className="text-center py-12">
-                    <Sparkles className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                    <h3 className="text-lg font-semibold mb-2">Ready to Create Your Itinerary?</h3>
-                    <p className="text-muted-foreground mb-4">
-                      Go to the Activities tab, browse suggestions, and click "I'm Ready, Let's Do This!" to start selecting venues
-                    </p>
-                    <Button onClick={() => setActiveTab("activities")} data-testid="button-go-to-activities">
-                      Browse Activities
-                    </Button>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Search className="h-5 w-5" />
+                      Search for Venues
+                    </CardTitle>
+                    <CardDescription>
+                      Search for restaurants, cafes, parks, or any venue to add to your itinerary
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Search Input */}
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        type="text"
+                        placeholder="Search for parks, restaurants, cafes, or any venue..."
+                        value={venueSearchQuery}
+                        onChange={(e) => setVenueSearchQuery(e.target.value)}
+                        className="pl-9"
+                        data-testid="input-venue-search-build"
+                      />
+                    </div>
+
+                    {/* Search Results */}
+                    {venueSearchQuery.trim() && venueSearchQuery.trim().length >= 2 && (
+                      <div className="space-y-3">
+                        <p className="text-sm text-muted-foreground">
+                          Search results for "{venueSearchQuery}"
+                        </p>
+                        {venueSearchResults.length > 0 ? (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {venueSearchResults.map((result: any) => {
+                              // Check if already added to cart or favorited
+                              const alreadyAdded = activities.some(a => a.googlePlaceId === result.placeId) ||
+                                votingEvents.some(e => e.googlePlaceId === result.placeId) ||
+                                addedSuggestionPlaceIds.has(result.placeId);
+
+                              return (
+                                <button
+                                  key={result.placeId}
+                                  onClick={() => {
+                                    if (alreadyAdded || addVotingEventMutation.isPending) return;
+                                    if (selectedVenues.length >= 5) {
+                                      toast({
+                                        title: "Maximum reached",
+                                        description: "You can select up to 5 venues",
+                                        variant: "destructive"
+                                      });
+                                      return;
+                                    }
+                                    
+                                    addVotingEventMutation.mutate({
+                                      title: result.name,
+                                      venueType: result.types?.[0] || 'venue',
+                                      venueAddress: result.address,
+                                      googlePlaceId: result.placeId,
+                                    });
+                                  }}
+                                  disabled={alreadyAdded || addVotingEventMutation.isPending}
+                                  className={`flex gap-3 p-3 rounded-md border text-left transition-all hover-elevate active-elevate-2 ${
+                                    alreadyAdded || addVotingEventMutation.isPending ? 'opacity-50 cursor-not-allowed' : ''
+                                  }`}
+                                  data-testid={`search-result-build-${result.placeId}`}
+                                >
+                                  {result.photoUrl && (
+                                    <img 
+                                      src={result.photoUrl} 
+                                      alt={result.name}
+                                      className="w-16 h-16 rounded object-cover flex-shrink-0"
+                                    />
+                                  )}
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">{result.name}</p>
+                                    {result.rating && (
+                                      <div className="flex items-center gap-1 mt-1">
+                                        <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                                        <span className="text-xs font-medium">{result.rating}</span>
+                                      </div>
+                                    )}
+                                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                      {result.address}
+                                    </p>
+                                    {alreadyAdded && (
+                                      <Badge variant="secondary" className="mt-1 text-xs">
+                                        <Check className="h-3 w-3 mr-1" />
+                                        Added
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-center py-8">
+                            <p className="text-sm text-muted-foreground">No venues found. Try a different search.</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Or Browse Activities CTA */}
+                    {!venueSearchQuery.trim() && (
+                      <div className="pt-4 border-t text-center">
+                        <p className="text-sm text-muted-foreground mb-3">
+                          Or browse AI-generated suggestions
+                        </p>
+                        <Button 
+                          onClick={() => setActiveTab("activities")} 
+                          variant="outline"
+                          data-testid="button-go-to-activities"
+                        >
+                          <Sparkles className="h-4 w-4 mr-2" />
+                          Browse Activities
+                        </Button>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               )}
