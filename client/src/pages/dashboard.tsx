@@ -14,7 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from "@/components/ui/dropdown-menu";
-import { Plus, Sparkles, Users, MapPin, Calendar, CheckCircle, XCircle, HelpCircle, ExternalLink, Settings, LogOut, MoreVertical, ChevronDown, ChevronRight, Pencil, Trash2, FolderOpen, UserCheck, Bot, UserPlus, Star, MessageSquare, Copy } from "lucide-react";
+import { Plus, Sparkles, Users, MapPin, Calendar, CheckCircle, XCircle, HelpCircle, ExternalLink, Settings, LogOut, MoreVertical, ChevronDown, ChevronRight, Pencil, Trash2, FolderOpen, UserCheck, Bot, UserPlus, Star, MessageSquare, Copy, Check, Baby } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -65,6 +65,13 @@ type UserEvent = {
     photoUrl: string | null;
     rating: string | null;
     googlePlaceId: string | null;
+  }>;
+  pendingGuestRsvps: Array<{
+    id: string;
+    guestName: string;
+    response: string;
+    additionalAttendees: any;
+    numberOfKids: number;
   }>;
 };
 
@@ -329,6 +336,48 @@ export default function Dashboard() {
     },
   });
 
+  // Approve guest RSVP mutation
+  const approveGuestRsvpMutation = useMutation({
+    mutationFn: async ({ rsvpId, guestName }: { rsvpId: string; guestName: string }) => {
+      return await apiRequest("POST", `/api/rsvps/${rsvpId}/approve`, {});
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
+      toast({
+        title: "Guest approved!",
+        description: `${variables.guestName} has been approved to join the event`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to approve guest",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Deny guest RSVP mutation
+  const denyGuestRsvpMutation = useMutation({
+    mutationFn: async ({ rsvpId, guestName }: { rsvpId: string; guestName: string }) => {
+      return await apiRequest("POST", `/api/rsvps/${rsvpId}/deny`, {});
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
+      toast({
+        title: "Guest denied",
+        description: `${variables.guestName}'s request has been declined`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to deny guest",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Feedback helper functions
   const resetFeedbackForm = () => {
     setBudgetConcern(false);
@@ -486,6 +535,8 @@ export default function Dashboard() {
   const now = new Date();
   // Pending: Non-organizer events with no RSVP
   const pendingInvites = events.filter(e => !e.isOrganizer && !e.rsvp && (!e.eventDate || new Date(e.eventDate) > now));
+  // Guest Approvals: Organizer events with pending guest RSVPs
+  const guestApprovalEvents = events.filter(e => e.isOrganizer && e.pendingGuestRsvps && e.pendingGuestRsvps.length > 0 && (!e.eventDate || new Date(e.eventDate) > now));
   // Upcoming: Organizers OR events with RSVP (excluding 'no') that haven't happened yet
   const upcomingEvents = events.filter(e => {
     const isFutureOrTBD = !e.eventDate || new Date(e.eventDate) > now;
@@ -879,6 +930,109 @@ export default function Dashboard() {
                         </Card>
                       );
                     })}
+                  </div>
+                </div>
+              )}
+
+              {/* Guest Approvals Section */}
+              {!eventsLoading && guestApprovalEvents.length > 0 && (
+                <div data-testid="section-guest-approvals">
+                  <h3 className="text-xl font-bold mb-4">Guest Approvals Needed ({guestApprovalEvents.reduce((count, event) => count + event.pendingGuestRsvps.length, 0)})</h3>
+                  <div className="space-y-3">
+                    {guestApprovalEvents.map((event) => (
+                      <Card key={event.inviteId} className="hover-elevate" data-testid={`guest-approval-event-${event.itineraryId}`}>
+                        <CardHeader className="pb-3">
+                          <div className="flex items-center justify-between gap-4 flex-wrap">
+                            <div className="flex-1">
+                              <CardTitle className="text-lg flex items-center gap-2">
+                                <span className="text-xl">{event.groupEmoji}</span>
+                                {event.itineraryName}
+                              </CardTitle>
+                              <CardDescription className="mt-1">
+                                {event.groupName}
+                              </CardDescription>
+                            </div>
+                            <Badge variant="outline" className="bg-blue-500/10 text-blue-700 dark:text-blue-400">
+                              {event.pendingGuestRsvps.length} Guest{event.pendingGuestRsvps.length !== 1 ? 's' : ''} Pending
+                            </Badge>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          {event.pendingGuestRsvps.map((guestRsvp) => {
+                            const responseIcon = {
+                              yes: CheckCircle,
+                              maybe: HelpCircle,
+                              no: XCircle,
+                            }[guestRsvp.response.toLowerCase()] || HelpCircle;
+                            const ResponseIcon = responseIcon;
+
+                            return (
+                              <div key={guestRsvp.id} className="border rounded-md p-3 space-y-3" data-testid={`guest-rsvp-${guestRsvp.id}`}>
+                                <div className="flex items-start gap-2">
+                                  <UserPlus className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+                                  <div className="flex-1 min-w-0">
+                                    <div className="font-medium">{guestRsvp.guestName} wants to join</div>
+                                    <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
+                                      <ResponseIcon className="h-3.5 w-3.5" />
+                                      <span>Response: {guestRsvp.response}</span>
+                                    </div>
+                                    
+                                    {guestRsvp.additionalAttendees && guestRsvp.additionalAttendees.length > 0 && (
+                                      <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
+                                        <Users className="h-3.5 w-3.5" />
+                                        <span>
+                                          Bringing: {guestRsvp.additionalAttendees.map((attendee: any) => {
+                                            if (attendee.type === 'member' && attendee.name) {
+                                              return attendee.name;
+                                            } else if (attendee.type === 'guest' && attendee.name) {
+                                              return attendee.name;
+                                            } else {
+                                              return '+1 guest';
+                                            }
+                                          }).join(', ')}
+                                        </span>
+                                      </div>
+                                    )}
+                                    
+                                    {guestRsvp.numberOfKids > 0 && (
+                                      <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
+                                        <Baby className="h-3.5 w-3.5" />
+                                        <span>Kids: {guestRsvp.numberOfKids}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                                
+                                <div className="flex gap-2 flex-wrap">
+                                  <Button
+                                    variant="default"
+                                    size="sm"
+                                    onClick={() => approveGuestRsvpMutation.mutate({ rsvpId: guestRsvp.id, guestName: guestRsvp.guestName })}
+                                    disabled={approveGuestRsvpMutation.isPending || denyGuestRsvpMutation.isPending}
+                                    className="gap-1"
+                                    data-testid={`button-approve-${guestRsvp.id}`}
+                                  >
+                                    <Check className="h-4 w-4" />
+                                    Approve
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => denyGuestRsvpMutation.mutate({ rsvpId: guestRsvp.id, guestName: guestRsvp.guestName })}
+                                    disabled={approveGuestRsvpMutation.isPending || denyGuestRsvpMutation.isPending}
+                                    className="gap-1"
+                                    data-testid={`button-deny-${guestRsvp.id}`}
+                                  >
+                                    <XCircle className="h-4 w-4" />
+                                    Deny
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </CardContent>
+                      </Card>
+                    ))}
                   </div>
                 </div>
               )}

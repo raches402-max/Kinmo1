@@ -431,6 +431,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
+        // Get pending guest RSVPs (for organizers only)
+        const pendingGuestRsvps = invite.isOrganizer ? await db
+          .select()
+          .from(rsvpsTable)
+          .where(
+            sql`itinerary_id = ${invite.itineraryId} AND requires_approval = true AND approved = false`
+          ) : [];
+
         return {
           inviteId: invite.inviteId,
           inviteToken: invite.inviteToken,
@@ -458,6 +466,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             postEventFeedback: rsvp.postEventFeedback,
           } : null,
           rsvpSummary,
+          pendingGuestRsvps: pendingGuestRsvps.map(gr => ({
+            id: gr.id,
+            guestName: gr.guestName,
+            response: gr.response,
+            additionalAttendees: gr.additionalAttendees,
+            numberOfKids: gr.numberOfKids,
+          })),
           items: items.map(item => ({
             id: item.id,
             venueName: item.venueName,
@@ -1677,6 +1692,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(rsvp);
     } catch (error: any) {
       console.error('[Organizer RSVP] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Approve a pending guest RSVP (organizer only)
+  app.post("/api/rsvps/:rsvpId/approve", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { rsvpId } = req.params;
+
+      // Get the RSVP
+      const rsvps = await db
+        .select()
+        .from(rsvpsTable)
+        .where(sql`id = ${rsvpId}`);
+
+      if (rsvps.length === 0) {
+        return res.status(404).json({ message: "RSVP not found" });
+      }
+
+      const rsvp = rsvps[0];
+
+      // Get the itinerary
+      const itinerary = await storage.getItinerary(rsvp.itineraryId);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      // Get the group and verify user is the owner
+      const group = await storage.getGroup(itinerary.groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      if (group.userId !== userId) {
+        return res.status(403).json({ message: "Only the group organizer can approve guest RSVPs" });
+      }
+
+      // Approve the RSVP
+      const updated = await db
+        .update(rsvpsTable)
+        .set({
+          approved: true,
+          updatedAt: new Date(),
+        })
+        .where(sql`id = ${rsvpId}`)
+        .returning();
+
+      res.json(updated[0]);
+    } catch (error: any) {
+      console.error('[Approve RSVP] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Deny a pending guest RSVP (organizer only) - deletes the RSVP
+  app.post("/api/rsvps/:rsvpId/deny", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { rsvpId } = req.params;
+
+      // Get the RSVP
+      const rsvps = await db
+        .select()
+        .from(rsvpsTable)
+        .where(sql`id = ${rsvpId}`);
+
+      if (rsvps.length === 0) {
+        return res.status(404).json({ message: "RSVP not found" });
+      }
+
+      const rsvp = rsvps[0];
+
+      // Get the itinerary
+      const itinerary = await storage.getItinerary(rsvp.itineraryId);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      // Get the group and verify user is the owner
+      const group = await storage.getGroup(itinerary.groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      if (group.userId !== userId) {
+        return res.status(403).json({ message: "Only the group organizer can deny guest RSVPs" });
+      }
+
+      // Delete the RSVP
+      await db
+        .delete(rsvpsTable)
+        .where(sql`id = ${rsvpId}`);
+
+      res.json({ message: "RSVP denied and removed" });
+    } catch (error: any) {
+      console.error('[Deny RSVP] Error:', error);
       res.status(500).json({ message: error.message });
     }
   });
