@@ -654,6 +654,8 @@ export default function GroupDetail() {
   const [editProposedDate, setEditProposedDate] = useState("");
   const [addVenueDialogOpen, setAddVenueDialogOpen] = useState(false);
   const [venuesToAdd, setVenuesToAdd] = useState<Array<{sourceType: 'activity' | 'voting_event', sourceId: string}>>([]);
+  const [dialogVenueSearchQuery, setDialogVenueSearchQuery] = useState("");
+  const [debouncedDialogSearchQuery, setDebouncedDialogSearchQuery] = useState("");
   const [expandedNearbyVenueId, setExpandedNearbyVenueId] = useState<string | null>(null);
   const [venueNearbySuggestions, setVenueNearbySuggestions] = useState<Record<string, any[]>>({});
 
@@ -782,6 +784,22 @@ export default function GroupDetail() {
     staleTime: 30000, // Cache for 30 seconds
   });
 
+  // Dialog venue search query
+  const { data: dialogVenueSearchResults = [] } = useQuery<any[]>({
+    queryKey: ["/api/groups", groupId, "search-venues-dialog", debouncedDialogSearchQuery.trim()],
+    queryFn: async () => {
+      if (!debouncedDialogSearchQuery.trim() || debouncedDialogSearchQuery.trim().length < 2) {
+        return [];
+      }
+      const response = await fetch(`/api/groups/${groupId}/search-venues?query=${encodeURIComponent(debouncedDialogSearchQuery.trim())}`);
+      if (!response.ok) throw new Error('Search failed');
+      const data = await response.json();
+      return data.results || [];
+    },
+    enabled: !!groupId && addVenueDialogOpen && debouncedDialogSearchQuery.trim().length >= 2,
+    staleTime: 30000, // Cache for 30 seconds
+  });
+
   // Track previous generation status to detect when generation completes
   const prevStatusRef = useRef<string | undefined>();
   
@@ -843,6 +861,15 @@ export default function GroupDetail() {
 
     return () => clearTimeout(timer);
   }, [venueSearchQuery]);
+
+  // Debounce dialog venue search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedDialogSearchQuery(dialogVenueSearchQuery);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [dialogVenueSearchQuery]);
 
   // Auto-open edit dialog when URL contains ?edit=<itineraryId>
   useEffect(() => {
@@ -7049,15 +7076,132 @@ export default function GroupDetail() {
       </Dialog>
 
       {/* Add Venue to Itinerary Dialog */}
-      <Dialog open={addVenueDialogOpen} onOpenChange={setAddVenueDialogOpen}>
+      <Dialog open={addVenueDialogOpen} onOpenChange={(open) => {
+        setAddVenueDialogOpen(open);
+        if (!open) {
+          setDialogVenueSearchQuery("");
+          setVenuesToAdd([]);
+        }
+      }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="dialog-add-venue">
           <DialogHeader>
             <DialogTitle>Add Venues to Plan</DialogTitle>
             <DialogDescription>
-              Select venues from your activities and voting events
+              Search for venues or select from your activities and voting events
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-6">
+            {/* Search for Venues */}
+            <div className="space-y-3">
+              <Label>Search for Venues</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Search for parks, restaurants, cafes, or any venue..."
+                  value={dialogVenueSearchQuery}
+                  onChange={(e) => setDialogVenueSearchQuery(e.target.value)}
+                  className="pl-9"
+                  data-testid="input-dialog-venue-search"
+                />
+              </div>
+
+              {/* Search Results */}
+              {dialogVenueSearchQuery.trim() && dialogVenueSearchQuery.trim().length >= 2 && (
+                <div className="space-y-2">
+                  {dialogVenueSearchResults.length > 0 ? (
+                    <div className="max-h-60 overflow-y-auto space-y-2">
+                      {dialogVenueSearchResults.map((result: any) => {
+                        const isAlreadyInPlan = editItineraryItems.some((item: any) => {
+                          if (item.sourceType === 'voting_event') {
+                            const event = votingEvents.find(e => e.id === item.sourceId);
+                            return event?.googlePlaceId === result.placeId;
+                          } else if (item.sourceType === 'activity') {
+                            const activity = activities.find(a => a.id === item.sourceId);
+                            return activity?.googlePlaceId === result.placeId;
+                          }
+                          return false;
+                        });
+
+                        return (
+                          <button
+                            key={result.placeId}
+                            onClick={async () => {
+                              if (isAlreadyInPlan || addVotingEventMutation.isPending) return;
+                              
+                              try {
+                                // Create voting event first
+                                const newEvent = await addVotingEventMutation.mutateAsync({
+                                  title: result.name,
+                                  venueType: result.types?.[0] || 'venue',
+                                  venueAddress: result.address,
+                                  googlePlaceId: result.placeId,
+                                });
+
+                                // Then add to itinerary
+                                if (editingItinerary && newEvent?.event?.id) {
+                                  await addItineraryItemsMutation.mutateAsync({
+                                    itineraryId: editingItinerary.id,
+                                    items: [{ sourceType: 'voting_event', sourceId: newEvent.event.id }]
+                                  });
+
+                                  toast({
+                                    title: "Venue added",
+                                    description: `${result.name} has been added to your plan`,
+                                  });
+
+                                  // Clear search after successful add
+                                  setDialogVenueSearchQuery("");
+                                }
+                              } catch (error) {
+                                toast({
+                                  title: "Error adding venue",
+                                  description: "Please try again",
+                                  variant: "destructive",
+                                });
+                              }
+                            }}
+                            disabled={isAlreadyInPlan || addVotingEventMutation.isPending}
+                            className={`flex gap-3 p-3 rounded-md border text-left transition-all w-full ${
+                              isAlreadyInPlan || addVotingEventMutation.isPending ? 'opacity-50 cursor-not-allowed' : 'hover-elevate active-elevate-2 cursor-pointer'
+                            }`}
+                            data-testid={`dialog-search-result-${result.placeId}`}
+                          >
+                            {result.photoUrl && (
+                              <img 
+                                src={result.photoUrl} 
+                                alt={result.name}
+                                className="w-12 h-12 rounded object-cover flex-shrink-0"
+                              />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{result.name}</p>
+                              {result.rating && (
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                                  <span className="text-xs">{result.rating}</span>
+                                </div>
+                              )}
+                              <p className="text-xs text-muted-foreground truncate mt-0.5">
+                                {result.address}
+                              </p>
+                            </div>
+                            {isAlreadyInPlan && (
+                              <Badge variant="secondary" className="text-xs">Added</Badge>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No venues found. Try a different search.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* Activities */}
             {activities.length > 0 && (
               <div className="space-y-3">
