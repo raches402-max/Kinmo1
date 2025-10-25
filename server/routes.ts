@@ -3652,11 +3652,11 @@ Looking forward to planning great activities together!
         return;
       }
 
-      // Get all RSVPs
+      // Get all RSVPs (exclude guests - only member feedback affects reschedule decisions)
       const rsvps = await db
         .select()
         .from(rsvpsTable)
-        .where(sql`itinerary_id = ${itineraryId}`);
+        .where(sql`itinerary_id = ${itineraryId} AND (is_guest IS NULL OR is_guest = false)`);
 
       if (rsvps.length === 0) {
         console.log(`[Auto-Reschedule] No RSVPs yet`);
@@ -4014,6 +4014,9 @@ Looking forward to planning great activities together!
         return res.status(400).json({ message: "This event is not yet finalized" });
       }
 
+      // Generate unique guest token for RSVP link
+      const guestToken = crypto.randomBytes(32).toString('hex');
+
       // Create guest RSVP
       const rsvp = await db
         .insert(rsvpsTable)
@@ -4022,6 +4025,7 @@ Looking forward to planning great activities together!
           isGuest: true,
           guestName: guestName.trim(),
           guestEmail: guestEmail?.trim() || null,
+          guestToken,
           response,
           memberName: null,
           memberId: null,
@@ -4030,6 +4034,74 @@ Looking forward to planning great activities together!
         .returning();
 
       res.json(rsvp[0]);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get guest RSVP and event details by guest token (public endpoint)
+  app.get("/api/guest-rsvp/:guestToken", async (req, res) => {
+    try {
+      const { guestToken } = req.params;
+
+      // Find the guest RSVP
+      const [guestRsvp] = await db
+        .select()
+        .from(rsvpsTable)
+        .where(eq(rsvpsTable.guestToken, guestToken))
+        .limit(1);
+
+      if (!guestRsvp) {
+        return res.status(404).json({ message: "Guest RSVP not found" });
+      }
+
+      // Get the itinerary with items
+      const itinerary = await storage.getItinerary(guestRsvp.itineraryId);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      // Get the group
+      const group = await storage.getGroup(itinerary.groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      res.json({
+        rsvp: guestRsvp,
+        itinerary,
+        group,
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Update guest RSVP response (public endpoint)
+  app.patch("/api/guest-rsvp/:guestToken", async (req, res) => {
+    try {
+      const { guestToken } = req.params;
+      const { response } = req.body;
+
+      if (!response || !["yes", "maybe", "no"].includes(response)) {
+        return res.status(400).json({ message: "Valid response required (yes, maybe, or no)" });
+      }
+
+      // Find and update the guest RSVP
+      const [updatedRsvp] = await db
+        .update(rsvpsTable)
+        .set({
+          response,
+          updatedAt: new Date(),
+        })
+        .where(eq(rsvpsTable.guestToken, guestToken))
+        .returning();
+
+      if (!updatedRsvp) {
+        return res.status(404).json({ message: "Guest RSVP not found" });
+      }
+
+      res.json(updatedRsvp);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -4168,11 +4240,11 @@ Looking forward to planning great activities together!
         });
       }
 
-      // Get all RSVPs with feedback for this group's itineraries
+      // Get all RSVPs with feedback for this group's itineraries (exclude guests)
       const rsvps = await db
         .select()
         .from(rsvpsTable)
-        .where(sql`itinerary_id IN (${sql.join(itineraryIds.map(id => sql`${id}`), sql`, `)}) AND rsvp_feedback IS NOT NULL`);
+        .where(sql`itinerary_id IN (${sql.join(itineraryIds.map(id => sql`${id}`), sql`, `)}) AND rsvp_feedback IS NOT NULL AND (is_guest IS NULL OR is_guest = false)`);
 
       // Aggregate feedback
       let budgetConcerns = 0;
@@ -4262,11 +4334,11 @@ Looking forward to planning great activities together!
         });
       }
 
-      // Get all RSVPs with post-event feedback for this group's itineraries
+      // Get all RSVPs with post-event feedback for this group's itineraries (exclude guests)
       const rsvps = await db
         .select()
         .from(rsvpsTable)
-        .where(sql`itinerary_id IN (${sql.join(itineraryIds.map(id => sql`${id}`), sql`, `)}) AND post_event_feedback IS NOT NULL`);
+        .where(sql`itinerary_id IN (${sql.join(itineraryIds.map(id => sql`${id}`), sql`, `)}) AND post_event_feedback IS NOT NULL AND (is_guest IS NULL OR is_guest = false)`);
 
       // Aggregate feedback
       let totalRating = 0;
