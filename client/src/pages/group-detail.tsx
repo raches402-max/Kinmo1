@@ -3527,147 +3527,6 @@ export default function GroupDetail() {
                   </Button>
                 </div>
               </div>
-              
-              {/* Display Category Results */}
-              {categoryResults.length > 0 && (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold">Category Suggestions</h3>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setCategoryResults([]);
-                        setSelectedCategory(null);
-                      }}
-                      data-testid="button-clear-category-results"
-                    >
-                      Clear
-                    </Button>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {categoryResults.map((result, index) => {
-                      const isFavorited = votingEvents.some(event => event.googlePlaceId === result.googlePlaceId);
-                      return (
-                        <Card key={index} className="overflow-hidden">
-                          <div className="relative h-40">
-                            <img
-                              src={result.photoUrl}
-                              alt={result.venueName}
-                              className="w-full h-full object-cover"
-                            />
-                            <div className="absolute top-2 left-2 z-10">
-                              <Checkbox
-                                checked={selectedVenues.some(v => v.sourceType === 'activity' && v.sourceId === result.googlePlaceId)}
-                                onCheckedChange={(checked) => {
-                                  if (checked) {
-                                    setSelectedVenues([...selectedVenues, { sourceType: 'activity', sourceId: result.googlePlaceId }]);
-                                  } else {
-                                    setSelectedVenues(selectedVenues.filter(v => !(v.sourceType === 'activity' && v.sourceId === result.googlePlaceId)));
-                                  }
-                                }}
-                                className="h-6 w-6 bg-white border-2"
-                                data-testid={`checkbox-select-${result.googlePlaceId}`}
-                              />
-                            </div>
-                            <button
-                              className={`absolute top-2 right-2 p-2 rounded-full transition-all z-10 ${
-                                isFavorited
-                                  ? "bg-pink-500/90 hover:bg-pink-600/90"
-                                  : "bg-black/40 hover:bg-black/60 border-2 border-white"
-                              }`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (isFavorited) {
-                                  const matchingEvent = votingEvents.find(event => event.googlePlaceId === result.googlePlaceId);
-                                  if (matchingEvent) {
-                                    deleteEventMutation.mutate(matchingEvent.id);
-                                  }
-                                } else {
-                                  const eventExists = votingEvents.some(event => event.googlePlaceId === result.googlePlaceId);
-                                  if (!eventExists && groupId) {
-                                    createEventMutation.mutate({
-                                      groupId,
-                                      title: result.venueName,
-                                      description: result.description,
-                                      venueAddress: result.venueAddress,
-                                      venueType: result.venueType || "Venue",
-                                      googlePlaceId: result.googlePlaceId || undefined,
-                                      rating: result.rating || undefined,
-                                      priceLevel: result.priceLevel || undefined,
-                                      photoUrl: result.photoUrl || undefined,
-                                    });
-                                  }
-                                }
-                              }}
-                              data-testid={`button-love-${result.googlePlaceId}`}
-                            >
-                              <Heart 
-                                className={`h-6 w-6 transition-all ${
-                                  isFavorited
-                                    ? "fill-white stroke-white" 
-                                    : "fill-none stroke-white"
-                                }`} 
-                                strokeWidth={2.5}
-                              />
-                            </button>
-                          </div>
-                          <CardHeader className="pb-3">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1 min-w-0">
-                                <CardTitle className="text-base mb-1">{result.venueName}</CardTitle>
-                                <CardDescription className="flex items-center gap-1.5 text-xs">
-                                  <Star className="h-3 w-3 fill-yellow-400 stroke-yellow-400" />
-                                  <span>{result.rating}</span>
-                                  {result.reviewCount && (
-                                    <span className="text-muted-foreground">({result.reviewCount})</span>
-                                  )}
-                                </CardDescription>
-                              </div>
-                              {result.googlePlaceId && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  asChild
-                                  className="h-6 px-2 flex-shrink-0"
-                                  data-testid={`button-google-link-${result.googlePlaceId}`}
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <a
-                                    href={`https://www.google.com/maps/search/?api=1&query=Google&query_place_id=${result.googlePlaceId}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="gap-1"
-                                  >
-                                    <ExternalLink className="h-3 w-3" />
-                                    <span className="text-xs">Maps</span>
-                                  </a>
-                                </Button>
-                              )}
-                            </div>
-                          </CardHeader>
-                          <CardContent className="pt-0">
-                            <p className="text-xs text-muted-foreground line-clamp-2 mb-2">{result.description}</p>
-                            <p className="text-xs text-muted-foreground line-clamp-1">{result.venueAddress}</p>
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              
-              {/* Divider */}
-              {categoryResults.length > 0 && (
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t"></div>
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background px-2 text-muted-foreground">Or browse all suggestions</span>
-                  </div>
-                </div>
-              )}
 
               {activitiesLoading ? (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -3802,12 +3661,59 @@ export default function GroupDetail() {
                       return reviewCountB - reviewCountA;
                     });
 
+                  // Convert categoryResults to activity format and merge with filteredActivities
+                  const categoryResultsAsActivities = categoryResults.map(result => ({
+                    id: result.googlePlaceId || `temp-${Math.random()}`,
+                    groupId: groupId || '',
+                    aiSuggestedName: null,
+                    venueName: result.venueName,
+                    venueAddress: result.venueAddress,
+                    venueType: result.venueType || 'Venue',
+                    description: result.description,
+                    rating: result.rating?.toString() || null,
+                    reviewCount: result.reviewCount || null,
+                    priceLevel: result.priceLevel?.toString() || null,
+                    photoUrl: result.photoUrl || null,
+                    googlePlaceId: result.googlePlaceId || null,
+                    latitude: result.latitude?.toString() || null,
+                    longitude: result.longitude?.toString() || null,
+                    feedback: null,
+                    aiReasoning: null,
+                    priceEstimate: null,
+                    timeConstraints: null,
+                    googleReview: null,
+                    complementaryPlaceName: null,
+                    complementaryPlaceAddress: null,
+                    complementaryPlaceId: null,
+                    complementaryPlacePhotoUrl: null,
+                    complementaryPlaceRating: null,
+                    complementaryPlaceName2: null,
+                    complementaryPlaceAddress2: null,
+                    complementaryPlaceId2: null,
+                    complementaryPlacePhotoUrl2: null,
+                    complementaryPlaceRating2: null,
+                    timeCategory: null,
+                    category: null,
+                    createdAt: new Date(),
+                    suggestedDate: null,
+                    suggestedTime: null,
+                    archivedAt: null,
+                  }));
+
+                  // Merge and deduplicate by googlePlaceId
+                  const allActivities = [...filteredActivities];
+                  categoryResultsAsActivities.forEach(catActivity => {
+                    if (!allActivities.some(a => a.googlePlaceId === catActivity.googlePlaceId)) {
+                      allActivities.push(catActivity);
+                    }
+                  });
+
                   const groupedByCategory = {
-                    meal: filteredActivities.filter(a => getActivityCategory(a) === 'meal'),
-                    cafes: filteredActivities.filter(a => getActivityCategory(a) === 'cafes'),
-                    drinks: filteredActivities.filter(a => getActivityCategory(a) === 'drinks'),
-                    dessert: filteredActivities.filter(a => getActivityCategory(a) === 'dessert'),
-                    experiences: filteredActivities.filter(a => getActivityCategory(a) === 'experiences'),
+                    meal: allActivities.filter(a => getActivityCategory(a) === 'meal'),
+                    cafes: allActivities.filter(a => getActivityCategory(a) === 'cafes'),
+                    drinks: allActivities.filter(a => getActivityCategory(a) === 'drinks'),
+                    dessert: allActivities.filter(a => getActivityCategory(a) === 'dessert'),
+                    experiences: allActivities.filter(a => getActivityCategory(a) === 'experiences'),
                   };
 
                   const categoryLabels = {
