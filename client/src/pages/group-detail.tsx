@@ -1029,7 +1029,7 @@ export default function GroupDetail() {
         category,
         location,
         radius,
-        count: 9,
+        count: 15,
       });
     },
     onSuccess: (data) => {
