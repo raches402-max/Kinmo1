@@ -3857,7 +3857,7 @@ export default function GroupDetail() {
                           
                           // Check if this is a temporary activity from categoryResults
                           const isTempActivity = activity.id.startsWith('temp-') || 
-                            !displayedActivities.find(a => a.id === activity.id);
+                            !activities.find(a => a.id === activity.id);
                           
                           if (activity.feedback === "love") {
                             // Remove feedback and delete from Favorites list
