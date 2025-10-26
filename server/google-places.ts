@@ -8,6 +8,7 @@ interface PlacesCache {
   placeDetails: Map<string, PlaceResult | null>;
   searchResults: Map<string, PlaceResult[]>;
   nearbyResults: Map<string, PlaceResult[]>;
+  geocodeResults: Map<string, GeocodeResult | null>;
   // Track actual cache hits/misses for metrics
   stats: {
     placeDetailsHits: number;
@@ -16,6 +17,8 @@ interface PlacesCache {
     searchMisses: number;
     nearbyHits: number;
     nearbyMisses: number;
+    geocodeHits: number;
+    geocodeMisses: number;
   };
 }
 
@@ -23,6 +26,7 @@ const sessionCache: PlacesCache = {
   placeDetails: new Map(),
   searchResults: new Map(),
   nearbyResults: new Map(),
+  geocodeResults: new Map(),
   stats: {
     placeDetailsHits: 0,
     placeDetailsMisses: 0,
@@ -30,6 +34,8 @@ const sessionCache: PlacesCache = {
     searchMisses: 0,
     nearbyHits: 0,
     nearbyMisses: 0,
+    geocodeHits: 0,
+    geocodeMisses: 0,
   },
 };
 
@@ -47,6 +53,7 @@ export function clearPlacesCache() {
   sessionCache.placeDetails.clear();
   sessionCache.searchResults.clear();
   sessionCache.nearbyResults.clear();
+  sessionCache.geocodeResults.clear();
   sessionCache.stats = {
     placeDetailsHits: 0,
     placeDetailsMisses: 0,
@@ -54,14 +61,16 @@ export function clearPlacesCache() {
     searchMisses: 0,
     nearbyHits: 0,
     nearbyMisses: 0,
+    geocodeHits: 0,
+    geocodeMisses: 0,
   };
   console.log('[Google Places Cache] Cache cleared');
 }
 
 // Get cache stats for monitoring (actual hits/misses)
 export function getCacheStats() {
-  const totalHits = sessionCache.stats.placeDetailsHits + sessionCache.stats.searchHits + sessionCache.stats.nearbyHits;
-  const totalMisses = sessionCache.stats.placeDetailsMisses + sessionCache.stats.searchMisses + sessionCache.stats.nearbyMisses;
+  const totalHits = sessionCache.stats.placeDetailsHits + sessionCache.stats.searchHits + sessionCache.stats.nearbyHits + sessionCache.stats.geocodeHits;
+  const totalMisses = sessionCache.stats.placeDetailsMisses + sessionCache.stats.searchMisses + sessionCache.stats.nearbyMisses + sessionCache.stats.geocodeMisses;
   const totalCalls = totalHits + totalMisses;
   const hitRate = totalCalls > 0 ? ((totalHits / totalCalls) * 100).toFixed(1) : '0.0';
   
@@ -72,6 +81,8 @@ export function getCacheStats() {
     searchMisses: sessionCache.stats.searchMisses,
     nearbyHits: sessionCache.stats.nearbyHits,
     nearbyMisses: sessionCache.stats.nearbyMisses,
+    geocodeHits: sessionCache.stats.geocodeHits,
+    geocodeMisses: sessionCache.stats.geocodeMisses,
     totalHits,
     totalMisses,
     totalCalls,
@@ -116,6 +127,16 @@ export async function getTimezoneForLocation(lat: number, lng: number): Promise<
 }
 
 export async function geocodeLocation(location: string): Promise<GeocodeResult | null> {
+  // Check cache first
+  if (sessionCache.geocodeResults.has(location)) {
+    sessionCache.stats.geocodeHits++;
+    console.log(`[Google Places Cache] HIT - geocode for "${location}"`);
+    return sessionCache.geocodeResults.get(location)!;
+  }
+
+  sessionCache.stats.geocodeMisses++;
+  console.log(`[Google Places Cache] MISS - fetching geocode for "${location}"`);
+
   try {
     if (!process.env.GOOGLE_PLACES_API_KEY) {
       throw new Error("GOOGLE_PLACES_API_KEY is not set");
@@ -130,6 +151,7 @@ export async function geocodeLocation(location: string): Promise<GeocodeResult |
 
     if (!response.data.results || response.data.results.length === 0) {
       console.error(`Geocoding failed for location: ${location}`);
+      sessionCache.geocodeResults.set(location, null);
       return null;
     }
 
@@ -139,14 +161,19 @@ export async function geocodeLocation(location: string): Promise<GeocodeResult |
     // Fetch timezone for the coordinates
     const timezone = await getTimezoneForLocation(lat, lng);
 
-    return {
+    const geocodeResult = {
       latitude: lat,
       longitude: lng,
       formattedAddress: result.formatted_address,
       timezone: timezone || undefined,
     };
+
+    // Cache the result
+    sessionCache.geocodeResults.set(location, geocodeResult);
+    return geocodeResult;
   } catch (error) {
     console.error("Error geocoding location:", error);
+    sessionCache.geocodeResults.set(location, null);
     return null;
   }
 }
