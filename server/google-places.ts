@@ -253,73 +253,74 @@ export async function searchPlaces(
       return [];
     }
 
-    // Get first result
-    const place = response.data.results[0];
+    console.log(`[Google Places] Got ${response.data.results.length} results from API`);
+
+    // Process ALL results (up to 20 from Google), not just the first one
+    const results: PlaceResult[] = [];
     
-    // Check if place is within radius (if coordinates provided)
-    const placeLocation = place.geometry?.location;
-    if (coordinates && placeLocation) {
-      const distance = calculateDistance(
-        coordinates.lat,
-        coordinates.lng,
-        placeLocation.lat,
-        placeLocation.lng
-      );
-      
-      if (distance > radiusMiles) {
-        console.log(`[Google Places] Filtering out "${place.name}" - ${distance.toFixed(2)} miles away (radius: ${radiusMiles} miles)`);
-        sessionCache.searchResults.set(cacheKey, []);
-        return [];
-      }
-    }
-    
-    // Fetch full details including reviews if we have a place ID
-    if (place.place_id) {
-      const detailedPlace = await getPlaceDetails(place.place_id);
-      if (detailedPlace) {
-        // Add location from text search (not in place details)
-        const placeLocationCoords = placeLocation 
-          ? { lat: placeLocation.lat, lng: placeLocation.lng }
-          : undefined;
+    for (const place of response.data.results.slice(0, 20)) {
+      // Check if place is within radius (if coordinates provided)
+      const placeLocation = place.geometry?.location;
+      if (coordinates && placeLocation) {
+        const distance = calculateDistance(
+          coordinates.lat,
+          coordinates.lng,
+          placeLocation.lat,
+          placeLocation.lng
+        );
         
-        const result = [{
-          ...detailedPlace,
-          location: placeLocationCoords,
-        }];
-
-        // Cache a clone to prevent mutations from affecting cached data
-        sessionCache.searchResults.set(cacheKey, result.map(r => clonePlaceResult(r)));
-        // Return original (caller can mutate without affecting cache)
-        return result;
+        if (distance > radiusMiles) {
+          console.log(`[Google Places] Filtering out "${place.name}" - ${distance.toFixed(2)} miles away (radius: ${radiusMiles} miles)`);
+          continue; // Skip this place, but keep processing others
+        }
       }
+      
+      // Fetch full details including reviews if we have a place ID
+      if (place.place_id) {
+        const detailedPlace = await getPlaceDetails(place.place_id);
+        if (detailedPlace) {
+          // Add location from text search (not in place details)
+          const placeLocationCoords = placeLocation 
+            ? { lat: placeLocation.lat, lng: placeLocation.lng }
+            : undefined;
+          
+          results.push({
+            ...detailedPlace,
+            location: placeLocationCoords,
+          });
+          continue; // Successfully added detailed place
+        }
+      }
+
+      // Fallback to basic data if details fetch fails
+      let photoUrl: string | undefined;
+      if (place.photos && place.photos.length > 0) {
+        const photoReference = place.photos[0].photo_reference;
+        photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${photoReference}&key=${process.env.GOOGLE_PLACES_API_KEY}`;
+      }
+
+      const fallbackLocation = placeLocation 
+        ? { lat: placeLocation.lat, lng: placeLocation.lng }
+        : undefined;
+
+      results.push({
+        placeId: place.place_id || "",
+        name: place.name || query,
+        address: place.formatted_address || "",
+        rating: place.rating?.toString(),
+        priceLevel: place.price_level?.toString(),
+        photoUrl,
+        types: place.types || [],
+        location: fallbackLocation,
+      });
     }
 
-    // Fallback to basic data if details fetch fails
-    let photoUrl: string | undefined;
-    if (place.photos && place.photos.length > 0) {
-      const photoReference = place.photos[0].photo_reference;
-      photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${photoReference}&key=${process.env.GOOGLE_PLACES_API_KEY}`;
-    }
-
-    const fallbackLocation = placeLocation 
-      ? { lat: placeLocation.lat, lng: placeLocation.lng }
-      : undefined;
-
-    const result = [{
-      placeId: place.place_id || "",
-      name: place.name || query,
-      address: place.formatted_address || "",
-      rating: place.rating?.toString(),
-      priceLevel: place.price_level?.toString(),
-      photoUrl,
-      types: place.types || [],
-      location: fallbackLocation,
-    }];
+    console.log(`[Google Places] Processed ${results.length} valid results`);
 
     // Cache a clone to prevent mutations from affecting cached data
-    sessionCache.searchResults.set(cacheKey, result.map(r => clonePlaceResult(r)));
+    sessionCache.searchResults.set(cacheKey, results.map(r => clonePlaceResult(r)));
     // Return original (caller can mutate without affecting cache)
-    return result;
+    return results;
   } catch (error) {
     console.error("Error searching Google Places:", error);
     // Cache empty result to avoid retrying failed searches
