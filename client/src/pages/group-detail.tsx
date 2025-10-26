@@ -523,35 +523,54 @@ function SortableCartVenue({ id, index, venueName, venueType, photoUrl, onRemove
           {nearbySuggestions.map((suggestion) => {
             const alreadyAdded = selectedVenueIds.includes(suggestion.placeId);
             return (
-              <button
+              <div
                 key={suggestion.placeId}
-                onClick={() => onAddNearby(suggestion)}
-                disabled={alreadyAdded || addVenueLoading}
-                className={`flex gap-2 p-2 rounded-md border text-left w-full transition-all hover-elevate ${
-                  alreadyAdded || addVenueLoading ? 'opacity-50 cursor-not-allowed' : ''
+                className={`flex gap-2 p-2 rounded-md border transition-all ${
+                  alreadyAdded || addVenueLoading ? 'opacity-50' : 'hover-elevate'
                 }`}
                 data-testid={`nearby-suggestion-${suggestion.placeId}`}
               >
-                {suggestion.photoUrl && (
-                  <img 
-                    src={suggestion.photoUrl} 
-                    alt={suggestion.name}
-                    className="w-12 h-12 rounded object-cover flex-shrink-0"
-                  />
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium truncate">{suggestion.name}</p>
-                  {suggestion.rating && (
-                    <div className="flex items-center gap-1 mt-0.5">
-                      <Star className="h-2.5 w-2.5 fill-yellow-400 text-yellow-400" />
-                      <span className="text-xs font-medium">{suggestion.rating}</span>
-                    </div>
+                <button
+                  onClick={() => onAddNearby(suggestion)}
+                  disabled={alreadyAdded || addVenueLoading}
+                  className="flex gap-2 flex-1 min-w-0 text-left"
+                >
+                  {suggestion.photoUrl && (
+                    <img 
+                      src={suggestion.photoUrl} 
+                      alt={suggestion.name}
+                      className="w-12 h-12 rounded object-cover flex-shrink-0"
+                    />
                   )}
-                  <p className="text-xs text-muted-foreground truncate mt-0.5">
-                    {suggestion.address}
-                  </p>
-                </div>
-              </button>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium truncate">{suggestion.name}</p>
+                    {suggestion.rating && (
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <Star className="h-2.5 w-2.5 fill-yellow-400 text-yellow-400" />
+                        <span className="text-xs font-medium">{suggestion.rating}</span>
+                      </div>
+                    )}
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">
+                      {suggestion.address}
+                    </p>
+                  </div>
+                </button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  asChild
+                  className="h-auto px-1 py-1 flex-shrink-0"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=Google&query_place_id=${suggestion.placeId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                </Button>
+              </div>
             );
           })}
         </div>
@@ -3526,12 +3545,12 @@ export default function GroupDetail() {
                       Clear
                     </Button>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {categoryResults.map((result, index) => {
                       const isFavorited = votingEvents.some(event => event.googlePlaceId === result.googlePlaceId);
                       return (
                         <Card key={index} className="overflow-hidden">
-                          <div className="relative h-48">
+                          <div className="relative h-40">
                             <img
                               src={result.photoUrl}
                               alt={result.venueName}
@@ -3593,19 +3612,43 @@ export default function GroupDetail() {
                               />
                             </button>
                           </div>
-                          <CardHeader>
-                            <CardTitle className="text-lg">{result.venueName}</CardTitle>
-                            <CardDescription className="flex items-center gap-2">
-                              <Star className="h-3 w-3 fill-yellow-400 stroke-yellow-400" />
-                              <span className="text-sm">{result.rating}</span>
-                              {result.reviewCount && (
-                                <span className="text-xs text-muted-foreground">({result.reviewCount})</span>
+                          <CardHeader className="pb-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <CardTitle className="text-base mb-1">{result.venueName}</CardTitle>
+                                <CardDescription className="flex items-center gap-1.5 text-xs">
+                                  <Star className="h-3 w-3 fill-yellow-400 stroke-yellow-400" />
+                                  <span>{result.rating}</span>
+                                  {result.reviewCount && (
+                                    <span className="text-muted-foreground">({result.reviewCount})</span>
+                                  )}
+                                </CardDescription>
+                              </div>
+                              {result.googlePlaceId && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  asChild
+                                  className="h-6 px-2 flex-shrink-0"
+                                  data-testid={`button-google-link-${result.googlePlaceId}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <a
+                                    href={`https://www.google.com/maps/search/?api=1&query=Google&query_place_id=${result.googlePlaceId}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="gap-1"
+                                  >
+                                    <ExternalLink className="h-3 w-3" />
+                                    <span className="text-xs">Maps</span>
+                                  </a>
+                                </Button>
                               )}
-                            </CardDescription>
+                            </div>
                           </CardHeader>
-                          <CardContent>
-                            <p className="text-sm text-muted-foreground line-clamp-2">{result.description}</p>
-                            <p className="text-xs text-muted-foreground mt-2">{result.venueAddress}</p>
+                          <CardContent className="pt-0">
+                            <p className="text-xs text-muted-foreground line-clamp-2 mb-2">{result.description}</p>
+                            <p className="text-xs text-muted-foreground line-clamp-1">{result.venueAddress}</p>
                           </CardContent>
                         </Card>
                       );
@@ -3627,12 +3670,12 @@ export default function GroupDetail() {
               )}
 
               {activitiesLoading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {[...Array(6)].map((_, i) => (
                   <Card key={i}>
-                    <Skeleton className="h-48 w-full rounded-t-lg" />
+                    <Skeleton className="h-40 w-full rounded-t-lg" />
                     <CardHeader>
-                      <Skeleton className="h-6 w-3/4" />
+                      <Skeleton className="h-5 w-3/4" />
                       <Skeleton className="h-4 w-1/2" />
                     </CardHeader>
                   </Card>
@@ -3813,7 +3856,7 @@ export default function GroupDetail() {
                                 )}
                               </Button>
                             </div>
-                            <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-3">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               {categoryActivities.map((activity) => {
                   // Determine label for complementary places
                   const isRestaurant = ['restaurant', 'cafe', 'bar', 'brewery', 'bakery', 'food'].some(type => 
