@@ -3826,7 +3826,21 @@ export default function GroupDetail() {
                                     <p className="text-xs text-muted-foreground line-clamp-2 mb-3">{tempActivity.description}</p>
                                   )}
                                   
-                                  <p className="text-xs text-muted-foreground mt-auto line-clamp-2">{tempActivity.venueAddress}</p>
+                                  <p className="text-xs text-muted-foreground line-clamp-2">{tempActivity.venueAddress}</p>
+                                  
+                                  {tempActivity.googlePlaceId && (
+                                    <a
+                                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tempActivity.venueName)}&query_place_id=${tempActivity.googlePlaceId}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="mt-2 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                                      onClick={(e) => e.stopPropagation()}
+                                      data-testid={`link-maps-search-${tempActivity.id}`}
+                                    >
+                                      <MapPin className="h-3 w-3" />
+                                      View on Google Maps
+                                    </a>
+                                  )}
                                 </div>
                               </Card>
                             );

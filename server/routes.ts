@@ -2415,7 +2415,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Not authorized to modify this group" });
       }
 
-      const { category, location, radius, count = 8 } = req.body;
+      const { category, location, radius, count = 9 } = req.body;
 
       if (!category || !['meal', 'cafes', 'drinks', 'dessert', 'experiences'].includes(category)) {
         return res.status(400).json({ message: "Invalid category" });
