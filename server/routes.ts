@@ -2598,11 +2598,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
       );
 
+      // Filter to only include activities that match the requested category
+      const categoryMatches: Record<string, string[]> = {
+        'meal': ['meal'],
+        'cafes': ['cafes'],
+        'drinks': ['drinks'],
+        'dessert': ['dessert'],
+        'experiences': ['experiences']
+      };
+
+      const matchingCategories = categoryMatches[category] || [category];
+      
       const validActivities = enrichedActivities
-        .filter(a => a !== null)
+        .filter(a => a !== null && matchingCategories.includes(a.category))
         .slice(0, count); // Limit to requested count
 
-      console.log(`[Category Generate] Returning ${validActivities.length} activities`);
+      console.log(`[Category Generate] Returning ${validActivities.length} activities (filtered to ${category} category)`);
       res.json(validActivities);
     } catch (error: any) {
       console.error("[Category Generate] Error:", error);
