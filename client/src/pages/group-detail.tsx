@@ -2809,7 +2809,7 @@ export default function GroupDetail() {
                   <div className="space-y-3">
                     <Label>Group Availability</Label>
                     <AvailabilityGrid 
-                      value={editAvailability} 
+                      value={editAvailability as Record<string, {morning: boolean; afternoon: boolean; evening: boolean}>} 
                       onChange={setEditAvailability}
                     />
                   </div>
@@ -3544,6 +3544,7 @@ export default function GroupDetail() {
                                   const eventExists = votingEvents.some(event => event.googlePlaceId === result.googlePlaceId);
                                   if (!eventExists) {
                                     createEventMutation.mutate({
+                                      groupId: id!,
                                       title: result.venueName,
                                       description: result.description,
                                       venueAddress: result.venueAddress,
@@ -3552,7 +3553,6 @@ export default function GroupDetail() {
                                       rating: result.rating || undefined,
                                       priceLevel: result.priceLevel || undefined,
                                       photoUrl: result.photoUrl || undefined,
-                                      reviewCount: result.reviewCount || undefined,
                                     });
                                   }
                                 }
@@ -5584,7 +5584,7 @@ export default function GroupDetail() {
                           <p className="text-sm font-medium">When is the group free?</p>
                           <ReadOnlyAvailabilityGrid 
                             value={group.availability as Record<string, {morning: boolean; afternoon: boolean; evening: boolean}>} 
-                            compact={true}
+                            compact={true as boolean}
                           />
                         </div>
                       )}
