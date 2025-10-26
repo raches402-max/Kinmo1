@@ -1025,12 +1025,13 @@ export default function GroupDetail() {
   });
 
   const generateCategoryMutation = useMutation({
-    mutationFn: async ({ category, location, radius }: { category: string; location?: { address: string; lat: number; lng: number }; radius?: number }) => {
+    mutationFn: async ({ category, location, radius, sortBy }: { category: string; location?: { address: string; lat: number; lng: number }; radius?: number; sortBy?: 'distance' | 'rating' }) => {
       return await apiRequest("POST", `/api/groups/${groupId}/generate-category`, {
         category,
         location,
         radius,
         count: 15,
+        sortBy: sortBy || 'rating',
       });
     },
     onSuccess: (data) => {
@@ -3585,6 +3586,7 @@ export default function GroupDetail() {
                           category: selectedCategory,
                           location: categoryLocation.trim() ? { address: categoryLocation.trim(), lat: 0, lng: 0 } : undefined,
                           radius: categoryRadius,
+                          sortBy: multiVenueMode ? 'distance' : 'rating',
                         });
                       } else {
                         const isGenerating = retryGenerationMutation.isPending || group?.activityGenerationStatus === "generating" || group?.activityGenerationStatus === "pending";
