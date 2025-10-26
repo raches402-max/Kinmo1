@@ -2777,12 +2777,10 @@ export default function GroupDetail() {
                   </div>
                   <div className="space-y-3">
                     <Label>Group Availability</Label>
-                    <>
-                      <AvailabilityGrid 
-                        value={editAvailability} 
-                        onChange={setEditAvailability}
-                      />
-                    </>
+                    <AvailabilityGrid 
+                      value={editAvailability} 
+                      onChange={setEditAvailability}
+                    />
                   </div>
                 </CardContent>
               </Card>
@@ -4089,7 +4087,7 @@ export default function GroupDetail() {
                             });
                             
                             const inExistingItinerary = itineraries.some(itinerary => 
-                              itinerary.items.some(item => {
+                              itinerary.items.some((item: any) => {
                                 if (item.sourceType === 'voting_event') {
                                   const votingEvent = votingEvents.find(e => e.id === item.sourceId);
                                   return votingEvent?.googlePlaceId === result.placeId;
@@ -5331,12 +5329,10 @@ export default function GroupDetail() {
                       {group?.availability && (
                         <div className="space-y-2">
                           <p className="text-sm font-medium">When is the group free?</p>
-                          <>
-                            <ReadOnlyAvailabilityGrid 
-                              value={group.availability as Record<string, {morning: boolean; afternoon: boolean; evening: boolean}>} 
-                              compact={true}
-                            />
-                          </>
+                          <ReadOnlyAvailabilityGrid 
+                            value={group.availability as Record<string, {morning: boolean; afternoon: boolean; evening: boolean}>} 
+                            compact={true}
+                          />
                         </div>
                       )}
                       {group?.generalAvailability && (
