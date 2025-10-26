@@ -2428,9 +2428,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Use custom location if provided, otherwise use group location
       const searchLocation = location?.address || group.locationBase;
       const searchRadius = radius || group.searchRadius || 2;
+      // Only use coordinates if explicitly provided or if using group's location
+      // Don't use group coordinates when custom location address is provided without coords
       const coordinates = location?.lat && location?.lng 
         ? { lat: location.lat, lng: location.lng }
-        : (group.latitude && group.longitude 
+        : (!location?.address && group.latitude && group.longitude 
           ? { lat: parseFloat(group.latitude), lng: parseFloat(group.longitude) }
           : undefined);
 
