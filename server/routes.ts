@@ -2569,7 +2569,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               googleReview: place.review || null,
               aiReasoning: suggestion.reasoning,
               timeCategory: categorizeByTime(suggestion.venueType),
-              category: categorizeVenue(place.name, suggestion.venueType, place.types),
+              category: await categorizeVenue(place.name, suggestion.venueType, place.types),
             };
           }
           

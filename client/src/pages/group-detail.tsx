@@ -3693,7 +3693,7 @@ export default function GroupDetail() {
                     complementaryPlacePhotoUrl2: null,
                     complementaryPlaceRating2: null,
                     timeCategory: null,
-                    category: null,
+                    category: result.category || null,
                     createdAt: new Date(),
                     suggestedDate: null,
                     suggestedTime: null,
