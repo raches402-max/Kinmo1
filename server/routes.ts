@@ -2458,163 +2458,115 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const existingActivities = await storage.getGroupActivities(req.params.id);
       const existingVenueNames = existingActivities.map(a => a.venueName);
 
-      // Get feedback data for AI context
-      const previousFeedback = existingActivities
-        .filter(a => a.feedback)
-        .map(a => ({
-          venueName: a.venueName,
-          venueType: a.venueType,
-          feedback: a.feedback!,
-          description: a.description
-        }));
+      // Map category to Google Places search query
+      const categorySearchQueries: Record<string, string> = {
+        'meal': 'restaurants',
+        'cafes': 'coffee shops cafes',
+        'drinks': 'bars',
+        'dessert': 'dessert ice cream boba',
+        'experiences': 'museums parks attractions activities'
+      };
 
-      const votingEvents = await storage.getGroupVotingEvents(req.params.id);
-      const votingFeedback = votingEvents
-        .filter(e => e.netVotes !== 0 && e.venueType)
-        .map(e => ({
-          venueName: e.title,
-          venueType: e.venueType!,
-          upvotes: e.upvotes,
-          downvotes: e.downvotes,
-          netVotes: e.netVotes,
-          description: e.description || ''
-        }));
+      const searchQuery = categorySearchQueries[category] || category;
+      console.log(`[Category Generate] Direct Google search: "${searchQuery} in ${searchLocation}"`);
 
-      const preferenceSignals = await storage.getGroupPreferenceSignals(req.params.id);
-      const likedConcepts = preferenceSignals
-        .filter(s => s.feedback === 'like')
-        .map(s => s.conceptDescription);
-      const passedConcepts = preferenceSignals
-        .filter(s => s.feedback === 'pass')
-        .map(s => s.conceptDescription);
+      // Search Google Places directly (no AI needed!)
+      const places = await searchPlaces(
+        `${searchQuery} in ${searchLocation}`,
+        searchLocation,
+        searchRadius,
+        coordinates
+      );
 
-      // Generate category-specific suggestions with timeout protection
-      const suggestions = await Promise.race([
-        generateActivitySuggestions({
-          locationBase: searchLocation,
-          budgetMin: group.budgetMin,
-          budgetMax: group.budgetMax,
-          meetingFrequency: group.meetingFrequency,
-          availability: group.availability,
-          closenessLevel: group.closenessLevel,
-          noveltyPreference: group.noveltyPreference,
-          activityCategories: group.activityCategories || undefined,
-          pastPreferences: group.pastPreferences || undefined,
-          additionalInstructions: group.additionalInstructions || undefined,
-          searchRadius: searchRadius,
-          previousFeedback: previousFeedback.length > 0 ? previousFeedback : undefined,
-          votingFeedback: votingFeedback.length > 0 ? votingFeedback : undefined,
-          likedConcepts: likedConcepts.length > 0 ? likedConcepts : undefined,
-          passedConcepts: passedConcepts.length > 0 ? passedConcepts : undefined,
-          previouslySuggestedVenues: existingVenueNames,
-          targetCategories: [category], // Only generate this category
-          mealEnabled: group.mealEnabled ?? true,
-          cafeEnabled: group.cafeEnabled ?? true,
-          drinksEnabled: group.drinksEnabled ?? true,
-          dessertEnabled: group.dessertEnabled ?? true,
-          experiencesEnabled: group.experiencesEnabled ?? true,
-        }),
-        new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('AI generation timed out after 180 seconds')), 180000)
-        )
-      ]);
+      console.log(`[Category Generate] Got ${places.length} places from Google`);
 
-      console.log(`[Category Generate] Got ${suggestions.length} suggestions for ${category}`);
+      if (places.length === 0) {
+        return res.json([]);
+      }
 
-      // Enrich with Google Places (limit to requested count)
-      const limitedSuggestions = suggestions.slice(0, count * 2); // Get 2x to account for filtering
+      // Process and filter Google Places results
       const enrichedActivities = await Promise.all(
-        limitedSuggestions.map(async (suggestion) => {
-          const places = await searchPlaces(
-            suggestion.searchQuery,
-            searchLocation,
-            searchRadius,
-            coordinates
-          );
-
-          if (places.length === 0) {
-            console.log(`[Category Generate] No results for ${suggestion.venueName}`);
+        places.map(async (place) => {
+          // Skip if already in existing activities
+          if (existingVenueNames.includes(place.name)) {
+            console.log(`[Category Generate] Skipping duplicate: ${place.name}`);
             return null;
           }
 
-          // Apply quality filtering
-          const qualityFiltered = places.filter(place => {
-            const rating = parseFloat(place.rating || '0');
-            const reviewCount = place.reviewCount || 0;
+          // Quality filtering based on radius
+          const rating = parseFloat(place.rating || '0');
+          const reviewCount = place.reviewCount || 0;
+          let passesQuality = false;
 
-            if (searchRadius <= 2) {
-              return rating >= 3.5 && reviewCount >= 20;
-            } else if (searchRadius <= 10) {
-              return rating >= 3.8 && reviewCount >= 50;
-            } else if (searchRadius <= 30) {
-              return rating >= 4.0 && reviewCount >= 100;
-            } else {
-              return rating >= 4.2 && reviewCount >= 150;
-            }
-          });
-
-          // Apply budget filtering
-          const budgetFiltered = qualityFiltered.filter(place => {
-            const priceLevel = parseInt(place.priceLevel || '0');
-            const budgetMax = group.budgetMax;
-
-            if (budgetMax < 50) {
-              return priceLevel <= 1;
-            } else if (budgetMax < 100) {
-              return priceLevel <= 2;
-            } else if (budgetMax < 200) {
-              return priceLevel <= 3;
-            } else {
-              return priceLevel <= 4;
-            }
-          });
-
-          if (budgetFiltered.length > 0) {
-            const place = budgetFiltered[0];
-            
-            // Only include venues with complete data
-            if (!place.rating || !place.address || !place.photoUrl) {
-              console.log(`[Category Generate] Skipping ${place.name} - missing data`);
-              return null;
-            }
-            
-            // Calculate distance from search center if coordinates are available
-            let distanceFromBase: number | undefined;
-            if (coordinates && place.location?.lat && place.location?.lng) {
-              const R = 3959; // Earth's radius in miles
-              const lat1 = coordinates.lat * Math.PI / 180;
-              const lat2 = place.location.lat * Math.PI / 180;
-              const dLat = (place.location.lat - coordinates.lat) * Math.PI / 180;
-              const dLng = (place.location.lng - coordinates.lng) * Math.PI / 180;
-              const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                       Math.cos(lat1) * Math.cos(lat2) *
-                       Math.sin(dLng/2) * Math.sin(dLng/2);
-              const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-              distanceFromBase = R * c;
-            }
-
-            return {
-              aiSuggestedName: suggestion.venueName,
-              venueName: place.name,
-              venueAddress: place.address,
-              venueType: suggestion.venueType,
-              description: suggestion.description,
-              googlePlaceId: place.placeId,
-              latitude: place.location?.lat?.toString() || null,
-              longitude: place.location?.lng?.toString() || null,
-              rating: place.rating,
-              reviewCount: place.reviewCount || null,
-              priceLevel: place.priceLevel,
-              photoUrl: place.photoUrl,
-              googleReview: place.review || null,
-              aiReasoning: suggestion.reasoning,
-              timeCategory: categorizeByTime(suggestion.venueType),
-              category: await categorizeVenue(place.name, suggestion.venueType, place.types),
-              distanceFromGroupBase: distanceFromBase,
-            };
+          if (searchRadius <= 2) {
+            passesQuality = rating >= 3.5 && reviewCount >= 20;
+          } else if (searchRadius <= 10) {
+            passesQuality = rating >= 3.8 && reviewCount >= 50;
+          } else if (searchRadius <= 30) {
+            passesQuality = rating >= 4.0 && reviewCount >= 100;
+          } else {
+            passesQuality = rating >= 4.2 && reviewCount >= 150;
           }
+
+          if (!passesQuality) {
+            console.log(`[Category Generate] Skipping ${place.name} - quality filter (${rating}★, ${reviewCount} reviews)`);
+            return null;
+          }
+
+          // Budget filtering
+          const priceLevel = parseInt(place.priceLevel || '0');
+          const budgetMax = group.budgetMax;
+          let passesBudget = true;
+
+          if (budgetMax < 50 && priceLevel > 1) passesBudget = false;
+          else if (budgetMax < 100 && priceLevel > 2) passesBudget = false;
+          else if (budgetMax < 200 && priceLevel > 3) passesBudget = false;
+
+          if (!passesBudget) {
+            console.log(`[Category Generate] Skipping ${place.name} - budget filter ($${priceLevel} > budget $${budgetMax})`);
+            return null;
+          }
+
+          // Only include venues with complete data
+          if (!place.rating || !place.address || !place.photoUrl) {
+            console.log(`[Category Generate] Skipping ${place.name} - missing data`);
+            return null;
+          }
+
+          // Calculate distance from search center
+          let distanceFromBase: number | undefined;
+          if (coordinates && place.location?.lat && place.location?.lng) {
+            const R = 3959; // Earth's radius in miles
+            const lat1 = coordinates.lat * Math.PI / 180;
+            const lat2 = place.location.lat * Math.PI / 180;
+            const dLat = (place.location.lat - coordinates.lat) * Math.PI / 180;
+            const dLng = (place.location.lng - coordinates.lng) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                     Math.cos(lat1) * Math.cos(lat2) *
+                     Math.sin(dLng/2) * Math.sin(dLng/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            distanceFromBase = R * c;
+          }
+
+          // Auto-categorize based on Google Place types
+          const venueCategory = await categorizeVenue(place.name, place.types.join(', '), place.types);
           
-          return null;
+          return {
+            venueName: place.name,
+            venueAddress: place.address,
+            venueType: place.types[0] || 'venue',
+            description: place.review || '',
+            googlePlaceId: place.placeId,
+            latitude: place.location?.lat?.toString() || null,
+            longitude: place.location?.lng?.toString() || null,
+            rating: place.rating,
+            reviewCount: place.reviewCount || null,
+            priceLevel: place.priceLevel,
+            photoUrl: place.photoUrl,
+            googleReview: place.review || null,
+            category: venueCategory,
+            distanceFromGroupBase: distanceFromBase,
+          };
         })
       );
 
