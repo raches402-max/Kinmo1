@@ -3795,10 +3795,12 @@ export default function GroupDetail() {
                                   data-testid={`button-favorite-search-${tempActivity.id}`}
                                 >
                                   <Heart 
-                                    className={`h-4 w-4 ${
-                                      tempActivity.feedback === "love" ? "fill-white" : ""
-                                    }`}
-                                    style={{ color: tempActivity.feedback === "love" ? "white" : "white" }}
+                                    className={`h-6 w-6 transition-all ${
+                                      tempActivity.feedback === "love" 
+                                        ? "fill-white stroke-white" 
+                                        : "fill-none stroke-white"
+                                    }`} 
+                                    strokeWidth={2.5}
                                   />
                                 </button>
                                 <div className="p-4 flex-1 flex flex-col">
