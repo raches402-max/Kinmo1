@@ -1213,6 +1213,48 @@ export default function GroupDetail() {
     },
   });
 
+  const createActivityFromCategoryResultMutation = useMutation({
+    mutationFn: async ({ activityData, feedback, googlePlaceId }: { activityData: any; feedback: string | null; googlePlaceId: string }) => {
+      return await apiRequest("POST", `/api/groups/${groupId}/activities/from-category-result`, {
+        activityData,
+        feedback,
+      });
+    },
+    onMutate: async ({ googlePlaceId, feedback }) => {
+      // Optimistically update categoryResults to show feedback immediately
+      setCategoryResults(prev => prev.map(r => 
+        r.placeId === googlePlaceId 
+          ? { ...r, feedback: feedback }
+          : r
+      ));
+    },
+    onSuccess: (newActivity: Activity) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "activities"] });
+      
+      // Remove from categoryResults since it's now in the database
+      setCategoryResults(prev => prev.filter(r => r.placeId !== newActivity.googlePlaceId));
+      
+      toast({
+        title: "Saved to activities",
+        description: "Your preference has been recorded",
+      });
+    },
+    onError: (error: Error, variables) => {
+      // Revert optimistic update
+      setCategoryResults(prev => prev.map(r => 
+        r.placeId === variables.googlePlaceId 
+          ? { ...r, feedback: null }
+          : r
+      ));
+      
+      toast({
+        title: "Error saving activity",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const updateRadiusMutation = useMutation({
     mutationFn: async ({ searchRadius }: { searchRadius: number }) => {
       return await apiRequest("PATCH", `/api/groups/${groupId}/radius`, { searchRadius });
@@ -3663,7 +3705,7 @@ export default function GroupDetail() {
 
                   // Convert categoryResults to activity format and merge with filteredActivities
                   const categoryResultsAsActivities = categoryResults.map(result => ({
-                    id: result.googlePlaceId || `temp-${Math.random()}`,
+                    id: result.placeId || result.googlePlaceId || `temp-${Math.random()}`,
                     groupId: groupId || '',
                     aiSuggestedName: null,
                     venueName: result.venueName,
@@ -3674,10 +3716,10 @@ export default function GroupDetail() {
                     reviewCount: result.reviewCount || null,
                     priceLevel: result.priceLevel?.toString() || null,
                     photoUrl: result.photoUrl || null,
-                    googlePlaceId: result.googlePlaceId || null,
+                    googlePlaceId: result.googlePlaceId || result.placeId || null,
                     latitude: result.latitude?.toString() || null,
                     longitude: result.longitude?.toString() || null,
-                    feedback: null,
+                    feedback: (result as any).feedback || null,
                     aiReasoning: null,
                     priceEstimate: null,
                     timeConstraints: null,
@@ -3812,8 +3854,23 @@ export default function GroupDetail() {
                         }`}
                         onClick={(e) => {
                         e.stopPropagation();
+                          
+                          // Check if this is a temporary activity from categoryResults
+                          const isTempActivity = activity.id.startsWith('temp-') || 
+                            !displayedActivities.find(a => a.id === activity.id);
+                          
                           if (activity.feedback === "love") {
                             // Remove feedback and delete from Favorites list
+                            if (isTempActivity) {
+                              // Can't un-favorite a temporary activity - ignore
+                              toast({
+                                title: "Please save this first",
+                                description: "Generated suggestions need to be saved before favoriting",
+                                variant: "destructive",
+                              });
+                              return;
+                            }
+                            
                             feedbackMutation.mutate({ activityId: activity.id, feedback: null });
                             
                             // Find the voting event with matching venueName and delete it
@@ -3822,12 +3879,39 @@ export default function GroupDetail() {
                               deleteEventMutation.mutate(matchingEvent.id);
                             }
                           } else {
-                            // Add feedback and add to Favorites list (only if not already there)
-                            feedbackMutation.mutate({ activityId: activity.id, feedback: "love" });
-                            
-                            // Check if event already exists before creating
-                            const eventExists = votingEvents.some(event => event.title === activity.venueName);
-                            if (!eventExists) {
+                            if (isTempActivity) {
+                              // Create activity from category result with "love" feedback
+                              createActivityFromCategoryResultMutation.mutate({
+                                googlePlaceId: activity.googlePlaceId || activity.id,
+                                activityData: {
+                                  venueName: activity.venueName,
+                                  venueAddress: activity.venueAddress,
+                                  venueType: activity.venueType,
+                                  description: activity.description,
+                                  googlePlaceId: activity.googlePlaceId,
+                                  rating: activity.rating,
+                                  priceLevel: activity.priceLevel,
+                                  photoUrl: activity.photoUrl,
+                                  aiReasoning: activity.aiReasoning,
+                                  priceEstimate: activity.priceEstimate,
+                                  timeConstraints: activity.timeConstraints,
+                                  reviewCount: activity.reviewCount,
+                                  googleReview: activity.googleReview,
+                                  complementaryPlaceName: activity.complementaryPlaceName,
+                                  complementaryPlaceAddress: activity.complementaryPlaceAddress,
+                                  complementaryPlaceId: activity.complementaryPlaceId,
+                                  complementaryPlacePhotoUrl: activity.complementaryPlacePhotoUrl,
+                                  complementaryPlaceRating: activity.complementaryPlaceRating,
+                                  complementaryPlaceName2: activity.complementaryPlaceName2,
+                                  complementaryPlaceAddress2: activity.complementaryPlaceAddress2,
+                                  complementaryPlaceId2: activity.complementaryPlaceId2,
+                                  complementaryPlacePhotoUrl2: activity.complementaryPlacePhotoUrl2,
+                                  complementaryPlaceRating2: activity.complementaryPlaceRating2,
+                                },
+                                feedback: "love",
+                              });
+                              
+                              // Also create voting event
                               createEventMutation.mutate({
                                 title: activity.venueName,
                                 description: activity.description,
@@ -3851,6 +3935,37 @@ export default function GroupDetail() {
                                 complementaryPlacePhotoUrl2: activity.complementaryPlacePhotoUrl2 || undefined,
                                 complementaryPlaceRating2: activity.complementaryPlaceRating2 || undefined,
                               });
+                            } else {
+                              // Add feedback and add to Favorites list (only if not already there)
+                              feedbackMutation.mutate({ activityId: activity.id, feedback: "love" });
+                              
+                              // Check if event already exists before creating
+                              const eventExists = votingEvents.some(event => event.title === activity.venueName);
+                              if (!eventExists) {
+                                createEventMutation.mutate({
+                                  title: activity.venueName,
+                                  description: activity.description,
+                                  venueAddress: activity.venueAddress,
+                                  venueType: activity.venueType,
+                                  googlePlaceId: activity.googlePlaceId || undefined,
+                                  rating: activity.rating || undefined,
+                                  priceLevel: activity.priceLevel || undefined,
+                                  photoUrl: activity.photoUrl || undefined,
+                                  aiReasoning: activity.aiReasoning || undefined,
+                                  priceEstimate: activity.priceEstimate || undefined,
+                                  timeConstraints: activity.timeConstraints || undefined,
+                                  complementaryPlaceName: activity.complementaryPlaceName || undefined,
+                                  complementaryPlaceAddress: activity.complementaryPlaceAddress || undefined,
+                                  complementaryPlaceId: activity.complementaryPlaceId || undefined,
+                                  complementaryPlacePhotoUrl: activity.complementaryPlacePhotoUrl || undefined,
+                                  complementaryPlaceRating: activity.complementaryPlaceRating || undefined,
+                                  complementaryPlaceName2: activity.complementaryPlaceName2 || undefined,
+                                  complementaryPlaceAddress2: activity.complementaryPlaceAddress2 || undefined,
+                                  complementaryPlaceId2: activity.complementaryPlaceId2 || undefined,
+                                  complementaryPlacePhotoUrl2: activity.complementaryPlacePhotoUrl2 || undefined,
+                                  complementaryPlaceRating2: activity.complementaryPlaceRating2 || undefined,
+                                });
+                              }
                             }
                           }
                         }}

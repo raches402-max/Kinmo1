@@ -2670,6 +2670,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Create activity from generated category result and optionally save feedback
+  app.post("/api/groups/:id/activities/from-category-result", isAuthenticated, async (req: any, res) => {
+    try {
+      const group = await storage.getGroup(req.params.id);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      // Verify user owns this group
+      const userId = req.user.claims.sub;
+      if (group.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized to modify this group" });
+      }
+
+      const { activityData, feedback } = req.body;
+      
+      // Categorize the venue
+      const category = await categorizeVenue(activityData.venueName, activityData.venueType);
+      
+      // Create the activity
+      const activity = await storage.createActivity({
+        ...activityData,
+        groupId: req.params.id,
+        category,
+        feedback: feedback || null,
+      });
+
+      res.json(activity);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Send email invitations (simplified - logs to console for MVP)
   app.post("/api/groups/:id/send-invitations", async (req, res) => {
     try {

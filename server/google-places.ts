@@ -274,8 +274,8 @@ export async function searchPlaces(
       photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${photoReference}&key=${process.env.GOOGLE_PLACES_API_KEY}`;
     }
 
-    const placeLocation = place.geometry?.location 
-      ? { lat: place.geometry.location.lat, lng: place.geometry.location.lng }
+    const fallbackLocation = placeLocation 
+      ? { lat: placeLocation.lat, lng: placeLocation.lng }
       : undefined;
 
     const result = [{
@@ -286,7 +286,7 @@ export async function searchPlaces(
       priceLevel: place.price_level?.toString(),
       photoUrl,
       types: place.types || [],
-      location: placeLocation,
+      location: fallbackLocation,
     }];
 
     // Cache a clone to prevent mutations from affecting cached data
