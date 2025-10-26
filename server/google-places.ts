@@ -540,12 +540,19 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceResult | nu
       params: {
         place_id: placeId,
         key: process.env.GOOGLE_PLACES_API_KEY,
-        fields: ['place_id', 'name', 'formatted_address', 'rating', 'user_ratings_total', 'price_level', 'photos', 'types', 'reviews'],
+        fields: ['place_id', 'name', 'formatted_address', 'rating', 'user_ratings_total', 'price_level', 'photos', 'types', 'reviews', 'business_status'],
       },
     });
 
     const place = response.data.result;
     if (!place) {
+      sessionCache.placeDetails.set(placeId, null);
+      return null;
+    }
+
+    // Filter out permanently closed businesses
+    if (place.business_status === 'CLOSED_PERMANENTLY') {
+      console.log(`[Google Places] Filtering out permanently closed business: ${place.name}`);
       sessionCache.placeDetails.set(placeId, null);
       return null;
     }
