@@ -5479,94 +5479,17 @@ export default function GroupDetail() {
               })()}
 
               {/* Scheduling Section */}
-              <div className="mt-12 pt-8 border-t">
-                {/* Group Availability Reminder */}
-                <Card data-testid="card-availability-reminder" id="schedule-section">
-                  <CardHeader>
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex-1">
-                        <CardTitle className="text-lg">Group Availability</CardTitle>
-                        <CardDescription>Quick reference for scheduling</CardDescription>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          // Initialize dialog with current values
-                          if (group?.availability) {
-                            setEditAvailabilityData(group.availability as Record<string, {morning: boolean; afternoon: boolean; evening: boolean}>);
-                          }
-                          if (group?.generalAvailability) {
-                            setEditAvailabilityNotes(group.generalAvailability);
-                          }
-                          if (group?.meetingFrequency) {
-                            const freq = group.meetingFrequency;
-                            // Handle new format (e.g., "2-week")
-                            if (freq.includes("-")) {
-                              const [num, unit] = freq.split("-");
-                              setEditMeetingFreqNumber(parseInt(num));
-                              setEditMeetingFreqUnit(unit.endsWith("s") ? unit : unit + "s");
-                            }
-                            // Handle legacy formats
-                            else if (freq === "weekly") {
-                              setEditMeetingFreqNumber(1);
-                              setEditMeetingFreqUnit("weeks");
-                            } else if (freq === "biweekly") {
-                              setEditMeetingFreqNumber(2);
-                              setEditMeetingFreqUnit("weeks");
-                            } else if (freq === "monthly") {
-                              setEditMeetingFreqNumber(1);
-                              setEditMeetingFreqUnit("months");
-                            } else if (freq === "flexible") {
-                              setEditMeetingFreqNumber(1);
-                              setEditMeetingFreqUnit("months");
-                            }
-                          }
-                          setEditAvailabilityOpen(true);
-                        }}
-                        data-testid="button-edit-availability"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-4">
-                      {group?.availability && (
-                        <div className="space-y-2">
-                          <p className="text-sm font-medium">When is the group free?</p>
-                          <ReadOnlyAvailabilityGrid 
-                            value={group.availability as Record<string, {morning: boolean; afternoon: boolean; evening: boolean}>} 
-                            compact={true as boolean}
-                          />
-                        </div>
-                      )}
-                      {group?.generalAvailability && (
-                        <div className="space-y-2">
-                          <p className="text-sm font-medium">Additional Notes</p>
-                          <p className="text-sm text-muted-foreground">{group.generalAvailability}</p>
-                        </div>
-                      )}
-                      <div className="space-y-2">
-                        <p className="text-sm font-medium">Meeting Frequency</p>
-                        <p className="text-sm text-muted-foreground">
-                          {group?.meetingFrequency ? formatMeetingFrequency(group.meetingFrequency) : 'Not specified'}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
+              <div className="mt-12 pt-8 border-t" id="schedule-section">
                 {/* Schedule Event Section */}
-                <Card data-testid="card-schedule-event" className="mt-6">
+                <Card data-testid="card-schedule-event">
                   <CardHeader>
                     <CardTitle className="text-lg">Schedule Event</CardTitle>
-                    <CardDescription>Choose a saved plan and pick a time</CardDescription>
+                    <CardDescription>Pick a saved plan and choose when to meet</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6">
-                    {/* Itinerary Selection */}
+                    {/* Saved Plan Dropdown */}
                     <div className="space-y-2">
-                      <Label htmlFor="select-itinerary">Select a Saved Plan</Label>
+                      <Label htmlFor="select-itinerary" className="text-sm font-medium">Saved Plan</Label>
                       <Select
                         value={selectedItineraryForScheduling?.id || ""}
                         onValueChange={(value) => {
@@ -5577,7 +5500,7 @@ export default function GroupDetail() {
                         }}
                       >
                         <SelectTrigger id="select-itinerary" data-testid="select-itinerary">
-                          <SelectValue placeholder="Choose an itinerary..." />
+                          <SelectValue placeholder="Choose a saved plan..." />
                         </SelectTrigger>
                         <SelectContent>
                           {savedItineraries.map((itinerary: any) => (
@@ -5591,85 +5514,125 @@ export default function GroupDetail() {
 
                     {selectedItineraryForScheduling && (
                       <>
-                        {/* Show selected itinerary preview */}
-                        <div className="space-y-2 p-3 bg-accent/10 rounded-lg border">
-                          <p className="text-sm font-medium">{selectedItineraryForScheduling.name}</p>
-                          <div className="space-y-1">
-                            {selectedItineraryForScheduling.items?.slice(0, 3).map((item: any, index: number) => (
-                              <p key={item.id} className="text-xs text-muted-foreground">
-                                {index + 1}. {item.venueName}
-                              </p>
-                            ))}
-                            {selectedItineraryForScheduling.items?.length > 3 && (
-                              <p className="text-xs text-muted-foreground">
-                                +{selectedItineraryForScheduling.items.length - 3} more
-                              </p>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Scheduling Method Selection */}
+                        {/* When to Meet Section */}
                         <div className="space-y-4">
-                          <Label>Choose scheduling method</Label>
-                          <div className="space-y-3">
-                            <div className="flex items-start gap-3">
-                              <input
-                                type="radio"
-                                id="method-manual"
-                                name="schedule-method"
-                                checked={scheduleMethod === 'manual'}
-                                onChange={() => {
-                                  setScheduleMethod('manual');
-                                  setAiTimeOptions([]);
-                                  setSelectedTimeOptionIds([]);
-                                }}
-                                className="mt-1"
-                                data-testid="radio-manual-time"
-                              />
-                              <div className="flex-1">
-                                <Label htmlFor="method-manual" className="cursor-pointer">I have a time/date in mind</Label>
-                                {scheduleMethod === 'manual' && (
-                                  <div className="mt-3 grid grid-cols-2 gap-3">
-                                    <div className="space-y-2">
-                                      <Label htmlFor="event-date">Date</Label>
-                                      <Input
-                                        id="event-date"
-                                        type="date"
-                                        value={eventDate}
-                                        onChange={(e) => setEventDate(e.target.value)}
-                                        data-testid="input-event-date"
+                          <div className="flex items-center justify-between">
+                            <Label className="text-sm font-medium">When to Meet</Label>
+                            {/* Compact Availability Reference */}
+                            <Collapsible>
+                              <CollapsibleTrigger asChild>
+                                <Button variant="ghost" size="sm" className="gap-1 h-7 text-xs text-muted-foreground" data-testid="button-view-availability">
+                                  <Calendar className="h-3 w-3" />
+                                  View Availability
+                                  <ChevronDown className="h-3 w-3" />
+                                </Button>
+                              </CollapsibleTrigger>
+                              <CollapsibleContent className="mt-2">
+                                <div className="p-3 bg-muted/30 rounded-md border space-y-3">
+                                  {group?.availability && (
+                                    <div className="space-y-1.5">
+                                      <p className="text-xs font-medium text-muted-foreground">Group Availability</p>
+                                      <ReadOnlyAvailabilityGrid 
+                                        value={group.availability as Record<string, {morning: boolean; afternoon: boolean; evening: boolean}>} 
+                                        compact={true as boolean}
                                       />
                                     </div>
-                                    <div className="space-y-2">
-                                      <Label htmlFor="event-time">Time</Label>
-                                      <Input
-                                        id="event-time"
-                                        type="time"
-                                        value={eventTime}
-                                        onChange={(e) => setEventTime(e.target.value)}
-                                        data-testid="input-event-time"
-                                      />
+                                  )}
+                                  {group?.generalAvailability && (
+                                    <div className="space-y-1">
+                                      <p className="text-xs font-medium text-muted-foreground">Notes</p>
+                                      <p className="text-xs text-muted-foreground">{group.generalAvailability}</p>
                                     </div>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
+                                  )}
+                                  {group?.meetingFrequency && (
+                                    <div className="space-y-1">
+                                      <p className="text-xs font-medium text-muted-foreground">Frequency</p>
+                                      <p className="text-xs text-muted-foreground">{formatMeetingFrequency(group.meetingFrequency)}</p>
+                                    </div>
+                                  )}
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="w-full h-7 text-xs"
+                                    onClick={() => {
+                                      if (group?.availability) {
+                                        setEditAvailabilityData(group.availability as Record<string, {morning: boolean; afternoon: boolean; evening: boolean}>);
+                                      }
+                                      if (group?.generalAvailability) {
+                                        setEditAvailabilityNotes(group.generalAvailability);
+                                      }
+                                      if (group?.meetingFrequency) {
+                                        const freq = group.meetingFrequency;
+                                        if (freq.includes("-")) {
+                                          const [num, unit] = freq.split("-");
+                                          setEditMeetingFreqNumber(parseInt(num));
+                                          setEditMeetingFreqUnit(unit.endsWith("s") ? unit : unit + "s");
+                                        } else if (freq === "weekly") {
+                                          setEditMeetingFreqNumber(1);
+                                          setEditMeetingFreqUnit("weeks");
+                                        } else if (freq === "biweekly") {
+                                          setEditMeetingFreqNumber(2);
+                                          setEditMeetingFreqUnit("weeks");
+                                        } else if (freq === "monthly") {
+                                          setEditMeetingFreqNumber(1);
+                                          setEditMeetingFreqUnit("months");
+                                        } else if (freq === "flexible") {
+                                          setEditMeetingFreqNumber(1);
+                                          setEditMeetingFreqUnit("months");
+                                        }
+                                      }
+                                      setEditAvailabilityOpen(true);
+                                    }}
+                                    data-testid="button-edit-availability"
+                                  >
+                                    <Pencil className="h-3 w-3 mr-1" />
+                                    Edit
+                                  </Button>
+                                </div>
+                              </CollapsibleContent>
+                            </Collapsible>
+                          </div>
 
-                            <div className="flex items-start gap-3">
-                              <input
-                                type="radio"
-                                id="method-ai"
-                                name="schedule-method"
-                                checked={scheduleMethod === 'ai'}
-                                onChange={() => setScheduleMethod('ai')}
-                                className="mt-1"
-                                data-testid="radio-ai-time"
-                              />
-                              <div className="flex-1">
-                                <Label htmlFor="method-ai" className="cursor-pointer">AI generated time and date</Label>
-                                {scheduleMethod === 'ai' && (
-                                  <div className="mt-3 space-y-3">
-                                    {aiTimeOptions.length === 0 && !getAiTimeSuggestionMutation.isPending && (
+                          {/* Time Selection Tabs */}
+                          <Tabs value={scheduleMethod} onValueChange={(v) => {
+                            setScheduleMethod(v as 'manual' | 'ai');
+                            setAiTimeOptions([]);
+                            setSelectedTimeOptionIds([]);
+                          }} className="w-full">
+                            <TabsList className="grid w-full grid-cols-2 h-9">
+                              <TabsTrigger value="manual" className="text-xs" data-testid="tab-manual-time">Pick Date/Time</TabsTrigger>
+                              <TabsTrigger value="ai" className="text-xs" data-testid="tab-ai-time">AI Suggestions</TabsTrigger>
+                            </TabsList>
+                            
+                            <TabsContent value="manual" className="mt-4 space-y-3">
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-2">
+                                  <Label htmlFor="event-date" className="text-xs">Date</Label>
+                                  <Input
+                                    id="event-date"
+                                    type="date"
+                                    value={eventDate}
+                                    onChange={(e) => setEventDate(e.target.value)}
+                                    className="h-9"
+                                    data-testid="input-event-date"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="event-time" className="text-xs">Time</Label>
+                                  <Input
+                                    id="event-time"
+                                    type="time"
+                                    value={eventTime}
+                                    onChange={(e) => setEventTime(e.target.value)}
+                                    className="h-9"
+                                    data-testid="input-event-time"
+                                  />
+                                </div>
+                              </div>
+                            </TabsContent>
+                            
+                            <TabsContent value="ai" className="mt-4 space-y-3">
+                              {aiTimeOptions.length === 0 && !getAiTimeSuggestionMutation.isPending && (
                                       <Button
                                         onClick={() => {
                                           if (!selectedItineraryForScheduling) return;
@@ -5876,11 +5839,14 @@ export default function GroupDetail() {
                                         </Button>
                                       </div>
                                     )}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
+
+                              {getAiTimeSuggestionMutation.isPending && (
+                                <div className="text-center py-4 text-sm text-muted-foreground">
+                                  Analyzing group availability...
+                                </div>
+                              )}
+                            </TabsContent>
+                          </Tabs>
                         </div>
 
                         {/* Send Button */}
