@@ -2428,13 +2428,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Use custom location if provided, otherwise use group location
       const searchLocation = location?.address || group.locationBase;
       const searchRadius = radius || group.searchRadius || 2;
-      // Only use coordinates if explicitly provided or if using group's location
-      // Don't use group coordinates when custom location address is provided without coords
-      const coordinates = location?.lat && location?.lng 
-        ? { lat: location.lat, lng: location.lng }
-        : (!location?.address && group.latitude && group.longitude 
-          ? { lat: parseFloat(group.latitude), lng: parseFloat(group.longitude) }
-          : undefined);
+      
+      // Determine coordinates for distance filtering
+      let coordinates: { lat: number; lng: number } | undefined;
+      
+      if (location?.lat && location?.lng) {
+        // Explicit coordinates provided
+        coordinates = { lat: location.lat, lng: location.lng };
+      } else if (location?.address) {
+        // Custom location text provided - geocode it for strict distance filtering
+        console.log(`[Category Generate] Geocoding custom location: ${location.address}`);
+        const geocoded = await geocodeLocation(location.address);
+        if (geocoded) {
+          coordinates = { lat: geocoded.latitude, lng: geocoded.longitude };
+          console.log(`[Category Generate] Geocoded to: ${geocoded.latitude}, ${geocoded.longitude}`);
+        } else {
+          console.log(`[Category Generate] Geocoding failed, proceeding without coordinates`);
+        }
+      } else if (group.latitude && group.longitude) {
+        // Use group's stored coordinates
+        coordinates = { lat: parseFloat(group.latitude), lng: parseFloat(group.longitude) };
+      }
 
       // Get existing activities to avoid duplicates
       const existingActivities = await storage.getGroupActivities(req.params.id);
