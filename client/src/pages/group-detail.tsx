@@ -3503,45 +3503,89 @@ export default function GroupDetail() {
                     </Button>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {categoryResults.map((result, index) => (
-                      <Card key={index} className="overflow-hidden">
-                        <div className="relative h-48">
-                          <img
-                            src={result.photoUrl}
-                            alt={result.venueName}
-                            className="w-full h-full object-cover"
-                          />
-                          <div className="absolute top-2 right-2">
-                            <Checkbox
-                              checked={selectedVenues.some(v => v.sourceType === 'activity' && v.sourceId === result.googlePlaceId)}
-                              onCheckedChange={(checked) => {
-                                if (checked) {
-                                  setSelectedVenues([...selectedVenues, { sourceType: 'activity', sourceId: result.googlePlaceId }]);
+                    {categoryResults.map((result, index) => {
+                      const isFavorited = votingEvents.some(event => event.googlePlaceId === result.googlePlaceId);
+                      return (
+                        <Card key={index} className="overflow-hidden">
+                          <div className="relative h-48">
+                            <img
+                              src={result.photoUrl}
+                              alt={result.venueName}
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute top-2 left-2 z-10">
+                              <Checkbox
+                                checked={selectedVenues.some(v => v.sourceType === 'activity' && v.sourceId === result.googlePlaceId)}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setSelectedVenues([...selectedVenues, { sourceType: 'activity', sourceId: result.googlePlaceId }]);
+                                  } else {
+                                    setSelectedVenues(selectedVenues.filter(v => !(v.sourceType === 'activity' && v.sourceId === result.googlePlaceId)));
+                                  }
+                                }}
+                                className="h-6 w-6 bg-white border-2"
+                                data-testid={`checkbox-select-${result.googlePlaceId}`}
+                              />
+                            </div>
+                            <button
+                              className={`absolute top-2 right-2 p-2 rounded-full transition-all z-10 ${
+                                isFavorited
+                                  ? "bg-pink-500/90 hover:bg-pink-600/90"
+                                  : "bg-black/40 hover:bg-black/60 border-2 border-white"
+                              }`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (isFavorited) {
+                                  const matchingEvent = votingEvents.find(event => event.googlePlaceId === result.googlePlaceId);
+                                  if (matchingEvent) {
+                                    deleteEventMutation.mutate(matchingEvent.id);
+                                  }
                                 } else {
-                                  setSelectedVenues(selectedVenues.filter(v => !(v.sourceType === 'activity' && v.sourceId === result.googlePlaceId)));
+                                  const eventExists = votingEvents.some(event => event.googlePlaceId === result.googlePlaceId);
+                                  if (!eventExists) {
+                                    createEventMutation.mutate({
+                                      title: result.venueName,
+                                      description: result.description,
+                                      venueAddress: result.venueAddress,
+                                      venueType: result.venueType || "Venue",
+                                      googlePlaceId: result.googlePlaceId || undefined,
+                                      rating: result.rating || undefined,
+                                      priceLevel: result.priceLevel || undefined,
+                                      photoUrl: result.photoUrl || undefined,
+                                      reviewCount: result.reviewCount || undefined,
+                                    });
+                                  }
                                 }
                               }}
-                              className="bg-background"
-                              data-testid={`checkbox-select-${result.googlePlaceId}`}
-                            />
+                              data-testid={`button-love-${result.googlePlaceId}`}
+                            >
+                              <Heart 
+                                className={`h-6 w-6 transition-all ${
+                                  isFavorited
+                                    ? "fill-white stroke-white" 
+                                    : "fill-none stroke-white"
+                                }`} 
+                                strokeWidth={2.5}
+                              />
+                            </button>
                           </div>
-                        </div>
-                        <CardHeader>
-                          <CardTitle className="text-lg">{result.venueName}</CardTitle>
-                          <CardDescription className="flex items-center gap-2">
-                            <Star className="h-3 w-3 fill-yellow-400 stroke-yellow-400" />
-                            <span className="text-sm">{result.rating}</span>
-                            {result.reviewCount && (
-                              <span className="text-xs text-muted-foreground">({result.reviewCount})</span>
-                            )}
-                          </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                          <p className="text-sm text-muted-foreground line-clamp-2">{result.description}</p>
-                          <p className="text-xs text-muted-foreground mt-2">{result.venueAddress}</p>
-                        </CardContent>
-                      </Card>
-                    ))}
+                          <CardHeader>
+                            <CardTitle className="text-lg">{result.venueName}</CardTitle>
+                            <CardDescription className="flex items-center gap-2">
+                              <Star className="h-3 w-3 fill-yellow-400 stroke-yellow-400" />
+                              <span className="text-sm">{result.rating}</span>
+                              {result.reviewCount && (
+                                <span className="text-xs text-muted-foreground">({result.reviewCount})</span>
+                              )}
+                            </CardDescription>
+                          </CardHeader>
+                          <CardContent>
+                            <p className="text-sm text-muted-foreground line-clamp-2">{result.description}</p>
+                            <p className="text-xs text-muted-foreground mt-2">{result.venueAddress}</p>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
                   </div>
                 </div>
               )}
