@@ -4636,6 +4636,116 @@ export default function GroupDetail() {
                 </div>
               </TabsContent>
             </Tabs>
+
+            {/* Saved Plans Section */}
+            {!savedItinerariesLoading && savedItineraries.length > 0 && (
+              <div className="mt-12 pt-8 border-t">
+                <div className="mb-6">
+                  <h3 className="text-xl font-bold mb-2">Saved Plans</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Your library of saved itineraries - send any of these to your group
+                  </p>
+                </div>
+                <div className="space-y-4">
+                  {savedItineraries.map((itinerary: any) => (
+                    <Card key={itinerary.id} data-testid={`saved-itinerary-${itinerary.id}`}>
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <CardTitle className="text-lg truncate">{itinerary.name}</CardTitle>
+                            <CardDescription className="mt-1 space-y-1">
+                              <div>
+                                {itinerary.items?.length || 0} {(itinerary.items?.length || 0) === 1 ? 'stop' : 'stops'}
+                              </div>
+                              {itinerary.timingRecommendations && (
+                                <div className="flex items-center gap-1.5 text-xs" data-testid={`timing-notes-${itinerary.id}`}>
+                                  <Clock className="h-3 w-3 flex-shrink-0" />
+                                  <span className="truncate">{itinerary.timingRecommendations}</span>
+                                </div>
+                              )}
+                            </CardDescription>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedItineraryForScheduling(itinerary);
+                                setActiveTab('build');
+                                setTimeout(() => document.getElementById('schedule-section')?.scrollIntoView({ behavior: 'smooth' }), 100);
+                              }}
+                              data-testid={`button-schedule-itinerary-${itinerary.id}`}
+                            >
+                              <Calendar className="h-4 w-4 mr-2" />
+                              Schedule This →
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setEditingItinerary(itinerary);
+                                setEditItineraryName(itinerary.name || "");
+                                setEditItineraryItems(itinerary.items || []);
+                                setEditTimingRecommendations(itinerary.timingRecommendations || "");
+                                setEditItineraryOpen(true);
+                              }}
+                              data-testid={`button-edit-itinerary-${itinerary.id}`}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                duplicateItineraryMutation.mutate(itinerary.id);
+                              }}
+                              disabled={duplicateItineraryMutation.isPending}
+                              data-testid={`button-duplicate-itinerary-${itinerary.id}`}
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                if (confirm(`Delete "${itinerary.name}"?`)) {
+                                  deleteSavedItineraryMutation.mutate(itinerary.id);
+                                }
+                              }}
+                              disabled={deleteSavedItineraryMutation.isPending}
+                              data-testid={`button-delete-itinerary-${itinerary.id}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-2">
+                          {itinerary.items?.map((item: any, index: number) => (
+                            <div
+                              key={item.id}
+                              className="flex items-center gap-3 p-2 rounded-md bg-accent/20 border"
+                              data-testid={`saved-itinerary-item-${item.id}`}
+                            >
+                              <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary font-bold text-sm">
+                                {index + 1}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{item.venueName}</p>
+                                {item.venueType && (
+                                  <p className="text-xs text-muted-foreground truncate">{item.venueType}</p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
           </TabsContent>
 
           {/* Tab 3: Itinerary */}
@@ -5650,115 +5760,6 @@ export default function GroupDetail() {
                   </CardContent>
                 </Card>
               </div>
-
-              {/* Saved Plans Section */}
-              {!savedItinerariesLoading && savedItineraries.length > 0 && (
-                <div className="mt-12 pt-8 border-t">
-                  <div className="mb-6">
-                    <h3 className="text-xl font-bold mb-2">Saved Plans</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Your library of saved itineraries - send any of these to your group
-                    </p>
-                  </div>
-                  <div className="space-y-4">
-                    {savedItineraries.map((itinerary: any) => (
-                      <Card key={itinerary.id} data-testid={`saved-itinerary-${itinerary.id}`}>
-                        <CardHeader className="pb-3">
-                          <div className="flex items-center justify-between gap-4">
-                            <div className="flex-1 min-w-0">
-                              <CardTitle className="text-lg truncate">{itinerary.name}</CardTitle>
-                              <CardDescription className="mt-1 space-y-1">
-                                <div>
-                                  {itinerary.items?.length || 0} {(itinerary.items?.length || 0) === 1 ? 'stop' : 'stops'}
-                                </div>
-                                {itinerary.timingRecommendations && (
-                                  <div className="flex items-center gap-1.5 text-xs" data-testid={`timing-notes-${itinerary.id}`}>
-                                    <Clock className="h-3 w-3 flex-shrink-0" />
-                                    <span className="truncate">{itinerary.timingRecommendations}</span>
-                                  </div>
-                                )}
-                              </CardDescription>
-                            </div>
-                            <div className="flex gap-2">
-                              <Button
-                                variant="default"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedItineraryForScheduling(itinerary);
-                                  document.getElementById('schedule-section')?.scrollIntoView({ behavior: 'smooth' });
-                                }}
-                                data-testid={`button-schedule-itinerary-${itinerary.id}`}
-                              >
-                                <Calendar className="h-4 w-4 mr-2" />
-                                Schedule This →
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setEditingItinerary(itinerary);
-                                  setEditItineraryName(itinerary.name || "");
-                                  setEditItineraryItems(itinerary.items || []);
-                                  setEditTimingRecommendations(itinerary.timingRecommendations || "");
-                                  setEditItineraryOpen(true);
-                                }}
-                                data-testid={`button-edit-itinerary-${itinerary.id}`}
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  duplicateItineraryMutation.mutate(itinerary.id);
-                                }}
-                                disabled={duplicateItineraryMutation.isPending}
-                                data-testid={`button-duplicate-itinerary-${itinerary.id}`}
-                              >
-                                <Copy className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  if (confirm(`Delete "${itinerary.name}"?`)) {
-                                    deleteSavedItineraryMutation.mutate(itinerary.id);
-                                  }
-                                }}
-                                disabled={deleteSavedItineraryMutation.isPending}
-                                data-testid={`button-delete-itinerary-${itinerary.id}`}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-2">
-                            {itinerary.items?.map((item: any, index: number) => (
-                              <div
-                                key={item.id}
-                                className="flex items-center gap-3 p-2 rounded-md bg-accent/20 border"
-                                data-testid={`saved-itinerary-item-${item.id}`}
-                              >
-                                <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary font-bold text-sm">
-                                  {index + 1}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium truncate">{item.venueName}</p>
-                                  {item.venueType && (
-                                    <p className="text-xs text-muted-foreground truncate">{item.venueType}</p>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           </TabsContent>
           {/* Tab 5: Feedback */}
