@@ -3731,33 +3731,55 @@ export default function GroupDetail() {
             ) : (
               <>
                 {/* Category Search Results - Temporary explorations */}
-                {categoryResults.length > 0 && (
-                  <div className="mb-8">
-                    <Card className="border-primary/30">
-                      <div className="p-6">
-                        <div className="flex items-center justify-between mb-4">
-                          <div>
-                            <h3 className="text-lg font-semibold flex items-center gap-2">
-                              <Sparkles className="h-5 w-5 text-primary" />
-                              Search Results
-                            </h3>
-                            <p className="text-sm text-muted-foreground">
-                              Exploring options - heart (❤️) any venue to save it to your main list
-                            </p>
+                {categoryResults.length > 0 && (() => {
+                  // Sort results based on multi-venue mode
+                  const sortedResults = [...categoryResults].sort((a, b) => {
+                    if (multiVenueMode) {
+                      // Sort by distance (closest first)
+                      const distA = a.distanceFromGroupBase ?? 999;
+                      const distB = b.distanceFromGroupBase ?? 999;
+                      return distA - distB;
+                    } else {
+                      // Sort by rating (highest first)
+                      const ratingA = parseFloat(a.rating || '0');
+                      const ratingB = parseFloat(b.rating || '0');
+                      if (ratingA !== ratingB) {
+                        return ratingB - ratingA;
+                      }
+                      // Tie-breaker: review count
+                      const reviewCountA = a.reviewCount || 0;
+                      const reviewCountB = b.reviewCount || 0;
+                      return reviewCountB - reviewCountA;
+                    }
+                  });
+
+                  return (
+                    <div className="mb-8">
+                      <Card className="border-primary/30">
+                        <div className="p-6">
+                          <div className="flex items-center justify-between mb-4">
+                            <div>
+                              <h3 className="text-lg font-semibold flex items-center gap-2">
+                                <Sparkles className="h-5 w-5 text-primary" />
+                                Search Results
+                              </h3>
+                              <p className="text-sm text-muted-foreground">
+                                Exploring options - heart (❤️) any venue to save it to your main list
+                              </p>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setCategoryResults([])}
+                              data-testid="button-dismiss-search-results"
+                            >
+                              <X className="h-4 w-4 mr-1" />
+                              Dismiss
+                            </Button>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setCategoryResults([])}
-                            data-testid="button-dismiss-search-results"
-                          >
-                            <X className="h-4 w-4 mr-1" />
-                            Dismiss
-                          </Button>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          {categoryResults.map((result) => {
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {sortedResults.map((result) => {
                             const tempActivity = {
                               id: result.placeId || result.googlePlaceId || `temp-${Math.random()}`,
                               groupId: groupId || '',
@@ -3901,7 +3923,8 @@ export default function GroupDetail() {
                       </div>
                     </Card>
                   </div>
-                )}
+                  );
+                })()}
 
                 {/* Divider between search results and saved activities */}
                 {categoryResults.length > 0 && activities.length > 0 && (

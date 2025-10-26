@@ -2493,22 +2493,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return null;
           }
 
-          // Quality filtering based on radius
+          // Relaxed quality filtering for category-specific searches
           const rating = parseFloat(place.rating || '0');
           const reviewCount = place.reviewCount || 0;
-          let passesQuality = false;
-
-          if (searchRadius <= 2) {
-            passesQuality = rating >= 3.5 && reviewCount >= 20;
-          } else if (searchRadius <= 10) {
-            passesQuality = rating >= 3.8 && reviewCount >= 50;
-          } else if (searchRadius <= 30) {
-            passesQuality = rating >= 4.0 && reviewCount >= 100;
-          } else {
-            passesQuality = rating >= 4.2 && reviewCount >= 150;
-          }
-
-          if (!passesQuality) {
+          
+          // Ensure minimum quality (3.5★ + 10 reviews) regardless of radius
+          if (rating < 3.5 || reviewCount < 10) {
             console.log(`[Category Generate] Skipping ${place.name} - quality filter (${rating}★, ${reviewCount} reviews)`);
             return null;
           }
@@ -2548,8 +2538,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             distanceFromBase = R * c;
           }
 
-          // Auto-categorize based on Google Place types
-          const venueCategory = await categorizeVenue(place.name, place.types.join(', '), place.types);
+          // Skip AI categorization - trust Google's results for category searches
+          // Google already filtered to bars/restaurants/etc based on our search query
           
           return {
             venueName: place.name,
@@ -2564,26 +2554,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             priceLevel: place.priceLevel,
             photoUrl: place.photoUrl,
             googleReview: place.review || null,
-            category: venueCategory,
+            category: category, // Use the requested category directly
             distanceFromGroupBase: distanceFromBase,
           };
         })
       );
 
-      // Filter to only include activities that match the requested category
-      const categoryMatches: Record<string, string[]> = {
-        'meal': ['meal'],
-        'cafes': ['cafes'],
-        'drinks': ['drinks'],
-        'dessert': ['dessert'],
-        'experiences': ['experiences']
-      };
-
-      const matchingCategories = categoryMatches[category] || [category];
-      
+      // Filter out nulls (filtered items) and limit to requested count
       const validActivities = enrichedActivities
-        .filter(a => a !== null && matchingCategories.includes(a.category))
-        .slice(0, count); // Limit to requested count
+        .filter(a => a !== null)
+        .slice(0, count * 2); // Get 2x to account for any additional filtering
 
       // Sort based on mode: distance for multi-venue outings, rating for single destinations
       if (sortBy === 'distance') {
