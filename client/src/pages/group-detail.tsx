@@ -3380,15 +3380,15 @@ export default function GroupDetail() {
                 Select 1-5 venues to build your itinerary. Click the checkboxes to add venues to your plan.
               </p>
               
-              {/* Category-Specific Generation */}
+              {/* Unified AI Generation Block */}
               <div className="border rounded-md p-3 bg-muted/30">
                 <div className="flex items-center gap-2 mb-3">
                   <Sparkles className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">Search by category</span>
+                  <span className="text-sm font-medium">AI Activity Generation</span>
                 </div>
                 
                 <div className="space-y-3">
-                  {/* Compact row with location and radius */}
+                  {/* Location and radius controls */}
                   <div className="flex gap-2">
                     <Input
                       placeholder={group?.locationBase || "Location"}
@@ -3410,7 +3410,7 @@ export default function GroupDetail() {
                     </select>
                   </div>
 
-                  {/* Compact category buttons */}
+                  {/* Category quick filters */}
                   <div className="flex gap-1.5">
                     <Button
                       variant={selectedCategory === 'drinks' ? 'default' : 'ghost'}
@@ -3464,24 +3464,48 @@ export default function GroupDetail() {
                     </Button>
                   </div>
 
-                  {/* Generate Button */}
-                  {selectedCategory && (
-                    <Button
-                      onClick={() => {
+                  {/* Custom AI instructions */}
+                  <Textarea
+                    placeholder="Or tell AI what you want... (e.g., 'outdoor activities' or 'live music venues')"
+                    value={tempInstructions}
+                    onChange={(e) => setTempInstructions(e.target.value)}
+                    className="resize-none text-sm"
+                    rows={2}
+                    data-testid="input-temp-instructions"
+                  />
+
+                  {/* Smart Generate Button */}
+                  <Button
+                    onClick={() => {
+                      // Priority: category search over custom instructions
+                      if (selectedCategory) {
                         generateCategoryMutation.mutate({
                           category: selectedCategory,
                           location: categoryLocation.trim() ? { address: categoryLocation.trim(), lat: 0, lng: 0 } : undefined,
                           radius: categoryRadius,
                         });
-                      }}
-                      disabled={generateCategoryMutation.isPending}
-                      size="sm"
-                      className="w-full h-8"
-                      data-testid="button-generate-category"
-                    >
-                      {generateCategoryMutation.isPending ? "Generating..." : `Generate ${selectedCategory === 'drinks' ? 'Bars' : selectedCategory === 'cafes' ? 'Coffee' : selectedCategory === 'meal' ? 'Meals' : selectedCategory === 'dessert' ? 'Dessert' : 'Events'}`}
-                    </Button>
-                  )}
+                      } else {
+                        const isGenerating = retryGenerationMutation.isPending || group?.activityGenerationStatus === "generating" || group?.activityGenerationStatus === "pending";
+                        if (isGenerating) {
+                          toast({
+                            title: "Already generating",
+                            description: "Please wait for the current generation to complete. This usually takes 10-20 seconds.",
+                          });
+                        } else {
+                          retryGenerationMutation.mutate();
+                        }
+                      }
+                    }}
+                    disabled={generateCategoryMutation.isPending || retryGenerationMutation.isPending || group?.activityGenerationStatus === "generating" || group?.activityGenerationStatus === "pending"}
+                    size="sm"
+                    className="w-full h-8"
+                    data-testid="button-generate-category"
+                  >
+                    <Sparkles className="mr-2 h-3 w-3" />
+                    {(generateCategoryMutation.isPending || retryGenerationMutation.isPending) ? "Generating..." : 
+                     selectedCategory ? `Generate ${selectedCategory === 'drinks' ? 'Bars' : selectedCategory === 'cafes' ? 'Coffee' : selectedCategory === 'meal' ? 'Meals' : selectedCategory === 'dessert' ? 'Dessert' : 'Events'}` :
+                     "Generate Activities"}
+                  </Button>
                 </div>
               </div>
               
@@ -3542,9 +3566,9 @@ export default function GroupDetail() {
                                   }
                                 } else {
                                   const eventExists = votingEvents.some(event => event.googlePlaceId === result.googlePlaceId);
-                                  if (!eventExists) {
+                                  if (!eventExists && groupId) {
                                     createEventMutation.mutate({
-                                      groupId: id!,
+                                      groupId,
                                       title: result.venueName,
                                       description: result.description,
                                       venueAddress: result.venueAddress,
@@ -3601,77 +3625,6 @@ export default function GroupDetail() {
                   </div>
                 </div>
               )}
-              
-              {/* Search Radius Slider */}
-              <div className="mb-4">
-                <div className="flex items-center gap-3">
-                  <span className="text-lg">📍</span>
-                  <div className="flex-1 relative">
-                    <Slider
-                      value={[
-                        group?.searchRadius === 2 ? 0 :
-                        group?.searchRadius === 10 ? 1 :
-                        group?.searchRadius === 30 ? 2 : 3
-                      ]}
-                      onValueChange={(value) => {
-                        const radiusMap = [2, 10, 30, 50];
-                        const newRadius = radiusMap[value[0]];
-                        updateRadiusMutation.mutate({ searchRadius: newRadius });
-                      }}
-                      max={3}
-                      step={1}
-                      className="w-full"
-                      disabled={updateRadiusMutation.isPending}
-                      data-testid="slider-search-radius"
-                    />
-                    <div className="flex justify-between mt-1">
-                      <span className="text-xs text-muted-foreground">2mi</span>
-                      <span className="text-xs text-muted-foreground">10mi</span>
-                      <span className="text-xs text-muted-foreground">30mi</span>
-                      <span className="text-xs text-muted-foreground">50mi</span>
-                    </div>
-                  </div>
-                  <span className="text-lg">🛣️</span>
-                  <span className="text-xs text-muted-foreground min-w-24">
-                    {group?.searchRadius === 10 && "Citywide"}
-                    {group?.searchRadius === 30 && "Special Trip"}
-                    {group?.searchRadius === 50 && "Road Trip"}
-                  </span>
-                </div>
-              </div>
-              
-              <div className="flex gap-3 items-end">
-                <div className="flex-1">
-                  <Textarea
-                    placeholder="Tell the AI what you want to see... (e.g., 'more outdoor activities' or 'include live music venues')"
-                    value={tempInstructions}
-                    onChange={(e) => setTempInstructions(e.target.value)}
-                    className="resize-none"
-                    rows={2}
-                    data-testid="input-temp-instructions"
-                  />
-                </div>
-                <Button
-                  onClick={() => {
-                    const isGenerating = retryGenerationMutation.isPending || group?.activityGenerationStatus === "generating" || group?.activityGenerationStatus === "pending";
-                    if (isGenerating) {
-                      toast({
-                        title: "Already generating",
-                        description: "Please wait for the current generation to complete. This usually takes 10-20 seconds.",
-                      });
-                    } else {
-                      retryGenerationMutation.mutate();
-                    }
-                  }}
-                  aria-disabled={retryGenerationMutation.isPending || group?.activityGenerationStatus === "generating" || group?.activityGenerationStatus === "pending"}
-                  className={(retryGenerationMutation.isPending || group?.activityGenerationStatus === "generating" || group?.activityGenerationStatus === "pending") ? "opacity-50 cursor-not-allowed" : ""}
-                  variant="default"
-                  data-testid="button-generate-suggestions"
-                >
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  {retryGenerationMutation.isPending ? "Generating..." : "Generate New Ideas"}
-                </Button>
-              </div>
 
               {activitiesLoading ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
