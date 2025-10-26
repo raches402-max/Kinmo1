@@ -689,6 +689,7 @@ export default function GroupDetail() {
   const [categoryLocation, setCategoryLocation] = useState("");
   const [categoryRadius, setCategoryRadius] = useState<number>(2);
   const [categoryResults, setCategoryResults] = useState<any[]>([]);
+  const [multiVenueMode, setMultiVenueMode] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -3474,15 +3475,6 @@ export default function GroupDetail() {
 
                   {/* Category quick filters */}
                   <div className="space-y-2">
-                    {selectedCategory && (
-                      <div className="text-xs text-muted-foreground px-1">
-                        {selectedCategory === 'drinks' && "Perfect for bar crawls! Results sorted by distance for easy route planning."}
-                        {selectedCategory === 'cafes' && "Find coffee shops near your location"}
-                        {selectedCategory === 'meal' && "Discover restaurants in the area"}
-                        {selectedCategory === 'dessert' && "Sweet spots nearby"}
-                        {selectedCategory === 'experiences' && "Fun activities to explore"}
-                      </div>
-                    )}
                     <div className="flex gap-1.5">
                       <Button
                         variant={selectedCategory === 'drinks' ? 'default' : 'ghost'}
@@ -3535,6 +3527,43 @@ export default function GroupDetail() {
                         <span className="text-xs">Events</span>
                       </Button>
                     </div>
+                    
+                    {/* Multi-venue mode toggle */}
+                    {selectedCategory && (
+                      <div className="flex items-center justify-between px-1 py-2 border-t">
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            id="multi-venue-mode"
+                            checked={multiVenueMode}
+                            onCheckedChange={setMultiVenueMode}
+                            data-testid="switch-multi-venue"
+                          />
+                          <Label htmlFor="multi-venue-mode" className="text-sm cursor-pointer">
+                            Multi-venue outing
+                          </Label>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {multiVenueMode ? "Sorted by distance" : "Sorted by rating"}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Contextual messaging */}
+                    {selectedCategory && (
+                      <div className="text-xs text-muted-foreground px-1">
+                        {multiVenueMode ? (
+                          <>Perfect for bar crawls or venue hopping! Results sorted by distance for easy route planning.</>
+                        ) : (
+                          <>
+                            {selectedCategory === 'drinks' && "Find the best bars in the area"}
+                            {selectedCategory === 'cafes' && "Find the best coffee shops"}
+                            {selectedCategory === 'meal' && "Discover top-rated restaurants"}
+                            {selectedCategory === 'dessert' && "Find the sweetest spots"}
+                            {selectedCategory === 'experiences' && "Explore fun activities"}
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Custom AI instructions */}
