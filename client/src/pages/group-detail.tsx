@@ -1217,41 +1217,23 @@ export default function GroupDetail() {
   });
 
   const createActivityFromCategoryResultMutation = useMutation({
-    mutationFn: async ({ activityData, feedback, googlePlaceId }: { activityData: any; feedback: string | null; googlePlaceId: string }) => {
+    mutationFn: async ({ activityData, googlePlaceId }: { activityData: any; googlePlaceId: string }) => {
       return await apiRequest("POST", `/api/groups/${groupId}/activities/from-category-result`, {
         activityData,
-        feedback,
       });
     },
-    onMutate: async ({ googlePlaceId, feedback }) => {
-      // Optimistically update categoryResults to show feedback immediately
-      setCategoryResults(prev => prev.map(r => 
-        (r.placeId === googlePlaceId || r.googlePlaceId === googlePlaceId)
-          ? { ...r, feedback: feedback }
-          : r
-      ));
-    },
-    onSuccess: (newActivity: Activity) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "activities"] });
-      
-      // Keep the item in categoryResults but mark it as loved (don't remove it)
-      // This allows the heart to stay pink
+    onSuccess: () => {
+      // Refresh voting events since we created a new favorite
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "voting-events"] });
       
       toast({
-        title: "Saved to activities",
-        description: "Your preference has been recorded",
+        title: "Added to favorites",
+        description: "Your group can now vote on this venue",
       });
     },
-    onError: (error: Error, variables) => {
-      // Revert optimistic update
-      setCategoryResults(prev => prev.map(r => 
-        r.placeId === variables.googlePlaceId 
-          ? { ...r, feedback: null }
-          : r
-      ));
-      
+    onError: (error: Error) => {
       toast({
-        title: "Error saving activity",
+        title: "Error adding to favorites",
         description: error.message,
         variant: "destructive",
       });
@@ -3838,10 +3820,9 @@ export default function GroupDetail() {
                                       return;
                                     }
                                     
-                                    // Create activity from search result with "love" feedback
+                                    // Create voting event from category search result
                                     createActivityFromCategoryResultMutation.mutate({
                                       googlePlaceId: tempActivity.googlePlaceId || tempActivity.id,
-                                      feedback: "love",
                                       activityData: {
                                         venueName: tempActivity.venueName,
                                         venueAddress: tempActivity.venueAddress,
@@ -4084,7 +4065,7 @@ export default function GroupDetail() {
                             }
                           } else {
                             if (isTempActivity) {
-                              // Create activity from category result with "love" feedback
+                              // Create voting event from category result
                               createActivityFromCategoryResultMutation.mutate({
                                 googlePlaceId: activity.googlePlaceId || activity.id,
                                 activityData: {

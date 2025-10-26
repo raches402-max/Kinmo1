@@ -2659,7 +2659,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create activity from generated category result and optionally save feedback
+  // Create voting event from category search result (when user hearts a venue)
   app.post("/api/groups/:id/activities/from-category-result", isAuthenticated, async (req: any, res) => {
     try {
       const group = await storage.getGroup(req.params.id);
@@ -2667,26 +2667,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Group not found" });
       }
 
-      // Verify user owns this group
+      // Any authenticated user can add to group favorites (not just owner)
       const userId = req.user.claims.sub;
-      if (group.userId !== userId) {
-        return res.status(403).json({ message: "Not authorized to modify this group" });
-      }
 
-      const { activityData, feedback } = req.body;
+      const { activityData } = req.body;
       
-      // Categorize the venue
-      const category = await categorizeVenue(activityData.venueName, activityData.venueType);
-      
-      // Create the activity
-      const activity = await storage.createActivity({
-        ...activityData,
+      // Create a voting event so the whole group can vote on this favorite
+      const votingEvent = await storage.createVotingEvent({
         groupId: req.params.id,
-        category,
-        feedback: feedback || null,
+        title: activityData.venueName,
+        venueType: activityData.venueType || null,
+        venueAddress: activityData.venueAddress || null,
+        description: activityData.description || null,
+        googlePlaceId: activityData.googlePlaceId || null,
+        rating: activityData.rating ? activityData.rating.toString() : null,
+        priceLevel: activityData.priceLevel || null,
+        photoUrl: activityData.photoUrl || null,
       });
 
-      res.json(activity);
+      res.json(votingEvent);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
