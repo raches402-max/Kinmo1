@@ -3381,121 +3381,87 @@ export default function GroupDetail() {
               </p>
               
               {/* Category-Specific Generation */}
-              <Card className="p-6 bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
-                <h3 className="font-semibold text-lg mb-3">Generate Specific Activities</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Looking for something specific? Choose a category and customize your search.
-                </p>
+              <div className="border rounded-md p-3 bg-muted/30">
+                <div className="flex items-center gap-2 mb-3">
+                  <Sparkles className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">Search by category</span>
+                </div>
                 
-                <div className="space-y-4">
-                  {/* Location Input */}
-                  <div>
-                    <Label className="text-sm font-medium mb-2 block">Where to search?</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder={group?.locationBase || "San Francisco, CA"}
-                        value={categoryLocation}
-                        onChange={(e) => setCategoryLocation(e.target.value)}
-                        data-testid="input-category-location"
-                      />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCategoryLocation(group?.locationBase || "")}
-                        data-testid="button-reset-location"
-                      >
-                        Reset
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Leave blank to use group location
-                    </p>
+                <div className="space-y-3">
+                  {/* Compact row with location and radius */}
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder={group?.locationBase || "Location"}
+                      value={categoryLocation}
+                      onChange={(e) => setCategoryLocation(e.target.value)}
+                      className="flex-1 h-8 text-sm"
+                      data-testid="input-category-location"
+                    />
+                    <select
+                      value={categoryRadius}
+                      onChange={(e) => setCategoryRadius(Number(e.target.value))}
+                      className="h-8 px-2 text-sm border rounded-md bg-background"
+                      data-testid="slider-category-radius"
+                    >
+                      <option value={2}>2mi</option>
+                      <option value={10}>10mi</option>
+                      <option value={30}>30mi</option>
+                      <option value={50}>50mi</option>
+                    </select>
                   </div>
 
-                  {/* Radius Selector */}
-                  <div>
-                    <Label className="text-sm font-medium mb-2 block">How far willing to go?</Label>
-                    <div className="flex items-center gap-3">
-                      <span className="text-lg">📍</span>
-                      <div className="flex-1">
-                        <Slider
-                          value={[
-                            categoryRadius === 2 ? 0 :
-                            categoryRadius === 10 ? 1 :
-                            categoryRadius === 30 ? 2 : 3
-                          ]}
-                          onValueChange={(value) => {
-                            const radiusMap = [2, 10, 30, 50];
-                            setCategoryRadius(radiusMap[value[0]]);
-                          }}
-                          max={3}
-                          step={1}
-                          className="w-full"
-                          data-testid="slider-category-radius"
-                        />
-                        <div className="flex justify-between mt-1">
-                          <span className="text-xs text-muted-foreground">Nearby</span>
-                          <span className="text-xs text-muted-foreground">Citywide</span>
-                          <span className="text-xs text-muted-foreground">Special Trip</span>
-                          <span className="text-xs text-muted-foreground">Road Trip</span>
-                        </div>
-                      </div>
-                      <span className="text-xs text-muted-foreground min-w-16">
-                        {categoryRadius}mi
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Category Buttons */}
-                  <div>
-                    <Label className="text-sm font-medium mb-2 block">What are you looking for?</Label>
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                      <Button
-                        variant={selectedCategory === 'drinks' ? 'default' : 'outline'}
-                        onClick={() => setSelectedCategory(selectedCategory === 'drinks' ? null : 'drinks')}
-                        className="flex flex-col items-center gap-1 h-auto py-3"
-                        data-testid="button-category-drinks"
-                      >
-                        <Wine className="h-5 w-5" />
-                        <span className="text-xs">Bars</span>
-                      </Button>
-                      <Button
-                        variant={selectedCategory === 'cafes' ? 'default' : 'outline'}
-                        onClick={() => setSelectedCategory(selectedCategory === 'cafes' ? null : 'cafes')}
-                        className="flex flex-col items-center gap-1 h-auto py-3"
-                        data-testid="button-category-cafes"
-                      >
-                        <Coffee className="h-5 w-5" />
-                        <span className="text-xs">Coffee</span>
-                      </Button>
-                      <Button
-                        variant={selectedCategory === 'meal' ? 'default' : 'outline'}
-                        onClick={() => setSelectedCategory(selectedCategory === 'meal' ? null : 'meal')}
-                        className="flex flex-col items-center gap-1 h-auto py-3"
-                        data-testid="button-category-meal"
-                      >
-                        <UtensilsCrossed className="h-5 w-5" />
-                        <span className="text-xs">Meals</span>
-                      </Button>
-                      <Button
-                        variant={selectedCategory === 'dessert' ? 'default' : 'outline'}
-                        onClick={() => setSelectedCategory(selectedCategory === 'dessert' ? null : 'dessert')}
-                        className="flex flex-col items-center gap-1 h-auto py-3"
-                        data-testid="button-category-dessert"
-                      >
-                        <Croissant className="h-5 w-5" />
-                        <span className="text-xs">Dessert</span>
-                      </Button>
-                      <Button
-                        variant={selectedCategory === 'experiences' ? 'default' : 'outline'}
-                        onClick={() => setSelectedCategory(selectedCategory === 'experiences' ? null : 'experiences')}
-                        className="flex flex-col items-center gap-1 h-auto py-3"
-                        data-testid="button-category-experiences"
-                      >
-                        <Compass className="h-5 w-5" />
-                        <span className="text-xs">Events</span>
-                      </Button>
-                    </div>
+                  {/* Compact category buttons */}
+                  <div className="flex gap-1.5">
+                    <Button
+                      variant={selectedCategory === 'drinks' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setSelectedCategory(selectedCategory === 'drinks' ? null : 'drinks')}
+                      className="flex-1 h-8"
+                      data-testid="button-category-drinks"
+                    >
+                      <Wine className="h-3 w-3 mr-1" />
+                      <span className="text-xs">Bars</span>
+                    </Button>
+                    <Button
+                      variant={selectedCategory === 'cafes' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setSelectedCategory(selectedCategory === 'cafes' ? null : 'cafes')}
+                      className="flex-1 h-8"
+                      data-testid="button-category-cafes"
+                    >
+                      <Coffee className="h-3 w-3 mr-1" />
+                      <span className="text-xs">Coffee</span>
+                    </Button>
+                    <Button
+                      variant={selectedCategory === 'meal' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setSelectedCategory(selectedCategory === 'meal' ? null : 'meal')}
+                      className="flex-1 h-8"
+                      data-testid="button-category-meal"
+                    >
+                      <UtensilsCrossed className="h-3 w-3 mr-1" />
+                      <span className="text-xs">Meals</span>
+                    </Button>
+                    <Button
+                      variant={selectedCategory === 'dessert' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setSelectedCategory(selectedCategory === 'dessert' ? null : 'dessert')}
+                      className="flex-1 h-8"
+                      data-testid="button-category-dessert"
+                    >
+                      <Croissant className="h-3 w-3 mr-1" />
+                      <span className="text-xs">Dessert</span>
+                    </Button>
+                    <Button
+                      variant={selectedCategory === 'experiences' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setSelectedCategory(selectedCategory === 'experiences' ? null : 'experiences')}
+                      className="flex-1 h-8"
+                      data-testid="button-category-experiences"
+                    >
+                      <Compass className="h-3 w-3 mr-1" />
+                      <span className="text-xs">Events</span>
+                    </Button>
                   </div>
 
                   {/* Generate Button */}
@@ -3509,15 +3475,15 @@ export default function GroupDetail() {
                         });
                       }}
                       disabled={generateCategoryMutation.isPending}
-                      className="w-full"
+                      size="sm"
+                      className="w-full h-8"
                       data-testid="button-generate-category"
                     >
-                      <Sparkles className="mr-2 h-4 w-4" />
                       {generateCategoryMutation.isPending ? "Generating..." : `Generate ${selectedCategory === 'drinks' ? 'Bars' : selectedCategory === 'cafes' ? 'Coffee' : selectedCategory === 'meal' ? 'Meals' : selectedCategory === 'dessert' ? 'Dessert' : 'Events'}`}
                     </Button>
                   )}
                 </div>
-              </Card>
+              </div>
               
               {/* Display Category Results */}
               {categoryResults.length > 0 && (
