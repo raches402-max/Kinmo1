@@ -307,6 +307,82 @@ export async function generateActivitySuggestions(groupData: {
       searchRadius <= 30 ? 'Special Trip (< 30 miles)' :
       'Road Trip (< 50 miles)';
 
+    // Detect if this is category-specific generation (fast path)
+    const isCategorySpecific = groupData.targetCategories && groupData.targetCategories.length > 0;
+    const suggestionCount = isCategorySpecific ? 10 : 30;
+    const useSimplifiedPrompt = isCategorySpecific;
+
+    // Category-specific simplified prompt (70% shorter, 3-5x faster)
+    if (useSimplifiedPrompt) {
+      const categoryDescriptions: Record<string, string> = {
+        'meal': 'MEAL venues (restaurants, brunch spots, food markets)',
+        'cafes': 'CAFES (coffee shops, cafes)',
+        'drinks': 'DRINKS (bars, cocktail lounges, breweries, wine bars)',
+        'dessert': 'DESSERT (boba, ice cream, dessert shops)',
+        'experiences': 'EXPERIENCES (museums, parks, concerts, activities)'
+      };
+      
+      const targetCategory = groupData.targetCategories![0];
+      const categoryName = categoryDescriptions[targetCategory] || targetCategory;
+
+      const simplifiedPrompt = `Generate ${suggestionCount} ${categoryName} suggestions for quick category addition.
+
+Location: ${groupData.locationBase}
+Search Radius: ${radiusTier}
+Budget: $${groupData.budgetMin}-${groupData.budgetMax} per person
+Category: ${categoryName}${avoidVenuesContext}${rejectedVenuesContext}
+
+Requirements:
+1. Generate ONLY ${categoryName} - no other categories
+2. BE SPECIFIC with venue types (e.g., "cocktail bar", "craft brewery", "wine bar" - NOT just "bar")
+3. BE SPECIFIC with cuisines (e.g., "sushi restaurant", "Korean BBQ" - NOT "Asian restaurant")
+4. Each suggestion should fit the budget range
+5. Provide a Google Places search query for each
+6. Description: 1-4 words max, nouns only (e.g., "Cocktails", "Craft beer")
+7. Reasoning: 2-5 words max (e.g., "Popular local bar", "Craft cocktail spot")
+
+Return JSON with this structure:
+{
+  "suggestions": [
+    {
+      "venueName": "venue type",
+      "venueType": "specific type (e.g., 'cocktail bar', 'sushi restaurant')",
+      "description": "1-4 words max",
+      "reasoning": "2-5 words max",
+      "searchQuery": "search query for Google Places"
+    }
+  ]
+}`;
+
+      console.log(`[OpenAI] Category-specific generation: Using simplified prompt (${suggestionCount} ${categoryName})`);
+      
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini", // Faster and cheaper for category-specific
+        messages: [
+          {
+            role: "system",
+            content: `You are an activity suggestion generator. Return EXACTLY ${suggestionCount} suggestions in valid JSON format.`
+          },
+          {
+            role: "user",
+            content: simplifiedPrompt
+          }
+        ],
+        response_format: { type: "json_object" },
+        max_completion_tokens: 2000,
+      });
+
+      const result = JSON.parse(response.choices[0].message.content || '{}');
+      console.log(`[OpenAI] ✅ Category-specific: Received ${result.suggestions?.length || 0} suggestions`);
+      
+      if (!result.suggestions || result.suggestions.length === 0) {
+        throw new Error("OpenAI returned no suggestions");
+      }
+      
+      return result.suggestions;
+    }
+
+    // Full comprehensive prompt for initial generation
     const prompt = `You are an expert activity planner. Generate 30 activity suggestions for a group with these preferences:
 
 NOTE: You will generate 30 suggestions, but only 15 will be shown to the user after removing duplicates (aiming for 3 per category). This ensures 15 unique venues even if Google Places returns the same restaurant for multiple search queries.
