@@ -1033,6 +1033,8 @@ export default function GroupDetail() {
       });
     },
     onSuccess: (data) => {
+      console.log("[Category Generate] Received data:", data);
+      console.log("[Category Generate] First item:", data[0]);
       setCategoryResults(data);
       toast({
         title: "Generated suggestions",
@@ -3662,6 +3664,7 @@ export default function GroupDetail() {
                     });
 
                   // Convert categoryResults to activity format and merge with filteredActivities
+                  console.log("[Display] categoryResults:", categoryResults);
                   const categoryResultsAsActivities = categoryResults.map(result => ({
                     id: result.googlePlaceId || `temp-${Math.random()}`,
                     groupId: groupId || '',
@@ -3715,6 +3718,13 @@ export default function GroupDetail() {
                     dessert: allActivities.filter(a => getActivityCategory(a) === 'dessert'),
                     experiences: allActivities.filter(a => getActivityCategory(a) === 'experiences'),
                   };
+                  console.log("[Display] Grouped by category:", { 
+                    meal: groupedByCategory.meal.length,
+                    cafes: groupedByCategory.cafes.length,
+                    drinks: groupedByCategory.drinks.length,
+                    dessert: groupedByCategory.dessert.length,
+                    experiences: groupedByCategory.experiences.length
+                  });
 
                   const categoryLabels = {
                     meal: { icon: "🍽️", title: "MEAL", subtitle: "Restaurants, food markets, food halls" },
