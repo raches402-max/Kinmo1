@@ -1224,7 +1224,7 @@ export default function GroupDetail() {
     onMutate: async ({ googlePlaceId, feedback }) => {
       // Optimistically update categoryResults to show feedback immediately
       setCategoryResults(prev => prev.map(r => 
-        r.placeId === googlePlaceId 
+        (r.placeId === googlePlaceId || r.googlePlaceId === googlePlaceId)
           ? { ...r, feedback: feedback }
           : r
       ));
@@ -1232,8 +1232,8 @@ export default function GroupDetail() {
     onSuccess: (newActivity: Activity) => {
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "activities"] });
       
-      // Remove from categoryResults since it's now in the database
-      setCategoryResults(prev => prev.filter(r => r.placeId !== newActivity.googlePlaceId));
+      // Keep the item in categoryResults but mark it as loved (don't remove it)
+      // This allows the heart to stay pink
       
       toast({
         title: "Saved to activities",
