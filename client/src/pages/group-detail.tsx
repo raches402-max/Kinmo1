@@ -3473,17 +3473,27 @@ export default function GroupDetail() {
                   </div>
 
                   {/* Category quick filters */}
-                  <div className="flex gap-1.5">
-                    <Button
-                      variant={selectedCategory === 'drinks' ? 'default' : 'ghost'}
-                      size="sm"
-                      onClick={() => setSelectedCategory(selectedCategory === 'drinks' ? null : 'drinks')}
-                      className="flex-1 h-8"
-                      data-testid="button-category-drinks"
-                    >
-                      <Wine className="h-3 w-3 mr-1" />
-                      <span className="text-xs">Bars</span>
-                    </Button>
+                  <div className="space-y-2">
+                    {selectedCategory && (
+                      <div className="text-xs text-muted-foreground px-1">
+                        {selectedCategory === 'drinks' && "Perfect for bar crawls! Results sorted by distance for easy route planning."}
+                        {selectedCategory === 'cafes' && "Find coffee shops near your location"}
+                        {selectedCategory === 'meal' && "Discover restaurants in the area"}
+                        {selectedCategory === 'dessert' && "Sweet spots nearby"}
+                        {selectedCategory === 'experiences' && "Fun activities to explore"}
+                      </div>
+                    )}
+                    <div className="flex gap-1.5">
+                      <Button
+                        variant={selectedCategory === 'drinks' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setSelectedCategory(selectedCategory === 'drinks' ? null : 'drinks')}
+                        className="flex-1 h-8"
+                        data-testid="button-category-drinks"
+                      >
+                        <Wine className="h-3 w-3 mr-1" />
+                        <span className="text-xs">Bars</span>
+                      </Button>
                     <Button
                       variant={selectedCategory === 'cafes' ? 'default' : 'ghost'}
                       size="sm"
@@ -3514,16 +3524,17 @@ export default function GroupDetail() {
                       <Croissant className="h-3 w-3 mr-1" />
                       <span className="text-xs">Dessert</span>
                     </Button>
-                    <Button
-                      variant={selectedCategory === 'experiences' ? 'default' : 'ghost'}
-                      size="sm"
-                      onClick={() => setSelectedCategory(selectedCategory === 'experiences' ? null : 'experiences')}
-                      className="flex-1 h-8"
-                      data-testid="button-category-experiences"
-                    >
-                      <Compass className="h-3 w-3 mr-1" />
-                      <span className="text-xs">Events</span>
-                    </Button>
+                      <Button
+                        variant={selectedCategory === 'experiences' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setSelectedCategory(selectedCategory === 'experiences' ? null : 'experiences')}
+                        className="flex-1 h-8"
+                        data-testid="button-category-experiences"
+                      >
+                        <Compass className="h-3 w-3 mr-1" />
+                        <span className="text-xs">Events</span>
+                      </Button>
+                    </div>
                   </div>
 
                   {/* Custom AI instructions */}

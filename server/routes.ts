@@ -2613,7 +2613,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .filter(a => a !== null && matchingCategories.includes(a.category))
         .slice(0, count); // Limit to requested count
 
-      console.log(`[Category Generate] Returning ${validActivities.length} activities (filtered to ${category} category)`);
+      // Sort by distance (closest first) for better route planning (e.g., bar crawls)
+      validActivities.sort((a, b) => {
+        const distA = a.distanceFromGroupBase || 999;
+        const distB = b.distanceFromGroupBase || 999;
+        return distA - distB;
+      });
+
+      console.log(`[Category Generate] Returning ${validActivities.length} activities (filtered to ${category} category, sorted by distance)`);
       res.json(validActivities);
     } catch (error: any) {
       console.error("[Category Generate] Error:", error);
