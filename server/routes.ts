@@ -5293,7 +5293,9 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
     console.log(`[API Optimization]   - nearbySearch: ${cacheStats.nearbyHits} hits / ${cacheStats.nearbyMisses} misses`);
 
     // Update status to completed
+    console.log(`[AI Generation] Updating group status to completed...`);
     await storage.updateGroupStatus(groupId, "completed");
+    console.log(`[AI Generation] ✅ Group status updated to completed`);
   } catch (error) {
     console.error("Error in generateAndStoreActivities:", error);
 
