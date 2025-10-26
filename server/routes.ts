@@ -2578,6 +2578,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
               return null;
             }
             
+            // Calculate distance from search center if coordinates are available
+            let distanceFromBase: number | undefined;
+            if (coordinates && place.location?.lat && place.location?.lng) {
+              const R = 3959; // Earth's radius in miles
+              const lat1 = coordinates.lat * Math.PI / 180;
+              const lat2 = place.location.lat * Math.PI / 180;
+              const dLat = (place.location.lat - coordinates.lat) * Math.PI / 180;
+              const dLng = (place.location.lng - coordinates.lng) * Math.PI / 180;
+              const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                       Math.cos(lat1) * Math.cos(lat2) *
+                       Math.sin(dLng/2) * Math.sin(dLng/2);
+              const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+              distanceFromBase = R * c;
+            }
+
             return {
               aiSuggestedName: suggestion.venueName,
               venueName: place.name,
@@ -2595,6 +2610,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               aiReasoning: suggestion.reasoning,
               timeCategory: categorizeByTime(suggestion.venueType),
               category: await categorizeVenue(place.name, suggestion.venueType, place.types),
+              distanceFromGroupBase: distanceFromBase,
             };
           }
           
