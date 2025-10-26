@@ -664,6 +664,12 @@ export default function GroupDetail() {
   const [inviteGuestItineraryId, setInviteGuestItineraryId] = useState<string | null>(null);
   const [guestName, setGuestName] = useState("");
   const [guestEmail, setGuestEmail] = useState("");
+  
+  // Category-specific generation state
+  const [selectedCategory, setSelectedCategory] = useState<'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences' | null>(null);
+  const [categoryLocation, setCategoryLocation] = useState("");
+  const [categoryRadius, setCategoryRadius] = useState<number>(2);
+  const [categoryResults, setCategoryResults] = useState<any[]>([]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -992,6 +998,31 @@ export default function GroupDetail() {
     onError: (error: Error) => {
       toast({
         title: "Error retrying",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const generateCategoryMutation = useMutation({
+    mutationFn: async ({ category, location, radius }: { category: string; location?: { address: string; lat: number; lng: number }; radius?: number }) => {
+      return await apiRequest("POST", `/api/groups/${groupId}/generate-category`, {
+        category,
+        location,
+        radius,
+        count: 8,
+      });
+    },
+    onSuccess: (data) => {
+      setCategoryResults(data);
+      toast({
+        title: "Generated suggestions",
+        description: `Found ${data.length} ${selectedCategory} options for you`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Generation failed",
         description: error.message,
         variant: "destructive",
       });
@@ -3348,6 +3379,218 @@ export default function GroupDetail() {
               <p className="text-muted-foreground mb-4">
                 Select 1-5 venues to build your itinerary. Click the checkboxes to add venues to your plan.
               </p>
+              
+              {/* Category-Specific Generation */}
+              <Card className="p-6 bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
+                <h3 className="font-semibold text-lg mb-3">Generate Specific Activities</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Looking for something specific? Choose a category and customize your search.
+                </p>
+                
+                {/* Category Buttons */}
+                <div className="mb-4">
+                  <Label className="text-sm font-medium mb-2 block">What are you looking for?</Label>
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                    <Button
+                      variant={selectedCategory === 'drinks' ? 'default' : 'outline'}
+                      onClick={() => setSelectedCategory(selectedCategory === 'drinks' ? null : 'drinks')}
+                      className="flex flex-col items-center gap-1 h-auto py-3"
+                      data-testid="button-category-drinks"
+                    >
+                      <Wine className="h-5 w-5" />
+                      <span className="text-xs">Bars</span>
+                    </Button>
+                    <Button
+                      variant={selectedCategory === 'cafes' ? 'default' : 'outline'}
+                      onClick={() => setSelectedCategory(selectedCategory === 'cafes' ? null : 'cafes')}
+                      className="flex flex-col items-center gap-1 h-auto py-3"
+                      data-testid="button-category-cafes"
+                    >
+                      <Coffee className="h-5 w-5" />
+                      <span className="text-xs">Coffee</span>
+                    </Button>
+                    <Button
+                      variant={selectedCategory === 'meal' ? 'default' : 'outline'}
+                      onClick={() => setSelectedCategory(selectedCategory === 'meal' ? null : 'meal')}
+                      className="flex flex-col items-center gap-1 h-auto py-3"
+                      data-testid="button-category-meal"
+                    >
+                      <UtensilsCrossed className="h-5 w-5" />
+                      <span className="text-xs">Meals</span>
+                    </Button>
+                    <Button
+                      variant={selectedCategory === 'dessert' ? 'default' : 'outline'}
+                      onClick={() => setSelectedCategory(selectedCategory === 'dessert' ? null : 'dessert')}
+                      className="flex flex-col items-center gap-1 h-auto py-3"
+                      data-testid="button-category-dessert"
+                    >
+                      <Croissant className="h-5 w-5" />
+                      <span className="text-xs">Dessert</span>
+                    </Button>
+                    <Button
+                      variant={selectedCategory === 'experiences' ? 'default' : 'outline'}
+                      onClick={() => setSelectedCategory(selectedCategory === 'experiences' ? null : 'experiences')}
+                      className="flex flex-col items-center gap-1 h-auto py-3"
+                      data-testid="button-category-experiences"
+                    >
+                      <Compass className="h-5 w-5" />
+                      <span className="text-xs">Events</span>
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Location Input */}
+                {selectedCategory && (
+                  <div className="space-y-4">
+                    <div>
+                      <Label className="text-sm font-medium mb-2 block">Where to search?</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder={group?.locationBase || "San Francisco, CA"}
+                          value={categoryLocation}
+                          onChange={(e) => setCategoryLocation(e.target.value)}
+                          data-testid="input-category-location"
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCategoryLocation(group?.locationBase || "")}
+                          data-testid="button-reset-location"
+                        >
+                          Reset
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Leave blank to use group location
+                      </p>
+                    </div>
+
+                    {/* Radius Selector */}
+                    <div>
+                      <Label className="text-sm font-medium mb-2 block">How far willing to go?</Label>
+                      <div className="flex items-center gap-3">
+                        <span className="text-lg">📍</span>
+                        <div className="flex-1">
+                          <Slider
+                            value={[
+                              categoryRadius === 2 ? 0 :
+                              categoryRadius === 10 ? 1 :
+                              categoryRadius === 30 ? 2 : 3
+                            ]}
+                            onValueChange={(value) => {
+                              const radiusMap = [2, 10, 30, 50];
+                              setCategoryRadius(radiusMap[value[0]]);
+                            }}
+                            max={3}
+                            step={1}
+                            className="w-full"
+                            data-testid="slider-category-radius"
+                          />
+                          <div className="flex justify-between mt-1">
+                            <span className="text-xs text-muted-foreground">Nearby</span>
+                            <span className="text-xs text-muted-foreground">Citywide</span>
+                            <span className="text-xs text-muted-foreground">Special Trip</span>
+                            <span className="text-xs text-muted-foreground">Road Trip</span>
+                          </div>
+                        </div>
+                        <span className="text-xs text-muted-foreground min-w-16">
+                          {categoryRadius}mi
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Generate Button */}
+                    <Button
+                      onClick={() => {
+                        generateCategoryMutation.mutate({
+                          category: selectedCategory,
+                          location: categoryLocation.trim() ? { address: categoryLocation.trim(), lat: 0, lng: 0 } : undefined,
+                          radius: categoryRadius,
+                        });
+                      }}
+                      disabled={generateCategoryMutation.isPending}
+                      className="w-full"
+                      data-testid="button-generate-category"
+                    >
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      {generateCategoryMutation.isPending ? "Generating..." : `Generate ${selectedCategory === 'drinks' ? 'Bars' : selectedCategory === 'cafes' ? 'Coffee' : selectedCategory === 'meal' ? 'Meals' : selectedCategory === 'dessert' ? 'Dessert' : 'Events'}`}
+                    </Button>
+                  </div>
+                )}
+              </Card>
+              
+              {/* Display Category Results */}
+              {categoryResults.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold">Category Suggestions</h3>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setCategoryResults([]);
+                        setSelectedCategory(null);
+                      }}
+                      data-testid="button-clear-category-results"
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {categoryResults.map((result, index) => (
+                      <Card key={index} className="overflow-hidden">
+                        <div className="relative h-48">
+                          <img
+                            src={result.photoUrl}
+                            alt={result.venueName}
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute top-2 right-2">
+                            <Checkbox
+                              checked={selectedVenues.some(v => v.sourceType === 'activity' && v.sourceId === result.googlePlaceId)}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setSelectedVenues([...selectedVenues, { sourceType: 'activity', sourceId: result.googlePlaceId }]);
+                                } else {
+                                  setSelectedVenues(selectedVenues.filter(v => !(v.sourceType === 'activity' && v.sourceId === result.googlePlaceId)));
+                                }
+                              }}
+                              className="bg-background"
+                              data-testid={`checkbox-select-${result.googlePlaceId}`}
+                            />
+                          </div>
+                        </div>
+                        <CardHeader>
+                          <CardTitle className="text-lg">{result.venueName}</CardTitle>
+                          <CardDescription className="flex items-center gap-2">
+                            <Star className="h-3 w-3 fill-yellow-400 stroke-yellow-400" />
+                            <span className="text-sm">{result.rating}</span>
+                            {result.reviewCount && (
+                              <span className="text-xs text-muted-foreground">({result.reviewCount})</span>
+                            )}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-sm text-muted-foreground line-clamp-2">{result.description}</p>
+                          <p className="text-xs text-muted-foreground mt-2">{result.venueAddress}</p>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* Divider */}
+              {categoryResults.length > 0 && (
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t"></div>
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">Or browse all suggestions</span>
+                  </div>
+                </div>
+              )}
               
               {/* Search Radius Slider */}
               <div className="mb-4">
