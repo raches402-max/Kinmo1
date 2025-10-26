@@ -2401,6 +2401,194 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Generate category-specific suggestions with custom location/radius
+  app.post("/api/groups/:id/generate-category", isAuthenticated, async (req: any, res) => {
+    try {
+      const group = await storage.getGroup(req.params.id);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      // Verify user owns this group
+      const userId = req.user.claims.sub;
+      if (group.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized to modify this group" });
+      }
+
+      const { category, location, radius, count = 8 } = req.body;
+
+      if (!category || !['meal', 'cafes', 'drinks', 'dessert', 'experiences'].includes(category)) {
+        return res.status(400).json({ message: "Invalid category" });
+      }
+
+      console.log(`[Category Generate] Generating ${category} for group ${req.params.id}`);
+      console.log(`[Category Generate] Location: ${location?.address || group.locationBase}`);
+      console.log(`[Category Generate] Radius: ${radius || group.searchRadius || 2}mi`);
+
+      // Use custom location if provided, otherwise use group location
+      const searchLocation = location?.address || group.locationBase;
+      const searchRadius = radius || group.searchRadius || 2;
+      const coordinates = location?.lat && location?.lng 
+        ? { lat: location.lat, lng: location.lng }
+        : (group.latitude && group.longitude 
+          ? { lat: parseFloat(group.latitude), lng: parseFloat(group.longitude) }
+          : undefined);
+
+      // Get existing activities to avoid duplicates
+      const existingActivities = await storage.getGroupActivities(req.params.id);
+      const existingVenueNames = existingActivities.map(a => a.venueName);
+
+      // Get feedback data for AI context
+      const previousFeedback = existingActivities
+        .filter(a => a.feedback)
+        .map(a => ({
+          venueName: a.venueName,
+          venueType: a.venueType,
+          feedback: a.feedback!,
+          description: a.description
+        }));
+
+      const votingEvents = await storage.getGroupVotingEvents(req.params.id);
+      const votingFeedback = votingEvents
+        .filter(e => e.netVotes !== 0 && e.venueType)
+        .map(e => ({
+          venueName: e.title,
+          venueType: e.venueType!,
+          upvotes: e.upvotes,
+          downvotes: e.downvotes,
+          netVotes: e.netVotes,
+          description: e.description || ''
+        }));
+
+      const preferenceSignals = await storage.getGroupPreferenceSignals(req.params.id);
+      const likedConcepts = preferenceSignals
+        .filter(s => s.feedback === 'like')
+        .map(s => s.conceptDescription);
+      const passedConcepts = preferenceSignals
+        .filter(s => s.feedback === 'pass')
+        .map(s => s.conceptDescription);
+
+      // Generate category-specific suggestions
+      const suggestions = await generateActivitySuggestions({
+        locationBase: searchLocation,
+        budgetMin: group.budgetMin,
+        budgetMax: group.budgetMax,
+        meetingFrequency: group.meetingFrequency,
+        availability: group.availability,
+        closenessLevel: group.closenessLevel,
+        noveltyPreference: group.noveltyPreference,
+        activityCategories: group.activityCategories || undefined,
+        pastPreferences: group.pastPreferences || undefined,
+        additionalInstructions: group.additionalInstructions || undefined,
+        searchRadius: searchRadius,
+        previousFeedback: previousFeedback.length > 0 ? previousFeedback : undefined,
+        votingFeedback: votingFeedback.length > 0 ? votingFeedback : undefined,
+        likedConcepts: likedConcepts.length > 0 ? likedConcepts : undefined,
+        passedConcepts: passedConcepts.length > 0 ? passedConcepts : undefined,
+        previouslySuggestedVenues: existingVenueNames,
+        targetCategories: [category], // Only generate this category
+        mealEnabled: group.mealEnabled ?? true,
+        cafeEnabled: group.cafeEnabled ?? true,
+        drinksEnabled: group.drinksEnabled ?? true,
+        dessertEnabled: group.dessertEnabled ?? true,
+        experiencesEnabled: group.experiencesEnabled ?? true,
+      });
+
+      console.log(`[Category Generate] Got ${suggestions.length} suggestions for ${category}`);
+
+      // Enrich with Google Places (limit to requested count)
+      const limitedSuggestions = suggestions.slice(0, count * 2); // Get 2x to account for filtering
+      const enrichedActivities = await Promise.all(
+        limitedSuggestions.map(async (suggestion) => {
+          const places = await searchPlaces(
+            suggestion.searchQuery,
+            searchLocation,
+            searchRadius,
+            coordinates
+          );
+
+          if (places.length === 0) {
+            console.log(`[Category Generate] No results for ${suggestion.venueName}`);
+            return null;
+          }
+
+          // Apply quality filtering
+          const qualityFiltered = places.filter(place => {
+            const rating = parseFloat(place.rating || '0');
+            const reviewCount = place.reviewCount || 0;
+
+            if (searchRadius <= 2) {
+              return rating >= 3.5 && reviewCount >= 20;
+            } else if (searchRadius <= 10) {
+              return rating >= 3.8 && reviewCount >= 50;
+            } else if (searchRadius <= 30) {
+              return rating >= 4.0 && reviewCount >= 100;
+            } else {
+              return rating >= 4.2 && reviewCount >= 150;
+            }
+          });
+
+          // Apply budget filtering
+          const budgetFiltered = qualityFiltered.filter(place => {
+            const priceLevel = parseInt(place.priceLevel || '0');
+            const budgetMax = group.budgetMax;
+
+            if (budgetMax < 50) {
+              return priceLevel <= 1;
+            } else if (budgetMax < 100) {
+              return priceLevel <= 2;
+            } else if (budgetMax < 200) {
+              return priceLevel <= 3;
+            } else {
+              return priceLevel <= 4;
+            }
+          });
+
+          if (budgetFiltered.length > 0) {
+            const place = budgetFiltered[0];
+            
+            // Only include venues with complete data
+            if (!place.rating || !place.address || !place.photoUrl) {
+              console.log(`[Category Generate] Skipping ${place.name} - missing data`);
+              return null;
+            }
+            
+            return {
+              aiSuggestedName: suggestion.venueName,
+              venueName: place.name,
+              venueAddress: place.address,
+              venueType: suggestion.venueType,
+              description: suggestion.description,
+              googlePlaceId: place.placeId,
+              latitude: place.location?.lat?.toString() || null,
+              longitude: place.location?.lng?.toString() || null,
+              rating: place.rating,
+              reviewCount: place.reviewCount || null,
+              priceLevel: place.priceLevel,
+              photoUrl: place.photoUrl,
+              googleReview: place.review || null,
+              aiReasoning: suggestion.reasoning,
+              timeCategory: categorizeByTime(suggestion.venueType),
+              category: categorizeVenue(place.name, suggestion.venueType, place.types),
+            };
+          }
+          
+          return null;
+        })
+      );
+
+      const validActivities = enrichedActivities
+        .filter(a => a !== null)
+        .slice(0, count); // Limit to requested count
+
+      console.log(`[Category Generate] Returning ${validActivities.length} activities`);
+      res.json(validActivities);
+    } catch (error: any) {
+      console.error("[Category Generate] Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Analyze preference patterns and generate insights
   app.post("/api/groups/:id/analyze-patterns", async (req, res) => {
     try {
