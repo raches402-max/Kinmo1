@@ -2415,10 +2415,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Not authorized to modify this group" });
       }
 
-      const { category, location, radius, count = 15 } = req.body;
+      const { category, location, radius, count = 15, sortBy = 'rating' } = req.body;
 
       if (!category || !['meal', 'cafes', 'drinks', 'dessert', 'experiences'].includes(category)) {
         return res.status(400).json({ message: "Invalid category" });
+      }
+
+      if (sortBy && !['distance', 'rating'].includes(sortBy)) {
+        return res.status(400).json({ message: "Invalid sortBy parameter. Must be 'distance' or 'rating'" });
       }
 
       console.log(`[Category Generate] Generating ${category} for group ${req.params.id}`);
@@ -2613,14 +2617,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .filter(a => a !== null && matchingCategories.includes(a.category))
         .slice(0, count); // Limit to requested count
 
-      // Sort by distance (closest first) for better route planning (e.g., bar crawls)
-      validActivities.sort((a, b) => {
-        const distA = a.distanceFromGroupBase || 999;
-        const distB = b.distanceFromGroupBase || 999;
-        return distA - distB;
-      });
+      // Sort based on mode: distance for multi-venue outings, rating for single destinations
+      if (sortBy === 'distance') {
+        validActivities.sort((a, b) => {
+          const distA = a.distanceFromGroupBase || 999;
+          const distB = b.distanceFromGroupBase || 999;
+          return distA - distB;
+        });
+        console.log(`[Category Generate] Returning ${validActivities.length} activities (filtered to ${category} category, sorted by distance for multi-venue outings)`);
+      } else {
+        validActivities.sort((a, b) => {
+          const ratingA = parseFloat(a.rating || '0');
+          const ratingB = parseFloat(b.rating || '0');
+          return ratingB - ratingA; // Highest rating first
+        });
+        console.log(`[Category Generate] Returning ${validActivities.length} activities (filtered to ${category} category, sorted by rating for quality)`);
+      }
 
-      console.log(`[Category Generate] Returning ${validActivities.length} activities (filtered to ${category} category, sorted by distance)`);
       res.json(validActivities);
     } catch (error: any) {
       console.error("[Category Generate] Error:", error);
