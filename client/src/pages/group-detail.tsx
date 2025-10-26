@@ -1033,6 +1033,7 @@ export default function GroupDetail() {
       });
     },
     onSuccess: (data) => {
+      // Clear old results and set new ones
       setCategoryResults(data);
       toast({
         title: "Generated suggestions",
@@ -3687,6 +3688,164 @@ export default function GroupDetail() {
               </Card>
             ) : (
               <>
+                {/* Category Search Results - Temporary explorations */}
+                {categoryResults.length > 0 && (
+                  <div className="mb-8">
+                    <Card className="border-primary/30">
+                      <div className="p-6">
+                        <div className="flex items-center justify-between mb-4">
+                          <div>
+                            <h3 className="text-lg font-semibold flex items-center gap-2">
+                              <Sparkles className="h-5 w-5 text-primary" />
+                              Search Results
+                            </h3>
+                            <p className="text-sm text-muted-foreground">
+                              Exploring options - heart (❤️) any venue to save it to your main list
+                            </p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setCategoryResults([])}
+                            data-testid="button-dismiss-search-results"
+                          >
+                            <X className="h-4 w-4 mr-1" />
+                            Dismiss
+                          </Button>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          {categoryResults.map((result) => {
+                            const tempActivity = {
+                              id: result.placeId || result.googlePlaceId || `temp-${Math.random()}`,
+                              groupId: groupId || '',
+                              venueName: result.venueName,
+                              venueAddress: result.venueAddress,
+                              venueType: result.venueType || 'Venue',
+                              description: result.description,
+                              rating: result.rating?.toString() || null,
+                              reviewCount: result.reviewCount || null,
+                              priceLevel: result.priceLevel?.toString() || null,
+                              photoUrl: result.photoUrl || null,
+                              googlePlaceId: result.googlePlaceId || result.placeId || null,
+                              feedback: (result as any).feedback || null,
+                              category: result.category || null,
+                            };
+                            
+                            const isSelected = selectedVenues.some(v => v.sourceType === 'activity' && v.sourceId === tempActivity.id);
+                            
+                            return (
+                              <Card 
+                                key={tempActivity.id} 
+                                className={`relative overflow-hidden hover-elevate transition-all flex flex-col ${isSelected ? 'ring-2 ring-primary' : ''}`} 
+                                data-testid={`search-result-${tempActivity.id}`}
+                              >
+                                {tempActivity.photoUrl && (
+                                  <div className="aspect-video w-full overflow-hidden bg-muted">
+                                    <img
+                                      src={tempActivity.photoUrl}
+                                      alt={tempActivity.venueName}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </div>
+                                )}
+                                <div className="absolute top-3 left-3 z-10" onClick={(e) => e.stopPropagation()}>
+                                  <Checkbox
+                                    checked={isSelected}
+                                    onCheckedChange={() => toggleVenueSelection('activity', tempActivity.id)}
+                                    className="h-6 w-6 bg-white border-2"
+                                    data-testid={`checkbox-search-result-${tempActivity.id}`}
+                                  />
+                                </div>
+                                <button
+                                  className={`absolute top-3 right-3 p-2 rounded-full transition-all z-10 ${
+                                    tempActivity.feedback === "love"
+                                      ? "bg-pink-500/90 hover:bg-pink-600/90"
+                                      : "bg-black/40 hover:bg-black/60 border-2 border-white"
+                                  }`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    
+                                    if (tempActivity.feedback === "love") {
+                                      toast({
+                                        title: "Already saved",
+                                        description: "This venue is already in your list",
+                                      });
+                                      return;
+                                    }
+                                    
+                                    // Create activity from search result with "love" feedback
+                                    createActivityFromCategoryResultMutation.mutate({
+                                      googlePlaceId: tempActivity.googlePlaceId || tempActivity.id,
+                                      feedback: "love",
+                                      activityData: {
+                                        venueName: tempActivity.venueName,
+                                        venueAddress: tempActivity.venueAddress,
+                                        venueType: tempActivity.venueType,
+                                        description: tempActivity.description || '',
+                                        googlePlaceId: tempActivity.googlePlaceId,
+                                        rating: tempActivity.rating,
+                                        priceLevel: tempActivity.priceLevel,
+                                        photoUrl: tempActivity.photoUrl,
+                                        reviewCount: tempActivity.reviewCount,
+                                        category: tempActivity.category,
+                                      },
+                                    });
+                                  }}
+                                  data-testid={`button-favorite-search-${tempActivity.id}`}
+                                >
+                                  <Heart 
+                                    className={`h-4 w-4 ${
+                                      tempActivity.feedback === "love" ? "fill-white" : ""
+                                    }`}
+                                    style={{ color: tempActivity.feedback === "love" ? "white" : "white" }}
+                                  />
+                                </button>
+                                <div className="p-4 flex-1 flex flex-col">
+                                  <h3 className="font-semibold mb-1 line-clamp-1">{tempActivity.venueName}</h3>
+                                  <p className="text-xs text-muted-foreground mb-2 line-clamp-1">{tempActivity.venueType}</p>
+                                  
+                                  <div className="flex items-center gap-3 mb-3">
+                                    {tempActivity.rating && (
+                                      <div className="flex items-center gap-1">
+                                        <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                                        <span className="text-sm font-medium">{tempActivity.rating}</span>
+                                        {tempActivity.reviewCount && (
+                                          <span className="text-xs text-muted-foreground">({tempActivity.reviewCount})</span>
+                                        )}
+                                      </div>
+                                    )}
+                                    {tempActivity.priceLevel && (
+                                      <div className="text-sm text-muted-foreground">
+                                        {"$".repeat(parseInt(tempActivity.priceLevel))}
+                                      </div>
+                                    )}
+                                  </div>
+                                  
+                                  {tempActivity.description && (
+                                    <p className="text-xs text-muted-foreground line-clamp-2 mb-3">{tempActivity.description}</p>
+                                  )}
+                                  
+                                  <p className="text-xs text-muted-foreground mt-auto line-clamp-2">{tempActivity.venueAddress}</p>
+                                </div>
+                              </Card>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </Card>
+                  </div>
+                )}
+
+                {/* Divider between search results and saved activities */}
+                {categoryResults.length > 0 && activities.length > 0 && (
+                  <div className="my-8 flex items-center gap-4">
+                    <div className="flex-1 h-px bg-border"></div>
+                    <span className="text-sm text-muted-foreground font-medium">Your Saved Activities</span>
+                    <div className="flex-1 h-px bg-border"></div>
+                  </div>
+                )}
+
                 {/* Group activities by food/beverage category */}
                 {(() => {
                   const filteredActivities = activities
@@ -3703,52 +3862,8 @@ export default function GroupDetail() {
                       return reviewCountB - reviewCountA;
                     });
 
-                  // Convert categoryResults to activity format and merge with filteredActivities
-                  const categoryResultsAsActivities = categoryResults.map(result => ({
-                    id: result.placeId || result.googlePlaceId || `temp-${Math.random()}`,
-                    groupId: groupId || '',
-                    aiSuggestedName: null,
-                    venueName: result.venueName,
-                    venueAddress: result.venueAddress,
-                    venueType: result.venueType || 'Venue',
-                    description: result.description,
-                    rating: result.rating?.toString() || null,
-                    reviewCount: result.reviewCount || null,
-                    priceLevel: result.priceLevel?.toString() || null,
-                    photoUrl: result.photoUrl || null,
-                    googlePlaceId: result.googlePlaceId || result.placeId || null,
-                    latitude: result.latitude?.toString() || null,
-                    longitude: result.longitude?.toString() || null,
-                    feedback: (result as any).feedback || null,
-                    aiReasoning: null,
-                    priceEstimate: null,
-                    timeConstraints: null,
-                    googleReview: null,
-                    complementaryPlaceName: null,
-                    complementaryPlaceAddress: null,
-                    complementaryPlaceId: null,
-                    complementaryPlacePhotoUrl: null,
-                    complementaryPlaceRating: null,
-                    complementaryPlaceName2: null,
-                    complementaryPlaceAddress2: null,
-                    complementaryPlaceId2: null,
-                    complementaryPlacePhotoUrl2: null,
-                    complementaryPlaceRating2: null,
-                    timeCategory: null,
-                    category: result.category || null,
-                    createdAt: new Date(),
-                    suggestedDate: null,
-                    suggestedTime: null,
-                    archivedAt: null,
-                  }));
-
-                  // Merge and deduplicate by googlePlaceId
+                  // Don't merge categoryResults - they're shown separately above
                   const allActivities = [...filteredActivities];
-                  categoryResultsAsActivities.forEach(catActivity => {
-                    if (!allActivities.some(a => a.googlePlaceId === catActivity.googlePlaceId)) {
-                      allActivities.push(catActivity);
-                    }
-                  });
 
                   const groupedByCategory = {
                     meal: allActivities.filter(a => getActivityCategory(a) === 'meal'),
