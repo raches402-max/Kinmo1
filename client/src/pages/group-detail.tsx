@@ -3802,7 +3802,29 @@ export default function GroupDetail() {
                                   />
                                 </button>
                                 <div className="p-4 flex-1 flex flex-col">
-                                  <h3 className="font-semibold mb-1 line-clamp-1">{tempActivity.venueName}</h3>
+                                  <div className="flex items-start justify-between gap-2 mb-1">
+                                    <h3 className="font-semibold line-clamp-1">{tempActivity.venueName}</h3>
+                                    {tempActivity.googlePlaceId && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        asChild
+                                        className="h-6 px-2 flex-shrink-0"
+                                        data-testid={`button-google-link-search-${tempActivity.id}`}
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <a
+                                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tempActivity.venueName)}&query_place_id=${tempActivity.googlePlaceId}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="gap-1"
+                                        >
+                                          <ExternalLink className="h-3 w-3" />
+                                          <span className="text-xs">Maps</span>
+                                        </a>
+                                      </Button>
+                                    )}
+                                  </div>
                                   <p className="text-xs text-muted-foreground mb-2 line-clamp-1">{tempActivity.venueType}</p>
                                   
                                   <div className="flex items-center gap-3 mb-3">
@@ -3826,21 +3848,7 @@ export default function GroupDetail() {
                                     <p className="text-xs text-muted-foreground line-clamp-2 mb-3">{tempActivity.description}</p>
                                   )}
                                   
-                                  <p className="text-xs text-muted-foreground line-clamp-2">{tempActivity.venueAddress}</p>
-                                  
-                                  {tempActivity.googlePlaceId && (
-                                    <a
-                                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tempActivity.venueName)}&query_place_id=${tempActivity.googlePlaceId}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="mt-2 inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                                      onClick={(e) => e.stopPropagation()}
-                                      data-testid={`link-maps-search-${tempActivity.id}`}
-                                    >
-                                      <MapPin className="h-3 w-3" />
-                                      View on Google Maps
-                                    </a>
-                                  )}
+                                  <p className="text-xs text-muted-foreground mt-auto line-clamp-2">{tempActivity.venueAddress}</p>
                                 </div>
                               </Card>
                             );
