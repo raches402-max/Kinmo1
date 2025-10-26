@@ -4672,7 +4672,11 @@ export default function GroupDetail() {
                               onClick={() => {
                                 setSelectedItineraryForScheduling(itinerary);
                                 setActiveTab('build');
-                                setTimeout(() => document.getElementById('schedule-section')?.scrollIntoView({ behavior: 'smooth' }), 100);
+                                requestAnimationFrame(() => {
+                                  setTimeout(() => {
+                                    document.getElementById('schedule-section')?.scrollIntoView({ behavior: 'smooth' });
+                                  }, 150);
+                                });
                               }}
                               data-testid={`button-schedule-itinerary-${itinerary.id}`}
                             >
