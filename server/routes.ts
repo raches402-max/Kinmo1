@@ -2503,19 +2503,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return null;
           }
 
-          // Budget filtering
-          const priceLevel = parseInt(place.priceLevel || '0');
-          const budgetMax = group.budgetMax;
-          let passesBudget = true;
-
-          if (budgetMax < 50 && priceLevel > 1) passesBudget = false;
-          else if (budgetMax < 100 && priceLevel > 2) passesBudget = false;
-          else if (budgetMax < 200 && priceLevel > 3) passesBudget = false;
-
-          if (!passesBudget) {
-            console.log(`[Category Generate] Skipping ${place.name} - budget filter ($${priceLevel} > budget $${budgetMax})`);
-            return null;
-          }
+          // Skip budget filtering for category searches - user is exploring options
+          // They can see price levels and decide themselves
 
           // Only include venues with complete data
           if (!place.rating || !place.address || !place.photoUrl) {
