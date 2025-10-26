@@ -2468,31 +2468,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .filter(s => s.feedback === 'pass')
         .map(s => s.conceptDescription);
 
-      // Generate category-specific suggestions
-      const suggestions = await generateActivitySuggestions({
-        locationBase: searchLocation,
-        budgetMin: group.budgetMin,
-        budgetMax: group.budgetMax,
-        meetingFrequency: group.meetingFrequency,
-        availability: group.availability,
-        closenessLevel: group.closenessLevel,
-        noveltyPreference: group.noveltyPreference,
-        activityCategories: group.activityCategories || undefined,
-        pastPreferences: group.pastPreferences || undefined,
-        additionalInstructions: group.additionalInstructions || undefined,
-        searchRadius: searchRadius,
-        previousFeedback: previousFeedback.length > 0 ? previousFeedback : undefined,
-        votingFeedback: votingFeedback.length > 0 ? votingFeedback : undefined,
-        likedConcepts: likedConcepts.length > 0 ? likedConcepts : undefined,
-        passedConcepts: passedConcepts.length > 0 ? passedConcepts : undefined,
-        previouslySuggestedVenues: existingVenueNames,
-        targetCategories: [category], // Only generate this category
-        mealEnabled: group.mealEnabled ?? true,
-        cafeEnabled: group.cafeEnabled ?? true,
-        drinksEnabled: group.drinksEnabled ?? true,
-        dessertEnabled: group.dessertEnabled ?? true,
-        experiencesEnabled: group.experiencesEnabled ?? true,
-      });
+      // Generate category-specific suggestions with timeout protection
+      const suggestions = await Promise.race([
+        generateActivitySuggestions({
+          locationBase: searchLocation,
+          budgetMin: group.budgetMin,
+          budgetMax: group.budgetMax,
+          meetingFrequency: group.meetingFrequency,
+          availability: group.availability,
+          closenessLevel: group.closenessLevel,
+          noveltyPreference: group.noveltyPreference,
+          activityCategories: group.activityCategories || undefined,
+          pastPreferences: group.pastPreferences || undefined,
+          additionalInstructions: group.additionalInstructions || undefined,
+          searchRadius: searchRadius,
+          previousFeedback: previousFeedback.length > 0 ? previousFeedback : undefined,
+          votingFeedback: votingFeedback.length > 0 ? votingFeedback : undefined,
+          likedConcepts: likedConcepts.length > 0 ? likedConcepts : undefined,
+          passedConcepts: passedConcepts.length > 0 ? passedConcepts : undefined,
+          previouslySuggestedVenues: existingVenueNames,
+          targetCategories: [category], // Only generate this category
+          mealEnabled: group.mealEnabled ?? true,
+          cafeEnabled: group.cafeEnabled ?? true,
+          drinksEnabled: group.drinksEnabled ?? true,
+          dessertEnabled: group.dessertEnabled ?? true,
+          experiencesEnabled: group.experiencesEnabled ?? true,
+        }),
+        new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('AI generation timed out after 180 seconds')), 180000)
+        )
+      ]);
 
       console.log(`[Category Generate] Got ${suggestions.length} suggestions for ${category}`);
 
