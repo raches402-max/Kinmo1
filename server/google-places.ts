@@ -164,6 +164,19 @@ export interface PlaceResult {
   review?: string; // Short positive review (80-100 chars)
 }
 
+// Helper function to calculate distance between two coordinates in miles using Haversine formula
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 3958.8; // Earth's radius in miles
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
 export async function searchPlaces(
   query: string,
   location: string,
@@ -216,18 +229,35 @@ export async function searchPlaces(
     // Get first result
     const place = response.data.results[0];
     
+    // Check if place is within radius (if coordinates provided)
+    const placeLocation = place.geometry?.location;
+    if (coordinates && placeLocation) {
+      const distance = calculateDistance(
+        coordinates.lat,
+        coordinates.lng,
+        placeLocation.lat,
+        placeLocation.lng
+      );
+      
+      if (distance > radiusMiles) {
+        console.log(`[Google Places] Filtering out "${place.name}" - ${distance.toFixed(2)} miles away (radius: ${radiusMiles} miles)`);
+        sessionCache.searchResults.set(cacheKey, []);
+        return [];
+      }
+    }
+    
     // Fetch full details including reviews if we have a place ID
     if (place.place_id) {
       const detailedPlace = await getPlaceDetails(place.place_id);
       if (detailedPlace) {
         // Add location from text search (not in place details)
-        const placeLocation = place.geometry?.location 
-          ? { lat: place.geometry.location.lat, lng: place.geometry.location.lng }
+        const placeLocationCoords = placeLocation 
+          ? { lat: placeLocation.lat, lng: placeLocation.lng }
           : undefined;
         
         const result = [{
           ...detailedPlace,
-          location: placeLocation,
+          location: placeLocationCoords,
         }];
 
         // Cache a clone to prevent mutations from affecting cached data
