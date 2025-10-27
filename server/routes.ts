@@ -2881,13 +2881,11 @@ Looking forward to planning great activities together!
               const lng = group.longitude ? parseFloat(group.longitude) : undefined;
               const radius = group.searchRadius || 10; // default 10 miles
               
-              if (!lat || !lng) {
-                console.warn(`[Swipe Deck] Missing coordinates for group ${groupId}, skipping Google Places enrichment`);
-                throw new Error('Missing coordinates');
-              }
+              // Only pass coordinates object if both values are defined
+              const coordinates = (lat !== undefined && lng !== undefined) ? { lat, lng } : undefined;
 
               const places = await import('./google-places').then(m => 
-                m.searchPlaces(searchQuery, lat, lng, radius)
+                m.searchPlaces(searchQuery, group.locationBase, radius, coordinates)
               );
 
               if (places.length > 0) {
