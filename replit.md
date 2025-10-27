@@ -21,7 +21,7 @@ AI suggestion preferences:
 - **Backend**: Express.js REST API with TypeScript, custom Vite integration, and session-based authentication.
 - **API Design**: RESTful endpoints, JSON format, centralized error handling, and a background job pattern for AI activity generation.
 - **Data Storage**: PostgreSQL via Neon serverless, Drizzle ORM for type-safe operations, Drizzle Kit for migrations.
-    - **Schema**: Includes `groups`, `members`, `activities`, `itineraries`, `itinerary_items`, and `group_collections` tables with UUID primary keys and cryptographically random tokens for shareable links. Groups can be assigned to collections via `collectionId` foreign key with `orderIndex` for sorting.
+    - **Schema**: Includes `groups`, `members`, `activities`, `itineraries`, `itinerary_items`, `group_collections`, and `category_search_history` tables with UUID primary keys and cryptographically random tokens for shareable links. Groups can be assigned to collections via `collectionId` foreign key with `orderIndex` for sorting. Category search history table stores recent venue searches with parameters and results for 24-hour caching.
 - **Member Management**: Members claim accounts via unique claim tokens. An "Events Dashboard" allows members to view pending, upcoming, and past events, supporting both authenticated and unclaimed users. RSVP links use itinerary-specific invite tokens.
 - **User Profile System**: Authenticated users manage personal information via a dedicated `/profile` page, supported by a `user_profiles` table and secure API endpoints.
 
