@@ -169,18 +169,13 @@ export function SwipeSession({ groupId, open, onOpenChange, onComplete }: SwipeS
               <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
             </div>
           ) : currentVenue ? (
-            <>
-              <div className="relative h-[500px]">
-                <SwipeCard
-                  venue={currentVenue}
-                  onSwipe={handleSwipe}
-                  onSkip={handleSkip}
-                />
-              </div>
-              <div className="text-center mt-4 text-sm text-muted-foreground">
-                {remaining} {remaining === 1 ? 'venue' : 'venues'} remaining
-              </div>
-            </>
+            <div className="relative h-[500px]">
+              <SwipeCard
+                venue={currentVenue}
+                onSwipe={handleSwipe}
+                onSkip={handleSkip}
+              />
+            </div>
           ) : (
             <div className="text-center py-12">
               <p className="text-muted-foreground">No more venues to show</p>
@@ -191,12 +186,14 @@ export function SwipeSession({ groupId, open, onOpenChange, onComplete }: SwipeS
           )}
         </div>
 
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center gap-4">
           <Button variant="ghost" onClick={handleClose} data-testid="button-exit">
             Exit
           </Button>
-          <div className="text-sm text-muted-foreground">
-            {currentIndex}/{deck.length}
+          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            <span>{remaining} {remaining === 1 ? 'venue' : 'venues'} left</span>
+            <span>•</span>
+            <span>{currentIndex + 1}/{deck.length}</span>
           </div>
         </div>
       </DialogContent>

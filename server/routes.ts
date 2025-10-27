@@ -2873,16 +2873,30 @@ Looking forward to planning great activities together!
           concepts.slice(0, neededCount).map(async (concept) => {
             // Search Google Places for this concept
             const searchQuery = `${concept.conceptDescription} near ${group.locationBase}`;
+            console.log(`[Swipe Deck] Searching for: "${searchQuery}"`);
+            
             try {
+              // Parse coordinates - they're stored as strings in DB
+              const lat = group.latitude ? parseFloat(group.latitude) : undefined;
+              const lng = group.longitude ? parseFloat(group.longitude) : undefined;
+              const radius = group.searchRadius || 10; // default 10 miles
+              
+              if (!lat || !lng) {
+                console.warn(`[Swipe Deck] Missing coordinates for group ${groupId}, skipping Google Places enrichment`);
+                throw new Error('Missing coordinates');
+              }
+
               const places = await import('./google-places').then(m => 
-                m.searchPlaces(searchQuery, group.latitude, group.longitude, group.searchRadius)
+                m.searchPlaces(searchQuery, lat, lng, radius)
               );
 
               if (places.length > 0) {
                 const place = places[0];
+                console.log(`[Swipe Deck] Found venue: "${place.name}" (rating: ${place.rating}, reviews: ${place.userRatingsTotal})`);
                 
                 // Skip if we already have this place
-                if (existingPlaceIds.has(place.place_id)) {
+                if (existingPlaceIds.has(place.placeId)) {
+                  console.log(`[Swipe Deck] Skipping duplicate place: ${place.name}`);
                   return null;
                 }
 
@@ -2890,23 +2904,26 @@ Looking forward to planning great activities together!
                   id: `ai-${concept.conceptType}-${Date.now()}-${Math.random()}`,
                   title: place.name,
                   description: concept.conceptDescription,
-                  venueAddress: place.formatted_address,
+                  venueAddress: place.formattedAddress,
                   venueType: concept.conceptType,
-                  googlePlaceId: place.place_id,
+                  googlePlaceId: place.placeId,
                   rating: place.rating?.toString(),
-                  reviewCount: place.user_ratings_total,
-                  priceLevel: place.price_level?.toString(),
+                  reviewCount: place.userRatingsTotal,
+                  priceLevel: place.priceLevel ? '$'.repeat(place.priceLevel) : undefined,
                   photoUrl: place.photoUrl,
                   sourceType: 'ai_suggestion' as const,
                   isNew: true,
                   groupId,
                 };
+              } else {
+                console.warn(`[Swipe Deck] No Google Places results for: "${searchQuery}"`);
               }
             } catch (error) {
-              console.error('Error enriching concept:', error);
+              console.error(`[Swipe Deck] Error enriching concept "${concept.conceptDescription}":`, error);
             }
 
             // Fallback to text-based concept if Google Places fails
+            console.log(`[Swipe Deck] Using text-only concept: "${concept.conceptDescription}"`);
             return {
               id: `ai-${concept.conceptType}-${Date.now()}-${Math.random()}`,
               title: concept.conceptDescription,
@@ -2920,7 +2937,7 @@ Looking forward to planning great activities together!
         );
 
         // Filter out nulls and add to deck
-        const validConcepts = enrichedConcepts.filter(Boolean);
+        const validConcepts = enrichedConcepts.filter((c): c is NonNullable<typeof c> => c !== null);
         deck = [...deck, ...validConcepts];
       }
 

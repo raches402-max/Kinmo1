@@ -1,5 +1,5 @@
 import { motion, useMotionValue, useTransform, PanInfo } from 'framer-motion';
-import { X, Heart, Star, MapPin } from 'lucide-react';
+import { X, Heart, Star, MapPin, ExternalLink } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -58,6 +58,18 @@ export function SwipeCard({ venue, onSwipe, onSkip }: SwipeCardProps) {
     }
   };
 
+  // Generate Google Maps URL
+  const getGoogleMapsUrl = () => {
+    if (venue.googlePlaceId) {
+      return `https://www.google.com/maps/search/?api=1&query=Google&query_place_id=${venue.googlePlaceId}`;
+    } else if (venue.venueAddress) {
+      return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venue.venueAddress)}`;
+    }
+    return null;
+  };
+
+  const mapsUrl = getGoogleMapsUrl();
+
   return (
     <motion.div
       style={{
@@ -108,10 +120,17 @@ export function SwipeCard({ venue, onSwipe, onSkip }: SwipeCardProps) {
               </Badge>
             )}
             {venue.rating && (
-              <Badge variant="secondary" className="gap-1">
-                <Star className="h-3 w-3 fill-current" />
+              <Badge variant="secondary" className="gap-1" data-testid="badge-rating">
+                <Star className="h-3 w-3 fill-current text-yellow-500" />
                 {venue.rating}
-                {venue.reviewCount && ` (${venue.reviewCount})`}
+                {venue.reviewCount && (
+                  <span className="text-muted-foreground">({venue.reviewCount.toLocaleString()})</span>
+                )}
+              </Badge>
+            )}
+            {venue.priceLevel && (
+              <Badge variant="outline" className="gap-1" data-testid="badge-price">
+                {venue.priceLevel}
               </Badge>
             )}
           </div>
@@ -122,17 +141,32 @@ export function SwipeCard({ venue, onSwipe, onSkip }: SwipeCardProps) {
           </h3>
 
           {/* Venue Type & Address */}
-          <div className="space-y-1">
+          <div className="space-y-2">
             {venue.venueType && (
-              <p className="text-sm text-muted-foreground capitalize">
+              <p className="text-sm font-medium text-foreground/70 capitalize">
                 {venue.venueType.replace(/-/g, ' ')}
               </p>
             )}
             {venue.venueAddress && (
-              <p className="text-sm text-muted-foreground flex items-start gap-1">
-                <MapPin className="h-4 w-4 shrink-0 mt-0.5" />
-                <span>{venue.venueAddress}</span>
-              </p>
+              <div className="flex items-start gap-2">
+                <MapPin className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
+                <div className="flex-1">
+                  <p className="text-sm text-foreground/80">{venue.venueAddress}</p>
+                  {mapsUrl && (
+                    <a
+                      href={mapsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-primary hover:underline inline-flex items-center gap-1 mt-1"
+                      data-testid="link-google-maps"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      View on Google Maps
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                </div>
+              </div>
             )}
           </div>
 
