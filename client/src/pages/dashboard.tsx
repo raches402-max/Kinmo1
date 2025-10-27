@@ -1377,82 +1377,90 @@ export default function Dashboard() {
                   <h3 className="text-xl font-bold mb-4">Past Events ({pastEvents.length})</h3>
                   <div className="space-y-3">
                     {pastEvents.map((event) => (
-                      <Card key={event.inviteId} className="opacity-75" data-testid={`past-event-${event.itineraryId}`}>
-                        <CardHeader className="pb-3">
-                          <div className="flex items-center justify-between gap-4">
-                            <div className="flex-1">
-                              <CardTitle className="text-lg flex items-center gap-2">
-                                <span className="text-xl">{event.groupEmoji}</span>
-                                {event.itineraryName}
-                              </CardTitle>
-                              <CardDescription className="mt-1">
-                                {event.groupName} • {event.eventDate ? format(new Date(event.eventDate), 'MMM d, yyyy • h:mm a') : 'Date TBD'}
-                              </CardDescription>
-                            </div>
-                            {event.isOrganizer ? (
-                              <Badge variant="default" className="gap-1">
-                                <Sparkles className="h-3 w-3" />
-                                Organizer
-                              </Badge>
-                            ) : event.rsvp && (
-                              <Badge variant={event.rsvp.response === 'yes' ? 'default' : 'outline'}>
-                                {event.rsvp.response === 'yes' ? 'Attended' : (event.rsvp.response === 'maybe' || event.rsvp.response === 'yes_with_constraint') ? 'Maybe' : 'Declined'}
-                              </Badge>
-                            )}
-                          </div>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                          <div className="space-y-2">
-                            {event.items.map((venue, idx) => (
-                              <div key={venue.id} className="flex items-start gap-2 text-sm">
-                                <Badge variant="outline" className="h-5 shrink-0">{idx + 1}</Badge>
-                                <div className="flex-1 min-w-0">
-                                  <div className="font-medium">{venue.venueName}</div>
-                                  {venue.venueAddress && (
-                                    <div className="text-xs text-muted-foreground">{venue.venueAddress}</div>
-                                  )}
-                                  <div className="flex items-center gap-3 mt-1">
-                                    {venue.rating && (
-                                      <span className="text-xs text-muted-foreground">
-                                        ⭐ {venue.rating}
-                                      </span>
-                                    )}
-                                    {venue.googlePlaceId && (
-                                      <a 
-                                        href={`https://www.google.com/maps/search/?api=1&query=Google&query_place_id=${venue.googlePlaceId}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-xs text-primary hover:underline"
-                                        data-testid={`link-maps-${venue.id}`}
-                                      >
-                                        View on Maps
-                                      </a>
-                                    )}
-                                  </div>
+                      <Card key={event.inviteId} className="hover-elevate opacity-75" data-testid={`past-event-${event.itineraryId}`}>
+                        <CardContent className="p-4">
+                          <div className="flex gap-4">
+                            {/* Date/Time Block - Muted for Past Events */}
+                            <div className="flex-shrink-0 w-20">
+                              <div className="bg-muted text-muted-foreground rounded-lg p-2 text-center">
+                                <div className="text-xs font-semibold uppercase">
+                                  {event.eventDate ? format(new Date(event.eventDate), 'MMM') : 'TBD'}
+                                </div>
+                                <div className="text-2xl font-bold leading-none my-1">
+                                  {event.eventDate ? format(new Date(event.eventDate), 'd') : '--'}
+                                </div>
+                                <div className="text-xs">
+                                  {event.eventDate ? format(new Date(event.eventDate), 'h:mm a') : ''}
                                 </div>
                               </div>
-                            ))}
+                            </div>
+
+                            {/* Content */}
+                            <div className="flex-1 min-w-0 space-y-2">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex-1 min-w-0">
+                                  <h3 className="font-semibold text-base flex items-center gap-2">
+                                    <span className="text-xl">{event.groupEmoji}</span>
+                                    {event.itineraryName}
+                                  </h3>
+                                  <p className="text-sm text-muted-foreground">
+                                    {event.groupName} • {event.eventDate ? format(new Date(event.eventDate), 'MMM d, yyyy') : 'Date TBD'}
+                                  </p>
+                                </div>
+                                <div className="flex gap-1.5 flex-shrink-0 flex-wrap">
+                                  {event.isOrganizer ? (
+                                    <Badge variant="outline" className="gap-1">
+                                      <Sparkles className="h-3 w-3" />
+                                      Organizer
+                                    </Badge>
+                                  ) : event.rsvp && (
+                                    <Badge variant={event.rsvp.response === 'yes' ? 'default' : 'outline'}>
+                                      {event.rsvp.response === 'yes' ? 'Attended' : (event.rsvp.response === 'maybe' || event.rsvp.response === 'yes_with_constraint') ? 'Maybe' : 'Declined'}
+                                    </Badge>
+                                  )}
+                                  {event.rsvp?.postEventFeedback && (
+                                    <Badge variant="secondary" className="gap-1">
+                                      <Star className="h-3 w-3" />
+                                      Feedback Submitted
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Simplified Venue Display */}
+                              {event.items.length > 0 && (
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                  <MapPin className="h-4 w-4 flex-shrink-0" />
+                                  <span className="truncate">
+                                    {event.items[0].venueName}
+                                    {event.items.length > 1 && ` and ${event.items.length - 1} more`}
+                                  </span>
+                                </div>
+                              )}
+
+                              {/* Actions */}
+                              <div className="flex gap-2 flex-wrap pt-1">
+                                {(event.rsvp?.response === 'yes' || event.isOrganizer) && !event.rsvp?.postEventFeedback && (
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={() => handlePostEventFeedback(event)}
+                                    className="gap-2"
+                                    data-testid={`button-feedback-${event.itineraryId}`}
+                                  >
+                                    <MessageSquare className="h-4 w-4" />
+                                    Leave Feedback
+                                  </Button>
+                                )}
+                                <Link href={`/event/${event.itineraryId}`}>
+                                  <Button variant="ghost" size="sm" className="gap-1" data-testid={`button-view-${event.itineraryId}`}>
+                                    <ExternalLink className="h-4 w-4" />
+                                    View Details
+                                  </Button>
+                                </Link>
+                              </div>
+                            </div>
                           </div>
-                          {/* Show feedback button if user attended and hasn't submitted feedback yet */}
-                          {(event.rsvp?.response === 'yes' || event.isOrganizer) && !event.rsvp?.postEventFeedback && (
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              onClick={() => handlePostEventFeedback(event)}
-                              className="gap-2"
-                              data-testid={`button-feedback-${event.itineraryId}`}
-                            >
-                              <MessageSquare className="h-4 w-4" />
-                              Leave Feedback
-                            </Button>
-                          )}
-                          {/* Show feedback submitted badge if already provided */}
-                          {event.rsvp?.postEventFeedback && (
-                            <Badge variant="secondary" className="gap-1">
-                              <Star className="h-3 w-3" />
-                              Feedback Submitted
-                            </Badge>
-                          )}
                         </CardContent>
                       </Card>
                     ))}
