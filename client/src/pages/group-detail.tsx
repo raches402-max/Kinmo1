@@ -1222,9 +1222,20 @@ export default function GroupDetail() {
         activityData,
       });
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       // Refresh voting events since we created a new favorite
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "voting-events"] });
+      
+      // Update local categoryResults to mark this item as favorited
+      // Match on either googlePlaceId or placeId since variables.googlePlaceId could be either
+      setCategoryResults(prev => prev.map(result => {
+        if (variables.googlePlaceId && 
+            (result.googlePlaceId === variables.googlePlaceId || 
+             result.placeId === variables.googlePlaceId)) {
+          return { ...result, feedback: "love" };
+        }
+        return result;
+      }));
       
       toast({
         title: "Added to favorites",
