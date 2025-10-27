@@ -2683,7 +2683,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         rating: activityData.rating ? activityData.rating.toString() : null,
         priceLevel: activityData.priceLevel || null,
         photoUrl: activityData.photoUrl || null,
-      });
+      }, userId);
 
       res.json(votingEvent);
     } catch (error: any) {
