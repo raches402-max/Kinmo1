@@ -31,7 +31,6 @@ type SafeMember = {
   openToHosting?: boolean;
   profileCompleted?: boolean;
 };
-import { TimeSlotVoting } from "@/components/TimeSlotVoting";
 
 type UserEvent = {
   inviteId: string;
@@ -1165,155 +1164,105 @@ export default function Dashboard() {
 
                         return (
                           <Card key={event.inviteId} className={`hover-elevate ${rsvpResponse === 'yes' ? 'border-primary/50' : ''}`} data-testid={`upcoming-event-${event.itineraryId}`}>
-                            <CardHeader className="pb-3">
-                              <div className="flex items-center justify-between gap-4 flex-wrap">
-                                <div className="flex-1">
-                                  <CardTitle className="text-lg flex items-center gap-2">
-                                    <span className="text-xl">{event.groupEmoji}</span>
-                                    {event.itineraryName}
-                                  </CardTitle>
-                                  <CardDescription className="mt-1">
-                                    {event.groupName}
-                                  </CardDescription>
-                                </div>
-                                <div className="flex gap-2 flex-wrap">
-                                  <Badge variant="outline" className="gap-1">
-                                    <Sparkles className="h-3 w-3" />
-                                    Organizer
-                                  </Badge>
-                                  {rsvpResponse && (
-                                    <Badge variant={badge.variant} className={`gap-1 ${badge.className}`}>
-                                      <badge.icon className="h-3 w-3" />
-                                      {badge.text}
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                              {/* Venue Details */}
-                              <div className="space-y-2">
-                                {event.items.map((venue, idx) => (
-                                  <div key={venue.id} className="flex items-start gap-2 text-sm">
-                                    <Badge variant="outline" className="h-5 shrink-0">{idx + 1}</Badge>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="font-medium">{venue.venueName}</div>
-                                      {venue.venueAddress && (
-                                        <div className="text-xs text-muted-foreground">{venue.venueAddress}</div>
-                                      )}
-                                      <div className="flex items-center gap-3 mt-1">
-                                        {venue.rating && (
-                                          <span className="text-xs text-muted-foreground">
-                                            ⭐ {venue.rating}
-                                          </span>
-                                        )}
-                                        {venue.googlePlaceId && (
-                                          <a 
-                                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venue.venueName || venue.venueAddress || 'Location')}&query_place_id=${venue.googlePlaceId}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-xs text-primary hover:underline"
-                                            data-testid={`link-maps-${venue.id}`}
-                                          >
-                                            View on Maps
-                                          </a>
-                                        )}
-                                      </div>
+                            <CardContent className="p-4">
+                              <div className="flex gap-4">
+                                {/* Date/Time Block */}
+                                <div className="flex-shrink-0 w-20">
+                                  <div className="bg-primary text-primary-foreground rounded-lg p-2 text-center">
+                                    <div className="text-xs font-semibold uppercase">
+                                      {event.eventDate ? format(new Date(event.eventDate), 'MMM') : 'TBD'}
+                                    </div>
+                                    <div className="text-2xl font-bold leading-none my-1">
+                                      {event.eventDate ? format(new Date(event.eventDate), 'd') : '--'}
+                                    </div>
+                                    <div className="text-xs">
+                                      {event.eventDate ? format(new Date(event.eventDate), 'h:mm a') : ''}
                                     </div>
                                   </div>
-                                ))}
-                              </div>
+                                </div>
 
-                              <TimeSlotVoting 
-                                itineraryId={event.itineraryId}
-                                userId={user?.id}
-                                isOrganizer={true}
-                              />
+                                {/* Content */}
+                                <div className="flex-1 min-w-0 space-y-2">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="flex-1 min-w-0">
+                                      <h3 className="font-semibold text-base flex items-center gap-2">
+                                        <span className="text-xl">{event.groupEmoji}</span>
+                                        {event.itineraryName}
+                                      </h3>
+                                      <p className="text-sm text-muted-foreground">{event.groupName}</p>
+                                    </div>
+                                    <div className="flex gap-1.5 flex-shrink-0">
+                                      <Badge variant="outline" className="gap-1">
+                                        <Sparkles className="h-3 w-3" />
+                                        Organizer
+                                      </Badge>
+                                      {rsvpResponse && (
+                                        <Badge variant={badge.variant} className={`gap-1 ${badge.className}`}>
+                                          <badge.icon className="h-3 w-3" />
+                                          {badge.text}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </div>
 
-                              {/* RSVP Summary */}
-                              {event.detailedRsvps && event.detailedRsvps.length > 0 && (
-                                <div className="space-y-2 text-sm">
-                                  <div className="font-medium text-muted-foreground">RSVPs</div>
-                                  <div className="flex flex-wrap gap-2">
-                                    {event.detailedRsvps.filter(r => r.response === 'yes').length > 0 && (
-                                      <div className="flex items-center gap-1.5">
-                                        <CheckCircle className="h-3.5 w-3.5 text-green-600" />
-                                        <span className="text-xs text-muted-foreground">
-                                          {event.detailedRsvps.filter(r => r.response === 'yes').map(formatRsvpName).join(', ')}
-                                        </span>
-                                      </div>
-                                    )}
-                                    {event.detailedRsvps.filter(r => r.response === 'maybe' || r.response === 'yes_with_constraint').length > 0 && (
-                                      <div className="flex items-center gap-1.5">
-                                        <HelpCircle className="h-3.5 w-3.5 text-yellow-600" />
-                                        <span className="text-xs text-muted-foreground">
-                                          {event.detailedRsvps.filter(r => r.response === 'maybe' || r.response === 'yes_with_constraint').map(formatRsvpName).join(', ')}
-                                        </span>
-                                      </div>
-                                    )}
-                                    {event.detailedRsvps.filter(r => r.response === 'no').length > 0 && (
-                                      <div className="flex items-center gap-1.5">
-                                        <XCircle className="h-3.5 w-3.5 text-red-600" />
-                                        <span className="text-xs text-muted-foreground">
-                                          {event.detailedRsvps.filter(r => r.response === 'no').map(formatRsvpName).join(', ')}
-                                        </span>
-                                      </div>
-                                    )}
+                                  {/* Simplified Venue Display */}
+                                  {event.items.length > 0 && (
+                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                      <MapPin className="h-4 w-4 flex-shrink-0" />
+                                      <span className="truncate">
+                                        {event.items[0].venueName}
+                                        {event.items.length > 1 && ` and ${event.items.length - 1} more`}
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  {/* Actions */}
+                                  <div className="flex gap-2 flex-wrap pt-1">
+                                    <Button 
+                                      variant={rsvpResponse === 'yes' ? 'default' : 'ghost'}
+                                      size="icon"
+                                      onClick={() => handleRsvpClick(event, 'yes')}
+                                      disabled={organizerRsvpMutation.isPending}
+                                      data-testid={`button-yes-${event.itineraryId}`}
+                                    >
+                                      <CheckCircle className="h-4 w-4" />
+                                    </Button>
+                                    <Button 
+                                      variant={rsvpResponse === 'maybe' ? 'default' : 'ghost'}
+                                      size="icon"
+                                      onClick={() => handleRsvpClick(event, 'maybe')}
+                                      disabled={organizerRsvpMutation.isPending}
+                                      data-testid={`button-maybe-${event.itineraryId}`}
+                                    >
+                                      <HelpCircle className="h-4 w-4" />
+                                    </Button>
+                                    <Button 
+                                      variant={rsvpResponse === 'no' ? 'default' : 'ghost'}
+                                      size="icon"
+                                      onClick={() => handleRsvpClick(event, 'no')}
+                                      disabled={organizerRsvpMutation.isPending}
+                                      data-testid={`button-no-${event.itineraryId}`}
+                                    >
+                                      <XCircle className="h-4 w-4" />
+                                    </Button>
+                                    <Link href={`/event/${event.itineraryId}`}>
+                                      <Button variant="outline" size="sm" className="gap-1" data-testid={`button-view-${event.itineraryId}`}>
+                                        <ExternalLink className="h-4 w-4" />
+                                        View Details
+                                      </Button>
+                                    </Link>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm"
+                                      onClick={() => copyInviteLink(event)}
+                                      className="gap-1"
+                                      data-testid={`button-copy-link-${event.itineraryId}`}
+                                    >
+                                      <Copy className="h-4 w-4" />
+                                      Copy Link
+                                    </Button>
                                   </div>
                                 </div>
-                              )}
-                              
-                              {/* RSVP Buttons */}
-                              <div className="flex gap-2 flex-wrap">
-                                <Button 
-                                  variant={rsvpResponse === 'yes' ? 'default' : 'outline'}
-                                  size="sm"
-                                  onClick={() => handleRsvpClick(event, 'yes')}
-                                  disabled={organizerRsvpMutation.isPending}
-                                  className="gap-1"
-                                  data-testid={`button-yes-${event.itineraryId}`}
-                                >
-                                  <CheckCircle className="h-4 w-4" />
-                                  Going
-                                </Button>
-                                <Button 
-                                  variant={rsvpResponse === 'maybe' ? 'default' : 'outline'}
-                                  size="sm"
-                                  onClick={() => handleRsvpClick(event, 'maybe')}
-                                  disabled={organizerRsvpMutation.isPending}
-                                  className="gap-1"
-                                  data-testid={`button-maybe-${event.itineraryId}`}
-                                >
-                                  <HelpCircle className="h-4 w-4" />
-                                  Maybe
-                                </Button>
-                                <Button 
-                                  variant={rsvpResponse === 'no' ? 'default' : 'outline'}
-                                  size="sm"
-                                  onClick={() => handleRsvpClick(event, 'no')}
-                                  disabled={organizerRsvpMutation.isPending}
-                                  className="gap-1"
-                                  data-testid={`button-no-${event.itineraryId}`}
-                                >
-                                  <XCircle className="h-4 w-4" />
-                                  Can't Make It
-                                </Button>
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm"
-                                  onClick={() => copyInviteLink(event)}
-                                  className="gap-1"
-                                  data-testid={`button-copy-link-${event.itineraryId}`}
-                                >
-                                  <Copy className="h-4 w-4" />
-                                  Copy Link
-                                </Button>
-                                <Link href={`/group/${event.groupId}?edit=${event.itineraryId}`}>
-                                  <Button variant="ghost" size="sm" className="gap-1" data-testid={`button-manage-${event.itineraryId}`}>
-                                    <Users className="h-4 w-4" />
-                                    Manage
-                                  </Button>
-                                </Link>
                               </div>
                             </CardContent>
                           </Card>
@@ -1335,137 +1284,84 @@ export default function Dashboard() {
 
                       return (
                         <Card key={event.inviteId} className={`hover-elevate ${rsvpResponse === 'yes' ? 'border-primary/50' : ''}`} data-testid={`upcoming-event-${event.itineraryId}`}>
-                          <CardHeader className="pb-3">
-                            <div className="flex items-center justify-between gap-4 flex-wrap">
-                              <div className="flex-1">
-                                <CardTitle className="text-lg flex items-center gap-2">
-                                  <span className="text-xl">{event.groupEmoji}</span>
-                                  {event.itineraryName}
-                                </CardTitle>
-                                <CardDescription className="mt-1">
-                                  {event.groupName}
-                                </CardDescription>
-                              </div>
-                              <div className="flex gap-2 flex-wrap">
-                                <Badge variant={badge.variant} className={`gap-1 ${badge.className}`}>
-                                  <badge.icon className="h-3 w-3" />
-                                  {badge.text}
-                                </Badge>
-                                {event.hostMemberId && event.hostMemberName && (
-                                  <Badge variant="default" className="gap-1" data-testid={`badge-host-${event.itineraryId}`}>
-                                    <UserCheck className="h-3 w-3" />
-                                    {isCurrentHost ? 'You\'re hosting' : `Hosted by ${event.hostMemberName}`}
-                                  </Badge>
-                                )}
-                                {!event.hostMemberId && (
-                                  <Badge variant="secondary" className="gap-1" data-testid={`badge-ai-hosted-${event.itineraryId}`}>
-                                    <Bot className="h-3 w-3" />
-                                    AI-hosted
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                          </CardHeader>
-                          <CardContent className="space-y-4">
-                            <div className="space-y-2">
-                              {event.items.map((venue, idx) => (
-                                <div key={venue.id} className="flex items-start gap-2 text-sm">
-                                  <Badge variant="outline" className="h-5 shrink-0">{idx + 1}</Badge>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="font-medium">{venue.venueName}</div>
-                                    {venue.venueAddress && (
-                                      <div className="text-xs text-muted-foreground">{venue.venueAddress}</div>
-                                    )}
-                                    <div className="flex items-center gap-3 mt-1">
-                                      {venue.rating && (
-                                        <span className="text-xs text-muted-foreground">
-                                          ⭐ {venue.rating}
-                                        </span>
-                                      )}
-                                      {venue.googlePlaceId && (
-                                        <a 
-                                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venue.venueName || venue.venueAddress || 'Location')}&query_place_id=${venue.googlePlaceId}`}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="text-xs text-primary hover:underline"
-                                          data-testid={`link-maps-${venue.id}`}
-                                        >
-                                          View on Maps
-                                        </a>
-                                      )}
-                                    </div>
+                          <CardContent className="p-4">
+                            <div className="flex gap-4">
+                              {/* Date/Time Block */}
+                              <div className="flex-shrink-0 w-20">
+                                <div className="bg-primary text-primary-foreground rounded-lg p-2 text-center">
+                                  <div className="text-xs font-semibold uppercase">
+                                    {event.eventDate ? format(new Date(event.eventDate), 'MMM') : 'TBD'}
+                                  </div>
+                                  <div className="text-2xl font-bold leading-none my-1">
+                                    {event.eventDate ? format(new Date(event.eventDate), 'd') : '--'}
+                                  </div>
+                                  <div className="text-xs">
+                                    {event.eventDate ? format(new Date(event.eventDate), 'h:mm a') : ''}
                                   </div>
                                 </div>
-                              ))}
-                            </div>
+                              </div>
 
-                            <TimeSlotVoting 
-                              itineraryId={event.itineraryId}
-                              userId={user?.id}
-                              isOrganizer={false}
-                            />
+                              {/* Content */}
+                              <div className="flex-1 min-w-0 space-y-2">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="flex-1 min-w-0">
+                                    <h3 className="font-semibold text-base flex items-center gap-2">
+                                      <span className="text-xl">{event.groupEmoji}</span>
+                                      {event.itineraryName}
+                                    </h3>
+                                    <p className="text-sm text-muted-foreground">{event.groupName}</p>
+                                  </div>
+                                  <div className="flex gap-1.5 flex-shrink-0 flex-wrap">
+                                    <Badge variant={badge.variant} className={`gap-1 ${badge.className}`}>
+                                      <badge.icon className="h-3 w-3" />
+                                      {badge.text}
+                                    </Badge>
+                                    {event.hostMemberId && event.hostMemberName && (
+                                      <Badge variant="default" className="gap-1" data-testid={`badge-host-${event.itineraryId}`}>
+                                        <UserCheck className="h-3 w-3" />
+                                        {isCurrentHost ? 'You\'re hosting' : `Hosted by ${event.hostMemberName}`}
+                                      </Badge>
+                                    )}
+                                    {!event.hostMemberId && (
+                                      <Badge variant="secondary" className="gap-1" data-testid={`badge-ai-hosted-${event.itineraryId}`}>
+                                        <Bot className="h-3 w-3" />
+                                        AI-hosted
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
 
-                            <div className="flex gap-2 flex-wrap">
-                              {canVolunteerToHost && (
-                                <Button 
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => volunteerToHostMutation.mutate({ itineraryId: event.itineraryId })}
-                                  disabled={volunteerToHostMutation.isPending}
-                                  className="gap-1"
-                                  data-testid={`button-volunteer-host-${event.itineraryId}`}
-                                >
-                                  <UserPlus className="h-4 w-4" />
-                                  Volunteer to Host
-                                </Button>
-                              )}
-                              {isCurrentHost && hostableMembers.length > 0 && (
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button 
-                                      variant="outline"
-                                      size="sm"
-                                      className="gap-1"
-                                      data-testid={`button-hand-off-${event.itineraryId}`}
-                                    >
-                                      <Users className="h-4 w-4" />
-                                      Hand Off Host
+                                {/* Simplified Venue Display */}
+                                {event.items.length > 0 && (
+                                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                    <MapPin className="h-4 w-4 flex-shrink-0" />
+                                    <span className="truncate">
+                                      {event.items[0].venueName}
+                                      {event.items.length > 1 && ` and ${event.items.length - 1} more`}
+                                    </span>
+                                  </div>
+                                )}
+
+                                {/* Actions */}
+                                <div className="flex gap-2 flex-wrap pt-1">
+                                  <Link href={`/event/${event.itineraryId}`}>
+                                    <Button variant="outline" size="sm" className="gap-1" data-testid={`button-view-${event.itineraryId}`}>
+                                      <ExternalLink className="h-4 w-4" />
+                                      View Details
                                     </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    <DropdownMenuLabel>Select New Host</DropdownMenuLabel>
-                                    <DropdownMenuSeparator />
-                                    {hostableMembers.map(member => (
-                                      <DropdownMenuItem
-                                        key={member.id}
-                                        onClick={() => handOffHostMutation.mutate({ 
-                                          itineraryId: event.itineraryId, 
-                                          newHostMemberId: member.id
-                                        })}
-                                        data-testid={`menu-hand-off-${member.id}`}
-                                      >
-                                        {member.name || member.email}
-                                      </DropdownMenuItem>
-                                    ))}
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              )}
-                              <Button 
-                                variant="ghost" 
-                                size="sm"
-                                onClick={() => copyInviteLink(event)}
-                                className="gap-1"
-                                data-testid={`button-copy-link-${event.itineraryId}`}
-                              >
-                                <Copy className="h-4 w-4" />
-                                Copy Link
-                              </Button>
-                              <Link href={`/rsvp/${event.itineraryId}/${event.inviteToken}`}>
-                                <Button variant="ghost" size="sm" className="gap-2" data-testid={`button-view-${event.itineraryId}`}>
-                                  <ExternalLink className="h-4 w-4" />
-                                  View Details
-                                </Button>
-                              </Link>
+                                  </Link>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm"
+                                    onClick={() => copyInviteLink(event)}
+                                    className="gap-1"
+                                    data-testid={`button-copy-link-${event.itineraryId}`}
+                                  >
+                                    <Copy className="h-4 w-4" />
+                                    Copy Link
+                                  </Button>
+                                </div>
+                              </div>
                             </div>
                           </CardContent>
                         </Card>
