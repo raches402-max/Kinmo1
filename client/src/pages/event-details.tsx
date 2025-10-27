@@ -32,7 +32,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import TimeSlotVoting from "@/components/TimeSlotVoting";
+import { TimeSlotVoting } from "@/components/TimeSlotVoting";
 import { Link } from "wouter";
 
 export default function EventDetailsPage() {
