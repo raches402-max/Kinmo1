@@ -4586,7 +4586,7 @@ export default function GroupDetail() {
                                   </p>
                                   <div className="flex items-center gap-2 mt-2">
                                     <Button
-                                      variant={alreadyFavorited ? "default" : "outline"}
+                                      variant="outline"
                                       size="sm"
                                       onClick={() => {
                                         if (!alreadyFavorited && !addVotingEventMutation.isPending) {
@@ -4602,7 +4602,11 @@ export default function GroupDetail() {
                                       className="gap-1.5"
                                       data-testid={`button-favorite-search-${result.placeId}`}
                                     >
-                                      <Heart className={`h-3.5 w-3.5 ${alreadyFavorited ? 'fill-current' : ''}`} />
+                                      <Heart className={`h-3.5 w-3.5 transition-all ${
+                                        alreadyFavorited 
+                                          ? 'fill-pink-500 text-pink-500' 
+                                          : ''
+                                      }`} />
                                       {alreadyFavorited ? "Favorited" : "Favorite"}
                                     </Button>
                                     <Button
