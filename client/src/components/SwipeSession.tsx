@@ -47,7 +47,8 @@ export function SwipeSession({ groupId, open, onOpenChange, onComplete }: SwipeS
       
       // If it's an AI suggestion, create a voting event first, then upvote
       if (venue.sourceType === 'ai_suggestion') {
-        const votingEvent = await apiRequest('POST', `/api/groups/${groupId}/voting-events`, {
+        const result = await apiRequest('POST', `/api/voting-events`, {
+          groupId: groupId,
           title: venue.title,
           description: venue.description || '',
           venueAddress: venue.venueAddress || '',
@@ -56,10 +57,11 @@ export function SwipeSession({ groupId, open, onOpenChange, onComplete }: SwipeS
           rating: venue.rating || '',
           priceLevel: venue.priceLevel || '',
           photoUrl: venue.photoUrl || '',
+          skipEnrichmentCheck: true, // Skip Google Places check since we already have the data
         });
         
         // Now upvote the newly created event
-        return apiRequest('POST', `/api/voting-events/${votingEvent.id}/vote`, { voteType: 'upvote' });
+        return apiRequest('POST', `/api/voting-events/${result.event.id}/vote`, { voteType: 'upvote' });
       }
     },
     onSuccess: () => {
