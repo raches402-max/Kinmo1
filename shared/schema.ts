@@ -356,6 +356,17 @@ export const timeSlotVotes = pgTable("time_slot_votes", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Category search history - cache recent category searches to avoid re-fetching
+export const categorySearchHistory = pgTable("category_search_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  groupId: varchar("group_id").notNull().references(() => groups.id, { onDelete: "cascade" }),
+  category: text("category").notNull(), // 'meal', 'cafe', 'drinks', 'dessert', 'experiences'
+  searchLocation: text("search_location").notNull(), // Location string used for search
+  searchRadius: integer("search_radius").notNull(), // Radius in miles
+  results: jsonb("results").notNull(), // Array of venue results with all enriched data
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   groups: many(groups),
@@ -627,6 +638,11 @@ export const insertTimeSlotVoteSchema = createInsertSchema(timeSlotVotes).omit({
   createdAt: true,
 });
 
+export const insertCategorySearchHistorySchema = createInsertSchema(categorySearchHistory).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Update schemas (partial versions for PATCH operations)
 export const updateGroupSchema = insertGroupSchema.partial().refine(
   (data) => {
@@ -704,3 +720,6 @@ export type ProposedTimeSlot = typeof proposedTimeSlots.$inferSelect;
 
 export type InsertTimeSlotVote = z.infer<typeof insertTimeSlotVoteSchema>;
 export type TimeSlotVote = typeof timeSlotVotes.$inferSelect;
+
+export type InsertCategorySearchHistory = z.infer<typeof insertCategorySearchHistorySchema>;
+export type CategorySearchHistory = typeof categorySearchHistory.$inferSelect;

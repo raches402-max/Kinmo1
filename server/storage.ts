@@ -1,7 +1,7 @@
 // Reference: javascript_database blueprint
 // Reference: javascript_log_in_with_replit blueprint
 import {
-  users, groups, members, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, itineraryInvites, reminderLogs, autoScheduledEvents, frequencyFeedback, userProfiles, proposedTimeSlots, timeSlotVotes, groupCollections,
+  users, groups, members, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, itineraryInvites, reminderLogs, autoScheduledEvents, frequencyFeedback, userProfiles, proposedTimeSlots, timeSlotVotes, groupCollections, categorySearchHistory,
   type User, type UpsertUser,
   type Group, type InsertGroup, type UpdateGroup,
   type Member, type InsertMember, type UpdateMember,
@@ -18,7 +18,8 @@ import {
   type UserProfile, type InsertUserProfile, type UpdateUserProfile,
   type ProposedTimeSlot, type InsertProposedTimeSlot,
   type TimeSlotVote, type InsertTimeSlotVote,
-  type GroupCollection, type InsertGroupCollection, type UpdateGroupCollection
+  type GroupCollection, type InsertGroupCollection, type UpdateGroupCollection,
+  type CategorySearchHistory, type InsertCategorySearchHistory
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, or, inArray } from "drizzle-orm";
@@ -150,6 +151,10 @@ export interface IStorage {
   volunteerToHost(itineraryId: string, memberId: string): Promise<Itinerary>;
   handOffHost(itineraryId: string, newHostMemberId: string): Promise<Itinerary>;
   getHostingAvailableMembers(groupId: string): Promise<Member[]>;
+
+  // Category Search History
+  saveCategorySearch(search: InsertCategorySearchHistory): Promise<CategorySearchHistory>;
+  getRecentCategorySearches(groupId: string, limit?: number): Promise<CategorySearchHistory[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1241,6 +1246,24 @@ export class DatabaseStorage implements IStorage {
           eq(members.openToHosting, true)
         )
       );
+  }
+
+  // Category Search History
+  async saveCategorySearch(search: InsertCategorySearchHistory): Promise<CategorySearchHistory> {
+    const [result] = await db
+      .insert(categorySearchHistory)
+      .values(search)
+      .returning();
+    return result;
+  }
+
+  async getRecentCategorySearches(groupId: string, limit: number = 5): Promise<CategorySearchHistory[]> {
+    return await db
+      .select()
+      .from(categorySearchHistory)
+      .where(eq(categorySearchHistory.groupId, groupId))
+      .orderBy(desc(categorySearchHistory.createdAt))
+      .limit(limit);
   }
 }
 

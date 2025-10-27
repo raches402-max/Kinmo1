@@ -2571,9 +2571,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`[Category Generate] Returning ${validActivities.length} activities (filtered to ${category} category, sorted by rating for quality)`);
       }
 
+      // Save search to history for quick re-access
+      try {
+        await storage.saveCategorySearch({
+          groupId: req.params.id,
+          category,
+          searchLocation,
+          searchRadius,
+          results: validActivities,
+        });
+        console.log(`[Category Generate] Saved search to history`);
+      } catch (err) {
+        console.error(`[Category Generate] Failed to save search history:`, err);
+        // Non-critical, continue
+      }
+
       res.json(validActivities);
     } catch (error: any) {
       console.error("[Category Generate] Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get recent category searches for a group
+  app.get("/api/groups/:id/category-search-history", isAuthenticated, async (req: any, res) => {
+    try {
+      const group = await storage.getGroup(req.params.id);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      // Verify user owns this group
+      const userId = req.user.claims.sub;
+      if (group.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized to access this group" });
+      }
+
+      const limit = parseInt(req.query.limit as string) || 5;
+      const searches = await storage.getRecentCategorySearches(req.params.id, limit);
+      
+      res.json(searches);
+    } catch (error: any) {
+      console.error("[Category Search History] Error:", error);
       res.status(500).json({ message: error.message });
     }
   });
