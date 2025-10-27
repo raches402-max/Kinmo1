@@ -2797,6 +2797,143 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Get swipe deck - mix of voting events and AI suggestions
+  app.get("/api/groups/:id/swipe-deck", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const groupId = req.params.id;
+
+      // Get all voting events for this group with vote data
+      const votingEvents = await storage.getGroupVotingEvents(groupId);
+      
+      // Get user's existing votes to filter out already-voted venues
+      const userVotes = await storage.getUserVotes(userId);
+      const votedEventIds = new Set(userVotes.map(v => v.eventId));
+
+      // Filter out venues user has already voted on
+      const unvotedEvents = votingEvents.filter(event => !votedEventIds.has(event.id));
+
+      // Get who liked each event (for "Liked by X" badges)
+      const eventsWithLikers = await Promise.all(
+        unvotedEvents.map(async (event) => {
+          const votes = await storage.getEventVotes(event.id);
+          const upvoters = votes.filter(v => v.voteType === 'upvote');
+          
+          // Get user names for upvoters
+          const likerNames = await Promise.all(
+            upvoters.slice(0, 3).map(async (vote) => {
+              const user = await storage.getUser(vote.userId);
+              return user?.firstName || 'Someone';
+            })
+          );
+
+          return {
+            ...event,
+            likedBy: likerNames,
+            likedByCount: upvoters.length,
+            sourceType: 'voting_event' as const,
+          };
+        })
+      );
+
+      // If we have fewer than 10 venues, backfill with AI suggestions
+      let deck = eventsWithLikers;
+      const MIN_DECK_SIZE = 10;
+
+      if (deck.length < MIN_DECK_SIZE) {
+        const group = await storage.getGroup(groupId);
+        if (!group) {
+          return res.status(404).json({ message: "Group not found" });
+        }
+
+        // Get previously seen concepts to avoid repeats
+        const previousSignals = await storage.getGroupPreferenceSignals(groupId);
+        const previouslySeenConcepts = previousSignals.map(s => s.conceptDescription);
+
+        // Get already suggested place IDs to avoid duplicates
+        const existingPlaceIds = new Set(
+          eventsWithLikers
+            .map(e => e.googlePlaceId)
+            .filter(Boolean)
+        );
+
+        // Generate new AI suggestions
+        const neededCount = MIN_DECK_SIZE - deck.length;
+        const concepts = await generateSwipeConcepts({
+          locationBase: group.locationBase,
+          budgetMin: group.budgetMin,
+          budgetMax: group.budgetMax,
+          activityCategories: group.activityCategories || [],
+          pastPreferences: group.pastPreferences || '',
+          previouslySeenConcepts,
+        });
+
+        // Convert concepts to venue-style cards and enrich with Google Places
+        const enrichedConcepts = await Promise.all(
+          concepts.slice(0, neededCount).map(async (concept) => {
+            // Search Google Places for this concept
+            const searchQuery = `${concept.conceptDescription} near ${group.locationBase}`;
+            try {
+              const places = await import('./google-places').then(m => 
+                m.searchPlaces(searchQuery, group.latitude, group.longitude, group.searchRadius)
+              );
+
+              if (places.length > 0) {
+                const place = places[0];
+                
+                // Skip if we already have this place
+                if (existingPlaceIds.has(place.place_id)) {
+                  return null;
+                }
+
+                return {
+                  id: `ai-${concept.conceptType}-${Date.now()}-${Math.random()}`,
+                  title: place.name,
+                  description: concept.conceptDescription,
+                  venueAddress: place.formatted_address,
+                  venueType: concept.conceptType,
+                  googlePlaceId: place.place_id,
+                  rating: place.rating?.toString(),
+                  reviewCount: place.user_ratings_total,
+                  priceLevel: place.price_level?.toString(),
+                  photoUrl: place.photoUrl,
+                  sourceType: 'ai_suggestion' as const,
+                  isNew: true,
+                  groupId,
+                };
+              }
+            } catch (error) {
+              console.error('Error enriching concept:', error);
+            }
+
+            // Fallback to text-based concept if Google Places fails
+            return {
+              id: `ai-${concept.conceptType}-${Date.now()}-${Math.random()}`,
+              title: concept.conceptDescription,
+              description: concept.conceptDescription,
+              venueType: concept.conceptType,
+              sourceType: 'ai_suggestion' as const,
+              isNew: true,
+              groupId,
+            };
+          })
+        );
+
+        // Filter out nulls and add to deck
+        const validConcepts = enrichedConcepts.filter(Boolean);
+        deck = [...deck, ...validConcepts];
+      }
+
+      // Shuffle the deck to mix voting events and new suggestions
+      const shuffledDeck = deck.sort(() => Math.random() - 0.5);
+
+      res.json({ deck: shuffledDeck });
+    } catch (error: any) {
+      console.error("Error generating swipe deck:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Validate and create itinerary
   app.post("/api/groups/:groupId/itineraries/validate", isAuthenticated, async (req: any, res) => {
     try {

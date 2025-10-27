@@ -69,6 +69,7 @@ export interface IStorage {
   removeVote(eventId: string, userId: string): Promise<void>;
   getEventVotes(eventId: string): Promise<Vote[]>;
   getUserVote(eventId: string, userId: string): Promise<Vote | undefined>;
+  getUserVotes(userId: string): Promise<Vote[]>;
 
   // Preference Signals
   createPreferenceSignal(signal: InsertPreferenceSignal): Promise<PreferenceSignal>;
@@ -561,6 +562,10 @@ export class DatabaseStorage implements IStorage {
       .from(votes)
       .where(and(eq(votes.eventId, eventId), eq(votes.userId, userId)));
     return vote || undefined;
+  }
+
+  async getUserVotes(userId: string): Promise<Vote[]> {
+    return await db.select().from(votes).where(eq(votes.userId, userId));
   }
 
   async createPreferenceSignal(signal: InsertPreferenceSignal): Promise<PreferenceSignal> {
