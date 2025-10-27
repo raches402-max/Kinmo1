@@ -19,7 +19,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, ChevronRight, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell, Edit2, Edit, Compass, Home, UserCheck, MessageCircle, TrendingUp, AlertCircle, Users } from "lucide-react";
+import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, ChevronRight, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell, Edit2, Edit, Compass, Home, UserCheck, MessageCircle, TrendingUp, AlertCircle, Users, Loader2 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -690,6 +690,11 @@ export default function GroupDetail() {
   const [categoryRadius, setCategoryRadius] = useState<number>(2);
   const [categoryResults, setCategoryResults] = useState<any[]>([]);
   const [multiVenueMode, setMultiVenueMode] = useState(false);
+  
+  // Natural language scheduling state
+  const [schedulePromptDialogOpen, setSchedulePromptDialogOpen] = useState(false);
+  const [schedulePrompt, setSchedulePrompt] = useState("");
+  const [schedulePromptLoading, setSchedulePromptLoading] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -2299,6 +2304,19 @@ export default function GroupDetail() {
           {/* Home Tab */}
           <TabsContent value="home" className="space-y-6">
             <div className="max-w-4xl mx-auto space-y-6">
+              {/* Schedule Event Button */}
+              <div className="flex justify-center">
+                <Button
+                  onClick={() => setSchedulePromptDialogOpen(true)}
+                  size="lg"
+                  className="gap-2"
+                  data-testid="button-schedule-event"
+                >
+                  <Sparkles className="h-5 w-5" />
+                  Schedule Event with AI
+                </Button>
+              </div>
+
               {(() => {
                 const now = new Date();
                 
@@ -7748,6 +7766,101 @@ export default function GroupDetail() {
               data-testid="button-cancel-invite-guest"
             >
               Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Schedule Event with AI Dialog */}
+      <Dialog open={schedulePromptDialogOpen} onOpenChange={setSchedulePromptDialogOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Schedule Event with AI
+            </DialogTitle>
+            <DialogDescription>
+              Describe what you want to do in natural language. For example: "tacos next week at night on weekday in the mission"
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="schedule-prompt">What do you want to do?</Label>
+              <Textarea
+                id="schedule-prompt"
+                value={schedulePrompt}
+                onChange={(e) => setSchedulePrompt(e.target.value)}
+                placeholder='e.g., "tacos next week with haas mission friends at night on weekday in mission"'
+                className="min-h-24"
+                data-testid="input-schedule-prompt"
+              />
+              <p className="text-xs text-muted-foreground">
+                Include activity type, time preferences, location, and any other details
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSchedulePromptDialogOpen(false);
+                setSchedulePrompt("");
+              }}
+              data-testid="button-cancel-schedule-prompt"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!schedulePrompt.trim()) {
+                  toast({
+                    title: "Prompt required",
+                    description: "Please describe what you want to do",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                
+                setSchedulePromptLoading(true);
+                try {
+                  const response = await apiRequest("POST", `/api/groups/${groupId}/schedule-from-prompt`, {
+                    prompt: schedulePrompt.trim(),
+                  });
+                  
+                  toast({
+                    title: "Event created!",
+                    description: "Your event has been scheduled with AI-generated time options",
+                  });
+                  
+                  // Refresh itineraries
+                  await queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "proposed-itineraries"] });
+                  
+                  setSchedulePromptDialogOpen(false);
+                  setSchedulePrompt("");
+                } catch (error: any) {
+                  toast({
+                    title: "Error scheduling event",
+                    description: error.message,
+                    variant: "destructive",
+                  });
+                } finally {
+                  setSchedulePromptLoading(false);
+                }
+              }}
+              disabled={schedulePromptLoading || !schedulePrompt.trim()}
+              data-testid="button-submit-schedule-prompt"
+            >
+              {schedulePromptLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Generate Event
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

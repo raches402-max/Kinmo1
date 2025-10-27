@@ -3,13 +3,14 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, updateUserProfileSchema, activities as activitiesTable, groups as groupsTable, members as membersTable, itineraryInvites, rsvps as rsvpsTable, itineraries, itineraryItems, proposedTimeSlots, userProfiles, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
-import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue, analyzePreferencePatterns } from "./openai";
+import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue, analyzePreferencePatterns, parseSchedulingPrompt } from "./openai";
 import { searchPlaces, searchNearbyPlaces, geocodeLocation, clearPlacesCache, getCacheStats } from "./google-places";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { validateItinerary } from "./itinerary-validation";
 import { sendMemberWelcome, type EmailRecipient, type MemberWelcomeData } from "./email-service";
 import { db } from "./db";
 import { eq, sql, and } from "drizzle-orm";
+import { format } from 'date-fns';
 
 async function trackFeedbackAndMaybeAnalyze(groupId: string) {
   try {
@@ -2613,6 +2614,271 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(searches);
     } catch (error: any) {
       console.error("[Category Search History] Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Helper function to generate time options based on natural language timeframe
+  function generateTimeOptions(
+    timeframe: string,
+    dayConstraints: 'weekday' | 'weekend' | 'any',
+    timePreference?: 'morning' | 'afternoon' | 'evening' | 'night',
+    timezone: string = 'America/Los_Angeles'
+  ): Array<{ eventDate: string; dayLabel: string; timeLabel: string }> {
+    const options: Array<{ eventDate: string; dayLabel: string; timeLabel: string }> = [];
+    const now = new Date();
+    
+    // Determine time of day based on preference
+    let hour = 19; // Default to 7 PM
+    let timeLabel = 'Evening';
+    if (timePreference === 'morning') {
+      hour = 10;
+      timeLabel = 'Morning';
+    } else if (timePreference === 'afternoon') {
+      hour = 14;
+      timeLabel = 'Afternoon';
+    } else if (timePreference === 'night') {
+      hour = 20;
+      timeLabel = 'Night';
+    }
+    
+    // Parse timeframe to determine dates
+    const timeframeLower = timeframe.toLowerCase();
+    let startDate = new Date(now);
+    let daysToCheck = 14; // Default to checking next 2 weeks
+    
+    if (timeframeLower.includes('tomorrow')) {
+      startDate.setDate(now.getDate() + 1);
+      daysToCheck = 1;
+    } else if (timeframeLower.includes('this week')) {
+      startDate.setDate(now.getDate() + 1);
+      daysToCheck = 7;
+    } else if (timeframeLower.includes('next week')) {
+      startDate.setDate(now.getDate() + 7);
+      daysToCheck = 7;
+    } else if (timeframeLower.includes('this weekend')) {
+      // Find next Saturday
+      const dayOfWeek = now.getDay();
+      const daysUntilSaturday = (6 - dayOfWeek + 7) % 7 || 7;
+      startDate.setDate(now.getDate() + daysUntilSaturday);
+      daysToCheck = 2;
+    }
+    
+    // Generate 2-3 options based on day constraints
+    const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    let foundOptions = 0;
+    
+    for (let i = 0; i < daysToCheck && foundOptions < 3; i++) {
+      const checkDate = new Date(startDate);
+      checkDate.setDate(startDate.getDate() + i);
+      const dayOfWeek = checkDate.getDay();
+      
+      // Apply day constraints
+      const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      
+      if (
+        (dayConstraints === 'weekday' && !isWeekday) ||
+        (dayConstraints === 'weekend' && !isWeekend)
+      ) {
+        continue;
+      }
+      
+      // Create event date
+      const eventDate = new Date(checkDate);
+      eventDate.setHours(hour, 0, 0, 0);
+      
+      options.push({
+        eventDate: eventDate.toISOString(),
+        dayLabel: `${daysOfWeek[dayOfWeek]}, ${format(eventDate, 'MMM d')}`,
+        timeLabel: `${timeLabel} (${format(eventDate, 'h:mm a')})`,
+      });
+      
+      foundOptions++;
+    }
+    
+    // If we don't have enough options, generate at least 2
+    if (options.length < 2) {
+      const fallbackDate = new Date(startDate);
+      fallbackDate.setDate(startDate.getDate() + 7);
+      fallbackDate.setHours(hour, 0, 0, 0);
+      
+      options.push({
+        eventDate: fallbackDate.toISOString(),
+        dayLabel: `${daysOfWeek[fallbackDate.getDay()]}, ${format(fallbackDate, 'MMM d')}`,
+        timeLabel: `${timeLabel} (${format(fallbackDate, 'h:mm a')})`,
+      });
+    }
+    
+    return options;
+  }
+
+  // Schedule event from natural language prompt
+  app.post("/api/groups/:id/schedule-from-prompt", isAuthenticated, async (req: any, res) => {
+    try {
+      const group = await storage.getGroup(req.params.id);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      // Verify user owns this group
+      const userId = req.user.claims.sub;
+      if (group.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized to modify this group" });
+      }
+
+      const { prompt } = req.body;
+      if (!prompt || typeof prompt !== 'string') {
+        return res.status(400).json({ message: "Prompt is required" });
+      }
+
+      console.log(`[AI Scheduling] Processing prompt for group ${req.params.id}: "${prompt}"`);
+
+      // Parse the natural language prompt
+      const schedulingParams = await parseSchedulingPrompt(prompt, group.locationBase);
+      
+      console.log(`[AI Scheduling] Parsed params:`, schedulingParams);
+
+      // Use category search to find venues based on parsed params
+      const searchLocation = schedulingParams.location || group.locationBase;
+      const searchRadius = group.searchRadius || 2;
+      
+      // Determine coordinates for distance filtering
+      let coordinates: { lat: number; lng: number } | undefined;
+      if (group.latitude && group.longitude) {
+        coordinates = { lat: parseFloat(group.latitude), lng: parseFloat(group.longitude) };
+      }
+
+      // Map category to Google Places search query
+      const categorySearchQueries: Record<string, string> = {
+        'meal': 'restaurants',
+        'cafes': 'coffee shops cafes',
+        'drinks': 'bars',
+        'dessert': 'dessert ice cream boba',
+        'experiences': 'museums parks attractions activities'
+      };
+
+      const searchQuery = `${schedulingParams.activityType} ${categorySearchQueries[schedulingParams.category] || ''}`;
+      console.log(`[AI Scheduling] Searching: "${searchQuery} in ${searchLocation}"`);
+
+      // Search Google Places
+      const places = await searchPlaces(
+        `${searchQuery} in ${searchLocation}`,
+        searchLocation,
+        searchRadius,
+        coordinates
+      );
+
+      console.log(`[AI Scheduling] Found ${places.length} places`);
+
+      if (places.length === 0) {
+        return res.status(404).json({ message: "No venues found matching your criteria" });
+      }
+
+      // Get existing activities to avoid duplicates
+      const existingActivities = await storage.getGroupActivities(req.params.id);
+      const existingVenueNames = existingActivities.map(a => a.venueName);
+
+      // Process and filter places (take top 3-5 venues)
+      const topVenues = places
+        .filter(place => !existingVenueNames.includes(place.name))
+        .filter(place => {
+          const rating = parseFloat(place.rating || '0');
+          const reviewCount = place.reviewCount || 0;
+          return rating >= 3.5 && reviewCount >= 10 && place.address && place.photoUrl;
+        })
+        .sort((a, b) => parseFloat(b.rating || '0') - parseFloat(a.rating || '0'))
+        .slice(0, 3);
+
+      if (topVenues.length === 0) {
+        return res.status(404).json({ message: "No quality venues found" });
+      }
+
+      console.log(`[AI Scheduling] Selected ${topVenues.length} venues for event`);
+
+      // Generate 2-3 date/time options based on timeframe and constraints
+      const timeOptions = generateTimeOptions(
+        schedulingParams.timeframe || 'next week',
+        schedulingParams.dayConstraints || 'any',
+        schedulingParams.timePreference,
+        group.timezone || 'America/Los_Angeles'
+      );
+
+      console.log(`[AI Scheduling] Generated ${timeOptions.length} time options`);
+
+      // Create activities from the top venues
+      const createdActivities = [];
+      for (const place of topVenues) {
+        const activityCategory = await categorizeVenue(place.name, place.types[0] || 'venue');
+        const newActivity = await storage.createActivity({
+          groupId: req.params.id,
+          venueName: place.name,
+          venueAddress: place.address,
+          venueType: place.types[0] || 'venue',
+          description: place.review || '',
+          googlePlaceId: place.placeId,
+          latitude: place.location?.lat?.toString() || null,
+          longitude: place.location?.lng?.toString() || null,
+          rating: place.rating,
+          reviewCount: place.reviewCount || null,
+          priceLevel: place.priceLevel,
+          photoUrl: place.photoUrl,
+          googleReview: place.review || null,
+          category: activityCategory,
+        });
+        createdActivities.push(newActivity);
+      }
+
+      // Create itinerary items from activities
+      const items = createdActivities.map(activity => ({
+        sourceType: 'activity' as const,
+        sourceId: activity.id,
+        orderIndex: createdActivities.indexOf(activity),
+      }));
+
+      // Generate event name
+      const eventName = `${schedulingParams.activityType.charAt(0).toUpperCase() + schedulingParams.activityType.slice(1)} ${schedulingParams.timeframe || ''}`.trim();
+
+      // Create proposed itinerary with multiple time slots
+      // proposedOrder must be set for proposed itineraries (array of item IDs in sequence)
+      const proposedOrder = items.map(item => item.sourceId);
+      
+      // createItinerary signature: (insertItinerary, userId, itemsData)
+      // Set eventDate to first time option so itinerary shows up on Home tab immediately
+      const itinerary = await storage.createItinerary(
+        {
+          groupId: req.params.id,
+          name: eventName,
+          status: 'proposed',
+          inviteToken: null,
+          timingRecommendations: timeOptions.length > 1 ? 'Vote for your preferred time' : null,
+          proposedOrder,
+          eventDate: new Date(timeOptions[0].eventDate), // Set default to first time option
+        },
+        userId, // Passed separately, not in the object!
+        items
+      );
+
+      console.log(`[AI Scheduling] Created itinerary ${itinerary.id} with ${items.length} venues`);
+
+      // Create time slot options for voting
+      for (const option of timeOptions) {
+        await storage.createProposedTimeSlot({
+          itineraryId: itinerary.id,
+          proposedDateTime: new Date(option.eventDate), // Use proposedDateTime, not eventDate
+          label: `${option.dayLabel} ${option.timeLabel}`,
+        });
+      }
+
+      console.log(`[AI Scheduling] Created ${timeOptions.length} time slots for voting`);
+
+      res.json({
+        itinerary,
+        venues: createdActivities,
+        timeOptions,
+      });
+    } catch (error: any) {
+      console.error("[AI Scheduling] Error:", error);
       res.status(500).json({ message: error.message });
     }
   });

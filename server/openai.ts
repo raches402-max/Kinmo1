@@ -1006,3 +1006,79 @@ Return JSON array of patterns:
     return [];
   }
 }
+
+export interface SchedulingParams {
+  activityType: string; // e.g., "tacos", "coffee", "museum"
+  category: 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences'; // Mapped category
+  location?: string; // e.g., "mission", "downtown"
+  timePreference?: 'morning' | 'afternoon' | 'evening' | 'night'; // e.g., "at night"
+  dayConstraints?: 'weekday' | 'weekend' | 'any'; // e.g., "on weekday"
+  timeframe?: string; // e.g., "next week", "this weekend", "next month"
+  specificDates?: string[]; // Parsed specific dates if mentioned
+}
+
+export async function parseSchedulingPrompt(prompt: string, groupLocation: string): Promise<SchedulingParams> {
+  try {
+    console.log(`[AI Scheduling] Parsing prompt: "${prompt}"`);
+    
+    const systemPrompt = `You are an expert at parsing natural language scheduling requests for group activities.
+Extract the following information from the user's prompt and return a JSON object:
+1. Activity type (what they want to do)
+2. Category (map to: meal, cafes, drinks, dessert, or experiences)
+3. Location (where, if specified - otherwise null)
+4. Time preference (morning/afternoon/evening/night - if specified)
+5. Day constraints (weekday/weekend/any)
+6. Timeframe (when: "next week", "this weekend", "in 2 days", etc.)
+
+Examples:
+"tacos next week at night on weekday in mission" →
+  activityType: "tacos", category: "meal", location: "mission", timePreference: "night", dayConstraints: "weekday", timeframe: "next week"
+
+"coffee tomorrow morning downtown" →
+  activityType: "coffee", category: "cafes", location: "downtown", timePreference: "morning", dayConstraints: "any", timeframe: "tomorrow"
+
+"drinks this friday" →
+  activityType: "drinks", category: "drinks", location: null, timePreference: null, dayConstraints: "any", timeframe: "this friday"
+  
+Return your response as a JSON object with these fields.`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: systemPrompt
+        },
+        {
+          role: "user",
+          content: `Parse this scheduling request: "${prompt}"\n\nGroup's default location: ${groupLocation}`
+        }
+      ],
+      response_format: { type: "json_object" },
+      max_completion_tokens: 300,
+    });
+
+    const result = JSON.parse(response.choices[0].message.content || '{}');
+    
+    console.log(`[AI Scheduling] Parsed params:`, result);
+    
+    return {
+      activityType: result.activityType || 'activity',
+      category: result.category || 'meal',
+      location: result.location || undefined,
+      timePreference: result.timePreference || undefined,
+      dayConstraints: result.dayConstraints || 'any',
+      timeframe: result.timeframe || 'next week',
+      specificDates: result.specificDates || undefined,
+    };
+  } catch (error) {
+    console.error("Error parsing scheduling prompt:", error);
+    // Return sensible defaults
+    return {
+      activityType: 'activity',
+      category: 'meal',
+      dayConstraints: 'any',
+      timeframe: 'next week',
+    };
+  }
+}
