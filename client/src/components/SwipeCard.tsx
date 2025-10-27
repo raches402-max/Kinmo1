@@ -1,17 +1,35 @@
 import { motion, useMotionValue, useTransform, PanInfo } from 'framer-motion';
-import { X, Heart } from 'lucide-react';
+import { X, Heart, Star, MapPin } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+
+interface SwipeVenue {
+  id: string;
+  title: string;
+  description?: string;
+  venueAddress?: string;
+  venueType?: string;
+  googlePlaceId?: string;
+  rating?: string;
+  reviewCount?: number;
+  priceLevel?: string;
+  photoUrl?: string;
+  sourceType: 'voting_event' | 'ai_suggestion';
+  isNew?: boolean;
+  likedBy?: string[];
+  likedByCount?: number;
+}
 
 interface SwipeCardProps {
-  conceptDescription: string;
+  venue: SwipeVenue;
   onSwipe: (direction: 'like' | 'pass') => void;
   onSkip: () => void;
 }
 
-export function SwipeCard({ conceptDescription, onSwipe, onSkip }: SwipeCardProps) {
+export function SwipeCard({ venue, onSwipe, onSkip }: SwipeCardProps) {
   const x = useMotionValue(0);
-  const rotate = useTransform(x, [-200, 200], [-25, 25]);
+  const rotate = useTransform(x, [-200, 200], [-15, 15]);
   const opacity = useTransform(x, [-200, -100, 0, 100, 200], [0.5, 1, 1, 1, 0.5]);
 
   function handleDragEnd(_: any, info: PanInfo) {
@@ -28,6 +46,18 @@ export function SwipeCard({ conceptDescription, onSwipe, onSkip }: SwipeCardProp
     }
   }
 
+  const formatLikedBy = () => {
+    if (!venue.likedBy || venue.likedBy.length === 0) return '';
+    
+    if (venue.likedBy.length === 1) {
+      return `Liked by ${venue.likedBy[0]}`;
+    } else if (venue.likedBy.length === 2) {
+      return `Liked by ${venue.likedBy[0]} and ${venue.likedBy[1]}`;
+    } else {
+      return `Liked by ${venue.likedBy[0]}, ${venue.likedBy[1]} and ${venue.likedByCount! - 2} other${venue.likedByCount! - 2 === 1 ? '' : 's'}`;
+    }
+  };
+
   return (
     <motion.div
       style={{
@@ -43,16 +73,79 @@ export function SwipeCard({ conceptDescription, onSwipe, onSkip }: SwipeCardProp
       drag="x"
       dragConstraints={{ left: 0, right: 0 }}
       onDragEnd={handleDragEnd}
-      whileDrag={{ cursor: 'grabbing', scale: 1.05 }}
+      whileDrag={{ cursor: 'grabbing', scale: 1.02 }}
       data-testid="swipe-card"
     >
-      <Card className="p-8 h-[400px] flex items-center justify-center bg-card border-2">
-        <div className="text-center space-y-6">
-          <h3 className="text-2xl font-semibold" data-testid="text-concept-description">
-            {conceptDescription}
+      <Card className="overflow-hidden border-2 bg-card">
+        {/* Venue Photo */}
+        {venue.photoUrl ? (
+          <div className="w-full h-64 overflow-hidden bg-muted">
+            <img
+              src={venue.photoUrl}
+              alt={venue.title}
+              className="w-full h-full object-cover"
+            />
+          </div>
+        ) : (
+          <div className="w-full h-64 bg-muted flex items-center justify-center">
+            <MapPin className="w-12 h-12 text-muted-foreground/30" />
+          </div>
+        )}
+
+        {/* Venue Info */}
+        <div className="p-6 space-y-3">
+          {/* Badges */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {venue.isNew && (
+              <Badge variant="default" className="gap-1" data-testid="badge-new">
+                NEW
+              </Badge>
+            )}
+            {venue.likedBy && venue.likedBy.length > 0 && (
+              <Badge variant="secondary" className="gap-1" data-testid="badge-liked-by">
+                <Heart className="h-3 w-3 fill-current" />
+                {formatLikedBy()}
+              </Badge>
+            )}
+            {venue.rating && (
+              <Badge variant="secondary" className="gap-1">
+                <Star className="h-3 w-3 fill-current" />
+                {venue.rating}
+                {venue.reviewCount && ` (${venue.reviewCount})`}
+              </Badge>
+            )}
+          </div>
+
+          {/* Venue Name */}
+          <h3 className="text-2xl font-semibold" data-testid="text-venue-name">
+            {venue.title}
           </h3>
-          <p className="text-sm text-muted-foreground">
-            Swipe right to like • Swipe left to pass
+
+          {/* Venue Type & Address */}
+          <div className="space-y-1">
+            {venue.venueType && (
+              <p className="text-sm text-muted-foreground capitalize">
+                {venue.venueType.replace(/-/g, ' ')}
+              </p>
+            )}
+            {venue.venueAddress && (
+              <p className="text-sm text-muted-foreground flex items-start gap-1">
+                <MapPin className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>{venue.venueAddress}</span>
+              </p>
+            )}
+          </div>
+
+          {/* Description */}
+          {venue.description && (
+            <p className="text-sm text-muted-foreground">
+              {venue.description}
+            </p>
+          )}
+
+          {/* Swipe Instructions */}
+          <p className="text-sm text-muted-foreground text-center pt-2">
+            Swipe right to vote • Swipe left to skip
           </p>
         </div>
       </Card>
@@ -86,7 +179,7 @@ export function SwipeCard({ conceptDescription, onSwipe, onSkip }: SwipeCardProp
           data-testid="button-like"
         >
           <Heart className="w-5 h-5 mr-2" />
-          Like
+          Vote
         </Button>
       </div>
     </motion.div>

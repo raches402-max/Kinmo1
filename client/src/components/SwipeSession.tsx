@@ -1,15 +1,28 @@
 import { useState, useEffect } from 'react';
 import { SwipeCard } from './SwipeCard';
 import { useMutation } from '@tanstack/react-query';
-import { apiRequest } from '@/lib/queryClient';
+import { apiRequest, queryClient } from '@/lib/queryClient';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-interface SwipeConcept {
-  conceptType: string;
-  conceptDescription: string;
+interface SwipeVenue {
+  id: string;
+  title: string;
+  description?: string;
+  venueAddress?: string;
+  venueType?: string;
+  googlePlaceId?: string;
+  rating?: string;
+  reviewCount?: number;
+  priceLevel?: string;
+  photoUrl?: string;
+  sourceType: 'voting_event' | 'ai_suggestion';
+  isNew?: boolean;
+  likedBy?: string[];
+  likedByCount?: number;
+  groupId?: string;
 }
 
 interface SwipeSessionProps {
@@ -20,43 +33,68 @@ interface SwipeSessionProps {
 }
 
 export function SwipeSession({ groupId, open, onOpenChange, onComplete }: SwipeSessionProps) {
-  const [concepts, setConcepts] = useState<SwipeConcept[]>([]);
+  const [deck, setDeck] = useState<SwipeVenue[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
-  const feedbackMutation = useMutation({
-    mutationFn: async ({ conceptType, conceptDescription, feedback }: { conceptType: string; conceptDescription: string; feedback: 'like' | 'pass' }) => {
-      return apiRequest('POST', `/api/groups/${groupId}/swipe-feedback`, { conceptType, conceptDescription, feedback });
+  const upvoteMutation = useMutation({
+    mutationFn: async (venue: SwipeVenue) => {
+      // If it's a voting event, upvote it
+      if (venue.sourceType === 'voting_event') {
+        return apiRequest('POST', `/api/voting-events/${venue.id}/vote`, { voteType: 'upvote' });
+      }
+      
+      // If it's an AI suggestion, create a voting event first, then upvote
+      if (venue.sourceType === 'ai_suggestion') {
+        const votingEvent = await apiRequest('POST', `/api/groups/${groupId}/voting-events`, {
+          title: venue.title,
+          description: venue.description || '',
+          venueAddress: venue.venueAddress || '',
+          venueType: venue.venueType || '',
+          googlePlaceId: venue.googlePlaceId || '',
+          rating: venue.rating || '',
+          priceLevel: venue.priceLevel || '',
+          photoUrl: venue.photoUrl || '',
+        });
+        
+        // Now upvote the newly created event
+        return apiRequest('POST', `/api/voting-events/${votingEvent.id}/vote`, { voteType: 'upvote' });
+      }
     },
+    onSuccess: () => {
+      // Invalidate voting events cache to refresh Favorites tab
+      queryClient.invalidateQueries({ queryKey: [`/api/groups/${groupId}/voting-events`] });
+    }
   });
 
   useEffect(() => {
     if (open) {
-      loadConcepts();
+      loadDeck();
     }
   }, [open]);
 
-  async function loadConcepts() {
+  async function loadDeck() {
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/groups/${groupId}/swipe-concepts`, {
-        method: 'POST',
+      const response = await fetch(`/api/groups/${groupId}/swipe-deck`, {
+        method: 'GET',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
       });
       
       if (!response.ok) {
-        throw new Error('Failed to load concepts');
+        throw new Error('Failed to load swipe deck');
       }
 
       const data = await response.json();
-      setConcepts(data.concepts || []);
+      setDeck(data.deck || []);
       setCurrentIndex(0);
     } catch (error) {
-      console.error('Error loading concepts:', error);
+      console.error('Error loading swipe deck:', error);
       toast({
         title: 'Error',
-        description: 'Failed to load activity ideas. Please try again.',
+        description: 'Failed to load venues. Please try again.',
         variant: 'destructive',
       });
     } finally {
@@ -65,17 +103,20 @@ export function SwipeSession({ groupId, open, onOpenChange, onComplete }: SwipeS
   }
 
   function handleSwipe(direction: 'like' | 'pass') {
-    const concept = concepts[currentIndex];
-    if (!concept) return;
+    const venue = deck[currentIndex];
+    if (!venue) return;
 
-    feedbackMutation.mutate({
-      conceptType: concept.conceptType,
-      conceptDescription: concept.conceptDescription,
-      feedback: direction,
-    });
+    // If swiped right (like), auto-upvote
+    if (direction === 'like') {
+      upvoteMutation.mutate(venue);
+      toast({
+        title: 'Added to favorites!',
+        description: `${venue.title} has been upvoted`,
+      });
+    }
 
     // Move to next card
-    if (currentIndex < concepts.length - 1) {
+    if (currentIndex < deck.length - 1) {
       setCurrentIndex(currentIndex + 1);
     } else {
       // Session complete
@@ -85,7 +126,7 @@ export function SwipeSession({ groupId, open, onOpenChange, onComplete }: SwipeS
 
   function handleSkip() {
     // Skip without saving feedback
-    if (currentIndex < concepts.length - 1) {
+    if (currentIndex < deck.length - 1) {
       setCurrentIndex(currentIndex + 1);
     } else {
       handleComplete();
@@ -107,16 +148,16 @@ export function SwipeSession({ groupId, open, onOpenChange, onComplete }: SwipeS
     onOpenChange(false);
   }
 
-  const currentConcept = concepts[currentIndex];
-  const remaining = concepts.length - currentIndex;
+  const currentVenue = deck[currentIndex];
+  const remaining = deck.length - currentIndex;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl" data-testid="dialog-swipe-session">
         <DialogHeader>
-          <DialogTitle>Help us learn your taste</DialogTitle>
+          <DialogTitle>Help us decide!</DialogTitle>
           <p className="text-sm text-muted-foreground">
-            Swipe through activity ideas to refine your group's preferences
+            Swipe right to vote for venues • Swipe left to skip
           </p>
         </DialogHeader>
 
@@ -125,22 +166,22 @@ export function SwipeSession({ groupId, open, onOpenChange, onComplete }: SwipeS
             <div className="flex items-center justify-center h-[400px]">
               <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
             </div>
-          ) : currentConcept ? (
+          ) : currentVenue ? (
             <>
               <div className="relative h-[500px]">
                 <SwipeCard
-                  conceptDescription={currentConcept.conceptDescription}
+                  venue={currentVenue}
                   onSwipe={handleSwipe}
                   onSkip={handleSkip}
                 />
               </div>
               <div className="text-center mt-4 text-sm text-muted-foreground">
-                {remaining} {remaining === 1 ? 'idea' : 'ideas'} remaining
+                {remaining} {remaining === 1 ? 'venue' : 'venues'} remaining
               </div>
             </>
           ) : (
             <div className="text-center py-12">
-              <p className="text-muted-foreground">No more ideas to show</p>
+              <p className="text-muted-foreground">No more venues to show</p>
               <Button onClick={handleComplete} className="mt-4" data-testid="button-complete">
                 Complete
               </Button>
@@ -153,7 +194,7 @@ export function SwipeSession({ groupId, open, onOpenChange, onComplete }: SwipeS
             Exit
           </Button>
           <div className="text-sm text-muted-foreground">
-            {currentIndex}/{concepts.length}
+            {currentIndex}/{deck.length}
           </div>
         </div>
       </DialogContent>
