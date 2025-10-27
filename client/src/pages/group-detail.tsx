@@ -1577,10 +1577,15 @@ export default function GroupDetail() {
       venueAddress?: string;
       venueType?: string;
       googlePlaceId?: string;
+      addToCart?: boolean; // Flag to control whether to add to cart
+      showToast?: boolean; // Flag to control toast display
     }) => {
       return await apiRequest("POST", "/api/voting-events", { 
         groupId, 
-        ...eventData, 
+        title: eventData.title,
+        venueAddress: eventData.venueAddress,
+        venueType: eventData.venueType,
+        googlePlaceId: eventData.googlePlaceId,
         skipEnrichmentCheck: true // Skip confirmation since we already have Google data
       });
     },
@@ -1591,19 +1596,25 @@ export default function GroupDetail() {
           setAddedSuggestionPlaceIds(prev => new Set(Array.from(prev).concat(variables.googlePlaceId!)));
         }
         
-        // Automatically add to selected venues BEFORE invalidating queries
-        // This prevents race condition where hydration effect clears selectedVenues
-        setSelectedVenues(prev => [...prev, {
-          sourceType: 'voting_event',
-          sourceId: data.event.id
-        }]);
+        // Only add to cart if explicitly requested
+        if (variables.addToCart) {
+          setSelectedVenues(prev => [...prev, {
+            sourceType: 'voting_event',
+            sourceId: data.event.id
+          }]);
+        }
         
         queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "voting-events"] });
         
-        toast({
-          title: "Added to itinerary",
-          description: "Nearby venue has been added to your selection",
-        });
+        // Show toast based on context
+        if (variables.showToast !== false) {
+          toast({
+            title: variables.addToCart ? "Added to itinerary" : "Added to favorites",
+            description: variables.addToCart 
+              ? "Venue has been added to your selection" 
+              : "Added to your group's voting list",
+          });
+        }
       }
     },
     onError: (error: Error) => {
@@ -4595,6 +4606,7 @@ export default function GroupDetail() {
                                             venueType: result.types?.[0] || 'venue',
                                             venueAddress: result.address,
                                             googlePlaceId: result.placeId,
+                                            addToCart: false, // Just favorite, don't add to cart
                                           });
                                         }
                                       }}
@@ -4620,30 +4632,22 @@ export default function GroupDetail() {
                                         
                                         // First add to favorites if not already there
                                         if (!alreadyFavorited && !addVotingEventMutation.isPending) {
-                                          addVotingEventMutation.mutate(
-                                            {
-                                              title: result.name,
-                                              venueType: result.types?.[0] || 'venue',
-                                              venueAddress: result.address,
-                                              googlePlaceId: result.placeId,
-                                            },
-                                            {
-                                              onSuccess: (data) => {
-                                                // Add to cart after favoriting
-                                                if (data.event) {
-                                                  if (selectedVenues.length >= 5) {
-                                                    toast({
-                                                      title: "Maximum reached",
-                                                      description: "You can select up to 5 venues",
-                                                      variant: "destructive"
-                                                    });
-                                                    return;
-                                                  }
-                                                  setSelectedVenues([...selectedVenues, { sourceType: 'voting_event', sourceId: data.event.id }]);
-                                                }
-                                              }
-                                            }
-                                          );
+                                          if (selectedVenues.length >= 5) {
+                                            toast({
+                                              title: "Maximum reached",
+                                              description: "You can select up to 5 venues",
+                                              variant: "destructive"
+                                            });
+                                            return;
+                                          }
+                                          
+                                          addVotingEventMutation.mutate({
+                                            title: result.name,
+                                            venueType: result.types?.[0] || 'venue',
+                                            venueAddress: result.address,
+                                            googlePlaceId: result.placeId,
+                                            addToCart: true, // Favorite AND add to cart
+                                          });
                                         } else if (alreadyFavorited) {
                                           // Already favorited, just add to cart
                                           // Check if it's in activities or voting events
