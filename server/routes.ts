@@ -5553,6 +5553,25 @@ Looking forward to planning great activities together!
       
       const uniquePlacesCount = uniquePlaces.length;
 
+      // Count activities with uncached photos (direct Google URLs)
+      let uncachedPhotosCount: number;
+      if (dateThreshold) {
+        uncachedPhotosCount = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(activitiesTable)
+          .where(and(
+            sql`${activitiesTable.photoUrl} LIKE 'https://maps.googleapis.com/%'`,
+            gte(activitiesTable.createdAt, dateThreshold)
+          ))
+          .then(r => Number(r[0]?.count) || 0);
+      } else {
+        uncachedPhotosCount = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(activitiesTable)
+          .where(sql`${activitiesTable.photoUrl} LIKE 'https://maps.googleapis.com/%'`)
+          .then(r => Number(r[0]?.count) || 0);
+      }
+
       // Get cache statistics
       const cacheStats = getCacheStats();
       
@@ -5564,15 +5583,38 @@ Looking forward to planning great activities together!
       const estimatedTextSearchCalls = Math.floor(activitiesCount / 15); // ~15 activities per group generation
       const estimatedPlaceDetailsCalls = uniquePlacesCount;
       const estimatedGeocodingCalls = groupsCount;
-      const estimatedPhotoCalls = photosCacheCount; // Photos that were cached (downloaded once)
+      const estimatedCachedPhotoCalls = photosCacheCount; // Photos that were cached (downloaded once)
+
+      // Estimate uncached photo views based on period
+      // Assumption: Each uncached photo is viewed ~12 times per day (based on historical $184/day cost)
+      const VIEWS_PER_PHOTO_PER_DAY = 12;
+      let estimatedUncachedPhotoViews = 0;
+      let uncachedPhotoPeriodLabel = '';
+      
+      if (period === 'daily') {
+        estimatedUncachedPhotoViews = uncachedPhotosCount * VIEWS_PER_PHOTO_PER_DAY;
+        uncachedPhotoPeriodLabel = 'per day';
+      } else if (period === 'monthly') {
+        estimatedUncachedPhotoViews = uncachedPhotosCount * VIEWS_PER_PHOTO_PER_DAY * 30;
+        uncachedPhotoPeriodLabel = 'per month (30 days)';
+      } else if (period === 'quarterly') {
+        estimatedUncachedPhotoViews = uncachedPhotosCount * VIEWS_PER_PHOTO_PER_DAY * 90;
+        uncachedPhotoPeriodLabel = 'per quarter (90 days)';
+      } else {
+        // For 'total', calculate based on 19 days since start
+        const daysSinceStart = 19;
+        estimatedUncachedPhotoViews = uncachedPhotosCount * VIEWS_PER_PHOTO_PER_DAY * daysSinceStart;
+        uncachedPhotoPeriodLabel = `over ${daysSinceStart} days`;
+      }
 
       // Cost calculations (per 1,000 requests)
       const textSearchCost = (estimatedTextSearchCalls / 1000) * 17; // $17 per 1K
       const placeDetailsCost = (estimatedPlaceDetailsCalls / 1000) * 5; // $5 per 1K (Basic tier)
       const geocodingCost = (estimatedGeocodingCalls / 1000) * 5; // $5 per 1K
-      const photoCost = (estimatedPhotoCalls / 1000) * 7; // $7 per 1K (one-time downloads)
+      const cachedPhotoCost = (estimatedCachedPhotoCalls / 1000) * 7; // $7 per 1K (one-time downloads)
+      const uncachedPhotoCost = (estimatedUncachedPhotoViews / 1000) * 7; // $7 per 1K (ongoing views)
 
-      const totalCost = textSearchCost + placeDetailsCost + geocodingCost + photoCost;
+      const totalCost = textSearchCost + placeDetailsCost + geocodingCost + cachedPhotoCost + uncachedPhotoCost;
 
       // Calculate savings from caching
       const savedTextSearchCalls = cacheStats.searchHits;
@@ -5605,15 +5647,22 @@ Looking forward to planning great activities together!
             cost: geocodingCost,
             pricePerThousand: 5,
           },
-          photos: {
-            estimated: estimatedPhotoCalls,
-            cost: photoCost,
+          cachedPhotos: {
+            estimated: estimatedCachedPhotoCalls,
+            cost: cachedPhotoCost,
             pricePerThousand: 7,
-            note: 'Cached downloads (one-time cost)',
+            note: 'Cached downloads (one-time setup cost)',
+          },
+          uncachedPhotos: {
+            estimated: estimatedUncachedPhotoViews,
+            cost: uncachedPhotoCost,
+            pricePerThousand: 7,
+            count: uncachedPhotosCount,
+            note: `Uncached photo views ${uncachedPhotoPeriodLabel} (ongoing cost)`,
           },
         },
         totals: {
-          estimatedCalls: estimatedTextSearchCalls + estimatedPlaceDetailsCalls + estimatedGeocodingCalls + estimatedPhotoCalls,
+          estimatedCalls: estimatedTextSearchCalls + estimatedPlaceDetailsCalls + estimatedGeocodingCalls + estimatedCachedPhotoCalls + estimatedUncachedPhotoViews,
           estimatedCost: totalCost,
         },
         caching: {
