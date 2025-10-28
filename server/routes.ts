@@ -2675,8 +2675,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const validActivities = enrichedActivities.filter(a => a !== null);
         console.log(`[Category Regen] Attempt ${attempt}: Got ${validActivities.length} enriched activities`);
 
-        // Add unique activities to our collection
-        for (const activity of validActivities) {
+        // CRITICAL: Filter out disabled categories AFTER AI categorization (in case AI categorized differently)
+        const beforeFilter = validActivities.length;
+        const categoryFilteredActivities = validActivities.filter((activity: any) => {
+          const activityCategory = activity.category;
+          const categoryEnabled = 
+            (activityCategory === 'meal' && (refreshedGroup.mealEnabled ?? true)) ||
+            (activityCategory === 'cafes' && (refreshedGroup.cafeEnabled ?? true)) ||
+            (activityCategory === 'drinks' && (refreshedGroup.drinksEnabled ?? true)) ||
+            (activityCategory === 'dessert' && (refreshedGroup.dessertEnabled ?? true)) ||
+            (activityCategory === 'experiences' && (refreshedGroup.experiencesEnabled ?? true));
+          
+          if (!categoryEnabled) {
+            console.log(`[Category Regen Post-Filter] ❌ REMOVING: ${activity.venueName} - categorized as "${activityCategory}" which is disabled`);
+            return false;
+          }
+          return true;
+        });
+        
+        if (categoryFilteredActivities.length < beforeFilter) {
+          console.log(`[Category Regen Post-Filter] Filtered out ${beforeFilter - categoryFilteredActivities.length} venues in disabled categories`);
+        }
+
+        // Add unique activities to our collection (using the filtered list!)
+        for (const activity of categoryFilteredActivities) {
           const venueKey = activity.googlePlaceId || activity.venueName.toLowerCase();
           if (!seenVenues.has(venueKey) && allValidActivities.length < neededCount) {
             seenVenues.add(venueKey);
@@ -6443,6 +6465,33 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       }
       const categorizationEnd = Date.now();
       console.log(`[AI Generation] Attempt ${attempt}: AI categorization took ${((categorizationEnd - categorizationStart) / 1000).toFixed(1)}s for ${uncategorized.length} venues`);
+
+      // CRITICAL: Filter out disabled categories AFTER AI categorization
+      // The AI may categorize venues differently than our keyword detector, so we need to filter again
+      const beforeCategoryFilter = validActivities.length;
+      const categoryFilteredActivities = validActivities.filter((activity: any) => {
+        const category = activity.category;
+        const categoryEnabled = 
+          (category === 'meal' && (groupData.mealEnabled ?? true)) ||
+          (category === 'cafes' && (groupData.cafeEnabled ?? true)) ||
+          (category === 'drinks' && (groupData.drinksEnabled ?? true)) ||
+          (category === 'dessert' && (groupData.dessertEnabled ?? true)) ||
+          (category === 'experiences' && (groupData.experiencesEnabled ?? true));
+        
+        if (!categoryEnabled) {
+          console.log(`[Post-AI Filter] ❌ REMOVING: ${activity.venueName} - AI categorized as "${category}" which is disabled`);
+          return false;
+        }
+        return true;
+      });
+      
+      if (categoryFilteredActivities.length < beforeCategoryFilter) {
+        console.log(`[Post-AI Filter] Filtered out ${beforeCategoryFilter - categoryFilteredActivities.length} venues in disabled categories after AI categorization`);
+      }
+      
+      // Replace validActivities with the filtered list
+      validActivities.length = 0;
+      validActivities.push(...categoryFilteredActivities);
 
       // Count current category distribution
       const currentCategoryCounts: Record<string, number> = {
