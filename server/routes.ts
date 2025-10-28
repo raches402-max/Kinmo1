@@ -6262,6 +6262,8 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
 
       // Filter out rejected venues AND disabled categories BEFORE calling Google Places
       // (Duplicate checking happens after Google Places returns actual venue names)
+      console.log(`[Category Filter] Group settings: meal=${groupData.mealEnabled}, cafe=${groupData.cafeEnabled}, drinks=${groupData.drinksEnabled}, dessert=${groupData.dessertEnabled}, exp=${groupData.experiencesEnabled}`);
+      
       const filteredSuggestions = suggestions.filter(s => {
         const normalized = s.venueName.trim().toLowerCase();
         
@@ -6274,6 +6276,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
         // CRITICAL: Skip disabled categories to save API quota
         // Detect category using keyword matching on venue name/type
         const detectedCategory = detectCategory(s.venueName, s.venueType);
+        console.log(`[Category Filter] "${s.venueName}" (${s.venueType}) → detected as "${detectedCategory}"`);
         
         // Check if this category is disabled
         const categoryEnabled = 
@@ -6283,11 +6286,14 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
           (detectedCategory === 'dessert' && (groupData.dessertEnabled ?? true)) ||
           (detectedCategory === 'experiences' && (groupData.experiencesEnabled ?? true));
         
+        console.log(`[Category Filter] "${s.venueName}" → category="${detectedCategory}", enabled=${categoryEnabled}`);
+        
         if (!categoryEnabled) {
-          console.log(`[API Optimization] Skipping ${s.venueName} (${s.venueType}) - ${detectedCategory} category is disabled`);
+          console.log(`[API Optimization] ❌ FILTERED OUT: ${s.venueName} (${s.venueType}) - ${detectedCategory} category is disabled`);
           return false;
         }
         
+        console.log(`[API Optimization] ✅ KEEPING: ${s.venueName} - ${detectedCategory} category is enabled`);
         return true;
       });
       console.log(`[AI Generation] After category + blacklist filter: ${filteredSuggestions.length}/${suggestions.length} suggestions`);
