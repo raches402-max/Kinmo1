@@ -38,50 +38,83 @@ export function categorizeByTime(venueType: string): 'quick' | 'standard' | 'lar
 
 // Category detection based on keywords in venue name/type
 // This filters AI suggestions BEFORE calling Google Places API to save quota
+// Uses tokenizer-aware matching to handle both compound words and avoid false positives
 export function detectCategory(venueName: string, venueType: string): 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences' {
   const combined = `${venueName} ${venueType}`.toLowerCase();
   
+  // Tokenize by splitting on non-alphabetic characters
+  // This creates tokens like: "craft brewery" → ["craft", "brewery"]
+  // And handles compounds: "microbrewery" → ["microbrewery"]
+  const tokens = combined.split(/[^a-z]+/).filter(t => t.length > 0);
+  
+  // Helper function to check if keyword matches any token or is contained in any token
+  const containsKeyword = (keyword: string): boolean => {
+    return tokens.some(token => {
+      // Exact match (e.g., "bar" === "bar")
+      if (token === keyword) return true;
+      
+      // Compound word match (e.g., "brewery" in "microbrewery")
+      // Allow if keyword appears at the end of a token (common prefixes like "micro", "craft", "nano")
+      if (token.endsWith(keyword) && token.length > keyword.length) {
+        // Check if the prefix is a common modifier
+        const prefix = token.substring(0, token.length - keyword.length);
+        const commonPrefixes = ['micro', 'craft', 'nano', 'mini', 'local', 'dive', 'sports', 'wine', 'cocktail'];
+        if (commonPrefixes.includes(prefix)) {
+          return true;
+        }
+      }
+      
+      return false;
+    });
+  };
+  
+  // Helper to check if ANY keyword matches
+  const matchesAny = (keywords: string[]): boolean => {
+    return keywords.some(keyword => containsKeyword(keyword));
+  };
+  
   // CAFE keywords - coffee shops, cafes
   const cafeKeywords = [
-    'cafe', 'coffee', 'espresso', 'latte', 'cappuccino'
+    'cafe', 'coffee', 'espresso', 'latte', 'cappuccino', 'coffeehouse'
   ];
   
   // DRINKS keywords - bars, breweries, wine
+  // Will match: "bar", "microbrewery", "winery", "craftbrewery", etc.
+  // Won't match: "barbecue", "barista" (because "barbe" and "barist" aren't in commonPrefixes)
   const drinksKeywords = [
     'bar', 'cocktail', 'wine', 'brewery', 'beer', 'pub', 'tavern',
-    'lounge', 'speakeasy', 'taproom', 'ale house', 'beer garden'
+    'lounge', 'speakeasy', 'taproom', 'winery', 'brewhouse'
   ];
   
   // DESSERT keywords - sweets, ice cream, boba
   const dessertKeywords = [
-    'dessert', 'ice cream', 'gelato', 'boba', 'bubble tea',
-    'bakery', 'pastry', 'donut', 'cupcake', 'cookie', 'candy',
-    'sweet', 'frozen yogurt', 'froyo', 'churro'
+    'dessert', 'gelato', 'boba', 'bakery', 'pastry', 'donut', 
+    'cupcake', 'cookie', 'candy', 'creamery', 'froyo', 'churro'
   ];
   
   // EXPERIENCES keywords - activities, museums, outdoor
   const experiencesKeywords = [
-    'museum', 'gallery', 'concert', 'show', 'theater', 'cinema',
+    'museum', 'gallery', 'concert', 'theater', 'cinema',
     'hike', 'hiking', 'trail', 'park', 'beach', 'outdoor',
-    'festival', 'event', 'game', 'sporting', 'karaoke', 'comedy',
+    'festival', 'event', 'sporting', 'karaoke', 'comedy',
     'activity', 'adventure', 'tour', 'aquarium', 'zoo', 'arcade',
-    'bowling', 'mini golf', 'escape room', 'trivia'
+    'bowling', 'escape', 'trivia'
   ];
   
   // Check in priority order (most specific first)
-  if (cafeKeywords.some(keyword => combined.includes(keyword))) {
+  if (matchesAny(cafeKeywords)) {
     return 'cafes';
   }
   
-  if (drinksKeywords.some(keyword => combined.includes(keyword))) {
+  if (matchesAny(drinksKeywords)) {
     return 'drinks';
   }
   
-  if (dessertKeywords.some(keyword => combined.includes(keyword))) {
+  if (matchesAny(dessertKeywords)) {
     return 'dessert';
   }
   
-  if (experiencesKeywords.some(keyword => combined.includes(keyword))) {
+  if (matchesAny(experiencesKeywords)) {
     return 'experiences';
   }
   
