@@ -3234,12 +3234,44 @@ Looking forward to planning great activities together!
 
               if (places.length > 0) {
                 const place = places[0];
-                console.log(`[Swipe Deck] ✅ Found venue: "${place.name}" (${place.rating}⭐, ${place.reviewCount} reviews)`);
+                console.log(`[Swipe Deck] ✅ Found venue: "${place.name}" (${place.rating}⭐, ${place.reviewCount} reviews, types: ${place.types?.join(', ')})`);
                 
                 // Skip if we already have this place
                 if (existingPlaceIds.has(place.placeId)) {
                   console.log(`[Swipe Deck] Skipping duplicate place: ${place.name}`);
                   return null;
+                }
+
+                // Filter out places from disabled categories
+                const placeTypes = (place.types || []).map(t => t.toLowerCase()).join(' ');
+                const placeName = place.name.toLowerCase();
+                
+                if (group.cafeEnabled === false) {
+                  if (placeTypes.includes('cafe') || placeTypes.includes('coffee') || placeName.includes('cafe') || placeName.includes('coffee')) {
+                    console.log(`[Swipe Deck] ❌ Filtering out cafe from Google Places: "${place.name}"`);
+                    return null;
+                  }
+                }
+                
+                if (group.mealEnabled === false) {
+                  if (placeTypes.includes('restaurant') || placeTypes.includes('food')) {
+                    console.log(`[Swipe Deck] ❌ Filtering out restaurant from Google Places: "${place.name}"`);
+                    return null;
+                  }
+                }
+                
+                if (group.drinksEnabled === false) {
+                  if (placeTypes.includes('bar') || placeTypes.includes('night_club') || placeTypes.includes('liquor_store')) {
+                    console.log(`[Swipe Deck] ❌ Filtering out bar/drinks from Google Places: "${place.name}"`);
+                    return null;
+                  }
+                }
+                
+                if (group.dessertEnabled === false) {
+                  if (placeTypes.includes('bakery') || placeTypes.includes('ice_cream') || placeName.includes('dessert') || placeName.includes('boba')) {
+                    console.log(`[Swipe Deck] ❌ Filtering out dessert from Google Places: "${place.name}"`);
+                    return null;
+                  }
                 }
 
                 // Add to existing places to avoid duplicates in this batch
