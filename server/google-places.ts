@@ -571,7 +571,8 @@ export async function searchPlaces(
       let photoUrl: string | undefined;
       if (place.photos && place.photos.length > 0) {
         const photoReference = place.photos[0].photo_reference;
-        photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${photoReference}&key=${apiKey}`;
+        // Use proxy endpoint to cache photos and reduce API costs
+        photoUrl = `/api/photos/${photoReference}`;
       }
 
       const fallbackLocation = placeLocation 
@@ -668,7 +669,8 @@ export async function searchNearbyPlaces(
       let photoUrl: string | undefined;
       if (place.photos && place.photos.length > 0) {
         const photoReference = place.photos[0].photo_reference;
-        photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${photoReference}&key=${apiKey}`;
+        // Use proxy endpoint to cache photos and reduce API costs
+        photoUrl = `/api/photos/${photoReference}`;
       }
 
       results.push({
@@ -853,7 +855,8 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceResult | nu
     let photoUrl: string | undefined;
     if (place.photos && place.photos.length > 0) {
       const photoReference = place.photos[0].photo_reference;
-      photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${photoReference}&key=${apiKey}`;
+      // Use proxy endpoint to cache photos and reduce API costs
+      photoUrl = `/api/photos/${photoReference}`;
     }
 
     const result = {
