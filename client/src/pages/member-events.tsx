@@ -89,42 +89,28 @@ export default function MemberEventsPage() {
     },
   });
 
-  const acceptHostingMutation = useMutation({
-    mutationFn: async (assignmentId: string) => {
-      return await apiRequest("POST", `/api/host-assignments/${assignmentId}/accept`, {});
+  const respondToHostingMutation = useMutation({
+    mutationFn: async ({ assignmentId, accepted }: { assignmentId: string; accepted: boolean }) => {
+      return await apiRequest("POST", `/api/host-assignments/${assignmentId}/respond`, { accepted });
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/user/hosting-requests"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
-      toast({
-        title: "Hosting accepted",
-        description: "You're now the host for this event",
-      });
+      if (variables.accepted) {
+        toast({
+          title: "Hosting accepted",
+          description: "You're now the host for this event and have been RSVP'd as going",
+        });
+      } else {
+        toast({
+          title: "Hosting declined",
+          description: "Another volunteer will be asked to host",
+        });
+      }
     },
     onError: (error: Error) => {
       toast({
-        title: "Error accepting hosting",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const declineHostingMutation = useMutation({
-    mutationFn: async (assignmentId: string) => {
-      return await apiRequest("POST", `/api/host-assignments/${assignmentId}/decline`, {});
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/user/hosting-requests"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
-      toast({
-        title: "Hosting declined",
-        description: "Another volunteer will be asked to host",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error declining hosting",
+        title: "Error responding to hosting request",
         description: error.message,
         variant: "destructive",
       });
@@ -374,8 +360,8 @@ export default function MemberEventsPage() {
                       <Button
                         variant="default"
                         className="flex-1 gap-1"
-                        onClick={() => acceptHostingMutation.mutate(request.id)}
-                        disabled={acceptHostingMutation.isPending}
+                        onClick={() => respondToHostingMutation.mutate({ assignmentId: request.id, accepted: true })}
+                        disabled={respondToHostingMutation.isPending}
                         data-testid={`button-accept-hosting-${request.id}`}
                       >
                         <CheckCircle className="w-4 h-4" />
@@ -384,8 +370,8 @@ export default function MemberEventsPage() {
                       <Button
                         variant="outline"
                         className="flex-1 gap-1"
-                        onClick={() => declineHostingMutation.mutate(request.id)}
-                        disabled={declineHostingMutation.isPending}
+                        onClick={() => respondToHostingMutation.mutate({ assignmentId: request.id, accepted: false })}
+                        disabled={respondToHostingMutation.isPending}
                         data-testid={`button-decline-hosting-${request.id}`}
                       >
                         <XCircle className="w-4 h-4" />
