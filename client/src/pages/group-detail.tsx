@@ -187,13 +187,6 @@ const groupEmojis = [
 ];
 
 const activityCategories = [
-  { id: "restaurants", label: "Restaurants", icon: ChefHat },
-  { id: "brunch", label: "Brunch Spots", icon: Croissant },
-  { id: "cafes", label: "Cafes", icon: Coffee },
-  { id: "wine-bars", label: "Wine / Cocktail Bars", icon: Wine },
-  { id: "breweries", label: "Breweries / Beer Gardens", icon: Beer },
-  { id: "food-markets", label: "Food Markets / Food Halls", icon: ShoppingBasket },
-  { id: "potlucks", label: "Potlucks", icon: UtensilsCrossed },
   { id: "concerts", label: "Concerts", icon: Music },
   { id: "karaoke", label: "Karaoke", icon: Mic2 },
   { id: "dancing", label: "Dancing / Clubs", icon: PartyPopper },
@@ -2999,7 +2992,7 @@ export default function GroupDetail() {
                       </div>
                     </div>
 
-                    <p className="text-sm text-muted-foreground">Then select specific activity types within enabled categories (optional)</p>
+                    <p className="text-sm text-muted-foreground">Then select specific experience types to further refine suggestions (optional)</p>
                     <div className="flex flex-wrap gap-2">
                       {activityCategories.map((category) => {
                         const Icon = category.icon;

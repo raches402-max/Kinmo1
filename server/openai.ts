@@ -200,13 +200,6 @@ export async function generateActivitySuggestions(groupData: {
 
     // Format activity categories for the prompt
     const categoryLabels: Record<string, string> = {
-      'restaurants': 'Restaurants',
-      'brunch': 'Brunch Spots',
-      'cafes': 'Cafes',
-      'wine-bars': 'Wine / Cocktail Bars',
-      'breweries': 'Breweries / Beer Gardens',
-      'food-markets': 'Food Markets / Food Halls',
-      'potlucks': 'Potlucks',
       'concerts': 'Concerts',
       'karaoke': 'Karaoke',
       'dancing': 'Dancing / Clubs',
@@ -241,7 +234,7 @@ export async function generateActivitySuggestions(groupData: {
     let targetCategoriesContext = '';
     if (groupData.targetCategories && groupData.targetCategories.length > 0) {
       const categoryDescriptions: Record<string, string> = {
-        'meal': 'MEAL venues (restaurants, brunch spots, food markets, food halls)',
+        'meal': 'MEAL venues (restaurants, brunch spots, dining)',
         'cafes': 'CAFES (coffee shops, cafes)',
         'drinks': 'DRINKS (bars, cocktail lounges, breweries, wine bars)',
         'dessert': 'DESSERT (boba, ice cream, dessert shops)',
@@ -266,7 +259,7 @@ export async function generateActivitySuggestions(groupData: {
     
     // Check which buckets are enabled (default true if not specified)
     if (groupData.mealEnabled !== false) enabledBuckets.push('MEAL');
-    else disabledBuckets.push('MEAL (restaurants, brunch, food markets, potlucks)');
+    else disabledBuckets.push('MEAL (restaurants, brunch, dining)');
     
     if (groupData.cafeEnabled !== false) enabledBuckets.push('CAFE');
     else disabledBuckets.push('CAFE (cafes, coffee shops)');
@@ -315,7 +308,7 @@ export async function generateActivitySuggestions(groupData: {
     // Category-specific simplified prompt (70% shorter, 3-5x faster)
     if (useSimplifiedPrompt) {
       const categoryDescriptions: Record<string, string> = {
-        'meal': 'MEAL venues (restaurants, brunch spots, food markets)',
+        'meal': 'MEAL venues (restaurants, brunch spots, dining)',
         'cafes': 'CAFES (coffee shops, cafes)',
         'drinks': 'DRINKS (bars, cocktail lounges, breweries, wine bars)',
         'dessert': 'DESSERT (boba, ice cream, dessert shops)',
@@ -638,13 +631,6 @@ export async function generateSwipeConcepts(groupData: {
   try {
     // Format activity categories for the prompt
     const categoryLabels: Record<string, string> = {
-      'restaurants': 'Restaurants',
-      'brunch': 'Brunch Spots',
-      'cafes': 'Cafes',
-      'wine-bars': 'Wine / Cocktail Bars',
-      'breweries': 'Breweries / Beer Gardens',
-      'food-markets': 'Food Markets / Food Halls',
-      'potlucks': 'Potlucks',
       'concerts': 'Concerts',
       'karaoke': 'Karaoke',
       'dancing': 'Dancing / Clubs',
