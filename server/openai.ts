@@ -627,6 +627,11 @@ export async function generateSwipeConcepts(groupData: {
   activityCategories?: string[];
   pastPreferences?: string;
   previouslySeenConcepts?: string[];
+  mealEnabled?: boolean;
+  cafeEnabled?: boolean;
+  drinksEnabled?: boolean;
+  dessertEnabled?: boolean;
+  experiencesEnabled?: boolean;
 }): Promise<SwipeConcept[]> {
   try {
     // Format activity categories for the prompt
@@ -655,17 +660,46 @@ export async function generateSwipeConcepts(groupData: {
       avoidContext = `\n\nIMPORTANT - DO NOT suggest these types again (already shown): ${groupData.previouslySeenConcepts.join(', ')}`;
     }
 
+    // Format high-level category filters - hard exclusions
+    let categoryFilterContext = '';
+    const enabledBuckets: string[] = [];
+    const disabledBuckets: string[] = [];
+    
+    // Check which buckets are enabled (default true if not specified)
+    if (groupData.mealEnabled !== false) enabledBuckets.push('MEAL');
+    else disabledBuckets.push('MEAL (restaurants, dining, brunch)');
+    
+    if (groupData.cafeEnabled !== false) enabledBuckets.push('CAFE');
+    else disabledBuckets.push('CAFE (cafes, coffee shops)');
+    
+    if (groupData.drinksEnabled !== false) enabledBuckets.push('DRINKS');
+    else disabledBuckets.push('DRINKS (bars, breweries, wine bars)');
+    
+    if (groupData.dessertEnabled !== false) enabledBuckets.push('DESSERT');
+    else disabledBuckets.push('DESSERT (ice cream, boba, dessert shops)');
+    
+    if (groupData.experiencesEnabled !== false) enabledBuckets.push('EXPERIENCES');
+    else disabledBuckets.push('EXPERIENCES (concerts, museums, activities)');
+    
+    if (disabledBuckets.length > 0) {
+      categoryFilterContext = `\n\n🚫 CRITICAL - HARD CATEGORY EXCLUSIONS (ABSOLUTE REQUIREMENT):
+- The group has DISABLED these categories - you MUST generate ZERO suggestions from them:
+  ${disabledBuckets.map(b => `  ❌ ${b}`).join('\n')}
+- ONLY generate suggestions from these ENABLED categories: ${enabledBuckets.join(', ')}
+- If you suggest ANY venue from a disabled category, that suggestion will be REJECTED`;
+    }
+
     const prompt = `You are an expert at finding great local venues. Generate 20 diverse venue type suggestions for a group to explore.
 
 Location: ${groupData.locationBase}
 Budget Range: $${groupData.budgetMin}-${groupData.budgetMax} per person${categoriesContext}
-${groupData.pastPreferences ? `Past Preferences: ${groupData.pastPreferences}` : ''}${avoidContext}
+${groupData.pastPreferences ? `Past Preferences: ${groupData.pastPreferences}` : ''}${avoidContext}${categoryFilterContext}
 
 Requirements:
 1. Generate 20 specific VENUE TYPES (not specific venue names, just types of places to explore)
 2. Focus on types of venues that fit the budget range
 3. ${groupData.activityCategories && groupData.activityCategories.length > 0 ? `PRIORITIZE the Activity Interests listed above` : 'Suggest a diverse mix of venue types'}
-4. Include a mix of food/drink venues, entertainment venues, and activity venues
+4. ${disabledBuckets.length > 0 ? `ONLY suggest venues from enabled categories: ${enabledBuckets.join(', ')}` : 'Include a mix of food/drink venues, entertainment venues, and activity venues'}
 5. Each venue type should be something you can search for on Google Maps
 
 GOOD examples:

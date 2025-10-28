@@ -3064,6 +3064,11 @@ Looking forward to planning great activities together!
         activityCategories: group.activityCategories || [],
         pastPreferences: group.pastPreferences || '',
         previouslySeenConcepts,
+        mealEnabled: group.mealEnabled ?? true,
+        cafeEnabled: group.cafeEnabled ?? true,
+        drinksEnabled: group.drinksEnabled ?? true,
+        dessertEnabled: group.dessertEnabled ?? true,
+        experiencesEnabled: group.experiencesEnabled ?? true,
       });
 
       res.json({ concepts });
@@ -3171,6 +3176,11 @@ Looking forward to planning great activities together!
           activityCategories: group.activityCategories || [],
           pastPreferences: group.pastPreferences || '',
           previouslySeenConcepts,
+          mealEnabled: group.mealEnabled ?? true,
+          cafeEnabled: group.cafeEnabled ?? true,
+          drinksEnabled: group.drinksEnabled ?? true,
+          dessertEnabled: group.dessertEnabled ?? true,
+          experiencesEnabled: group.experiencesEnabled ?? true,
         });
 
         // Convert concepts to venue-style cards and enrich with Google Places
