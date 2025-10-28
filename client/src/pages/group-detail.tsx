@@ -3178,7 +3178,13 @@ export default function GroupDetail() {
                   {/* Existing Members */}
                   {members.length > 0 && (
                     <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">Current Members</Label>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs text-muted-foreground">Current Members</Label>
+                        <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Home className="w-3 h-3" />
+                          Volunteer to host events
+                        </Label>
+                      </div>
                       <div className="space-y-2">
                         {members.map((member) => (
                           <div key={member.id}>
@@ -3251,26 +3257,6 @@ export default function GroupDetail() {
                                       </Badge>
                                     )}
                                   </div>
-                                  <div className="flex items-center gap-2 mt-1">
-                                    <Checkbox
-                                      id={`hosting-${member.id}`}
-                                      checked={member.openToHosting}
-                                      onCheckedChange={(checked) => {
-                                        toggleHostingMutation.mutate({
-                                          memberId: member.id,
-                                          openToHosting: checked === true
-                                        });
-                                      }}
-                                      data-testid={`checkbox-hosting-volunteer-${member.id}`}
-                                    />
-                                    <Label 
-                                      htmlFor={`hosting-${member.id}`}
-                                      className="text-xs text-muted-foreground cursor-pointer flex items-center gap-1"
-                                    >
-                                      <Home className="w-3 h-3" />
-                                      Volunteer to host events
-                                    </Label>
-                                  </div>
                                   {member.email && (
                                     <p className="text-xs text-muted-foreground truncate">{member.email}</p>
                                   )}
@@ -3307,6 +3293,17 @@ export default function GroupDetail() {
                                     );
                                   })()}
                                 </div>
+                                <Checkbox
+                                  id={`hosting-${member.id}`}
+                                  checked={member.openToHosting}
+                                  onCheckedChange={(checked) => {
+                                    toggleHostingMutation.mutate({
+                                      memberId: member.id,
+                                      openToHosting: checked === true
+                                    });
+                                  }}
+                                  data-testid={`checkbox-hosting-volunteer-${member.id}`}
+                                />
                                 {member.isOrganizer ? (
                                   <Badge variant="secondary" className="text-xs">Organizer</Badge>
                                 ) : (
