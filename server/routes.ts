@@ -3194,7 +3194,7 @@ Looking forward to planning great activities together!
 
               if (places.length > 0) {
                 const place = places[0];
-                console.log(`[Swipe Deck] ✅ Found venue: "${place.name}" (${place.rating}⭐, ${place.userRatingsTotal} reviews)`);
+                console.log(`[Swipe Deck] ✅ Found venue: "${place.name}" (${place.rating}⭐, ${place.reviewCount} reviews)`);
                 
                 // Skip if we already have this place
                 if (existingPlaceIds.has(place.placeId)) {
@@ -3213,7 +3213,7 @@ Looking forward to planning great activities together!
                   venueType: place.types?.[0] || concept.conceptType,
                   googlePlaceId: place.placeId,
                   rating: place.rating?.toString(),
-                  reviewCount: place.userRatingsTotal,
+                  reviewCount: place.reviewCount,
                   priceLevel: place.priceLevel ? '$'.repeat(parseInt(place.priceLevel)) : undefined,
                   photoUrl: place.photoUrl,
                   sourceType: 'ai_suggestion' as const,
