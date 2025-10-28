@@ -602,6 +602,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get user's pending hosting requests
+  app.get("/api/user/hosting-requests", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+
+      // Find members for this user
+      const userMembers = await db
+        .select({ id: membersTable.id })
+        .from(membersTable)
+        .where(eq(membersTable.userId, userId));
+
+      if (userMembers.length === 0) {
+        return res.json([]);
+      }
+
+      const memberIds = userMembers.map(m => m.id);
+
+      // Get pending host assignments
+      const assignments = await db
+        .select({
+          id: hostAssignments.id,
+          itineraryId: hostAssignments.itineraryId,
+          itineraryName: itineraries.name,
+          eventDate: itineraries.eventDate,
+          groupId: itineraries.groupId,
+          groupName: groupsTable.name,
+          groupEmoji: groupsTable.emoji,
+        })
+        .from(hostAssignments)
+        .leftJoin(itineraries, eq(hostAssignments.itineraryId, itineraries.id))
+        .leftJoin(groupsTable, eq(itineraries.groupId, groupsTable.id))
+        .where(
+          sql`${hostAssignments.memberId} IN ${memberIds} AND ${hostAssignments.status} = 'pending'`
+        );
+
+      res.json(assignments);
+    } catch (error: any) {
+      console.error('[Hosting Requests] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Create group with AI suggestions (protected)
   app.post("/api/groups", isAuthenticated, async (req: any, res) => {
     try {

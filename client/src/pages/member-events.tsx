@@ -56,6 +56,19 @@ export default function MemberEventsPage() {
     enabled: !!user,
   });
 
+  // Fetch pending hosting requests
+  const { data: hostingRequests = [] } = useQuery<Array<{
+    id: string;
+    itineraryId: string;
+    itineraryName: string;
+    groupName: string;
+    groupEmoji: string;
+    eventDate: string | null;
+  }>>({
+    queryKey: ["/api/user/hosting-requests"],
+    enabled: !!user,
+  });
+
   const requestHostMutation = useMutation({
     mutationFn: async (itineraryId: string) => {
       return await apiRequest("POST", `/api/itineraries/${itineraryId}/request-host`, {});
@@ -70,6 +83,48 @@ export default function MemberEventsPage() {
     onError: (error: Error) => {
       toast({
         title: "Error requesting host",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const acceptHostingMutation = useMutation({
+    mutationFn: async (assignmentId: string) => {
+      return await apiRequest("POST", `/api/host-assignments/${assignmentId}/accept`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/hosting-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
+      toast({
+        title: "Hosting accepted",
+        description: "You're now the host for this event",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error accepting hosting",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const declineHostingMutation = useMutation({
+    mutationFn: async (assignmentId: string) => {
+      return await apiRequest("POST", `/api/host-assignments/${assignmentId}/decline`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/hosting-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
+      toast({
+        title: "Hosting declined",
+        description: "Another volunteer will be asked to host",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error declining hosting",
         description: error.message,
         variant: "destructive",
       });
@@ -260,6 +315,89 @@ export default function MemberEventsPage() {
             All your event invitations and upcoming plans in one place
           </p>
         </div>
+
+        {/* Hosting Requests */}
+        {hostingRequests.length > 0 && (
+          <section>
+            <div className="mb-4">
+              <h2 className="text-2xl font-semibold flex items-center gap-2" data-testid="heading-hosting-requests">
+                <Home className="w-6 h-6" />
+                Hosting Requests
+                <Badge variant="default" data-testid="badge-hosting-count">
+                  {hostingRequests.length}
+                </Badge>
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                You've been asked to host these events
+              </p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              {hostingRequests.map(request => (
+                <Card key={request.id} className="border-primary/20 bg-primary/5" data-testid={`card-hosting-request-${request.id}`}>
+                  <CardHeader className="pb-4">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-2xl" data-testid={`emoji-${request.id}`}>
+                        {request.groupEmoji}
+                      </span>
+                      <CardTitle className="text-xl" data-testid={`title-${request.id}`}>
+                        {request.itineraryName || "Event"}
+                      </CardTitle>
+                    </div>
+                    <CardDescription data-testid={`group-${request.id}`}>
+                      {request.groupName}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {request.eventDate && (
+                      <div className="flex items-center gap-2 text-sm" data-testid={`date-${request.id}`}>
+                        <Calendar className="w-4 h-4 text-muted-foreground" />
+                        <span className="font-medium">
+                          {format(new Date(request.eventDate), 'EEEE, MMMM d, yyyy')}
+                        </span>
+                        <Clock className="w-4 h-4 text-muted-foreground ml-2" />
+                        <span>
+                          {format(new Date(request.eventDate), 'h:mm a')}
+                        </span>
+                      </div>
+                    )}
+                    <div className="bg-muted/50 p-3 rounded-md">
+                      <p className="text-sm text-muted-foreground mb-2">
+                        <strong>As the host, you'll:</strong>
+                      </p>
+                      <ul className="text-sm text-muted-foreground space-y-1 ml-4">
+                        <li>• Help finalize the venue and time</li>
+                        <li>• Be the main point of contact for the event</li>
+                        <li>• Coordinate with other attendees</li>
+                      </ul>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="default"
+                        className="flex-1 gap-1"
+                        onClick={() => acceptHostingMutation.mutate(request.id)}
+                        disabled={acceptHostingMutation.isPending}
+                        data-testid={`button-accept-hosting-${request.id}`}
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        Accept Hosting
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="flex-1 gap-1"
+                        onClick={() => declineHostingMutation.mutate(request.id)}
+                        disabled={declineHostingMutation.isPending}
+                        data-testid={`button-decline-hosting-${request.id}`}
+                      >
+                        <XCircle className="w-4 h-4" />
+                        Decline
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Pending Invitations */}
         {pendingInvites.length > 0 && (
