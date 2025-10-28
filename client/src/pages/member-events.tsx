@@ -1,13 +1,15 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, MapPin, Clock, CheckCircle, XCircle, HelpCircle, Sparkles } from "lucide-react";
+import { Calendar, MapPin, Clock, CheckCircle, XCircle, HelpCircle, Sparkles, Home, Users } from "lucide-react";
 import { format } from "date-fns";
 import { Link } from "wouter";
 import { TimeSlotVoting } from "@/components/TimeSlotVoting";
 import { useAuth } from "@/hooks/useAuth";
 import type { User } from "@shared/schema";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 type EventItem = {
   id: string;
@@ -28,6 +30,16 @@ type UserEvent = {
   groupName: string;
   groupEmoji: string;
   isOrganizer: boolean;
+  hostMemberId: string | null;
+  hostMemberName: string | null;
+  currentUserMemberId: string | null;
+  currentUserOpenToHosting: boolean;
+  members: Array<{
+    id: string;
+    name: string | null;
+    email: string | null;
+    openToHosting: boolean;
+  }>;
   rsvp: {
     response: string;
     rsvpFeedback: any;
@@ -37,10 +49,31 @@ type UserEvent = {
 
 export default function MemberEventsPage() {
   const { user } = useAuth() as { user: User | undefined };
+  const { toast } = useToast();
 
   const { data: events = [], isLoading } = useQuery<UserEvent[]>({
     queryKey: ["/api/user/events"],
     enabled: !!user,
+  });
+
+  const requestHostMutation = useMutation({
+    mutationFn: async (itineraryId: string) => {
+      return await apiRequest("POST", `/api/itineraries/${itineraryId}/request-host`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
+      toast({
+        title: "Host requested",
+        description: "A volunteer will be asked to host this event",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error requesting host",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
 
   // Categorize events
@@ -127,6 +160,35 @@ export default function MemberEventsPage() {
               </span>
             </div>
           )}
+
+          {/* Host Information */}
+          {event.hostMemberId && event.hostMemberName ? (
+            <div className="flex items-center gap-2 text-sm" data-testid={`host-${event.itineraryId}`}>
+              <Home className="w-4 h-4 text-muted-foreground" />
+              <span className="text-muted-foreground">Hosted by:</span>
+              <span className="font-medium">{event.hostMemberName}</span>
+              <Badge variant="outline" className="text-xs">
+                Host
+              </Badge>
+            </div>
+          ) : event.isOrganizer && event.members.some(m => m.openToHosting) ? (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => requestHostMutation.mutate(event.itineraryId)}
+                disabled={requestHostMutation.isPending}
+                className="gap-1"
+                data-testid={`button-request-host-${event.itineraryId}`}
+              >
+                <Users className="w-3 h-3" />
+                Request a Host
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                {event.members.filter(m => m.openToHosting).length} volunteer(s) available
+              </span>
+            </div>
+          ) : null}
 
           {firstVenue && (
             <div className="space-y-2">
