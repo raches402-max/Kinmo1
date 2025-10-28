@@ -1271,6 +1271,198 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Rotating Host Assignment Routes
+
+  // Request a host for an event (organizer only)
+  app.post("/api/groups/:groupId/request-host", async (req: any, res) => {
+    try {
+      const { itineraryId } = req.body;
+      const userId = req.user?.claims?.sub;
+
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      // Get the group
+      const group = await storage.getGroup(req.params.groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      // Authorization: must be the group owner
+      if (group.userId !== userId) {
+        return res.status(403).json({ message: "Only group owner can request a host" });
+      }
+
+      // Check if there's already a pending request
+      const pendingAssignment = await storage.getPendingHostAssignment(req.params.groupId);
+      if (pendingAssignment) {
+        return res.status(400).json({ message: "There is already a pending host request" });
+      }
+
+      // Find next volunteer to ask
+      const nextVolunteer = await storage.getNextHostVolunteer(req.params.groupId);
+      if (!nextVolunteer) {
+        return res.status(404).json({ message: "No volunteers available to host" });
+      }
+
+      // Create host assignment
+      const assignment = await storage.createHostAssignment(
+        req.params.groupId,
+        nextVolunteer.id,
+        itineraryId
+      );
+
+      res.json({ assignment, volunteer: nextVolunteer });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get pending host assignment for a group
+  app.get("/api/groups/:groupId/pending-host-request", async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const assignment = await storage.getPendingHostAssignment(req.params.groupId);
+      if (!assignment) {
+        return res.json(null);
+      }
+
+      // Get volunteer info
+      const volunteer = await storage.getMember(assignment.memberId);
+      res.json({ assignment, volunteer });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get host assignments for a member (authenticated or via claim token)
+  app.get("/api/members/:memberId/host-assignments", async (req: any, res) => {
+    try {
+      const { claimToken } = req.query;
+      const userId = req.user?.claims?.sub;
+
+      if (!userId && !claimToken) {
+        return res.status(401).json({ message: "Authentication or claim token required" });
+      }
+
+      // Get the member
+      const member = await storage.getMember(req.params.memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+
+      // Authorization: must be the linked user or have claim token
+      if (claimToken && member.claimToken !== claimToken) {
+        return res.status(403).json({ message: "Invalid claim token" });
+      }
+      if (userId && member.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const assignments = await storage.getMemberHostAssignments(req.params.memberId);
+      res.json(assignments);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Respond to host assignment (accept/decline)
+  app.post("/api/host-assignments/:assignmentId/respond", async (req: any, res) => {
+    try {
+      const { accepted, claimToken } = req.body;
+      const userId = req.user?.claims?.sub;
+
+      if (!userId && !claimToken) {
+        return res.status(401).json({ message: "Authentication or claim token required" });
+      }
+
+      // Get the assignment
+      const assignments = await db
+        .select()
+        .from(hostAssignments)
+        .where(eq(hostAssignments.id, req.params.assignmentId));
+
+      if (assignments.length === 0) {
+        return res.status(404).json({ message: "Host assignment not found" });
+      }
+
+      const assignment = assignments[0];
+
+      // Get the member
+      const member = await storage.getMember(assignment.memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+
+      // Authorization: must be the linked user or have claim token
+      if (claimToken && member.claimToken !== claimToken) {
+        return res.status(403).json({ message: "Invalid claim token" });
+      }
+      if (userId && member.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      // Update assignment
+      const updatedAssignment = await storage.respondToHostAssignment(
+        req.params.assignmentId,
+        accepted,
+        member.id
+      );
+
+      // If accepted and there's an itinerary, assign the host
+      if (accepted && assignment.itineraryId) {
+        await storage.volunteerToHost(assignment.itineraryId, member.id);
+        
+        // Auto-RSVP the host as "yes"
+        const existingRsvps = await storage.getItineraryRsvps(assignment.itineraryId);
+        const existingRsvp = existingRsvps.find(r => r.memberId === member.id);
+        
+        if (!existingRsvp) {
+          await storage.createRsvp({
+            itineraryId: assignment.itineraryId,
+            memberId: member.id,
+            memberName: member.name || undefined,
+            response: 'yes',
+          });
+        } else if (existingRsvp.response !== 'yes') {
+          await storage.updateRsvp(existingRsvp.id, { response: 'yes' });
+        }
+      }
+
+      // If declined, ask next volunteer
+      if (!accepted) {
+        const nextVolunteer = await storage.getNextHostVolunteer(
+          assignment.groupId,
+          [member.id] // Exclude the person who just declined
+        );
+
+        if (nextVolunteer) {
+          const newAssignment = await storage.createHostAssignment(
+            assignment.groupId,
+            nextVolunteer.id,
+            assignment.itineraryId || undefined
+          );
+          
+          return res.json({ 
+            assignment: updatedAssignment, 
+            nextAssignment: newAssignment,
+            nextVolunteer 
+          });
+        }
+      }
+
+      res.json({ assignment: updatedAssignment });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Authenticated Member Claim Routes
 
   // Verify claim token and get member info (no auth required)

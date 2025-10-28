@@ -1,7 +1,7 @@
 // Reference: javascript_database blueprint
 // Reference: javascript_log_in_with_replit blueprint
 import {
-  users, groups, members, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, itineraryInvites, reminderLogs, autoScheduledEvents, frequencyFeedback, userProfiles, proposedTimeSlots, timeSlotVotes, groupCollections, categorySearchHistory,
+  users, groups, members, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, itineraryInvites, reminderLogs, autoScheduledEvents, frequencyFeedback, userProfiles, proposedTimeSlots, timeSlotVotes, groupCollections, categorySearchHistory, hostAssignments,
   type User, type UpsertUser,
   type Group, type InsertGroup, type UpdateGroup,
   type Member, type InsertMember, type UpdateMember,
@@ -19,7 +19,8 @@ import {
   type ProposedTimeSlot, type InsertProposedTimeSlot,
   type TimeSlotVote, type InsertTimeSlotVote,
   type GroupCollection, type InsertGroupCollection, type UpdateGroupCollection,
-  type CategorySearchHistory, type InsertCategorySearchHistory
+  type CategorySearchHistory, type InsertCategorySearchHistory,
+  type HostAssignment, type InsertHostAssignment
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, or, inArray } from "drizzle-orm";
@@ -151,6 +152,13 @@ export interface IStorage {
   volunteerToHost(itineraryId: string, memberId: string): Promise<Itinerary>;
   handOffHost(itineraryId: string, newHostMemberId: string): Promise<Itinerary>;
   getHostingAvailableMembers(groupId: string): Promise<Member[]>;
+  
+  // Host Assignments (rotating host system)
+  createHostAssignment(groupId: string, memberId: string, itineraryId?: string): Promise<any>;
+  getPendingHostAssignment(groupId: string): Promise<any>;
+  getMemberHostAssignments(memberId: string): Promise<any[]>;
+  respondToHostAssignment(assignmentId: string, accepted: boolean, memberId: string): Promise<any>;
+  getNextHostVolunteer(groupId: string, excludeMemberIds?: string[]): Promise<Member | null>;
 
   // Category Search History
   saveCategorySearch(search: InsertCategorySearchHistory): Promise<CategorySearchHistory>;
@@ -1260,6 +1268,91 @@ export class DatabaseStorage implements IStorage {
           eq(members.openToHosting, true)
         )
       );
+  }
+
+  // Host Assignments (rotating host system)
+  async createHostAssignment(groupId: string, memberId: string, itineraryId?: string): Promise<HostAssignment> {
+    const [result] = await db
+      .insert(hostAssignments)
+      .values({
+        groupId,
+        memberId,
+        itineraryId: itineraryId || null,
+        status: 'pending'
+      })
+      .returning();
+    return result;
+  }
+
+  async getPendingHostAssignment(groupId: string): Promise<HostAssignment | undefined> {
+    const [result] = await db
+      .select()
+      .from(hostAssignments)
+      .where(
+        and(
+          eq(hostAssignments.groupId, groupId),
+          eq(hostAssignments.status, 'pending')
+        )
+      )
+      .orderBy(desc(hostAssignments.askedAt))
+      .limit(1);
+    return result;
+  }
+
+  async getMemberHostAssignments(memberId: string): Promise<HostAssignment[]> {
+    return await db
+      .select()
+      .from(hostAssignments)
+      .where(eq(hostAssignments.memberId, memberId))
+      .orderBy(desc(hostAssignments.askedAt));
+  }
+
+  async respondToHostAssignment(assignmentId: string, accepted: boolean, memberId: string): Promise<HostAssignment> {
+    const [result] = await db
+      .update(hostAssignments)
+      .set({
+        status: accepted ? 'accepted' : 'declined',
+        respondedAt: new Date()
+      })
+      .where(
+        and(
+          eq(hostAssignments.id, assignmentId),
+          eq(hostAssignments.memberId, memberId)
+        )
+      )
+      .returning();
+
+    // If accepted, update member's last_hosted_at timestamp
+    if (accepted && result) {
+      await db
+        .update(members)
+        .set({ lastHostedAt: new Date() })
+        .where(eq(members.id, memberId));
+    }
+
+    return result;
+  }
+
+  async getNextHostVolunteer(groupId: string, excludeMemberIds: string[] = []): Promise<Member | null> {
+    // Get all volunteers for this group, excluding specified members and organizers
+    let whereConditions = [
+      eq(members.groupId, groupId),
+      eq(members.openToHosting, true),
+      eq(members.isOrganizer, false)
+    ];
+
+    if (excludeMemberIds.length > 0) {
+      whereConditions.push(sql`${members.id} NOT IN (${sql.join(excludeMemberIds.map(id => sql`${id}`), sql`, `)})`);
+    }
+
+    const volunteers = await db
+      .select()
+      .from(members)
+      .where(and(...whereConditions))
+      .orderBy(members.lastHostedAt); // null values come first (never hosted)
+
+    // Return first volunteer (least recently hosted)
+    return volunteers.length > 0 ? volunteers[0] : null;
   }
 
   // Category Search History
