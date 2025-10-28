@@ -388,6 +388,17 @@ export const searchCache = pgTable("search_cache", {
   index("idx_search_query_location").on(table.searchQuery, table.searchLocation, table.searchRadius),
 ]);
 
+// Google Geocoding API cache - cache geocoding results for 30 days
+export const geocodingCache = pgTable("geocoding_cache", {
+  location: text("location").primaryKey(), // Location string used as key
+  latitude: numeric("latitude").notNull(), // Geocoded latitude
+  longitude: numeric("longitude").notNull(), // Geocoded longitude
+  formattedAddress: text("formatted_address").notNull(), // Google's formatted address
+  timezone: text("timezone"), // IANA timezone identifier (optional)
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(), // 30 days from createdAt
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   groups: many(groups),

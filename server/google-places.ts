@@ -1,6 +1,6 @@
 import { Client } from "@googlemaps/google-maps-services-js";
 import { db } from "./db";
-import { placesCache, searchCache } from "@shared/schema";
+import { placesCache, searchCache, geocodingCache } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 
 const client = new Client({});
@@ -259,6 +259,74 @@ async function saveSearchResultsToDB(searchQuery: string, searchLocation: string
   }
 }
 
+// Database cache helpers for geocoding (persistent caching with 30-day TTL)
+async function getGeocodingFromDB(location: string): Promise<GeocodeResult | null> {
+  try {
+    const cached = await db
+      .select()
+      .from(geocodingCache)
+      .where(eq(geocodingCache.location, location))
+      .limit(1);
+
+    if (cached.length === 0) {
+      return null;
+    }
+
+    const cachedResult = cached[0];
+    
+    // Check if expired
+    if (new Date() > cachedResult.expiresAt) {
+      console.log(`[DB Cache] EXPIRED - Geocoding for "${location}"`);
+      // Delete expired entry
+      await db.delete(geocodingCache).where(eq(geocodingCache.location, location));
+      return null;
+    }
+
+    console.log(`[DB Cache] HIT - Geocoding for "${location}" (expires: ${cachedResult.expiresAt.toISOString()})`);
+    return {
+      latitude: parseFloat(cachedResult.latitude as string),
+      longitude: parseFloat(cachedResult.longitude as string),
+      formattedAddress: cachedResult.formattedAddress,
+      timezone: cachedResult.timezone || undefined,
+    };
+  } catch (error) {
+    console.error(`[DB Cache] Error retrieving geocoding:`, error);
+    return null;
+  }
+}
+
+async function saveGeocodingToDB(location: string, result: GeocodeResult): Promise<void> {
+  try {
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 30); // 30 days from now
+
+    await db
+      .insert(geocodingCache)
+      .values({
+        location,
+        latitude: result.latitude.toString(),
+        longitude: result.longitude.toString(),
+        formattedAddress: result.formattedAddress,
+        timezone: result.timezone || null,
+        expiresAt,
+      })
+      .onConflictDoUpdate({
+        target: geocodingCache.location,
+        set: {
+          latitude: result.latitude.toString(),
+          longitude: result.longitude.toString(),
+          formattedAddress: result.formattedAddress,
+          timezone: result.timezone || null,
+          expiresAt,
+        },
+      });
+
+    console.log(`[DB Cache] SAVED - Geocoding for "${location}" (expires in 30 days)`);
+  } catch (error) {
+    console.error(`[DB Cache] Error saving geocoding:`, error);
+  }
+}
+
 export interface GeocodeResult {
   latitude: number;
   longitude: number;
@@ -292,15 +360,24 @@ export async function getTimezoneForLocation(lat: number, lng: number): Promise<
 }
 
 export async function geocodeLocation(location: string): Promise<GeocodeResult | null> {
-  // Check cache first
+  // Check session cache first (fastest)
   if (sessionCache.geocodeResults.has(location)) {
     sessionCache.stats.geocodeHits++;
-    console.log(`[Google Places Cache] HIT - geocode for "${location}"`);
+    console.log(`[Session Cache] HIT - geocode for "${location}"`);
     return sessionCache.geocodeResults.get(location)!;
   }
 
+  // Check database cache (persistent, 30-day TTL)
+  const dbCached = await getGeocodingFromDB(location);
+  if (dbCached) {
+    // Add to session cache for faster future lookups
+    sessionCache.geocodeResults.set(location, dbCached);
+    sessionCache.stats.geocodeHits++;
+    return dbCached;
+  }
+
   sessionCache.stats.geocodeMisses++;
-  console.log(`[Google Places Cache] MISS - fetching geocode for "${location}"`);
+  console.log(`[API Call] MISS - fetching geocode for "${location}"`);
 
   try {
     const apiKey = getNextApiKey();
@@ -321,18 +398,27 @@ export async function geocodeLocation(location: string): Promise<GeocodeResult |
     const result = response.data.results[0];
     const { lat, lng } = result.geometry.location;
 
-    // Fetch timezone for the coordinates
-    const timezone = await getTimezoneForLocation(lat, lng);
+    // Try to fetch timezone separately as a fallback (only if geocoding doesn't provide it)
+    // This ensures we have timezone data even if the geocoding API doesn't provide it
+    let timezone: string | undefined;
+    try {
+      const timezoneResult = await getTimezoneForLocation(lat, lng);
+      timezone = timezoneResult || undefined;
+    } catch (error) {
+      console.warn(`Timezone lookup failed for ${location}, continuing without it:`, error);
+    }
 
     const geocodeResult = {
       latitude: lat,
       longitude: lng,
       formattedAddress: result.formatted_address,
-      timezone: timezone || undefined,
+      timezone,
     };
 
-    // Cache the result
+    // Save to both caches
     sessionCache.geocodeResults.set(location, geocodeResult);
+    await saveGeocodingToDB(location, geocodeResult);
+    
     return geocodeResult;
   } catch (error) {
     console.error("Error geocoding location:", error);
