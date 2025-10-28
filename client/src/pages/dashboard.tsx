@@ -117,6 +117,13 @@ export default function Dashboard() {
   const [wouldDoAgain, setWouldDoAgain] = useState<string>("");
   const [improvementNotes, setImprovementNotes] = useState("");
   
+  // Test account switcher state (admin only)
+  const isAdmin = user?.email === 'raches402@gmail.com';
+  const { data: testAccounts = [] } = useQuery<Array<{id: string, email: string, firstName: string | null, lastName: string | null}>>({
+    queryKey: ["/api/admin/test-accounts"],
+    enabled: isAdmin,
+  });
+  
   const { data: groups = [], isLoading } = useQuery<Array<Group & { members: SafeMember[] }>>({
     queryKey: ["/api/user/groups"],
     enabled: !!user,
@@ -268,6 +275,23 @@ export default function Dashboard() {
       toast({
         title: "Error",
         description: error.message || "Failed to move group",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Switch user mutation (admin only)
+  const switchUserMutation = useMutation({
+    mutationFn: async (targetUserId: string) => {
+      return await apiRequest("POST", "/api/admin/switch-user", { targetUserId });
+    },
+    onSuccess: () => {
+      window.location.reload();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to switch user",
         variant: "destructive",
       });
     },
@@ -821,12 +845,33 @@ export default function Dashboard() {
                     </DropdownMenuItem>
                   </Link>
                   {user.email === 'raches402@gmail.com' && (
-                    <Link href="/admin">
-                      <DropdownMenuItem data-testid="menu-admin">
-                        <Sparkles className="mr-2 h-4 w-4" />
-                        Admin Dashboard
-                      </DropdownMenuItem>
-                    </Link>
+                    <>
+                      <Link href="/admin">
+                        <DropdownMenuItem data-testid="menu-admin">
+                          <Sparkles className="mr-2 h-4 w-4" />
+                          Admin Dashboard
+                        </DropdownMenuItem>
+                      </Link>
+                      {testAccounts.length > 0 && (
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger data-testid="submenu-switch-user">
+                            <Users className="mr-2 h-4 w-4" />
+                            Switch to Test Account
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            {testAccounts.map((account) => (
+                              <DropdownMenuItem
+                                key={account.id}
+                                onClick={() => switchUserMutation.mutate(account.id)}
+                                data-testid={`switch-to-${account.id}`}
+                              >
+                                {account.email}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                      )}
+                    </>
                   )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem 
