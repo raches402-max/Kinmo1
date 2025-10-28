@@ -820,6 +820,14 @@ export default function Dashboard() {
                       Profile Settings
                     </DropdownMenuItem>
                   </Link>
+                  {user.email === 'raches402@gmail.com' && (
+                    <Link href="/admin">
+                      <DropdownMenuItem data-testid="menu-admin">
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        Admin Dashboard
+                      </DropdownMenuItem>
+                    </Link>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem 
                     onClick={() => window.location.href = "/api/logout"}
