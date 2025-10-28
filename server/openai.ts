@@ -622,8 +622,9 @@ REMINDER: The suggestions array MUST contain EXACTLY 30 items. Count them if nee
 }
 
 export interface SwipeConcept {
-  conceptType: string; // e.g., "karaoke", "breweries", "outdoor-activities"
-  conceptDescription: string; // e.g., "Karaoke Night at Local Bar", "Craft Brewery Tour"
+  conceptType: string; // e.g., "coffee-shop", "cocktail-bar", "italian-restaurant"
+  conceptDescription: string; // User-friendly description: "Try a Cozy Coffee Shop", "Explore Cocktail Bars"
+  searchQuery: string; // Google Places query: "coffee shop", "cocktail bar", "Italian restaurant"
 }
 
 export async function generateSwipeConcepts(groupData: {
@@ -665,47 +666,48 @@ export async function generateSwipeConcepts(groupData: {
     // Format previously seen concepts to avoid repeats
     let avoidContext = '';
     if (groupData.previouslySeenConcepts && groupData.previouslySeenConcepts.length > 0) {
-      avoidContext = `\n\nIMPORTANT - DO NOT suggest these concepts again (already shown): ${groupData.previouslySeenConcepts.join(', ')}`;
+      avoidContext = `\n\nIMPORTANT - DO NOT suggest these types again (already shown): ${groupData.previouslySeenConcepts.join(', ')}`;
     }
 
-    const prompt = `You are an expert activity planner. Generate 20 diverse activity concept ideas for a group to swipe through.
+    const prompt = `You are an expert at finding great local venues. Generate 20 diverse venue type suggestions for a group to explore.
 
 Location: ${groupData.locationBase}
 Budget Range: $${groupData.budgetMin}-${groupData.budgetMax} per person${categoriesContext}
 ${groupData.pastPreferences ? `Past Preferences: ${groupData.pastPreferences}` : ''}${avoidContext}
 
 Requirements:
-1. Generate 20 specific, actionable activity ideas (NOT generic vibes or actions)
-2. Each concept should fit within the budget range
-3. ${groupData.activityCategories && groupData.activityCategories.length > 0 ? `PRIORITIZE the Activity Interests listed above - focus on these types` : 'Suggest a diverse mix of activity types'}
-4. Be SPECIFIC about the activity - avoid generic phrases like "bar hopping" or "clubbing"
-5. Examples of GOOD concepts (specific activities):
-   - "Pottery Painting Workshop"
-   - "Sunrise Trail Hike"
-   - "Hot Yoga Class"
-   - "Pickleball Match"
-   - "Wine & Paint Night"
-   - "Trivia at Irish Pub"
-   - "Sunday Farmers Market"
-   - "Rooftop Cocktails"
-   - "Bowling Night"
-6. Examples of BAD concepts (too vague/generic):
-   - "Bar hopping in the city" (too generic)
-   - "Clubbing till 2am" (just an action)
-   - "Going to museums" (too vague)
-7. Include a mix of food, entertainment, and activities
-8. Keep descriptions concise (2-4 words max) and specific
+1. Generate 20 specific VENUE TYPES (not specific venue names, just types of places to explore)
+2. Focus on types of venues that fit the budget range
+3. ${groupData.activityCategories && groupData.activityCategories.length > 0 ? `PRIORITIZE the Activity Interests listed above` : 'Suggest a diverse mix of venue types'}
+4. Include a mix of food/drink venues, entertainment venues, and activity venues
+5. Each venue type should be something you can search for on Google Maps
+
+GOOD examples:
+- conceptDescription: "Try a Cozy Coffee Shop", searchQuery: "coffee shop"
+- conceptDescription: "Explore Cocktail Bars", searchQuery: "cocktail bar"
+- conceptDescription: "Visit an Italian Restaurant", searchQuery: "Italian restaurant"
+- conceptDescription: "Find a Yoga Studio", searchQuery: "yoga studio"
+- conceptDescription: "Check Out Bowling Alleys", searchQuery: "bowling alley"
+- conceptDescription: "Discover Wine Bars", searchQuery: "wine bar"
+- conceptDescription: "Try Ramen Restaurants", searchQuery: "ramen restaurant"
+
+BAD examples (too specific or not searchable):
+- "Pottery Painting Workshop" (too specific, not a venue type)
+- "Sunset Hike" (not a venue)
+- "Bar Hopping" (too vague, not a searchable type)
 
 For each concept, provide:
-- conceptType: a short category slug (e.g., "pottery-class", "sunrise-hike", "hot-yoga", "pickleball")
-- conceptDescription: a specific 2-4 word activity name (e.g., "Pottery Painting Workshop", "Sunrise Trail Hike", "Hot Yoga Class")
+- conceptType: a short slug (e.g., "coffee-shop", "cocktail-bar", "italian-restaurant")
+- conceptDescription: user-friendly description (e.g., "Try a Cozy Coffee Shop", "Explore Cocktail Bars")
+- searchQuery: Google Places search term (e.g., "coffee shop", "cocktail bar", "Italian restaurant")
 
-Return your response as a JSON object with this structure:
+Return as JSON:
 {
   "concepts": [
     {
       "conceptType": "category-slug",
-      "conceptDescription": "Short catchy description"
+      "conceptDescription": "User-friendly description",
+      "searchQuery": "google places search term"
     }
   ]
 }`;
@@ -715,7 +717,7 @@ Return your response as a JSON object with this structure:
       messages: [
         {
           role: "system",
-          content: "You are an expert activity planner who creates engaging concept ideas for groups to explore. Always respond with valid JSON."
+          content: "You are an expert at suggesting venue types for groups to explore. Always respond with valid JSON."
         },
         {
           role: "user",

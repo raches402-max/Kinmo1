@@ -3175,10 +3175,9 @@ Looking forward to planning great activities together!
 
         // Convert concepts to venue-style cards and enrich with Google Places
         const enrichedConcepts = await Promise.all(
-          concepts.slice(0, neededCount).map(async (concept) => {
-            // Search Google Places for this concept
-            const searchQuery = `${concept.conceptDescription} near ${group.locationBase}`;
-            console.log(`[Swipe Deck] Searching for: "${searchQuery}"`);
+          concepts.slice(0, neededCount * 2).map(async (concept) => {
+            // Use the searchQuery field for Google Places search
+            console.log(`[Swipe Deck] Searching for "${concept.searchQuery}" near ${group.locationBase}`);
             
             try {
               // Parse coordinates - they're stored as strings in DB
@@ -3190,12 +3189,12 @@ Looking forward to planning great activities together!
               const coordinates = (lat !== undefined && lng !== undefined) ? { lat, lng } : undefined;
 
               const places = await import('./google-places').then(m => 
-                m.searchPlaces(searchQuery, group.locationBase, radius, coordinates)
+                m.searchPlaces(concept.searchQuery, group.locationBase, radius, coordinates)
               );
 
               if (places.length > 0) {
                 const place = places[0];
-                console.log(`[Swipe Deck] Found venue: "${place.name}" (rating: ${place.rating}, reviews: ${place.userRatingsTotal})`);
+                console.log(`[Swipe Deck] ✅ Found venue: "${place.name}" (${place.rating}⭐, ${place.userRatingsTotal} reviews)`);
                 
                 // Skip if we already have this place
                 if (existingPlaceIds.has(place.placeId)) {
@@ -3203,12 +3202,15 @@ Looking forward to planning great activities together!
                   return null;
                 }
 
+                // Add to existing places to avoid duplicates in this batch
+                existingPlaceIds.add(place.placeId);
+
                 return {
                   id: `ai-${concept.conceptType}-${Date.now()}-${Math.random()}`,
                   title: place.name,
                   description: concept.conceptDescription,
                   venueAddress: place.address,
-                  venueType: concept.conceptType,
+                  venueType: place.types?.[0] || concept.conceptType,
                   googlePlaceId: place.placeId,
                   rating: place.rating?.toString(),
                   reviewCount: place.userRatingsTotal,
@@ -3219,23 +3221,13 @@ Looking forward to planning great activities together!
                   groupId,
                 };
               } else {
-                console.warn(`[Swipe Deck] No Google Places results for: "${searchQuery}"`);
+                console.warn(`[Swipe Deck] ❌ No Google Places results for: "${concept.searchQuery}"`);
+                return null;
               }
             } catch (error) {
-              console.error(`[Swipe Deck] Error enriching concept "${concept.conceptDescription}":`, error);
+              console.error(`[Swipe Deck] Error searching for "${concept.searchQuery}":`, error);
+              return null;
             }
-
-            // Fallback to text-based concept if Google Places fails
-            console.log(`[Swipe Deck] Using text-only concept: "${concept.conceptDescription}"`);
-            return {
-              id: `ai-${concept.conceptType}-${Date.now()}-${Math.random()}`,
-              title: concept.conceptDescription,
-              description: concept.conceptDescription,
-              venueType: concept.conceptType,
-              sourceType: 'ai_suggestion' as const,
-              isNew: true,
-              groupId,
-            };
           })
         );
 
