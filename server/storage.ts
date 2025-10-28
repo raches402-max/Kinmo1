@@ -1281,18 +1281,24 @@ export class DatabaseStorage implements IStorage {
 
   async getAdminStats() {
     // Total users (authenticated + unclaimed members with unique emails)
+    // Avoid double-counting: count members whose emails don't exist in users table
     const [authUsersResult] = await db
       .select({ count: sql<number>`count(*)` })
       .from(users);
     const authUsersCount = Number(authUsersResult.count);
 
-    const [uniqueMemberEmailsResult] = await db
+    const [unclaimedMemberEmailsResult] = await db
       .select({ count: sql<number>`count(DISTINCT ${members.email})` })
       .from(members)
-      .where(sql`${members.email} IS NOT NULL`);
-    const uniqueMemberEmails = Number(uniqueMemberEmailsResult.count);
+      .where(
+        and(
+          sql`${members.email} IS NOT NULL`,
+          sql`NOT EXISTS (SELECT 1 FROM ${users} WHERE ${users.email} IS NOT NULL AND ${users.email} = ${members.email})`
+        )
+      );
+    const unclaimedMemberEmails = Number(unclaimedMemberEmailsResult.count);
     
-    const totalUsers = authUsersCount + uniqueMemberEmails;
+    const totalUsers = authUsersCount + unclaimedMemberEmails;
 
     // Total groups
     const [groupsResult] = await db
