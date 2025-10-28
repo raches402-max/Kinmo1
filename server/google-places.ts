@@ -5,6 +5,47 @@ import { eq, and } from "drizzle-orm";
 
 const client = new Client({});
 
+// Multi-key support for load balancing across API keys
+// KEY_2 is now primary (handles 80% of traffic), KEY_1 is backup (20%)
+let callCounter = 0;
+const apiKeyUsageStats = {
+  key1Calls: 0,
+  key2Calls: 0,
+};
+
+/**
+ * Get the next Google Places API key with weighted distribution
+ * KEY_2 is primary (80% of calls), KEY_1 is backup (20% of calls)
+ * This favors KEY_2 to distribute the load after migration
+ */
+function getNextApiKey(): string {
+  const key1 = process.env.GOOGLE_PLACES_API_KEY;
+  const key2 = process.env.GOOGLE_PLACES_API_KEY_2;
+
+  if (!key1) {
+    throw new Error("GOOGLE_PLACES_API_KEY is not set");
+  }
+
+  // If only one key is configured, use it
+  if (!key2) {
+    apiKeyUsageStats.key1Calls++;
+    return key1;
+  }
+
+  // Weighted distribution: KEY_2 gets 4 out of 5 calls (80%), KEY_1 gets 1 out of 5 (20%)
+  callCounter++;
+  const useKey2 = (callCounter % 5) !== 0; // Use KEY_2 unless it's every 5th call
+  
+  if (useKey2) {
+    apiKeyUsageStats.key2Calls++;
+    console.log(`[API Key] Using Key #2 PRIMARY (total calls: ${apiKeyUsageStats.key2Calls})`);
+    return key2;
+  } else {
+    apiKeyUsageStats.key1Calls++;
+    console.log(`[API Key] Using Key #1 backup (total calls: ${apiKeyUsageStats.key1Calls})`);
+    return key1;
+  }
+}
 
 /**
  * Get API key usage statistics

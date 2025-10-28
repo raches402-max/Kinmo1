@@ -123,6 +123,7 @@ export const members = pgTable("members", {
   
   // Event hosting
   openToHosting: boolean("open_to_hosting").default(false).notNull(), // Whether this member is willing to host events
+  lastHostedAt: timestamp("last_hosted_at"), // Last time this member hosted an event (for fair rotation)
   
   // Optional member profile fields
   homeBaseLocation: text("home_base_location"), // Member's home base (e.g., "San Francisco, CA")
@@ -406,6 +407,18 @@ export const photosCache = pgTable("photos_cache", {
   contentType: text("content_type").notNull().default("image/jpeg"), // MIME type
   createdAt: timestamp("created_at").defaultNow().notNull(),
   expiresAt: timestamp("expires_at").notNull(), // 30 days from createdAt
+});
+
+// Host assignments - track rotating host requests and responses
+export const hostAssignments = pgTable("host_assignments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  groupId: varchar("group_id").notNull().references(() => groups.id, { onDelete: "cascade" }),
+  itineraryId: varchar("itinerary_id").references(() => itineraries.id, { onDelete: "cascade" }), // Optional - may be null if creating event from scratch
+  memberId: varchar("member_id").notNull().references(() => members.id, { onDelete: "cascade" }), // Member being asked to host
+  status: text("status").notNull().default("pending"), // 'pending', 'accepted', 'declined'
+  askedAt: timestamp("asked_at").defaultNow().notNull(), // When the hosting request was sent
+  respondedAt: timestamp("responded_at"), // When member accepted/declined
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 // Relations
@@ -693,6 +706,12 @@ export const insertSearchCacheSchema = createInsertSchema(searchCache).omit({
   createdAt: true,
 });
 
+export const insertHostAssignmentSchema = createInsertSchema(hostAssignments).omit({
+  id: true,
+  createdAt: true,
+  askedAt: true,
+});
+
 // Update schemas (partial versions for PATCH operations)
 export const updateGroupSchema = insertGroupSchema.partial().refine(
   (data) => {
@@ -779,3 +798,6 @@ export type PlacesCache = typeof placesCache.$inferSelect;
 
 export type InsertSearchCache = z.infer<typeof insertSearchCacheSchema>;
 export type SearchCache = typeof searchCache.$inferSelect;
+
+export type InsertHostAssignment = z.infer<typeof insertHostAssignmentSchema>;
+export type HostAssignment = typeof hostAssignments.$inferSelect;
