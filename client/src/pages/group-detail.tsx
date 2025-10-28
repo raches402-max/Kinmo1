@@ -3293,65 +3293,67 @@ export default function GroupDetail() {
                                     );
                                   })()}
                                 </div>
-                                <Checkbox
-                                  id={`hosting-${member.id}`}
-                                  checked={member.openToHosting}
-                                  onCheckedChange={(checked) => {
-                                    toggleHostingMutation.mutate({
-                                      memberId: member.id,
-                                      openToHosting: checked === true
-                                    });
-                                  }}
-                                  data-testid={`checkbox-hosting-volunteer-${member.id}`}
-                                />
-                                {member.isOrganizer ? (
-                                  <Badge variant="secondary" className="text-xs">Organizer</Badge>
-                                ) : (
-                                  <div className="flex gap-1">
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-7 w-7"
-                                      onClick={() => {
-                                        setEditingMemberId(member.id);
-                                        setEditMemberData({
-                                          name: member.name || '',
-                                          email: member.email || ''
-                                        });
-                                      }}
-                                      data-testid={`button-edit-member-${member.id}`}
-                                    >
-                                      <Pencil className="h-3 w-3 text-muted-foreground" />
-                                    </Button>
-                                    <AlertDialog>
-                                      <AlertDialogTrigger asChild>
-                                        <Button 
-                                          variant="ghost" 
-                                          size="icon" 
-                                          className="h-7 w-7"
-                                        >
-                                          <Trash2 className="h-3 w-3 text-muted-foreground" />
-                                        </Button>
-                                      </AlertDialogTrigger>
-                                      <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                          <AlertDialogTitle>Remove Member</AlertDialogTitle>
-                                          <AlertDialogDescription>
-                                            Are you sure you want to remove {member.name || member.email || "this member"} from the group?
-                                          </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                          <AlertDialogAction
-                                            onClick={() => deleteMemberMutation.mutate(member.id)}
+                                <div className="flex items-center gap-2">
+                                  <Checkbox
+                                    id={`hosting-${member.id}`}
+                                    checked={member.openToHosting}
+                                    onCheckedChange={(checked) => {
+                                      toggleHostingMutation.mutate({
+                                        memberId: member.id,
+                                        openToHosting: checked === true
+                                      });
+                                    }}
+                                    data-testid={`checkbox-hosting-volunteer-${member.id}`}
+                                  />
+                                  {member.isOrganizer ? (
+                                    <Badge variant="secondary" className="text-xs whitespace-nowrap">Organizer</Badge>
+                                  ) : (
+                                    <div className="flex gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7"
+                                        onClick={() => {
+                                          setEditingMemberId(member.id);
+                                          setEditMemberData({
+                                            name: member.name || '',
+                                            email: member.email || ''
+                                          });
+                                        }}
+                                        data-testid={`button-edit-member-${member.id}`}
+                                      >
+                                        <Pencil className="h-3 w-3 text-muted-foreground" />
+                                      </Button>
+                                      <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                          <Button 
+                                            variant="ghost" 
+                                            size="icon" 
+                                            className="h-7 w-7"
                                           >
-                                            Remove
-                                          </AlertDialogAction>
-                                        </AlertDialogFooter>
-                                      </AlertDialogContent>
-                                    </AlertDialog>
-                                  </div>
-                                )}
+                                            <Trash2 className="h-3 w-3 text-muted-foreground" />
+                                          </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                          <AlertDialogHeader>
+                                            <AlertDialogTitle>Remove Member</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                              Are you sure you want to remove {member.name || member.email || "this member"} from the group?
+                                            </AlertDialogDescription>
+                                          </AlertDialogHeader>
+                                          <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction
+                                              onClick={() => deleteMemberMutation.mutate(member.id)}
+                                            >
+                                              Remove
+                                            </AlertDialogAction>
+                                          </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                      </AlertDialog>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             )}
                           </div>
