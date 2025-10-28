@@ -5272,6 +5272,68 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Admin endpoint to get list of test accounts
+  // Protected endpoint - requires authentication and admin privileges
+  app.get("/api/admin/test-accounts", isAuthenticated, async (req: any, res) => {
+    try {
+      // Check if user is admin
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      const adminEmails = ['raches402@gmail.com'];
+      if (!user || !adminEmails.includes(user.email || '')) {
+        return res.status(403).json({ message: "Unauthorized: Admin access required" });
+      }
+
+      const testAccounts = await storage.getTestAccounts();
+      res.json(testAccounts);
+    } catch (error: any) {
+      console.error("Error fetching test accounts:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Admin endpoint to switch to a test account
+  // Protected endpoint - requires authentication and admin privileges
+  app.post("/api/admin/switch-user", isAuthenticated, async (req: any, res) => {
+    try {
+      // Check if user is admin
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      const adminEmails = ['raches402@gmail.com'];
+      if (!user || !adminEmails.includes(user.email || '')) {
+        return res.status(403).json({ message: "Unauthorized: Admin access required" });
+      }
+
+      const { targetUserId } = req.body;
+      if (!targetUserId) {
+        return res.status(400).json({ message: "targetUserId is required" });
+      }
+
+      // Get the target user to verify they're a test account
+      const targetUser = await storage.getUser(targetUserId);
+      if (!targetUser) {
+        return res.status(404).json({ message: "Target user not found" });
+      }
+
+      // Verify it's a test account
+      const isTestAccount = targetUser.email?.includes('@example.com') || targetUser.email?.includes('@test.com');
+      if (!isTestAccount) {
+        return res.status(403).json({ message: "Can only switch to test accounts" });
+      }
+
+      // Update the session to impersonate the target user
+      req.user.claims.sub = targetUserId;
+      req.user.claims.email = targetUser.email;
+      
+      res.json({ success: true, user: targetUser });
+    } catch (error: any) {
+      console.error("Error switching user:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

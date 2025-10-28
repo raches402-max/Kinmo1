@@ -1543,6 +1543,27 @@ export class DatabaseStorage implements IStorage {
       }
     };
   }
+
+  async getTestAccounts() {
+    const testUsers = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        firstName: users.firstName,
+        lastName: users.lastName
+      })
+      .from(users)
+      .where(
+        or(
+          sql`${users.email} LIKE '%@example.com'`,
+          sql`${users.email} LIKE '%@test.com'`
+        )
+      )
+      .orderBy(users.email)
+      .limit(50);
+
+    return testUsers;
+  }
 }
 
 export const storage = new DatabaseStorage();
