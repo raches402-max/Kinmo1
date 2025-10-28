@@ -141,6 +141,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Not in cache or expired - download from Google
       console.log(`[Photo Cache] MISS - downloading ${photoReference}`);
       
+      // Use KEY_1 by default for photo downloads (not part of round-robin since photos should be cached)
       const apiKey = process.env.GOOGLE_PLACES_API_KEY;
       if (!apiKey) {
         return res.status(500).json({ message: "Google API key not configured" });
