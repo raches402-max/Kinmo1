@@ -98,6 +98,9 @@ export default function Dashboard() {
   const [showCreateEventDialog, setShowCreateEventDialog] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
   
+  // Test account switcher dialog state
+  const [showTestAccountDialog, setShowTestAccountDialog] = useState(false);
+  
   // Feedback dialog state (for RSVP feedback)
   const [showFeedbackDialog, setShowFeedbackDialog] = useState(false);
   const [feedbackEvent, setFeedbackEvent] = useState<{event: UserEvent, response: string} | null>(null);
@@ -853,23 +856,13 @@ export default function Dashboard() {
                         </DropdownMenuItem>
                       </Link>
                       {testAccounts.length > 0 && (
-                        <DropdownMenuSub>
-                          <DropdownMenuSubTrigger data-testid="submenu-switch-user">
-                            <Users className="mr-2 h-4 w-4" />
-                            Switch to Test Account
-                          </DropdownMenuSubTrigger>
-                          <DropdownMenuSubContent>
-                            {testAccounts.map((account) => (
-                              <DropdownMenuItem
-                                key={account.id}
-                                onClick={() => switchUserMutation.mutate(account.id)}
-                                data-testid={`switch-to-${account.id}`}
-                              >
-                                {account.email}
-                              </DropdownMenuItem>
-                            ))}
-                          </DropdownMenuSubContent>
-                        </DropdownMenuSub>
+                        <DropdownMenuItem 
+                          onClick={() => setShowTestAccountDialog(true)}
+                          data-testid="menu-switch-user"
+                        >
+                          <Users className="mr-2 h-4 w-4" />
+                          Switch to Test Account
+                        </DropdownMenuItem>
                       )}
                     </>
                   )}
@@ -2158,6 +2151,40 @@ export default function Dashboard() {
               Continue
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Test Account Switcher Dialog */}
+      <Dialog open={showTestAccountDialog} onOpenChange={setShowTestAccountDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Switch to Test Account</DialogTitle>
+            <DialogDescription>
+              Select a test account to switch to for testing purposes
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {testAccounts.map((account) => (
+              <button
+                key={account.id}
+                onClick={() => {
+                  switchUserMutation.mutate(account.id);
+                  setShowTestAccountDialog(false);
+                }}
+                className="w-full text-left p-3 rounded-md border border-border hover-elevate transition-colors"
+                data-testid={`button-switch-to-${account.id}`}
+              >
+                <div className="flex flex-col gap-1">
+                  <div className="font-medium">{account.email}</div>
+                  {(account.firstName || account.lastName) && (
+                    <div className="text-sm text-muted-foreground">
+                      {[account.firstName, account.lastName].filter(Boolean).join(' ')}
+                    </div>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
