@@ -2,7 +2,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, updateUserProfileSchema, activities as activitiesTable, groups as groupsTable, members as membersTable, itineraryInvites, rsvps as rsvpsTable, itineraries, itineraryItems, proposedTimeSlots, userProfiles, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
+import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, updateUserProfileSchema, activities as activitiesTable, groups as groupsTable, members as membersTable, itineraryInvites, rsvps as rsvpsTable, itineraries, itineraryItems, proposedTimeSlots, userProfiles, photosCache, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
 import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue, analyzePreferencePatterns, parseSchedulingPrompt } from "./openai";
 import { searchPlaces, searchNearbyPlaces, geocodeLocation, clearPlacesCache, getCacheStats } from "./google-places";
 import { setupAuth, isAuthenticated } from "./replitAuth";
@@ -103,6 +103,92 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // Photo proxy endpoint - caches Google Place photos to reduce API costs
+  app.get('/api/photos/:photoReference', async (req, res) => {
+    try {
+      const { photoReference } = req.params;
+      
+      if (!photoReference) {
+        return res.status(400).json({ message: "Photo reference is required" });
+      }
+
+      // Check cache first
+      const cached = await db
+        .select()
+        .from(photosCache)
+        .where(eq(photosCache.photoReference, photoReference))
+        .limit(1);
+
+      if (cached.length > 0) {
+        const cachedPhoto = cached[0];
+        
+        // Check if expired
+        if (new Date() > cachedPhoto.expiresAt) {
+          console.log(`[Photo Cache] EXPIRED - ${photoReference}`);
+          await db.delete(photosCache).where(eq(photosCache.photoReference, photoReference));
+        } else {
+          console.log(`[Photo Cache] HIT - ${photoReference}`);
+          const imageBuffer = Buffer.from(cachedPhoto.imageData, 'base64');
+          res.set('Content-Type', cachedPhoto.contentType);
+          res.set('Cache-Control', 'public, max-age=2592000'); // 30 days
+          return res.send(imageBuffer);
+        }
+      }
+
+      // Not in cache or expired - download from Google
+      console.log(`[Photo Cache] MISS - downloading ${photoReference}`);
+      
+      const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ message: "Google API key not configured" });
+      }
+
+      const photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${photoReference}&key=${apiKey}`;
+      
+      const photoResponse = await fetch(photoUrl);
+      if (!photoResponse.ok) {
+        console.error(`[Photo Cache] Failed to fetch photo: ${photoResponse.status}`);
+        return res.status(404).json({ message: "Photo not found" });
+      }
+
+      const photoBuffer = await photoResponse.arrayBuffer();
+      const contentType = photoResponse.headers.get('content-type') || 'image/jpeg';
+      const base64Data = Buffer.from(photoBuffer).toString('base64');
+
+      // Cache it
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30); // 30 days
+
+      await db
+        .insert(photosCache)
+        .values({
+          photoReference,
+          imageData: base64Data,
+          contentType,
+          expiresAt,
+        })
+        .onConflictDoUpdate({
+          target: photosCache.photoReference,
+          set: {
+            imageData: base64Data,
+            contentType,
+            expiresAt,
+          },
+        });
+
+      console.log(`[Photo Cache] SAVED - ${photoReference} (expires in 30 days)`);
+
+      // Return the photo
+      res.set('Content-Type', contentType);
+      res.set('Cache-Control', 'public, max-age=2592000'); // 30 days
+      res.send(Buffer.from(photoBuffer));
+
+    } catch (error) {
+      console.error("Error fetching photo:", error);
+      res.status(500).json({ message: "Failed to fetch photo" });
     }
   });
 
