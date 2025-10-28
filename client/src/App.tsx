@@ -22,6 +22,7 @@ import MemberEventsPage from "@/pages/member-events";
 import Profile from "@/pages/profile";
 import MemberProfileSetup from "@/pages/member-profile-setup";
 import EventDetailsPage from "@/pages/event-details";
+import Admin from "@/pages/admin";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -56,6 +57,7 @@ function Router() {
           <Route path="/profile" component={Profile} />
           <Route path="/member-profile-setup/:memberId" component={MemberProfileSetup} />
           <Route path="/event/:id" component={EventDetailsPage} />
+          <Route path="/admin" component={Admin} />
         </>
       )}
       <Route component={NotFound} />

@@ -155,6 +155,19 @@ export interface IStorage {
   // Category Search History
   saveCategorySearch(search: InsertCategorySearchHistory): Promise<CategorySearchHistory>;
   getRecentCategorySearches(groupId: string, limit?: number): Promise<CategorySearchHistory[]>;
+
+  // Admin Stats
+  getAdminStats(): Promise<{
+    totalUsers: number;
+    totalGroups: number;
+    totalEvents: number;
+    eventsHeld: number;
+    activeGroups: number;
+    repeatAttendanceRate: number;
+    topCities: Array<{ city: string; eventCount: number }>;
+    eventsPerWeek: Array<{ week: string; count: number }>;
+    newVsReturning: { newAttendees: number; returningAttendees: number };
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1264,6 +1277,206 @@ export class DatabaseStorage implements IStorage {
       .where(eq(categorySearchHistory.groupId, groupId))
       .orderBy(desc(categorySearchHistory.createdAt))
       .limit(limit);
+  }
+
+  async getAdminStats() {
+    // Total users (authenticated + unclaimed members with unique emails)
+    const [authUsersResult] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(users);
+    const authUsersCount = Number(authUsersResult.count);
+
+    const [uniqueMemberEmailsResult] = await db
+      .select({ count: sql<number>`count(DISTINCT ${members.email})` })
+      .from(members)
+      .where(sql`${members.email} IS NOT NULL`);
+    const uniqueMemberEmails = Number(uniqueMemberEmailsResult.count);
+    
+    const totalUsers = authUsersCount + uniqueMemberEmails;
+
+    // Total groups
+    const [groupsResult] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(groups);
+    const totalGroups = Number(groupsResult.count);
+
+    // Total events (all itineraries)
+    const [eventsResult] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(itineraries);
+    const totalEvents = Number(eventsResult.count);
+
+    // Events held (past events with confirmed dates)
+    const [eventsHeldResult] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(itineraries)
+      .where(
+        and(
+          sql`${itineraries.eventDate} IS NOT NULL`,
+          sql`${itineraries.eventDate} < NOW()`
+        )
+      );
+    const eventsHeld = Number(eventsHeldResult.count);
+
+    // Active groups (groups with events held in last 60 days)
+    const sixtyDaysAgo = new Date();
+    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+    const now = new Date();
+    
+    const [activeGroupsResult] = await db
+      .select({ count: sql<number>`count(DISTINCT ${itineraries.groupId})` })
+      .from(itineraries)
+      .where(
+        and(
+          sql`${itineraries.eventDate} IS NOT NULL`,
+          sql`${itineraries.eventDate} >= ${sixtyDaysAgo.toISOString()}`,
+          sql`${itineraries.eventDate} <= ${now.toISOString()}`
+        )
+      );
+    const activeGroups = Number(activeGroupsResult.count);
+
+    // Repeat attendance rate (% of users who attended 2+ events)
+    // Count users with 2+ "yes" RSVPs
+    const usersWithMultipleAttendances = await db
+      .select({
+        userId: rsvps.userId,
+        memberId: rsvps.memberId,
+        count: sql<number>`count(*)`
+      })
+      .from(rsvps)
+      .innerJoin(itineraries, eq(rsvps.itineraryId, itineraries.id))
+      .where(
+        and(
+          eq(rsvps.response, 'yes'),
+          sql`${itineraries.eventDate} IS NOT NULL`,
+          sql`${itineraries.eventDate} < NOW()`
+        )
+      )
+      .groupBy(rsvps.userId, rsvps.memberId)
+      .having(sql`count(*) >= 2`);
+
+    const repeatAttenders = usersWithMultipleAttendances.length;
+    
+    // Total unique attendees (users or members with at least 1 "yes" RSVP to past event)
+    const [totalAttendeesResult] = await db
+      .select({ 
+        count: sql<number>`count(DISTINCT COALESCE(${rsvps.userId}, ${rsvps.memberId}))` 
+      })
+      .from(rsvps)
+      .innerJoin(itineraries, eq(rsvps.itineraryId, itineraries.id))
+      .where(
+        and(
+          eq(rsvps.response, 'yes'),
+          sql`${itineraries.eventDate} IS NOT NULL`,
+          sql`${itineraries.eventDate} < NOW()`
+        )
+      );
+    
+    const totalAttendees = Number(totalAttendeesResult.count);
+    const repeatAttendanceRate = totalAttendees > 0 ? (repeatAttenders / totalAttendees) * 100 : 0;
+
+    // Top cities by event count (extract city from group location)
+    const cityEvents = await db
+      .select({
+        location: groups.locationBase,
+        eventCount: sql<number>`count(${itineraries.id})`
+      })
+      .from(groups)
+      .leftJoin(itineraries, eq(groups.id, itineraries.groupId))
+      .where(sql`${itineraries.eventDate} IS NOT NULL`)
+      .groupBy(groups.locationBase)
+      .orderBy(desc(sql`count(${itineraries.id})`))
+      .limit(10);
+
+    const topCities = cityEvents.map(row => ({
+      city: row.location || 'Unknown',
+      eventCount: Number(row.eventCount)
+    }));
+
+    // Events per week (last 90 days)
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    
+    const weeklyEvents = await db
+      .select({
+        week: sql<string>`TO_CHAR(DATE_TRUNC('week', ${itineraries.eventDate}), 'YYYY-MM-DD')`,
+        count: sql<number>`count(*)`
+      })
+      .from(itineraries)
+      .where(
+        and(
+          sql`${itineraries.eventDate} IS NOT NULL`,
+          sql`${itineraries.eventDate} >= ${ninetyDaysAgo.toISOString()}`
+        )
+      )
+      .groupBy(sql`DATE_TRUNC('week', ${itineraries.eventDate})`)
+      .orderBy(sql`DATE_TRUNC('week', ${itineraries.eventDate})`);
+
+    const eventsPerWeek = weeklyEvents.map(row => ({
+      week: row.week,
+      count: Number(row.count)
+    }));
+
+    // New vs returning attendees this month
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    // Get all attendees this month
+    const thisMonthAttendees = await db
+      .select({
+        userId: rsvps.userId,
+        memberId: rsvps.memberId
+      })
+      .from(rsvps)
+      .innerJoin(itineraries, eq(rsvps.itineraryId, itineraries.id))
+      .where(
+        and(
+          eq(rsvps.response, 'yes'),
+          sql`${itineraries.eventDate} >= ${startOfMonth.toISOString()}`
+        )
+      );
+
+    // For each attendee, check if they had prior attendance
+    let newAttendees = 0;
+    let returningAttendees = 0;
+
+    for (const attendee of thisMonthAttendees) {
+      const priorAttendance = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(rsvps)
+        .innerJoin(itineraries, eq(rsvps.itineraryId, itineraries.id))
+        .where(
+          and(
+            eq(rsvps.response, 'yes'),
+            sql`${itineraries.eventDate} < ${startOfMonth.toISOString()}`,
+            attendee.userId 
+              ? eq(rsvps.userId, attendee.userId)
+              : eq(rsvps.memberId, attendee.memberId!)
+          )
+        );
+
+      if (Number(priorAttendance[0].count) > 0) {
+        returningAttendees++;
+      } else {
+        newAttendees++;
+      }
+    }
+
+    return {
+      totalUsers,
+      totalGroups,
+      totalEvents,
+      eventsHeld,
+      activeGroups,
+      repeatAttendanceRate: Math.round(repeatAttendanceRate * 10) / 10, // Round to 1 decimal
+      topCities,
+      eventsPerWeek,
+      newVsReturning: {
+        newAttendees,
+        returningAttendees
+      }
+    };
   }
 }
 

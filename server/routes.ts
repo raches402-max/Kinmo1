@@ -5249,6 +5249,29 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Admin endpoint to get platform statistics
+  // Protected endpoint - requires authentication and admin privileges
+  app.get("/api/admin/stats", isAuthenticated, async (req: any, res) => {
+    try {
+      // Check if user is admin (currently only the platform owner)
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      // For now, only allow specific admin email
+      // TODO: Add admin role to user profile for better scalability
+      const adminEmails = ['raches402@gmail.com'];
+      if (!user || !adminEmails.includes(user.email || '')) {
+        return res.status(403).json({ message: "Unauthorized: Admin access required" });
+      }
+
+      const stats = await storage.getAdminStats();
+      res.json(stats);
+    } catch (error: any) {
+      console.error("Error fetching admin stats:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
