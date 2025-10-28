@@ -2,8 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { Users, Calendar, TrendingUp, MapPin, Repeat, ArrowLeft } from "lucide-react";
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from "recharts";
+import { Users, Calendar, TrendingUp, MapPin, Repeat, ArrowLeft, DollarSign, Database } from "lucide-react";
 import { format } from "date-fns";
 
 interface AdminStats {
@@ -19,9 +19,47 @@ interface AdminStats {
   newVsReturning: { newAttendees: number; returningAttendees: number };
 }
 
+interface ApiCosts {
+  apiCalls: {
+    textSearch: { estimated: number; cost: number; pricePerThousand: number };
+    placeDetails: { estimated: number; cost: number; pricePerThousand: number; tier: string };
+    geocoding: { estimated: number; cost: number; pricePerThousand: number };
+    photos: { estimated: number; cost: number; pricePerThousand: number; note: string };
+  };
+  totals: {
+    estimatedCalls: number;
+    estimatedCost: number;
+  };
+  caching: {
+    textSearchHits: number;
+    placeDetailsHits: number;
+    geocodingHits: number;
+    totalHits: number;
+    hitRate: string;
+    savedCost: number;
+  };
+  apiKeys: {
+    key1Calls: number;
+    key2Calls: number;
+    totalCalls: number;
+    key2Configured: boolean;
+  };
+  database: {
+    activities: number;
+    uniquePlaces: number;
+    groups: number;
+    geocodingCacheSize: number;
+    photosCacheSize: number;
+  };
+}
+
 export default function Admin() {
   const { data: stats, isLoading, error } = useQuery<AdminStats>({
     queryKey: ["/api/admin/stats"],
+  });
+
+  const { data: apiCosts, isLoading: costsLoading } = useQuery<ApiCosts>({
+    queryKey: ["/api/admin/api-costs"],
   });
 
   if (isLoading) {
@@ -158,6 +196,134 @@ export default function Admin() {
           </CardContent>
         </Card>
       </div>
+
+      {/* API Costs Section */}
+      {!costsLoading && apiCosts && (
+        <>
+          <div className="border-t pt-6">
+            <h2 className="text-2xl font-bold mb-4">Google Places API Cost Breakdown</h2>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Card data-testid="card-total-api-cost">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Estimated Cost</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-primary" data-testid="text-total-cost">
+                  ${apiCosts.totals.estimatedCost.toFixed(2)}
+                </div>
+                <p className="text-xs text-muted-foreground">{apiCosts.totals.estimatedCalls.toLocaleString()} total API calls</p>
+              </CardContent>
+            </Card>
+
+            <Card data-testid="card-cache-savings">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Cache Savings</CardTitle>
+                <TrendingUp className="h-4 w-4 text-green-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600" data-testid="text-cache-savings">
+                  ${apiCosts.caching.savedCost.toFixed(2)}
+                </div>
+                <p className="text-xs text-muted-foreground">{apiCosts.caching.hitRate} cache hit rate</p>
+              </CardContent>
+            </Card>
+
+            <Card data-testid="card-api-keys">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">API Key Usage</CardTitle>
+                <Database className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold" data-testid="text-api-key-calls">
+                  {apiCosts.apiKeys.totalCalls.toLocaleString()}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {apiCosts.apiKeys.key2Configured 
+                    ? `Key 1: ${apiCosts.apiKeys.key1Calls} | Key 2: ${apiCosts.apiKeys.key2Calls}` 
+                    : 'Single key configured'}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card data-testid="card-cache-size">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Cache Database</CardTitle>
+                <Database className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold" data-testid="text-cache-size">
+                  {(apiCosts.database.geocodingCacheSize + apiCosts.database.photosCacheSize).toLocaleString()}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {apiCosts.database.geocodingCacheSize} geocoding, {apiCosts.database.photosCacheSize} photos
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* API Breakdown Table */}
+          <Card data-testid="card-api-breakdown">
+            <CardHeader>
+              <CardTitle>API Cost Breakdown</CardTitle>
+              <CardDescription>Estimated costs by API type</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="grid grid-cols-4 gap-4 pb-2 border-b font-medium text-sm">
+                  <div>API Type</div>
+                  <div className="text-right">Calls</div>
+                  <div className="text-right">Rate</div>
+                  <div className="text-right">Cost</div>
+                </div>
+
+                <div className="grid grid-cols-4 gap-4 items-center">
+                  <div className="font-medium">Text Search</div>
+                  <div className="text-right text-muted-foreground">{apiCosts.apiCalls.textSearch.estimated.toLocaleString()}</div>
+                  <div className="text-right text-muted-foreground">${apiCosts.apiCalls.textSearch.pricePerThousand}/1K</div>
+                  <div className="text-right font-semibold">${apiCosts.apiCalls.textSearch.cost.toFixed(2)}</div>
+                </div>
+
+                <div className="grid grid-cols-4 gap-4 items-center">
+                  <div className="font-medium">
+                    Place Details
+                    <span className="ml-2 text-xs text-green-600">({apiCosts.apiCalls.placeDetails.tier})</span>
+                  </div>
+                  <div className="text-right text-muted-foreground">{apiCosts.apiCalls.placeDetails.estimated.toLocaleString()}</div>
+                  <div className="text-right text-muted-foreground">${apiCosts.apiCalls.placeDetails.pricePerThousand}/1K</div>
+                  <div className="text-right font-semibold">${apiCosts.apiCalls.placeDetails.cost.toFixed(2)}</div>
+                </div>
+
+                <div className="grid grid-cols-4 gap-4 items-center">
+                  <div className="font-medium">Geocoding</div>
+                  <div className="text-right text-muted-foreground">{apiCosts.apiCalls.geocoding.estimated.toLocaleString()}</div>
+                  <div className="text-right text-muted-foreground">${apiCosts.apiCalls.geocoding.pricePerThousand}/1K</div>
+                  <div className="text-right font-semibold">${apiCosts.apiCalls.geocoding.cost.toFixed(2)}</div>
+                </div>
+
+                <div className="grid grid-cols-4 gap-4 items-center">
+                  <div>
+                    <div className="font-medium">Place Photos</div>
+                    <div className="text-xs text-muted-foreground">{apiCosts.apiCalls.photos.note}</div>
+                  </div>
+                  <div className="text-right text-muted-foreground">{apiCosts.apiCalls.photos.estimated.toLocaleString()}</div>
+                  <div className="text-right text-muted-foreground">${apiCosts.apiCalls.photos.pricePerThousand}/1K</div>
+                  <div className="text-right font-semibold">${apiCosts.apiCalls.photos.cost.toFixed(2)}</div>
+                </div>
+
+                <div className="grid grid-cols-4 gap-4 pt-2 border-t font-bold">
+                  <div>Total</div>
+                  <div className="text-right">{apiCosts.totals.estimatedCalls.toLocaleString()}</div>
+                  <div></div>
+                  <div className="text-right text-primary">${apiCosts.totals.estimatedCost.toFixed(2)}</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
 
       {/* Charts */}
       <div className="grid gap-4 md:grid-cols-2">

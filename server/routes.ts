@@ -5484,6 +5484,123 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Admin endpoint to get API cost estimates and usage breakdown
+  app.get("/api/admin/api-costs", isAuthenticated, async (req: any, res) => {
+    try {
+      // Check if user is admin
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      const adminEmails = ['raches402@gmail.com'];
+      if (!user || !adminEmails.includes(user.email || '')) {
+        return res.status(403).json({ message: "Unauthorized: Admin access required" });
+      }
+
+      // Get database counts
+      const [activitiesCount, geocodingCacheCount, photosCacheCount, groupsCount] = await Promise.all([
+        db.select({ count: sql<number>`count(*)` }).from(activitiesTable).then(r => r[0]?.count || 0),
+        db.select({ count: sql<number>`count(*)` }).from(geocodingCache).then(r => r[0]?.count || 0),
+        db.select({ count: sql<number>`count(*)` }).from(photosCache).then(r => r[0]?.count || 0),
+        db.select({ count: sql<number>`count(*)` }).from(groupsTable).then(r => r[0]?.count || 0),
+      ]);
+
+      // Get unique places count
+      const uniquePlaces = await db
+        .selectDistinct({ placeId: activitiesTable.googlePlaceId })
+        .from(activitiesTable)
+        .where(sql`${activitiesTable.googlePlaceId} IS NOT NULL`);
+      
+      const uniquePlacesCount = uniquePlaces.length;
+
+      // Get cache statistics
+      const cacheStats = getCacheStats();
+      
+      // Get API key usage statistics
+      const { getApiKeyStats } = await import('./google-places');
+      const apiKeyStats = getApiKeyStats();
+
+      // Estimate API calls and costs
+      const estimatedTextSearchCalls = Math.floor(activitiesCount / 15); // ~15 activities per group generation
+      const estimatedPlaceDetailsCalls = uniquePlacesCount;
+      const estimatedGeocodingCalls = groupsCount;
+      const estimatedPhotoCalls = photosCacheCount; // Photos that were cached (downloaded once)
+
+      // Cost calculations (per 1,000 requests)
+      const textSearchCost = (estimatedTextSearchCalls / 1000) * 17; // $17 per 1K
+      const placeDetailsCost = (estimatedPlaceDetailsCalls / 1000) * 5; // $5 per 1K (Basic tier)
+      const geocodingCost = (estimatedGeocodingCalls / 1000) * 5; // $5 per 1K
+      const photoCost = (estimatedPhotoCalls / 1000) * 7; // $7 per 1K (one-time downloads)
+
+      const totalCost = textSearchCost + placeDetailsCost + geocodingCost + photoCost;
+
+      // Calculate savings from caching
+      const savedTextSearchCalls = cacheStats.searchHits;
+      const savedPlaceDetailsCalls = cacheStats.placeDetailsHits;
+      const savedGeocodingCalls = cacheStats.geocodeHits;
+      
+      const savedTextSearchCost = (savedTextSearchCalls / 1000) * 17;
+      const savedPlaceDetailsCost = (savedPlaceDetailsCalls / 1000) * 5;
+      const savedGeocodingCost = (savedGeocodingCalls / 1000) * 5;
+      
+      const totalSavings = savedTextSearchCost + savedPlaceDetailsCost + savedGeocodingCost;
+
+      res.json({
+        apiCalls: {
+          textSearch: {
+            estimated: estimatedTextSearchCalls,
+            cost: textSearchCost,
+            pricePerThousand: 17,
+          },
+          placeDetails: {
+            estimated: estimatedPlaceDetailsCalls,
+            cost: placeDetailsCost,
+            pricePerThousand: 5,
+            tier: 'Basic',
+          },
+          geocoding: {
+            estimated: estimatedGeocodingCalls,
+            cost: geocodingCost,
+            pricePerThousand: 5,
+          },
+          photos: {
+            estimated: estimatedPhotoCalls,
+            cost: photoCost,
+            pricePerThousand: 7,
+            note: 'Cached downloads (one-time cost)',
+          },
+        },
+        totals: {
+          estimatedCalls: estimatedTextSearchCalls + estimatedPlaceDetailsCalls + estimatedGeocodingCalls + estimatedPhotoCalls,
+          estimatedCost: totalCost,
+        },
+        caching: {
+          textSearchHits: cacheStats.searchHits,
+          placeDetailsHits: cacheStats.placeDetailsHits,
+          geocodingHits: cacheStats.geocodeHits,
+          totalHits: cacheStats.totalHits,
+          hitRate: cacheStats.hitRate,
+          savedCost: totalSavings,
+        },
+        apiKeys: {
+          key1Calls: apiKeyStats.key1Calls,
+          key2Calls: apiKeyStats.key2Calls,
+          totalCalls: apiKeyStats.totalCalls,
+          key2Configured: apiKeyStats.key2Configured,
+        },
+        database: {
+          activities: activitiesCount,
+          uniquePlaces: uniquePlacesCount,
+          groups: groupsCount,
+          geocodingCacheSize: geocodingCacheCount,
+          photosCacheSize: photosCacheCount,
+        },
+      });
+    } catch (error: any) {
+      console.error("Error fetching API costs:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
