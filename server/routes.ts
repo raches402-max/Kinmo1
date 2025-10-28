@@ -5484,6 +5484,148 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Admin endpoint to cache all uncached photos (migration)
+  app.post("/api/admin/cache-photos", isAuthenticated, async (req: any, res) => {
+    try {
+      // Check if user is admin
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      const adminEmails = ['raches402@gmail.com'];
+      if (!user || !adminEmails.includes(user.email || '')) {
+        return res.status(403).json({ message: "Unauthorized: Admin access required" });
+      }
+
+      // Use only KEY_2 for migration
+      const apiKey = process.env.GOOGLE_PLACES_API_KEY_2;
+      if (!apiKey) {
+        return res.status(500).json({ message: "GOOGLE_PLACES_API_KEY_2 not configured" });
+      }
+
+      console.log('[Photo Migration] Starting photo caching migration using KEY_2...');
+
+      // Get all activities with direct Google URLs
+      const uncachedActivities = await db
+        .select({
+          id: activitiesTable.id,
+          photoUrl: activitiesTable.photoUrl,
+        })
+        .from(activitiesTable)
+        .where(sql`${activitiesTable.photoUrl} LIKE 'https://maps.googleapis.com/%'`);
+
+      console.log(`[Photo Migration] Found ${uncachedActivities.length} activities with uncached photos`);
+
+      let successCount = 0;
+      let errorCount = 0;
+      const errors: Array<{ activityId: string; error: string }> = [];
+
+      // Process in batches to avoid overwhelming the API
+      const BATCH_SIZE = 10;
+      for (let i = 0; i < uncachedActivities.length; i += BATCH_SIZE) {
+        const batch = uncachedActivities.slice(i, i + BATCH_SIZE);
+        
+        await Promise.all(batch.map(async (activity) => {
+          try {
+            // Extract photo_reference from URL
+            const urlMatch = activity.photoUrl?.match(/photo_reference=([^&]+)/);
+            if (!urlMatch) {
+              throw new Error('Could not extract photo reference from URL');
+            }
+            
+            const photoReference = urlMatch[1];
+            
+            // Check if already cached
+            const existing = await db
+              .select()
+              .from(photosCache)
+              .where(eq(photosCache.photoReference, photoReference))
+              .limit(1);
+
+            if (existing.length > 0 && new Date() < existing[0].expiresAt) {
+              console.log(`[Photo Migration] Already cached: ${photoReference}`);
+              
+              // Update activity to use proxy URL
+              await db
+                .update(activitiesTable)
+                .set({ photoUrl: `/api/photos/${photoReference}` })
+                .where(eq(activitiesTable.id, activity.id));
+              
+              successCount++;
+              return;
+            }
+
+            // Download photo using KEY_2
+            const photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${photoReference}&key=${apiKey}`;
+            const photoResponse = await fetch(photoUrl);
+            
+            if (!photoResponse.ok) {
+              throw new Error(`Failed to fetch photo: ${photoResponse.status}`);
+            }
+
+            const photoBuffer = await photoResponse.arrayBuffer();
+            const contentType = photoResponse.headers.get('content-type') || 'image/jpeg';
+            const base64Data = Buffer.from(photoBuffer).toString('base64');
+
+            // Cache the photo
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + 30); // 30 days
+
+            await db
+              .insert(photosCache)
+              .values({
+                photoReference,
+                imageData: base64Data,
+                contentType,
+                expiresAt,
+              })
+              .onConflictDoUpdate({
+                target: photosCache.photoReference,
+                set: {
+                  imageData: base64Data,
+                  contentType,
+                  expiresAt,
+                },
+              });
+
+            // Update activity to use proxy URL
+            await db
+              .update(activitiesTable)
+              .set({ photoUrl: `/api/photos/${photoReference}` })
+              .where(eq(activitiesTable.id, activity.id));
+
+            console.log(`[Photo Migration] ✓ Cached and updated: ${photoReference}`);
+            successCount++;
+          } catch (error: any) {
+            console.error(`[Photo Migration] ✗ Error for activity ${activity.id}:`, error.message);
+            errorCount++;
+            errors.push({ activityId: activity.id, error: error.message });
+          }
+        }));
+
+        // Log progress
+        console.log(`[Photo Migration] Progress: ${Math.min(i + BATCH_SIZE, uncachedActivities.length)}/${uncachedActivities.length} processed`);
+        
+        // Small delay between batches
+        if (i + BATCH_SIZE < uncachedActivities.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+
+      console.log(`[Photo Migration] Complete! Success: ${successCount}, Errors: ${errorCount}`);
+
+      res.json({
+        success: true,
+        total: uncachedActivities.length,
+        cached: successCount,
+        errors: errorCount,
+        errorDetails: errors.slice(0, 10), // Return first 10 errors
+      });
+    } catch (error: any) {
+      console.error("Error in photo caching migration:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Admin endpoint to get API cost estimates and usage breakdown
   app.get("/api/admin/api-costs", isAuthenticated, async (req: any, res) => {
     try {

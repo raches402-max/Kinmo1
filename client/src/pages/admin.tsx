@@ -1,12 +1,14 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from "recharts";
-import { Users, Calendar, TrendingUp, MapPin, Repeat, ArrowLeft, DollarSign, Database } from "lucide-react";
+import { Users, Calendar, TrendingUp, MapPin, Repeat, ArrowLeft, DollarSign, Database, Download } from "lucide-react";
 import { format } from "date-fns";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface AdminStats {
   registeredUsers: number;
@@ -60,6 +62,7 @@ interface ApiCosts {
 
 export default function Admin() {
   const [selectedPeriod, setSelectedPeriod] = useState<string>("total");
+  const { toast } = useToast();
 
   const { data: stats, isLoading, error } = useQuery<AdminStats>({
     queryKey: ["/api/admin/stats"],
@@ -71,6 +74,28 @@ export default function Admin() {
       const response = await fetch(`/api/admin/api-costs?period=${selectedPeriod}`);
       if (!response.ok) throw new Error('Failed to fetch API costs');
       return response.json();
+    },
+  });
+
+  const cachePhotosMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("/api/admin/cache-photos", {
+        method: "POST",
+      });
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/api-costs"] });
+      toast({
+        title: "Photo caching complete!",
+        description: `Successfully cached ${data.cached} of ${data.total} photos. ${data.errors > 0 ? `${data.errors} errors occurred.` : ''}`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Photo caching failed",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -368,6 +393,42 @@ export default function Admin() {
                   <div></div>
                   <div className="text-right text-primary">${apiCosts.totals.estimatedCost.toFixed(2)}</div>
                 </div>
+
+                {/* Migration Button */}
+                {apiCosts.apiCalls.uncachedPhotos && apiCosts.apiCalls.uncachedPhotos.count > 0 && (
+                  <div className="pt-4 border-t">
+                    <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg space-y-3">
+                      <div>
+                        <h4 className="font-semibold text-blue-900 dark:text-blue-200">Fix Ongoing Photo Costs</h4>
+                        <p className="text-sm text-blue-800 dark:text-blue-300 mt-1">
+                          Download and cache all {apiCosts.apiCalls.uncachedPhotos.count.toLocaleString()} photos using your second API key. 
+                          This will eliminate ongoing photo viewing costs (~$184/day).
+                        </p>
+                        <p className="text-xs text-blue-700 dark:text-blue-400 mt-2">
+                          One-time cost: ~${((apiCosts.apiCalls.uncachedPhotos.count / 1000) * 7).toFixed(2)} using KEY_2
+                        </p>
+                      </div>
+                      <Button
+                        onClick={() => cachePhotosMutation.mutate()}
+                        disabled={cachePhotosMutation.isPending}
+                        className="w-full"
+                        data-testid="button-cache-photos"
+                      >
+                        {cachePhotosMutation.isPending ? (
+                          <>
+                            <Download className="mr-2 h-4 w-4 animate-pulse" />
+                            Caching photos...
+                          </>
+                        ) : (
+                          <>
+                            <Download className="mr-2 h-4 w-4" />
+                            Cache All Photos Now (Using KEY_2)
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
