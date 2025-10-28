@@ -5,6 +5,57 @@ import { eq, and } from "drizzle-orm";
 
 const client = new Client({});
 
+// Multi-key support for load balancing across API keys
+let currentKeyIndex = 0;
+const apiKeyUsageStats = {
+  key1Calls: 0,
+  key2Calls: 0,
+};
+
+/**
+ * Get the next Google Places API key using round-robin load balancing
+ * Rotates between GOOGLE_PLACES_API_KEY and GOOGLE_PLACES_API_KEY_2 (if available)
+ * This distributes API quota across multiple keys
+ */
+function getNextApiKey(): string {
+  const key1 = process.env.GOOGLE_PLACES_API_KEY;
+  const key2 = process.env.GOOGLE_PLACES_API_KEY_2;
+
+  if (!key1) {
+    throw new Error("GOOGLE_PLACES_API_KEY is not set");
+  }
+
+  // If only one key is configured, use it
+  if (!key2) {
+    apiKeyUsageStats.key1Calls++;
+    return key1;
+  }
+
+  // Round-robin between two keys
+  currentKeyIndex = (currentKeyIndex + 1) % 2;
+  
+  if (currentKeyIndex === 0) {
+    apiKeyUsageStats.key1Calls++;
+    console.log(`[API Key] Using Key #1 (total calls: ${apiKeyUsageStats.key1Calls})`);
+    return key1;
+  } else {
+    apiKeyUsageStats.key2Calls++;
+    console.log(`[API Key] Using Key #2 (total calls: ${apiKeyUsageStats.key2Calls})`);
+    return key2;
+  }
+}
+
+/**
+ * Get API key usage statistics
+ */
+export function getApiKeyStats() {
+  return {
+    ...apiKeyUsageStats,
+    totalCalls: apiKeyUsageStats.key1Calls + apiKeyUsageStats.key2Calls,
+    key2Configured: !!process.env.GOOGLE_PLACES_API_KEY_2,
+  };
+}
+
 // Session-level cache for Google Places API results
 // This dramatically reduces API calls by caching results during activity generation
 interface PlacesCache {
@@ -217,17 +268,14 @@ export interface GeocodeResult {
 
 export async function getTimezoneForLocation(lat: number, lng: number): Promise<string | null> {
   try {
-    if (!process.env.GOOGLE_PLACES_API_KEY) {
-      throw new Error("GOOGLE_PLACES_API_KEY is not set");
-    }
-
+    const apiKey = getNextApiKey();
     const timestamp = Math.floor(Date.now() / 1000);
 
     const response = await client.timezone({
       params: {
         location: { lat, lng },
         timestamp,
-        key: process.env.GOOGLE_PLACES_API_KEY,
+        key: apiKey,
       },
     });
 
@@ -255,14 +303,12 @@ export async function geocodeLocation(location: string): Promise<GeocodeResult |
   console.log(`[Google Places Cache] MISS - fetching geocode for "${location}"`);
 
   try {
-    if (!process.env.GOOGLE_PLACES_API_KEY) {
-      throw new Error("GOOGLE_PLACES_API_KEY is not set");
-    }
+    const apiKey = getNextApiKey();
 
     const response = await client.geocode({
       params: {
         address: location,
-        key: process.env.GOOGLE_PLACES_API_KEY,
+        key: apiKey,
       },
     });
 
@@ -364,9 +410,7 @@ export async function searchPlaces(
   console.log(`[API Call] MISS - fetching searchPlaces for "${query}"`);
 
   try {
-    if (!process.env.GOOGLE_PLACES_API_KEY) {
-      throw new Error("GOOGLE_PLACES_API_KEY is not set");
-    }
+    const apiKey = getNextApiKey();
 
     // Convert miles to meters (1 mile = 1609.34 meters)
     const radiusMeters = Math.round(radiusMiles * 1609.34);
@@ -374,7 +418,7 @@ export async function searchPlaces(
     // If coordinates are provided, use them for more precise search
     const searchParams: any = {
       query: coordinates ? query : `${query} in ${location}`,
-      key: process.env.GOOGLE_PLACES_API_KEY,
+      key: apiKey,
     };
     
     if (coordinates) {
@@ -441,7 +485,7 @@ export async function searchPlaces(
       let photoUrl: string | undefined;
       if (place.photos && place.photos.length > 0) {
         const photoReference = place.photos[0].photo_reference;
-        photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${photoReference}&key=${process.env.GOOGLE_PLACES_API_KEY}`;
+        photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${photoReference}&key=${apiKey}`;
       }
 
       const fallbackLocation = placeLocation 
@@ -505,16 +549,14 @@ export async function searchNearbyPlaces(
   console.log(`[Google Places Cache] MISS - fetching searchNearbyPlaces for "${query}"`);
 
   try {
-    if (!process.env.GOOGLE_PLACES_API_KEY) {
-      throw new Error("GOOGLE_PLACES_API_KEY is not set");
-    }
+    const apiKey = getNextApiKey();
 
     const response = await client.placesNearby({
       params: {
         location: nearLocation,
         radius: radiusMeters,
         keyword: query,
-        key: process.env.GOOGLE_PLACES_API_KEY,
+        key: apiKey,
       },
     });
 
@@ -540,7 +582,7 @@ export async function searchNearbyPlaces(
       let photoUrl: string | undefined;
       if (place.photos && place.photos.length > 0) {
         const photoReference = place.photos[0].photo_reference;
-        photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${photoReference}&key=${process.env.GOOGLE_PLACES_API_KEY}`;
+        photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${photoReference}&key=${apiKey}`;
       }
 
       results.push({
@@ -706,14 +748,12 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceResult | nu
   console.log(`[API Call] MISS - fetching placeDetails for ${placeId}`);
 
   try {
-    if (!process.env.GOOGLE_PLACES_API_KEY) {
-      throw new Error("GOOGLE_PLACES_API_KEY is not set");
-    }
+    const apiKey = getNextApiKey();
 
     const response = await client.placeDetails({
       params: {
         place_id: placeId,
-        key: process.env.GOOGLE_PLACES_API_KEY,
+        key: apiKey,
         fields: ['place_id', 'name', 'formatted_address', 'rating', 'user_ratings_total', 'price_level', 'photos', 'types'],
       },
     });
@@ -727,7 +767,7 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceResult | nu
     let photoUrl: string | undefined;
     if (place.photos && place.photos.length > 0) {
       const photoReference = place.photos[0].photo_reference;
-      photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${photoReference}&key=${process.env.GOOGLE_PLACES_API_KEY}`;
+      photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${photoReference}&key=${apiKey}`;
     }
 
     const result = {

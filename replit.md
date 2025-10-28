@@ -51,6 +51,8 @@ AI suggestion preferences:
 
 -   **OpenAI**: GPT-4o for main activity suggestion generation; GPT-4o-mini for other AI features (swipe concepts, categorization, preference insights, naming, time selection, scheduling).
 -   **Google Places API**: Text search, Photo API, Geocoding API, and enrichment data.
+    -   **Multi-Key Load Balancing**: Supports rotating between two API keys (`GOOGLE_PLACES_API_KEY` and `GOOGLE_PLACES_API_KEY_2`) to distribute quota across accounts. Round-robin rotation effectively doubles daily API quota.
+    -   **Cost Optimization**: Reduced from Advanced ($0.020) to Basic ($0.005) tier for Place Details (75% savings). AI suggestions reduced from 30 to 15 (50% fewer Text Search calls). Persistent database caching: 30-day TTL for Place Details, 24-hour TTL for Text Search results.
 -   **Third-Party UI Libraries**: Radix UI, Tailwind CSS, `class-variance-authority`, `date-fns`, Lucide React.
 -   **Development Tools**: TypeScript, ESBuild, Vite plugins, PostCSS with Autoprefixer.
--   **Environment Variables**: `DATABASE_URL`, `OPENAI_API_KEY`, `GOOGLE_PLACES_API_KEY`, `NODE_ENV`.
+-   **Environment Variables**: `DATABASE_URL`, `OPENAI_API_KEY`, `GOOGLE_PLACES_API_KEY`, `GOOGLE_PLACES_API_KEY_2` (optional), `NODE_ENV`.
