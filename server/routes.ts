@@ -5496,19 +5496,42 @@ Looking forward to planning great activities together!
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
 
-      // Get database counts
+      // Get period parameter (default: total)
+      const period = (req.query.period as string || 'total').toLowerCase();
+      
+      // Calculate date threshold based on period
+      let dateThreshold: Date | null = null;
+      let periodLabel = 'Total';
+      
+      if (period === 'daily') {
+        dateThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000); // Last 24 hours
+        periodLabel = 'Daily';
+      } else if (period === 'monthly') {
+        dateThreshold = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // Last 30 days
+        periodLabel = 'Monthly';
+      } else if (period === 'quarterly') {
+        dateThreshold = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000); // Last 90 days
+        periodLabel = 'Quarterly';
+      }
+
+      // Build date filter for queries
+      const dateFilter = dateThreshold 
+        ? sql`created_at >= ${dateThreshold.toISOString()}`
+        : sql`1=1`; // No filter for 'total'
+
+      // Get database counts with date filtering
       const [activitiesCount, geocodingCacheCount, photosCacheCount, groupsCount] = await Promise.all([
-        db.select({ count: sql<number>`count(*)` }).from(activitiesTable).then(r => r[0]?.count || 0),
-        db.select({ count: sql<number>`count(*)` }).from(geocodingCache).then(r => r[0]?.count || 0),
-        db.select({ count: sql<number>`count(*)` }).from(photosCache).then(r => r[0]?.count || 0),
-        db.select({ count: sql<number>`count(*)` }).from(groupsTable).then(r => r[0]?.count || 0),
+        db.select({ count: sql<number>`count(*)` }).from(activitiesTable).where(dateFilter).then(r => r[0]?.count || 0),
+        db.select({ count: sql<number>`count(*)` }).from(geocodingCache).where(dateFilter).then(r => r[0]?.count || 0),
+        db.select({ count: sql<number>`count(*)` }).from(photosCache).where(dateFilter).then(r => r[0]?.count || 0),
+        db.select({ count: sql<number>`count(*)` }).from(groupsTable).where(dateFilter).then(r => r[0]?.count || 0),
       ]);
 
-      // Get unique places count
+      // Get unique places count with date filtering
       const uniquePlaces = await db
         .selectDistinct({ placeId: activitiesTable.googlePlaceId })
         .from(activitiesTable)
-        .where(sql`${activitiesTable.googlePlaceId} IS NOT NULL`);
+        .where(sql`${activitiesTable.googlePlaceId} IS NOT NULL AND ${dateFilter}`);
       
       const uniquePlacesCount = uniquePlaces.length;
 
@@ -5545,6 +5568,8 @@ Looking forward to planning great activities together!
       const totalSavings = savedTextSearchCost + savedPlaceDetailsCost + savedGeocodingCost;
 
       res.json({
+        period: period,
+        periodLabel: periodLabel,
         apiCalls: {
           textSearch: {
             estimated: estimatedTextSearchCalls,
