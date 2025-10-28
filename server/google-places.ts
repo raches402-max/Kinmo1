@@ -279,6 +279,13 @@ export async function searchPlaces(
       if (place.place_id) {
         const detailedPlace = await getPlaceDetails(place.place_id);
         if (detailedPlace) {
+          // Filter out places with fewer than 50 reviews
+          const MIN_REVIEWS = 50;
+          if (!detailedPlace.reviewCount || detailedPlace.reviewCount < MIN_REVIEWS) {
+            console.log(`[Google Places] Filtering out "${detailedPlace.name}" - only ${detailedPlace.reviewCount || 0} reviews (minimum: ${MIN_REVIEWS})`);
+            continue;
+          }
+          
           // Add location from text search (not in place details)
           const placeLocationCoords = placeLocation 
             ? { lat: placeLocation.lat, lng: placeLocation.lng }
@@ -370,26 +377,36 @@ export async function searchNearbyPlaces(
     }
 
     const results: PlaceResult[] = [];
+    const MIN_REVIEWS = 50;
     for (const place of response.data.results) {
-      if (place.rating && place.rating >= minRating) {
-        let photoUrl: string | undefined;
-        if (place.photos && place.photos.length > 0) {
-          const photoReference = place.photos[0].photo_reference;
-          photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${photoReference}&key=${process.env.GOOGLE_PLACES_API_KEY}`;
-        }
-
-        results.push({
-          placeId: place.place_id || "",
-          name: place.name || query,
-          address: place.vicinity || "",
-          rating: place.rating?.toString(),
-          priceLevel: place.price_level?.toString(),
-          photoUrl,
-          types: place.types || [],
-        });
-
-        if (results.length >= 2) break;
+      // Filter by minimum rating
+      if (!place.rating || place.rating < minRating) {
+        continue;
       }
+      
+      // Filter by minimum review count
+      if (!place.user_ratings_total || place.user_ratings_total < MIN_REVIEWS) {
+        console.log(`[Google Places] Filtering out "${place.name}" - only ${place.user_ratings_total || 0} reviews (minimum: ${MIN_REVIEWS})`);
+        continue;
+      }
+      
+      let photoUrl: string | undefined;
+      if (place.photos && place.photos.length > 0) {
+        const photoReference = place.photos[0].photo_reference;
+        photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${photoReference}&key=${process.env.GOOGLE_PLACES_API_KEY}`;
+      }
+
+      results.push({
+        placeId: place.place_id || "",
+        name: place.name || query,
+        address: place.vicinity || "",
+        rating: place.rating?.toString(),
+        priceLevel: place.price_level?.toString(),
+        photoUrl,
+        types: place.types || [],
+      });
+
+      if (results.length >= 2) break;
     }
 
     // Cache clones to prevent mutations from affecting cached data
