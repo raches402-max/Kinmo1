@@ -1356,6 +1356,21 @@ export default function GroupDetail() {
         description: "Member details have been updated",
       });
     },
+  });
+
+  const toggleHostingMutation = useMutation({
+    mutationFn: async ({ memberId, openToHosting }: { memberId: string; openToHosting: boolean }) => {
+      return await apiRequest("PATCH", `/api/members/${memberId}/hosting-toggle`, { openToHosting });
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "members"] });
+      toast({
+        title: variables.openToHosting ? "Hosting enabled" : "Hosting disabled",
+        description: variables.openToHosting 
+          ? "Member is now open to hosting events" 
+          : "Member will no longer be asked to host events",
+      });
+    },
     onError: (error: Error) => {
       toast({
         title: "Error updating member",
@@ -3235,16 +3250,26 @@ export default function GroupDetail() {
                                         {member.rsvpStatus === "not_going" && "✗ Can't make it"}
                                       </Badge>
                                     )}
-                                    {member.openToHosting && (
-                                      <Badge 
-                                        variant="outline"
-                                        className="text-xs gap-1"
-                                        data-testid={`badge-open-to-hosting-${member.id}`}
-                                      >
-                                        <Home className="w-3 h-3" />
-                                        Open to hosting
-                                      </Badge>
-                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <Checkbox
+                                      id={`hosting-${member.id}`}
+                                      checked={member.openToHosting}
+                                      onCheckedChange={(checked) => {
+                                        toggleHostingMutation.mutate({
+                                          memberId: member.id,
+                                          openToHosting: checked === true
+                                        });
+                                      }}
+                                      data-testid={`checkbox-hosting-volunteer-${member.id}`}
+                                    />
+                                    <Label 
+                                      htmlFor={`hosting-${member.id}`}
+                                      className="text-xs text-muted-foreground cursor-pointer flex items-center gap-1"
+                                    >
+                                      <Home className="w-3 h-3" />
+                                      Volunteer to host events
+                                    </Label>
                                   </div>
                                   {member.email && (
                                     <p className="text-xs text-muted-foreground truncate">{member.email}</p>
