@@ -3054,56 +3054,6 @@ export default function GroupDetail() {
                 </CardContent>
               </Card>
 
-              {/* AI Preference Insights Section */}
-              {group.preferenceInsights && Array.isArray(group.preferenceInsights) && group.preferenceInsights.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="flex items-center gap-2">
-                          <Sparkles className="w-5 h-5 text-purple-500" />
-                          Your Group's Patterns
-                        </CardTitle>
-                        <CardDescription>AI-discovered preferences based on {group.feedbackCount || 0} feedback actions</CardDescription>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={async () => {
-                          try {
-                            await apiRequest("POST", `/api/groups/${group.id}/analyze-patterns`, {});
-                            queryClient.invalidateQueries({ queryKey: ["/api/groups", group.id] });
-                            toast({ title: "Insights refreshed successfully" });
-                          } catch (error: any) {
-                            toast({ 
-                              title: "Failed to refresh insights", 
-                              description: error.message,
-                              variant: "destructive" 
-                            });
-                          }
-                        }}
-                        className="gap-2"
-                        data-testid="button-refresh-insights"
-                      >
-                        <Sparkles className="w-4 h-4" />
-                        Refresh
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {Array.isArray(group.preferenceInsights) && group.preferenceInsights.map((insight: {icon: string; pattern: string; description: string}, index: number) => (
-                      <div key={index} className="flex gap-3 p-3 bg-muted/50 rounded-md">
-                        <div className="text-2xl flex-shrink-0">{insight.icon}</div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium">{insight.pattern}</p>
-                          <p className="text-sm text-muted-foreground">{insight.description}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
-              )}
-
               {/* Members Section */}
               <Card>
                 <CardHeader>
@@ -3447,6 +3397,56 @@ export default function GroupDetail() {
                   </p>
                 </CardContent>
               </Card>
+
+              {/* AI Preference Insights Section */}
+              {group.preferenceInsights && Array.isArray(group.preferenceInsights) && group.preferenceInsights.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="flex items-center gap-2">
+                          <Sparkles className="w-5 h-5 text-purple-500" />
+                          Your Group's Patterns
+                        </CardTitle>
+                        <CardDescription>AI-discovered preferences based on {group.feedbackCount || 0} feedback actions</CardDescription>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            await apiRequest("POST", `/api/groups/${group.id}/analyze-patterns`, {});
+                            queryClient.invalidateQueries({ queryKey: ["/api/groups", group.id] });
+                            toast({ title: "Insights refreshed successfully" });
+                          } catch (error: any) {
+                            toast({ 
+                              title: "Failed to refresh insights", 
+                              description: error.message,
+                              variant: "destructive" 
+                            });
+                          }
+                        }}
+                        className="gap-2"
+                        data-testid="button-refresh-insights"
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        Refresh
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {Array.isArray(group.preferenceInsights) && group.preferenceInsights.map((insight: {icon: string; pattern: string; description: string}, index: number) => (
+                      <div key={index} className="flex gap-3 p-3 bg-muted/50 rounded-md">
+                        <div className="text-2xl flex-shrink-0">{insight.icon}</div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">{insight.pattern}</p>
+                          <p className="text-sm text-muted-foreground">{insight.description}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Save Button */}
               <div className="flex justify-end">
