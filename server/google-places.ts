@@ -1,4 +1,7 @@
 import { Client } from "@googlemaps/google-maps-services-js";
+import { db } from "./db";
+import { placesCache, searchCache } from "@shared/schema";
+import { eq, and } from "drizzle-orm";
 
 const client = new Client({});
 
@@ -89,6 +92,120 @@ export function getCacheStats() {
     hitRate,
     apiCallsSaved: totalHits,
   };
+}
+
+// Database cache helpers (persistent caching)
+async function getPlaceDetailsFromDB(placeId: string): Promise<PlaceResult | null> {
+  try {
+    const cached = await db
+      .select()
+      .from(placesCache)
+      .where(eq(placesCache.placeId, placeId))
+      .limit(1);
+
+    if (cached.length === 0) {
+      return null;
+    }
+
+    const cacheEntry = cached[0];
+    
+    // Check if cache is expired (30 days)
+    if (cacheEntry.expiresAt < new Date()) {
+      // Cache expired, delete it
+      await db.delete(placesCache).where(eq(placesCache.placeId, placeId));
+      console.log(`[DB Cache] Expired - Place Details for ${placeId}`);
+      return null;
+    }
+
+    console.log(`[DB Cache] HIT - Place Details for ${placeId}`);
+    return cacheEntry.placeData as PlaceResult;
+  } catch (error) {
+    console.error(`[DB Cache] Error reading Place Details for ${placeId}:`, error);
+    return null;
+  }
+}
+
+async function savePlaceDetailsToDB(placeId: string, placeData: PlaceResult): Promise<void> {
+  try {
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 30); // 30 days from now
+
+    await db
+      .insert(placesCache)
+      .values({
+        placeId,
+        placeData: placeData as any,
+        expiresAt,
+      })
+      .onConflictDoUpdate({
+        target: placesCache.placeId,
+        set: {
+          placeData: placeData as any,
+          expiresAt,
+        },
+      });
+
+    console.log(`[DB Cache] SAVED - Place Details for ${placeId} (expires in 30 days)`);
+  } catch (error) {
+    console.error(`[DB Cache] Error saving Place Details for ${placeId}:`, error);
+  }
+}
+
+async function getSearchResultsFromDB(searchQuery: string, searchLocation: string, searchRadius: number): Promise<string[] | null> {
+  try {
+    const cached = await db
+      .select()
+      .from(searchCache)
+      .where(
+        and(
+          eq(searchCache.searchQuery, searchQuery),
+          eq(searchCache.searchLocation, searchLocation),
+          eq(searchCache.searchRadius, searchRadius)
+        )
+      )
+      .limit(1);
+
+    if (cached.length === 0) {
+      return null;
+    }
+
+    const cacheEntry = cached[0];
+    
+    // Check if cache is expired (24 hours)
+    if (cacheEntry.expiresAt < new Date()) {
+      // Cache expired, delete it
+      await db.delete(searchCache).where(eq(searchCache.id, cacheEntry.id));
+      console.log(`[DB Cache] Expired - Search results for "${searchQuery}" in ${searchLocation}`);
+      return null;
+    }
+
+    console.log(`[DB Cache] HIT - Search results for "${searchQuery}" in ${searchLocation}`);
+    return cacheEntry.searchResults as string[];
+  } catch (error) {
+    console.error(`[DB Cache] Error reading search results:`, error);
+    return null;
+  }
+}
+
+async function saveSearchResultsToDB(searchQuery: string, searchLocation: string, searchRadius: number, placeIds: string[]): Promise<void> {
+  try {
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 24); // 24 hours from now
+
+    await db
+      .insert(searchCache)
+      .values({
+        searchQuery,
+        searchLocation,
+        searchRadius,
+        searchResults: placeIds as any,
+        expiresAt,
+      });
+
+    console.log(`[DB Cache] SAVED - Search results for "${searchQuery}" in ${searchLocation} (expires in 24 hours)`);
+  } catch (error) {
+    console.error(`[DB Cache] Error saving search results:`, error);
+  }
 }
 
 export interface GeocodeResult {
@@ -213,17 +330,38 @@ export async function searchPlaces(
   // Create cache key from search parameters
   const cacheKey = `${query}|${location}|${radiusMiles}|${coordinates?.lat}|${coordinates?.lng}`;
   
-  // Check cache first
+  // Check session cache first (fastest)
   if (sessionCache.searchResults.has(cacheKey)) {
     sessionCache.stats.searchHits++;
-    console.log(`[Google Places Cache] HIT - searchPlaces for "${query}"`);
+    console.log(`[Session Cache] HIT - searchPlaces for "${query}"`);
     const cached = sessionCache.searchResults.get(cacheKey)!;
     // Return deep copy to prevent mutation
     return cached.map(result => clonePlaceResult(result));
   }
 
+  // Check database cache (persistent, 24-hour TTL)
+  const dbCachedPlaceIds = await getSearchResultsFromDB(query, location, radiusMiles);
+  if (dbCachedPlaceIds && dbCachedPlaceIds.length > 0) {
+    console.log(`[DB Cache] HIT - search results for "${query}" (${dbCachedPlaceIds.length} cached place IDs)`);
+    
+    // Fetch place details for each cached place ID
+    const results: PlaceResult[] = [];
+    for (const placeId of dbCachedPlaceIds) {
+      const detailedPlace = await getPlaceDetails(placeId);
+      if (detailedPlace) {
+        results.push(detailedPlace);
+      }
+    }
+    
+    // Cache in session for immediate reuse
+    sessionCache.searchResults.set(cacheKey, results.map(r => clonePlaceResult(r)));
+    sessionCache.stats.searchHits++;
+    
+    return results.map(result => clonePlaceResult(result));
+  }
+
   sessionCache.stats.searchMisses++;
-  console.log(`[Google Places Cache] MISS - fetching searchPlaces for "${query}"`);
+  console.log(`[API Call] MISS - fetching searchPlaces for "${query}"`);
 
   try {
     if (!process.env.GOOGLE_PLACES_API_KEY) {
@@ -324,8 +462,17 @@ export async function searchPlaces(
 
     console.log(`[Google Places] Processed ${results.length} valid results`);
 
-    // Cache a clone to prevent mutations from affecting cached data
+    // Cache in session for immediate reuse
     sessionCache.searchResults.set(cacheKey, results.map(r => clonePlaceResult(r)));
+    
+    // Cache place IDs in database for 24 hours (async, don't wait)
+    const placeIds = results.map(r => r.placeId).filter(id => id);
+    if (placeIds.length > 0) {
+      saveSearchResultsToDB(query, location, radiusMiles, placeIds).catch(err => 
+        console.error(`Failed to cache search results in DB for "${query}":`, err)
+      );
+    }
+    
     // Return original (caller can mutate without affecting cache)
     return results;
   } catch (error) {
@@ -537,17 +684,26 @@ function selectBestReview(reviews?: any[]): string | undefined {
 }
 
 export async function getPlaceDetails(placeId: string): Promise<PlaceResult | null> {
-  // Check cache first
+  // Check session cache first (fastest)
   if (sessionCache.placeDetails.has(placeId)) {
     sessionCache.stats.placeDetailsHits++;
-    console.log(`[Google Places Cache] HIT - placeDetails for ${placeId}`);
+    console.log(`[Session Cache] HIT - placeDetails for ${placeId}`);
     const cached = sessionCache.placeDetails.get(placeId);
     // Return deep copy to prevent mutation
     return cached ? clonePlaceResult(cached) : null;
   }
 
+  // Check database cache (persistent, 30-day TTL)
+  const dbCached = await getPlaceDetailsFromDB(placeId);
+  if (dbCached) {
+    // Add to session cache for faster future lookups
+    sessionCache.placeDetails.set(placeId, clonePlaceResult(dbCached));
+    sessionCache.stats.placeDetailsHits++;
+    return clonePlaceResult(dbCached);
+  }
+
   sessionCache.stats.placeDetailsMisses++;
-  console.log(`[Google Places Cache] MISS - fetching placeDetails for ${placeId}`);
+  console.log(`[API Call] MISS - fetching placeDetails for ${placeId}`);
 
   try {
     if (!process.env.GOOGLE_PLACES_API_KEY) {
@@ -585,8 +741,13 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceResult | nu
       types: place.types || [],
     };
 
-    // Cache a clone to prevent mutations from affecting cached data
+    // Cache in session for immediate reuse
     sessionCache.placeDetails.set(placeId, clonePlaceResult(result));
+    
+    // Cache in database for 30 days (async, don't wait)
+    savePlaceDetailsToDB(placeId, result).catch(err => 
+      console.error(`Failed to cache Place Details in DB for ${placeId}:`, err)
+    );
 
     // Return the original (caller can mutate this without affecting cache)
     return result;
