@@ -3113,6 +3113,12 @@ Looking forward to planning great activities together!
       const userId = req.user.claims.sub;
       const groupId = req.params.id;
 
+      // Get group settings for category filtering
+      const group = await storage.getGroup(groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
       // Get all voting events for this group with vote data
       const votingEvents = await storage.getGroupVotingEvents(groupId);
       
@@ -3146,16 +3152,40 @@ Looking forward to planning great activities together!
         })
       );
 
+      // Filter out voting events from disabled categories (keyword-based)
+      const filteredEvents = eventsWithLikers.filter(event => {
+        const venueType = (event.venueType || '').toLowerCase();
+        const title = event.title.toLowerCase();
+        
+        // Check if venue belongs to a disabled category
+        if (group.cafeEnabled === false && (venueType.includes('cafe') || venueType.includes('coffee') || title.includes('cafe') || title.includes('coffee'))) {
+          console.log(`[Swipe Deck] Filtering out cafe voting event: "${event.title}"`);
+          return false;
+        }
+        
+        if (group.mealEnabled === false && (venueType.includes('restaurant') || venueType.includes('dining') || venueType.includes('food'))) {
+          console.log(`[Swipe Deck] Filtering out meal voting event: "${event.title}"`);
+          return false;
+        }
+        
+        if (group.drinksEnabled === false && (venueType.includes('bar') || venueType.includes('brewery') || venueType.includes('pub') || venueType.includes('wine'))) {
+          console.log(`[Swipe Deck] Filtering out drinks voting event: "${event.title}"`);
+          return false;
+        }
+        
+        if (group.dessertEnabled === false && (venueType.includes('dessert') || venueType.includes('ice cream') || venueType.includes('boba') || venueType.includes('bakery'))) {
+          console.log(`[Swipe Deck] Filtering out dessert voting event: "${event.title}"`);
+          return false;
+        }
+        
+        return true;
+      });
+
       // If we have fewer than 10 venues, backfill with AI suggestions
-      let deck = eventsWithLikers;
+      let deck = filteredEvents;
       const MIN_DECK_SIZE = 10;
 
       if (deck.length < MIN_DECK_SIZE) {
-        const group = await storage.getGroup(groupId);
-        if (!group) {
-          return res.status(404).json({ message: "Group not found" });
-        }
-
         // Get previously seen concepts to avoid repeats
         const previousSignals = await storage.getGroupPreferenceSignals(groupId);
         const previouslySeenConcepts = previousSignals.map(s => s.conceptDescription);
