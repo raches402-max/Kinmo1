@@ -1282,9 +1282,11 @@ export class DatabaseStorage implements IStorage {
   async getAdminStats() {
     // Total users (authenticated + unclaimed members with unique emails)
     // Avoid double-counting: count members whose emails don't exist in users table
+    // Exclude test emails (@example.com) from counts
     const [authUsersResult] = await db
       .select({ count: sql<number>`count(*)` })
-      .from(users);
+      .from(users)
+      .where(sql`${users.email} NOT LIKE '%@example.com'`);
     const authUsersCount = Number(authUsersResult.count);
 
     const [unclaimedMemberEmailsResult] = await db
@@ -1293,6 +1295,7 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           sql`${members.email} IS NOT NULL`,
+          sql`${members.email} NOT LIKE '%@example.com'`,
           sql`NOT EXISTS (SELECT 1 FROM ${users} WHERE ${users.email} IS NOT NULL AND ${users.email} = ${members.email})`
         )
       );
