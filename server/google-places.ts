@@ -558,19 +558,12 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceResult | nu
       params: {
         place_id: placeId,
         key: process.env.GOOGLE_PLACES_API_KEY,
-        fields: ['place_id', 'name', 'formatted_address', 'rating', 'user_ratings_total', 'price_level', 'photos', 'types', 'reviews', 'business_status'],
+        fields: ['place_id', 'name', 'formatted_address', 'rating', 'user_ratings_total', 'price_level', 'photos', 'types'],
       },
     });
 
     const place = response.data.result;
     if (!place) {
-      sessionCache.placeDetails.set(placeId, null);
-      return null;
-    }
-
-    // Filter out permanently closed businesses
-    if (place.business_status === 'CLOSED_PERMANENTLY') {
-      console.log(`[Google Places] Filtering out permanently closed business: ${place.name}`);
       sessionCache.placeDetails.set(placeId, null);
       return null;
     }
@@ -581,9 +574,6 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceResult | nu
       photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${photoReference}&key=${process.env.GOOGLE_PLACES_API_KEY}`;
     }
 
-    // Select best review
-    const review = selectBestReview(place.reviews);
-
     const result = {
       placeId: place.place_id || "",
       name: place.name || "",
@@ -593,7 +583,6 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceResult | nu
       priceLevel: place.price_level?.toString(),
       photoUrl,
       types: place.types || [],
-      review,
     };
 
     // Cache a clone to prevent mutations from affecting cached data
