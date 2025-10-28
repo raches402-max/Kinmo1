@@ -36,6 +36,59 @@ export function categorizeByTime(venueType: string): 'quick' | 'standard' | 'lar
   return 'standard';
 }
 
+// Category detection based on keywords in venue name/type
+// This filters AI suggestions BEFORE calling Google Places API to save quota
+export function detectCategory(venueName: string, venueType: string): 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences' {
+  const combined = `${venueName} ${venueType}`.toLowerCase();
+  
+  // CAFE keywords - coffee shops, cafes
+  const cafeKeywords = [
+    'cafe', 'coffee', 'espresso', 'latte', 'cappuccino'
+  ];
+  
+  // DRINKS keywords - bars, breweries, wine
+  const drinksKeywords = [
+    'bar', 'cocktail', 'wine', 'brewery', 'beer', 'pub', 'tavern',
+    'lounge', 'speakeasy', 'taproom', 'ale house', 'beer garden'
+  ];
+  
+  // DESSERT keywords - sweets, ice cream, boba
+  const dessertKeywords = [
+    'dessert', 'ice cream', 'gelato', 'boba', 'bubble tea',
+    'bakery', 'pastry', 'donut', 'cupcake', 'cookie', 'candy',
+    'sweet', 'frozen yogurt', 'froyo', 'churro'
+  ];
+  
+  // EXPERIENCES keywords - activities, museums, outdoor
+  const experiencesKeywords = [
+    'museum', 'gallery', 'concert', 'show', 'theater', 'cinema',
+    'hike', 'hiking', 'trail', 'park', 'beach', 'outdoor',
+    'festival', 'event', 'game', 'sporting', 'karaoke', 'comedy',
+    'activity', 'adventure', 'tour', 'aquarium', 'zoo', 'arcade',
+    'bowling', 'mini golf', 'escape room', 'trivia'
+  ];
+  
+  // Check in priority order (most specific first)
+  if (cafeKeywords.some(keyword => combined.includes(keyword))) {
+    return 'cafes';
+  }
+  
+  if (drinksKeywords.some(keyword => combined.includes(keyword))) {
+    return 'drinks';
+  }
+  
+  if (dessertKeywords.some(keyword => combined.includes(keyword))) {
+    return 'dessert';
+  }
+  
+  if (experiencesKeywords.some(keyword => combined.includes(keyword))) {
+    return 'experiences';
+  }
+  
+  // Default to meal (restaurants, dining)
+  return 'meal';
+}
+
 export interface ActivitySuggestion {
   venueName: string;
   venueType: string;

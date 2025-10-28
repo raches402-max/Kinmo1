@@ -3,7 +3,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, updateUserProfileSchema, activities as activitiesTable, groups as groupsTable, members as membersTable, itineraryInvites, rsvps as rsvpsTable, itineraries, itineraryItems, proposedTimeSlots, userProfiles, photosCache, geocodingCache, hostAssignments, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
-import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue, analyzePreferencePatterns, parseSchedulingPrompt } from "./openai";
+import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue, analyzePreferencePatterns, parseSchedulingPrompt, detectCategory } from "./openai";
 import { searchPlaces, searchNearbyPlaces, geocodeLocation, clearPlacesCache, getCacheStats } from "./google-places";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { validateItinerary } from "./itinerary-validation";
@@ -2522,16 +2522,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         console.log(`[Category Regen] Attempt ${attempt}: Got ${suggestions.length} suggestions for ${category}`);
 
-        // Filter out rejected venues before calling Google Places
+        // Filter out rejected venues AND disabled categories before calling Google Places
         const filteredSuggestions = suggestions.filter(s => {
           const normalized = s.venueName.trim().toLowerCase();
+          
+          // Skip blacklisted venues
           if (rejectedSet.has(normalized)) {
             console.log(`[Category Regen] Skipping blacklisted venue: ${s.venueName}`);
             return false;
           }
+          
+          // CRITICAL: Skip disabled categories to save API quota
+          const detectedCategory = detectCategory(s.venueName, s.venueType);
+          const categoryEnabled = 
+            (detectedCategory === 'meal' && (refreshedGroup.mealEnabled ?? true)) ||
+            (detectedCategory === 'cafes' && (refreshedGroup.cafeEnabled ?? true)) ||
+            (detectedCategory === 'drinks' && (refreshedGroup.drinksEnabled ?? true)) ||
+            (detectedCategory === 'dessert' && (refreshedGroup.dessertEnabled ?? true)) ||
+            (detectedCategory === 'experiences' && (refreshedGroup.experiencesEnabled ?? true));
+          
+          if (!categoryEnabled) {
+            console.log(`[Category Regen] Skipping ${s.venueName} (${s.venueType}) - ${detectedCategory} category is disabled`);
+            return false;
+          }
+          
           return true;
         });
-        console.log(`[Category Regen] After blacklist filter: ${filteredSuggestions.length}/${suggestions.length} suggestions`);
+        console.log(`[Category Regen] After category + blacklist filter: ${filteredSuggestions.length}/${suggestions.length} suggestions`);
 
         // Enrich with Google Places
         const coordinates = refreshedGroup.latitude && refreshedGroup.longitude 
@@ -6243,7 +6260,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       console.log(`[AI Generation] Attempt ${attempt}: AI prompt took ${((aiPromptEnd - aiPromptStart) / 1000).toFixed(1)}s`);
       console.log(`[AI Generation] Attempt ${attempt}: Received ${suggestions.length} suggestions from OpenAI`);
 
-      // Filter out rejected venues BEFORE calling Google Places
+      // Filter out rejected venues AND disabled categories BEFORE calling Google Places
       // (Duplicate checking happens after Google Places returns actual venue names)
       const filteredSuggestions = suggestions.filter(s => {
         const normalized = s.venueName.trim().toLowerCase();
@@ -6254,9 +6271,26 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
           return false;
         }
         
+        // CRITICAL: Skip disabled categories to save API quota
+        // Detect category using keyword matching on venue name/type
+        const detectedCategory = detectCategory(s.venueName, s.venueType);
+        
+        // Check if this category is disabled
+        const categoryEnabled = 
+          (detectedCategory === 'meal' && (groupData.mealEnabled ?? true)) ||
+          (detectedCategory === 'cafes' && (groupData.cafeEnabled ?? true)) ||
+          (detectedCategory === 'drinks' && (groupData.drinksEnabled ?? true)) ||
+          (detectedCategory === 'dessert' && (groupData.dessertEnabled ?? true)) ||
+          (detectedCategory === 'experiences' && (groupData.experiencesEnabled ?? true));
+        
+        if (!categoryEnabled) {
+          console.log(`[API Optimization] Skipping ${s.venueName} (${s.venueType}) - ${detectedCategory} category is disabled`);
+          return false;
+        }
+        
         return true;
       });
-      console.log(`[AI Generation] After blacklist filter: ${filteredSuggestions.length}/${suggestions.length} suggestions`);
+      console.log(`[AI Generation] After category + blacklist filter: ${filteredSuggestions.length}/${suggestions.length} suggestions`);
 
       const googleSearchStart = Date.now();
       // For each suggestion, search Google Places with group's search radius
