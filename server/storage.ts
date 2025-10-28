@@ -1300,8 +1300,6 @@ export class DatabaseStorage implements IStorage {
         )
       );
     const unclaimedMemberEmails = Number(unclaimedMemberEmailsResult.count);
-    
-    const totalUsers = authUsersCount + unclaimedMemberEmails;
 
     // Total groups
     const [groupsResult] = await db
@@ -1473,7 +1471,8 @@ export class DatabaseStorage implements IStorage {
     }
 
     return {
-      totalUsers,
+      registeredUsers: authUsersCount,
+      invitedMembers: unclaimedMemberEmails,
       totalGroups,
       totalEvents,
       eventsHeld,
