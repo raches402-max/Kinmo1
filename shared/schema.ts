@@ -367,6 +367,27 @@ export const categorySearchHistory = pgTable("category_search_history", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Google Places API cache - cache Place Details for 30 days
+export const placesCache = pgTable("places_cache", {
+  placeId: text("place_id").primaryKey(), // Google Places ID
+  placeData: jsonb("place_data").notNull(), // Full place details response
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(), // 30 days from createdAt
+});
+
+// Google Places API search cache - cache Text Search results for 24 hours
+export const searchCache = pgTable("search_cache", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  searchQuery: text("search_query").notNull(), // Full search query string
+  searchLocation: text("search_location").notNull(), // Location string
+  searchRadius: integer("search_radius").notNull(), // Radius in miles
+  searchResults: jsonb("search_results").notNull(), // Array of place IDs returned
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(), // 24 hours from createdAt
+}, (table) => [
+  index("idx_search_query_location").on(table.searchQuery, table.searchLocation, table.searchRadius),
+]);
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   groups: many(groups),
@@ -643,6 +664,15 @@ export const insertCategorySearchHistorySchema = createInsertSchema(categorySear
   createdAt: true,
 });
 
+export const insertPlacesCacheSchema = createInsertSchema(placesCache).omit({
+  createdAt: true,
+});
+
+export const insertSearchCacheSchema = createInsertSchema(searchCache).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Update schemas (partial versions for PATCH operations)
 export const updateGroupSchema = insertGroupSchema.partial().refine(
   (data) => {
@@ -723,3 +753,9 @@ export type TimeSlotVote = typeof timeSlotVotes.$inferSelect;
 
 export type InsertCategorySearchHistory = z.infer<typeof insertCategorySearchHistorySchema>;
 export type CategorySearchHistory = typeof categorySearchHistory.$inferSelect;
+
+export type InsertPlacesCache = z.infer<typeof insertPlacesCacheSchema>;
+export type PlacesCache = typeof placesCache.$inferSelect;
+
+export type InsertSearchCache = z.infer<typeof insertSearchCacheSchema>;
+export type SearchCache = typeof searchCache.$inferSelect;
