@@ -336,12 +336,25 @@ export default function Admin() {
 
                 <div className="grid grid-cols-4 gap-4 items-center">
                   <div>
-                    <div className="font-medium">Place Photos</div>
-                    <div className="text-xs text-muted-foreground">{apiCosts.apiCalls.photos.note}</div>
+                    <div className="font-medium">Cached Photos</div>
+                    <div className="text-xs text-muted-foreground">{apiCosts.apiCalls.cachedPhotos.note}</div>
                   </div>
-                  <div className="text-right text-muted-foreground">{apiCosts.apiCalls.photos.estimated.toLocaleString()}</div>
-                  <div className="text-right text-muted-foreground">${apiCosts.apiCalls.photos.pricePerThousand}/1K</div>
-                  <div className="text-right font-semibold">${apiCosts.apiCalls.photos.cost.toFixed(2)}</div>
+                  <div className="text-right text-muted-foreground">{apiCosts.apiCalls.cachedPhotos.estimated.toLocaleString()}</div>
+                  <div className="text-right text-muted-foreground">${apiCosts.apiCalls.cachedPhotos.pricePerThousand}/1K</div>
+                  <div className="text-right font-semibold">${apiCosts.apiCalls.cachedPhotos.cost.toFixed(2)}</div>
+                </div>
+
+                <div className="grid grid-cols-4 gap-4 items-center bg-yellow-50 dark:bg-yellow-950/20 p-2 rounded">
+                  <div>
+                    <div className="font-medium text-yellow-800 dark:text-yellow-300">Uncached Photos</div>
+                    <div className="text-xs text-yellow-700 dark:text-yellow-400">{apiCosts.apiCalls.uncachedPhotos.note}</div>
+                    <div className="text-xs text-yellow-700 dark:text-yellow-400 mt-1">
+                      {apiCosts.apiCalls.uncachedPhotos.count.toLocaleString()} activities with direct Google URLs
+                    </div>
+                  </div>
+                  <div className="text-right text-muted-foreground">{apiCosts.apiCalls.uncachedPhotos.estimated.toLocaleString()}</div>
+                  <div className="text-right text-muted-foreground">${apiCosts.apiCalls.uncachedPhotos.pricePerThousand}/1K</div>
+                  <div className="text-right font-semibold text-yellow-800 dark:text-yellow-300">${apiCosts.apiCalls.uncachedPhotos.cost.toFixed(2)}</div>
                 </div>
 
                 <div className="grid grid-cols-4 gap-4 pt-2 border-t font-bold">
