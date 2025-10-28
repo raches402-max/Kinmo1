@@ -197,6 +197,7 @@ const activityCategories = [
   { id: "outdoors", label: "Hikes / Outdoors", icon: Mountain },
   { id: "game-nights", label: "Game Nights", icon: Gamepad2 },
   { id: "trivia", label: "Trivia Nights", icon: GraduationCap },
+  { id: "family", label: "Family Activities", icon: Users },
 ];
 
 function formatMeetingFrequency(freq: string): string {
