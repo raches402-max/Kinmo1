@@ -273,14 +273,20 @@ export async function generateActivitySuggestions(groupData: {
     if (groupData.experiencesEnabled !== false) enabledBuckets.push('EXPERIENCES');
     else disabledBuckets.push('EXPERIENCES (concerts, museums, outdoor activities, games, shows, etc.)');
     
+    // Calculate category distribution based on enabled categories
+    const enabledCount = enabledBuckets.length;
+    const suggestionsPerCategory = Math.floor(30 / enabledCount);
+    const distributionText = enabledBuckets.map(cat => `${suggestionsPerCategory} ${cat}`).join(' + ');
+    
     if (disabledBuckets.length > 0) {
       categoryFilterContext = `\n\n🚫 CRITICAL - HARD CATEGORY EXCLUSIONS (ABSOLUTE REQUIREMENT):
 - The group has DISABLED these categories - you MUST generate ZERO suggestions from them:
   ${disabledBuckets.map(b => `  ❌ ${b}`).join('\n')}
 - ONLY generate suggestions from these ENABLED categories: ${enabledBuckets.join(', ')}
-- Redistribute the full 30 suggestions across ONLY the enabled categories
+- Distribute ALL 30 suggestions like this: ${distributionText} = 30 total
+- Generate ${suggestionsPerCategory} suggestions for EACH enabled category
 - If you suggest ANY venue from a disabled category, that suggestion will be REJECTED
-- Example: If CAFE is disabled, DO NOT suggest any cafes or coffee shops - suggest more meals/drinks/experiences instead`;
+- Example: If CAFE is disabled, DO NOT suggest any cafes or coffee shops - suggest ${suggestionsPerCategory} meals + ${suggestionsPerCategory} drinks + ${suggestionsPerCategory} dessert + ${suggestionsPerCategory} experiences instead`;
     }
 
     // Format search radius for prompt - ensure valid value
@@ -376,9 +382,13 @@ Return JSON with this structure:
     }
 
     // Full comprehensive prompt for initial generation
+    const distributionNote = disabledBuckets.length > 0 
+      ? `NOTE: Generate ${suggestionsPerCategory} suggestions per enabled category (${distributionText} = 30 total). After removing duplicates, approximately ${Math.floor(15 / enabledCount)} per category will be shown.`
+      : `NOTE: You will generate 30 suggestions, but only 15 will be shown to the user after removing duplicates (aiming for 3 per category). This ensures 15 unique venues even if Google Places returns the same restaurant for multiple search queries.`;
+    
     const prompt = `You are an expert activity planner. Generate 30 activity suggestions for a group with these preferences:
 
-NOTE: You will generate 30 suggestions, but only 15 will be shown to the user after removing duplicates (aiming for 3 per category). This ensures 15 unique venues even if Google Places returns the same restaurant for multiple search queries.
+${distributionNote}
 
 Location: ${groupData.locationBase}
 Search Radius: ${radiusTier} - ${searchRadius <= 2 ? 'Focus on nearby venues within walking or short drive distance' : searchRadius <= 10 ? 'Include venues across the city' : searchRadius <= 30 ? 'Include special destinations worth a drive' : 'Include road trip worthy destinations - only suggest highly-rated gems'}
