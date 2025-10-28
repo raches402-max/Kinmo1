@@ -1283,11 +1283,16 @@ export class DatabaseStorage implements IStorage {
   async getAdminStats() {
     // Total users (authenticated + unclaimed members with unique emails)
     // Avoid double-counting: count members whose emails don't exist in users table
-    // Exclude test emails (@example.com) from counts
+    // Exclude test emails (@example.com and @test.com) from counts
     const [authUsersResult] = await db
       .select({ count: sql<number>`count(*)` })
       .from(users)
-      .where(sql`${users.email} NOT LIKE '%@example.com'`);
+      .where(
+        and(
+          sql`${users.email} NOT LIKE '%@example.com'`,
+          sql`${users.email} NOT LIKE '%@test.com'`
+        )
+      );
     const authUsersCount = Number(authUsersResult.count);
 
     const [unclaimedMemberEmailsResult] = await db
@@ -1297,15 +1302,23 @@ export class DatabaseStorage implements IStorage {
         and(
           sql`${members.email} IS NOT NULL`,
           sql`${members.email} NOT LIKE '%@example.com'`,
+          sql`${members.email} NOT LIKE '%@test.com'`,
           sql`NOT EXISTS (SELECT 1 FROM ${users} WHERE ${users.email} IS NOT NULL AND ${users.email} = ${members.email})`
         )
       );
     const unclaimedMemberEmails = Number(unclaimedMemberEmailsResult.count);
 
-    // Total groups
+    // Total groups (exclude groups created by test users)
     const [groupsResult] = await db
       .select({ count: sql<number>`count(*)` })
-      .from(groups);
+      .from(groups)
+      .innerJoin(users, eq(groups.userId, users.id))
+      .where(
+        and(
+          sql`${users.email} NOT LIKE '%@example.com'`,
+          sql`${users.email} NOT LIKE '%@test.com'`
+        )
+      );
     const totalGroups = Number(groupsResult.count);
 
     // Total events (all itineraries)
