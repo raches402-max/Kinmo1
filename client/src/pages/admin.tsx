@@ -5,7 +5,8 @@ import { Users, Calendar, TrendingUp, MapPin, Repeat } from "lucide-react";
 import { format } from "date-fns";
 
 interface AdminStats {
-  totalUsers: number;
+  registeredUsers: number;
+  invitedMembers: number;
   totalGroups: number;
   totalEvents: number;
   eventsHeld: number;
@@ -66,15 +67,26 @@ export default function Admin() {
       </div>
 
       {/* Quick Stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card data-testid="card-total-users">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <Card data-testid="card-registered-users">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+            <CardTitle className="text-sm font-medium">Registered Accounts</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold" data-testid="text-total-users">{stats.totalUsers}</div>
-            <p className="text-xs text-muted-foreground">All registered & invited users</p>
+            <div className="text-2xl font-bold" data-testid="text-registered-users">{stats.registeredUsers}</div>
+            <p className="text-xs text-muted-foreground">Users who logged in</p>
+          </CardContent>
+        </Card>
+
+        <Card data-testid="card-invited-members">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Invited Members</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold" data-testid="text-invited-members">{stats.invitedMembers}</div>
+            <p className="text-xs text-muted-foreground">People invited to groups</p>
           </CardContent>
         </Card>
 

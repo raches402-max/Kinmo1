@@ -158,7 +158,8 @@ export interface IStorage {
 
   // Admin Stats
   getAdminStats(): Promise<{
-    totalUsers: number;
+    registeredUsers: number;
+    invitedMembers: number;
     totalGroups: number;
     totalEvents: number;
     eventsHeld: number;
