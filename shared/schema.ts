@@ -399,6 +399,15 @@ export const geocodingCache = pgTable("geocoding_cache", {
   expiresAt: timestamp("expires_at").notNull(), // 30 days from createdAt
 });
 
+// Google Place Photos API cache - cache downloaded photos for 30 days
+export const photosCache = pgTable("photos_cache", {
+  photoReference: text("photo_reference").primaryKey(), // Google photo reference ID
+  imageData: text("image_data").notNull(), // Base64 encoded image data
+  contentType: text("content_type").notNull().default("image/jpeg"), // MIME type
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(), // 30 days from createdAt
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   groups: many(groups),
