@@ -5,45 +5,6 @@ import { eq, and } from "drizzle-orm";
 
 const client = new Client({});
 
-// Multi-key support for load balancing across API keys
-let currentKeyIndex = 0;
-const apiKeyUsageStats = {
-  key1Calls: 0,
-  key2Calls: 0,
-};
-
-/**
- * Get the next Google Places API key using round-robin load balancing
- * Rotates between GOOGLE_PLACES_API_KEY and GOOGLE_PLACES_API_KEY_2 (if available)
- * This distributes API quota across multiple keys
- */
-function getNextApiKey(): string {
-  const key1 = process.env.GOOGLE_PLACES_API_KEY;
-  const key2 = process.env.GOOGLE_PLACES_API_KEY_2;
-
-  if (!key1) {
-    throw new Error("GOOGLE_PLACES_API_KEY is not set");
-  }
-
-  // If only one key is configured, use it
-  if (!key2) {
-    apiKeyUsageStats.key1Calls++;
-    return key1;
-  }
-
-  // Round-robin between two keys
-  currentKeyIndex = (currentKeyIndex + 1) % 2;
-  
-  if (currentKeyIndex === 0) {
-    apiKeyUsageStats.key1Calls++;
-    console.log(`[API Key] Using Key #1 (total calls: ${apiKeyUsageStats.key1Calls})`);
-    return key1;
-  } else {
-    apiKeyUsageStats.key2Calls++;
-    console.log(`[API Key] Using Key #2 (total calls: ${apiKeyUsageStats.key2Calls})`);
-    return key2;
-  }
-}
 
 /**
  * Get API key usage statistics
