@@ -9,7 +9,7 @@ import { setupAuth, isAuthenticated } from "./replitAuth";
 import { validateItinerary } from "./itinerary-validation";
 import { sendMemberWelcome, type EmailRecipient, type MemberWelcomeData } from "./email-service";
 import { db } from "./db";
-import { eq, sql, and } from "drizzle-orm";
+import { eq, sql, and, gte } from "drizzle-orm";
 import { format } from 'date-fns';
 
 async function trackFeedbackAndMaybeAnalyze(groupId: string) {
@@ -5514,24 +5514,42 @@ Looking forward to planning great activities together!
         periodLabel = 'Quarterly';
       }
 
-      // Build date filter for queries
-      const dateFilter = dateThreshold 
-        ? sql`created_at >= ${dateThreshold.toISOString()}`
-        : sql`1=1`; // No filter for 'total'
-
       // Get database counts with date filtering
-      const [activitiesCount, geocodingCacheCount, photosCacheCount, groupsCount] = await Promise.all([
-        db.select({ count: sql<number>`count(*)` }).from(activitiesTable).where(dateFilter).then(r => r[0]?.count || 0),
-        db.select({ count: sql<number>`count(*)` }).from(geocodingCache).where(dateFilter).then(r => r[0]?.count || 0),
-        db.select({ count: sql<number>`count(*)` }).from(photosCache).where(dateFilter).then(r => r[0]?.count || 0),
-        db.select({ count: sql<number>`count(*)` }).from(groupsTable).where(dateFilter).then(r => r[0]?.count || 0),
-      ]);
+      let activitiesCount: number;
+      let geocodingCacheCount: number;
+      let photosCacheCount: number;
+      let groupsCount: number;
+
+      if (dateThreshold) {
+        [activitiesCount, geocodingCacheCount, photosCacheCount, groupsCount] = await Promise.all([
+          db.select({ count: sql<number>`count(*)` }).from(activitiesTable).where(gte(activitiesTable.createdAt, dateThreshold)).then(r => Number(r[0]?.count) || 0),
+          db.select({ count: sql<number>`count(*)` }).from(geocodingCache).where(gte(geocodingCache.createdAt, dateThreshold)).then(r => Number(r[0]?.count) || 0),
+          db.select({ count: sql<number>`count(*)` }).from(photosCache).where(gte(photosCache.createdAt, dateThreshold)).then(r => Number(r[0]?.count) || 0),
+          db.select({ count: sql<number>`count(*)` }).from(groupsTable).where(gte(groupsTable.createdAt, dateThreshold)).then(r => Number(r[0]?.count) || 0),
+        ]);
+      } else {
+        // No date filter for 'total'
+        [activitiesCount, geocodingCacheCount, photosCacheCount, groupsCount] = await Promise.all([
+          db.select({ count: sql<number>`count(*)` }).from(activitiesTable).then(r => Number(r[0]?.count) || 0),
+          db.select({ count: sql<number>`count(*)` }).from(geocodingCache).then(r => Number(r[0]?.count) || 0),
+          db.select({ count: sql<number>`count(*)` }).from(photosCache).then(r => Number(r[0]?.count) || 0),
+          db.select({ count: sql<number>`count(*)` }).from(groupsTable).then(r => Number(r[0]?.count) || 0),
+        ]);
+      }
 
       // Get unique places count with date filtering
-      const uniquePlaces = await db
-        .selectDistinct({ placeId: activitiesTable.googlePlaceId })
-        .from(activitiesTable)
-        .where(sql`${activitiesTable.googlePlaceId} IS NOT NULL AND ${dateFilter}`);
+      const uniquePlaces = dateThreshold
+        ? await db
+            .selectDistinct({ placeId: activitiesTable.googlePlaceId })
+            .from(activitiesTable)
+            .where(and(
+              sql`${activitiesTable.googlePlaceId} IS NOT NULL`,
+              gte(activitiesTable.createdAt, dateThreshold)
+            ))
+        : await db
+            .selectDistinct({ placeId: activitiesTable.googlePlaceId })
+            .from(activitiesTable)
+            .where(sql`${activitiesTable.googlePlaceId} IS NOT NULL`);
       
       const uniquePlacesCount = uniquePlaces.length;
 

@@ -258,7 +258,7 @@ export default function Admin() {
                 <div className="text-2xl font-bold text-green-600" data-testid="text-cache-savings">
                   ${apiCosts.caching.savedCost.toFixed(2)}
                 </div>
-                <p className="text-xs text-muted-foreground">{apiCosts.caching.hitRate} cache hit rate</p>
+                <p className="text-xs text-muted-foreground">{apiCosts.caching.hitRate} hit rate (since restart)</p>
               </CardContent>
             </Card>
 
@@ -273,8 +273,8 @@ export default function Admin() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {apiCosts.apiKeys.key2Configured 
-                    ? `Key 1: ${apiCosts.apiKeys.key1Calls} | Key 2: ${apiCosts.apiKeys.key2Calls}` 
-                    : 'Single key configured'}
+                    ? `Key 1: ${apiCosts.apiKeys.key1Calls} | Key 2: ${apiCosts.apiKeys.key2Calls} (session)` 
+                    : 'Single key configured (session)'}
                 </p>
               </CardContent>
             </Card>
