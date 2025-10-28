@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { Users, Calendar, TrendingUp, MapPin, Repeat } from "lucide-react";
+import { Users, Calendar, TrendingUp, MapPin, Repeat, ArrowLeft } from "lucide-react";
 import { format } from "date-fns";
 
 interface AdminStats {
@@ -61,9 +63,17 @@ export default function Admin() {
 
   return (
     <div className="container max-w-7xl mx-auto p-6 space-y-6" data-testid="page-admin">
-      <div>
-        <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Platform health and usage metrics</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+          <p className="text-muted-foreground mt-1">Platform health and usage metrics</p>
+        </div>
+        <Button variant="outline" asChild data-testid="button-back-to-dashboard">
+          <Link href="/">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Dashboard
+          </Link>
+        </Button>
       </div>
 
       {/* Quick Stats */}
