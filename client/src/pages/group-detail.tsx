@@ -2177,7 +2177,6 @@ export default function GroupDetail() {
           <div className="w-20"></div>
         </div>
       </header>
-
       {/* How It Works Banner */}
       {activities.length > 0 && showInstructions && (
         <div className="border-b bg-primary/5 border-primary/20">
@@ -2228,7 +2227,6 @@ export default function GroupDetail() {
           </div>
         </div>
       )}
-
       <div className="max-w-7xl mx-auto px-6 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           {/* AI Automation Toggles - Low Profile */}
@@ -3042,7 +3040,7 @@ export default function GroupDetail() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="edit-additional-instructions">Additional Instructions for AI (Optional)</Label>
+                    <Label htmlFor="edit-additional-instructions">Anything else we should know? (Optional)</Label>
                     <Textarea
                       id="edit-additional-instructions"
                       value={editGroupData.additionalInstructions}
@@ -3190,7 +3188,7 @@ export default function GroupDetail() {
                           <div key={member.id}>
                             {editingMemberId === member.id ? (
                               // Edit mode
-                              <div className="flex gap-2 items-start p-2 bg-muted/50 rounded-md">
+                              (<div className="flex gap-2 items-start p-2 bg-muted/50 rounded-md">
                                 <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
                                   <Input
                                     placeholder="Name (optional)"
@@ -3234,10 +3232,10 @@ export default function GroupDetail() {
                                 >
                                   <X className="h-4 w-4" />
                                 </Button>
-                              </div>
+                              </div>)
                             ) : (
                               // Display mode
-                              <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-md">
+                              (<div className="flex items-center gap-2 p-2 bg-muted/50 rounded-md">
                                 <Avatar className="h-7 w-7">
                                   <AvatarFallback className="bg-primary/10 text-primary text-xs">
                                     {member.name?.[0]?.toUpperCase() || member.email?.[0]?.toUpperCase() || "?"}
@@ -3354,7 +3352,7 @@ export default function GroupDetail() {
                                     </div>
                                   )}
                                 </div>
-                              </div>
+                              </div>)
                             )}
                           </div>
                         ))}
@@ -6527,7 +6525,6 @@ export default function GroupDetail() {
           </TabsContent>
         </Tabs>
       </div>
-
       {/* Edit Group Dialog */}
       <Dialog open={editGroupOpen} onOpenChange={setEditGroupOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="dialog-edit-group">
@@ -6862,7 +6859,6 @@ export default function GroupDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
       {/* Save Itinerary Dialog */}
       <Dialog open={saveItineraryOpen} onOpenChange={setSaveItineraryOpen}>
         <DialogContent data-testid="dialog-save-itinerary">
@@ -6943,7 +6939,6 @@ export default function GroupDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
       {/* RSVP Constraint Dialog */}
       <Dialog 
         open={rsvpConstraintOpen} 
@@ -7004,7 +6999,6 @@ export default function GroupDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
       {/* Send Backup Dialog */}
       <Dialog 
         open={sendBackupOpen} 
@@ -7082,7 +7076,6 @@ export default function GroupDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
       {/* Edit Itinerary Dialog */}
       <Dialog 
         open={editItineraryOpen} 
@@ -7316,7 +7309,6 @@ export default function GroupDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
       {/* Add Venue to Itinerary Dialog */}
       <Dialog open={addVenueDialogOpen} onOpenChange={(open) => {
         setAddVenueDialogOpen(open);
@@ -7567,7 +7559,6 @@ export default function GroupDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
       {/* Edit Availability Dialog */}
       <Dialog open={editAvailabilityOpen} onOpenChange={setEditAvailabilityOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="dialog-edit-availability">
@@ -7656,7 +7647,6 @@ export default function GroupDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
       {/* Invite Guest Dialog */}
       <Dialog open={inviteGuestDialogOpen} onOpenChange={setInviteGuestDialogOpen}>
         <DialogContent className="sm:max-w-md">
@@ -7787,7 +7777,6 @@ export default function GroupDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
       {/* Schedule Event with AI Dialog */}
       <Dialog open={schedulePromptDialogOpen} onOpenChange={setSchedulePromptDialogOpen}>
         <DialogContent className="sm:max-w-2xl">
@@ -7882,7 +7871,6 @@ export default function GroupDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
       {/* Swipe Session Dialog */}
       {groupId && (
         <SwipeSession
