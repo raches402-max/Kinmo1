@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from "recharts";
 import { Users, Calendar, TrendingUp, MapPin, Repeat, ArrowLeft, DollarSign, Database } from "lucide-react";
 import { format } from "date-fns";
@@ -20,6 +22,8 @@ interface AdminStats {
 }
 
 interface ApiCosts {
+  period: string;
+  periodLabel: string;
   apiCalls: {
     textSearch: { estimated: number; cost: number; pricePerThousand: number };
     placeDetails: { estimated: number; cost: number; pricePerThousand: number; tier: string };
@@ -54,12 +58,19 @@ interface ApiCosts {
 }
 
 export default function Admin() {
+  const [selectedPeriod, setSelectedPeriod] = useState<string>("total");
+
   const { data: stats, isLoading, error } = useQuery<AdminStats>({
     queryKey: ["/api/admin/stats"],
   });
 
   const { data: apiCosts, isLoading: costsLoading } = useQuery<ApiCosts>({
-    queryKey: ["/api/admin/api-costs"],
+    queryKey: ["/api/admin/api-costs", selectedPeriod],
+    queryFn: async () => {
+      const response = await fetch(`/api/admin/api-costs?period=${selectedPeriod}`);
+      if (!response.ok) throw new Error('Failed to fetch API costs');
+      return response.json();
+    },
   });
 
   if (isLoading) {
@@ -201,7 +212,27 @@ export default function Admin() {
       {!costsLoading && apiCosts && (
         <>
           <div className="border-t pt-6">
-            <h2 className="text-2xl font-bold mb-4">Google Places API Cost Breakdown</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold">Google Places API Cost Breakdown</h2>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-muted-foreground">Time Period:</span>
+                <Select 
+                  value={selectedPeriod} 
+                  onValueChange={setSelectedPeriod}
+                  data-testid="select-period"
+                >
+                  <SelectTrigger className="w-[140px]" data-testid="select-period-trigger">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="daily" data-testid="option-daily">Daily</SelectItem>
+                    <SelectItem value="monthly" data-testid="option-monthly">Monthly</SelectItem>
+                    <SelectItem value="quarterly" data-testid="option-quarterly">Quarterly</SelectItem>
+                    <SelectItem value="total" data-testid="option-total">Total</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
