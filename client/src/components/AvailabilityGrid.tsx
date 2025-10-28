@@ -69,13 +69,13 @@ export function AvailabilityGrid({ value, onChange }: AvailabilityGridProps) {
               <tr>
                 <th className="p-2 text-left text-sm font-medium text-muted-foreground w-24"></th>
                 {DAYS.map(day => (
-                  <th key={day} className="p-1 text-center">
+                  <th key={day} className="p-1 text-center w-16">
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
                       onClick={() => toggleDay(day)}
-                      className="w-full text-xs font-medium hover-elevate"
+                      className="w-full h-8 text-xs font-medium hover-elevate"
                       data-testid={`button-toggle-day-${day.toLowerCase()}`}
                     >
                       {day}
@@ -93,14 +93,14 @@ export function AvailabilityGrid({ value, onChange }: AvailabilityGridProps) {
                       variant="ghost"
                       size="sm"
                       onClick={() => toggleTime(time)}
-                      className="w-full justify-start text-xs font-medium hover-elevate"
+                      className="w-full h-8 justify-start text-xs font-medium hover-elevate"
                       data-testid={`button-toggle-time-${time}`}
                     >
                       {TIME_LABELS[time]}
                     </Button>
                   </td>
                   {DAYS.map(day => (
-                    <td key={`${day}-${time}`} className="p-1">
+                    <td key={`${day}-${time}`} className="p-1 w-16">
                       <button
                         type="button"
                         onClick={() => toggleSlot(day, time)}
