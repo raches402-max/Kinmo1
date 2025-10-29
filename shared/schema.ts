@@ -400,6 +400,33 @@ export const geocodingCache = pgTable("geocoding_cache", {
   expiresAt: timestamp("expires_at").notNull(), // 30 days from createdAt
 });
 
+// Curated venues - pre-vetted, high-quality venues for cache-first generation
+// Owner manually seeds and maintains this list for guaranteed quality
+export const curatedVenues = pgTable("curated_venues", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(), // Venue name
+  address: text("address").notNull(), // Full address
+  latitude: numeric("latitude").notNull(), // Latitude for distance calculations
+  longitude: numeric("longitude").notNull(), // Longitude for distance calculations
+  category: text("category").notNull(), // meal, cafes, drinks, dessert, experiences
+  rating: numeric("rating"), // Google rating (1.0-5.0)
+  reviewCount: integer("review_count"), // Number of reviews
+  priceLevel: integer("price_level"), // 1-4 ($, $$, $$$, $$$$)
+  photoUrl: text("photo_url"), // Primary photo URL
+  googlePlaceId: text("google_place_id").unique(), // For future refreshes from Google API
+  description: text("description"), // Vibe/description of the venue
+  tags: text("tags").array(), // ["outdoor seating", "date night", "groups", "family friendly"]
+  region: text("region").notNull().default('bay_area'), // Geographic region (bay_area, nyc, etc.)
+  isActive: boolean("is_active").default(true).notNull(), // Soft delete flag
+  source: text("source").notNull().default('manual'), // manual, user_suggested, api_scrape
+  suggestedBy: varchar("suggested_by").references(() => users.id, { onDelete: "set null" }), // User who suggested this venue (if applicable)
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  lastRefreshed: timestamp("last_refreshed"), // Last time data was refreshed from Google API
+}, (table) => [
+  index("idx_curated_region_category").on(table.region, table.category, table.isActive),
+  index("idx_curated_location").on(table.latitude, table.longitude),
+]);
+
 // Google Place Photos API cache - cache downloaded photos for 30 days
 export const photosCache = pgTable("photos_cache", {
   photoReference: text("photo_reference").primaryKey(), // Google photo reference ID
@@ -712,6 +739,11 @@ export const insertHostAssignmentSchema = createInsertSchema(hostAssignments).om
   askedAt: true,
 });
 
+export const insertCuratedVenueSchema = createInsertSchema(curatedVenues).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Update schemas (partial versions for PATCH operations)
 export const updateGroupSchema = insertGroupSchema.partial().refine(
   (data) => {
@@ -801,3 +833,6 @@ export type SearchCache = typeof searchCache.$inferSelect;
 
 export type InsertHostAssignment = z.infer<typeof insertHostAssignmentSchema>;
 export type HostAssignment = typeof hostAssignments.$inferSelect;
+
+export type InsertCuratedVenue = z.infer<typeof insertCuratedVenueSchema>;
+export type CuratedVenue = typeof curatedVenues.$inferSelect;
