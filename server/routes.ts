@@ -6109,6 +6109,55 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Admin endpoint to get API call logs
+  app.get("/api/admin/api-logs", isAuthenticated, async (req: any, res) => {
+    try {
+      // Check if user is admin
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      const adminEmails = ['raches402@gmail.com'];
+      if (!user || !adminEmails.includes(user.email || '')) {
+        return res.status(403).json({ message: "Unauthorized: Admin access required" });
+      }
+
+      const { getApiLogs } = await import('./api-logger');
+      const logs = await getApiLogs({
+        limit: req.query.limit ? parseInt(req.query.limit as string) : undefined,
+        service: req.query.service as 'google_places' | 'openai' | undefined,
+        status: req.query.status as 'success' | 'error' | undefined,
+        cacheStatus: req.query.cacheStatus as 'session_hit' | 'db_hit' | 'miss' | undefined,
+      });
+
+      res.json(logs);
+    } catch (error: any) {
+      console.error("Error fetching API logs:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Admin endpoint to get API statistics
+  app.get("/api/admin/api-stats", isAuthenticated, async (req: any, res) => {
+    try {
+      // Check if user is admin
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      const adminEmails = ['raches402@gmail.com'];
+      if (!user || !adminEmails.includes(user.email || '')) {
+        return res.status(403).json({ message: "Unauthorized: Admin access required" });
+      }
+
+      const { getApiStats } = await import('./api-logger');
+      const stats = await getApiStats();
+
+      res.json(stats);
+    } catch (error: any) {
+      console.error("Error fetching API stats:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

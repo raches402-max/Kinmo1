@@ -448,6 +448,26 @@ export const hostAssignments = pgTable("host_assignments", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// API Call Logs - track all external API calls for monitoring and cost analysis
+export const apiCallLogs = pgTable("api_call_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+  service: text("service").notNull(), // 'google_places', 'openai', etc.
+  method: text("method").notNull(), // 'textSearch', 'placeDetails', 'chatCompletion', etc.
+  cacheStatus: text("cache_status").notNull(), // 'hit', 'miss', 'session_hit', 'db_hit'
+  responseTimeMs: integer("response_time_ms"), // Response time in milliseconds (null for cache hits)
+  costEstimate: numeric("cost_estimate", { precision: 10, scale: 6 }), // Estimated cost in USD
+  status: text("status").notNull(), // 'success', 'error'
+  errorMessage: text("error_message"), // Error details if status is 'error'
+  parameters: jsonb("parameters"), // Sanitized request parameters (no API keys)
+  metadata: jsonb("metadata"), // Additional context (e.g., tokens used for OpenAI)
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_api_logs_timestamp").on(table.timestamp),
+  index("idx_api_logs_service").on(table.service),
+  index("idx_api_logs_cache_status").on(table.cacheStatus),
+]);
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   groups: many(groups),
