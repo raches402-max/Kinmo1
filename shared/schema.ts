@@ -179,7 +179,7 @@ export const activities = pgTable("activities", {
 // YAS THIS voting events table
 export const votingEvents = pgTable("voting_events", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  groupId: varchar("group_id").notNull().references(() => groups.id, { onDelete: "cascade" }),
+  groupId: varchar("group_id").references(() => groups.id, { onDelete: "cascade" }), // Nullable for global YAS THIS events
   title: text("title").notNull(),
   description: text("description"),
   venueAddress: text("venue_address"),

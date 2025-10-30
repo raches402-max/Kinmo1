@@ -2151,25 +2151,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create a voting event (authenticated) - enriches with Google Places data
+  // Create a voting event (authenticated) - enriches with Google Places data if groupId provided
   app.post("/api/voting-events", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const validatedEvent = insertVotingEventSchema.parse(req.body);
       const skipEnrichmentCheck = req.body.skipEnrichmentCheck === true;
 
-      // Get the group to know the location for Google Places search
-      const group = await storage.getGroup(validatedEvent.groupId);
-      if (!group) {
-        return res.status(404).json({ message: "Group not found" });
-      }
-
-      // Search Google Places to enrich the event with venue details
+      // Search Google Places to enrich the event with venue details (only if groupId provided)
       let enrichedEvent = { ...validatedEvent };
-      let enrichmentStatus: 'success' | 'no_results' | 'error' | 'skipped' = 'error';
-
-      // Only check Google Places if not explicitly skipping
-      if (!skipEnrichmentCheck) {
+      let enrichmentStatus: 'success' | 'no_results' | 'error' | 'skipped' = 'skipped';
+      
+      // Only enrich with Google Places if group is provided (for group-specific events)
+      if (validatedEvent.groupId && !skipEnrichmentCheck) {
+        // Get the group to know the location for Google Places search
+        const group = await storage.getGroup(validatedEvent.groupId);
+        if (!group) {
+          return res.status(404).json({ message: "Group not found" });
+        }
         try {
           const coordinates = group.latitude && group.longitude 
             ? { lat: parseFloat(group.latitude), lng: parseFloat(group.longitude) }
