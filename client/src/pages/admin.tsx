@@ -4,11 +4,16 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from "recharts";
-import { Users, Calendar, TrendingUp, MapPin, Repeat, ArrowLeft, DollarSign, Database, Download } from "lucide-react";
+import { Users, Calendar, TrendingUp, MapPin, Repeat, ArrowLeft, DollarSign, Database, Download, RefreshCw, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import type { ApiCallLog } from "@shared/schema";
 
 interface AdminStats {
   registeredUsers: number;
@@ -62,6 +67,10 @@ interface ApiCosts {
 
 export default function Admin() {
   const [selectedPeriod, setSelectedPeriod] = useState<string>("total");
+  const [apiLogsService, setApiLogsService] = useState<string>("");
+  const [apiLogsMethod, setApiLogsMethod] = useState<string>("");
+  const [apiLogsCacheStatus, setApiLogsCacheStatus] = useState<string>("");
+  const [apiLogsStatus, setApiLogsStatus] = useState<string>("");
   const { toast } = useToast();
 
   const { data: stats, isLoading, error } = useQuery<AdminStats>({
@@ -73,6 +82,27 @@ export default function Admin() {
     queryFn: async () => {
       const response = await fetch(`/api/admin/api-costs?period=${selectedPeriod}`);
       if (!response.ok) throw new Error('Failed to fetch API costs');
+      return response.json();
+    },
+  });
+
+  const { data: apiLogsData, isLoading: apiLogsLoading } = useQuery<{
+    logs: ApiCallLog[];
+    total: number;
+    limit: number;
+    offset: number;
+  }>({
+    queryKey: ["/api/admin/api-logs", apiLogsService, apiLogsMethod, apiLogsCacheStatus, apiLogsStatus],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (apiLogsService) params.append('service', apiLogsService);
+      if (apiLogsMethod) params.append('method', apiLogsMethod);
+      if (apiLogsCacheStatus) params.append('cacheStatus', apiLogsCacheStatus);
+      if (apiLogsStatus) params.append('status', apiLogsStatus);
+      params.append('limit', '100');
+      
+      const response = await fetch(`/api/admin/api-logs?${params.toString()}`);
+      if (!response.ok) throw new Error('Failed to fetch API logs');
       return response.json();
     },
   });
@@ -167,6 +197,17 @@ export default function Admin() {
           </Link>
         </Button>
       </div>
+
+      <Tabs defaultValue="overview" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
+          <TabsTrigger value="api-logs" data-testid="tab-api-logs">
+            <FileText className="h-4 w-4 mr-2" />
+            API Logs
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-6">
 
       {/* Quick Stats */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -570,6 +611,168 @@ export default function Admin() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="api-logs" className="space-y-6">
+          <Card data-testid="card-api-logs">
+            <CardHeader>
+              <CardTitle>API Call Logs</CardTitle>
+              <CardDescription>Monitor external API calls with filtering</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {/* Filters */}
+              <div className="grid gap-4 md:grid-cols-4 mb-6">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Service</label>
+                  <Select value={apiLogsService} onValueChange={setApiLogsService}>
+                    <SelectTrigger data-testid="select-logs-service">
+                      <SelectValue placeholder="All Services" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">All Services</SelectItem>
+                      <SelectItem value="google_places">Google Places</SelectItem>
+                      <SelectItem value="openai">OpenAI</SelectItem>
+                      <SelectItem value="google_maps">Google Maps</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Method</label>
+                  <Input
+                    placeholder="e.g. textSearch"
+                    value={apiLogsMethod}
+                    onChange={(e) => setApiLogsMethod(e.target.value)}
+                    data-testid="input-logs-method"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Cache Status</label>
+                  <Select value={apiLogsCacheStatus} onValueChange={setApiLogsCacheStatus}>
+                    <SelectTrigger data-testid="select-logs-cache-status">
+                      <SelectValue placeholder="All Statuses" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">All Statuses</SelectItem>
+                      <SelectItem value="hit">Hit</SelectItem>
+                      <SelectItem value="miss">Miss</SelectItem>
+                      <SelectItem value="write">Write</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Status</label>
+                  <Select value={apiLogsStatus} onValueChange={setApiLogsStatus}>
+                    <SelectTrigger data-testid="select-logs-status">
+                      <SelectValue placeholder="All Statuses" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">All Statuses</SelectItem>
+                      <SelectItem value="success">Success</SelectItem>
+                      <SelectItem value="error">Error</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Clear Filters */}
+              {(apiLogsService || apiLogsMethod || apiLogsCacheStatus || apiLogsStatus) && (
+                <div className="mb-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setApiLogsService("");
+                      setApiLogsMethod("");
+                      setApiLogsCacheStatus("");
+                      setApiLogsStatus("");
+                    }}
+                    data-testid="button-clear-filters"
+                  >
+                    Clear Filters
+                  </Button>
+                </div>
+              )}
+
+              {/* Logs Table */}
+              {apiLogsLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : apiLogsData && apiLogsData.logs.length > 0 ? (
+                <>
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Time</TableHead>
+                          <TableHead>Service</TableHead>
+                          <TableHead>Method</TableHead>
+                          <TableHead>Cache</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Response Time</TableHead>
+                          <TableHead>Cost</TableHead>
+                          <TableHead>Details</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {apiLogsData.logs.map((log) => (
+                          <TableRow key={log.id} data-testid={`log-row-${log.id}`}>
+                            <TableCell className="text-xs">
+                              {format(new Date(log.createdAt), 'MMM d, HH:mm:ss')}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{log.service}</Badge>
+                            </TableCell>
+                            <TableCell className="text-sm">{log.method}</TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={
+                                  log.cacheStatus === 'hit'
+                                    ? 'default'
+                                    : log.cacheStatus === 'miss'
+                                    ? 'secondary'
+                                    : 'outline'
+                                }
+                              >
+                                {log.cacheStatus}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={log.status === 'success' ? 'default' : 'destructive'}>
+                                {log.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {log.responseTimeMs ? `${log.responseTimeMs}ms` : '-'}
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {log.costEstimate ? `$${parseFloat(log.costEstimate).toFixed(4)}` : '-'}
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground max-w-xs truncate">
+                              {log.errorMessage || (log.parameters ? JSON.stringify(log.parameters).slice(0, 50) + '...' : '-')}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  <div className="mt-4 text-sm text-muted-foreground">
+                    Showing {apiLogsData.logs.length} of {apiLogsData.total} logs
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-12 text-muted-foreground">
+                  No API logs found {(apiLogsService || apiLogsMethod || apiLogsCacheStatus || apiLogsStatus) && 'matching your filters'}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
+

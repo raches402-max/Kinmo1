@@ -436,6 +436,25 @@ export const photosCache = pgTable("photos_cache", {
   expiresAt: timestamp("expires_at").notNull(), // 30 days from createdAt
 });
 
+// API Call Logs - track all external API calls for monitoring and cost analysis
+export const apiCallLogs = pgTable("api_call_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  service: text("service").notNull(), // 'google_places', 'google_maps', 'openai', etc.
+  method: text("method").notNull(), // 'textSearch', 'placeDetails', 'geocoding', 'chat', etc.
+  cacheStatus: text("cache_status").notNull(), // 'hit', 'miss', 'write'
+  status: text("status").notNull(), // 'success', 'error'
+  responseTimeMs: integer("response_time_ms"), // Response time in milliseconds
+  costEstimate: numeric("cost_estimate", { precision: 10, scale: 6 }), // Estimated cost in USD
+  errorMessage: text("error_message"), // Error details if status is 'error'
+  parameters: jsonb("parameters"), // Request parameters (e.g., query, location, placeId)
+  metadata: jsonb("metadata"), // Additional data (e.g., result count, API key used)
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("api_call_logs_service_idx").on(table.service),
+  index("api_call_logs_created_at_idx").on(table.createdAt),
+  index("api_call_logs_cache_status_idx").on(table.cacheStatus),
+]);
+
 // Host assignments - track rotating host requests and responses
 export const hostAssignments = pgTable("host_assignments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -744,6 +763,11 @@ export const insertCuratedVenueSchema = createInsertSchema(curatedVenues).omit({
   createdAt: true,
 });
 
+export const insertApiCallLogSchema = createInsertSchema(apiCallLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Update schemas (partial versions for PATCH operations)
 export const updateGroupSchema = insertGroupSchema.partial().refine(
   (data) => {
@@ -836,3 +860,6 @@ export type HostAssignment = typeof hostAssignments.$inferSelect;
 
 export type InsertCuratedVenue = z.infer<typeof insertCuratedVenueSchema>;
 export type CuratedVenue = typeof curatedVenues.$inferSelect;
+
+export type InsertApiCallLog = z.infer<typeof insertApiCallLogSchema>;
+export type ApiCallLog = typeof apiCallLogs.$inferSelect;

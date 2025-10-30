@@ -9,7 +9,7 @@ import { setupAuth, isAuthenticated } from "./replitAuth";
 import { validateItinerary } from "./itinerary-validation";
 import { sendMemberWelcome, type EmailRecipient, type MemberWelcomeData } from "./email-service";
 import { db } from "./db";
-import { eq, sql, and, or, gte } from "drizzle-orm";
+import { eq, sql, and, or, gte, desc } from "drizzle-orm";
 import { format } from 'date-fns';
 
 async function trackFeedbackAndMaybeAnalyze(groupId: string) {
@@ -6233,6 +6233,82 @@ Looking forward to planning great activities together!
       });
     } catch (error: any) {
       console.error("Error backfilling favorites coordinates:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Admin endpoint to get API call logs with filtering
+  app.get("/api/admin/api-logs", isAuthenticated, async (req: any, res) => {
+    try {
+      // Check if user is admin
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      const adminEmails = ['raches402@gmail.com'];
+      if (!user || !adminEmails.includes(user.email || '')) {
+        return res.status(403).json({ message: "Unauthorized: Admin access required" });
+      }
+
+      // Parse query parameters for filtering
+      const {
+        service,
+        method,
+        cacheStatus,
+        status,
+        limit = '100',
+        offset = '0',
+      } = req.query;
+
+      // Query the API logs table
+      const apiCallLogsTable = (await import('@shared/schema')).apiCallLogs;
+      
+      let query = db.select().from(apiCallLogsTable);
+      
+      // Apply filters
+      const conditions = [];
+      if (service) {
+        conditions.push(eq(apiCallLogsTable.service, service as string));
+      }
+      if (method) {
+        conditions.push(eq(apiCallLogsTable.method, method as string));
+      }
+      if (cacheStatus) {
+        conditions.push(eq(apiCallLogsTable.cacheStatus, cacheStatus as string));
+      }
+      if (status) {
+        conditions.push(eq(apiCallLogsTable.status, status as string));
+      }
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+      
+      // Order by most recent first
+      query = query.orderBy(desc(apiCallLogsTable.createdAt));
+      
+      // Apply pagination
+      const limitNum = parseInt(limit as string, 10);
+      const offsetNum = parseInt(offset as string, 10);
+      query = query.limit(limitNum).offset(offsetNum);
+      
+      const logs = await query;
+      
+      // Get total count for pagination
+      let countQuery = db.select({ count: sql<number>`count(*)` }).from(apiCallLogsTable);
+      if (conditions.length > 0) {
+        countQuery = countQuery.where(and(...conditions));
+      }
+      const totalResult = await countQuery;
+      const total = Number(totalResult[0]?.count) || 0;
+
+      res.json({
+        logs,
+        total,
+        limit: limitNum,
+        offset: offsetNum,
+      });
+    } catch (error: any) {
+      console.error("Error fetching API logs:", error);
       res.status(500).json({ message: error.message });
     }
   });
