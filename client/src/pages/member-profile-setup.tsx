@@ -65,6 +65,7 @@ export default function MemberProfileSetup() {
   // Fetch member data to verify ownership
   const { data: member, isLoading: memberLoading } = useQuery<{
     id: string;
+    userId: string | null;
     name: string | null;
     homeBaseLocation: string | null;
     homeBaseLatitude: string | null;
@@ -217,7 +218,7 @@ export default function MemberProfileSetup() {
     );
   }
 
-  if (!member || member.userId !== user.id) {
+  if (!member || member.userId !== (user as any)?.id) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <Card className="max-w-md">

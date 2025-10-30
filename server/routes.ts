@@ -1124,6 +1124,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get individual member by ID (requires authentication)
+  app.get("/api/members/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const member = await storage.getMember(req.params.id);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+      res.json(member);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Update member
   app.patch("/api/members/:id", async (req, res) => {
     try {
