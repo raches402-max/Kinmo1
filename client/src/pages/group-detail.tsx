@@ -19,7 +19,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, ChevronRight, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell, Edit2, Edit, Compass, Home, UserCheck, MessageCircle, TrendingUp, AlertCircle, Users, Loader2 } from "lucide-react";
+import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, ChevronRight, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell, Edit2, Edit, Compass, Home, UserCheck, MessageCircle, TrendingUp, AlertCircle, Users, Loader2, Map } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -4836,20 +4836,31 @@ export default function GroupDetail() {
                 </Card>
               ) : (
                 <>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      type="text"
-                      placeholder="Search favorites by name..."
-                      value={favoritesSearch}
-                      onChange={(e) => setFavoritesSearch(e.target.value)}
-                      className="pl-9"
-                      data-testid="input-favorites-search"
-                    />
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        type="text"
+                        placeholder="Search favorites by name..."
+                        value={favoritesSearch}
+                        onChange={(e) => setFavoritesSearch(e.target.value)}
+                        className="pl-9"
+                        data-testid="input-favorites-search"
+                      />
+                    </div>
+                    <Button
+                      variant={showFavoritesMap ? "secondary" : "outline"}
+                      onClick={() => setShowFavoritesMap(!showFavoritesMap)}
+                      className="gap-2"
+                      data-testid="button-toggle-map"
+                    >
+                      <Map className="h-4 w-4" />
+                      {showFavoritesMap ? "Hide Map" : "Show Map"}
+                    </Button>
                   </div>
 
                   {/* List and Map side-by-side */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className={`grid grid-cols-1 gap-6 ${showFavoritesMap ? 'lg:grid-cols-2' : ''}`}>
                     {/* Favorites List */}
                     <div className="space-y-6">
                   {(() => {
@@ -5151,20 +5162,22 @@ export default function GroupDetail() {
                   })()}
                     </div>
                     
-                    {/* Map View */}
-                    <div className="lg:sticky lg:top-6 h-[600px]">
-                      <FavoritesMap 
-                        venues={votingEvents.filter(event => 
-                          event.title.toLowerCase().includes(favoritesSearch.toLowerCase())
-                        )}
-                        hoveredVenueId={hoveredFavoriteId}
-                        onMarkerHover={setHoveredFavoriteId}
-                        onMarkerClick={(venueId) => {
-                          const element = document.querySelector(`[data-testid="favorites-row-${venueId}"]`);
-                          element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        }}
-                      />
-                    </div>
+                    {/* Map View - only render when showFavoritesMap is true */}
+                    {showFavoritesMap && (
+                      <div className="lg:sticky lg:top-6 h-[600px]">
+                        <FavoritesMap 
+                          venues={votingEvents.filter(event => 
+                            event.title.toLowerCase().includes(favoritesSearch.toLowerCase())
+                          )}
+                          hoveredVenueId={hoveredFavoriteId}
+                          onMarkerHover={setHoveredFavoriteId}
+                          onMarkerClick={(venueId) => {
+                            const element = document.querySelector(`[data-testid="favorites-row-${venueId}"]`);
+                            element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
                 </>
               )}
