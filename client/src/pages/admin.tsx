@@ -624,12 +624,12 @@ export default function Admin() {
               <div className="grid gap-4 md:grid-cols-4 mb-6">
                 <div>
                   <label className="text-sm font-medium mb-2 block">Service</label>
-                  <Select value={apiLogsService} onValueChange={setApiLogsService}>
+                  <Select value={apiLogsService || "all"} onValueChange={(value) => setApiLogsService(value === "all" ? "" : value)}>
                     <SelectTrigger data-testid="select-logs-service">
                       <SelectValue placeholder="All Services" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Services</SelectItem>
+                      <SelectItem value="all">All Services</SelectItem>
                       <SelectItem value="google_places">Google Places</SelectItem>
                       <SelectItem value="openai">OpenAI</SelectItem>
                       <SelectItem value="google_maps">Google Maps</SelectItem>
@@ -649,12 +649,12 @@ export default function Admin() {
 
                 <div>
                   <label className="text-sm font-medium mb-2 block">Cache Status</label>
-                  <Select value={apiLogsCacheStatus} onValueChange={setApiLogsCacheStatus}>
+                  <Select value={apiLogsCacheStatus || "all"} onValueChange={(value) => setApiLogsCacheStatus(value === "all" ? "" : value)}>
                     <SelectTrigger data-testid="select-logs-cache-status">
                       <SelectValue placeholder="All Statuses" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Statuses</SelectItem>
+                      <SelectItem value="all">All Statuses</SelectItem>
                       <SelectItem value="hit">Hit</SelectItem>
                       <SelectItem value="miss">Miss</SelectItem>
                       <SelectItem value="write">Write</SelectItem>
@@ -664,12 +664,12 @@ export default function Admin() {
 
                 <div>
                   <label className="text-sm font-medium mb-2 block">Status</label>
-                  <Select value={apiLogsStatus} onValueChange={setApiLogsStatus}>
+                  <Select value={apiLogsStatus || "all"} onValueChange={(value) => setApiLogsStatus(value === "all" ? "" : value)}>
                     <SelectTrigger data-testid="select-logs-status">
                       <SelectValue placeholder="All Statuses" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Statuses</SelectItem>
+                      <SelectItem value="all">All Statuses</SelectItem>
                       <SelectItem value="success">Success</SelectItem>
                       <SelectItem value="error">Error</SelectItem>
                     </SelectContent>
