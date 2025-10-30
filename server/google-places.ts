@@ -204,7 +204,7 @@ async function savePlaceDetailsToDB(placeId: string, placeData: PlaceResult): Pr
   }
 }
 
-async function getSearchResultsFromDB(searchQuery: string, searchLocation: string, searchRadius: number): Promise<string[] | null> {
+async function getSearchResultsFromDB(searchQuery: string, searchLocation: string, searchRadius: number): Promise<any[] | null> {
   try {
     const cached = await db
       .select()
@@ -233,14 +233,15 @@ async function getSearchResultsFromDB(searchQuery: string, searchLocation: strin
     }
 
     console.log(`[DB Cache] HIT - Search results for "${searchQuery}" in ${searchLocation}`);
-    return cacheEntry.searchResults as string[];
+    // Returns full PlaceResult objects (or legacy string IDs for backwards compatibility)
+    return cacheEntry.searchResults as any[];
   } catch (error) {
     console.error(`[DB Cache] Error reading search results:`, error);
     return null;
   }
 }
 
-async function saveSearchResultsToDB(searchQuery: string, searchLocation: string, searchRadius: number, placeIds: string[]): Promise<void> {
+async function saveSearchResultsToDB(searchQuery: string, searchLocation: string, searchRadius: number, results: PlaceResult[]): Promise<void> {
   try {
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 24); // 24 hours from now
@@ -251,11 +252,11 @@ async function saveSearchResultsToDB(searchQuery: string, searchLocation: string
         searchQuery,
         searchLocation,
         searchRadius,
-        searchResults: placeIds as any,
+        searchResults: results as any,
         expiresAt,
       });
 
-    console.log(`[DB Cache] SAVED - Search results for "${searchQuery}" in ${searchLocation} (expires in 24 hours)`);
+    console.log(`[DB Cache] SAVED - ${results.length} full search results for "${searchQuery}" in ${searchLocation} (expires in 24 hours)`);
   } catch (error) {
     console.error(`[DB Cache] Error saving search results:`, error);
   }
@@ -474,24 +475,28 @@ export async function searchPlaces(
   }
 
   // Check database cache (persistent, 24-hour TTL)
-  const dbCachedPlaceIds = await getSearchResultsFromDB(query, location, radiusMiles);
-  if (dbCachedPlaceIds && dbCachedPlaceIds.length > 0) {
-    console.log(`[DB Cache] HIT - search results for "${query}" (${dbCachedPlaceIds.length} cached place IDs)`);
+  // NOTE: DB cache now stores full results, not just place IDs
+  const dbCachedResults = await getSearchResultsFromDB(query, location, radiusMiles);
+  if (dbCachedResults && dbCachedResults.length > 0) {
+    console.log(`[DB Cache] HIT - full search results for "${query}" (${dbCachedResults.length} cached results)`);
     
-    // Fetch place details for each cached place ID
-    const results: PlaceResult[] = [];
-    for (const placeId of dbCachedPlaceIds) {
-      const detailedPlace = await getPlaceDetails(placeId);
-      if (detailedPlace) {
-        results.push(detailedPlace);
+    // Parse cached results as PlaceResult array
+    const results: PlaceResult[] = dbCachedResults.map((cachedId: any) => {
+      // Handle both old format (string IDs) and new format (full objects)
+      if (typeof cachedId === 'string') {
+        // Legacy format - would need to fetch details, but we're migrating away from this
+        return null;
       }
+      return cachedId as PlaceResult;
+    }).filter((r): r is PlaceResult => r !== null);
+    
+    if (results.length > 0) {
+      // Cache in session for immediate reuse
+      sessionCache.searchResults.set(cacheKey, results.map(r => clonePlaceResult(r)));
+      sessionCache.stats.searchHits++;
+      
+      return results.map(result => clonePlaceResult(result));
     }
-    
-    // Cache in session for immediate reuse
-    sessionCache.searchResults.set(cacheKey, results.map(r => clonePlaceResult(r)));
-    sessionCache.stats.searchHits++;
-    
-    return results.map(result => clonePlaceResult(result));
   }
 
   sessionCache.stats.searchMisses++;
@@ -526,7 +531,10 @@ export async function searchPlaces(
     console.log(`[Google Places] Got ${response.data.results.length} results from API`);
 
     // Process ALL results (up to 20 from Google), not just the first one
+    // OPTIMIZATION: Use Text Search data directly instead of calling getPlaceDetails for each result
+    // This saves 20x API calls per search (was calling Place Details for every result)
     const results: PlaceResult[] = [];
+    const MIN_REVIEWS = 50;
     
     for (const place of response.data.results.slice(0, 20)) {
       // Check if place is within radius (if coordinates provided)
@@ -545,31 +553,14 @@ export async function searchPlaces(
         }
       }
       
-      // Fetch full details including reviews if we have a place ID
-      if (place.place_id) {
-        const detailedPlace = await getPlaceDetails(place.place_id);
-        if (detailedPlace) {
-          // Filter out places with fewer than 50 reviews
-          const MIN_REVIEWS = 50;
-          if (!detailedPlace.reviewCount || detailedPlace.reviewCount < MIN_REVIEWS) {
-            console.log(`[Google Places] Filtering out "${detailedPlace.name}" - only ${detailedPlace.reviewCount || 0} reviews (minimum: ${MIN_REVIEWS})`);
-            continue;
-          }
-          
-          // Add location from text search (not in place details)
-          const placeLocationCoords = placeLocation 
-            ? { lat: placeLocation.lat, lng: placeLocation.lng }
-            : undefined;
-          
-          results.push({
-            ...detailedPlace,
-            location: placeLocationCoords,
-          });
-          continue; // Successfully added detailed place
-        }
+      // Filter out places with fewer than 50 reviews
+      // Use user_ratings_total directly from Text Search response
+      if (!place.user_ratings_total || place.user_ratings_total < MIN_REVIEWS) {
+        console.log(`[Google Places] Filtering out "${place.name}" - only ${place.user_ratings_total || 0} reviews (minimum: ${MIN_REVIEWS})`);
+        continue;
       }
-
-      // Fallback to basic data if details fetch fails
+      
+      // Build result from Text Search data (no additional API call needed!)
       let photoUrl: string | undefined;
       if (place.photos && place.photos.length > 0) {
         const photoReference = place.photos[0].photo_reference;
@@ -577,7 +568,7 @@ export async function searchPlaces(
         photoUrl = `/api/photos/${photoReference}`;
       }
 
-      const fallbackLocation = placeLocation 
+      const location = placeLocation 
         ? { lat: placeLocation.lat, lng: placeLocation.lng }
         : undefined;
 
@@ -586,10 +577,11 @@ export async function searchPlaces(
         name: place.name || query,
         address: place.formatted_address || "",
         rating: place.rating?.toString(),
-        priceLevel: place.price_level?.toString(),
+        reviewCount: place.user_ratings_total,
+        priceLevel: place.price_level ? '$'.repeat(place.price_level) : undefined,
         photoUrl,
         types: place.types || [],
-        location: fallbackLocation,
+        location,
       });
     }
 
@@ -598,10 +590,10 @@ export async function searchPlaces(
     // Cache in session for immediate reuse
     sessionCache.searchResults.set(cacheKey, results.map(r => clonePlaceResult(r)));
     
-    // Cache place IDs in database for 24 hours (async, don't wait)
-    const placeIds = results.map(r => r.placeId).filter(id => id);
-    if (placeIds.length > 0) {
-      saveSearchResultsToDB(query, location, radiusMiles, placeIds).catch(err => 
+    // Cache full results in database for 24 hours (async, don't wait)
+    // OPTIMIZATION: Store complete results instead of just place IDs to avoid re-fetching
+    if (results.length > 0) {
+      saveSearchResultsToDB(query, location, radiusMiles, results as any).catch(err => 
         console.error(`Failed to cache search results in DB for "${query}":`, err)
       );
     }
