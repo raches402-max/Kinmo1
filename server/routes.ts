@@ -2,7 +2,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, updateUserProfileSchema, activities as activitiesTable, groups as groupsTable, members as membersTable, itineraryInvites, rsvps as rsvpsTable, itineraries, itineraryItems, proposedTimeSlots, userProfiles, photosCache, geocodingCache, hostAssignments, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
+import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, updateUserProfileSchema, activities as activitiesTable, groups as groupsTable, members as membersTable, itineraryInvites, rsvps as rsvpsTable, itineraries, itineraryItems, proposedTimeSlots, userProfiles, photosCache, geocodingCache, hostAssignments, curatedVenues, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
 import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue, analyzePreferencePatterns, parseSchedulingPrompt, detectCategory } from "./openai";
 import { searchPlaces, searchNearbyPlaces, geocodeLocation, clearPlacesCache, getCacheStats } from "./google-places";
 import { setupAuth, isAuthenticated } from "./replitAuth";
@@ -283,6 +283,130 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching photo:", error);
       res.status(500).json({ message: "Failed to fetch photo" });
+    }
+  });
+
+  // Bulk import curated venues (admin only - for seeding SF data)
+  app.post('/api/admin/import-venues', async (req, res) => {
+    try {
+      console.log('[Venue Import] Endpoint hit, body:', typeof req.body, Object.keys(req.body || {}));
+      
+      const { venues } = req.body;
+      
+      if (!Array.isArray(venues)) {
+        console.log('[Venue Import] venues is not an array:', typeof venues);
+        return res.status(400).json({ message: "venues must be an array", received: typeof venues });
+      }
+
+      console.log(`[Venue Import] Starting import of ${venues.length} venues`);
+
+      // Helper to extract Place ID from Google Maps URL
+      const extractPlaceId = (url: string): string | null => {
+        const match = url.match(/query_place_id=([^&]+)/);
+        return match ? match[1] : null;
+      };
+
+      // Map category names to our system categories
+      const mapCategory = (categoryName: string): string => {
+        const lower = categoryName.toLowerCase();
+        if (lower.includes('bar') || lower.includes('pub') || lower.includes('brewery')) return 'drinks';
+        if (lower.includes('restaurant') || lower.includes('dining')) return 'meal';
+        if (lower.includes('cafe') || lower.includes('coffee')) return 'cafes';
+        if (lower.includes('dessert') || lower.includes('ice cream') || lower.includes('bakery')) return 'dessert';
+        if (lower.includes('museum') || lower.includes('theater') || lower.includes('concert')) return 'experiences';
+        return 'experiences'; // default
+      };
+
+      const imported = [];
+      const skipped = [];
+
+      for (const venue of venues) {
+        try {
+          const placeId = extractPlaceId(venue.url);
+          if (!placeId) {
+            skipped.push({ venue: venue.title, reason: 'No Place ID found' });
+            continue;
+          }
+
+          // Check if already exists
+          const existing = await db
+            .select()
+            .from(curatedVenues)
+            .where(eq(curatedVenues.googlePlaceId, placeId))
+            .limit(1);
+
+          if (existing.length > 0) {
+            skipped.push({ venue: venue.title, reason: 'Already exists' });
+            continue;
+          }
+
+          // Build full address
+          const address = `${venue.street}, ${venue.city}, ${venue.state} ${venue.countryCode}`;
+
+          // Try to geocode the address (if geocodingCache has it)
+          let latitude = "0";
+          let longitude = "0";
+          
+          try {
+            const cached = await db
+              .select()
+              .from(geocodingCache)
+              .where(eq(geocodingCache.location, address))
+              .limit(1);
+            
+            if (cached.length > 0) {
+              latitude = cached[0].latitude;
+              longitude = cached[0].longitude;
+            } else {
+              // Geocode on the fly
+              const geocoded = await geocodeLocation(address);
+              if (geocoded) {
+                latitude = geocoded.latitude.toString();
+                longitude = geocoded.longitude.toString();
+              }
+            }
+          } catch (geocodeError) {
+            console.log(`[Venue Import] Geocoding failed for ${venue.title}, using 0,0`);
+          }
+
+          // Insert venue
+          await db.insert(curatedVenues).values({
+            name: venue.title,
+            address,
+            latitude,
+            longitude,
+            category: mapCategory(venue.categoryName),
+            rating: venue.totalScore?.toString() || null,
+            reviewCount: venue.reviewsCount || null,
+            priceLevel: null, // Not in source data
+            photoUrl: null, // Will be populated on first use
+            googlePlaceId: placeId,
+            description: null,
+            tags: [venue.categoryName], // Store original category as tag
+            region: 'san_francisco',
+            isActive: true,
+            source: 'api_scrape',
+          });
+
+          imported.push(venue.title);
+        } catch (venueError) {
+          console.error(`[Venue Import] Error importing ${venue.title}:`, venueError);
+          skipped.push({ venue: venue.title, reason: 'Import error' });
+        }
+      }
+
+      console.log(`[Venue Import] Complete: ${imported.length} imported, ${skipped.length} skipped`);
+
+      res.json({
+        success: true,
+        imported: imported.length,
+        skipped: skipped.length,
+        details: { imported: imported.slice(0, 10), skipped: skipped.slice(0, 10) }
+      });
+
+    } catch (error) {
+      console.error("[Venue Import] Error:", error);
+      res.status(500).json({ message: "Failed to import venues" });
     }
   });
 
