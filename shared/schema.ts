@@ -93,6 +93,8 @@ export const groups = pgTable("groups", {
   lastActivitiesUpdate: timestamp("last_activities_update"), // When activities were last auto-generated
   lastItineraryUpdate: timestamp("last_itinerary_update"), // When itinerary was last auto-created
   
+  deletedAt: timestamp("deleted_at"), // Soft delete: when group was deleted (null = active)
+  
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

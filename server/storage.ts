@@ -23,7 +23,7 @@ import {
   type HostAssignment, type InsertHostAssignment
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql, and, or, inArray } from "drizzle-orm";
+import { eq, desc, sql, and, or, inArray, isNull } from "drizzle-orm";
 import { randomBytes } from "crypto";
 
 export interface IStorage {
@@ -245,18 +245,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserGroups(userId: string): Promise<Array<Group & { members: Array<{ id: string; name: string | null; email: string | null }> }>> {
-    // Get groups where user is the organizer
+    // Get groups where user is the organizer (exclude soft-deleted)
     const organizedGroups = await db
       .select()
       .from(groups)
-      .where(eq(groups.userId, userId));
+      .where(and(eq(groups.userId, userId), isNull(groups.deletedAt)));
 
-    // Get groups where user is a member
+    // Get groups where user is a member (exclude soft-deleted)
     const memberGroups = await db
       .selectDistinct()
       .from(groups)
       .innerJoin(members, eq(members.groupId, groups.id))
-      .where(eq(members.userId, userId))
+      .where(and(eq(members.userId, userId), isNull(groups.deletedAt)))
       .then(rows => rows.map(row => row.groups));
 
     // Combine and deduplicate by group ID
