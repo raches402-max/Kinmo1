@@ -3697,13 +3697,13 @@ Looking forward to planning great activities together!
             const activity = activities.find(a => a.id === v.sourceId);
             if (!activity) return null;
 
-            // Fetch location from Google Places if we have a place ID
+            // Use stored location coordinates (already saved from search results)
             let location: { lat: number; lng: number } | undefined;
-            if (activity.googlePlaceId) {
-              const placeDetails = await import('./google-places').then(m => m.getPlaceDetails(activity.googlePlaceId!));
-              if (placeDetails?.location) {
-                location = placeDetails.location;
-              }
+            if (activity.latitude && activity.longitude) {
+              location = {
+                lat: parseFloat(activity.latitude),
+                lng: parseFloat(activity.longitude),
+              };
             }
 
             return {
@@ -3720,13 +3720,13 @@ Looking forward to planning great activities together!
             const event = events.find(e => e.id === v.sourceId);
             if (!event) return null;
 
-            // Fetch location from Google Places if we have a place ID
+            // Use stored location coordinates (already saved from search results)
             let location: { lat: number; lng: number } | undefined;
-            if (event.googlePlaceId) {
-              const placeDetails = await import('./google-places').then(m => m.getPlaceDetails(event.googlePlaceId!));
-              if (placeDetails?.location) {
-                location = placeDetails.location;
-              }
+            if (event.latitude && event.longitude) {
+              location = {
+                lat: parseFloat(event.latitude),
+                lng: parseFloat(event.longitude),
+              };
             }
 
             return {
@@ -3810,11 +3810,14 @@ Looking forward to planning great activities together!
             const activity = activities.find(a => a.id === v.sourceId);
             if (!activity?.googlePlaceId) return null;
 
-            const placeDetails = await import('./google-places').then(m => m.getPlaceDetails(activity.googlePlaceId!));
-            if (!placeDetails?.location) return null;
+            // Use stored location coordinates (already saved from search results)
+            if (!activity.latitude || !activity.longitude) return null;
 
             return {
-              location: placeDetails.location,
+              location: {
+                lat: parseFloat(activity.latitude),
+                lng: parseFloat(activity.longitude),
+              },
               placeId: activity.googlePlaceId,
               name: activity.venueName,
             };
@@ -3823,11 +3826,14 @@ Looking forward to planning great activities together!
             const event = events.find(e => e.id === v.sourceId);
             if (!event?.googlePlaceId) return null;
 
-            const placeDetails = await import('./google-places').then(m => m.getPlaceDetails(event.googlePlaceId!));
-            if (!placeDetails?.location) return null;
+            // Use stored location coordinates (already saved from search results)
+            if (!event.latitude || !event.longitude) return null;
 
             return {
-              location: placeDetails.location,
+              location: {
+                lat: parseFloat(event.latitude),
+                lng: parseFloat(event.longitude),
+              },
               placeId: event.googlePlaceId,
               name: event.title,
             };
