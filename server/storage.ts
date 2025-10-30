@@ -1452,13 +1452,14 @@ export class DatabaseStorage implements IStorage {
       );
     const unclaimedMemberEmails = Number(unclaimedMemberEmailsResult.count);
 
-    // Total groups (exclude groups created by test users)
+    // Total groups (exclude groups created by test users and test groups)
     const [groupsResult] = await db
       .select({ count: sql<number>`count(*)` })
       .from(groups)
       .innerJoin(users, eq(groups.userId, users.id))
       .where(
         and(
+          eq(groups.isTest, false),
           sql`${users.email} NOT LIKE '%@example.com'`,
           sql`${users.email} NOT LIKE '%@test.com'`
         )
@@ -1473,6 +1474,7 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(users, eq(groups.userId, users.id))
       .where(
         and(
+          eq(groups.isTest, false),
           sql`${users.email} NOT LIKE '%@example.com'`,
           sql`${users.email} NOT LIKE '%@test.com'`
         )
@@ -1487,6 +1489,7 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(users, eq(groups.userId, users.id))
       .where(
         and(
+          eq(groups.isTest, false),
           sql`${itineraries.eventDate} IS NOT NULL`,
           sql`${itineraries.eventDate} < NOW()`,
           sql`${users.email} NOT LIKE '%@example.com'`,
@@ -1507,6 +1510,7 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(users, eq(groups.userId, users.id))
       .where(
         and(
+          eq(groups.isTest, false),
           sql`${itineraries.eventDate} IS NOT NULL`,
           sql`${itineraries.eventDate} >= ${sixtyDaysAgo.toISOString()}`,
           sql`${itineraries.eventDate} <= ${now.toISOString()}`,
@@ -1530,6 +1534,7 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(users, eq(groups.userId, users.id))
       .where(
         and(
+          eq(groups.isTest, false),
           eq(rsvps.response, 'yes'),
           sql`${itineraries.eventDate} IS NOT NULL`,
           sql`${itineraries.eventDate} < NOW()`,
@@ -1553,6 +1558,7 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(users, eq(groups.userId, users.id))
       .where(
         and(
+          eq(groups.isTest, false),
           eq(rsvps.response, 'yes'),
           sql`${itineraries.eventDate} IS NOT NULL`,
           sql`${itineraries.eventDate} < NOW()`,
@@ -1575,6 +1581,7 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(itineraries, eq(groups.id, itineraries.groupId))
       .where(
         and(
+          eq(groups.isTest, false),
           sql`${itineraries.eventDate} IS NOT NULL`,
           sql`${users.email} NOT LIKE '%@example.com'`,
           sql`${users.email} NOT LIKE '%@test.com'`
@@ -1603,6 +1610,7 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(users, eq(groups.userId, users.id))
       .where(
         and(
+          eq(groups.isTest, false),
           sql`${itineraries.eventDate} IS NOT NULL`,
           sql`${itineraries.eventDate} >= ${ninetyDaysAgo.toISOString()}`,
           sql`${users.email} NOT LIKE '%@example.com'`,
@@ -1634,6 +1642,7 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(users, eq(groups.userId, users.id))
       .where(
         and(
+          eq(groups.isTest, false),
           eq(rsvps.response, 'yes'),
           sql`${itineraries.eventDate} >= ${startOfMonth.toISOString()}`,
           sql`${users.email} NOT LIKE '%@example.com'`,
@@ -1654,6 +1663,7 @@ export class DatabaseStorage implements IStorage {
         .innerJoin(users, eq(groups.userId, users.id))
         .where(
           and(
+            eq(groups.isTest, false),
             eq(rsvps.response, 'yes'),
             sql`${itineraries.eventDate} < ${startOfMonth.toISOString()}`,
             sql`${users.email} NOT LIKE '%@example.com'`,
