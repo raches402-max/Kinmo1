@@ -99,6 +99,27 @@ export default function Admin() {
     },
   });
 
+  const backfillCoordinatesMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("/api/admin/backfill-favorites-coordinates", {
+        method: "POST",
+      });
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "Backfill complete!",
+        description: data.message || `Updated ${data.updated} favorites with coordinates`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Backfill failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   if (isLoading) {
     return (
       <div className="container max-w-7xl mx-auto p-6">
@@ -434,6 +455,48 @@ export default function Admin() {
           </Card>
         </>
       )}
+
+      {/* Database Maintenance */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Database className="h-5 w-5" />
+            Database Maintenance
+          </CardTitle>
+          <CardDescription>One-time data backfill tasks</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg space-y-3">
+            <div>
+              <h4 className="font-semibold text-blue-900 dark:text-blue-200">Backfill Favorites Coordinates</h4>
+              <p className="text-sm text-blue-800 dark:text-blue-300 mt-1">
+                Add missing latitude/longitude coordinates to existing favorites. This enables the map view on the Favorites tab.
+              </p>
+              <p className="text-xs text-blue-700 dark:text-blue-400 mt-2">
+                Uses cached place details when available to minimize API costs
+              </p>
+            </div>
+            <Button
+              onClick={() => backfillCoordinatesMutation.mutate()}
+              disabled={backfillCoordinatesMutation.isPending}
+              className="w-full"
+              data-testid="button-backfill-coordinates"
+            >
+              {backfillCoordinatesMutation.isPending ? (
+                <>
+                  <MapPin className="mr-2 h-4 w-4 animate-pulse" />
+                  Backfilling...
+                </>
+              ) : (
+                <>
+                  <MapPin className="mr-2 h-4 w-4" />
+                  Backfill Coordinates Now
+                </>
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Charts */}
       <div className="grid gap-4 md:grid-cols-2">

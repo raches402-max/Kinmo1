@@ -2,14 +2,14 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, updateUserProfileSchema, activities as activitiesTable, groups as groupsTable, members as membersTable, itineraryInvites, rsvps as rsvpsTable, itineraries, itineraryItems, proposedTimeSlots, userProfiles, photosCache, geocodingCache, hostAssignments, curatedVenues, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
+import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, updateUserProfileSchema, activities as activitiesTable, groups as groupsTable, members as membersTable, itineraryInvites, rsvps as rsvpsTable, itineraries, itineraryItems, proposedTimeSlots, userProfiles, photosCache, geocodingCache, hostAssignments, curatedVenues, votingEvents as votingEventsTable, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
 import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue, analyzePreferencePatterns, parseSchedulingPrompt, detectCategory } from "./openai";
-import { searchPlaces, searchNearbyPlaces, geocodeLocation, clearPlacesCache, getCacheStats } from "./google-places";
+import { searchPlaces, searchNearbyPlaces, geocodeLocation, clearPlacesCache, getCacheStats, getPlaceDetails } from "./google-places";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { validateItinerary } from "./itinerary-validation";
 import { sendMemberWelcome, type EmailRecipient, type MemberWelcomeData } from "./email-service";
 import { db } from "./db";
-import { eq, sql, and, gte } from "drizzle-orm";
+import { eq, sql, and, or, gte } from "drizzle-orm";
 import { format } from 'date-fns';
 
 async function trackFeedbackAndMaybeAnalyze(groupId: string) {
@@ -6131,6 +6131,108 @@ Looking forward to planning great activities together!
       });
     } catch (error: any) {
       console.error("Error in photo caching migration:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Admin endpoint to backfill coordinates for voting_events (favorites)
+  app.post("/api/admin/backfill-favorites-coordinates", isAuthenticated, async (req: any, res) => {
+    try {
+      // Check if user is admin
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      const adminEmails = ['raches402@gmail.com'];
+      if (!user || !adminEmails.includes(user.email || '')) {
+        return res.status(403).json({ message: "Unauthorized: Admin access required" });
+      }
+
+      console.log('[Favorites Backfill] Starting coordinate backfill for voting_events...');
+
+      // Get all voting_events with googlePlaceId but missing coordinates
+      const votingEventsToBackfill = await db
+        .select()
+        .from(votingEventsTable)
+        .where(
+          and(
+            sql`${votingEventsTable.googlePlaceId} IS NOT NULL`,
+            or(
+              sql`${votingEventsTable.latitude} IS NULL`,
+              sql`${votingEventsTable.longitude} IS NULL`
+            )
+          )
+        );
+
+      console.log(`[Favorites Backfill] Found ${votingEventsToBackfill.length} favorites missing coordinates`);
+
+      let successCount = 0;
+      let errorCount = 0;
+      let skippedCount = 0;
+      const errors: Array<{ eventId: string; title: string; error: string }> = [];
+
+      // Process in batches to be API-friendly
+      const BATCH_SIZE = 25;
+      for (let i = 0; i < votingEventsToBackfill.length; i += BATCH_SIZE) {
+        const batch = votingEventsToBackfill.slice(i, i + BATCH_SIZE);
+        
+        await Promise.all(batch.map(async (event) => {
+          try {
+            if (!event.googlePlaceId) {
+              skippedCount++;
+              return;
+            }
+
+            // Fetch place details (uses cache if available)
+            const placeDetails = await getPlaceDetails(event.googlePlaceId);
+            
+            if (!placeDetails || !placeDetails.location) {
+              throw new Error('No location data in place details');
+            }
+
+            // Update the voting event with coordinates
+            await db
+              .update(votingEventsTable)
+              .set({
+                latitude: placeDetails.location.lat.toString(),
+                longitude: placeDetails.location.lng.toString(),
+              })
+              .where(eq(votingEventsTable.id, event.id));
+
+            console.log(`[Favorites Backfill] ✓ Updated "${event.title}" with coordinates (${placeDetails.location.lat}, ${placeDetails.location.lng})`);
+            successCount++;
+          } catch (error: any) {
+            console.error(`[Favorites Backfill] ✗ Error for "${event.title}":`, error.message);
+            errorCount++;
+            errors.push({ 
+              eventId: event.id, 
+              title: event.title,
+              error: error.message 
+            });
+          }
+        }));
+
+        // Log progress
+        console.log(`[Favorites Backfill] Progress: ${Math.min(i + BATCH_SIZE, votingEventsToBackfill.length)}/${votingEventsToBackfill.length} processed`);
+        
+        // Small delay between batches to be nice to the API
+        if (i + BATCH_SIZE < votingEventsToBackfill.length) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+      }
+
+      console.log(`[Favorites Backfill] Complete! Success: ${successCount}, Errors: ${errorCount}, Skipped: ${skippedCount}`);
+
+      res.json({
+        success: true,
+        message: `Backfilled ${successCount} favorites, ${skippedCount} skipped, ${errorCount} errors`,
+        total: votingEventsToBackfill.length,
+        updated: successCount,
+        skipped: skippedCount,
+        errors: errorCount,
+        errorDetails: errors.slice(0, 10), // Return first 10 errors
+      });
+    } catch (error: any) {
+      console.error("Error backfilling favorites coordinates:", error);
       res.status(500).json({ message: error.message });
     }
   });
