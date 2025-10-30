@@ -6469,6 +6469,176 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Admin endpoint to clean up invalid venues from curated_venues
+  app.post("/api/admin/cleanup-curated-venues", isAuthenticated, async (req: any, res) => {
+    try {
+      // Check if user is admin
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      const adminEmails = ['raches402@gmail.com'];
+      if (!user || !adminEmails.includes(user.email || '')) {
+        return res.status(403).json({ message: "Unauthorized: Admin access required" });
+      }
+
+      console.log(`[Venue Cleanup] Starting curated venues cleanup...`);
+
+      // Get all curated venues
+      const allVenues = await db.select().from(curatedVenues);
+      console.log(`[Venue Cleanup] Found ${allVenues.length} total venues`);
+
+      let removedNonVenues = 0;
+      let removedMissingPhotos = 0;
+      let removedLowQuality = 0;
+      let removedDuplicates = 0;
+
+      const invalidTypes = [
+        'real_estate_agency',
+        'parking',
+        'electric_vehicle_charging_station',
+        'car_repair',
+        'beauty_salon',
+        'spa',
+        'hair_care',
+        'funeral_home',
+        'lawyer',
+        'accounting',
+        'insurance_agency',
+        'atm',
+        'bank',
+        'dentist',
+        'doctor',
+        'hospital',
+        'pharmacy',
+        'physiotherapist',
+        'veterinary_care',
+        'store', // Generic store (too broad)
+        'clothing_store',
+        'convenience_store',
+        'electronics_store',
+        'furniture_store',
+        'hardware_store',
+        'home_goods_store',
+        'jewelry_store',
+        'shoe_store',
+        'shopping_mall',
+        'supermarket',
+        'gas_station',
+        'car_wash',
+        'car_dealer',
+        'moving_company',
+        'storage',
+        'lodging',
+        'travel_agency',
+        'airport',
+        'bus_station',
+        'train_station',
+        'transit_station',
+        'subway_station',
+        'taxi_stand',
+        'school',
+        'university',
+        'library',
+        'post_office',
+        'city_hall',
+        'courthouse',
+        'embassy',
+        'fire_station',
+        'police',
+        'local_government_office',
+        'place_of_worship',
+        'church',
+        'hindu_temple',
+        'mosque',
+        'synagogue',
+      ];
+
+      // Track seen place IDs to remove duplicates
+      const seenPlaceIds = new Set<string>();
+
+      for (const venue of allVenues) {
+        const reasons: string[] = [];
+
+        // Check for duplicates by Google Place ID
+        if (venue.googlePlaceId && seenPlaceIds.has(venue.googlePlaceId)) {
+          reasons.push('duplicate');
+          removedDuplicates++;
+        } else if (venue.googlePlaceId) {
+          seenPlaceIds.add(venue.googlePlaceId);
+        }
+
+        // Check for missing photos
+        if (!venue.photoUrl) {
+          reasons.push('no photo');
+          removedMissingPhotos++;
+        }
+
+        // Check for low quality (very low ratings or very few reviews)
+        const rating = parseFloat(venue.rating || '0');
+        const reviewCount = venue.reviewCount || 0;
+        if (rating < 3.0 || reviewCount < 5) {
+          reasons.push('low quality');
+          removedLowQuality++;
+        }
+
+        // Check for invalid/non-venue names that slipped through
+        // These are obvious non-venues based on name patterns
+        const invalidNamePatterns = [
+          /realtor/i,
+          /real estate/i,
+          /mortgage/i,
+          /charging station/i,
+          /parking/i,
+          /restroom/i,
+          /repair service/i,
+          /aesthetics/i,
+          /mobile bartending/i,
+        ];
+        
+        const hasInvalidName = invalidNamePatterns.some(pattern => pattern.test(venue.name));
+        if (hasInvalidName) {
+          reasons.push('non-venue name');
+          removedNonVenues++;
+        }
+
+        // Delete if any reason to remove
+        if (reasons.length > 0) {
+          await db.delete(curatedVenues).where(eq(curatedVenues.id, venue.id));
+          console.log(`[Venue Cleanup] ❌ Removed: ${venue.name} (${reasons.join(', ')})`);
+        }
+      }
+
+      const totalRemoved = removedNonVenues + removedMissingPhotos + removedLowQuality + removedDuplicates;
+      const remaining = allVenues.length - totalRemoved;
+
+      console.log(`[Venue Cleanup] Complete!`);
+      console.log(`[Venue Cleanup] - Removed ${removedNonVenues} non-venues`);
+      console.log(`[Venue Cleanup] - Removed ${removedMissingPhotos} venues without photos`);
+      console.log(`[Venue Cleanup] - Removed ${removedLowQuality} low-quality venues`);
+      console.log(`[Venue Cleanup] - Removed ${removedDuplicates} duplicates`);
+      console.log(`[Venue Cleanup] - ${remaining} venues remaining`);
+
+      res.json({
+        success: true,
+        message: `Cleaned up ${totalRemoved} invalid venues`,
+        stats: {
+          total: allVenues.length,
+          removed: {
+            nonVenues: removedNonVenues,
+            missingPhotos: removedMissingPhotos,
+            lowQuality: removedLowQuality,
+            duplicates: removedDuplicates,
+            total: totalRemoved,
+          },
+          remaining,
+        }
+      });
+    } catch (error: any) {
+      console.error("Error cleaning up curated venues:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Admin endpoint to get API call logs with filtering
   app.get("/api/admin/api-logs", isAuthenticated, async (req: any, res) => {
     try {

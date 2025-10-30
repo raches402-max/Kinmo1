@@ -136,6 +136,26 @@ export default function Admin() {
     },
   });
 
+  const cleanupVenuesMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", "/api/admin/cleanup-curated-venues");
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/api-costs"] });
+      toast({
+        title: "Cleanup complete!",
+        description: `Removed ${data.stats.removed.total} invalid venues (${data.stats.removed.nonVenues} non-venues, ${data.stats.removed.missingPhotos} missing photos, ${data.stats.removed.lowQuality} low quality, ${data.stats.removed.duplicates} duplicates). ${data.stats.remaining} venues remaining.`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Cleanup failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const backfillCoordinatesMutation = useMutation({
     mutationFn: async () => {
       return apiRequest("POST", "/api/admin/backfill-favorites-coordinates");
@@ -276,6 +296,10 @@ export default function Admin() {
           <TabsTrigger value="api-logs" data-testid="tab-api-logs">
             <FileText className="h-4 w-4 mr-2" />
             API Logs
+          </TabsTrigger>
+          <TabsTrigger value="maintenance" data-testid="tab-maintenance">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Maintenance
           </TabsTrigger>
           <TabsTrigger value="backups" data-testid="tab-backups">
             <Database className="h-4 w-4 mr-2" />
@@ -878,6 +902,85 @@ export default function Admin() {
                   No API logs found {(apiLogsService || apiLogsMethod || apiLogsCacheStatus || apiLogsStatus) && 'matching your filters'}
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="maintenance" className="space-y-6">
+          <Card data-testid="card-maintenance">
+            <CardHeader>
+              <CardTitle>Database Maintenance</CardTitle>
+              <CardDescription>
+                Tools to clean up and optimize the database
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Cleanup Curated Venues */}
+              <div className="bg-orange-50 dark:bg-orange-950/20 p-4 rounded-lg space-y-3">
+                <div>
+                  <h4 className="font-semibold text-orange-900 dark:text-orange-200">Clean Curated Venues Cache</h4>
+                  <p className="text-sm text-orange-800 dark:text-orange-300 mt-1">
+                    Remove invalid venues from the curated venues database. This will delete:
+                  </p>
+                  <ul className="text-sm text-orange-800 dark:text-orange-300 mt-2 ml-4 space-y-1 list-disc">
+                    <li>Non-venue businesses (realtors, parking lots, charging stations, etc.)</li>
+                    <li>Venues without photos</li>
+                    <li>Low-quality venues (less than 3.0★ or fewer than 5 reviews)</li>
+                    <li>Duplicate entries</li>
+                  </ul>
+                  <p className="text-xs text-orange-700 dark:text-orange-400 mt-3">
+                    This improves AI suggestion quality by ensuring only high-quality venues are cached.
+                  </p>
+                </div>
+                <Button
+                  onClick={() => cleanupVenuesMutation.mutate()}
+                  disabled={cleanupVenuesMutation.isPending}
+                  className="w-full"
+                  data-testid="button-cleanup-venues"
+                  variant="outline"
+                >
+                  {cleanupVenuesMutation.isPending ? (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                      Cleaning up...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Clean Up Curated Venues
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {/* Backfill Coordinates */}
+              <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg space-y-3">
+                <div>
+                  <h4 className="font-semibold text-blue-900 dark:text-blue-200">Backfill Favorites Coordinates</h4>
+                  <p className="text-sm text-blue-800 dark:text-blue-300 mt-1">
+                    Add missing latitude/longitude coordinates to existing favorites. This enables the map view on the Favorites tab.
+                  </p>
+                </div>
+                <Button
+                  onClick={() => backfillCoordinatesMutation.mutate()}
+                  disabled={backfillCoordinatesMutation.isPending}
+                  className="w-full"
+                  data-testid="button-backfill-coordinates"
+                  variant="outline"
+                >
+                  {backfillCoordinatesMutation.isPending ? (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                      Backfilling...
+                    </>
+                  ) : (
+                    <>
+                      <MapPin className="mr-2 h-4 w-4" />
+                      Backfill Coordinates
+                    </>
+                  )}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
