@@ -579,20 +579,45 @@ async function searchCuratedVenues(
         .slice(0, maxResults);
     }
 
-    // Convert to PlaceResult format
-    const placeResults: PlaceResult[] = results.map(venue => ({
-      placeId: venue.googlePlaceId || `curated_${venue.id}`,
-      name: venue.name,
-      address: venue.address,
-      rating: venue.rating || undefined,
-      reviewCount: venue.reviewCount || undefined,
-      priceLevel: venue.priceLevel ? `PRICE_LEVEL_${['', 'INEXPENSIVE', 'MODERATE', 'EXPENSIVE', 'VERY_EXPENSIVE'][venue.priceLevel]}` : undefined,
-      photoUrl: venue.photoUrl || undefined,
-      types: venue.tags || [],
-      location: {
-        lat: parseFloat(venue.latitude),
-        lng: parseFloat(venue.longitude)
+    // Convert to PlaceResult format and fetch photos on-demand
+    const placeResults: PlaceResult[] = await Promise.all(results.map(async (venue) => {
+      let photoUrl = venue.photoUrl || undefined;
+      
+      // If no photo URL cached, fetch from Google Places API
+      if (!photoUrl && venue.googlePlaceId) {
+        try {
+          console.log(`[Curated Search] Fetching photo for ${venue.name} (${venue.googlePlaceId})`);
+          const placeDetails = await getPlaceDetails(venue.googlePlaceId);
+          
+          if (placeDetails?.photoUrl) {
+            photoUrl = placeDetails.photoUrl;
+            
+            // Update the database with the photo URL for future use
+            await db
+              .update(curatedVenues)
+              .set({ photoUrl })
+              .where(eq(curatedVenues.id, venue.id));
+            console.log(`[Curated Search] Cached photo for ${venue.name}`);
+          }
+        } catch (error) {
+          console.error(`[Curated Search] Failed to fetch photo for ${venue.name}:`, error);
+        }
       }
+      
+      return {
+        placeId: venue.googlePlaceId || `curated_${venue.id}`,
+        name: venue.name,
+        address: venue.address,
+        rating: venue.rating || undefined,
+        reviewCount: venue.reviewCount || undefined,
+        priceLevel: venue.priceLevel ? `PRICE_LEVEL_${['', 'INEXPENSIVE', 'MODERATE', 'EXPENSIVE', 'VERY_EXPENSIVE'][venue.priceLevel]}` : undefined,
+        photoUrl,
+        types: venue.tags || [],
+        location: {
+          lat: parseFloat(venue.latitude),
+          lng: parseFloat(venue.longitude)
+        }
+      };
     }));
 
     console.log(`[Curated Search] Found ${placeResults.length} curated venues`);
