@@ -629,6 +629,147 @@ async function searchCuratedVenues(
   }
 }
 
+/**
+ * Auto-cache high-quality API results in curated venues table
+ * This creates a "self-learning" system where the cache grows over time
+ */
+async function autoCacheApiResults(
+  apiResults: PlaceResult[],
+  location: string,
+  coordinates?: { lat: number; lng: number }
+): Promise<void> {
+  try {
+    // Only cache SF venues to prevent pollution
+    const locationLower = location.toLowerCase();
+    const isSFLocation = locationLower.includes('san francisco') || 
+                         locationLower.includes('sf') || 
+                         locationLower.includes(' sf ') ||
+                         locationLower.includes('sf,');
+    
+    // SF bounding box validation
+    const SF_BOUNDS = {
+      latMin: 37.7,
+      latMax: 37.85,
+      lngMin: -122.52,
+      lngMax: -122.35
+    };
+    
+    let isValidSFSearch = false;
+    if (isSFLocation) {
+      isValidSFSearch = true;
+    } else if (coordinates) {
+      const inSFBounds = coordinates.lat >= SF_BOUNDS.latMin &&
+                         coordinates.lat <= SF_BOUNDS.latMax &&
+                         coordinates.lng >= SF_BOUNDS.lngMin &&
+                         coordinates.lng <= SF_BOUNDS.lngMax;
+      isValidSFSearch = inSFBounds;
+    }
+    
+    if (!isValidSFSearch) {
+      console.log(`[Auto-Cache] Skipping - not a SF search`);
+      return;
+    }
+    
+    // Filter for high-quality venues only (minimum 100 reviews, 4.0+ rating)
+    const highQualityVenues = apiResults.filter(venue => {
+      const hasGoodReviews = (venue.reviewCount || 0) >= 100;
+      const hasGoodRating = parseFloat(venue.rating || '0') >= 4.0;
+      const hasLocation = venue.location && venue.location.lat && venue.location.lng;
+      const hasPlaceId = venue.placeId && !venue.placeId.startsWith('curated_');
+      
+      return hasGoodReviews && hasGoodRating && hasLocation && hasPlaceId;
+    });
+    
+    if (highQualityVenues.length === 0) {
+      console.log(`[Auto-Cache] No high-quality venues to cache`);
+      return;
+    }
+    
+    console.log(`[Auto-Cache] Processing ${highQualityVenues.length} high-quality venues`);
+    
+    // Check which venues already exist
+    const existingPlaceIds = await db
+      .select({ googlePlaceId: curatedVenues.googlePlaceId })
+      .from(curatedVenues)
+      .where(
+        or(...highQualityVenues.map(v => eq(curatedVenues.googlePlaceId, v.placeId)))
+      );
+    
+    const existingIds = new Set(existingPlaceIds.map(r => r.googlePlaceId));
+    const newVenues = highQualityVenues.filter(v => !existingIds.has(v.placeId));
+    
+    if (newVenues.length === 0) {
+      console.log(`[Auto-Cache] All venues already cached`);
+      return;
+    }
+    
+    // Insert new venues
+    for (const venue of newVenues) {
+      try {
+        // Convert price level from string to number (1-4)
+        let priceLevelNum: number | null = null;
+        if (venue.priceLevel) {
+          const priceMap: Record<string, number> = {
+            '$': 1,
+            '$$': 2,
+            '$$$': 3,
+            '$$$$': 4,
+            'PRICE_LEVEL_INEXPENSIVE': 1,
+            'PRICE_LEVEL_MODERATE': 2,
+            'PRICE_LEVEL_EXPENSIVE': 3,
+            'PRICE_LEVEL_VERY_EXPENSIVE': 4
+          };
+          priceLevelNum = priceMap[venue.priceLevel] || null;
+        }
+        
+        // Detect category from types
+        let category = 'experiences'; // default
+        const types = venue.types || [];
+        const typesStr = types.join(' ').toLowerCase();
+        
+        if (typesStr.includes('bar') || typesStr.includes('night_club') || typesStr.includes('liquor')) {
+          category = 'drinks';
+        } else if (typesStr.includes('restaurant') || typesStr.includes('meal') || typesStr.includes('food')) {
+          category = 'meal';
+        } else if (typesStr.includes('cafe') || typesStr.includes('coffee')) {
+          category = 'cafes';
+        } else if (typesStr.includes('bakery') || typesStr.includes('dessert') || typesStr.includes('ice_cream')) {
+          category = 'dessert';
+        }
+        
+        await db.insert(curatedVenues).values({
+          name: venue.name,
+          address: venue.address,
+          latitude: venue.location!.lat.toString(),
+          longitude: venue.location!.lng.toString(),
+          category,
+          rating: venue.rating || null,
+          reviewCount: venue.reviewCount || null,
+          priceLevel: priceLevelNum,
+          photoUrl: venue.photoUrl || null,
+          googlePlaceId: venue.placeId,
+          tags: venue.types || [],
+          region: 'san_francisco',
+          source: 'api_auto',
+          isActive: true,
+          lastRefreshed: new Date()
+        });
+        
+        console.log(`[Auto-Cache] ✅ Cached new venue: ${venue.name} (${venue.placeId})`);
+      } catch (insertError) {
+        // Ignore duplicate key errors (race condition)
+        if (!(insertError as any)?.message?.includes('duplicate')) {
+          console.error(`[Auto-Cache] Failed to cache ${venue.name}:`, insertError);
+        }
+      }
+    }
+    
+    console.log(`[Auto-Cache] Successfully cached ${newVenues.length} new venues`);
+  } catch (error) {
+    console.error('[Auto-Cache] Error:', error);
+  }
+}
+
 export async function searchPlaces(
   query: string,
   location: string,
@@ -866,6 +1007,14 @@ export async function searchPlaces(
     if (results.length > 0) {
       saveSearchResultsToDB(query, location, radiusMiles, results as any).catch(err => 
         console.error(`Failed to cache search results in DB for "${query}":`, err)
+      );
+    }
+    
+    // AUTO-CACHE: Save high-quality API results to curated venues (async, don't wait)
+    // This creates a "self-learning" system where the cache grows automatically
+    if (results.length > 0) {
+      autoCacheApiResults(results, location, coordinates).catch(err =>
+        console.error(`[Auto-Cache] Failed to cache API results:`, err)
       );
     }
     
