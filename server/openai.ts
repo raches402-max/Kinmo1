@@ -321,7 +321,7 @@ export async function generateActivitySuggestions(groupData: {
       const categoryDescriptions: Record<string, string> = {
         'meal': 'MEAL venues (restaurants, brunch spots, dining)',
         'cafes': 'CAFES (coffee shops, cafes)',
-        'drinks': 'DRINKS (bars, cocktail lounges, breweries, wine bars)',
+        'drinks': 'DRINKS (alcohol-focused bars, cocktail lounges, breweries, wine bars - NOT restaurants or sushi bars)',
         'dessert': 'DESSERT (boba, ice cream, dessert shops)',
         'experiences': 'EXPERIENCES (museums, parks, concerts, activities)'
       };
@@ -350,7 +350,7 @@ export async function generateActivitySuggestions(groupData: {
     else disabledBuckets.push('CAFE (cafes, coffee shops)');
     
     if (groupData.drinksEnabled !== false) enabledBuckets.push('DRINKS');
-    else disabledBuckets.push('DRINKS (wine bars, cocktail bars, breweries, beer gardens)');
+    else disabledBuckets.push('DRINKS (alcohol-focused bars, cocktail lounges, breweries, beer gardens - NOT restaurants)');
     
     if (groupData.dessertEnabled !== false) enabledBuckets.push('DESSERT');
     else disabledBuckets.push('DESSERT (dessert shops, ice cream, boba, bakeries)');
@@ -401,7 +401,7 @@ export async function generateActivitySuggestions(groupData: {
       const categoryDescriptions: Record<string, string> = {
         'meal': 'MEAL venues (restaurants, brunch spots, dining)',
         'cafes': 'CAFES (coffee shops, cafes)',
-        'drinks': 'DRINKS (bars, cocktail lounges, breweries, wine bars)',
+        'drinks': 'DRINKS (alcohol-focused bars, cocktail lounges, breweries, wine bars - NOT restaurants or sushi bars)',
         'dessert': 'DESSERT (boba, ice cream, dessert shops)',
         'experiences': 'EXPERIENCES (museums, parks, concerts, activities)'
       };
