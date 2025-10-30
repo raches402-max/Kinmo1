@@ -1275,3 +1275,90 @@ Return your response as a JSON object with these fields.`;
     };
   }
 }
+
+// Validate if a venue is suitable for social gatherings using AI
+export async function isValidSocialVenue(
+  venueName: string,
+  address: string,
+  googleTypes: string[]
+): Promise<{ isValid: boolean; reasoning: string }> {
+  try {
+    const systemPrompt = `You are evaluating whether a venue is suitable for friends to gather for social activities.
+
+A venue is VALID if it's a place where people can reasonably:
+- Meet up with friends
+- Hang out together
+- Have a social experience
+- Share an activity or meal
+
+A venue is INVALID if it's:
+- A service business (realtors, mortgage companies, repair services)
+- A utility facility (restrooms, parking lots, charging stations)
+- A professional service (dentists, lawyers, accountants)
+- A retail store (unless it's an experience-based venue like a bookstore cafe)
+- Infrastructure (transit stations, airports)
+- Medical facilities (hospitals, clinics)
+
+Examples of VALID venues:
+- Restaurants, cafes, bars, bakeries, ice cream shops
+- Museums, galleries, theaters, concert venues
+- Parks, beaches, hiking trails
+- Bowling alleys, arcades, game cafes
+- Bookstores with cafes, specialty shops with tasting rooms
+
+Examples of INVALID venues:
+- "John Smith, Realtor" (real estate agent)
+- "Hillsdale Restroom" (public bathroom)
+- "ChargePoint Charging Station" (EV charger)
+- "Fifth Avenue Aesthetics" (medical spa)
+- "Quick Fix Repair" (repair service)
+
+You MUST respond with a JSON object in this exact format:
+{
+  "isValid": true/false,
+  "reasoning": "Brief explanation of why this venue is or isn't suitable for social gatherings"
+}`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        {
+          role: "user",
+          content: `Venue Name: ${venueName}
+Address: ${address}
+Google Place Types: ${googleTypes.join(', ')}
+
+Is this a valid venue for social gatherings? Respond with JSON containing "isValid" (boolean) and "reasoning" (string).`
+        }
+      ],
+      response_format: { type: "json_object" },
+      max_completion_tokens: 150,
+    });
+
+    const result = JSON.parse(response.choices[0].message.content || '{}');
+    
+    // Strict validation: isValid MUST be a boolean
+    if (typeof result.isValid !== 'boolean') {
+      console.error(`[AI Validation] Invalid response format for ${venueName}:`, result);
+      console.error(`[AI Validation] Expected { isValid: boolean, reasoning: string }, got:`, typeof result.isValid);
+      // Default to INVALID if response format is wrong to be safe
+      return {
+        isValid: false,
+        reasoning: `Invalid AI response format - treating as non-social venue for safety`
+      };
+    }
+    
+    return {
+      isValid: result.isValid,
+      reasoning: result.reasoning || "No reasoning provided"
+    };
+  } catch (error) {
+    console.error("Error validating social venue:", error);
+    // On error, default to INVALID to prevent bad venues from slipping through
+    return {
+      isValid: false,
+      reasoning: "Error during validation - treating as non-social venue for safety"
+    };
+  }
+}

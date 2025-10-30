@@ -440,6 +440,17 @@ export const curatedVenues = pgTable("curated_venues", {
   index("idx_curated_location").on(table.latitude, table.longitude),
 ]);
 
+// Deleted venues archive - track venues removed during cleanup for review
+export const deletedVenues = pgTable("deleted_venues", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  venueData: jsonb("venue_data").notNull(), // Complete original venue data from curated_venues
+  deletionReason: text("deletion_reason").notNull(), // Why the venue was removed (AI reasoning or manual reason)
+  deletedBy: varchar("deleted_by").references(() => users.id, { onDelete: "set null" }), // Admin who triggered cleanup
+  deletedAt: timestamp("deleted_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_deleted_venues_date").on(table.deletedAt),
+]);
+
 // Google Place Photos API cache - cache downloaded photos for 30 days
 export const photosCache = pgTable("photos_cache", {
   photoReference: text("photo_reference").primaryKey(), // Google photo reference ID

@@ -6481,7 +6481,7 @@ Looking forward to planning great activities together!
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
 
-      console.log(`[Venue Cleanup] Starting curated venues cleanup...`);
+      console.log(`[Venue Cleanup] Starting AI-powered cleanup...`);
 
       // Get all curated venues
       const allVenues = await db.select().from(curatedVenues);
@@ -6492,76 +6492,19 @@ Looking forward to planning great activities together!
       let removedLowQuality = 0;
       let removedDuplicates = 0;
 
-      const invalidTypes = [
-        'real_estate_agency',
-        'parking',
-        'electric_vehicle_charging_station',
-        'car_repair',
-        'beauty_salon',
-        'spa',
-        'hair_care',
-        'funeral_home',
-        'lawyer',
-        'accounting',
-        'insurance_agency',
-        'atm',
-        'bank',
-        'dentist',
-        'doctor',
-        'hospital',
-        'pharmacy',
-        'physiotherapist',
-        'veterinary_care',
-        'store', // Generic store (too broad)
-        'clothing_store',
-        'convenience_store',
-        'electronics_store',
-        'furniture_store',
-        'hardware_store',
-        'home_goods_store',
-        'jewelry_store',
-        'shoe_store',
-        'shopping_mall',
-        'supermarket',
-        'gas_station',
-        'car_wash',
-        'car_dealer',
-        'moving_company',
-        'storage',
-        'lodging',
-        'travel_agency',
-        'airport',
-        'bus_station',
-        'train_station',
-        'transit_station',
-        'subway_station',
-        'taxi_stand',
-        'school',
-        'university',
-        'library',
-        'post_office',
-        'city_hall',
-        'courthouse',
-        'embassy',
-        'fire_station',
-        'police',
-        'local_government_office',
-        'place_of_worship',
-        'church',
-        'hindu_temple',
-        'mosque',
-        'synagogue',
-      ];
-
       // Track seen place IDs to remove duplicates
       const seenPlaceIds = new Set<string>();
+
+      // Import deleted venues table and AI validation
+      const { deletedVenues } = await import('@shared/schema');
+      const { isValidSocialVenue } = await import('./openai');
 
       for (const venue of allVenues) {
         const reasons: string[] = [];
 
         // Check for duplicates by Google Place ID
         if (venue.googlePlaceId && seenPlaceIds.has(venue.googlePlaceId)) {
-          reasons.push('duplicate');
+          reasons.push('Duplicate venue (same Google Place ID)');
           removedDuplicates++;
         } else if (venue.googlePlaceId) {
           seenPlaceIds.add(venue.googlePlaceId);
@@ -6569,7 +6512,7 @@ Looking forward to planning great activities together!
 
         // Check for missing photos
         if (!venue.photoUrl) {
-          reasons.push('no photo');
+          reasons.push('No photo available');
           removedMissingPhotos++;
         }
 
@@ -6577,34 +6520,41 @@ Looking forward to planning great activities together!
         const rating = parseFloat(venue.rating || '0');
         const reviewCount = venue.reviewCount || 0;
         if (rating < 3.0 || reviewCount < 5) {
-          reasons.push('low quality');
+          reasons.push(`Low quality (${rating}★, ${reviewCount} reviews)`);
           removedLowQuality++;
         }
 
-        // Check for invalid/non-venue names that slipped through
-        // These are obvious non-venues based on name patterns
-        const invalidNamePatterns = [
-          /realtor/i,
-          /real estate/i,
-          /mortgage/i,
-          /charging station/i,
-          /parking/i,
-          /restroom/i,
-          /repair service/i,
-          /aesthetics/i,
-          /mobile bartending/i,
-        ];
-        
-        const hasInvalidName = invalidNamePatterns.some(pattern => pattern.test(venue.name));
-        if (hasInvalidName) {
-          reasons.push('non-venue name');
-          removedNonVenues++;
+        // Skip AI validation if already marked for removal
+        if (reasons.length === 0) {
+          // Use AI to validate if this is a social gathering venue
+          // Parse Google types from venue data (stored as comma-separated string or array)
+          const googleTypes = venue.tags || [];
+          const validation = await isValidSocialVenue(
+            venue.name,
+            venue.address,
+            Array.isArray(googleTypes) ? googleTypes : []
+          );
+
+          if (!validation.isValid) {
+            reasons.push(`Not a social venue: ${validation.reasoning}`);
+            removedNonVenues++;
+          }
         }
 
-        // Delete if any reason to remove
+        // Archive and delete if any reason to remove
         if (reasons.length > 0) {
+          // Archive to deleted_venues table before deletion
+          await db.insert(deletedVenues).values({
+            venueData: venue as any, // Store complete venue data as JSONB
+            deletionReason: reasons.join('; '),
+            deletedBy: userId,
+          });
+
+          // Delete from curated venues
           await db.delete(curatedVenues).where(eq(curatedVenues.id, venue.id));
-          console.log(`[Venue Cleanup] ❌ Removed: ${venue.name} (${reasons.join(', ')})`);
+          
+          console.log(`[Venue Cleanup] ❌ Removed: ${venue.name}`);
+          console.log(`[Venue Cleanup]    Reasons: ${reasons.join('; ')}`);
         }
       }
 
@@ -6612,7 +6562,7 @@ Looking forward to planning great activities together!
       const remaining = allVenues.length - totalRemoved;
 
       console.log(`[Venue Cleanup] Complete!`);
-      console.log(`[Venue Cleanup] - Removed ${removedNonVenues} non-venues`);
+      console.log(`[Venue Cleanup] - Removed ${removedNonVenues} non-social venues (AI validated)`);
       console.log(`[Venue Cleanup] - Removed ${removedMissingPhotos} venues without photos`);
       console.log(`[Venue Cleanup] - Removed ${removedLowQuality} low-quality venues`);
       console.log(`[Venue Cleanup] - Removed ${removedDuplicates} duplicates`);
@@ -6620,7 +6570,7 @@ Looking forward to planning great activities together!
 
       res.json({
         success: true,
-        message: `Cleaned up ${totalRemoved} invalid venues`,
+        message: `Cleaned up ${totalRemoved} invalid venues using AI validation`,
         stats: {
           total: allVenues.length,
           removed: {
@@ -6635,6 +6585,37 @@ Looking forward to planning great activities together!
       });
     } catch (error: any) {
       console.error("Error cleaning up curated venues:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Admin endpoint to get deleted venues
+  app.get("/api/admin/deleted-venues", isAuthenticated, async (req: any, res) => {
+    try {
+      // Check if user is admin
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      const adminEmails = ['raches402@gmail.com'];
+      if (!user || !adminEmails.includes(user.email || '')) {
+        return res.status(403).json({ message: "Unauthorized: Admin access required" });
+      }
+
+      // Import deleted venues table
+      const { deletedVenues } = await import('@shared/schema');
+
+      // Get all deleted venues, ordered by most recent first
+      const deleted = await db.select()
+        .from(deletedVenues)
+        .orderBy(desc(deletedVenues.deletedAt))
+        .limit(500); // Limit to 500 most recent
+
+      res.json({
+        success: true,
+        deletedVenues: deleted,
+      });
+    } catch (error: any) {
+      console.error("Error fetching deleted venues:", error);
       res.status(500).json({ message: error.message });
     }
   });

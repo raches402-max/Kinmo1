@@ -116,6 +116,24 @@ export default function Admin() {
     },
   });
 
+  const { data: deletedVenuesData, isLoading: deletedVenuesLoading } = useQuery<{
+    success: boolean;
+    deletedVenues: Array<{
+      id: string;
+      venueData: any;
+      deletionReason: string;
+      deletedAt: string;
+      deletedBy: string | null;
+    }>;
+  }>({
+    queryKey: ["/api/admin/deleted-venues"],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/deleted-venues');
+      if (!response.ok) throw new Error('Failed to fetch deleted venues');
+      return response.json();
+    },
+  });
+
   const cachePhotosMutation = useMutation({
     mutationFn: async () => {
       return apiRequest("POST", "/api/admin/cache-photos");
@@ -142,9 +160,10 @@ export default function Admin() {
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/api-costs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/deleted-venues"] });
       toast({
         title: "Cleanup complete!",
-        description: `Removed ${data.stats.removed.total} invalid venues (${data.stats.removed.nonVenues} non-venues, ${data.stats.removed.missingPhotos} missing photos, ${data.stats.removed.lowQuality} low quality, ${data.stats.removed.duplicates} duplicates). ${data.stats.remaining} venues remaining.`,
+        description: `Removed ${data.stats.removed.total} invalid venues (${data.stats.removed.nonVenues} non-social venues, ${data.stats.removed.missingPhotos} missing photos, ${data.stats.removed.lowQuality} low quality, ${data.stats.removed.duplicates} duplicates). ${data.stats.remaining} venues remaining.`,
       });
     },
     onError: (error: Error) => {
@@ -300,6 +319,10 @@ export default function Admin() {
           <TabsTrigger value="maintenance" data-testid="tab-maintenance">
             <RefreshCw className="h-4 w-4 mr-2" />
             Maintenance
+          </TabsTrigger>
+          <TabsTrigger value="deleted-venues" data-testid="tab-deleted-venues">
+            <Database className="h-4 w-4 mr-2" />
+            Deleted Venues
           </TabsTrigger>
           <TabsTrigger value="backups" data-testid="tab-backups">
             <Database className="h-4 w-4 mr-2" />
@@ -981,6 +1004,78 @@ export default function Admin() {
                   )}
                 </Button>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="deleted-venues" className="space-y-6">
+          <Card data-testid="card-deleted-venues">
+            <CardHeader>
+              <CardTitle>Deleted Venues Archive</CardTitle>
+              <CardDescription>
+                Review venues removed during cleanup operations. These were flagged by AI as not suitable for social gatherings.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {deletedVenuesLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : deletedVenuesData && deletedVenuesData.deletedVenues.length > 0 ? (
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Venue Name</TableHead>
+                        <TableHead>Address</TableHead>
+                        <TableHead>Rating</TableHead>
+                        <TableHead>Deletion Reason</TableHead>
+                        <TableHead>Deleted At</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {deletedVenuesData.deletedVenues.map((deleted) => (
+                        <TableRow key={deleted.id} data-testid={`deleted-venue-row-${deleted.id}`}>
+                          <TableCell className="font-medium">
+                            {deleted.venueData.name}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground max-w-xs truncate">
+                            {deleted.venueData.address}
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {deleted.venueData.rating ? (
+                              <Badge variant="secondary">
+                                {deleted.venueData.rating}★ ({deleted.venueData.reviewCount || 0})
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground">N/A</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm max-w-md">
+                            <div className="space-y-1">
+                              {deleted.deletionReason.split('; ').map((reason, idx) => (
+                                <Badge key={idx} variant="outline" className="mr-1">
+                                  {reason}
+                                </Badge>
+                              ))}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {format(new Date(deleted.deletedAt), 'MMM d, yyyy HH:mm')}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <Database className="h-12 w-12 text-muted-foreground mb-4" />
+                  <p className="text-sm text-muted-foreground">
+                    No deleted venues yet. Run cleanup to start archiving removed venues.
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
