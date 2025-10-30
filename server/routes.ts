@@ -106,6 +106,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Geocode endpoint - convert address to coordinates
+  app.get('/api/geocode', async (req, res) => {
+    try {
+      const { address } = req.query;
+      
+      if (!address || typeof address !== 'string') {
+        return res.status(400).json({ message: "Address parameter required" });
+      }
+
+      const result = await geocodeLocation(address);
+      
+      if (!result) {
+        return res.status(404).json({ message: "Location not found" });
+      }
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("Geocode error:", error);
+      res.status(500).json({ message: error.message || "Failed to geocode location" });
+    }
+  });
+
   // NEW Photo proxy endpoint - for Places API v1 (uses full photo resource name)
   app.get('/api/photos/v1/:photoName(*)', async (req, res) => {
     try {
@@ -1365,13 +1387,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update member profile (authenticated only)
-  app.patch("/api/members/:id/profile", async (req: any, res) => {
+  app.patch("/api/members/:id/profile", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
-
-      if (!userId) {
-        return res.status(401).json({ message: "Authentication required" });
-      }
+      const userId = req.user.claims.sub;
 
       const { homeBaseLocation, homeBaseLatitude, homeBaseLongitude, activityPreferences, personalAvailability } = req.body;
 
