@@ -49,7 +49,7 @@ export const groupCollections = pgTable("group_collections", {
 // Groups table
 export const groups = pgTable("groups", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }), // CRITICAL: Nullable to prevent group deletion when user is recreated during auth issues
   collectionId: varchar("collection_id").references(() => groupCollections.id, { onDelete: "set null" }), // Optional: group can be in a collection
   orderIndex: integer("order_index").notNull().default(0), // Display order within collection (or uncategorized)
   name: text("name").notNull(),
@@ -102,7 +102,7 @@ export const groups = pgTable("groups", {
 // Group backups table (automatic snapshots for data recovery)
 export const groupBackups = pgTable("group_backups", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }), // CRITICAL: Nullable to preserve backups even if user is recreated
   groupId: varchar("group_id").notNull(), // Original group ID (may be deleted)
   snapshotData: jsonb("snapshot_data").notNull(), // Complete group data including members
   backupTrigger: text("backup_trigger").notNull(), // "create", "update", "delete", "scheduled"

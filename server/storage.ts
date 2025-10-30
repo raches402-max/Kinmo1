@@ -257,6 +257,49 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserGroups(userId: string): Promise<Array<Group & { members: Array<{ id: string; name: string | null; email: string | null }> }>> {
+    // RECONCILIATION STEP: Reclaim orphaned data where user memberships were nulled
+    // This happens when user record was deleted/recreated during auth issues
+    const user = await db.select().from(users).where(eq(users.id, userId)).then(rows => rows[0]);
+    if (user?.email) {
+      // 1. Find and re-link orphaned organizer groups (where groups.userId is null)
+      const orphanedGroups = await db
+        .selectDistinct()
+        .from(groups)
+        .innerJoin(members, eq(members.groupId, groups.id))
+        .where(and(
+          isNull(groups.userId), // Group has no owner
+          eq(members.isOrganizer, true), // Member is marked as organizer
+          eq(members.email, user.email), // Email matches current user
+          isNull(groups.deletedAt) // Not soft-deleted
+        ))
+        .then(rows => rows.map(row => row.groups));
+
+      if (orphanedGroups.length > 0) {
+        console.log(`[Reconciliation] Re-linking ${orphanedGroups.length} orphaned groups to user ${userId} (${user.email})`);
+        await db
+          .update(groups)
+          .set({ userId })
+          .where(inArray(groups.id, orphanedGroups.map(g => g.id)));
+      }
+
+      // 2. Find and re-link ALL orphaned member records (organizer AND regular members)
+      const orphanedMembers = await db
+        .select()
+        .from(members)
+        .where(and(
+          isNull(members.userId), // Member has no linked user
+          eq(members.email, user.email) // Email matches current user
+        ));
+
+      if (orphanedMembers.length > 0) {
+        console.log(`[Reconciliation] Re-linking ${orphanedMembers.length} orphaned member records to user ${userId} (${user.email})`);
+        await db
+          .update(members)
+          .set({ userId })
+          .where(inArray(members.id, orphanedMembers.map(m => m.id)));
+      }
+    }
+
     // Get groups where user is the organizer (exclude soft-deleted)
     const organizedGroups = await db
       .select()
@@ -419,14 +462,14 @@ export class DatabaseStorage implements IStorage {
       .where(eq(groups.id, id))
       .returning();
     
-    // Automatically backup after update
+    // Automatically backup after update (even if userId is null - orphaned groups still get backups)
     await this.createAutomaticBackup(group.id, group.userId, 'update');
     
     return group;
   }
 
   // Automatic backup function - creates snapshot of group data
-  async createAutomaticBackup(groupId: string, userId: string, trigger: string): Promise<void> {
+  async createAutomaticBackup(groupId: string, userId: string | null, trigger: string): Promise<void> {
     try {
       // Get complete group data
       const group = await this.getGroup(groupId);
@@ -448,11 +491,15 @@ export class DatabaseStorage implements IStorage {
         backupTrigger: trigger,
       });
       
-      // Keep only last 10 backups per group
+      // Keep only last 10 backups per group (use groupId only for orphaned groups)
+      const whereClause = userId 
+        ? and(eq(groupBackups.userId, userId), eq(groupBackups.groupId, groupId))
+        : eq(groupBackups.groupId, groupId);
+      
       const allBackups = await db
         .select()
         .from(groupBackups)
-        .where(and(eq(groupBackups.userId, userId), eq(groupBackups.groupId, groupId)))
+        .where(whereClause)
         .orderBy(desc(groupBackups.createdAt));
       
       if (allBackups.length > 10) {
