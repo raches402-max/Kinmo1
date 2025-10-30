@@ -155,6 +155,56 @@ export default function Admin() {
     },
   });
 
+  const { data: backups, isLoading: backupsLoading } = useQuery<any[]>({
+    queryKey: ["/api/admin/backups"],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/backups');
+      if (!response.ok) throw new Error('Failed to fetch backups');
+      return response.json();
+    },
+  });
+
+  const createBackupMutation = useMutation({
+    mutationFn: async (notes: string) => {
+      return apiRequest("POST", "/api/admin/create-backup", { notes });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/backups"] });
+      toast({
+        title: "Backup created!",
+        description: "Database backup created successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Backup failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const restoreBackupMutation = useMutation({
+    mutationFn: async (backupId: string) => {
+      return apiRequest("POST", `/api/admin/restore/${backupId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/backups"] });
+      toast({
+        title: "Database restored!",
+        description: "Database has been restored from backup",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Restore failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   if (isLoading) {
     return (
       <div className="container max-w-7xl mx-auto p-6">
@@ -226,6 +276,10 @@ export default function Admin() {
           <TabsTrigger value="api-logs" data-testid="tab-api-logs">
             <FileText className="h-4 w-4 mr-2" />
             API Logs
+          </TabsTrigger>
+          <TabsTrigger value="backups" data-testid="tab-backups">
+            <Database className="h-4 w-4 mr-2" />
+            Backups
           </TabsTrigger>
         </TabsList>
 
@@ -822,6 +876,111 @@ export default function Admin() {
               ) : (
                 <div className="text-center py-12 text-muted-foreground">
                   No API logs found {(apiLogsService || apiLogsMethod || apiLogsCacheStatus || apiLogsStatus) && 'matching your filters'}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="backups" className="space-y-6">
+          <Card data-testid="card-backups">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Database Backups</CardTitle>
+                  <CardDescription>
+                    Create and restore complete database snapshots to protect against data loss
+                  </CardDescription>
+                </div>
+                <Button
+                  onClick={() => createBackupMutation.mutate("")}
+                  disabled={createBackupMutation.isPending}
+                  data-testid="button-create-backup"
+                >
+                  {createBackupMutation.isPending ? (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="mr-2 h-4 w-4" />
+                      Create Backup
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {backupsLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : backups && backups.length > 0 ? (
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Created</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Groups</TableHead>
+                        <TableHead>Members</TableHead>
+                        <TableHead>Activities</TableHead>
+                        <TableHead>Events</TableHead>
+                        <TableHead>Notes</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {backups.map((backup) => (
+                        <TableRow key={backup.id} data-testid={`backup-row-${backup.id}`}>
+                          <TableCell className="text-sm">
+                            {format(new Date(backup.createdAt), 'MMM d, yyyy HH:mm')}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={backup.backupType === 'manual' ? 'default' : 'secondary'}>
+                              {backup.backupType}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-sm">{backup.counts?.groups || 0}</TableCell>
+                          <TableCell className="text-sm">{backup.counts?.members || 0}</TableCell>
+                          <TableCell className="text-sm">{backup.counts?.activities || 0}</TableCell>
+                          <TableCell className="text-sm">{backup.counts?.itineraries || 0}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground max-w-xs truncate">
+                            {backup.notes || '-'}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                if (confirm('Are you sure you want to restore this backup? This will replace all current data.')) {
+                                  restoreBackupMutation.mutate(backup.id);
+                                }
+                              }}
+                              disabled={restoreBackupMutation.isPending}
+                              data-testid={`button-restore-${backup.id}`}
+                            >
+                              {restoreBackupMutation.isPending ? (
+                                <RefreshCw className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <>
+                                  <RefreshCw className="mr-2 h-4 w-4" />
+                                  Restore
+                                </>
+                              )}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No backups available yet</p>
+                  <p className="text-sm mt-2">Create your first backup to protect your data</p>
                 </div>
               )}
             </CardContent>
