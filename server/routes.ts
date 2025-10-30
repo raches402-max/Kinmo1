@@ -6399,6 +6399,76 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Admin endpoint to audit and fix bad categorizations in curated_venues
+  app.post("/api/admin/audit-venue-data", isAuthenticated, async (req: any, res) => {
+    try {
+      // Check if user is admin
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      const adminEmails = ['raches402@gmail.com'];
+      if (!user || !adminEmails.includes(user.email || '')) {
+        return res.status(403).json({ message: "Unauthorized: Admin access required" });
+      }
+
+      console.log(`[Data Audit] Starting venue data audit and correction...`);
+
+      // Known incorrect categorizations to fix
+      const corrections = [
+        { name: 'Burma Silver Star Restaurant', correctCategory: 'meal', correctDescription: 'Burmese cuisine' },
+        { name: 'Cooking Papa San Mateo', correctCategory: 'meal', correctDescription: 'Chinese restaurant' },
+        { name: 'Crossfit Burlingame', correctCategory: 'experiences', correctDescription: 'CrossFit gym' },
+        { name: 'LC Photo Booths', correctCategory: 'experiences', correctDescription: 'Photo booth rentals' },
+        { name: 'Baklavastory.', correctCategory: 'dessert', correctDescription: 'Turkish baklava shop' },
+      ];
+
+      let updatedCount = 0;
+      let activityUpdates = 0;
+
+      for (const correction of corrections) {
+        // Update curated_venues
+        const result = await db
+          .update(curatedVenues)
+          .set({ 
+            category: correction.correctCategory,
+            description: correction.correctDescription 
+          })
+          .where(eq(curatedVenues.name, correction.name))
+          .returning();
+
+        if (result.length > 0) {
+          updatedCount++;
+          console.log(`[Data Audit] ✓ Updated curated venue: ${correction.name} → ${correction.correctCategory}`);
+        }
+
+        // Also update any activities using this venue
+        const activityResult = await db
+          .update(activitiesTable)
+          .set({ 
+            description: correction.correctDescription 
+          })
+          .where(eq(activitiesTable.venueName, correction.name))
+          .returning();
+
+        if (activityResult.length > 0) {
+          activityUpdates += activityResult.length;
+          console.log(`[Data Audit] ✓ Updated ${activityResult.length} activities for: ${correction.name}`);
+        }
+      }
+
+      console.log(`[Data Audit] Complete! Updated ${updatedCount} curated venues and ${activityUpdates} activities`);
+
+      res.json({
+        success: true,
+        message: `Corrected ${updatedCount} curated venues and ${activityUpdates} activities`,
+        corrections: corrections.map(c => c.name)
+      });
+    } catch (error: any) {
+      console.error("Error auditing venue data:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Admin endpoint to get API call logs with filtering
   app.get("/api/admin/api-logs", isAuthenticated, async (req: any, res) => {
     try {
@@ -6826,7 +6896,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
     const maxAttempts = 5; // Try up to 5 times to ensure exactly 3 cards per category
     let targetCategories: string[] | undefined = undefined; // For targeted retry
 
-    // Helper function to check if we have exactly 3 cards per category
+    // Helper function to check if we have exactly 3 cards per ENABLED category
     const hasBalancedDistribution = (activities: any[]): boolean => {
       const categoryCounts: Record<string, number> = {
         meal: 0,
@@ -6842,8 +6912,19 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
         }
       }
 
-      // All categories must have at least 3 cards
-      return Object.values(categoryCounts).every(count => count >= 3);
+      // Only ENABLED categories must have at least 3 cards
+      const enabledCategories = [];
+      if (groupData.mealEnabled ?? true) enabledCategories.push('meal');
+      if (groupData.cafeEnabled ?? true) enabledCategories.push('cafes');
+      if (groupData.drinksEnabled ?? true) enabledCategories.push('drinks');
+      if (groupData.dessertEnabled ?? true) enabledCategories.push('dessert');
+      if (groupData.experiencesEnabled ?? true) enabledCategories.push('experiences');
+
+      console.log(`[AI Generation] Checking balance for enabled categories: ${enabledCategories.join(', ')}`);
+      console.log(`[AI Generation] Current counts:`, categoryCounts);
+
+      // All ENABLED categories must have at least 3 cards
+      return enabledCategories.every(cat => categoryCounts[cat] >= 3);
     };
 
     while (!hasBalancedDistribution(allUniqueActivities) && attempt < maxAttempts) {
@@ -7207,18 +7288,24 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
 
         console.log(`[AI Generation] 📊 Current category distribution after attempt ${attempt}:`, categoryCounts);
 
-        // Identify underrepresented categories (less than 3)
-        const underrepresentedCategories = Object.entries(categoryCounts)
-          .filter(([_, count]) => count < 3)
-          .map(([category]) => category);
+        // Identify underrepresented ENABLED categories (less than 3)
+        const enabledCategoriesForRetry = [];
+        if (groupData.mealEnabled ?? true) enabledCategoriesForRetry.push('meal');
+        if (groupData.cafeEnabled ?? true) enabledCategoriesForRetry.push('cafes');
+        if (groupData.drinksEnabled ?? true) enabledCategoriesForRetry.push('drinks');
+        if (groupData.dessertEnabled ?? true) enabledCategoriesForRetry.push('dessert');
+        if (groupData.experiencesEnabled ?? true) enabledCategoriesForRetry.push('experiences');
+
+        const underrepresentedCategories = enabledCategoriesForRetry
+          .filter(category => categoryCounts[category] < 3);
 
         if (underrepresentedCategories.length > 0) {
-          console.log(`[AI Generation] ⚠️ Underrepresented categories (< 3 cards): ${underrepresentedCategories.join(', ')}`);
+          console.log(`[AI Generation] ⚠️ Underrepresented ENABLED categories (< 3 cards): ${underrepresentedCategories.join(', ')}`);
           // Set target categories for next attempt
           targetCategories = underrepresentedCategories;
           console.log(`[AI Generation] 🎯 Next attempt will target: ${targetCategories.join(', ')}`);
         } else {
-          console.log(`[AI Generation] ✅ All categories have exactly 3 cards - balanced distribution achieved!`);
+          console.log(`[AI Generation] ✅ All ENABLED categories have at least 3 cards - balanced distribution achieved!`);
         }
       }
 
