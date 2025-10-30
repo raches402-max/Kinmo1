@@ -632,6 +632,7 @@ export default function GroupDetail() {
   const [categorySortMode, setCategorySortMode] = useState<Record<string, 'rating' | 'votes'>>({});
   const [activitiesSubTab, setActivitiesSubTab] = useState("ai-suggested");
   const [hoveredFavoriteId, setHoveredFavoriteId] = useState<string | null>(null);
+  const [showFavoritesMap, setShowFavoritesMap] = useState(false);
   const [addedSuggestionPlaceIds, setAddedSuggestionPlaceIds] = useState<Set<string>>(new Set());
   const [venueSearchQuery, setVenueSearchQuery] = useState("");
   const [debouncedVenueSearchQuery, setDebouncedVenueSearchQuery] = useState("");
