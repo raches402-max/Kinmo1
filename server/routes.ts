@@ -5900,7 +5900,7 @@ Looking forward to planning great activities together!
     }
   });
 
-  // Admin endpoint to get API cost estimates and usage breakdown
+  // Admin endpoint to get ACTUAL API costs from logged data (not estimates)
   app.get("/api/admin/api-costs", isAuthenticated, async (req: any, res) => {
     try {
       // Check if user is admin
@@ -5930,46 +5930,57 @@ Looking forward to planning great activities together!
         periodLabel = 'Quarterly';
       }
 
-      // Get database counts with date filtering
-      let activitiesCount: number;
-      let geocodingCacheCount: number;
-      let photosCacheCount: number;
-      let groupsCount: number;
+      // Query ACTUAL logged API calls from apiCallLogs table
+      // Use safe casting with COALESCE and NULLIF to handle empty strings and NULL values
+      const logsQuery = dateThreshold
+        ? db
+            .select({
+              service: apiCallLogs.service,
+              method: apiCallLogs.method,
+              cacheStatus: apiCallLogs.cacheStatus,
+              count: sql<number>`count(*)`,
+              totalCost: sql<number>`sum(COALESCE(NULLIF(${apiCallLogs.costEstimate}, '')::numeric, 0))`,
+            })
+            .from(apiCallLogs)
+            .where(gte(apiCallLogs.timestamp, dateThreshold))
+            .groupBy(apiCallLogs.service, apiCallLogs.method, apiCallLogs.cacheStatus)
+        : db
+            .select({
+              service: apiCallLogs.service,
+              method: apiCallLogs.method,
+              cacheStatus: apiCallLogs.cacheStatus,
+              count: sql<number>`count(*)`,
+              totalCost: sql<number>`sum(COALESCE(NULLIF(${apiCallLogs.costEstimate}, '')::numeric, 0))`,
+            })
+            .from(apiCallLogs)
+            .groupBy(apiCallLogs.service, apiCallLogs.method, apiCallLogs.cacheStatus);
 
-      if (dateThreshold) {
-        [activitiesCount, geocodingCacheCount, photosCacheCount, groupsCount] = await Promise.all([
-          db.select({ count: sql<number>`count(*)` }).from(activitiesTable).where(gte(activitiesTable.createdAt, dateThreshold)).then(r => Number(r[0]?.count) || 0),
-          db.select({ count: sql<number>`count(*)` }).from(geocodingCache).where(gte(geocodingCache.createdAt, dateThreshold)).then(r => Number(r[0]?.count) || 0),
-          db.select({ count: sql<number>`count(*)` }).from(photosCache).where(gte(photosCache.createdAt, dateThreshold)).then(r => Number(r[0]?.count) || 0),
-          db.select({ count: sql<number>`count(*)` }).from(groupsTable).where(gte(groupsTable.createdAt, dateThreshold)).then(r => Number(r[0]?.count) || 0),
-        ]);
-      } else {
-        // No date filter for 'total'
-        [activitiesCount, geocodingCacheCount, photosCacheCount, groupsCount] = await Promise.all([
-          db.select({ count: sql<number>`count(*)` }).from(activitiesTable).then(r => Number(r[0]?.count) || 0),
-          db.select({ count: sql<number>`count(*)` }).from(geocodingCache).then(r => Number(r[0]?.count) || 0),
-          db.select({ count: sql<number>`count(*)` }).from(photosCache).then(r => Number(r[0]?.count) || 0),
-          db.select({ count: sql<number>`count(*)` }).from(groupsTable).then(r => Number(r[0]?.count) || 0),
-        ]);
-      }
+      const loggedCosts = await logsQuery;
 
-      // Get unique places count with date filtering
-      const uniquePlaces = dateThreshold
-        ? await db
-            .selectDistinct({ placeId: activitiesTable.googlePlaceId })
-            .from(activitiesTable)
-            .where(and(
-              sql`${activitiesTable.googlePlaceId} IS NOT NULL`,
-              gte(activitiesTable.createdAt, dateThreshold)
-            ))
-        : await db
-            .selectDistinct({ placeId: activitiesTable.googlePlaceId })
-            .from(activitiesTable)
-            .where(sql`${activitiesTable.googlePlaceId} IS NOT NULL`);
+      // Aggregate costs by API method for Google Places
+      const googlePlacesLogs = loggedCosts.filter(l => l.service === 'google_places');
       
-      const uniquePlacesCount = uniquePlaces.length;
+      const textSearchLogs = googlePlacesLogs.filter(l => l.method === 'textSearch');
+      const textSearchCalls = textSearchLogs.reduce((sum, l) => sum + Number(l.count), 0);
+      const textSearchCost = textSearchLogs.reduce((sum, l) => sum + Number(l.totalCost || 0), 0);
+      const textSearchMisses = textSearchLogs.filter(l => l.cacheStatus === 'miss').reduce((sum, l) => sum + Number(l.count), 0);
 
-      // Count activities with uncached photos (direct Google URLs)
+      const placeDetailsLogs = googlePlacesLogs.filter(l => l.method === 'placeDetails');
+      const placeDetailsCalls = placeDetailsLogs.reduce((sum, l) => sum + Number(l.count), 0);
+      const placeDetailsCost = placeDetailsLogs.reduce((sum, l) => sum + Number(l.totalCost || 0), 0);
+      const placeDetailsMisses = placeDetailsLogs.filter(l => l.cacheStatus === 'miss').reduce((sum, l) => sum + Number(l.count), 0);
+
+      const geocodingLogs = googlePlacesLogs.filter(l => l.method === 'geocoding');
+      const geocodingCalls = geocodingLogs.reduce((sum, l) => sum + Number(l.count), 0);
+      const geocodingCost = geocodingLogs.reduce((sum, l) => sum + Number(l.totalCost || 0), 0);
+      const geocodingMisses = geocodingLogs.filter(l => l.cacheStatus === 'miss').reduce((sum, l) => sum + Number(l.count), 0);
+
+      // Calculate cache hit rate for each API type
+      const textSearchHitRate = textSearchCalls > 0 ? ((textSearchCalls - textSearchMisses) / textSearchCalls * 100) : 0;
+      const placeDetailsHitRate = placeDetailsCalls > 0 ? ((placeDetailsCalls - placeDetailsMisses) / placeDetailsCalls * 100) : 0;
+      const geocodingHitRate = geocodingCalls > 0 ? ((geocodingCalls - geocodingMisses) / geocodingCalls * 100) : 0;
+
+      // Count activities with uncached photos (direct Google URLs) - for frontend display only
       let uncachedPhotosCount: number;
       if (dateThreshold) {
         uncachedPhotosCount = await db
@@ -5988,105 +5999,116 @@ Looking forward to planning great activities together!
           .then(r => Number(r[0]?.count) || 0);
       }
 
-      // Get cache statistics
+      // Get cache statistics for additional metrics
       const cacheStats = getCacheStats();
       
       // Get API key usage statistics
       const { getApiKeyStats } = await import('./google-places');
       const apiKeyStats = getApiKeyStats();
 
-      // Estimate API calls and costs
-      const estimatedTextSearchCalls = Math.floor(activitiesCount / 15); // ~15 activities per group generation
-      const estimatedPlaceDetailsCalls = uniquePlacesCount;
-      const estimatedGeocodingCalls = groupsCount;
-      const estimatedCachedPhotoCalls = photosCacheCount; // Photos that were cached (downloaded once)
+      // Calculate database metrics for frontend
+      let activitiesCount: number;
+      let geocodingCacheCount: number;
+      let photosCacheCount: number;
+      let groupsCount: number;
 
-      // Estimate uncached photo views based on period
-      // Assumption: Each uncached photo is viewed ~12 times per day (based on historical $184/day cost)
-      const VIEWS_PER_PHOTO_PER_DAY = 12;
-      let estimatedUncachedPhotoViews = 0;
-      let uncachedPhotoPeriodLabel = '';
-      
-      if (period === 'daily') {
-        estimatedUncachedPhotoViews = uncachedPhotosCount * VIEWS_PER_PHOTO_PER_DAY;
-        uncachedPhotoPeriodLabel = 'per day';
-      } else if (period === 'monthly') {
-        estimatedUncachedPhotoViews = uncachedPhotosCount * VIEWS_PER_PHOTO_PER_DAY * 30;
-        uncachedPhotoPeriodLabel = 'per month (30 days)';
-      } else if (period === 'quarterly') {
-        estimatedUncachedPhotoViews = uncachedPhotosCount * VIEWS_PER_PHOTO_PER_DAY * 90;
-        uncachedPhotoPeriodLabel = 'per quarter (90 days)';
+      if (dateThreshold) {
+        [activitiesCount, geocodingCacheCount, photosCacheCount, groupsCount] = await Promise.all([
+          db.select({ count: sql<number>`count(*)` }).from(activitiesTable).where(gte(activitiesTable.createdAt, dateThreshold)).then(r => Number(r[0]?.count) || 0),
+          db.select({ count: sql<number>`count(*)` }).from(geocodingCache).where(gte(geocodingCache.createdAt, dateThreshold)).then(r => Number(r[0]?.count) || 0),
+          db.select({ count: sql<number>`count(*)` }).from(photosCache).where(gte(photosCache.createdAt, dateThreshold)).then(r => Number(r[0]?.count) || 0),
+          db.select({ count: sql<number>`count(*)` }).from(groupsTable).where(gte(groupsTable.createdAt, dateThreshold)).then(r => Number(r[0]?.count) || 0),
+        ]);
       } else {
-        // For 'total', calculate based on 19 days since start
-        const daysSinceStart = 19;
-        estimatedUncachedPhotoViews = uncachedPhotosCount * VIEWS_PER_PHOTO_PER_DAY * daysSinceStart;
-        uncachedPhotoPeriodLabel = `over ${daysSinceStart} days`;
+        [activitiesCount, geocodingCacheCount, photosCacheCount, groupsCount] = await Promise.all([
+          db.select({ count: sql<number>`count(*)` }).from(activitiesTable).then(r => Number(r[0]?.count) || 0),
+          db.select({ count: sql<number>`count(*)` }).from(geocodingCache).then(r => Number(r[0]?.count) || 0),
+          db.select({ count: sql<number>`count(*)` }).from(photosCache).then(r => Number(r[0]?.count) || 0),
+          db.select({ count: sql<number>`count(*)` }).from(groupsTable).then(r => Number(r[0]?.count) || 0),
+        ]);
       }
 
-      // Cost calculations (per 1,000 requests)
-      const textSearchCost = (estimatedTextSearchCalls / 1000) * 17; // $17 per 1K
-      const placeDetailsCost = (estimatedPlaceDetailsCalls / 1000) * 5; // $5 per 1K (Basic tier)
-      const geocodingCost = (estimatedGeocodingCalls / 1000) * 5; // $5 per 1K
-      const cachedPhotoCost = (estimatedCachedPhotoCalls / 1000) * 7; // $7 per 1K (one-time downloads)
-      const uncachedPhotoCost = (estimatedUncachedPhotoViews / 1000) * 7; // $7 per 1K (ongoing views)
+      const uniquePlaces = dateThreshold
+        ? await db
+            .selectDistinct({ placeId: activitiesTable.googlePlaceId })
+            .from(activitiesTable)
+            .where(and(
+              sql`${activitiesTable.googlePlaceId} IS NOT NULL`,
+              gte(activitiesTable.createdAt, dateThreshold)
+            ))
+        : await db
+            .selectDistinct({ placeId: activitiesTable.googlePlaceId })
+            .from(activitiesTable)
+            .where(sql`${activitiesTable.googlePlaceId} IS NOT NULL`);
+      
+      const uniquePlacesCount = uniquePlaces.length;
 
-      const totalCost = textSearchCost + placeDetailsCost + geocodingCost + cachedPhotoCost + uncachedPhotoCost;
+      // Calculate total costs from actual logged data
+      const totalGooglePlacesCalls = textSearchCalls + placeDetailsCalls + geocodingCalls;
+      const totalGooglePlacesCost = textSearchCost + placeDetailsCost + geocodingCost;
+
+      // Calculate cache hit rate
+      const totalHits = cacheStats.totalHits;
+      const totalMisses = textSearchMisses + placeDetailsMisses + geocodingMisses;
+      const overallCacheHitRate = (totalHits + totalMisses) > 0 ? (totalHits / (totalHits + totalMisses) * 100) : 0;
 
       // Calculate savings from caching
-      const savedTextSearchCalls = cacheStats.searchHits;
-      const savedPlaceDetailsCalls = cacheStats.placeDetailsHits;
-      const savedGeocodingCalls = cacheStats.geocodeHits;
-      
-      const savedTextSearchCost = (savedTextSearchCalls / 1000) * 17;
-      const savedPlaceDetailsCost = (savedPlaceDetailsCalls / 1000) * 5;
-      const savedGeocodingCost = (savedGeocodingCalls / 1000) * 5;
-      
+      const savedTextSearchCost = (cacheStats.searchHits / 1000) * 17;
+      const savedPlaceDetailsCost = (cacheStats.placeDetailsHits / 1000) * 5;
+      const savedGeocodingCost = (cacheStats.geocodeHits / 1000) * 5;
       const totalSavings = savedTextSearchCost + savedPlaceDetailsCost + savedGeocodingCost;
 
+      // Pricing per 1,000 requests
+      const TEXT_SEARCH_PRICE = 17;
+      const PLACE_DETAILS_PRICE = 5;
+      const GEOCODING_PRICE = 5;
+
+      // Return response in original format for frontend compatibility
       res.json({
         period: period,
         periodLabel: periodLabel,
+        dataSource: 'actual_logs', // NEW: Indicates this is real data from apiCallLogs, not estimates
         apiCalls: {
           textSearch: {
-            estimated: estimatedTextSearchCalls,
-            cost: textSearchCost,
-            pricePerThousand: 17,
+            estimated: textSearchCalls, // ACTUAL calls from logs (keeping field name for compatibility)
+            cost: textSearchCost, // ACTUAL cost from logs
+            pricePerThousand: TEXT_SEARCH_PRICE,
           },
           placeDetails: {
-            estimated: estimatedPlaceDetailsCalls,
-            cost: placeDetailsCost,
-            pricePerThousand: 5,
+            estimated: placeDetailsCalls, // ACTUAL calls from logs
+            cost: placeDetailsCost, // ACTUAL cost from logs
+            pricePerThousand: PLACE_DETAILS_PRICE,
             tier: 'Basic',
           },
           geocoding: {
-            estimated: estimatedGeocodingCalls,
-            cost: geocodingCost,
-            pricePerThousand: 5,
+            estimated: geocodingCalls, // ACTUAL calls from logs
+            cost: geocodingCost, // ACTUAL cost from logs
+            pricePerThousand: GEOCODING_PRICE,
           },
           cachedPhotos: {
-            estimated: estimatedCachedPhotoCalls,
-            cost: cachedPhotoCost,
+            estimated: photosCacheCount,
+            cost: (photosCacheCount / 1000) * 7,
             pricePerThousand: 7,
             note: 'Cached downloads (one-time setup cost)',
           },
           uncachedPhotos: {
-            estimated: estimatedUncachedPhotoViews,
-            cost: uncachedPhotoCost,
+            estimated: 0, // Photo views not tracked in logs yet
+            cost: 0,
             pricePerThousand: 7,
             count: uncachedPhotosCount,
-            note: `Uncached photo views ${uncachedPhotoPeriodLabel} (ongoing cost)`,
+            note: 'Uncached photos (not tracked in logs yet)',
           },
         },
         totals: {
-          estimatedCalls: estimatedTextSearchCalls + estimatedPlaceDetailsCalls + estimatedGeocodingCalls + estimatedCachedPhotoCalls + estimatedUncachedPhotoViews,
-          estimatedCost: totalCost,
+          estimatedCalls: totalGooglePlacesCalls, // ACTUAL total from logs
+          estimatedCost: totalGooglePlacesCost, // ACTUAL total cost from logs
         },
         caching: {
           textSearchHits: cacheStats.searchHits,
           placeDetailsHits: cacheStats.placeDetailsHits,
           geocodingHits: cacheStats.geocodeHits,
-          totalHits: cacheStats.totalHits,
-          hitRate: cacheStats.hitRate,
+          totalHits: totalHits,
+          hitRate: overallCacheHitRate,
           savedCost: totalSavings,
         },
         apiKeys: {
