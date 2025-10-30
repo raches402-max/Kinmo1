@@ -27,6 +27,7 @@ import type { Group, Activity, Member, VotingEvent, Vote } from "@shared/schema"
 import { AvailabilityGrid, createEmptyAvailability } from "@/components/AvailabilityGrid";
 import { ReadOnlyAvailabilityGrid } from "@/components/ReadOnlyAvailabilityGrid";
 import { SwipeSession } from "@/components/SwipeSession";
+import { FavoritesMap } from "@/components/FavoritesMap";
 import { calculateDistance, getDistanceCategory, formatDistance } from "@/lib/distance";
 import { format } from 'date-fns';
 import { toZonedTime, fromZonedTime, formatInTimeZone } from 'date-fns-tz';
@@ -630,6 +631,7 @@ export default function GroupDetail() {
   const [favoritesSearch, setFavoritesSearch] = useState("");
   const [categorySortMode, setCategorySortMode] = useState<Record<string, 'rating' | 'votes'>>({});
   const [activitiesSubTab, setActivitiesSubTab] = useState("ai-suggested");
+  const [hoveredFavoriteId, setHoveredFavoriteId] = useState<string | null>(null);
   const [addedSuggestionPlaceIds, setAddedSuggestionPlaceIds] = useState<Set<string>>(new Set());
   const [venueSearchQuery, setVenueSearchQuery] = useState("");
   const [debouncedVenueSearchQuery, setDebouncedVenueSearchQuery] = useState("");
@@ -4845,6 +4847,10 @@ export default function GroupDetail() {
                     />
                   </div>
 
+                  {/* List and Map side-by-side */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Favorites List */}
+                    <div className="space-y-6">
                   {(() => {
                     // Categorize voting events
                     const categorizeVenue = (venueType: string | null): 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences' => {
@@ -4963,8 +4969,10 @@ export default function GroupDetail() {
                                   <HoverCard key={event.id}>
                                     <HoverCardTrigger asChild>
                                       <div 
-                                        className="flex items-center gap-3 p-3 rounded-md border hover-elevate transition-colors cursor-pointer"
+                                        className={`flex items-center gap-3 p-3 rounded-md border hover-elevate transition-colors cursor-pointer ${hoveredFavoriteId === event.id ? 'ring-2 ring-primary' : ''}`}
                                         data-testid={`favorites-row-${event.id}`}
+                                        onMouseEnter={() => setHoveredFavoriteId(event.id)}
+                                        onMouseLeave={() => setHoveredFavoriteId(null)}
                                       >
                                         <Checkbox
                                           checked={isSelected}
@@ -5140,9 +5148,25 @@ export default function GroupDetail() {
                       );
                     });
                   })()}
+                    </div>
+                    
+                    {/* Map View */}
+                    <div className="lg:sticky lg:top-6 h-[600px]">
+                      <FavoritesMap 
+                        venues={votingEvents.filter(event => 
+                          event.title.toLowerCase().includes(favoritesSearch.toLowerCase())
+                        )}
+                        hoveredVenueId={hoveredFavoriteId}
+                        onMarkerHover={setHoveredFavoriteId}
+                        onMarkerClick={(venueId) => {
+                          const element = document.querySelector(`[data-testid="favorites-row-${venueId}"]`);
+                          element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }}
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
-                </div>
               </TabsContent>
             </Tabs>
 
