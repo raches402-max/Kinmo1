@@ -934,10 +934,10 @@ export async function categorizeVenue(
 ${context}
 
 Categories:
-- meal: Full meal venues (restaurants, food halls, dining establishments)
-- cafes: Coffee shops, cafes
+- meal: Full meal venues (restaurants, food halls, dining establishments where people eat lunch/dinner)
+- cafes: Coffee shops, cafes (primarily coffee/tea with light snacks)
 - drinks: Bars, breweries, wine bars, cocktail lounges (alcoholic beverages)
-- dessert: Boba/tea shops, ice cream, dessert cafes, bakeries, sweet treats
+- dessert: Ice cream, gelato, chocolate shops, bakeries, boba/bubble tea, frozen yogurt, donuts, cupcakes, pastries, sweet treats
 - experiences: Entertainment, museums, parks, sports, events, activities, shows, performances
 
 CRITICAL RULES - PRIMARY PURPOSE:
@@ -948,16 +948,22 @@ CRITICAL RULES - PRIMARY PURPOSE:
    - "Museum Cafe" → experiences (it's a MUSEUM)
    - "Sports Bar with Games" → drinks (it's primarily a BAR)
    
-2. If the PRIMARY purpose is dining/eating:
-   - Izakaya = meal (Japanese dining establishment)
-   - Restaurants, bistros, food halls = meal
+2. If the PRIMARY purpose is dining/eating MEALS (lunch/dinner):
+   - Restaurants, bistros, food halls, izakaya = meal
+   - Brunch spots, diners, eateries = meal
    
 3. If the PRIMARY purpose is drinks:
-   - Bars, breweries, wine bars = drinks
+   - Bars, breweries, wine bars, cocktail lounges = drinks
    
-4. If the PRIMARY purpose is dessert/treats:
-   - Tea shop/bubble tea/boba = dessert
-   - Ice cream, bakeries = dessert
+4. If the PRIMARY purpose is DESSERT/SWEETS (NOT meals):
+   - Ice cream shop → dessert (NOT meal)
+   - Gelato shop → dessert (NOT meal)
+   - Chocolate shop → dessert (NOT meal)
+   - Bakery (cupcakes, pastries, donuts) → dessert (NOT meal)
+   - Boba/bubble tea shop → dessert (NOT meal)
+   - Frozen yogurt → dessert (NOT meal)
+   
+   IMPORTANT: Even though people "eat" desserts, these are NOT meal venues. Dessert is a separate category.
 
 Return a JSON object with this exact structure:
 {
