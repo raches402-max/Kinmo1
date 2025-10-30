@@ -6870,8 +6870,33 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
             }
           });
 
+          // Apply drinks category post-filter to reject restaurants and sushi bars
+          const detectedCategory = detectCategory(suggestion.venueName, suggestion.venueType);
+          let drinksFiltered = budgetFiltered;
+          
+          if (detectedCategory === 'drinks') {
+            // For drinks category, explicitly reject venues with restaurant types
+            const restaurantTypes = ['restaurant', 'food', 'meal_takeaway', 'meal_delivery', 'sushi_restaurant'];
+            drinksFiltered = budgetFiltered.filter(place => {
+              const types = place.types || [];
+              const hasRestaurantType = types.some(type => 
+                restaurantTypes.includes(type) || type.toLowerCase().includes('restaurant')
+              );
+              
+              if (hasRestaurantType) {
+                console.log(`[Drinks Filter] ❌ Rejecting ${place.name} - has restaurant type: ${types.join(', ')}`);
+                return false;
+              }
+              return true;
+            });
+            
+            if (drinksFiltered.length < budgetFiltered.length) {
+              console.log(`[Drinks Filter] Filtered out ${budgetFiltered.length - drinksFiltered.length} restaurants from drinks category`);
+            }
+          }
+          
           // Only use venues that meet quality AND budget standards
-          const finalPlaces = budgetFiltered;
+          const finalPlaces = drinksFiltered;
 
           if (finalPlaces.length > 0) {
             const place = finalPlaces[0];
