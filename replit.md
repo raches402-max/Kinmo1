@@ -48,7 +48,8 @@ AI suggestion preferences:
 - **Optional Member Registration**: Members can optionally complete profiles (home base, activity preferences, availability) to improve AI recommendations.
 - **Post-Event Feedback**: Collects venue ratings, frequency preferences, and notes for past events.
 - **Admin Dashboard**: Platform health monitoring dashboard accessible at `/admin` for administrators, displaying key metrics, trends, and visualizations. Includes a Maintenance tab with database cleanup tools:
-  - **Curated Venues Cleanup**: POST `/api/admin/cleanup-curated-venues` removes invalid venues from the cache (non-venue businesses like realtors/parking lots, venues without photos, low-quality venues below 3.0★ or with fewer than 5 reviews, and duplicates). Improves AI suggestion quality by ensuring only high-quality venues are cached.
+  - **AI-Powered Curated Venues Cleanup**: POST `/api/admin/cleanup-curated-venues` removes invalid venues using GPT-4o-mini AI validation. Each venue is evaluated with the question: "Is this a place where friends can get together for a social activity?" AI identifies and removes non-social venues (realtors, parking lots, repair services, medical facilities), venues without photos, low-quality venues (below 3.0★ or fewer than 5 reviews), and duplicates. All removed venues are archived to the `deleted_venues` table with deletion reasons before removal. Strict JSON schema enforcement (`{isValid: boolean, reasoning: string}`) with error-safe defaults (invalid on malformed responses) ensures robust filtering.
+  - **Deleted Venues Archive**: GET `/api/admin/deleted-venues` retrieves all archived venues removed during cleanup operations. Admin Dashboard "Deleted Venues" tab displays venue details, ratings, AI deletion reasoning, and timestamps. Provides audit trail for reviewing AI cleanup decisions and understanding what types of venues were filtered out.
 
 ## External Dependencies
 
