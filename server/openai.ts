@@ -922,6 +922,56 @@ export async function categorizeVenue(
     return cached as 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences';
   }
 
+  // PRIORITY 1: Use Google Place types as strong hints (most reliable)
+  if (googleTypes && googleTypes.length > 0) {
+    const typeString = googleTypes.join(',').toLowerCase();
+    
+    // Dessert types - very specific, high confidence
+    const dessertTypes = ['ice_cream_shop', 'dessert_shop', 'bakery', 'candy_store', 'chocolate_shop', 'donut_shop', 'frozen_yogurt_shop', 'bubble_tea_shop'];
+    if (dessertTypes.some(type => typeString.includes(type))) {
+      console.log(`[AI Categorization] Google type hint: "${venueName}" → dessert (matched: ${dessertTypes.find(t => typeString.includes(t))})`);
+      categorizationCache.set(cacheKey, 'dessert');
+      return 'dessert';
+    }
+    
+    // Cafe types
+    if (typeString.includes('cafe') || typeString.includes('coffee_shop')) {
+      console.log(`[AI Categorization] Google type hint: "${venueName}" → cafes (matched: cafe/coffee_shop)`);
+      categorizationCache.set(cacheKey, 'cafes');
+      return 'cafes';
+    }
+    
+    // Drinks types
+    const drinksTypes = ['bar', 'night_club', 'brewery', 'winery', 'wine_bar', 'cocktail_bar', 'tapas_bar', 'sports_bar'];
+    const matchedDrink = drinksTypes.find(type => typeString.includes(type));
+    if (matchedDrink) {
+      // Exception: sushi_bar, ramen_bar should be meal
+      if (typeString.includes('sushi') || typeString.includes('ramen') || typeString.includes('restaurant')) {
+        console.log(`[AI Categorization] Google type hint: "${venueName}" → meal (bar+restaurant exception)`);
+        categorizationCache.set(cacheKey, 'meal');
+        return 'meal';
+      }
+      console.log(`[AI Categorization] Google type hint: "${venueName}" → drinks (matched: ${matchedDrink})`);
+      categorizationCache.set(cacheKey, 'drinks');
+      return 'drinks';
+    }
+    
+    // Experiences types
+    const experienceTypes = ['museum', 'art_gallery', 'amusement_park', 'aquarium', 'zoo', 'bowling_alley', 'movie_theater', 'park', 'tourist_attraction', 'stadium', 'performing_arts_theater'];
+    if (experienceTypes.some(type => typeString.includes(type))) {
+      console.log(`[AI Categorization] Google type hint: "${venueName}" → experiences (matched: ${experienceTypes.find(t => typeString.includes(t))})`);
+      categorizationCache.set(cacheKey, 'experiences');
+      return 'experiences';
+    }
+    
+    // Restaurant types (fallback to meal)
+    if (typeString.includes('restaurant')) {
+      console.log(`[AI Categorization] Google type hint: "${venueName}" → meal (matched: restaurant)`);
+      categorizationCache.set(cacheKey, 'meal');
+      return 'meal';
+    }
+  }
+
   try {
     // Build context from all available information
     let context = `Venue name: "${venueName}"\nVenue type: "${venueType}"`;
