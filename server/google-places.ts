@@ -3,7 +3,8 @@ import { db } from "./db";
 import { placesCache, searchCache, geocodingCache } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 
-const client = new Client({});
+// Legacy client for Geocoding and Timezone (still using old API)
+const legacyClient = new Client({});
 
 // Multi-key support for load balancing across API keys
 // KEY_2 is now primary (handles 80% of traffic), KEY_1 is backup (20%)
@@ -350,7 +351,7 @@ export async function getTimezoneForLocation(lat: number, lng: number): Promise<
     const apiKey = getNextApiKey();
     const timestamp = Math.floor(Date.now() / 1000);
 
-    const response = await client.timezone({
+    const response = await legacyClient.timezone({
       params: {
         location: { lat, lng },
         timestamp,
@@ -393,7 +394,7 @@ export async function geocodeLocation(location: string): Promise<GeocodeResult |
   try {
     const apiKey = getNextApiKey();
 
-    const response = await client.geocode({
+    const response = await legacyClient.geocode({
       params: {
         address: location,
         key: apiKey,
@@ -516,27 +517,66 @@ export async function searchPlaces(
     // Convert miles to meters (1 mile = 1609.34 meters)
     const radiusMeters = Math.round(radiusMiles * 1609.34);
 
-    // If coordinates are provided, use them for more precise search
-    const searchParams: any = {
-      query: coordinates ? query : `${query} in ${location}`,
-      key: apiKey,
+    // NEW PLACES API: Use POST with JSON body and headers
+    const endpoint = 'https://places.googleapis.com/v1/places:searchText';
+    
+    // Build request body
+    const requestBody: any = {
+      textQuery: coordinates ? query : `${query} in ${location}`,
+      maxResultCount: 20,
     };
     
     if (coordinates) {
-      searchParams.location = coordinates;
-      searchParams.radius = radiusMeters;
+      requestBody.locationBias = {
+        circle: {
+          center: {
+            latitude: coordinates.lat,
+            longitude: coordinates.lng,
+          },
+          radius: radiusMeters,
+        },
+      };
     }
 
-    const response = await client.textSearch({
-      params: searchParams,
+    // NEW API requires field mask in header
+    // Only request fields we actually use to minimize costs
+    const fieldMask = [
+      'places.id',
+      'places.displayName',
+      'places.formattedAddress',
+      'places.rating',
+      'places.userRatingCount',
+      'places.priceLevel',
+      'places.photos',
+      'places.types',
+      'places.location',
+    ].join(',');
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': fieldMask,
+      },
+      body: JSON.stringify(requestBody),
     });
 
-    if (!response.data.results || response.data.results.length === 0) {
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[Google Places API] Error ${response.status}:`, errorText);
       sessionCache.searchResults.set(cacheKey, []);
       return [];
     }
 
-    console.log(`[Google Places] Got ${response.data.results.length} results from API`);
+    const data = await response.json();
+
+    if (!data.places || data.places.length === 0) {
+      sessionCache.searchResults.set(cacheKey, []);
+      return [];
+    }
+
+    console.log(`[Google Places] Got ${data.places.length} results from NEW API`);
 
     // Process ALL results (up to 20 from Google), not just the first one
     // OPTIMIZATION: Use Text Search data directly instead of calling getPlaceDetails for each result
@@ -544,9 +584,14 @@ export async function searchPlaces(
     const results: PlaceResult[] = [];
     const MIN_REVIEWS = 50;
     
-    for (const place of response.data.results.slice(0, 20)) {
+    for (const place of data.places) {
+      // NEW API: Extract location from place object
+      const placeLocation = place.location ? {
+        lat: place.location.latitude,
+        lng: place.location.longitude,
+      } : undefined;
+      
       // Check if place is within radius (if coordinates provided)
-      const placeLocation = place.geometry?.location;
       if (coordinates && placeLocation) {
         const distance = calculateDistance(
           coordinates.lat,
@@ -556,40 +601,53 @@ export async function searchPlaces(
         );
         
         if (distance > radiusMiles) {
-          console.log(`[Google Places] Filtering out "${place.name}" - ${distance.toFixed(2)} miles away (radius: ${radiusMiles} miles)`);
+          console.log(`[Google Places] Filtering out "${place.displayName?.text || 'Unknown'}" - ${distance.toFixed(2)} miles away (radius: ${radiusMiles} miles)`);
           continue; // Skip this place, but keep processing others
         }
       }
       
       // Filter out places with fewer than 50 reviews
-      // Use user_ratings_total directly from Text Search response
-      if (!place.user_ratings_total || place.user_ratings_total < MIN_REVIEWS) {
-        console.log(`[Google Places] Filtering out "${place.name}" - only ${place.user_ratings_total || 0} reviews (minimum: ${MIN_REVIEWS})`);
+      // NEW API: userRatingCount instead of user_ratings_total
+      if (!place.userRatingCount || place.userRatingCount < MIN_REVIEWS) {
+        console.log(`[Google Places] Filtering out "${place.displayName?.text || 'Unknown'}" - only ${place.userRatingCount || 0} reviews (minimum: ${MIN_REVIEWS})`);
         continue;
       }
       
       // Build result from Text Search data (no additional API call needed!)
       let photoUrl: string | undefined;
       if (place.photos && place.photos.length > 0) {
-        const photoReference = place.photos[0].photo_reference;
-        // Use proxy endpoint to cache photos and reduce API costs
-        photoUrl = `/api/photos/${photoReference}`;
+        // NEW API: photos have a 'name' field instead of 'photo_reference'
+        const photoName = place.photos[0].name;
+        // Extract the photo reference from the name (format: places/PLACE_ID/photos/PHOTO_REF)
+        const photoRef = photoName?.split('/').pop();
+        if (photoRef) {
+          photoUrl = `/api/photos/${photoRef}`;
+        }
       }
 
-      const location = placeLocation 
-        ? { lat: placeLocation.lat, lng: placeLocation.lng }
-        : undefined;
+      // NEW API: priceLevel is a string enum like "PRICE_LEVEL_MODERATE"
+      let priceLevel: string | undefined;
+      if (place.priceLevel) {
+        const levelMap: Record<string, string> = {
+          'PRICE_LEVEL_FREE': 'Free',
+          'PRICE_LEVEL_INEXPENSIVE': '$',
+          'PRICE_LEVEL_MODERATE': '$$',
+          'PRICE_LEVEL_EXPENSIVE': '$$$',
+          'PRICE_LEVEL_VERY_EXPENSIVE': '$$$$',
+        };
+        priceLevel = levelMap[place.priceLevel] || place.priceLevel;
+      }
 
       results.push({
-        placeId: place.place_id || "",
-        name: place.name || query,
-        address: place.formatted_address || "",
+        placeId: place.id || "",
+        name: place.displayName?.text || query,
+        address: place.formattedAddress || "",
         rating: place.rating?.toString(),
-        reviewCount: place.user_ratings_total,
-        priceLevel: place.price_level ? '$'.repeat(place.price_level) : undefined,
+        reviewCount: place.userRatingCount,
+        priceLevel,
         photoUrl,
         types: place.types || [],
-        location,
+        location: placeLocation,
       });
     }
 
@@ -640,7 +698,7 @@ export async function searchNearbyPlaces(
   try {
     const apiKey = getNextApiKey();
 
-    const response = await client.placesNearby({
+    const response = await legacyClient.placesNearby({
       params: {
         location: nearLocation,
         radius: radiusMeters,
@@ -840,7 +898,7 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceResult | nu
   try {
     const apiKey = getNextApiKey();
 
-    const response = await client.placeDetails({
+    const response = await legacyClient.placeDetails({
       params: {
         place_id: placeId,
         key: apiKey,
