@@ -1,7 +1,7 @@
 import { Client } from "@googlemaps/google-maps-services-js";
 import { db } from "./db";
-import { placesCache, searchCache, geocodingCache } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { placesCache, searchCache, geocodingCache, curatedVenues } from "@shared/schema";
+import { eq, and, or, sql as drizzleSql, like, desc } from "drizzle-orm";
 
 // Legacy client for Geocoding and Timezone (still using old API)
 const legacyClient = new Client({});
@@ -465,41 +465,211 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * c;
 }
 
+/**
+ * Search curated venues (cache-first strategy)
+ * Returns pre-loaded venues that match the query and location
+ * STRICT GEOGRAPHIC VALIDATION: Only returns results if location is confirmed to be within SF
+ */
+async function searchCuratedVenues(
+  query: string,
+  location: string,
+  radiusMiles: number = 2,
+  coordinates?: { lat: number; lng: number },
+  maxResults: number = 15
+): Promise<PlaceResult[]> {
+  try {
+    console.log(`[Curated Search] Searching for "${query}" in ${location}`);
+
+    // CRITICAL: Strict geographic validation
+    // Only use curated SF venues if we can confirm the search is for SF
+    const locationLower = location.toLowerCase();
+    const isSFLocation = locationLower.includes('san francisco') || 
+                         locationLower.includes('sf') || 
+                         locationLower.includes(' sf ') ||
+                         locationLower.includes('sf,');
+    
+    // SF bounding box (approximate): lat 37.7-37.85, lng -122.52 to -122.35
+    const SF_BOUNDS = {
+      latMin: 37.7,
+      latMax: 37.85,
+      lngMin: -122.52,
+      lngMax: -122.35
+    };
+    
+    // Geographic validation: Require EITHER string match OR coordinates within SF bounds
+    let isValidSFSearch = false;
+    
+    if (isSFLocation) {
+      // Location string explicitly mentions SF
+      isValidSFSearch = true;
+      console.log(`[Curated Search] ✓ Location string matches SF: "${location}"`);
+    } else if (coordinates) {
+      // Check if coordinates fall within SF bounding box
+      const inSFBounds = coordinates.lat >= SF_BOUNDS.latMin &&
+                         coordinates.lat <= SF_BOUNDS.latMax &&
+                         coordinates.lng >= SF_BOUNDS.lngMin &&
+                         coordinates.lng <= SF_BOUNDS.lngMax;
+      
+      if (inSFBounds) {
+        isValidSFSearch = true;
+        console.log(`[Curated Search] ✓ Coordinates within SF bounds: ${coordinates.lat}, ${coordinates.lng}`);
+      } else {
+        console.log(`[Curated Search] ✗ Coordinates outside SF bounds: ${coordinates.lat}, ${coordinates.lng}`);
+      }
+    } else {
+      console.log(`[Curated Search] ✗ No SF location match and no coordinates provided`);
+    }
+    
+    // If not a valid SF search, skip curated venues entirely
+    if (!isValidSFSearch) {
+      console.log(`[Curated Search] Skipping curated venues - not a SF search`);
+      return [];
+    }
+
+    // Build category filter based on query
+    const queryLower = query.toLowerCase();
+    let categoryFilter: string | null = null;
+    
+    if (queryLower.includes('bar') || queryLower.includes('drink') || queryLower.includes('cocktail') || queryLower.includes('wine') || queryLower.includes('beer') || queryLower.includes('brewery')) {
+      categoryFilter = 'drinks';
+    } else if (queryLower.includes('restaurant') || queryLower.includes('food') || queryLower.includes('dining') || queryLower.includes('eat')) {
+      categoryFilter = 'meal';
+    } else if (queryLower.includes('cafe') || queryLower.includes('coffee')) {
+      categoryFilter = 'cafes';
+    } else if (queryLower.includes('dessert') || queryLower.includes('ice cream') || queryLower.includes('bakery')) {
+      categoryFilter = 'dessert';
+    } else if (queryLower.includes('museum') || queryLower.includes('concert') || queryLower.includes('theater') || queryLower.includes('experience')) {
+      categoryFilter = 'experiences';
+    }
+
+    // Build SQL query
+    const conditions = [];
+    
+    // Filter by active status AND region (always require san_francisco)
+    conditions.push(eq(curatedVenues.isActive, true));
+    conditions.push(eq(curatedVenues.region, 'san_francisco'));
+    
+    // Filter by category if detected
+    if (categoryFilter) {
+      conditions.push(eq(curatedVenues.category, categoryFilter));
+    }
+
+    // Query curated venues
+    let results = await db
+      .select()
+      .from(curatedVenues)
+      .where(and(...conditions))
+      .orderBy(desc(curatedVenues.rating))
+      .limit(maxResults * 2); // Get more for filtering by distance
+
+    // Filter by distance if coordinates provided
+    if (coordinates && results.length > 0) {
+      results = results
+        .map(venue => ({
+          ...venue,
+          distance: calculateDistance(
+            coordinates.lat,
+            coordinates.lng,
+            parseFloat(venue.latitude),
+            parseFloat(venue.longitude)
+          )
+        }))
+        .filter(venue => venue.distance <= radiusMiles)
+        .sort((a, b) => (b.rating ? parseFloat(b.rating) : 0) - (a.rating ? parseFloat(a.rating) : 0))
+        .slice(0, maxResults);
+    }
+
+    // Convert to PlaceResult format
+    const placeResults: PlaceResult[] = results.map(venue => ({
+      placeId: venue.googlePlaceId || `curated_${venue.id}`,
+      name: venue.name,
+      address: venue.address,
+      rating: venue.rating || undefined,
+      reviewCount: venue.reviewCount || undefined,
+      priceLevel: venue.priceLevel ? `PRICE_LEVEL_${['', 'INEXPENSIVE', 'MODERATE', 'EXPENSIVE', 'VERY_EXPENSIVE'][venue.priceLevel]}` : undefined,
+      photoUrl: venue.photoUrl || undefined,
+      types: venue.tags || [],
+      location: {
+        lat: parseFloat(venue.latitude),
+        lng: parseFloat(venue.longitude)
+      }
+    }));
+
+    console.log(`[Curated Search] Found ${placeResults.length} curated venues`);
+    return placeResults;
+    
+  } catch (error) {
+    console.error('[Curated Search] Error:', error);
+    return [];
+  }
+}
+
 export async function searchPlaces(
   query: string,
   location: string,
   radiusMiles: number = 2,
   coordinates?: { lat: number; lng: number }
 ): Promise<PlaceResult[]> {
+  // CACHE-FIRST STRATEGY: Check curated venues FIRST (10-50ms for SF searches)
+  const curatedResults = await searchCuratedVenues(query, location, radiusMiles, coordinates, 15);
+  
+  if (curatedResults.length >= 15) {
+    // We have enough curated venues, return immediately (skip API call)
+    console.log(`[Cache-First] Returning ${curatedResults.length} curated venues (NO API CALL NEEDED)`);
+    return curatedResults;
+  }
+  
+  // If we have some curated results but not enough, we'll merge them with API results later
+  if (curatedResults.length > 0) {
+    console.log(`[Cache-First] Found ${curatedResults.length} curated venues, will supplement with API results`);
+  }
+  
   // Create cache key from search parameters
   const cacheKey = `${query}|${location}|${radiusMiles}|${coordinates?.lat}|${coordinates?.lng}`;
   
-  // Check session cache first (fastest)
+  // Check session cache (fastest for repeated searches)
   if (sessionCache.searchResults.has(cacheKey)) {
     sessionCache.stats.searchHits++;
     console.log(`[Session Cache] HIT - searchPlaces for "${query}"`);
     const cached = sessionCache.searchResults.get(cacheKey)!;
+    
+    // Merge with curated results if any
+    if (curatedResults.length > 0) {
+      const curatedPlaceIds = new Set(curatedResults.map(r => r.placeId));
+      const uniqueCached = cached.filter(r => !curatedPlaceIds.has(r.placeId));
+      const combined = [...curatedResults, ...uniqueCached].slice(0, 20);
+      console.log(`[Cache-First] Combined ${curatedResults.length} curated + ${uniqueCached.length} cached = ${combined.length} total`);
+      return combined.map(result => clonePlaceResult(result));
+    }
+    
     // Return deep copy to prevent mutation
     return cached.map(result => clonePlaceResult(result));
   }
 
   // Check database cache (persistent, 24-hour TTL)
-  // NOTE: DB cache now stores full results, not just place IDs
   const dbCachedResults = await getSearchResultsFromDB(query, location, radiusMiles);
   if (dbCachedResults && dbCachedResults.length > 0) {
     console.log(`[DB Cache] HIT - full search results for "${query}" (${dbCachedResults.length} cached results)`);
     
     // Parse cached results as PlaceResult array
     const results: PlaceResult[] = dbCachedResults.map((cachedId: any) => {
-      // Handle both old format (string IDs) and new format (full objects)
       if (typeof cachedId === 'string') {
-        // Legacy format - would need to fetch details, but we're migrating away from this
         return null;
       }
       return cachedId as PlaceResult;
     }).filter((r): r is PlaceResult => r !== null);
     
     if (results.length > 0) {
+      // Merge with curated results
+      if (curatedResults.length > 0) {
+        const curatedPlaceIds = new Set(curatedResults.map(r => r.placeId));
+        const uniqueDb = results.filter(r => !curatedPlaceIds.has(r.placeId));
+        const combined = [...curatedResults, ...uniqueDb].slice(0, 20);
+        sessionCache.searchResults.set(cacheKey, combined.map(r => clonePlaceResult(r)));
+        console.log(`[Cache-First] Combined ${curatedResults.length} curated + ${uniqueDb.length} DB = ${combined.length} total`);
+        return combined.map(result => clonePlaceResult(result));
+      }
+      
       // Cache in session for immediate reuse
       sessionCache.searchResults.set(cacheKey, results.map(r => clonePlaceResult(r)));
       sessionCache.stats.searchHits++;
@@ -509,7 +679,7 @@ export async function searchPlaces(
   }
 
   sessionCache.stats.searchMisses++;
-  console.log(`[API Call] MISS - fetching searchPlaces for "${query}"`);
+  console.log(`[API Call] Calling Google API for "${query}"`);
 
   try {
     const apiKey = getNextApiKey();
@@ -674,12 +844,28 @@ export async function searchPlaces(
       );
     }
     
+    // CACHE-FIRST: Merge curated results with API results
+    if (curatedResults.length > 0) {
+      const curatedPlaceIds = new Set(curatedResults.map(r => r.placeId));
+      const uniqueApiResults = results.filter(r => !curatedPlaceIds.has(r.placeId));
+      const combined = [...curatedResults, ...uniqueApiResults].slice(0, 20);
+      console.log(`[Cache-First] Final: ${curatedResults.length} curated + ${uniqueApiResults.length} API = ${combined.length} total`);
+      return combined;
+    }
+    
     // Return original (caller can mutate without affecting cache)
     return results;
   } catch (error) {
     console.error("Error searching Google Places:", error);
     // Cache empty result to avoid retrying failed searches
     sessionCache.searchResults.set(cacheKey, []);
+    
+    // Even if API fails, return curated results if we have them
+    if (curatedResults.length > 0) {
+      console.log(`[Cache-First] API failed, returning ${curatedResults.length} curated venues as fallback`);
+      return curatedResults;
+    }
+    
     return [];
   }
 }
