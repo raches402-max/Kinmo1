@@ -101,7 +101,22 @@ export function detectCategory(venueName: string, venueType: string): 'meal' | '
     'bowling', 'escape', 'trivia'
   ];
   
+  // MEAL keywords - restaurants and food establishments (including "bar" establishments)
+  // Check these BEFORE drinks to catch sushi bars, ramen bars, etc.
+  const restaurantBarKeywords = [
+    'sushi', 'ramen', 'poke', 'taco', 'burrito', 'pizza', 'burger',
+    'noodle', 'dumpling', 'bbq', 'barbecue', 'grill', 'steakhouse',
+    'restaurant', 'diner', 'eatery', 'bistro', 'kitchen', 'gastropub'
+  ];
+  
   // Check in priority order (most specific first)
+  
+  // First check if it's a restaurant-type establishment (even if it has "bar" in the name)
+  // This catches "sushi bar", "ramen bar", etc. before the drinks check
+  if (matchesAny(restaurantBarKeywords)) {
+    return 'meal';
+  }
+  
   if (matchesAny(cafeKeywords)) {
     return 'cafes';
   }
