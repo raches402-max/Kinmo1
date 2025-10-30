@@ -2993,7 +2993,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Not authorized to modify this group" });
       }
 
-      const { category, location, radius, count = 15, sortBy = 'rating' } = req.body;
+      const { category, location, radius, count = 15, sortBy = 'rating', tempInstructions } = req.body;
 
       if (!category || !['meal', 'cafes', 'drinks', 'dessert', 'experiences'].includes(category)) {
         return res.status(400).json({ message: "Invalid category" });
@@ -3006,6 +3006,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`[Category Generate] Generating ${category} for group ${req.params.id}`);
       console.log(`[Category Generate] Location: ${location?.address || group.locationBase}`);
       console.log(`[Category Generate] Radius: ${radius || group.searchRadius || 2}mi`);
+      if (tempInstructions) {
+        console.log(`[Category Generate] Custom instructions: "${tempInstructions}"`);
+      }
 
       // Use custom location if provided, otherwise use group location
       const searchLocation = location?.address || group.locationBase;
@@ -3045,8 +3048,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'experiences': 'museums parks attractions activities'
       };
 
-      const searchQuery = categorySearchQueries[category] || category;
-      console.log(`[Category Generate] Direct Google search: "${searchQuery} in ${searchLocation}"`);
+      let searchQuery = categorySearchQueries[category] || category;
+      
+      // If custom instructions provided, append them to refine the search
+      if (tempInstructions && tempInstructions.trim()) {
+        searchQuery = `${tempInstructions.trim()} ${searchQuery}`;
+        console.log(`[Category Generate] Enhanced search with custom instructions: "${searchQuery} in ${searchLocation}"`);
+      } else {
+        console.log(`[Category Generate] Direct Google search: "${searchQuery} in ${searchLocation}"`);
+      }
 
       // Search Google Places directly (no AI needed!)
       const places = await searchPlaces(

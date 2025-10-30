@@ -1024,18 +1024,20 @@ export default function GroupDetail() {
   });
 
   const generateCategoryMutation = useMutation({
-    mutationFn: async ({ category, location, radius, sortBy }: { category: string; location?: { address: string; lat: number; lng: number }; radius?: number; sortBy?: 'distance' | 'rating' }) => {
+    mutationFn: async ({ category, location, radius, sortBy, tempInstructions }: { category: string; location?: { address: string; lat: number; lng: number }; radius?: number; sortBy?: 'distance' | 'rating'; tempInstructions?: string }) => {
       return await apiRequest("POST", `/api/groups/${groupId}/generate-category`, {
         category,
         location,
         radius,
         count: 15,
         sortBy: sortBy || 'rating',
+        tempInstructions: tempInstructions?.trim() || undefined,
       });
     },
     onSuccess: (data) => {
       // Clear old results and set new ones
       setCategoryResults(data);
+      setTempInstructions(""); // Clear the temp instructions after use
       toast({
         title: "Generated suggestions",
         description: `Found ${data.length} ${selectedCategory} options for you`,
@@ -3607,7 +3609,7 @@ export default function GroupDetail() {
 
                   {/* Custom AI instructions */}
                   <Textarea
-                    placeholder="Or tell AI what you want... (e.g., 'outdoor activities' or 'live music venues')"
+                    placeholder="Refine your search... (e.g., 'Asian food', 'outdoor seating', 'live music')"
                     value={tempInstructions}
                     onChange={(e) => setTempInstructions(e.target.value)}
                     className="resize-none text-sm"
@@ -3625,6 +3627,7 @@ export default function GroupDetail() {
                           location: categoryLocation.trim() ? { address: categoryLocation.trim(), lat: 0, lng: 0 } : undefined,
                           radius: categoryRadius,
                           sortBy: multiVenueMode ? 'distance' : 'rating',
+                          tempInstructions: tempInstructions.trim() || undefined,
                         });
                       } else {
                         const isGenerating = retryGenerationMutation.isPending || group?.activityGenerationStatus === "generating" || group?.activityGenerationStatus === "pending";
