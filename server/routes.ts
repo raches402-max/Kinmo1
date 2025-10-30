@@ -6008,6 +6008,91 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Admin endpoint to create database backup
+  app.post("/api/admin/create-backup", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      const adminEmails = ['raches402@gmail.com'];
+      if (!user || !adminEmails.includes(user.email || '')) {
+        return res.status(403).json({ message: "Unauthorized: Admin access required" });
+      }
+
+      const { notes } = req.body;
+      const backup = await storage.createDatabaseBackup('manual', userId, notes);
+      
+      await storage.pruneDatabaseBackups(30);
+      
+      res.json({ 
+        message: "Backup created successfully", 
+        backup: {
+          id: backup.id,
+          backupType: backup.backupType,
+          createdAt: backup.createdAt,
+          notes: backup.notes,
+          counts: backup.snapshotData.counts
+        }
+      });
+    } catch (error: any) {
+      console.error("Error creating backup:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Admin endpoint to get all database backups
+  app.get("/api/admin/backups", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      const adminEmails = ['raches402@gmail.com'];
+      if (!user || !adminEmails.includes(user.email || '')) {
+        return res.status(403).json({ message: "Unauthorized: Admin access required" });
+      }
+
+      const backups = await storage.getAllDatabaseBackups();
+      
+      const backupsList = backups.map((b: any) => ({
+        id: b.id,
+        backupType: b.backupType,
+        createdAt: b.createdAt,
+        notes: b.notes,
+        createdBy: b.createdBy,
+        counts: b.snapshotData.counts
+      }));
+      
+      res.json(backupsList);
+    } catch (error: any) {
+      console.error("Error fetching backups:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Admin endpoint to restore database from backup
+  app.post("/api/admin/restore/:backupId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      const adminEmails = ['raches402@gmail.com'];
+      if (!user || !adminEmails.includes(user.email || '')) {
+        return res.status(403).json({ message: "Unauthorized: Admin access required" });
+      }
+
+      const { backupId } = req.params;
+      
+      await storage.createDatabaseBackup('pre_restore', userId, `Backup before restoring to ${backupId}`);
+      
+      await storage.restoreDatabaseBackup(backupId);
+      
+      res.json({ message: "Database restored successfully" });
+    } catch (error: any) {
+      console.error("Error restoring backup:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Admin endpoint to get list of test accounts
   // Protected endpoint - requires authentication and admin privileges
   app.get("/api/admin/test-accounts", isAuthenticated, async (req: any, res) => {
