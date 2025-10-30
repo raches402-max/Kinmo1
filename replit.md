@@ -47,7 +47,8 @@ AI suggestion preferences:
 - **Event Hosting Rotation**: Opt-in hosting system where members volunteer to host specific events, with badges indicating hosts.
 - **Optional Member Registration**: Members can optionally complete profiles (home base, activity preferences, availability) to improve AI recommendations.
 - **Post-Event Feedback**: Collects venue ratings, frequency preferences, and notes for past events.
-- **Admin Dashboard**: Platform health monitoring dashboard accessible at `/admin` for administrators, displaying key metrics, trends, and visualizations.
+- **Admin Dashboard**: Platform health monitoring dashboard accessible at `/admin` for administrators, displaying key metrics, trends, and visualizations. Includes a Maintenance tab with database cleanup tools:
+  - **Curated Venues Cleanup**: POST `/api/admin/cleanup-curated-venues` removes invalid venues from the cache (non-venue businesses like realtors/parking lots, venues without photos, low-quality venues below 3.0★ or with fewer than 5 reviews, and duplicates). Improves AI suggestion quality by ensuring only high-quality venues are cached.
 
 ## External Dependencies
 
