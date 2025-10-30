@@ -6877,11 +6877,25 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
           if (detectedCategory === 'drinks') {
             // For drinks category, explicitly reject venues with restaurant types
             const restaurantTypes = ['restaurant', 'food', 'meal_takeaway', 'meal_delivery', 'sushi_restaurant'];
+            const barTypes = ['bar', 'night_club', 'liquor_store'];
+            
             drinksFiltered = budgetFiltered.filter(place => {
               const types = place.types || [];
+              const typesLower = types.map(t => t.toLowerCase());
+              
+              // Check if has restaurant type
               const hasRestaurantType = types.some(type => 
                 restaurantTypes.includes(type) || type.toLowerCase().includes('restaurant')
               );
+              
+              // Check if has both bar AND restaurant types - force to meal category
+              const hasBarType = typesLower.some(t => barTypes.includes(t) || t.includes('bar'));
+              const hasBothBarAndRestaurant = hasBarType && hasRestaurantType;
+              
+              if (hasBothBarAndRestaurant) {
+                console.log(`[Drinks Filter] ❌ Rejecting ${place.name} - has BOTH bar and restaurant types: ${types.join(', ')}`);
+                return false;
+              }
               
               if (hasRestaurantType) {
                 console.log(`[Drinks Filter] ❌ Rejecting ${place.name} - has restaurant type: ${types.join(', ')}`);

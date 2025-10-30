@@ -106,7 +106,12 @@ export function detectCategory(venueName: string, venueType: string): 'meal' | '
   const restaurantBarKeywords = [
     'sushi', 'ramen', 'poke', 'taco', 'burrito', 'pizza', 'burger',
     'noodle', 'dumpling', 'bbq', 'barbecue', 'grill', 'steakhouse',
-    'restaurant', 'diner', 'eatery', 'bistro', 'kitchen', 'gastropub'
+    'restaurant', 'diner', 'eatery', 'bistro', 'kitchen', 'gastropub',
+    // Japanese/Asian food-first establishments
+    'izakaya', 'omakase', 'robata', 'yakitori', 'yakiniku', 'shabu',
+    'hotpot', 'dim sum', 'tapas', 'mezze', 'cantina', 'taqueria',
+    // Italian food-first establishments
+    'osteria', 'trattoria', 'enoteca'
   ];
   
   // Check in priority order (most specific first)
