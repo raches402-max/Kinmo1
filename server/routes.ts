@@ -3572,6 +3572,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         venueAddress: activityData.venueAddress || null,
         description: activityData.description || null,
         googlePlaceId: activityData.googlePlaceId || null,
+        latitude: activityData.latitude || null,
+        longitude: activityData.longitude || null,
         rating: activityData.rating ? activityData.rating.toString() : null,
         priceLevel: activityData.priceLevel || null,
         photoUrl: activityData.photoUrl || null,
