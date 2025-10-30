@@ -3061,9 +3061,23 @@ export default function GroupDetail() {
 
               {/* Members Section */}
               <Card>
-                <CardHeader>
-                  <CardTitle>Members</CardTitle>
-                  <CardDescription>Manage group members and invitations</CardDescription>
+                <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+                  <div className="space-y-1">
+                    <CardTitle>Members</CardTitle>
+                    <CardDescription>Manage group members and invitations</CardDescription>
+                  </div>
+                  {/* Button to edit user's own profile (availability, preferences, etc.) */}
+                  {(() => {
+                    const userMember = members.find(m => m.userId === user?.id);
+                    return userMember ? (
+                      <Link href={`/member-profile-setup/${userMember.id}`}>
+                        <Button variant="outline" size="sm" className="gap-2" data-testid="button-edit-my-profile">
+                          <Settings className="w-4 h-4" />
+                          Edit My Profile
+                        </Button>
+                      </Link>
+                    ) : null;
+                  })()}
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {/* RSVP Summary */}
