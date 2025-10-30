@@ -706,6 +706,23 @@ async function autoCacheApiResults(
     // Insert new venues
     for (const venue of newVenues) {
       try {
+        // CRITICAL: Validate each venue's coordinates are actually in SF bounds
+        // (not just that the search was for SF)
+        if (!venue.location) {
+          console.log(`[Auto-Cache] ⚠️  Skipping ${venue.name} - no coordinates`);
+          continue;
+        }
+        
+        const venueInSFBounds = venue.location.lat >= SF_BOUNDS.latMin &&
+                                venue.location.lat <= SF_BOUNDS.latMax &&
+                                venue.location.lng >= SF_BOUNDS.lngMin &&
+                                venue.location.lng <= SF_BOUNDS.lngMax;
+        
+        if (!venueInSFBounds) {
+          console.log(`[Auto-Cache] ⚠️  Skipping ${venue.name} - outside SF bounds (${venue.location.lat}, ${venue.location.lng})`);
+          continue;
+        }
+        
         // Convert price level from string to number (1-4)
         let priceLevelNum: number | null = null;
         if (venue.priceLevel) {
