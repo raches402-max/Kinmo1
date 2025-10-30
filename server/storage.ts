@@ -166,7 +166,7 @@ export interface IStorage {
   getRecentCategorySearches(groupId: string, limit?: number): Promise<CategorySearchHistory[]>;
 
   // Admin Stats
-  getAdminStats(): Promise<{
+  getAdminStats(includeTestData?: boolean): Promise<{
     registeredUsers: number;
     invitedMembers: number;
     totalGroups: number;
@@ -1424,32 +1424,58 @@ export class DatabaseStorage implements IStorage {
       .limit(limit);
   }
 
-  async getAdminStats() {
+  async getAdminStats(includeTestData: boolean = false) {
+    // Helper to build test data filters
+    const buildFilters = (includeGroups: boolean = false) => {
+      const filters: any[] = [];
+      
+      if (!includeTestData) {
+        // Add group test filter
+        if (includeGroups) {
+          filters.push(eq(groups.isTest, false));
+        }
+        // Add email domain filters
+        filters.push(
+          sql`${users.email} NOT LIKE '%@example.com'`,
+          sql`${users.email} NOT LIKE '%@test.com'`
+        );
+      }
+      
+      return filters.length > 0 ? and(...filters) : undefined;
+    };
+    
     // Total users (authenticated + unclaimed members with unique emails)
     // Avoid double-counting: count members whose emails don't exist in users table
-    // Exclude test emails (@example.com and @test.com) from counts
-    const [authUsersResult] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(users)
-      .where(
-        and(
+    // Exclude test emails (@example.com and @test.com) from counts unless includeTestData is true
+    const userEmailFilter = !includeTestData
+      ? and(
           sql`${users.email} NOT LIKE '%@example.com'`,
           sql`${users.email} NOT LIKE '%@test.com'`
         )
-      );
+      : undefined;
+    
+    const [authUsersResult] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(users)
+      .where(userEmailFilter);
     const authUsersCount = Number(authUsersResult.count);
 
+    const memberEmailFilters: any[] = [
+      sql`${members.email} IS NOT NULL`,
+      sql`NOT EXISTS (SELECT 1 FROM ${users} WHERE ${users.email} IS NOT NULL AND ${users.email} = ${members.email})`
+    ];
+    
+    if (!includeTestData) {
+      memberEmailFilters.push(
+        sql`${members.email} NOT LIKE '%@example.com'`,
+        sql`${members.email} NOT LIKE '%@test.com'`
+      );
+    }
+    
     const [unclaimedMemberEmailsResult] = await db
       .select({ count: sql<number>`count(DISTINCT ${members.email})` })
       .from(members)
-      .where(
-        and(
-          sql`${members.email} IS NOT NULL`,
-          sql`${members.email} NOT LIKE '%@example.com'`,
-          sql`${members.email} NOT LIKE '%@test.com'`,
-          sql`NOT EXISTS (SELECT 1 FROM ${users} WHERE ${users.email} IS NOT NULL AND ${users.email} = ${members.email})`
-        )
-      );
+      .where(and(...memberEmailFilters));
     const unclaimedMemberEmails = Number(unclaimedMemberEmailsResult.count);
 
     // Total groups (exclude groups created by test users and test groups)
@@ -1457,13 +1483,7 @@ export class DatabaseStorage implements IStorage {
       .select({ count: sql<number>`count(*)` })
       .from(groups)
       .innerJoin(users, eq(groups.userId, users.id))
-      .where(
-        and(
-          eq(groups.isTest, false),
-          sql`${users.email} NOT LIKE '%@example.com'`,
-          sql`${users.email} NOT LIKE '%@test.com'`
-        )
-      );
+      .where(buildFilters(true));
     const totalGroups = Number(groupsResult.count);
 
     // Total events (all itineraries from non-test groups)
@@ -1472,30 +1492,28 @@ export class DatabaseStorage implements IStorage {
       .from(itineraries)
       .innerJoin(groups, eq(itineraries.groupId, groups.id))
       .innerJoin(users, eq(groups.userId, users.id))
-      .where(
-        and(
-          eq(groups.isTest, false),
-          sql`${users.email} NOT LIKE '%@example.com'`,
-          sql`${users.email} NOT LIKE '%@test.com'`
-        )
-      );
+      .where(buildFilters(true));
     const totalEvents = Number(eventsResult.count);
 
     // Events held (past events with confirmed dates from non-test groups)
+    const eventsHeldFilter = buildFilters(true);
+    const eventsHeldConditions = eventsHeldFilter 
+      ? and(
+          eventsHeldFilter,
+          sql`${itineraries.eventDate} IS NOT NULL`,
+          sql`${itineraries.eventDate} < NOW()`
+        )
+      : and(
+          sql`${itineraries.eventDate} IS NOT NULL`,
+          sql`${itineraries.eventDate} < NOW()`
+        );
+    
     const [eventsHeldResult] = await db
       .select({ count: sql<number>`count(*)` })
       .from(itineraries)
       .innerJoin(groups, eq(itineraries.groupId, groups.id))
       .innerJoin(users, eq(groups.userId, users.id))
-      .where(
-        and(
-          eq(groups.isTest, false),
-          sql`${itineraries.eventDate} IS NOT NULL`,
-          sql`${itineraries.eventDate} < NOW()`,
-          sql`${users.email} NOT LIKE '%@example.com'`,
-          sql`${users.email} NOT LIKE '%@test.com'`
-        )
-      );
+      .where(eventsHeldConditions);
     const eventsHeld = Number(eventsHeldResult.count);
 
     // Active groups (non-test groups with events held in last 60 days)
@@ -1503,25 +1521,44 @@ export class DatabaseStorage implements IStorage {
     sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
     const now = new Date();
     
+    const activeGroupsFilter = buildFilters(true);
+    const activeGroupsConditions = activeGroupsFilter
+      ? and(
+          activeGroupsFilter,
+          sql`${itineraries.eventDate} IS NOT NULL`,
+          sql`${itineraries.eventDate} >= ${sixtyDaysAgo.toISOString()}`,
+          sql`${itineraries.eventDate} <= ${now.toISOString()}`
+        )
+      : and(
+          sql`${itineraries.eventDate} IS NOT NULL`,
+          sql`${itineraries.eventDate} >= ${sixtyDaysAgo.toISOString()}`,
+          sql`${itineraries.eventDate} <= ${now.toISOString()}`
+        );
+    
     const [activeGroupsResult] = await db
       .select({ count: sql<number>`count(DISTINCT ${itineraries.groupId})` })
       .from(itineraries)
       .innerJoin(groups, eq(itineraries.groupId, groups.id))
       .innerJoin(users, eq(groups.userId, users.id))
-      .where(
-        and(
-          eq(groups.isTest, false),
-          sql`${itineraries.eventDate} IS NOT NULL`,
-          sql`${itineraries.eventDate} >= ${sixtyDaysAgo.toISOString()}`,
-          sql`${itineraries.eventDate} <= ${now.toISOString()}`,
-          sql`${users.email} NOT LIKE '%@example.com'`,
-          sql`${users.email} NOT LIKE '%@test.com'`
-        )
-      );
+      .where(activeGroupsConditions);
     const activeGroups = Number(activeGroupsResult.count);
 
     // Repeat attendance rate (% of users who attended 2+ events from non-test groups)
     // Count users with 2+ "yes" RSVPs
+    const repeatAttendanceFilter = buildFilters(true);
+    const repeatAttendanceConditions = repeatAttendanceFilter
+      ? and(
+          repeatAttendanceFilter,
+          eq(rsvps.response, 'yes'),
+          sql`${itineraries.eventDate} IS NOT NULL`,
+          sql`${itineraries.eventDate} < NOW()`
+        )
+      : and(
+          eq(rsvps.response, 'yes'),
+          sql`${itineraries.eventDate} IS NOT NULL`,
+          sql`${itineraries.eventDate} < NOW()`
+        );
+    
     const usersWithMultipleAttendances = await db
       .select({
         userId: rsvps.userId,
@@ -1532,16 +1569,7 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(itineraries, eq(rsvps.itineraryId, itineraries.id))
       .innerJoin(groups, eq(itineraries.groupId, groups.id))
       .innerJoin(users, eq(groups.userId, users.id))
-      .where(
-        and(
-          eq(groups.isTest, false),
-          eq(rsvps.response, 'yes'),
-          sql`${itineraries.eventDate} IS NOT NULL`,
-          sql`${itineraries.eventDate} < NOW()`,
-          sql`${users.email} NOT LIKE '%@example.com'`,
-          sql`${users.email} NOT LIKE '%@test.com'`
-        )
-      )
+      .where(repeatAttendanceConditions)
       .groupBy(rsvps.userId, rsvps.memberId)
       .having(sql`count(*) >= 2`);
 
@@ -1556,21 +1584,17 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(itineraries, eq(rsvps.itineraryId, itineraries.id))
       .innerJoin(groups, eq(itineraries.groupId, groups.id))
       .innerJoin(users, eq(groups.userId, users.id))
-      .where(
-        and(
-          eq(groups.isTest, false),
-          eq(rsvps.response, 'yes'),
-          sql`${itineraries.eventDate} IS NOT NULL`,
-          sql`${itineraries.eventDate} < NOW()`,
-          sql`${users.email} NOT LIKE '%@example.com'`,
-          sql`${users.email} NOT LIKE '%@test.com'`
-        )
-      );
+      .where(repeatAttendanceConditions);
     
     const totalAttendees = Number(totalAttendeesResult.count);
     const repeatAttendanceRate = totalAttendees > 0 ? (repeatAttenders / totalAttendees) * 100 : 0;
 
     // Top cities by event count (from non-test groups)
+    const topCitiesFilter = buildFilters(true);
+    const topCitiesConditions = topCitiesFilter
+      ? and(topCitiesFilter, sql`${itineraries.eventDate} IS NOT NULL`)
+      : sql`${itineraries.eventDate} IS NOT NULL`;
+    
     const cityEvents = await db
       .select({
         location: groups.locationBase,
@@ -1579,14 +1603,7 @@ export class DatabaseStorage implements IStorage {
       .from(groups)
       .innerJoin(users, eq(groups.userId, users.id))
       .leftJoin(itineraries, eq(groups.id, itineraries.groupId))
-      .where(
-        and(
-          eq(groups.isTest, false),
-          sql`${itineraries.eventDate} IS NOT NULL`,
-          sql`${users.email} NOT LIKE '%@example.com'`,
-          sql`${users.email} NOT LIKE '%@test.com'`
-        )
-      )
+      .where(topCitiesConditions)
       .groupBy(groups.locationBase)
       .orderBy(desc(sql`count(${itineraries.id})`))
       .limit(10);
@@ -1600,6 +1617,18 @@ export class DatabaseStorage implements IStorage {
     const ninetyDaysAgo = new Date();
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
     
+    const weeklyEventsFilter = buildFilters(true);
+    const weeklyEventsConditions = weeklyEventsFilter
+      ? and(
+          weeklyEventsFilter,
+          sql`${itineraries.eventDate} IS NOT NULL`,
+          sql`${itineraries.eventDate} >= ${ninetyDaysAgo.toISOString()}`
+        )
+      : and(
+          sql`${itineraries.eventDate} IS NOT NULL`,
+          sql`${itineraries.eventDate} >= ${ninetyDaysAgo.toISOString()}`
+        );
+    
     const weeklyEvents = await db
       .select({
         week: sql<string>`TO_CHAR(DATE_TRUNC('week', ${itineraries.eventDate}), 'YYYY-MM-DD')`,
@@ -1608,15 +1637,7 @@ export class DatabaseStorage implements IStorage {
       .from(itineraries)
       .innerJoin(groups, eq(itineraries.groupId, groups.id))
       .innerJoin(users, eq(groups.userId, users.id))
-      .where(
-        and(
-          eq(groups.isTest, false),
-          sql`${itineraries.eventDate} IS NOT NULL`,
-          sql`${itineraries.eventDate} >= ${ninetyDaysAgo.toISOString()}`,
-          sql`${users.email} NOT LIKE '%@example.com'`,
-          sql`${users.email} NOT LIKE '%@test.com'`
-        )
-      )
+      .where(weeklyEventsConditions)
       .groupBy(sql`DATE_TRUNC('week', ${itineraries.eventDate})`)
       .orderBy(sql`DATE_TRUNC('week', ${itineraries.eventDate})`);
 
@@ -1631,6 +1652,18 @@ export class DatabaseStorage implements IStorage {
     startOfMonth.setHours(0, 0, 0, 0);
 
     // Get all attendees this month from non-test groups
+    const thisMonthAttendeesFilter = buildFilters(true);
+    const thisMonthAttendeesConditions = thisMonthAttendeesFilter
+      ? and(
+          thisMonthAttendeesFilter,
+          eq(rsvps.response, 'yes'),
+          sql`${itineraries.eventDate} >= ${startOfMonth.toISOString()}`
+        )
+      : and(
+          eq(rsvps.response, 'yes'),
+          sql`${itineraries.eventDate} >= ${startOfMonth.toISOString()}`
+        );
+    
     const thisMonthAttendees = await db
       .select({
         userId: rsvps.userId,
@@ -1640,39 +1673,38 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(itineraries, eq(rsvps.itineraryId, itineraries.id))
       .innerJoin(groups, eq(itineraries.groupId, groups.id))
       .innerJoin(users, eq(groups.userId, users.id))
-      .where(
-        and(
-          eq(groups.isTest, false),
-          eq(rsvps.response, 'yes'),
-          sql`${itineraries.eventDate} >= ${startOfMonth.toISOString()}`,
-          sql`${users.email} NOT LIKE '%@example.com'`,
-          sql`${users.email} NOT LIKE '%@test.com'`
-        )
-      );
+      .where(thisMonthAttendeesConditions);
 
     // For each attendee, check if they had prior attendance at non-test group events
     let newAttendees = 0;
     let returningAttendees = 0;
 
     for (const attendee of thisMonthAttendees) {
+      const priorAttendanceFilter = buildFilters(true);
+      const priorAttendanceConditions = priorAttendanceFilter
+        ? and(
+            priorAttendanceFilter,
+            eq(rsvps.response, 'yes'),
+            sql`${itineraries.eventDate} < ${startOfMonth.toISOString()}`,
+            attendee.userId 
+              ? eq(rsvps.userId, attendee.userId)
+              : eq(rsvps.memberId, attendee.memberId!)
+          )
+        : and(
+            eq(rsvps.response, 'yes'),
+            sql`${itineraries.eventDate} < ${startOfMonth.toISOString()}`,
+            attendee.userId 
+              ? eq(rsvps.userId, attendee.userId)
+              : eq(rsvps.memberId, attendee.memberId!)
+          );
+      
       const priorAttendance = await db
         .select({ count: sql<number>`count(*)` })
         .from(rsvps)
         .innerJoin(itineraries, eq(rsvps.itineraryId, itineraries.id))
         .innerJoin(groups, eq(itineraries.groupId, groups.id))
         .innerJoin(users, eq(groups.userId, users.id))
-        .where(
-          and(
-            eq(groups.isTest, false),
-            eq(rsvps.response, 'yes'),
-            sql`${itineraries.eventDate} < ${startOfMonth.toISOString()}`,
-            sql`${users.email} NOT LIKE '%@example.com'`,
-            sql`${users.email} NOT LIKE '%@test.com'`,
-            attendee.userId 
-              ? eq(rsvps.userId, attendee.userId)
-              : eq(rsvps.memberId, attendee.memberId!)
-          )
-        );
+        .where(priorAttendanceConditions);
 
       if (Number(priorAttendance[0].count) > 0) {
         returningAttendees++;

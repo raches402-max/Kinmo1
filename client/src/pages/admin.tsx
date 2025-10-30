@@ -8,6 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from "recharts";
 import { Users, Calendar, TrendingUp, MapPin, Repeat, ArrowLeft, DollarSign, Database, Download, RefreshCw, FileText } from "lucide-react";
 import { format } from "date-fns";
@@ -72,10 +74,16 @@ export default function Admin() {
   const [apiLogsMethod, setApiLogsMethod] = useState<string>("");
   const [apiLogsCacheStatus, setApiLogsCacheStatus] = useState<string>("");
   const [apiLogsStatus, setApiLogsStatus] = useState<string>("");
+  const [includeTestData, setIncludeTestData] = useState<boolean>(false);
   const { toast } = useToast();
 
   const { data: stats, isLoading, error } = useQuery<AdminStats>({
-    queryKey: ["/api/admin/stats"],
+    queryKey: ["/api/admin/stats", includeTestData],
+    queryFn: async () => {
+      const response = await fetch(`/api/admin/stats?includeTestData=${includeTestData}`);
+      if (!response.ok) throw new Error('Failed to fetch admin stats');
+      return response.json();
+    },
   });
 
   const { data: apiCosts, isLoading: costsLoading } = useQuery<ApiCosts>({
@@ -191,12 +199,25 @@ export default function Admin() {
           <h1 className="text-3xl font-bold">Admin Dashboard</h1>
           <p className="text-muted-foreground mt-1">Platform health and usage metrics</p>
         </div>
-        <Button variant="outline" asChild data-testid="button-back-to-dashboard">
-          <Link href="/">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Dashboard
-          </Link>
-        </Button>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Switch
+              id="include-test-data"
+              checked={includeTestData}
+              onCheckedChange={setIncludeTestData}
+              data-testid="switch-include-test-data"
+            />
+            <Label htmlFor="include-test-data" className="cursor-pointer">
+              Include test data
+            </Label>
+          </div>
+          <Button variant="outline" asChild data-testid="button-back-to-dashboard">
+            <Link href="/">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Dashboard
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="overview" className="space-y-6">

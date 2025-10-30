@@ -5999,7 +5999,8 @@ Looking forward to planning great activities together!
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
 
-      const stats = await storage.getAdminStats();
+      const includeTestData = req.query.includeTestData === 'true';
+      const stats = await storage.getAdminStats(includeTestData);
       res.json(stats);
     } catch (error: any) {
       console.error("Error fetching admin stats:", error);
