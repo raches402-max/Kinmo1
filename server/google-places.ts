@@ -632,6 +632,7 @@ async function searchCuratedVenues(
 /**
  * Auto-cache high-quality API results in curated venues table
  * This creates a "self-learning" system where the cache grows over time
+ * Caches venues from ANY location (not just SF)
  */
 async function autoCacheApiResults(
   apiResults: PlaceResult[],
@@ -639,36 +640,27 @@ async function autoCacheApiResults(
   coordinates?: { lat: number; lng: number }
 ): Promise<void> {
   try {
-    // Only cache SF venues to prevent pollution
-    const locationLower = location.toLowerCase();
-    const isSFLocation = locationLower.includes('san francisco') || 
-                         locationLower.includes('sf') || 
-                         locationLower.includes(' sf ') ||
-                         locationLower.includes('sf,');
-    
-    // SF bounding box validation
-    const SF_BOUNDS = {
-      latMin: 37.7,
-      latMax: 37.85,
-      lngMin: -122.52,
-      lngMax: -122.35
+    // Helper to detect region from coordinates
+    const detectRegion = (lat: number, lng: number): string => {
+      // San Francisco bounding box
+      if (lat >= 37.7 && lat <= 37.85 && lng >= -122.52 && lng <= -122.35) {
+        return 'san_francisco';
+      }
+      // Oakland bounding box (approximate)
+      if (lat >= 37.7 && lat <= 37.85 && lng >= -122.35 && lng <= -122.15) {
+        return 'oakland';
+      }
+      // San Jose bounding box (approximate)
+      if (lat >= 37.25 && lat <= 37.45 && lng >= -122.05 && lng <= -121.75) {
+        return 'san_jose';
+      }
+      // Default to bay_area for other Bay Area locations
+      if (lat >= 37.2 && lat <= 38.0 && lng >= -122.6 && lng <= -121.5) {
+        return 'bay_area';
+      }
+      // Generic location based on coordinates
+      return 'other';
     };
-    
-    let isValidSFSearch = false;
-    if (isSFLocation) {
-      isValidSFSearch = true;
-    } else if (coordinates) {
-      const inSFBounds = coordinates.lat >= SF_BOUNDS.latMin &&
-                         coordinates.lat <= SF_BOUNDS.latMax &&
-                         coordinates.lng >= SF_BOUNDS.lngMin &&
-                         coordinates.lng <= SF_BOUNDS.lngMax;
-      isValidSFSearch = inSFBounds;
-    }
-    
-    if (!isValidSFSearch) {
-      console.log(`[Auto-Cache] Skipping - not a SF search`);
-      return;
-    }
     
     // Filter for high-quality venues only (minimum 100 reviews, 4.0+ rating)
     const highQualityVenues = apiResults.filter(venue => {
@@ -706,22 +698,14 @@ async function autoCacheApiResults(
     // Insert new venues
     for (const venue of newVenues) {
       try {
-        // CRITICAL: Validate each venue's coordinates are actually in SF bounds
-        // (not just that the search was for SF)
+        // Validate venue has coordinates
         if (!venue.location) {
           console.log(`[Auto-Cache] ⚠️  Skipping ${venue.name} - no coordinates`);
           continue;
         }
         
-        const venueInSFBounds = venue.location.lat >= SF_BOUNDS.latMin &&
-                                venue.location.lat <= SF_BOUNDS.latMax &&
-                                venue.location.lng >= SF_BOUNDS.lngMin &&
-                                venue.location.lng <= SF_BOUNDS.lngMax;
-        
-        if (!venueInSFBounds) {
-          console.log(`[Auto-Cache] ⚠️  Skipping ${venue.name} - outside SF bounds (${venue.location.lat}, ${venue.location.lng})`);
-          continue;
-        }
+        // Detect the region based on venue's actual coordinates
+        const venueRegion = detectRegion(venue.location.lat, venue.location.lng);
         
         // Convert price level from string to number (1-4)
         let priceLevelNum: number | null = null;
@@ -766,13 +750,13 @@ async function autoCacheApiResults(
           photoUrl: venue.photoUrl || null,
           googlePlaceId: venue.placeId,
           tags: venue.types || [],
-          region: 'san_francisco',
+          region: venueRegion,
           source: 'api_auto',
           isActive: true,
           lastRefreshed: new Date()
         });
         
-        console.log(`[Auto-Cache] ✅ Cached new venue: ${venue.name} (${venue.placeId})`);
+        console.log(`[Auto-Cache] ✅ Cached new venue: ${venue.name} in ${venueRegion} (${venue.placeId})`);
       } catch (insertError) {
         // Ignore duplicate key errors (race condition)
         if (!(insertError as any)?.message?.includes('duplicate')) {
