@@ -1,6 +1,5 @@
 // Reference: javascript_openai blueprint
 import OpenAI from "openai";
-import { logApiCall } from "./api-logger";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -441,7 +440,6 @@ Return JSON with this structure:
 
       console.log(`[OpenAI] Category-specific generation: Using simplified prompt (${suggestionCount} ${categoryName})`);
       
-      const startTime = Date.now();
       const response = await openai.chat.completions.create({
         model: "gpt-4o-mini", // Faster and cheaper for category-specific
         messages: [
@@ -456,22 +454,6 @@ Return JSON with this structure:
         ],
         response_format: { type: "json_object" },
         max_completion_tokens: 2000,
-      });
-      const responseTimeMs = Date.now() - startTime;
-
-      logApiCall({
-        service: 'openai',
-        method: 'chatCompletion',
-        cacheStatus: 'miss',
-        status: 'success',
-        responseTimeMs,
-        parameters: { model: 'gpt-4o-mini', purpose: 'category_suggestions' },
-        metadata: {
-          model: 'gpt-4o-mini',
-          inputTokens: response.usage?.prompt_tokens || 0,
-          outputTokens: response.usage?.completion_tokens || 0,
-          totalTokens: response.usage?.total_tokens || 0,
-        },
       });
 
       const result = JSON.parse(response.choices[0].message.content || '{}');
@@ -685,7 +667,6 @@ REMINDER: The suggestions array MUST contain EXACTLY 15 items. Count them if nee
     
     // Use GPT-4o for activity suggestions - better at understanding complex preferences and constraints
     // All other AI features use gpt-4o-mini for cost efficiency
-    const startTime = Date.now();
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
@@ -700,22 +681,6 @@ REMINDER: The suggestions array MUST contain EXACTLY 15 items. Count them if nee
       ],
       response_format: { type: "json_object" },
       max_completion_tokens: 3000, // Supports 15 suggestions (~200 tokens each = ~3000 total)
-    });
-    const responseTimeMs = Date.now() - startTime;
-
-    logApiCall({
-      service: 'openai',
-      method: 'chatCompletion',
-      cacheStatus: 'miss',
-      status: 'success',
-      responseTimeMs,
-      parameters: { model: 'gpt-4o', purpose: 'activity_suggestions' },
-      metadata: {
-        model: 'gpt-4o',
-        inputTokens: response.usage?.prompt_tokens || 0,
-        outputTokens: response.usage?.completion_tokens || 0,
-        totalTokens: response.usage?.total_tokens || 0,
-      },
     });
 
     const result = JSON.parse(response.choices[0].message.content || '{}');
@@ -862,7 +827,6 @@ Return as JSON:
   ]
 }`;
 
-    const startTime = Date.now();
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -877,22 +841,6 @@ Return as JSON:
       ],
       response_format: { type: "json_object" },
       max_completion_tokens: 1500,
-    });
-    const responseTimeMs = Date.now() - startTime;
-
-    logApiCall({
-      service: 'openai',
-      method: 'chatCompletion',
-      cacheStatus: 'miss',
-      status: 'success',
-      responseTimeMs,
-      parameters: { model: 'gpt-4o-mini', purpose: 'swipe_concepts' },
-      metadata: {
-        model: 'gpt-4o-mini',
-        inputTokens: response.usage?.prompt_tokens || 0,
-        outputTokens: response.usage?.completion_tokens || 0,
-        totalTokens: response.usage?.total_tokens || 0,
-      },
     });
 
     const result = JSON.parse(response.choices[0].message.content || '{}');
@@ -998,7 +946,6 @@ Return a JSON object with this exact structure:
 
 The category value MUST be one of: meal, cafes, drinks, dessert, or experiences`;
 
-    const startTime = Date.now();
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -1013,22 +960,6 @@ The category value MUST be one of: meal, cafes, drinks, dessert, or experiences`
       ],
       response_format: { type: "json_object" },
       max_completion_tokens: 50,
-    });
-    const responseTimeMs = Date.now() - startTime;
-
-    logApiCall({
-      service: 'openai',
-      method: 'chatCompletion',
-      cacheStatus: 'miss',
-      status: 'success',
-      responseTimeMs,
-      parameters: { model: 'gpt-4o-mini', purpose: 'venue_categorization' },
-      metadata: {
-        model: 'gpt-4o-mini',
-        inputTokens: response.usage?.prompt_tokens || 0,
-        outputTokens: response.usage?.completion_tokens || 0,
-        totalTokens: response.usage?.total_tokens || 0,
-      },
     });
 
     const result = JSON.parse(response.choices[0].message.content || '{}');
@@ -1166,7 +1097,6 @@ Return JSON array of patterns:
   }
 ]`;
 
-    const startTime = Date.now();
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -1181,22 +1111,6 @@ Return JSON array of patterns:
       ],
       response_format: { type: "json_object" },
       max_completion_tokens: 500,
-    });
-    const responseTimeMs = Date.now() - startTime;
-
-    logApiCall({
-      service: 'openai',
-      method: 'chatCompletion',
-      cacheStatus: 'miss',
-      status: 'success',
-      responseTimeMs,
-      parameters: { model: 'gpt-4o-mini', purpose: 'preference_insights' },
-      metadata: {
-        model: 'gpt-4o-mini',
-        inputTokens: response.usage?.prompt_tokens || 0,
-        outputTokens: response.usage?.completion_tokens || 0,
-        totalTokens: response.usage?.total_tokens || 0,
-      },
     });
 
     const result = JSON.parse(response.choices[0].message.content || '{"patterns": []}');
@@ -1245,7 +1159,6 @@ Examples:
   
 Return your response as a JSON object with these fields.`;
 
-    const startTime = Date.now();
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -1260,22 +1173,6 @@ Return your response as a JSON object with these fields.`;
       ],
       response_format: { type: "json_object" },
       max_completion_tokens: 300,
-    });
-    const responseTimeMs = Date.now() - startTime;
-
-    logApiCall({
-      service: 'openai',
-      method: 'chatCompletion',
-      cacheStatus: 'miss',
-      status: 'success',
-      responseTimeMs,
-      parameters: { model: 'gpt-4o-mini', purpose: 'scheduling_parser' },
-      metadata: {
-        model: 'gpt-4o-mini',
-        inputTokens: response.usage?.prompt_tokens || 0,
-        outputTokens: response.usage?.completion_tokens || 0,
-        totalTokens: response.usage?.total_tokens || 0,
-      },
     });
 
     const result = JSON.parse(response.choices[0].message.content || '{}');

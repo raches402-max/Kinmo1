@@ -4,11 +4,8 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from "recharts";
-import { Users, Calendar, TrendingUp, MapPin, Repeat, ArrowLeft, DollarSign, Database, Download, Activity } from "lucide-react";
+import { Users, Calendar, TrendingUp, MapPin, Repeat, ArrowLeft, DollarSign, Database, Download } from "lucide-react";
 import { format } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -63,48 +60,8 @@ interface ApiCosts {
   };
 }
 
-interface ApiLog {
-  id: number;
-  timestamp: string;
-  service: string;
-  method: string;
-  cacheStatus: string;
-  status: string;
-  responseTimeMs: number | null;
-  costEstimate: string;
-  errorMessage: string | null;
-  parameters: any;
-  metadata: any;
-}
-
-interface ApiStats {
-  overall: {
-    totalCalls: number;
-    totalCost: number;
-    avgResponseTime: number;
-    cacheHits: number;
-    cacheMisses: number;
-    cacheHitRate: number;
-  };
-  byService: Array<{
-    service: string;
-    count: number;
-    totalCost: number;
-    avgResponseTime: number;
-  }>;
-  byCacheStatus: Array<{
-    cacheStatus: string;
-    count: number;
-  }>;
-  byStatus: Array<{
-    status: string;
-    count: number;
-  }>;
-}
-
 export default function Admin() {
   const [selectedPeriod, setSelectedPeriod] = useState<string>("total");
-  const [logFilter, setLogFilter] = useState<{ service?: string; status?: string }>({});
   const { toast } = useToast();
 
   const { data: stats, isLoading, error } = useQuery<AdminStats>({
@@ -118,24 +75,6 @@ export default function Admin() {
       if (!response.ok) throw new Error('Failed to fetch API costs');
       return response.json();
     },
-  });
-
-  const { data: apiLogs, isLoading: logsLoading } = useQuery<ApiLog[]>({
-    queryKey: ["/api/admin/api-logs", logFilter],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      params.set('limit', '100');
-      if (logFilter.service) params.set('service', logFilter.service);
-      if (logFilter.status) params.set('status', logFilter.status);
-      
-      const response = await fetch(`/api/admin/api-logs?${params.toString()}`);
-      if (!response.ok) throw new Error('Failed to fetch API logs');
-      return response.json();
-    },
-  });
-
-  const { data: apiStatsData } = useQuery<ApiStats>({
-    queryKey: ["/api/admin/api-stats"],
   });
 
   const cachePhotosMutation = useMutation({
@@ -212,16 +151,6 @@ export default function Admin() {
         </Button>
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
-          <TabsTrigger value="api-logs" data-testid="tab-api-logs">
-            <Activity className="mr-2 h-4 w-4" />
-            API Logs
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview" className="space-y-6">
       {/* Quick Stats */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Card data-testid="card-registered-users">
@@ -582,178 +511,6 @@ export default function Admin() {
           )}
         </CardContent>
       </Card>
-        </TabsContent>
-
-        <TabsContent value="api-logs" className="space-y-6">
-          {/* API Logs Summary Stats */}
-          {apiStatsData && (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              <Card data-testid="card-api-total-calls">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total API Calls</CardTitle>
-                  <Activity className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold" data-testid="text-api-total-calls">
-                    {apiStatsData.overall.totalCalls.toLocaleString()}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    ${apiStatsData.overall.totalCost.toFixed(4)} total cost
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card data-testid="card-api-cache-rate">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Cache Hit Rate</CardTitle>
-                  <TrendingUp className="h-4 w-4 text-green-600" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-green-600" data-testid="text-api-cache-rate">
-                    {apiStatsData.overall.cacheHitRate.toFixed(1)}%
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {apiStatsData.overall.cacheHits.toLocaleString()} hits / {apiStatsData.overall.cacheMisses.toLocaleString()} misses
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card data-testid="card-api-avg-response">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Avg Response Time</CardTitle>
-                  <Activity className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold" data-testid="text-api-avg-response">
-                    {apiStatsData.overall.avgResponseTime}ms
-                  </div>
-                  <p className="text-xs text-muted-foreground">Across all API calls</p>
-                </CardContent>
-              </Card>
-
-              <Card data-testid="card-api-by-service">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Services</CardTitle>
-                  <Database className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-1">
-                    {apiStatsData.byService.map((svc) => (
-                      <div key={svc.service} className="flex items-center justify-between text-xs">
-                        <span className="text-muted-foreground">{svc.service}:</span>
-                        <span className="font-medium">{svc.count}</span>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          {/* Filters */}
-          <div className="flex gap-3">
-            <Select 
-              value={logFilter.service || 'all'} 
-              onValueChange={(value) => setLogFilter({ ...logFilter, service: value === 'all' ? undefined : value })}
-            >
-              <SelectTrigger className="w-[200px]" data-testid="select-service-filter">
-                <SelectValue placeholder="All Services" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Services</SelectItem>
-                <SelectItem value="google_places">Google Places</SelectItem>
-                <SelectItem value="openai">OpenAI</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select 
-              value={logFilter.status || 'all'} 
-              onValueChange={(value) => setLogFilter({ ...logFilter, status: value === 'all' ? undefined : value })}
-            >
-              <SelectTrigger className="w-[180px]" data-testid="select-status-filter">
-                <SelectValue placeholder="All Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="success">Success</SelectItem>
-                <SelectItem value="error">Error</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* API Logs Table */}
-          <Card data-testid="card-api-logs-table">
-            <CardHeader>
-              <CardTitle>Recent API Calls</CardTitle>
-              <CardDescription>Last 100 API calls with cache status and response times</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {logsLoading ? (
-                <div className="flex items-center justify-center h-48">
-                  <div className="text-muted-foreground">Loading logs...</div>
-                </div>
-              ) : apiLogs && apiLogs.length > 0 ? (
-                <div className="overflow-auto max-h-[600px]">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Timestamp</TableHead>
-                        <TableHead>Service</TableHead>
-                        <TableHead>Method</TableHead>
-                        <TableHead>Cache</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Response Time</TableHead>
-                        <TableHead className="text-right">Cost</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {apiLogs.map((log) => (
-                        <TableRow key={log.id} data-testid={`log-row-${log.id}`}>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {format(new Date(log.timestamp), 'MMM d, HH:mm:ss')}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" data-testid={`badge-service-${log.id}`}>
-                              {log.service}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-sm">{log.method}</TableCell>
-                          <TableCell>
-                            <Badge 
-                              variant={log.cacheStatus === 'miss' ? 'destructive' : 'default'}
-                              data-testid={`badge-cache-${log.id}`}
-                            >
-                              {log.cacheStatus}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge 
-                              variant={log.status === 'success' ? 'default' : 'destructive'}
-                              data-testid={`badge-status-${log.id}`}
-                            >
-                              {log.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right text-sm">
-                            {log.responseTimeMs ? `${log.responseTimeMs}ms` : '-'}
-                          </TableCell>
-                          <TableCell className="text-right text-sm font-medium">
-                            ${parseFloat(log.costEstimate || '0').toFixed(6)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              ) : (
-                <div className="flex items-center justify-center h-48">
-                  <div className="text-muted-foreground">No API logs found</div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
     </div>
   );
 }

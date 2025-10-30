@@ -139,8 +139,8 @@ export default function YasThis() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/voting-events"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/voting-events/bulk-my-votes"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/voting-events/bulk-votes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/voting-events", "my-votes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/voting-events", "all-votes"] });
     },
     onError: (error: Error) => {
       toast({
@@ -157,8 +157,8 @@ export default function YasThis() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/voting-events"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/voting-events/bulk-my-votes"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/voting-events/bulk-votes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/voting-events", "my-votes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/voting-events", "all-votes"] });
     },
     onError: (error: Error) => {
       toast({
@@ -169,14 +169,31 @@ export default function YasThis() {
     },
   });
 
-  // OPTIMIZED: Use bulk endpoints instead of N+1 queries
   const { data: votes = {} } = useQuery<Record<string, Vote[]>>({
-    queryKey: ["/api/voting-events/bulk-votes"],
+    queryKey: ["/api/voting-events", "all-votes"],
+    queryFn: async () => {
+      const result: Record<string, Vote[]> = {};
+      for (const event of events) {
+        const eventVotes = await fetch(`/api/voting-events/${event.id}/votes`).then(r => r.json());
+        result[event.id] = eventVotes;
+      }
+      return result;
+    },
     enabled: events.length > 0,
   });
 
   const { data: myVotes = {} } = useQuery<Record<string, Vote | null>>({
-    queryKey: ["/api/voting-events/bulk-my-votes"],
+    queryKey: ["/api/voting-events", "my-votes"],
+    queryFn: async () => {
+      const result: Record<string, Vote | null> = {};
+      for (const event of events) {
+        const myVote = await fetch(`/api/voting-events/${event.id}/my-vote`, {
+          credentials: 'include'
+        }).then(r => r.json());
+        result[event.id] = myVote;
+      }
+      return result;
+    },
     enabled: events.length > 0 && isAuthenticated,
   });
 

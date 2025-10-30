@@ -2,7 +2,6 @@ import { Client } from "@googlemaps/google-maps-services-js";
 import { db } from "./db";
 import { placesCache, searchCache, geocodingCache } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
-import { logApiCall } from "./api-logger";
 
 const client = new Client({});
 
@@ -338,7 +337,6 @@ export interface GeocodeResult {
 }
 
 export async function getTimezoneForLocation(lat: number, lng: number): Promise<string | null> {
-  const startTime = Date.now();
   try {
     const apiKey = getNextApiKey();
     const timestamp = Math.floor(Date.now() / 1000);
@@ -351,43 +349,14 @@ export async function getTimezoneForLocation(lat: number, lng: number): Promise<
       },
     });
 
-    const responseTimeMs = Date.now() - startTime;
-
     if (response.data.status === "OK" && response.data.timeZoneId) {
-      logApiCall({
-        service: 'google_timezone',
-        method: 'timezone',
-        cacheStatus: 'miss',
-        status: 'success',
-        responseTimeMs,
-        parameters: { lat, lng },
-      });
       return response.data.timeZoneId;
     }
 
     console.error(`Timezone lookup failed for coordinates: ${lat}, ${lng}. Status: ${response.data.status}`);
-    logApiCall({
-      service: 'google_timezone',
-      method: 'timezone',
-      cacheStatus: 'miss',
-      status: 'error',
-      responseTimeMs,
-      errorMessage: `Status: ${response.data.status}`,
-      parameters: { lat, lng },
-    });
     return null;
   } catch (error) {
-    const responseTimeMs = Date.now() - startTime;
     console.error("Error looking up timezone:", error);
-    logApiCall({
-      service: 'google_timezone',
-      method: 'timezone',
-      cacheStatus: 'miss',
-      status: 'error',
-      responseTimeMs,
-      errorMessage: error instanceof Error ? error.message : String(error),
-      parameters: { lat, lng },
-    });
     return null;
   }
 }
@@ -397,13 +366,6 @@ export async function geocodeLocation(location: string): Promise<GeocodeResult |
   if (sessionCache.geocodeResults.has(location)) {
     sessionCache.stats.geocodeHits++;
     console.log(`[Session Cache] HIT - geocode for "${location}"`);
-    logApiCall({
-      service: 'google_geocoding',
-      method: 'geocode',
-      cacheStatus: 'session_hit',
-      status: 'success',
-      parameters: { location },
-    });
     return sessionCache.geocodeResults.get(location)!;
   }
 
@@ -413,20 +375,12 @@ export async function geocodeLocation(location: string): Promise<GeocodeResult |
     // Add to session cache for faster future lookups
     sessionCache.geocodeResults.set(location, dbCached);
     sessionCache.stats.geocodeHits++;
-    logApiCall({
-      service: 'google_geocoding',
-      method: 'geocode',
-      cacheStatus: 'db_hit',
-      status: 'success',
-      parameters: { location },
-    });
     return dbCached;
   }
 
   sessionCache.stats.geocodeMisses++;
   console.log(`[API Call] MISS - fetching geocode for "${location}"`);
 
-  const startTime = Date.now();
   try {
     const apiKey = getNextApiKey();
 
@@ -437,20 +391,9 @@ export async function geocodeLocation(location: string): Promise<GeocodeResult |
       },
     });
 
-    const responseTimeMs = Date.now() - startTime;
-
     if (!response.data.results || response.data.results.length === 0) {
       console.error(`Geocoding failed for location: ${location}`);
       sessionCache.geocodeResults.set(location, null);
-      logApiCall({
-        service: 'google_geocoding',
-        method: 'geocode',
-        cacheStatus: 'miss',
-        status: 'error',
-        responseTimeMs,
-        errorMessage: 'No results found',
-        parameters: { location },
-      });
       return null;
     }
 
@@ -478,29 +421,10 @@ export async function geocodeLocation(location: string): Promise<GeocodeResult |
     sessionCache.geocodeResults.set(location, geocodeResult);
     await saveGeocodingToDB(location, geocodeResult);
     
-    logApiCall({
-      service: 'google_geocoding',
-      method: 'geocode',
-      cacheStatus: 'miss',
-      status: 'success',
-      responseTimeMs,
-      parameters: { location },
-    });
-    
     return geocodeResult;
   } catch (error) {
-    const responseTimeMs = Date.now() - startTime;
     console.error("Error geocoding location:", error);
     sessionCache.geocodeResults.set(location, null);
-    logApiCall({
-      service: 'google_geocoding',
-      method: 'geocode',
-      cacheStatus: 'miss',
-      status: 'error',
-      responseTimeMs,
-      errorMessage: error instanceof Error ? error.message : String(error),
-      parameters: { location },
-    });
     return null;
   }
 }
@@ -544,13 +468,6 @@ export async function searchPlaces(
   if (sessionCache.searchResults.has(cacheKey)) {
     sessionCache.stats.searchHits++;
     console.log(`[Session Cache] HIT - searchPlaces for "${query}"`);
-    logApiCall({
-      service: 'google_places',
-      method: 'textSearch',
-      cacheStatus: 'session_hit',
-      status: 'success',
-      parameters: { query, location, radiusMiles },
-    });
     const cached = sessionCache.searchResults.get(cacheKey)!;
     // Return deep copy to prevent mutation
     return cached.map(result => clonePlaceResult(result));
@@ -574,22 +491,12 @@ export async function searchPlaces(
     sessionCache.searchResults.set(cacheKey, results.map(r => clonePlaceResult(r)));
     sessionCache.stats.searchHits++;
     
-    logApiCall({
-      service: 'google_places',
-      method: 'textSearch',
-      cacheStatus: 'db_hit',
-      status: 'success',
-      parameters: { query, location, radiusMiles },
-      metadata: { resultsCount: results.length },
-    });
-    
     return results.map(result => clonePlaceResult(result));
   }
 
   sessionCache.stats.searchMisses++;
   console.log(`[API Call] MISS - fetching searchPlaces for "${query}"`);
 
-  const startTime = Date.now();
   try {
     const apiKey = getNextApiKey();
 
@@ -688,8 +595,6 @@ export async function searchPlaces(
 
     console.log(`[Google Places] Processed ${results.length} valid results`);
 
-    const responseTimeMs = Date.now() - startTime;
-
     // Cache in session for immediate reuse
     sessionCache.searchResults.set(cacheKey, results.map(r => clonePlaceResult(r)));
     
@@ -701,32 +606,12 @@ export async function searchPlaces(
       );
     }
     
-    logApiCall({
-      service: 'google_places',
-      method: 'textSearch',
-      cacheStatus: 'miss',
-      status: 'success',
-      responseTimeMs,
-      parameters: { query, location, radiusMiles },
-      metadata: { resultsCount: results.length },
-    });
-    
     // Return original (caller can mutate without affecting cache)
     return results;
   } catch (error) {
-    const responseTimeMs = Date.now() - startTime;
     console.error("Error searching Google Places:", error);
     // Cache empty result to avoid retrying failed searches
     sessionCache.searchResults.set(cacheKey, []);
-    logApiCall({
-      service: 'google_places',
-      method: 'textSearch',
-      cacheStatus: 'miss',
-      status: 'error',
-      responseTimeMs,
-      errorMessage: error instanceof Error ? error.message : String(error),
-      parameters: { query, location, radiusMiles },
-    });
     return [];
   }
 }
@@ -744,13 +629,6 @@ export async function searchNearbyPlaces(
   if (sessionCache.nearbyResults.has(cacheKey)) {
     sessionCache.stats.nearbyHits++;
     console.log(`[Google Places Cache] HIT - searchNearbyPlaces for "${query}"`);
-    logApiCall({
-      service: 'google_places',
-      method: 'nearbySearch',
-      cacheStatus: 'session_hit',
-      status: 'success',
-      parameters: { query, lat: nearLocation.lat, lng: nearLocation.lng, radiusMeters, minRating },
-    });
     const cached = sessionCache.nearbyResults.get(cacheKey)!;
     // Return deep copy to prevent mutation
     return cached.map(result => clonePlaceResult(result));
@@ -759,7 +637,6 @@ export async function searchNearbyPlaces(
   sessionCache.stats.nearbyMisses++;
   console.log(`[Google Places Cache] MISS - fetching searchNearbyPlaces for "${query}"`);
 
-  const startTime = Date.now();
   try {
     const apiKey = getNextApiKey();
 
@@ -772,19 +649,8 @@ export async function searchNearbyPlaces(
       },
     });
 
-    const responseTimeMs = Date.now() - startTime;
-
     if (!response.data.results || response.data.results.length === 0) {
       sessionCache.nearbyResults.set(cacheKey, []);
-      logApiCall({
-        service: 'google_places',
-        method: 'nearbySearch',
-        cacheStatus: 'miss',
-        status: 'success',
-        responseTimeMs,
-        parameters: { query, lat: nearLocation.lat, lng: nearLocation.lng, radiusMeters, minRating },
-        metadata: { resultsCount: 0 },
-      });
       return [];
     }
 
@@ -824,33 +690,12 @@ export async function searchNearbyPlaces(
 
     // Cache clones to prevent mutations from affecting cached data
     sessionCache.nearbyResults.set(cacheKey, results.map(r => clonePlaceResult(r)));
-    
-    logApiCall({
-      service: 'google_places',
-      method: 'nearbySearch',
-      cacheStatus: 'miss',
-      status: 'success',
-      responseTimeMs,
-      parameters: { query, lat: nearLocation.lat, lng: nearLocation.lng, radiusMeters, minRating },
-      metadata: { resultsCount: results.length },
-    });
-    
     // Return originals (caller can mutate without affecting cache)
     return results;
   } catch (error) {
-    const responseTimeMs = Date.now() - startTime;
     console.error("Error searching nearby places:", error);
     // Cache empty result to avoid retrying failed searches
     sessionCache.nearbyResults.set(cacheKey, []);
-    logApiCall({
-      service: 'google_places',
-      method: 'nearbySearch',
-      cacheStatus: 'miss',
-      status: 'error',
-      responseTimeMs,
-      errorMessage: error instanceof Error ? error.message : String(error),
-      parameters: { query, lat: nearLocation.lat, lng: nearLocation.lng, radiusMeters, minRating },
-    });
     return [];
   }
 }
@@ -975,13 +820,6 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceResult | nu
   if (sessionCache.placeDetails.has(placeId)) {
     sessionCache.stats.placeDetailsHits++;
     console.log(`[Session Cache] HIT - placeDetails for ${placeId}`);
-    logApiCall({
-      service: 'google_places',
-      method: 'placeDetails',
-      cacheStatus: 'session_hit',
-      status: 'success',
-      parameters: { placeId },
-    });
     const cached = sessionCache.placeDetails.get(placeId);
     // Return deep copy to prevent mutation
     return cached ? clonePlaceResult(cached) : null;
@@ -993,20 +831,12 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceResult | nu
     // Add to session cache for faster future lookups
     sessionCache.placeDetails.set(placeId, clonePlaceResult(dbCached));
     sessionCache.stats.placeDetailsHits++;
-    logApiCall({
-      service: 'google_places',
-      method: 'placeDetails',
-      cacheStatus: 'db_hit',
-      status: 'success',
-      parameters: { placeId },
-    });
     return clonePlaceResult(dbCached);
   }
 
   sessionCache.stats.placeDetailsMisses++;
   console.log(`[API Call] MISS - fetching placeDetails for ${placeId}`);
 
-  const startTime = Date.now();
   try {
     const apiKey = getNextApiKey();
 
@@ -1018,19 +848,9 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceResult | nu
       },
     });
 
-    const responseTimeMs = Date.now() - startTime;
     const place = response.data.result;
     if (!place) {
       sessionCache.placeDetails.set(placeId, null);
-      logApiCall({
-        service: 'google_places',
-        method: 'placeDetails',
-        cacheStatus: 'miss',
-        status: 'error',
-        responseTimeMs,
-        errorMessage: 'No place data returned',
-        parameters: { placeId },
-      });
       return null;
     }
 
@@ -1060,30 +880,11 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceResult | nu
       console.error(`Failed to cache Place Details in DB for ${placeId}:`, err)
     );
 
-    logApiCall({
-      service: 'google_places',
-      method: 'placeDetails',
-      cacheStatus: 'miss',
-      status: 'success',
-      responseTimeMs,
-      parameters: { placeId },
-    });
-
     // Return the original (caller can mutate this without affecting cache)
     return result;
   } catch (error) {
-    const responseTimeMs = Date.now() - startTime;
     console.error("Error getting place details:", error);
     sessionCache.placeDetails.set(placeId, null);
-    logApiCall({
-      service: 'google_places',
-      method: 'placeDetails',
-      cacheStatus: 'miss',
-      status: 'error',
-      responseTimeMs,
-      errorMessage: error instanceof Error ? error.message : String(error),
-      parameters: { placeId },
-    });
     return null;
   }
 }
