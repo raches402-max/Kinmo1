@@ -79,9 +79,7 @@ export default function Admin() {
 
   const cachePhotosMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest("/api/admin/cache-photos", {
-        method: "POST",
-      });
+      return apiRequest("POST", "/api/admin/cache-photos");
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/api-costs"] });
@@ -101,9 +99,7 @@ export default function Admin() {
 
   const backfillCoordinatesMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest("/api/admin/backfill-favorites-coordinates", {
-        method: "POST",
-      });
+      return apiRequest("POST", "/api/admin/backfill-favorites-coordinates");
     },
     onSuccess: (data: any) => {
       toast({
