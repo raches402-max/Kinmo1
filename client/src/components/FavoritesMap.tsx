@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { APIProvider, Map, AdvancedMarker, InfoWindow, Pin } from '@vis.gl/react-google-maps';
+import { APIProvider, Map, AdvancedMarker, InfoWindow } from '@vis.gl/react-google-maps';
+import { MapPin } from 'lucide-react';
 
 interface FavoriteVenue {
   id: string;
@@ -89,12 +90,25 @@ export function FavoritesMap({ venues, hoveredVenueId, onMarkerHover, onMarkerCl
                 onMarkerClick?.(venue.id);
               }}
             >
-              <div>
-                <Pin
-                  background={isHovered || isSelected ? '#6419e6' : '#ff385c'}
-                  borderColor={isHovered || isSelected ? '#4a0fb3' : '#d42f51'}
-                  glyphColor="#ffffff"
-                  scale={isHovered ? 1.3 : isSelected ? 1.2 : 1}
+              <div
+                style={{
+                  background: isHovered || isSelected ? '#6419e6' : '#ff385c',
+                  borderRadius: '50%',
+                  width: isHovered ? '44px' : isSelected ? '40px' : '36px',
+                  height: isHovered ? '44px' : isSelected ? '40px' : '36px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: `3px solid ${isHovered || isSelected ? '#4a0fb3' : '#d42f51'}`,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                }}
+              >
+                <MapPin 
+                  size={isHovered ? 24 : isSelected ? 22 : 20} 
+                  color="white" 
+                  fill="white"
                 />
               </div>
             </AdvancedMarker>
