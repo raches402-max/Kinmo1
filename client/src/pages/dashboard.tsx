@@ -890,6 +890,30 @@ export default function Dashboard() {
           <p className="text-muted-foreground">
             Manage your group activities and get AI-powered suggestions
           </p>
+          {user && (
+            <div className="mt-3 flex items-center gap-2">
+              <Badge variant="outline" className="text-xs font-mono" data-testid="badge-current-user">
+                {user.email || user.id}
+              </Badge>
+              {user.email && user.email.endsWith('@example.com') && (
+                <Badge variant="secondary" className="text-xs" data-testid="badge-test-account">
+                  Test Account
+                </Badge>
+              )}
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-6 text-xs"
+                onClick={async () => {
+                  window.open('/api/user/groups/backup', '_blank');
+                }}
+                data-testid="button-backup-groups"
+              >
+                <Copy className="h-3 w-3 mr-1" />
+                Backup Groups
+              </Button>
+            </div>
+          )}
         </div>
 
         <Tabs defaultValue="my-events" className="w-full">

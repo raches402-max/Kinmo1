@@ -448,6 +448,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Export user groups as backup (downloadable JSON)
+  app.get("/api/user/groups/backup", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const groups = await storage.getUserGroups(userId);
+      
+      // Create backup object with timestamp
+      const backup = {
+        exportedAt: new Date().toISOString(),
+        userId: userId,
+        groupCount: groups.length,
+        groups: groups
+      };
+      
+      // Set headers for download
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename="kinmo-backup-${new Date().toISOString().split('T')[0]}.json"`);
+      res.json(backup);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Get user's group collections
   app.get("/api/user/collections", isAuthenticated, async (req: any, res) => {
     try {
