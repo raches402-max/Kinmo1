@@ -3259,10 +3259,15 @@ export default function GroupDetail() {
                                     }}
                                     data-testid={`checkbox-hosting-volunteer-${member.id}`}
                                   />
-                                  {member.isOrganizer ? (
-                                    <Badge variant="secondary" className="text-xs whitespace-nowrap">Organizer</Badge>
-                                  ) : (
-                                    <div className="flex gap-1">
+                                  
+                                  {/* Show badges and controls */}
+                                  <div className="flex items-center gap-1">
+                                    {member.isOrganizer && (
+                                      <Badge variant="secondary" className="text-xs whitespace-nowrap">Organizer</Badge>
+                                    )}
+                                    
+                                    {/* Show edit button if: 1) user is organizer, OR 2) it's their own member record */}
+                                    {(isOwner || member.userId === user?.id) && (
                                       <Button
                                         variant="ghost"
                                         size="icon"
@@ -3278,6 +3283,10 @@ export default function GroupDetail() {
                                       >
                                         <Pencil className="h-3 w-3 text-muted-foreground" />
                                       </Button>
+                                    )}
+                                    
+                                    {/* Only organizer can delete members (but not themselves) */}
+                                    {isOwner && !member.isOrganizer && (
                                       <AlertDialog>
                                         <AlertDialogTrigger asChild>
                                           <Button 
@@ -3305,8 +3314,8 @@ export default function GroupDetail() {
                                           </AlertDialogFooter>
                                         </AlertDialogContent>
                                       </AlertDialog>
-                                    </div>
-                                  )}
+                                    )}
+                                  </div>
                                 </div>
                               </div>)
                             )}

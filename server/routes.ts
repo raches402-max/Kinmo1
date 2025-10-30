@@ -1159,12 +1159,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update member
-  app.patch("/api/members/:id", async (req, res) => {
+  // Update member (requires authentication - user must be group owner OR the member themselves)
+  app.patch("/api/members/:id", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
+      
+      // Get the member to check authorization
+      const member = await storage.getMember(req.params.id);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+      
+      // Get the group to check if user is the organizer
+      const group = await storage.getGroup(member.groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+      
+      // Authorization: user must be group owner OR the member themselves
+      const isGroupOwner = group.userId === userId;
+      const isMemberOwner = member.userId === userId;
+      
+      if (!isGroupOwner && !isMemberOwner) {
+        return res.status(403).json({ message: "Not authorized to update this member" });
+      }
+      
       const validatedUpdates = updateMemberSchema.parse(req.body);
-      const member = await storage.updateMember(req.params.id, validatedUpdates);
-      res.json(member);
+      const updatedMember = await storage.updateMember(req.params.id, validatedUpdates);
+      res.json(updatedMember);
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }
