@@ -2322,6 +2322,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // BULK ENDPOINTS - Optimize N+1 query problem
+  // Get all votes for all voting events in one call
+  app.get("/api/voting-events/bulk-votes", async (req, res) => {
+    try {
+      const events = await storage.getVotingEvents();
+      const result: Record<string, any[]> = {};
+      
+      // Fetch votes for all events in parallel
+      await Promise.all(
+        events.map(async (event) => {
+          const votes = await storage.getEventVotes(event.id);
+          result[event.id] = votes;
+        })
+      );
+      
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get current user's votes for all voting events in one call (authenticated)
+  app.get("/api/voting-events/bulk-my-votes", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const events = await storage.getVotingEvents();
+      const result: Record<string, any> = {};
+      
+      // Fetch user's votes for all events in parallel
+      await Promise.all(
+        events.map(async (event) => {
+          const vote = await storage.getUserVote(event.id, userId);
+          result[event.id] = vote || null;
+        })
+      );
+      
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Retry activity generation (protected)
   app.post("/api/groups/:id/retry-generation", isAuthenticated, async (req: any, res) => {
     try {
