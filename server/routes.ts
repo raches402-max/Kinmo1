@@ -106,7 +106,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Photo proxy endpoint - caches Google Place photos to reduce API costs
+  // NEW Photo proxy endpoint - for Places API v1 (uses full photo resource name)
+  app.get('/api/photos/v1/:photoName(*)', async (req, res) => {
+    try {
+      const photoName = decodeURIComponent(req.params.photoName);
+      
+      if (!photoName) {
+        return res.status(400).json({ message: "Photo name is required" });
+      }
+
+      // Check cache first (use photoName as key)
+      const cached = await db
+        .select()
+        .from(photosCache)
+        .where(eq(photosCache.photoReference, photoName))
+        .limit(1);
+
+      if (cached.length > 0) {
+        const cachedPhoto = cached[0];
+        
+        // Check if expired
+        if (new Date() > cachedPhoto.expiresAt) {
+          console.log(`[Photo Cache v1] EXPIRED - ${photoName}`);
+          await db.delete(photosCache).where(eq(photosCache.photoReference, photoName));
+        } else {
+          console.log(`[Photo Cache v1] HIT - ${photoName}`);
+          const imageBuffer = Buffer.from(cachedPhoto.imageData, 'base64');
+          res.set('Content-Type', cachedPhoto.contentType);
+          res.set('Cache-Control', 'public, max-age=2592000'); // 30 days
+          return res.send(imageBuffer);
+        }
+      }
+
+      // Not in cache or expired - download from Google using NEW Photos API
+      console.log(`[Photo Cache v1] MISS - downloading ${photoName}`);
+      
+      const apiKey = process.env.GOOGLE_PLACES_API_KEY_2 || process.env.GOOGLE_PLACES_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ message: "Google API key not configured" });
+      }
+
+      // NEW Places API Photo Media endpoint
+      // https://places.googleapis.com/v1/{photoName}/media?key=API_KEY&maxWidthPx=400
+      const photoUrl = `https://places.googleapis.com/v1/${photoName}/media?maxWidthPx=400`;
+      
+      const photoResponse = await fetch(photoUrl, {
+        headers: {
+          'X-Goog-Api-Key': apiKey,
+        },
+      });
+
+      if (!photoResponse.ok) {
+        console.error(`[Photo Cache v1] Failed to fetch photo: ${photoResponse.status}`);
+        return res.status(404).json({ message: "Photo not found" });
+      }
+
+      const photoBuffer = await photoResponse.arrayBuffer();
+      const contentType = photoResponse.headers.get('content-type') || 'image/jpeg';
+      const base64Data = Buffer.from(photoBuffer).toString('base64');
+
+      // Cache it (use photoName as key)
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30); // 30 days
+
+      await db
+        .insert(photosCache)
+        .values({
+          photoReference: photoName,
+          imageData: base64Data,
+          contentType,
+          expiresAt,
+        })
+        .onConflictDoUpdate({
+          target: photosCache.photoReference,
+          set: {
+            imageData: base64Data,
+            contentType,
+            expiresAt,
+          },
+        });
+
+      console.log(`[Photo Cache v1] SAVED - ${photoName} (expires in 30 days)`);
+
+      // Return the photo
+      res.set('Content-Type', contentType);
+      res.set('Cache-Control', 'public, max-age=2592000'); // 30 days
+      res.send(Buffer.from(photoBuffer));
+
+    } catch (error) {
+      console.error("Error fetching photo v1:", error);
+      res.status(500).json({ message: "Failed to fetch photo" });
+    }
+  });
+
+  // LEGACY Photo proxy endpoint - for backwards compatibility with old photo references
   app.get('/api/photos/:photoReference', async (req, res) => {
     try {
       const { photoReference } = req.params;

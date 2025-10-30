@@ -563,8 +563,18 @@ export async function searchPlaces(
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[Google Places API] Error ${response.status}:`, errorText);
+      let errorDetails = `Status ${response.status}`;
+      try {
+        const errorJson = await response.json();
+        if (errorJson.error) {
+          errorDetails = `${errorJson.error.status || response.status}: ${errorJson.error.message || 'Unknown error'}`;
+        }
+      } catch {
+        // If JSON parsing fails, fall back to text
+        const errorText = await response.text();
+        errorDetails = `${response.status}: ${errorText}`;
+      }
+      console.error(`[Google Places API] Text Search Error:`, errorDetails);
       sessionCache.searchResults.set(cacheKey, []);
       return [];
     }
@@ -616,12 +626,12 @@ export async function searchPlaces(
       // Build result from Text Search data (no additional API call needed!)
       let photoUrl: string | undefined;
       if (place.photos && place.photos.length > 0) {
-        // NEW API: photos have a 'name' field instead of 'photo_reference'
+        // NEW API: photos have a 'name' field (resource identifier)
+        // Format: places/PLACE_ID/photos/PHOTO_ID
         const photoName = place.photos[0].name;
-        // Extract the photo reference from the name (format: places/PLACE_ID/photos/PHOTO_REF)
-        const photoRef = photoName?.split('/').pop();
-        if (photoRef) {
-          photoUrl = `/api/photos/${photoRef}`;
+        if (photoName) {
+          // Encode the full photo name for the proxy endpoint
+          photoUrl = `/api/photos/v1/${encodeURIComponent(photoName)}`;
         }
       }
 
@@ -698,52 +708,144 @@ export async function searchNearbyPlaces(
   try {
     const apiKey = getNextApiKey();
 
-    const response = await legacyClient.placesNearby({
-      params: {
-        location: nearLocation,
-        radius: radiusMeters,
-        keyword: query,
-        key: apiKey,
+    // NEW PLACES API: Use Nearby Search endpoint
+    const endpoint = 'https://places.googleapis.com/v1/places:searchNearby';
+    
+    const requestBody = {
+      locationRestriction: {
+        circle: {
+          center: {
+            latitude: nearLocation.lat,
+            longitude: nearLocation.lng,
+          },
+          radius: radiusMeters,
+        },
       },
+      maxResultCount: 20,
+      rankPreference: 'RELEVANCE',
+    };
+
+    // Add includedTypes if we can parse the query
+    // This helps narrow down results
+    if (query && query.length > 0) {
+      // Common type mapping for queries
+      const typeMap: Record<string, string[]> = {
+        restaurant: ['restaurant'],
+        cafe: ['cafe'],
+        bar: ['bar'],
+        coffee: ['cafe'],
+        food: ['restaurant', 'cafe'],
+        shopping: ['shopping_mall', 'store'],
+        entertainment: ['movie_theater', 'amusement_park', 'bowling_alley'],
+      };
+      
+      const lowerQuery = query.toLowerCase();
+      for (const [keyword, types] of Object.entries(typeMap)) {
+        if (lowerQuery.includes(keyword)) {
+          (requestBody as any).includedTypes = types;
+          break;
+        }
+      }
+    }
+
+    const fieldMask = [
+      'places.id',
+      'places.displayName',
+      'places.formattedAddress',
+      'places.rating',
+      'places.userRatingCount',
+      'places.priceLevel',
+      'places.photos',
+      'places.types',
+      'places.location',
+    ].join(',');
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': fieldMask,
+      },
+      body: JSON.stringify(requestBody),
     });
 
-    if (!response.data.results || response.data.results.length === 0) {
+    if (!response.ok) {
+      let errorDetails = `Status ${response.status}`;
+      try {
+        const errorJson = await response.json();
+        if (errorJson.error) {
+          errorDetails = `${errorJson.error.status || response.status}: ${errorJson.error.message || 'Unknown error'}`;
+        }
+      } catch {
+        // If JSON parsing fails, fall back to text
+        const errorText = await response.text();
+        errorDetails = `${response.status}: ${errorText}`;
+      }
+      console.error(`[Google Places API] Nearby Search Error:`, errorDetails);
+      sessionCache.nearbyResults.set(cacheKey, []);
+      return [];
+    }
+
+    const data = await response.json();
+
+    if (!data.places || data.places.length === 0) {
       sessionCache.nearbyResults.set(cacheKey, []);
       return [];
     }
 
     const results: PlaceResult[] = [];
     const MIN_REVIEWS = 50;
-    for (const place of response.data.results) {
+    for (const place of data.places) {
       // Filter by minimum rating
       if (!place.rating || place.rating < minRating) {
         continue;
       }
       
-      // Filter by minimum review count
-      if (!place.user_ratings_total || place.user_ratings_total < MIN_REVIEWS) {
-        console.log(`[Google Places] Filtering out "${place.name}" - only ${place.user_ratings_total || 0} reviews (minimum: ${MIN_REVIEWS})`);
+      // Filter by minimum review count (NEW API: userRatingCount)
+      if (!place.userRatingCount || place.userRatingCount < MIN_REVIEWS) {
+        console.log(`[Google Places] Filtering out "${place.displayName?.text || 'Unknown'}" - only ${place.userRatingCount || 0} reviews (minimum: ${MIN_REVIEWS})`);
         continue;
       }
       
       let photoUrl: string | undefined;
       if (place.photos && place.photos.length > 0) {
-        const photoReference = place.photos[0].photo_reference;
-        // Use proxy endpoint to cache photos and reduce API costs
-        photoUrl = `/api/photos/${photoReference}`;
+        // NEW API: photos have a 'name' field (resource identifier)
+        const photoName = place.photos[0].name;
+        if (photoName) {
+          photoUrl = `/api/photos/v1/${encodeURIComponent(photoName)}`;
+        }
       }
 
+      // NEW API: priceLevel is a string enum
+      let priceLevel: string | undefined;
+      if (place.priceLevel) {
+        const levelMap: Record<string, string> = {
+          'PRICE_LEVEL_FREE': 'Free',
+          'PRICE_LEVEL_INEXPENSIVE': '$',
+          'PRICE_LEVEL_MODERATE': '$$',
+          'PRICE_LEVEL_EXPENSIVE': '$$$',
+          'PRICE_LEVEL_VERY_EXPENSIVE': '$$$$',
+        };
+        priceLevel = levelMap[place.priceLevel] || place.priceLevel;
+      }
+
+      const placeLocation = place.location ? {
+        lat: place.location.latitude,
+        lng: place.location.longitude,
+      } : undefined;
+
       results.push({
-        placeId: place.place_id || "",
-        name: place.name || query,
-        address: place.vicinity || "",
+        placeId: place.id || "",
+        name: place.displayName?.text || query,
+        address: place.formattedAddress || "",
         rating: place.rating?.toString(),
-        priceLevel: place.price_level?.toString(),
+        reviewCount: place.userRatingCount,
+        priceLevel,
         photoUrl,
         types: place.types || [],
+        location: placeLocation,
       });
-
-      if (results.length >= 2) break;
     }
 
     // Cache clones to prevent mutations from affecting cached data
@@ -898,36 +1000,91 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceResult | nu
   try {
     const apiKey = getNextApiKey();
 
-    const response = await legacyClient.placeDetails({
-      params: {
-        place_id: placeId,
-        key: apiKey,
-        fields: ['place_id', 'name', 'formatted_address', 'rating', 'user_ratings_total', 'price_level', 'photos', 'types'],
+    // NEW PLACES API: Use Place Details endpoint
+    // Endpoint format: GET https://places.googleapis.com/v1/places/{PLACE_ID}
+    const endpoint = `https://places.googleapis.com/v1/places/${placeId}`;
+    
+    // Field mask for Place Details (no 'places.' prefix for this endpoint)
+    const fieldMask = [
+      'id',
+      'displayName',
+      'formattedAddress',
+      'rating',
+      'userRatingCount',
+      'priceLevel',
+      'photos',
+      'types',
+      'location',
+    ].join(',');
+
+    const response = await fetch(endpoint, {
+      method: 'GET',
+      headers: {
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': fieldMask,
       },
     });
 
-    const place = response.data.result;
-    if (!place) {
+    if (!response.ok) {
+      let errorDetails = `Status ${response.status}`;
+      try {
+        const errorJson = await response.json();
+        if (errorJson.error) {
+          errorDetails = `${errorJson.error.status || response.status}: ${errorJson.error.message || 'Unknown error'}`;
+        }
+      } catch {
+        // If JSON parsing fails, fall back to text
+        const errorText = await response.text();
+        errorDetails = `${response.status}: ${errorText}`;
+      }
+      console.error(`[Google Places API] Place Details Error:`, errorDetails);
+      sessionCache.placeDetails.set(placeId, null);
+      return null;
+    }
+
+    const place = await response.json();
+    if (!place || !place.id) {
       sessionCache.placeDetails.set(placeId, null);
       return null;
     }
 
     let photoUrl: string | undefined;
     if (place.photos && place.photos.length > 0) {
-      const photoReference = place.photos[0].photo_reference;
-      // Use proxy endpoint to cache photos and reduce API costs
-      photoUrl = `/api/photos/${photoReference}`;
+      // NEW API: photos have a 'name' field (resource identifier)
+      const photoName = place.photos[0].name;
+      if (photoName) {
+        photoUrl = `/api/photos/v1/${encodeURIComponent(photoName)}`;
+      }
     }
 
+    // NEW API: priceLevel is a string enum
+    let priceLevel: string | undefined;
+    if (place.priceLevel) {
+      const levelMap: Record<string, string> = {
+        'PRICE_LEVEL_FREE': 'Free',
+        'PRICE_LEVEL_INEXPENSIVE': '$',
+        'PRICE_LEVEL_MODERATE': '$$',
+        'PRICE_LEVEL_EXPENSIVE': '$$$',
+        'PRICE_LEVEL_VERY_EXPENSIVE': '$$$$',
+      };
+      priceLevel = levelMap[place.priceLevel] || place.priceLevel;
+    }
+
+    const placeLocation = place.location ? {
+      lat: place.location.latitude,
+      lng: place.location.longitude,
+    } : undefined;
+
     const result = {
-      placeId: place.place_id || "",
-      name: place.name || "",
-      address: place.formatted_address || "",
+      placeId: place.id || "",
+      name: place.displayName?.text || "",
+      address: place.formattedAddress || "",
       rating: place.rating?.toString(),
-      reviewCount: place.user_ratings_total,
-      priceLevel: place.price_level?.toString(),
+      reviewCount: place.userRatingCount,
+      priceLevel,
       photoUrl,
       types: place.types || [],
+      location: placeLocation,
     };
 
     // Cache in session for immediate reuse
