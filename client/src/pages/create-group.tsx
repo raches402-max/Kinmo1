@@ -75,7 +75,7 @@ export default function CreateGroup() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const [members, setMembers] = useState<MemberInput[]>([{ name: "", email: "" }]);
-  const [budgetRange, setBudgetRange] = useState<number[]>([50, 250]);
+  const [budgetRange, setBudgetRange] = useState<number[]>([0, 60]);
   const [closeness, setCloseness] = useState(3);
   const [novelty, setNovelty] = useState(3);
   const [availability, setAvailability] = useState(createEmptyAvailability());
@@ -98,8 +98,8 @@ export default function CreateGroup() {
       name: "",
       emoji: getRandomEmoji(),
       locationBase: "",
-      budgetMin: 50,
-      budgetMax: 250,
+      budgetMin: 0,
+      budgetMax: 60,
       meetingFrequency: "1-week",
       closenessLevel: 3,
       noveltyPreference: 3,
