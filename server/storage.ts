@@ -233,6 +233,7 @@ export class DatabaseStorage implements IStorage {
         email: m.email || null,
         claimToken: randomBytes(16).toString('hex'), // Generate unique claim token for each member
         isOrganizer: index === 0, // First member is organizer
+        userId: index === 0 ? userId : null, // Set userId for organizer only
         invitationSent: false,
         hasJoined: false,
       }));
