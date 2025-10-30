@@ -884,3 +884,21 @@ export type CuratedVenue = typeof curatedVenues.$inferSelect;
 
 export type InsertApiCallLog = z.infer<typeof insertApiCallLogSchema>;
 export type ApiCallLog = typeof apiCallLogs.$inferSelect;
+
+// Database backups table (complete snapshots for disaster recovery)
+export const databaseBackups = pgTable("database_backups", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  snapshotData: jsonb("snapshot_data").notNull(), // Complete database snapshot
+  backupType: text("backup_type").notNull(), // "manual", "daily_auto", "pre_migration"
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }), // Who created the backup (null for automatic)
+  notes: text("notes"), // Optional notes about this backup
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertDatabaseBackupSchema = createInsertSchema(databaseBackups).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertDatabaseBackup = z.infer<typeof insertDatabaseBackupSchema>;
+export type DatabaseBackup = typeof databaseBackups.$inferSelect;
