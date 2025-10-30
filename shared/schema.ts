@@ -94,6 +94,7 @@ export const groups = pgTable("groups", {
   lastItineraryUpdate: timestamp("last_itinerary_update"), // When itinerary was last auto-created
   
   deletedAt: timestamp("deleted_at"), // Soft delete: when group was deleted (null = active)
+  isTest: boolean("is_test").default(false).notNull(), // Mark test/development groups to exclude from analytics
   
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
