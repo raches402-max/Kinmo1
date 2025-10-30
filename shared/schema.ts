@@ -98,6 +98,16 @@ export const groups = pgTable("groups", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Group backups table (automatic snapshots for data recovery)
+export const groupBackups = pgTable("group_backups", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  groupId: varchar("group_id").notNull(), // Original group ID (may be deleted)
+  snapshotData: jsonb("snapshot_data").notNull(), // Complete group data including members
+  backupTrigger: text("backup_trigger").notNull(), // "create", "update", "delete", "scheduled"
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Group members table
 export const members = pgTable("members", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -660,6 +670,11 @@ export const insertGroupSchema = createInsertSchema(groups).omit({
   }).default(2),
 });
 
+export const insertGroupBackupSchema = createInsertSchema(groupBackups).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertMemberSchema = createInsertSchema(members).omit({
   id: true,
   createdAt: true,
@@ -797,6 +812,9 @@ export type User = typeof users.$inferSelect;
 export type InsertGroup = z.infer<typeof insertGroupSchema>;
 export type Group = typeof groups.$inferSelect;
 export type UpdateGroup = z.infer<typeof updateGroupSchema>;
+
+export type InsertGroupBackup = z.infer<typeof insertGroupBackupSchema>;
+export type GroupBackup = typeof groupBackups.$inferSelect;
 
 export type InsertMember = z.infer<typeof insertMemberSchema>;
 export type Member = typeof members.$inferSelect;

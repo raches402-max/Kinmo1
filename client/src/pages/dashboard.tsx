@@ -900,18 +900,6 @@ export default function Dashboard() {
                   Test Account
                 </Badge>
               )}
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="h-6 text-xs"
-                onClick={async () => {
-                  window.open('/api/user/groups/backup', '_blank');
-                }}
-                data-testid="button-backup-groups"
-              >
-                <Copy className="h-3 w-3 mr-1" />
-                Backup Groups
-              </Button>
             </div>
           )}
         </div>

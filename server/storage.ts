@@ -1,7 +1,7 @@
 // Reference: javascript_database blueprint
 // Reference: javascript_log_in_with_replit blueprint
 import {
-  users, groups, members, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, itineraryInvites, reminderLogs, autoScheduledEvents, frequencyFeedback, userProfiles, proposedTimeSlots, timeSlotVotes, groupCollections, categorySearchHistory, hostAssignments,
+  users, groups, members, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, itineraryInvites, reminderLogs, autoScheduledEvents, frequencyFeedback, userProfiles, proposedTimeSlots, timeSlotVotes, groupCollections, categorySearchHistory, hostAssignments, groupBackups,
   type User, type UpsertUser,
   type Group, type InsertGroup, type UpdateGroup,
   type Member, type InsertMember, type UpdateMember,
@@ -20,7 +20,8 @@ import {
   type TimeSlotVote, type InsertTimeSlotVote,
   type GroupCollection, type InsertGroupCollection, type UpdateGroupCollection,
   type CategorySearchHistory, type InsertCategorySearchHistory,
-  type HostAssignment, type InsertHostAssignment
+  type HostAssignment, type InsertHostAssignment,
+  type GroupBackup, type InsertGroupBackup
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, or, inArray, isNull } from "drizzle-orm";
@@ -241,6 +242,9 @@ export class DatabaseStorage implements IStorage {
       await db.insert(members).values(membersData);
     }
 
+    // Automatically backup after creation
+    await this.createAutomaticBackup(group.id, userId, 'create');
+
     return group;
   }
 
@@ -406,7 +410,53 @@ export class DatabaseStorage implements IStorage {
       .set(updates)
       .where(eq(groups.id, id))
       .returning();
+    
+    // Automatically backup after update
+    await this.createAutomaticBackup(group.id, group.userId, 'update');
+    
     return group;
+  }
+
+  // Automatic backup function - creates snapshot of group data
+  async createAutomaticBackup(groupId: string, userId: string, trigger: string): Promise<void> {
+    try {
+      // Get complete group data
+      const group = await this.getGroup(groupId);
+      if (!group) return;
+      
+      const groupMembers = await this.getGroupMembers(groupId);
+      
+      // Create snapshot
+      const snapshotData = {
+        group,
+        members: groupMembers,
+        backedUpAt: new Date().toISOString(),
+      };
+      
+      await db.insert(groupBackups).values({
+        userId,
+        groupId,
+        snapshotData: snapshotData as any,
+        backupTrigger: trigger,
+      });
+      
+      // Keep only last 10 backups per group
+      const allBackups = await db
+        .select()
+        .from(groupBackups)
+        .where(and(eq(groupBackups.userId, userId), eq(groupBackups.groupId, groupId)))
+        .orderBy(desc(groupBackups.createdAt));
+      
+      if (allBackups.length > 10) {
+        const toDelete = allBackups.slice(10);
+        await db.delete(groupBackups).where(
+          inArray(groupBackups.id, toDelete.map(b => b.id))
+        );
+      }
+    } catch (error) {
+      console.error(`Failed to create automatic backup for group ${groupId}:`, error);
+      // Don't throw - backups shouldn't break main operations
+    }
   }
 
   async getMember(id: string): Promise<Member | undefined> {
