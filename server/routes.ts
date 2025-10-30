@@ -6408,14 +6408,59 @@ Looking forward to planning great activities together!
       const { getApiKeyStats } = await import('./google-places');
       const apiKeyStats = getApiKeyStats();
 
-      // Estimate API calls and costs
-      const estimatedTextSearchCalls = Math.floor(activitiesCount / 15); // ~15 activities per group generation
-      const estimatedPlaceDetailsCalls = uniquePlacesCount;
-      const estimatedGeocodingCalls = groupsCount;
-      const estimatedCachedPhotoCalls = photosCacheCount; // Photos that were cached (downloaded once)
+      // Get actual API call counts from logs (if available) or fall back to estimates
+      const apiCallLogsTable = (await import('@shared/schema')).apiCallLogs;
+      
+      // Query actual API call logs filtered by period
+      let logQuery = db.select().from(apiCallLogsTable);
+      if (dateThreshold) {
+        logQuery = logQuery.where(gte(apiCallLogsTable.createdAt, dateThreshold));
+      }
+      
+      const apiLogs = await logQuery;
+      
+      // Count actual calls by method and cache status
+      let actualTextSearchCalls = 0;
+      let actualPlaceDetailsCalls = 0;
+      let actualGeocodingCalls = 0;
+      let actualPhotoCalls = 0;
+      
+      let cachedTextSearchCalls = 0;
+      let cachedPlaceDetailsCalls = 0;
+      let cachedGeocodingCalls = 0;
+      
+      if (apiLogs.length > 0) {
+        // Use actual API call data
+        for (const log of apiLogs) {
+          if (log.service === 'google_places') {
+            if (log.method === 'textSearch') {
+              if (log.cacheStatus === 'miss') actualTextSearchCalls++;
+              if (log.cacheStatus === 'hit') cachedTextSearchCalls++;
+            } else if (log.method === 'placeDetails') {
+              if (log.cacheStatus === 'miss') actualPlaceDetailsCalls++;
+              if (log.cacheStatus === 'hit') cachedPlaceDetailsCalls++;
+            } else if (log.method === 'placePhotos') {
+              if (log.cacheStatus === 'miss') actualPhotoCalls++;
+            } else if (log.method === 'geocoding') {
+              if (log.cacheStatus === 'miss') actualGeocodingCalls++;
+              if (log.cacheStatus === 'hit') cachedGeocodingCalls++;
+            }
+          }
+        }
+      } else {
+        // Fall back to estimates if no logs available (legacy mode)
+        actualTextSearchCalls = Math.floor(activitiesCount / 15);
+        actualPlaceDetailsCalls = uniquePlacesCount;
+        actualGeocodingCalls = groupsCount;
+      }
 
-      // Estimate uncached photo views based on period
-      // Assumption: Each uncached photo is viewed ~12 times per day (based on historical $184/day cost)
+      // Cost calculations (per 1,000 requests) - only count actual API calls (cache misses)
+      const textSearchCost = (actualTextSearchCalls / 1000) * 17; // $17 per 1K
+      const placeDetailsCost = (actualPlaceDetailsCalls / 1000) * 5; // $5 per 1K (Basic tier)
+      const geocodingCost = (actualGeocodingCalls / 1000) * 5; // $5 per 1K
+      const cachedPhotoCost = (actualPhotoCalls / 1000) * 7; // $7 per 1K
+      
+      // Estimate uncached photo cost separately (these are ongoing view costs, not API calls)
       const VIEWS_PER_PHOTO_PER_DAY = 12;
       let estimatedUncachedPhotoViews = 0;
       let uncachedPhotoPeriodLabel = '';
@@ -6430,17 +6475,11 @@ Looking forward to planning great activities together!
         estimatedUncachedPhotoViews = uncachedPhotosCount * VIEWS_PER_PHOTO_PER_DAY * 90;
         uncachedPhotoPeriodLabel = 'per quarter (90 days)';
       } else {
-        // For 'total', calculate based on 19 days since start
         const daysSinceStart = 19;
         estimatedUncachedPhotoViews = uncachedPhotosCount * VIEWS_PER_PHOTO_PER_DAY * daysSinceStart;
         uncachedPhotoPeriodLabel = `over ${daysSinceStart} days`;
       }
-
-      // Cost calculations (per 1,000 requests)
-      const textSearchCost = (estimatedTextSearchCalls / 1000) * 17; // $17 per 1K
-      const placeDetailsCost = (estimatedPlaceDetailsCalls / 1000) * 5; // $5 per 1K (Basic tier)
-      const geocodingCost = (estimatedGeocodingCalls / 1000) * 5; // $5 per 1K
-      const cachedPhotoCost = (estimatedCachedPhotoCalls / 1000) * 7; // $7 per 1K (one-time downloads)
+      
       const uncachedPhotoCost = (estimatedUncachedPhotoViews / 1000) * 7; // $7 per 1K (ongoing views)
 
       const totalCost = textSearchCost + placeDetailsCost + geocodingCost + cachedPhotoCost + uncachedPhotoCost;
@@ -6461,38 +6500,45 @@ Looking forward to planning great activities together!
         periodLabel: periodLabel,
         apiCalls: {
           textSearch: {
-            estimated: estimatedTextSearchCalls,
+            estimated: actualTextSearchCalls,
+            cached: cachedTextSearchCalls,
             cost: textSearchCost,
             pricePerThousand: 17,
+            note: apiLogs.length > 0 ? 'Actual API calls (cache misses)' : 'Estimated (no logs yet)',
           },
           placeDetails: {
-            estimated: estimatedPlaceDetailsCalls,
+            estimated: actualPlaceDetailsCalls,
+            cached: cachedPlaceDetailsCalls,
             cost: placeDetailsCost,
             pricePerThousand: 5,
             tier: 'Basic',
+            note: apiLogs.length > 0 ? 'Actual API calls (cache misses)' : 'Estimated (no logs yet)',
           },
           geocoding: {
-            estimated: estimatedGeocodingCalls,
+            estimated: actualGeocodingCalls,
+            cached: cachedGeocodingCalls,
             cost: geocodingCost,
             pricePerThousand: 5,
+            note: apiLogs.length > 0 ? 'Actual API calls (cache misses)' : 'Estimated (no logs yet)',
           },
           cachedPhotos: {
-            estimated: estimatedCachedPhotoCalls,
+            estimated: actualPhotoCalls,
             cost: cachedPhotoCost,
             pricePerThousand: 7,
-            note: 'Cached downloads (one-time setup cost)',
+            note: apiLogs.length > 0 ? 'Actual photo downloads (one-time)' : 'Estimated downloads',
           },
           uncachedPhotos: {
             estimated: estimatedUncachedPhotoViews,
             cost: uncachedPhotoCost,
             pricePerThousand: 7,
             count: uncachedPhotosCount,
-            note: `Uncached photo views ${uncachedPhotoPeriodLabel} (ongoing cost)`,
+            note: `Estimated photo views ${uncachedPhotoPeriodLabel} (ongoing cost)`,
           },
         },
         totals: {
-          estimatedCalls: estimatedTextSearchCalls + estimatedPlaceDetailsCalls + estimatedGeocodingCalls + estimatedCachedPhotoCalls + estimatedUncachedPhotoViews,
+          estimatedCalls: actualTextSearchCalls + actualPlaceDetailsCalls + actualGeocodingCalls + actualPhotoCalls + estimatedUncachedPhotoViews,
           estimatedCost: totalCost,
+          actualCallsAvailable: apiLogs.length > 0,
         },
         caching: {
           textSearchHits: cacheStats.searchHits,

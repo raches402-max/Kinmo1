@@ -32,15 +32,16 @@ interface ApiCosts {
   period: string;
   periodLabel: string;
   apiCalls: {
-    textSearch: { estimated: number; cost: number; pricePerThousand: number };
-    placeDetails: { estimated: number; cost: number; pricePerThousand: number; tier: string };
-    geocoding: { estimated: number; cost: number; pricePerThousand: number };
+    textSearch: { estimated: number; cached?: number; cost: number; pricePerThousand: number; note?: string };
+    placeDetails: { estimated: number; cached?: number; cost: number; pricePerThousand: number; tier: string; note?: string };
+    geocoding: { estimated: number; cached?: number; cost: number; pricePerThousand: number; note?: string };
     cachedPhotos: { estimated: number; cost: number; pricePerThousand: number; note: string };
     uncachedPhotos: { estimated: number; cost: number; pricePerThousand: number; note: string; count: number };
   };
   totals: {
     estimatedCalls: number;
     estimatedCost: number;
+    actualCallsAvailable?: boolean;
   };
   caching: {
     textSearchHits: number;
@@ -293,7 +294,7 @@ export default function Admin() {
       </div>
 
       {/* API Costs Section */}
-      {!costsLoading && apiCosts && (
+      {!costsLoading && apiCosts && apiCosts.apiCalls && (
         <>
           <div className="border-t pt-6">
             <div className="flex items-center justify-between mb-4">
@@ -382,56 +383,88 @@ export default function Admin() {
           {/* API Breakdown Table */}
           <Card data-testid="card-api-breakdown">
             <CardHeader>
-              <CardTitle>API Cost Breakdown</CardTitle>
-              <CardDescription>Estimated costs by API type</CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                API Cost Breakdown
+                {apiCosts.totals.actualCallsAvailable && (
+                  <Badge variant="default" className="text-xs">Live Data</Badge>
+                )}
+                {!apiCosts.totals.actualCallsAvailable && (
+                  <Badge variant="secondary" className="text-xs">Estimated</Badge>
+                )}
+              </CardTitle>
+              <CardDescription>
+                {apiCosts.totals.actualCallsAvailable 
+                  ? 'Actual API call costs from logs' 
+                  : 'Estimated costs (enable API logging for accurate tracking)'}
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="grid grid-cols-4 gap-4 pb-2 border-b font-medium text-sm">
+                <div className="grid grid-cols-5 gap-4 pb-2 border-b font-medium text-sm">
                   <div>API Type</div>
-                  <div className="text-right">Calls</div>
+                  <div className="text-right">API Calls</div>
+                  <div className="text-right">Cached</div>
                   <div className="text-right">Rate</div>
                   <div className="text-right">Cost</div>
                 </div>
 
-                <div className="grid grid-cols-4 gap-4 items-center">
-                  <div className="font-medium">Text Search</div>
+                <div className="grid grid-cols-5 gap-4 items-center">
+                  <div>
+                    <div className="font-medium">Text Search</div>
+                    {apiCosts.apiCalls.textSearch.note && (
+                      <div className="text-xs text-muted-foreground">{apiCosts.apiCalls.textSearch.note}</div>
+                    )}
+                  </div>
                   <div className="text-right text-muted-foreground">{apiCosts.apiCalls.textSearch.estimated.toLocaleString()}</div>
+                  <div className="text-right text-green-600">{apiCosts.apiCalls.textSearch.cached?.toLocaleString() || 0}</div>
                   <div className="text-right text-muted-foreground">${apiCosts.apiCalls.textSearch.pricePerThousand}/1K</div>
                   <div className="text-right font-semibold">${apiCosts.apiCalls.textSearch.cost.toFixed(2)}</div>
                 </div>
 
-                <div className="grid grid-cols-4 gap-4 items-center">
-                  <div className="font-medium">
-                    Place Details
-                    <span className="ml-2 text-xs text-green-600">({apiCosts.apiCalls.placeDetails.tier})</span>
+                <div className="grid grid-cols-5 gap-4 items-center">
+                  <div>
+                    <div className="font-medium">
+                      Place Details
+                      <span className="ml-2 text-xs text-green-600">({apiCosts.apiCalls.placeDetails.tier})</span>
+                    </div>
+                    {apiCosts.apiCalls.placeDetails.note && (
+                      <div className="text-xs text-muted-foreground">{apiCosts.apiCalls.placeDetails.note}</div>
+                    )}
                   </div>
                   <div className="text-right text-muted-foreground">{apiCosts.apiCalls.placeDetails.estimated.toLocaleString()}</div>
+                  <div className="text-right text-green-600">{apiCosts.apiCalls.placeDetails.cached?.toLocaleString() || 0}</div>
                   <div className="text-right text-muted-foreground">${apiCosts.apiCalls.placeDetails.pricePerThousand}/1K</div>
                   <div className="text-right font-semibold">${apiCosts.apiCalls.placeDetails.cost.toFixed(2)}</div>
                 </div>
 
-                <div className="grid grid-cols-4 gap-4 items-center">
-                  <div className="font-medium">Geocoding</div>
+                <div className="grid grid-cols-5 gap-4 items-center">
+                  <div>
+                    <div className="font-medium">Geocoding</div>
+                    {apiCosts.apiCalls.geocoding.note && (
+                      <div className="text-xs text-muted-foreground">{apiCosts.apiCalls.geocoding.note}</div>
+                    )}
+                  </div>
                   <div className="text-right text-muted-foreground">{apiCosts.apiCalls.geocoding.estimated.toLocaleString()}</div>
+                  <div className="text-right text-green-600">{apiCosts.apiCalls.geocoding.cached?.toLocaleString() || 0}</div>
                   <div className="text-right text-muted-foreground">${apiCosts.apiCalls.geocoding.pricePerThousand}/1K</div>
                   <div className="text-right font-semibold">${apiCosts.apiCalls.geocoding.cost.toFixed(2)}</div>
                 </div>
 
                 {apiCosts.apiCalls.cachedPhotos && (
-                  <div className="grid grid-cols-4 gap-4 items-center">
+                  <div className="grid grid-cols-5 gap-4 items-center">
                     <div>
                       <div className="font-medium">Cached Photos</div>
                       <div className="text-xs text-muted-foreground">{apiCosts.apiCalls.cachedPhotos.note}</div>
                     </div>
                     <div className="text-right text-muted-foreground">{apiCosts.apiCalls.cachedPhotos.estimated.toLocaleString()}</div>
+                    <div className="text-right">-</div>
                     <div className="text-right text-muted-foreground">${apiCosts.apiCalls.cachedPhotos.pricePerThousand}/1K</div>
                     <div className="text-right font-semibold">${apiCosts.apiCalls.cachedPhotos.cost.toFixed(2)}</div>
                   </div>
                 )}
 
                 {apiCosts.apiCalls.uncachedPhotos && (
-                  <div className="grid grid-cols-4 gap-4 items-center bg-yellow-50 dark:bg-yellow-950/20 p-2 rounded">
+                  <div className="grid grid-cols-5 gap-4 items-center bg-yellow-50 dark:bg-yellow-950/20 p-2 rounded">
                     <div>
                       <div className="font-medium text-yellow-800 dark:text-yellow-300">Uncached Photos</div>
                       <div className="text-xs text-yellow-700 dark:text-yellow-400">{apiCosts.apiCalls.uncachedPhotos.note}</div>
@@ -440,14 +473,16 @@ export default function Admin() {
                       </div>
                     </div>
                     <div className="text-right text-muted-foreground">{apiCosts.apiCalls.uncachedPhotos.estimated.toLocaleString()}</div>
+                    <div className="text-right">-</div>
                     <div className="text-right text-muted-foreground">${apiCosts.apiCalls.uncachedPhotos.pricePerThousand}/1K</div>
                     <div className="text-right font-semibold text-yellow-800 dark:text-yellow-300">${apiCosts.apiCalls.uncachedPhotos.cost.toFixed(2)}</div>
                   </div>
                 )}
 
-                <div className="grid grid-cols-4 gap-4 pt-2 border-t font-bold">
+                <div className="grid grid-cols-5 gap-4 pt-2 border-t font-bold">
                   <div>Total</div>
                   <div className="text-right">{apiCosts.totals.estimatedCalls.toLocaleString()}</div>
+                  <div></div>
                   <div></div>
                   <div className="text-right text-primary">${apiCosts.totals.estimatedCost.toFixed(2)}</div>
                 </div>
