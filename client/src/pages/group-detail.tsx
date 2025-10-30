@@ -4834,7 +4834,7 @@ export default function GroupDetail() {
                   </CardContent>
                 </Card>
               ) : (
-                <div className="space-y-6">
+                <>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -5165,7 +5165,7 @@ export default function GroupDetail() {
                       />
                     </div>
                   </div>
-                </div>
+                </>
               )}
               </TabsContent>
             </Tabs>
