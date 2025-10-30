@@ -89,12 +89,14 @@ export function FavoritesMap({ venues, hoveredVenueId, onMarkerHover, onMarkerCl
                 onMarkerClick?.(venue.id);
               }}
             >
-              <Pin
-                background={isHovered || isSelected ? '#6419e6' : '#ff385c'}
-                borderColor={isHovered || isSelected ? '#4a0fb3' : '#d42f51'}
-                glyphColor="#ffffff"
-                scale={isHovered ? 1.3 : isSelected ? 1.2 : 1}
-              />
+              <div>
+                <Pin
+                  background={isHovered || isSelected ? '#6419e6' : '#ff385c'}
+                  borderColor={isHovered || isSelected ? '#4a0fb3' : '#d42f51'}
+                  glyphColor="#ffffff"
+                  scale={isHovered ? 1.3 : isSelected ? 1.2 : 1}
+                />
+              </div>
             </AdvancedMarker>
           );
         })}
