@@ -5167,6 +5167,7 @@ export default function GroupDetail() {
                   </div>
                 </>
               )}
+                </div>
               </TabsContent>
             </Tabs>
 
