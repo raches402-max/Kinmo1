@@ -22,28 +22,36 @@ function getNextApiKey(): string {
   const key1 = process.env.GOOGLE_PLACES_API_KEY;
   const key2 = process.env.GOOGLE_PLACES_API_KEY_2;
 
-  if (!key1) {
-    throw new Error("GOOGLE_PLACES_API_KEY is not set");
+  // If neither key is set, throw error
+  if (!key1 && !key2) {
+    throw new Error("At least one of GOOGLE_PLACES_API_KEY or GOOGLE_PLACES_API_KEY_2 must be set");
   }
 
-  // If only one key is configured, use it
-  if (!key2) {
+  // If only KEY_2 is configured, use it exclusively
+  if (!key1 && key2) {
+    apiKeyUsageStats.key2Calls++;
+    return key2;
+  }
+
+  // If only KEY_1 is configured, use it exclusively
+  if (key1 && !key2) {
     apiKeyUsageStats.key1Calls++;
     return key1;
   }
 
-  // Weighted distribution: KEY_2 gets 4 out of 5 calls (80%), KEY_1 gets 1 out of 5 (20%)
+  // Both keys configured: Weighted distribution
+  // KEY_2 gets 4 out of 5 calls (80%), KEY_1 gets 1 out of 5 (20%)
   callCounter++;
   const useKey2 = (callCounter % 5) !== 0; // Use KEY_2 unless it's every 5th call
   
   if (useKey2) {
     apiKeyUsageStats.key2Calls++;
     console.log(`[API Key] Using Key #2 PRIMARY (total calls: ${apiKeyUsageStats.key2Calls})`);
-    return key2;
+    return key2!;
   } else {
     apiKeyUsageStats.key1Calls++;
     console.log(`[API Key] Using Key #1 backup (total calls: ${apiKeyUsageStats.key1Calls})`);
-    return key1;
+    return key1!;
   }
 }
 
