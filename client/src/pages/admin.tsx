@@ -106,7 +106,11 @@ function ScrapedComparisonTab() {
   const [uploadedCount, setUploadedCount] = useState<number | null>(null);
   const [selectedVenues, setSelectedVenues] = useState<Set<number>>(new Set());
   const [subtab, setSubtab] = useState<"matched" | "new">("matched");
+  const [matchedPage, setMatchedPage] = useState(0);
+  const [newVenuesPage, setNewVenuesPage] = useState(0);
   const { toast } = useToast();
+  
+  const PAGE_SIZE = 100;
 
   const { data: comparison, isLoading, refetch } = useQuery<ScrapedComparison>({
     queryKey: ["/api/admin/scraped-venues/comparison"],
@@ -336,25 +340,49 @@ function ScrapedComparisonTab() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {comparison.matchedVenues.slice(0, 100).map((match, idx) => (
-                            <TableRow key={idx}>
-                              <TableCell className="font-medium">{match.scrapedName}</TableCell>
-                              <TableCell>{match.dbName}</TableCell>
-                              <TableCell className="font-mono text-xs">{match.googlePlaceId}</TableCell>
-                              <TableCell>
-                                <Badge variant={match.source === 'api_auto' ? 'default' : 'secondary'}>
-                                  {match.source}
-                                </Badge>
-                              </TableCell>
-                            </TableRow>
-                          ))}
+                          {comparison.matchedVenues
+                            .slice(matchedPage * PAGE_SIZE, (matchedPage + 1) * PAGE_SIZE)
+                            .map((match, idx) => (
+                              <TableRow key={idx}>
+                                <TableCell className="font-medium">{match.scrapedName}</TableCell>
+                                <TableCell>{match.dbName}</TableCell>
+                                <TableCell className="font-mono text-xs">{match.googlePlaceId}</TableCell>
+                                <TableCell>
+                                  <Badge variant={match.source === 'api_auto' ? 'default' : 'secondary'}>
+                                    {match.source}
+                                  </Badge>
+                                </TableCell>
+                              </TableRow>
+                            ))}
                         </TableBody>
                       </Table>
                     </div>
-                    {comparison.matchedVenues.length > 100 && (
-                      <p className="text-sm text-muted-foreground mt-2">
-                        Showing first 100 of {comparison.matchedVenues.length} matches
-                      </p>
+                    {comparison.matchedVenues.length > PAGE_SIZE && (
+                      <div className="flex items-center justify-between mt-4">
+                        <p className="text-sm text-muted-foreground">
+                          Showing {matchedPage * PAGE_SIZE + 1} - {Math.min((matchedPage + 1) * PAGE_SIZE, comparison.matchedVenues.length)} of {comparison.matchedVenues.length}
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setMatchedPage(p => Math.max(0, p - 1))}
+                            disabled={matchedPage === 0}
+                            data-testid="button-matched-prev"
+                          >
+                            Previous
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setMatchedPage(p => p + 1)}
+                            disabled={(matchedPage + 1) * PAGE_SIZE >= comparison.matchedVenues.length}
+                            data-testid="button-matched-next"
+                          >
+                            Next
+                          </Button>
+                        </div>
+                      </div>
                     )}
                   </CardContent>
                 </Card>
@@ -367,7 +395,7 @@ function ScrapedComparisonTab() {
                   <CardHeader>
                     <CardTitle>New Venues</CardTitle>
                     <CardDescription>
-                      Select venues to import into curated cache
+                      Select venues to import into curated cache. Coordinates and additional details will be fetched from Google Places API during import.
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -378,13 +406,27 @@ function ScrapedComparisonTab() {
                             <TableHead className="w-12">
                               <input
                                 type="checkbox"
-                                checked={selectedVenues.size === comparison.newVenuesList.slice(0, 100).length}
+                                checked={(() => {
+                                  const pageStart = newVenuesPage * PAGE_SIZE;
+                                  const pageEnd = Math.min((newVenuesPage + 1) * PAGE_SIZE, comparison.newVenuesList.length);
+                                  const pageIndices = Array.from({ length: pageEnd - pageStart }, (_, i) => pageStart + i);
+                                  return pageIndices.length > 0 && pageIndices.every(i => selectedVenues.has(i));
+                                })()}
                                 onChange={(e) => {
+                                  const newSelected = new Set(selectedVenues);
+                                  const pageStart = newVenuesPage * PAGE_SIZE;
+                                  const pageEnd = Math.min((newVenuesPage + 1) * PAGE_SIZE, comparison.newVenuesList.length);
+                                  
                                   if (e.target.checked) {
-                                    setSelectedVenues(new Set(Array.from({ length: Math.min(100, comparison.newVenuesList.length) }, (_, i) => i)));
+                                    for (let i = pageStart; i < pageEnd; i++) {
+                                      newSelected.add(i);
+                                    }
                                   } else {
-                                    setSelectedVenues(new Set());
+                                    for (let i = pageStart; i < pageEnd; i++) {
+                                      newSelected.delete(i);
+                                    }
                                   }
+                                  setSelectedVenues(newSelected);
                                 }}
                                 data-testid="checkbox-select-all"
                               />
@@ -397,30 +439,57 @@ function ScrapedComparisonTab() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {comparison.newVenuesList.slice(0, 100).map((venue, idx) => (
-                            <TableRow key={idx}>
-                              <TableCell>
-                                <input
-                                  type="checkbox"
-                                  checked={selectedVenues.has(idx)}
-                                  onChange={() => handleToggleVenue(idx)}
-                                  data-testid={`checkbox-venue-${idx}`}
-                                />
-                              </TableCell>
-                              <TableCell className="font-medium">{venue.name}</TableCell>
-                              <TableCell className="text-sm">{venue.address}</TableCell>
-                              <TableCell>{venue.category || 'N/A'}</TableCell>
-                              <TableCell>{venue.rating?.toFixed(1) || 'N/A'}</TableCell>
-                              <TableCell className="font-mono text-xs">{venue.googlePlaceId || 'N/A'}</TableCell>
-                            </TableRow>
-                          ))}
+                          {comparison.newVenuesList
+                            .slice(newVenuesPage * PAGE_SIZE, (newVenuesPage + 1) * PAGE_SIZE)
+                            .map((venue, relIdx) => {
+                              const absoluteIdx = newVenuesPage * PAGE_SIZE + relIdx;
+                              return (
+                                <TableRow key={absoluteIdx}>
+                                  <TableCell>
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedVenues.has(absoluteIdx)}
+                                      onChange={() => handleToggleVenue(absoluteIdx)}
+                                      data-testid={`checkbox-venue-${absoluteIdx}`}
+                                    />
+                                  </TableCell>
+                                  <TableCell className="font-medium">{venue.name}</TableCell>
+                                  <TableCell className="text-sm">{venue.address}</TableCell>
+                                  <TableCell>{venue.category || 'N/A'}</TableCell>
+                                  <TableCell>{venue.rating?.toFixed(1) || 'N/A'}</TableCell>
+                                  <TableCell className="font-mono text-xs">{venue.googlePlaceId || 'N/A'}</TableCell>
+                                </TableRow>
+                              );
+                            })}
                         </TableBody>
                       </Table>
                     </div>
-                    {comparison.newVenuesList.length > 100 && (
-                      <p className="text-sm text-muted-foreground mt-2">
-                        Showing first 100 of {comparison.newVenuesList.length} new venues
-                      </p>
+                    {comparison.newVenuesList.length > PAGE_SIZE && (
+                      <div className="flex items-center justify-between mt-4">
+                        <p className="text-sm text-muted-foreground">
+                          Showing {newVenuesPage * PAGE_SIZE + 1} - {Math.min((newVenuesPage + 1) * PAGE_SIZE, comparison.newVenuesList.length)} of {comparison.newVenuesList.length} ({selectedVenues.size} selected)
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setNewVenuesPage(p => Math.max(0, p - 1))}
+                            disabled={newVenuesPage === 0}
+                            data-testid="button-new-prev"
+                          >
+                            Previous
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setNewVenuesPage(p => p + 1)}
+                            disabled={(newVenuesPage + 1) * PAGE_SIZE >= comparison.newVenuesList.length}
+                            data-testid="button-new-next"
+                          >
+                            Next
+                          </Button>
+                        </div>
+                      </div>
                     )}
                   </CardContent>
                 </Card>

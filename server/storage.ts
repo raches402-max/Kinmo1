@@ -2109,31 +2109,70 @@ export class DatabaseStorage implements IStorage {
   }
 
   async importScrapedVenues(venues: Array<{ name: string; address: string; category?: string; rating?: number; googlePlaceId?: string }>): Promise<number> {
-    const inserts = venues
-      .filter(v => v.googlePlaceId)
-      .map(v => ({
-        name: v.name,
-        address: v.address,
-        latitude: '0',
-        longitude: '0',
-        region: 'SF Bay Area',
-        category: v.category || 'Other',
-        tags: v.category ? [v.category] : [],
-        rating: v.rating?.toString() || null,
-        reviewCount: null,
-        priceLevel: null,
-        photoUrl: null,
-        googlePlaceId: v.googlePlaceId!,
-        source: 'api_scrape' as const,
-      }));
+    // Fetch real coordinates for each venue using Google Places API
+    const { getPlaceDetails } = await import('./google-places');
+    
+    const enrichedVenues = [];
+    let failedCount = 0;
 
-    if (inserts.length === 0) {
+    for (const v of venues) {
+      if (!v.googlePlaceId) {
+        console.log(`[Scraped Import] Skipping venue without Place ID: ${v.name}`);
+        failedCount++;
+        continue;
+      }
+
+      try {
+        const placeDetails = await getPlaceDetails(v.googlePlaceId);
+        
+        if (!placeDetails || !placeDetails.location) {
+          console.log(`[Scraped Import] Failed to get coordinates for: ${v.name} (${v.googlePlaceId})`);
+          failedCount++;
+          continue;
+        }
+
+        // Map priceLevel string to numeric value
+        let priceLevelNum: number | null = null;
+        if (placeDetails.priceLevel) {
+          const priceLevelMap: Record<string, number> = {
+            'Free': 0,
+            '$': 1,
+            '$$': 2,
+            '$$$': 3,
+            '$$$$': 4,
+          };
+          priceLevelNum = priceLevelMap[placeDetails.priceLevel] ?? null;
+        }
+
+        enrichedVenues.push({
+          name: v.name,
+          address: v.address,
+          latitude: placeDetails.location.lat.toString(),
+          longitude: placeDetails.location.lng.toString(),
+          region: 'SF Bay Area',
+          category: v.category || 'Other',
+          tags: v.category ? [v.category] : [],
+          rating: v.rating?.toString() || placeDetails.rating || null,
+          reviewCount: placeDetails.reviewCount || null,
+          priceLevel: priceLevelNum,
+          photoUrl: placeDetails.photoUrl || null,
+          googlePlaceId: v.googlePlaceId,
+          source: 'api_scrape' as const,
+        });
+      } catch (error) {
+        console.error(`[Scraped Import] Error fetching details for ${v.name}:`, error);
+        failedCount++;
+      }
+    }
+
+    if (enrichedVenues.length === 0) {
+      console.log(`[Scraped Import] No venues could be imported (${failedCount} failed)`);
       return 0;
     }
 
-    await db.insert(curatedVenues).values(inserts);
-    console.log(`[Scraped Import] Imported ${inserts.length} venues to curated cache`);
-    return inserts.length;
+    await db.insert(curatedVenues).values(enrichedVenues);
+    console.log(`[Scraped Import] Successfully imported ${enrichedVenues.length} venues with real coordinates (${failedCount} failed)`);
+    return enrichedVenues.length;
   }
 }
 
