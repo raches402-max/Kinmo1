@@ -6557,15 +6557,15 @@ Looking forward to planning great activities together!
       console.log(`[Venue Cleanup] Rule-based filtering caught ${removedByRules} obvious non-social venues`);
       console.log(`[Venue Cleanup] ${venuesNeedingAI.length} venues need AI validation`);
 
-      // PHASE 2: Batched AI validation (100 venues per API call)
+      // PHASE 2: Batched AI validation (50 venues per API call for more reliable JSON)
       if (venuesNeedingAI.length > 0) {
-        const BATCH_SIZE = 100;
+        const BATCH_SIZE = 50;
         const batches = [];
         for (let i = 0; i < venuesNeedingAI.length; i += BATCH_SIZE) {
           batches.push(venuesNeedingAI.slice(i, i + BATCH_SIZE));
         }
 
-        console.log(`[Venue Cleanup] Processing ${batches.length} AI batches (${BATCH_SIZE} venues each)`);
+        console.log(`[Venue Cleanup] Processing ${batches.length} AI batches (max ${BATCH_SIZE} venues each)`);
 
         for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
           const batch = batches[batchIndex];

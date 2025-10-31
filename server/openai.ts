@@ -1233,14 +1233,36 @@ You MUST respond with a JSON array where each object has:
         { role: "system", content: systemPrompt },
         {
           role: "user",
-          content: `Evaluate these ${venues.length} venues and return a JSON array of results:\n\n${venueList}`
+          content: `Evaluate these ${venues.length} venues and return a JSON object with a "venues" array:\n\n${venueList}\n\nIMPORTANT: Ensure all JSON strings are properly escaped. Return format: {"venues": [...]}`
         }
       ],
       response_format: { type: "json_object" },
-      max_completion_tokens: 3000,
+      max_completion_tokens: 5000,
     });
 
-    const result = JSON.parse(response.choices[0].message.content || '{}');
+    const rawContent = response.choices[0].message.content || '{}';
+    let result: any;
+    
+    try {
+      result = JSON.parse(rawContent);
+    } catch (parseError) {
+      console.error('[Batch Validation] JSON parse error, attempting to fix:', parseError);
+      // Try to fix common JSON issues
+      const fixed = rawContent
+        .replace(/\n/g, ' ')  // Remove newlines
+        .replace(/\r/g, '')   // Remove carriage returns
+        .replace(/\t/g, ' ')  // Replace tabs with spaces
+        .replace(/\\"/g, '"') // Fix escaped quotes
+        .replace(/([^\\])"/g, '$1\\"'); // Escape unescaped quotes
+      
+      try {
+        result = JSON.parse(fixed);
+      } catch (secondError) {
+        console.error('[Batch Validation] Failed to fix JSON, defaulting all to invalid');
+        result = { venues: [] };
+      }
+    }
+    
     const validations = result.venues || result.results || [];
     
     // Map results by ID
