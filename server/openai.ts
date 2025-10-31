@@ -438,22 +438,26 @@ Category: ${categoryName}${avoidVenuesContext}${rejectedVenuesContext}
 
 Requirements:
 1. Generate ONLY ${categoryName} - no other categories
-2. BE SPECIFIC with venue types (e.g., "cocktail bar", "craft brewery", "wine bar" - NOT just "bar")
-3. BE SPECIFIC with cuisines (e.g., "sushi restaurant", "Korean BBQ" - NOT "Asian restaurant")
+2. venueName: ACTUAL SPECIFIC VENUE NAME (e.g., "Foreign Cinema", "Pizzeria Delfina", "Smuggler's Cove" - NOT generic "restaurant" or "bar")
+3. venueType: BE SPECIFIC (e.g., "cocktail bar", "sushi restaurant", "Korean BBQ" - NOT just "bar" or "Asian food")
 4. Each suggestion should fit the budget range
-5. Provide a Google Places search query for each
+5. searchQuery: Include venue name + type + location (e.g., "Foreign Cinema restaurant San Francisco")
 6. Description: 1-4 words max, nouns only (e.g., "Cocktails", "Craft beer")
 7. Reasoning: 2-5 words max (e.g., "Popular local bar", "Craft cocktail spot")
+
+🚨 CRITICAL: venueName MUST be a real, specific venue name you know exists in ${groupData.locationBase}, NOT a generic type.
+Examples of GOOD venue names: "Tartine Bakery", "Blue Bottle Coffee", "Foreign Cinema"
+Examples of BAD venue names: "bakery", "coffee shop", "outdoor dining"
 
 Return JSON with this structure:
 {
   "suggestions": [
     {
-      "venueName": "venue type",
+      "venueName": "SPECIFIC REAL VENUE NAME (e.g., 'Foreign Cinema', 'Pizzeria Delfina')",
       "venueType": "specific type (e.g., 'cocktail bar', 'sushi restaurant')",
       "description": "1-4 words max",
       "reasoning": "2-5 words max",
-      "searchQuery": "search query for Google Places"
+      "searchQuery": "venue name + type + location for Google Places"
     }
   ]
 }`;
@@ -535,28 +539,34 @@ ${groupData.additionalInstructions ? `🚨 FOLLOW USER INSTRUCTIONS ONLY - ignor
 CRITICAL RULES:
 1. ${locationEnforcement}
 2. ${exactDistribution.replace('EXACT DISTRIBUTION REQUIRED:\n', '')}
-3. BE SPECIFIC: "sushi restaurant" NOT "Asian food"; "cocktail bar" NOT "bar"
-4. NO duplicates${groupData.previouslySuggestedVenues && groupData.previouslySuggestedVenues.length > 0 ? ` (already: ${groupData.previouslySuggestedVenues.slice(0, 8).join(', ')}${groupData.previouslySuggestedVenues.length > 8 ? '...' : ''})` : ''}${groupData.rejectedVenues && groupData.rejectedVenues.length > 0 ? `; BANNED: ${groupData.rejectedVenues.join(', ')}` : ''}
-5. Match availability: ${availabilityText}
-6. Description: 1-4 words (e.g. "Korean BBQ", "Cocktails")
-7. Reasoning: 2-5 words (e.g. "Popular sushi", "NEW: Filipino")
-8. venueType: Specific (e.g. "cocktail bar", "sushi restaurant", "ice cream shop")
+3. venueName: MUST be ACTUAL SPECIFIC VENUE NAME (e.g., "Foreign Cinema", "Tartine Bakery", "Smuggler's Cove" - NOT "restaurant", "bakery", or "bar")
+4. venueType: BE SPECIFIC (e.g., "sushi restaurant" NOT "Asian food"; "cocktail bar" NOT "bar")
+5. NO duplicates${groupData.previouslySuggestedVenues && groupData.previouslySuggestedVenues.length > 0 ? ` (already: ${groupData.previouslySuggestedVenues.slice(0, 8).join(', ')}${groupData.previouslySuggestedVenues.length > 8 ? '...' : ''})` : ''}${groupData.rejectedVenues && groupData.rejectedVenues.length > 0 ? `; BANNED: ${groupData.rejectedVenues.join(', ')}` : ''}
+6. Match availability: ${availabilityText}
+7. Description: 1-4 words (e.g. "Korean BBQ", "Cocktails")
+8. Reasoning: 2-5 words (e.g. "Popular sushi", "NEW: Filipino")
+9. searchQuery: Include venue name + type + city (e.g., "Foreign Cinema restaurant San Francisco")
+
+🚨 CRITICAL - venueName EXAMPLES:
+✅ GOOD: "Foreign Cinema", "Pizzeria Delfina", "Blue Bottle Coffee", "Smuggler's Cove"
+❌ BAD: "outdoor dining", "pizza place", "coffee shop", "cocktail bar"
 
 BEFORE RESPONDING - VERIFY:
 ✓ Suggestion count = ${suggestionCount}?
 ✓ ${enabledCategoryNames.map((cat, i) => `${cat} count = ${suggestionsPerCategory}`).join('? ✓ ')}?
 ✓ All venues in ${cityName} (${radiusTier})?
 ✓ No disabled categories (${disabledBuckets.join(', ') || 'none'})?
+✓ Every venueName is a SPECIFIC REAL VENUE NAME (not a type)?
 
 Return JSON with EXACTLY 15 suggestions:
 {
   "suggestions": [
     {
-      "venueName": "type/activity name",
-      "venueType": "specific category",
+      "venueName": "SPECIFIC REAL VENUE NAME (e.g., 'Foreign Cinema', 'Tartine Bakery')",
+      "venueType": "specific category (e.g., 'sushi restaurant', 'cocktail bar')",
       "description": "1-4 words max",
       "reasoning": "2-5 words max",
-      "searchQuery": "Google Places query",
+      "searchQuery": "venue name + type + city for Google Places",
       "priceEstimate": "optional - events only",
       "timeConstraints": "optional - events only"
     }
