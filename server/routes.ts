@@ -2970,9 +2970,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
             
             // CRITICAL: Only include venues with verified Google Places data
-            // Reject venues missing essential information (rating, address, or photo)
-            if (!place.rating || !place.address || !place.photoUrl) {
-              console.log(`[Category Regen] Rejecting ${place.name} - missing critical data (rating: ${place.rating}, address: ${!!place.address}, photo: ${!!place.photoUrl})`);
+            // Note: photoUrl is optional - we can fetch it later on-demand
+            if (!place.rating || !place.address) {
+              console.log(`[Category Regen] Rejecting ${place.name} - missing critical data (rating: ${place.rating}, address: ${!!place.address})`);
               return null;
             }
             
@@ -7538,9 +7538,9 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
             console.log(`[Venue Matching] ✅ Matched "${place.name}" to AI suggestion "${suggestion.venueName}" with ${(bestMatch.similarity * 100).toFixed(0)}% similarity`);
             
             // CRITICAL: Only include venues with verified Google Places data
-            // Reject venues missing essential information (rating, address, or photo)
-            if (!place.rating || !place.address || !place.photoUrl) {
-              console.log(`[AI Generation] Rejecting ${place.name} - missing critical data (rating: ${place.rating}, address: ${!!place.address}, photo: ${!!place.photoUrl})`);
+            // Note: photoUrl is optional - we can fetch it later on-demand
+            if (!place.rating || !place.address) {
+              console.log(`[AI Generation] Rejecting ${place.name} - missing critical data (rating: ${place.rating}, address: ${!!place.address})`);
               return null;
             }
             
@@ -7661,8 +7661,9 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
             console.log(`[API Fallback] ✅ Using "${apiPlace.name}" from Google Places API for suggestion "${suggestion.venueName}"`);
             
             // CRITICAL: Only include venues with verified Google Places data
-            if (!apiPlace.rating || !apiPlace.address || !apiPlace.photoUrl) {
-              console.log(`[API Fallback] Rejecting ${apiPlace.name} - missing critical data (rating: ${apiPlace.rating}, address: ${!!apiPlace.address}, photo: ${!!apiPlace.photoUrl})`);
+            // Note: photoUrl is optional - we can fetch it later on-demand
+            if (!apiPlace.rating || !apiPlace.address) {
+              console.log(`[API Fallback] Rejecting ${apiPlace.name} - missing critical data (rating: ${apiPlace.rating}, address: ${!!apiPlace.address})`);
               return null;
             }
             
