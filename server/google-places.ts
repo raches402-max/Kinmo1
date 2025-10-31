@@ -811,14 +811,15 @@ export async function searchPlaces(
   location: string,
   radiusMiles: number = 2,
   coordinates?: { lat: number; lng: number },
-  skipCurated: boolean = false
+  skipCurated: boolean = false,
+  venueType?: string
 ): Promise<PlaceResult[]> {
   // CACHE-FIRST STRATEGY: Check curated venues FIRST (10-50ms for SF searches)
   // Skip curated search if explicitly requested (e.g., when curated filtering failed)
   let curatedResults: PlaceResult[] = [];
   
   if (!skipCurated) {
-    curatedResults = await searchCuratedVenues(query, location, radiusMiles, coordinates, 15);
+    curatedResults = await searchCuratedVenues(query, location, radiusMiles, coordinates, 15, venueType);
     
     if (curatedResults.length >= 15) {
       // We have enough curated venues, return immediately (skip API call)

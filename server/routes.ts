@@ -7460,7 +7460,9 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
               suggestion.searchQuery, 
               groupData.locationBase, 
               groupData.searchRadius || 2,
-              coordinates
+              coordinates,
+              false, // skipCurated
+              suggestion.venueType // Pass venueType for better cache matching
             );
 
           // If Google Places returns NO results at all, this is likely a fake/non-existent venue
@@ -7641,7 +7643,8 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
               groupData.locationBase, 
               groupData.searchRadius || 2,
               coordinates,
-              true // skipCurated = true (force fresh API call)
+              true, // skipCurated = true (force fresh API call)
+              suggestion.venueType // Pass venueType for better cache matching
             );
             
             // If API also returns no results, this is likely a fake venue
