@@ -7516,8 +7516,12 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
           }
           
           // Only use venues that meet quality AND budget standards
-          const finalPlaces = drinksFiltered;
+          let finalPlaces = drinksFiltered;
 
+          // Check if we have curated venues AND they have good name similarity
+          let useCuratedVenue = false;
+          let curatedPlace = null;
+          
           if (finalPlaces.length > 0) {
             // Rank venues by name similarity to AI suggestion
             const rankedPlaces = finalPlaces.map(place => ({
@@ -7529,36 +7533,39 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
             const SIMILARITY_THRESHOLD = 0.6;
 
             // Only accept matches above threshold, otherwise fall back to API
-            if (bestMatch.similarity < SIMILARITY_THRESHOLD) {
-              console.log(`[Venue Matching] ❌ Best curated match "${bestMatch.place.name}" has low similarity (${bestMatch.similarity.toFixed(2)}) to AI suggestion "${suggestion.venueName}" - falling back to API`);
-              return null; // This will trigger API fallback in searchPlaces
+            if (bestMatch.similarity >= SIMILARITY_THRESHOLD) {
+              console.log(`[Venue Matching] ✅ Matched "${bestMatch.place.name}" to AI suggestion "${suggestion.venueName}" with ${(bestMatch.similarity * 100).toFixed(0)}% similarity`);
+              curatedPlace = bestMatch.place;
+              useCuratedVenue = true;
+            } else {
+              console.log(`[Venue Matching] ❌ Best curated match "${bestMatch.place.name}" has low similarity (${bestMatch.similarity.toFixed(2)}) to AI suggestion "${suggestion.venueName}" - calling Google Places API`);
+              useCuratedVenue = false;
             }
+          }
 
-            const place = bestMatch.place;
-            console.log(`[Venue Matching] ✅ Matched "${place.name}" to AI suggestion "${suggestion.venueName}" with ${(bestMatch.similarity * 100).toFixed(0)}% similarity`);
-            
+          if (useCuratedVenue && curatedPlace) {
             // CRITICAL: Only include venues with verified Google Places data
             // Note: photoUrl is optional - we can fetch it later on-demand
-            if (!place.rating || !place.address) {
-              console.log(`[AI Generation] Rejecting ${place.name} - missing critical data (rating: ${place.rating}, address: ${!!place.address})`);
+            if (!curatedPlace.rating || !curatedPlace.address) {
+              console.log(`[AI Generation] Rejecting ${curatedPlace.name} - missing critical data (rating: ${curatedPlace.rating}, address: ${!!curatedPlace.address})`);
               return null;
             }
             
             return {
               groupId,
               aiSuggestedName: suggestion.venueName, // Store what AI originally suggested
-              venueName: place.name,
-              venueAddress: place.address,
+              venueName: curatedPlace.name,
+              venueAddress: curatedPlace.address,
               venueType: suggestion.venueType,
               description: suggestion.description,
-              googlePlaceId: place.placeId,
-              latitude: place.location?.lat?.toString() || null,
-              longitude: place.location?.lng?.toString() || null,
-              rating: place.rating,
-              reviewCount: place.reviewCount || null,
-              priceLevel: place.priceLevel,
-              photoUrl: place.photoUrl,
-              googleReview: place.review || null, // Add positive review from Google
+              googlePlaceId: curatedPlace.placeId,
+              latitude: curatedPlace.location?.lat?.toString() || null,
+              longitude: curatedPlace.location?.lng?.toString() || null,
+              rating: curatedPlace.rating,
+              reviewCount: curatedPlace.reviewCount || null,
+              priceLevel: curatedPlace.priceLevel,
+              photoUrl: curatedPlace.photoUrl,
+              googleReview: curatedPlace.review || null, // Add positive review from Google
               aiReasoning: suggestion.reasoning,
               suggestedDate: null,
               suggestedTime: null,
@@ -7577,9 +7584,12 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
               complementaryPlaceRating2: null,
             };
           } else {
-            // If we reach here, finalPlaces is empty due to quality/budget/drinks filtering on curated venues
-            // Fall back to Google Places API directly to get fresh results
-            console.log(`[API Fallback] All curated venues filtered out for "${suggestion.venueName}" - calling Google Places API`);
+            // If we reach here, either:
+            // 1. No curated venues found at all, OR
+            // 2. Curated venues filtered out by quality/budget/drinks, OR
+            // 3. Curated venues had low name similarity (<60%)
+            // In all cases, fall back to Google Places API for fresh results
+            console.log(`[API Fallback] Calling Google Places API for "${suggestion.venueName}"`);
             
             const apiPlaces = await searchPlaces(
               suggestion.searchQuery, 
