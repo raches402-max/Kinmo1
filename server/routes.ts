@@ -6481,7 +6481,7 @@ Looking forward to planning great activities together!
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
 
-      console.log(`[Venue Cleanup] Starting AI-powered cleanup...`);
+      console.log(`[Venue Cleanup] Starting smart cleanup (rule-based + batched AI)...`);
 
       // Get all curated venues
       const allVenues = await db.select().from(curatedVenues);
@@ -6491,13 +6491,18 @@ Looking forward to planning great activities together!
       let removedMissingPhotos = 0;
       let removedLowQuality = 0;
       let removedDuplicates = 0;
+      let removedByRules = 0;
 
       // Track seen place IDs to remove duplicates
       const seenPlaceIds = new Set<string>();
 
-      // Import deleted venues table and AI validation
+      // Import deleted venues table and validation functions
       const { deletedVenues } = await import('@shared/schema');
-      const { isValidSocialVenue } = await import('./openai');
+      const { isObviouslyInvalidVenue, validateVenuesBatch } = await import('./openai');
+
+      // PHASE 1: Apply cheap, rule-based filters (NO API CALLS)
+      const venuesNeedingAI: any[] = [];
+      const venuesToRemove: Array<{ venue: any; reasons: string[] }> = [];
 
       for (const venue of allVenues) {
         const reasons: string[] = [];
@@ -6524,45 +6529,94 @@ Looking forward to planning great activities together!
           removedLowQuality++;
         }
 
-        // Skip AI validation if already marked for removal
-        if (reasons.length === 0) {
-          // Use AI to validate if this is a social gathering venue
-          // Parse Google types from venue data (stored as comma-separated string or array)
-          const googleTypes = venue.tags || [];
-          const validation = await isValidSocialVenue(
-            venue.name,
-            venue.address,
-            Array.isArray(googleTypes) ? googleTypes : []
-          );
-
-          if (!validation.isValid) {
-            reasons.push(`Not a social venue: ${validation.reasoning}`);
-            removedNonVenues++;
-          }
+        // If already marked for removal, skip further validation
+        if (reasons.length > 0) {
+          venuesToRemove.push({ venue, reasons });
+          continue;
         }
 
-        // Archive and delete if any reason to remove
-        if (reasons.length > 0) {
-          // Archive to deleted_venues table before deletion
-          await db.insert(deletedVenues).values({
-            venueData: venue as any, // Store complete venue data as JSONB
-            deletionReason: reasons.join('; '),
-            deletedBy: userId,
-          });
+        // Apply rule-based filtering (FREE, instant)
+        const googleTypes = venue.tags || [];
+        const ruleCheck = isObviouslyInvalidVenue(
+          venue.name,
+          venue.address,
+          Array.isArray(googleTypes) ? googleTypes : []
+        );
 
-          // Delete from curated venues
-          await db.delete(curatedVenues).where(eq(curatedVenues.id, venue.id));
-          
-          console.log(`[Venue Cleanup] ❌ Removed: ${venue.name}`);
-          console.log(`[Venue Cleanup]    Reasons: ${reasons.join('; ')}`);
+        if (ruleCheck?.isInvalid) {
+          reasons.push(`Rule-based filter: ${ruleCheck.reasoning}`);
+          removedByRules++;
+          removedNonVenues++;
+          venuesToRemove.push({ venue, reasons });
+        } else {
+          // Venue passed all cheap filters - needs AI validation
+          venuesNeedingAI.push(venue);
         }
       }
 
-      const totalRemoved = removedNonVenues + removedMissingPhotos + removedLowQuality + removedDuplicates;
+      console.log(`[Venue Cleanup] Rule-based filtering caught ${removedByRules} obvious non-social venues`);
+      console.log(`[Venue Cleanup] ${venuesNeedingAI.length} venues need AI validation`);
+
+      // PHASE 2: Batched AI validation (100 venues per API call)
+      if (venuesNeedingAI.length > 0) {
+        const BATCH_SIZE = 100;
+        const batches = [];
+        for (let i = 0; i < venuesNeedingAI.length; i += BATCH_SIZE) {
+          batches.push(venuesNeedingAI.slice(i, i + BATCH_SIZE));
+        }
+
+        console.log(`[Venue Cleanup] Processing ${batches.length} AI batches (${BATCH_SIZE} venues each)`);
+
+        for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+          const batch = batches[batchIndex];
+          console.log(`[Venue Cleanup] Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} venues)`);
+
+          const batchInput = batch.map(v => ({
+            id: v.id,
+            name: v.name,
+            address: v.address,
+            googleTypes: Array.isArray(v.tags) ? v.tags : []
+          }));
+
+          const validationResults = await validateVenuesBatch(batchInput);
+
+          // Process results
+          for (const venue of batch) {
+            const validation = validationResults.get(venue.id);
+            if (validation && !validation.isValid) {
+              venuesToRemove.push({
+                venue,
+                reasons: [`AI validation: ${validation.reasoning}`]
+              });
+              removedNonVenues++;
+            }
+          }
+        }
+      }
+
+      // PHASE 3: Archive and delete all flagged venues
+      console.log(`[Venue Cleanup] Removing ${venuesToRemove.length} venues...`);
+      for (const { venue, reasons } of venuesToRemove) {
+        // Archive to deleted_venues table before deletion
+        await db.insert(deletedVenues).values({
+          venueData: venue as any,
+          deletionReason: reasons.join('; '),
+          deletedBy: userId,
+        });
+
+        // Delete from curated venues
+        await db.delete(curatedVenues).where(eq(curatedVenues.id, venue.id));
+        
+        console.log(`[Venue Cleanup] ❌ Removed: ${venue.name}`);
+        console.log(`[Venue Cleanup]    Reasons: ${reasons.join('; ')}`);
+      }
+
+      const totalRemoved = venuesToRemove.length;
       const remaining = allVenues.length - totalRemoved;
 
       console.log(`[Venue Cleanup] Complete!`);
-      console.log(`[Venue Cleanup] - Removed ${removedNonVenues} non-social venues (AI validated)`);
+      console.log(`[Venue Cleanup] - Removed ${removedByRules} non-social venues (rule-based, FREE)`);
+      console.log(`[Venue Cleanup] - Removed ${removedNonVenues - removedByRules} non-social venues (AI batched)`);
       console.log(`[Venue Cleanup] - Removed ${removedMissingPhotos} venues without photos`);
       console.log(`[Venue Cleanup] - Removed ${removedLowQuality} low-quality venues`);
       console.log(`[Venue Cleanup] - Removed ${removedDuplicates} duplicates`);
@@ -6570,11 +6624,13 @@ Looking forward to planning great activities together!
 
       res.json({
         success: true,
-        message: `Cleaned up ${totalRemoved} invalid venues using AI validation`,
+        message: `Cleaned up ${totalRemoved} invalid venues (${removedByRules} by rules, ${removedNonVenues - removedByRules} by AI batching)`,
         stats: {
           total: allVenues.length,
           removed: {
             nonVenues: removedNonVenues,
+            ruleBasedFiltering: removedByRules,
+            aiBatchValidation: removedNonVenues - removedByRules,
             missingPhotos: removedMissingPhotos,
             lowQuality: removedLowQuality,
             duplicates: removedDuplicates,

@@ -1122,6 +1122,161 @@ Return your response as a JSON object with these fields.`;
   }
 }
 
+// Rule-based filter for obvious non-social venues (NO API CALLS)
+export function isObviouslyInvalidVenue(
+  venueName: string,
+  address: string,
+  googleTypes: string[]
+): { isInvalid: boolean; reasoning: string } | null {
+  const nameLower = venueName.toLowerCase();
+  const addressLower = address.toLowerCase();
+  const typesStr = googleTypes.join(' ').toLowerCase();
+
+  // Medical professionals (credentials in name)
+  if (/\b(m\.d\.|o\.d\.|d\.d\.s\.|d\.o\.|pharm\.d\.|d\.c\.|dds|optometrist|dentist|chiropractor)\b/i.test(venueName)) {
+    return { isInvalid: true, reasoning: 'Medical professional (credentials in name)' };
+  }
+
+  // Medical/healthcare facilities
+  if (nameLower.includes('clinic') || nameLower.includes('medical') || 
+      nameLower.includes('hospital') || nameLower.includes('urgent care') ||
+      nameLower.includes('med spa') || nameLower.includes('medspa') ||
+      typesStr.includes('doctor') || typesStr.includes('health')) {
+    return { isInvalid: true, reasoning: 'Medical/healthcare facility' };
+  }
+
+  // Grocery stores and supermarkets
+  if (nameLower.includes('supermarket') || nameLower.includes('grocery') ||
+      nameLower.includes('safeway') || nameLower.includes('whole foods market') ||
+      nameLower.includes('trader joe') || nameLower.includes('nijiya market') ||
+      typesStr.includes('supermarket') || typesStr.includes('grocery')) {
+    return { isInvalid: true, reasoning: 'Grocery store/supermarket' };
+  }
+
+  // Liquor stores (retail, not bars)
+  if ((nameLower.includes('bevmo') || nameLower.includes('liquor store')) &&
+      typesStr.includes('liquor_store')) {
+    return { isInvalid: true, reasoning: 'Liquor store (retail, not social venue)' };
+  }
+
+  // Service businesses
+  if (nameLower.includes('realtor') || nameLower.includes('real estate') ||
+      nameLower.includes('insurance') || nameLower.includes('attorney') ||
+      nameLower.includes('lawyer') || nameLower.includes('repair') ||
+      nameLower.includes('mortgage')) {
+    return { isInvalid: true, reasoning: 'Professional service business' };
+  }
+
+  // Pet stores
+  if ((nameLower.includes('pet store') || nameLower.includes('aquarium inc')) &&
+      typesStr.includes('pet_store')) {
+    return { isInvalid: true, reasoning: 'Pet store (retail)' };
+  }
+
+  // Catering/takeout only (no dine-in)
+  if (nameLower.includes('catering') && nameLower.includes('takeout') &&
+      !nameLower.includes('restaurant') && !nameLower.includes('cafe')) {
+    return { isInvalid: true, reasoning: 'Catering/takeout only (no dine-in space)' };
+  }
+
+  // Wholesalers and food stores (not restaurants)
+  if (typesStr.includes('wholesaler') || typesStr.includes('food_store')) {
+    return { isInvalid: true, reasoning: 'Wholesale/food store (not a restaurant/cafe)' };
+  }
+
+  // Infrastructure
+  if (nameLower.includes('restroom') || nameLower.includes('parking') ||
+      nameLower.includes('charging station') || nameLower.includes('chargepoint')) {
+    return { isInvalid: true, reasoning: 'Infrastructure/utility facility' };
+  }
+
+  return null; // Not obviously invalid - needs AI validation
+}
+
+// Batched AI validation (100 venues per API call)
+export async function validateVenuesBatch(
+  venues: Array<{ id: string; name: string; address: string; googleTypes: string[] }>
+): Promise<Map<string, { isValid: boolean; reasoning: string }>> {
+  const results = new Map<string, { isValid: boolean; reasoning: string }>();
+  
+  try {
+    const systemPrompt = `You are evaluating venues in bulk to determine if they're suitable for friends to gather for social activities.
+
+A venue is VALID if it's a place where people can reasonably:
+- Meet up with friends
+- Hang out together
+- Have a social experience
+- Share an activity or meal
+
+A venue is INVALID if it's:
+- A service business (realtors, repair services)
+- A utility facility (restrooms, parking lots)
+- A professional service (dentists, lawyers)
+- A pure retail store (grocery, liquor store, unless experience-based)
+- Infrastructure (transit, airports)
+- Medical facilities
+
+You MUST respond with a JSON array where each object has:
+{
+  "id": "venue_id",
+  "isValid": true/false,
+  "reasoning": "Brief explanation"
+}`;
+
+    const venueList = venues.map(v => 
+      `ID: ${v.id}\nName: ${v.name}\nAddress: ${v.address}\nTypes: ${v.googleTypes.join(', ')}`
+    ).join('\n\n');
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        {
+          role: "user",
+          content: `Evaluate these ${venues.length} venues and return a JSON array of results:\n\n${venueList}`
+        }
+      ],
+      response_format: { type: "json_object" },
+      max_completion_tokens: 3000,
+    });
+
+    const result = JSON.parse(response.choices[0].message.content || '{}');
+    const validations = result.venues || result.results || [];
+    
+    // Map results by ID
+    for (const validation of validations) {
+      if (validation.id && typeof validation.isValid === 'boolean') {
+        results.set(validation.id, {
+          isValid: validation.isValid,
+          reasoning: validation.reasoning || 'No reasoning provided'
+        });
+      }
+    }
+
+    // Fill in missing results (default to invalid for safety)
+    for (const venue of venues) {
+      if (!results.has(venue.id)) {
+        results.set(venue.id, {
+          isValid: false,
+          reasoning: 'No AI response - defaulting to invalid for safety'
+        });
+      }
+    }
+
+    return results;
+  } catch (error) {
+    console.error("Error in batched venue validation:", error);
+    // On error, mark all as invalid for safety
+    for (const venue of venues) {
+      results.set(venue.id, {
+        isValid: false,
+        reasoning: 'Batch validation error - treating as invalid for safety'
+      });
+    }
+    return results;
+  }
+}
+
 // Validate if a venue is suitable for social gatherings using AI
 export async function isValidSocialVenue(
   venueName: string,
