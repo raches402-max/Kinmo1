@@ -2683,6 +2683,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         noveltyPreference: group.noveltyPreference,
         pastPreferences: group.pastPreferences,
         additionalInstructions: combinedInstructions || group.additionalInstructions,
+        activityCategories: group.activityCategories,
+        searchRadius: group.searchRadius,
+        latitude: group.latitude,
+        longitude: group.longitude,
+        rejectedVenues: group.rejectedVenues,
+        meal_enabled: group.meal_enabled,
+        cafe_enabled: group.cafe_enabled,
+        drinks_enabled: group.drinks_enabled,
+        dessert_enabled: group.dessert_enabled,
+        experiences_enabled: group.experiences_enabled,
       });
 
       res.json({ success: true, message: "Activity generation restarted" });
@@ -7606,40 +7616,126 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
               return null;
             }
             
-            // Apply the same quality/budget filters to API results
-            const apiQualityFiltered = apiPlaces.filter(place => {
+            // First, filter out obviously wrong venue types using Google place types (more reliable than name matching)
+            const blockedPlaceTypes = [
+              // Professional services
+              'accounting', 'lawyer', 'insurance_agency', 'real_estate_agency',
+              // Medical/health
+              'dentist', 'doctor', 'hospital', 'pharmacy', 'physiotherapist',
+              // Financial
+              'atm', 'bank',
+              // Personal care (non-social)
+              'hair_care', 'beauty_salon', 'spa',
+              // Auto/repair
+              'car_dealer', 'car_rental', 'car_repair', 'car_wash', 'gas_station',
+              // Storage/logistics
+              'storage', 'moving_company', 'parking',
+              // Government/civic
+              'city_hall', 'courthouse', 'embassy', 'fire_station', 'police', 'post_office',
+              // Religious (unless specifically requested)
+              'church', 'hindu_temple', 'mosque', 'synagogue',
+              // Education (unless specifically requested)
+              'school', 'university', 'library',
+              // Lodging (not social venues)
+              'campground', 'rv_park',
+              // Other non-social
+              'funeral_home', 'cemetery', 'veterinary_care', 'pet_store',
+              'hardware_store', 'home_goods_store', 'electronics_store'
+            ];
+            
+            const relevantPlaces = apiPlaces.filter(place => {
+              const types = (place.types || []).map(t => t.toLowerCase());
+              
+              // Check if any of the place's types are blocked
+              const hasBlockedType = types.some(type => blockedPlaceTypes.includes(type));
+              
+              if (hasBlockedType) {
+                console.log(`[Relevance Filter] ❌ REJECTED "${place.name}" - has blocked type: ${types.join(', ')}`);
+                return false;
+              }
+              
+              // Also check name for obvious recruiting/staffing keywords (word boundaries only)
+              const nameLower = place.name.toLowerCase();
+              const strictBlockedWords = ['recruiting', 'staffing', 'employment agency'];
+              const hasBlockedWord = strictBlockedWords.some(word => {
+                const regex = new RegExp(`\\b${word}\\b`, 'i');
+                return regex.test(nameLower);
+              });
+              
+              if (hasBlockedWord) {
+                console.log(`[Relevance Filter] ❌ REJECTED "${place.name}" - name contains blocked word (recruiting/staffing)`);
+                return false;
+              }
+              
+              return true;
+            });
+            console.log(`[API Fallback] After relevance filter: ${relevantPlaces.length}/${apiPlaces.length} places passed`);
+            
+            // Apply quality filters (RELAXED thresholds for better results)
+            console.log(`[API Fallback] Applying quality filter (searchRadius: ${searchRadius})`);
+            const apiQualityFiltered = relevantPlaces.filter(place => {
               const rating = parseFloat(place.rating || '0');
               const reviewCount = place.reviewCount || 0;
               
+              let passed = false;
+              let minRating = 0;
+              let minReviews = 0;
+              
+              // RELAXED thresholds - focus on rating quality over review count
               if (searchRadius <= 2) {
-                return rating >= 3.5 && reviewCount >= 20;
+                minRating = 3.5;
+                minReviews = 10; // Reduced from 20
+                passed = rating >= minRating && reviewCount >= minReviews;
               } else if (searchRadius <= 10) {
-                return rating >= 3.8 && reviewCount >= 50;
+                minRating = 3.7; // Reduced from 3.8
+                minReviews = 25; // Reduced from 50
+                passed = rating >= minRating && reviewCount >= minReviews;
               } else if (searchRadius <= 30) {
-                return rating >= 4.0 && reviewCount >= 100;
+                minRating = 3.9; // Reduced from 4.0
+                minReviews = 50; // Reduced from 100
+                passed = rating >= minRating && reviewCount >= minReviews;
               } else {
-                return rating >= 4.2 && reviewCount >= 150;
+                minRating = 4.0; // Reduced from 4.2
+                minReviews = 75; // Reduced from 150
+                passed = rating >= minRating && reviewCount >= minReviews;
               }
+              
+              if (!passed) {
+                console.log(`[Quality Filter] ❌ REJECTED "${place.name}" - rating: ${rating} (min: ${minRating}), reviews: ${reviewCount} (min: ${minReviews})`);
+              }
+              
+              return passed;
             });
+            console.log(`[API Fallback] After quality filter: ${apiQualityFiltered.length}/${relevantPlaces.length} places passed`);
             
             const apiBudgetFiltered = apiQualityFiltered.filter(place => {
               const priceLevel = parseInt(place.priceLevel || '0');
               const budgetMax = groupData.budgetMax;
               
+              let maxPrice = 4;
               if (budgetMax < 50) {
-                return priceLevel <= 1;
+                maxPrice = 1;
               } else if (budgetMax < 100) {
-                return priceLevel <= 2;
+                maxPrice = 2;
               } else if (budgetMax < 200) {
-                return priceLevel <= 3;
+                maxPrice = 3;
               } else {
-                return priceLevel <= 4;
+                maxPrice = 4;
               }
+              
+              const passed = priceLevel <= maxPrice;
+              if (!passed) {
+                console.log(`[Budget Filter] ❌ REJECTED "${place.name}" - price level: ${priceLevel} (max: ${maxPrice}, budget: $${budgetMax})`);
+              }
+              
+              return passed;
             });
+            console.log(`[API Fallback] After budget filter: ${apiBudgetFiltered.length}/${apiQualityFiltered.length} places passed`);
             
             // Apply drinks filter to API results too
             let apiDrinksFiltered = apiBudgetFiltered;
             if (detectedCategory === 'drinks') {
+              console.log(`[API Fallback] Applying drinks filter to ${apiBudgetFiltered.length} places`);
               const restaurantTypes = ['restaurant', 'food', 'meal_takeaway', 'meal_delivery', 'sushi_restaurant'];
               const barTypes = ['bar', 'night_club', 'liquor_store'];
               
@@ -7655,10 +7751,12 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
                 const hasBothBarAndRestaurant = hasBarType && hasRestaurantType;
                 
                 if (hasBothBarAndRestaurant || hasRestaurantType) {
+                  console.log(`[Drinks Filter] ❌ REJECTED "${place.name}" - has restaurant type (types: ${types.join(', ')})`);
                   return false;
                 }
                 return true;
               });
+              console.log(`[API Fallback] After drinks filter: ${apiDrinksFiltered.length}/${apiBudgetFiltered.length} places passed`);
             }
             
             if (apiDrinksFiltered.length === 0) {
