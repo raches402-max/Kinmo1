@@ -112,7 +112,7 @@ function ScrapedComparisonTab() {
 
   const uploadMutation = useMutation({
     mutationFn: async (venues: any[]) => {
-      return apiRequest("/api/admin/scraped-venues/upload", "POST", { venues });
+      return apiRequest("POST", "/api/admin/scraped-venues/upload", { venues });
     },
     onSuccess: (data: any) => {
       toast({
@@ -133,7 +133,7 @@ function ScrapedComparisonTab() {
 
   const clearMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest("/api/admin/scraped-venues/clear", "DELETE");
+      return apiRequest("DELETE", "/api/admin/scraped-venues/clear");
     },
     onSuccess: () => {
       toast({
