@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from "recharts";
-import { Users, Calendar, TrendingUp, MapPin, Repeat, ArrowLeft, DollarSign, Database, Download, RefreshCw, FileText, BarChart3 } from "lucide-react";
+import { Users, Calendar, TrendingUp, MapPin, Repeat, ArrowLeft, DollarSign, Database, Download, RefreshCw, FileText, BarChart3, Upload, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -91,6 +91,245 @@ interface FilteredVenue {
   photoUrl: string | null;
   googlePlaceId: string | null;
   source: string;
+}
+
+interface ScrapedComparison {
+  totalScraped: number;
+  alreadyInDb: number;
+  newVenues: number;
+  matchedVenues: Array<{ scrapedName: string; dbName: string; googlePlaceId: string; source: string }>;
+  newVenuesList: Array<{ name: string; address: string; category?: string; rating?: number; googlePlaceId?: string }>;
+}
+
+function ScrapedComparisonTab() {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadedCount, setUploadedCount] = useState<number | null>(null);
+  const { toast } = useToast();
+
+  const { data: comparison, isLoading, refetch } = useQuery<ScrapedComparison>({
+    queryKey: ["/api/admin/scraped-venues/comparison"],
+  });
+
+  const uploadMutation = useMutation({
+    mutationFn: async (venues: any[]) => {
+      return apiRequest("/api/admin/scraped-venues/upload", "POST", { venues });
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "Upload successful",
+        description: `Uploaded ${data.count} venues for comparison`,
+      });
+      setUploadedCount(data.count);
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/scraped-venues/comparison"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Upload failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const clearMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("/api/admin/scraped-venues/clear", "DELETE");
+    },
+    onSuccess: () => {
+      toast({
+        title: "Cleared",
+        description: "All scraped venues cleared",
+      });
+      setUploadedCount(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/scraped-venues/comparison"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Clear failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const venues = JSON.parse(text);
+      
+      if (!Array.isArray(venues)) {
+        throw new Error("File must contain a JSON array of venues");
+      }
+
+      uploadMutation.mutate(venues);
+    } catch (error: any) {
+      toast({
+        title: "File read error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const matchPercent = comparison 
+    ? ((comparison.alreadyInDb / comparison.totalScraped) * 100).toFixed(1)
+    : "0";
+
+  return (
+    <div className="space-y-6">
+      <div className="flex gap-4">
+        <Input
+          ref={fileInputRef}
+          type="file"
+          accept=".json"
+          onChange={handleFileUpload}
+          className="max-w-md"
+          data-testid="input-upload-json"
+        />
+        <Button
+          variant="outline"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploadMutation.isPending}
+          data-testid="button-upload"
+        >
+          <Upload className="h-4 w-4 mr-2" />
+          {uploadMutation.isPending ? "Uploading..." : "Upload JSON"}
+        </Button>
+        {uploadedCount !== null && (
+          <Button
+            variant="destructive"
+            onClick={() => clearMutation.mutate()}
+            disabled={clearMutation.isPending}
+            data-testid="button-clear"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Clear
+          </Button>
+        )}
+      </div>
+
+      {isLoading && <p className="text-muted-foreground">Loading comparison...</p>}
+
+      {comparison && comparison.totalScraped > 0 && (
+        <div className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Total Scraped</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{comparison.totalScraped}</div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Already in DB</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{comparison.alreadyInDb}</div>
+                <p className="text-xs text-muted-foreground">{matchPercent}% match rate</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">New Venues</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{comparison.newVenues}</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {comparison.matchedVenues.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Matched Venues ({comparison.matchedVenues.length})</CardTitle>
+                <CardDescription>Venues already in database</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Scraped Name</TableHead>
+                      <TableHead>DB Name</TableHead>
+                      <TableHead>Google Place ID</TableHead>
+                      <TableHead>Source</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {comparison.matchedVenues.slice(0, 50).map((match, idx) => (
+                      <TableRow key={idx}>
+                        <TableCell className="font-medium">{match.scrapedName}</TableCell>
+                        <TableCell>{match.dbName}</TableCell>
+                        <TableCell className="font-mono text-xs">{match.googlePlaceId}</TableCell>
+                        <TableCell>
+                          <Badge variant={match.source === 'api_auto' ? 'default' : 'secondary'}>
+                            {match.source}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                {comparison.matchedVenues.length > 50 && (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Showing first 50 of {comparison.matchedVenues.length} matches
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {comparison.newVenuesList.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>New Venues ({comparison.newVenuesList.length})</CardTitle>
+                <CardDescription>Venues not found in database</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Address</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Rating</TableHead>
+                      <TableHead>Google Place ID</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {comparison.newVenuesList.slice(0, 50).map((venue, idx) => (
+                      <TableRow key={idx}>
+                        <TableCell className="font-medium">{venue.name}</TableCell>
+                        <TableCell className="text-sm">{venue.address}</TableCell>
+                        <TableCell>{venue.category || 'N/A'}</TableCell>
+                        <TableCell>{venue.rating?.toFixed(1) || 'N/A'}</TableCell>
+                        <TableCell className="font-mono text-xs">{venue.googlePlaceId || 'N/A'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                {comparison.newVenuesList.length > 50 && (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Showing first 50 of {comparison.newVenuesList.length} new venues
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function Admin() {
@@ -371,6 +610,10 @@ export default function Admin() {
           <TabsTrigger value="api-logs" data-testid="tab-api-logs">
             <FileText className="h-4 w-4 mr-2" />
             API Logs
+          </TabsTrigger>
+          <TabsTrigger value="scraped-comparison" data-testid="tab-scraped-comparison">
+            <Database className="h-4 w-4 mr-2" />
+            Scraped Comparison
           </TabsTrigger>
           <TabsTrigger value="maintenance" data-testid="tab-maintenance">
             <RefreshCw className="h-4 w-4 mr-2" />
@@ -1344,6 +1587,20 @@ export default function Admin() {
                   </p>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="scraped-comparison" className="space-y-6">
+          <Card data-testid="card-scraped-comparison">
+            <CardHeader>
+              <CardTitle>Scraped Venues Comparison</CardTitle>
+              <CardDescription>
+                Upload scraped venue data to compare with existing database venues
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <ScrapedComparisonTab />
             </CardContent>
           </Card>
         </TabsContent>
