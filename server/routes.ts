@@ -7300,11 +7300,11 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
 
       // Only ENABLED categories must have at least 3 cards
       const enabledCategories = [];
-      if (groupData.mealEnabled ?? true) enabledCategories.push('meal');
-      if (groupData.cafeEnabled ?? true) enabledCategories.push('cafes');
-      if (groupData.drinksEnabled ?? true) enabledCategories.push('drinks');
-      if (groupData.dessertEnabled ?? true) enabledCategories.push('dessert');
-      if (groupData.experiencesEnabled ?? true) enabledCategories.push('experiences');
+      if (groupData.meal_enabled ?? true) enabledCategories.push('meal');
+      if (groupData.cafe_enabled ?? true) enabledCategories.push('cafes');
+      if (groupData.drinks_enabled ?? true) enabledCategories.push('drinks');
+      if (groupData.dessert_enabled ?? true) enabledCategories.push('dessert');
+      if (groupData.experiences_enabled ?? true) enabledCategories.push('experiences');
 
       console.log(`[AI Generation] Checking balance for enabled categories: ${enabledCategories.join(', ')}`);
       console.log(`[AI Generation] Current counts:`, categoryCounts);
@@ -7355,11 +7355,11 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
           targetCategories: targetCategories, // Pass underrepresented categories on retry
           memberConstraints: memberConstraints.length > 0 ? memberConstraints : undefined, // Pass member RSVP constraints
           rejectedVenues: rejectedVenues, // Pass rejected venues blacklist
-          mealEnabled: groupData.mealEnabled ?? true,
-          cafeEnabled: groupData.cafeEnabled ?? true,
-          drinksEnabled: groupData.drinksEnabled ?? true,
-          dessertEnabled: groupData.dessertEnabled ?? true,
-          experiencesEnabled: groupData.experiencesEnabled ?? true,
+          mealEnabled: groupData.meal_enabled ?? true,
+          cafeEnabled: groupData.cafe_enabled ?? true,
+          drinksEnabled: groupData.drinks_enabled ?? true,
+          dessertEnabled: groupData.dessert_enabled ?? true,
+          experiencesEnabled: groupData.experiences_enabled ?? true,
         }),
         new Promise<never>((_, reject) => 
           setTimeout(() => reject(new Error('AI generation timed out after 180 seconds')), 180000)
@@ -7372,7 +7372,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
 
       // Filter out rejected venues AND disabled categories BEFORE calling Google Places
       // (Duplicate checking happens after Google Places returns actual venue names)
-      console.log(`[Category Filter] Group settings: meal=${groupData.mealEnabled}, cafe=${groupData.cafeEnabled}, drinks=${groupData.drinksEnabled}, dessert=${groupData.dessertEnabled}, exp=${groupData.experiencesEnabled}`);
+      console.log(`[Category Filter] Group settings: meal=${groupData.meal_enabled}, cafe=${groupData.cafe_enabled}, drinks=${groupData.drinks_enabled}, dessert=${groupData.dessert_enabled}, exp=${groupData.experiences_enabled}`);
       
       const filteredSuggestions = suggestions.filter(s => {
         const normalized = s.venueName.trim().toLowerCase();
@@ -7390,11 +7390,11 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
         
         // Check if this category is disabled
         const categoryEnabled = 
-          (detectedCategory === 'meal' && (groupData.mealEnabled ?? true)) ||
-          (detectedCategory === 'cafes' && (groupData.cafeEnabled ?? true)) ||
-          (detectedCategory === 'drinks' && (groupData.drinksEnabled ?? true)) ||
-          (detectedCategory === 'dessert' && (groupData.dessertEnabled ?? true)) ||
-          (detectedCategory === 'experiences' && (groupData.experiencesEnabled ?? true));
+          (detectedCategory === 'meal' && (groupData.meal_enabled ?? true)) ||
+          (detectedCategory === 'cafes' && (groupData.cafe_enabled ?? true)) ||
+          (detectedCategory === 'drinks' && (groupData.drinks_enabled ?? true)) ||
+          (detectedCategory === 'dessert' && (groupData.dessert_enabled ?? true)) ||
+          (detectedCategory === 'experiences' && (groupData.experiences_enabled ?? true));
         
         console.log(`[Category Filter] "${s.venueName}" → category="${detectedCategory}", enabled=${categoryEnabled}`);
         
@@ -7743,11 +7743,11 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       const categoryFilteredActivities = validActivities.filter((activity: any) => {
         const category = activity.category;
         const categoryEnabled = 
-          (category === 'meal' && (groupData.mealEnabled ?? true)) ||
-          (category === 'cafes' && (groupData.cafeEnabled ?? true)) ||
-          (category === 'drinks' && (groupData.drinksEnabled ?? true)) ||
-          (category === 'dessert' && (groupData.dessertEnabled ?? true)) ||
-          (category === 'experiences' && (groupData.experiencesEnabled ?? true));
+          (category === 'meal' && (groupData.meal_enabled ?? true)) ||
+          (category === 'cafes' && (groupData.cafe_enabled ?? true)) ||
+          (category === 'drinks' && (groupData.drinks_enabled ?? true)) ||
+          (category === 'dessert' && (groupData.dessert_enabled ?? true)) ||
+          (category === 'experiences' && (groupData.experiences_enabled ?? true));
         
         if (!categoryEnabled) {
           console.log(`[Post-AI Filter] ❌ REMOVING: ${activity.venueName} - AI categorized as "${category}" which is disabled`);
@@ -7820,11 +7820,11 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
 
         // Identify underrepresented ENABLED categories (less than 3)
         const enabledCategoriesForRetry = [];
-        if (groupData.mealEnabled ?? true) enabledCategoriesForRetry.push('meal');
-        if (groupData.cafeEnabled ?? true) enabledCategoriesForRetry.push('cafes');
-        if (groupData.drinksEnabled ?? true) enabledCategoriesForRetry.push('drinks');
-        if (groupData.dessertEnabled ?? true) enabledCategoriesForRetry.push('dessert');
-        if (groupData.experiencesEnabled ?? true) enabledCategoriesForRetry.push('experiences');
+        if (groupData.meal_enabled ?? true) enabledCategoriesForRetry.push('meal');
+        if (groupData.cafe_enabled ?? true) enabledCategoriesForRetry.push('cafes');
+        if (groupData.drinks_enabled ?? true) enabledCategoriesForRetry.push('drinks');
+        if (groupData.dessert_enabled ?? true) enabledCategoriesForRetry.push('dessert');
+        if (groupData.experiences_enabled ?? true) enabledCategoriesForRetry.push('experiences');
 
         const underrepresentedCategories = enabledCategoriesForRetry
           .filter(category => categoryCounts[category] < 3);
