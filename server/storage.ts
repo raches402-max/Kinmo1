@@ -1,7 +1,7 @@
 // Reference: javascript_database blueprint
 // Reference: javascript_log_in_with_replit blueprint
 import {
-  users, groups, members, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, itineraryInvites, reminderLogs, autoScheduledEvents, frequencyFeedback, userProfiles, proposedTimeSlots, timeSlotVotes, groupCollections, categorySearchHistory, hostAssignments, groupBackups, databaseBackups,
+  users, groups, members, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, itineraryInvites, reminderLogs, autoScheduledEvents, frequencyFeedback, userProfiles, proposedTimeSlots, timeSlotVotes, groupCollections, categorySearchHistory, hostAssignments, groupBackups, databaseBackups, scrapedVenuesImport, curatedVenues,
   type User, type UpsertUser,
   type Group, type InsertGroup, type UpdateGroup,
   type Member, type InsertMember, type UpdateMember,
@@ -185,6 +185,17 @@ export interface IStorage {
     topCities: Array<{ city: string; eventCount: number }>;
     eventsPerWeek: Array<{ week: string; count: number }>;
     newVsReturning: { newAttendees: number; returningAttendees: number };
+  }>;
+
+  // Scraped Venues Import
+  clearScrapedImport(): Promise<void>;
+  insertScrapedVenues(venues: Array<{ name: string; address: string; categoryName?: string; totalScore?: number; reviewsCount?: number; googlePlaceId?: string; rawData?: any }>): Promise<void>;
+  getScrapedVenuesComparison(): Promise<{
+    totalScraped: number;
+    alreadyInDb: number;
+    newVenues: number;
+    matchedVenues: Array<{ scrapedName: string; dbName: string; googlePlaceId: string; source: string }>;
+    newVenuesList: Array<{ name: string; address: string; category?: string; rating?: number; googlePlaceId?: string }>;
   }>;
 }
 
@@ -2002,6 +2013,75 @@ export class DatabaseStorage implements IStorage {
       );
       console.log(`[BACKUP] Pruned ${toDelete.length} old backups, keeping ${keepCount} most recent`);
     }
+  }
+
+  async clearScrapedImport(): Promise<void> {
+    await db.delete(scrapedVenuesImport);
+    console.log('[Scraped Import] Cleared all scraped venues');
+  }
+
+  async insertScrapedVenues(venues: Array<{ name: string; address: string; categoryName?: string; totalScore?: number; reviewsCount?: number; googlePlaceId?: string; rawData?: any }>): Promise<void> {
+    const inserts = venues.map(v => ({
+      name: v.name,
+      address: v.address,
+      categoryName: v.categoryName || null,
+      totalScore: v.totalScore?.toString() || null,
+      reviewsCount: v.reviewsCount || null,
+      googlePlaceId: v.googlePlaceId || null,
+      rawData: v.rawData || null
+    }));
+
+    await db.insert(scrapedVenuesImport).values(inserts);
+    console.log(`[Scraped Import] Inserted ${inserts.length} scraped venues`);
+  }
+
+  async getScrapedVenuesComparison(): Promise<{
+    totalScraped: number;
+    alreadyInDb: number;
+    newVenues: number;
+    matchedVenues: Array<{ scrapedName: string; dbName: string; googlePlaceId: string; source: string }>;
+    newVenuesList: Array<{ name: string; address: string; category?: string; rating?: number; googlePlaceId?: string }>;
+  }> {
+    const scraped = await db.select().from(scrapedVenuesImport);
+    const curatedAll = await db.select().from(curatedVenues);
+
+    const curatedByPlaceId = new Map();
+    curatedAll.forEach(v => {
+      if (v.googlePlaceId) {
+        curatedByPlaceId.set(v.googlePlaceId, v);
+      }
+    });
+
+    const matched: Array<{ scrapedName: string; dbName: string; googlePlaceId: string; source: string }> = [];
+    const newVenuesList: Array<{ name: string; address: string; category?: string; rating?: number; googlePlaceId?: string }> = [];
+
+    scraped.forEach(s => {
+      if (s.googlePlaceId && curatedByPlaceId.has(s.googlePlaceId)) {
+        const dbVenue = curatedByPlaceId.get(s.googlePlaceId);
+        matched.push({
+          scrapedName: s.name,
+          dbName: dbVenue.name,
+          googlePlaceId: s.googlePlaceId,
+          source: dbVenue.source
+        });
+      } else {
+        newVenuesList.push({
+          name: s.name,
+          address: s.address,
+          category: s.categoryName || undefined,
+          rating: s.totalScore ? parseFloat(s.totalScore) : undefined,
+          googlePlaceId: s.googlePlaceId || undefined
+        });
+      }
+    });
+
+    return {
+      totalScraped: scraped.length,
+      alreadyInDb: matched.length,
+      newVenues: newVenuesList.length,
+      matchedVenues: matched,
+      newVenuesList
+    };
   }
 }
 
