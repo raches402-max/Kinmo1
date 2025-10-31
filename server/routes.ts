@@ -7577,10 +7577,127 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
               complementaryPlaceRating2: null,
             };
           } else {
-            // If we reach here, finalPlaces is empty due to quality/budget filtering
-            // This is NOT a fake venue - it's a real venue that doesn't meet our criteria
-            console.log(`[AI Generation] Skipping ${suggestion.venueName} - failed quality/budget filters (not a fake venue)`);
-            return null;
+            // If we reach here, finalPlaces is empty due to quality/budget/drinks filtering on curated venues
+            // Fall back to Google Places API directly to get fresh results
+            console.log(`[API Fallback] All curated venues filtered out for "${suggestion.venueName}" - calling Google Places API`);
+            
+            const apiPlaces = await searchPlaces(
+              suggestion.searchQuery, 
+              groupData.locationBase, 
+              groupData.searchRadius || 2,
+              coordinates,
+              true // skipCurated = true (force fresh API call)
+            );
+            
+            // If API also returns no results, this is likely a fake venue
+            if (apiPlaces.length === 0) {
+              console.log(`[API Fallback] Google Places API returned no results for "${suggestion.venueName}" - likely fake venue`);
+              await storage.addRejectedVenue(groupId, suggestion.venueName);
+              return null;
+            }
+            
+            // Apply the same quality/budget filters to API results
+            const apiQualityFiltered = apiPlaces.filter(place => {
+              const rating = parseFloat(place.rating || '0');
+              const reviewCount = place.reviewCount || 0;
+              
+              if (searchRadius <= 2) {
+                return rating >= 3.5 && reviewCount >= 20;
+              } else if (searchRadius <= 10) {
+                return rating >= 3.8 && reviewCount >= 50;
+              } else if (searchRadius <= 30) {
+                return rating >= 4.0 && reviewCount >= 100;
+              } else {
+                return rating >= 4.2 && reviewCount >= 150;
+              }
+            });
+            
+            const apiBudgetFiltered = apiQualityFiltered.filter(place => {
+              const priceLevel = parseInt(place.priceLevel || '0');
+              const budgetMax = groupData.budgetMax;
+              
+              if (budgetMax < 50) {
+                return priceLevel <= 1;
+              } else if (budgetMax < 100) {
+                return priceLevel <= 2;
+              } else if (budgetMax < 200) {
+                return priceLevel <= 3;
+              } else {
+                return priceLevel <= 4;
+              }
+            });
+            
+            // Apply drinks filter to API results too
+            let apiDrinksFiltered = apiBudgetFiltered;
+            if (detectedCategory === 'drinks') {
+              const restaurantTypes = ['restaurant', 'food', 'meal_takeaway', 'meal_delivery', 'sushi_restaurant'];
+              const barTypes = ['bar', 'night_club', 'liquor_store'];
+              
+              apiDrinksFiltered = apiBudgetFiltered.filter(place => {
+                const types = place.types || [];
+                const typesLower = types.map(t => t.toLowerCase());
+                
+                const hasRestaurantType = types.some(type => 
+                  restaurantTypes.includes(type) || type.toLowerCase().includes('restaurant')
+                );
+                
+                const hasBarType = typesLower.some(t => barTypes.includes(t) || t.includes('bar'));
+                const hasBothBarAndRestaurant = hasBarType && hasRestaurantType;
+                
+                if (hasBothBarAndRestaurant || hasRestaurantType) {
+                  return false;
+                }
+                return true;
+              });
+            }
+            
+            if (apiDrinksFiltered.length === 0) {
+              console.log(`[API Fallback] All API results also filtered out for "${suggestion.venueName}" - no suitable venues found`);
+              return null;
+            }
+            
+            // Use the first result from API (they're already sorted by relevance)
+            const apiPlace = apiDrinksFiltered[0];
+            console.log(`[API Fallback] ✅ Using "${apiPlace.name}" from Google Places API for suggestion "${suggestion.venueName}"`);
+            
+            // CRITICAL: Only include venues with verified Google Places data
+            if (!apiPlace.rating || !apiPlace.address || !apiPlace.photoUrl) {
+              console.log(`[API Fallback] Rejecting ${apiPlace.name} - missing critical data (rating: ${apiPlace.rating}, address: ${!!apiPlace.address}, photo: ${!!apiPlace.photoUrl})`);
+              return null;
+            }
+            
+            return {
+              groupId,
+              aiSuggestedName: suggestion.venueName,
+              venueName: apiPlace.name,
+              venueAddress: apiPlace.address,
+              venueType: suggestion.venueType,
+              description: suggestion.description,
+              googlePlaceId: apiPlace.placeId,
+              latitude: apiPlace.location?.lat?.toString() || null,
+              longitude: apiPlace.location?.lng?.toString() || null,
+              rating: apiPlace.rating,
+              reviewCount: apiPlace.reviewCount || null,
+              priceLevel: apiPlace.priceLevel,
+              photoUrl: apiPlace.photoUrl,
+              googleReview: apiPlace.review || null,
+              aiReasoning: suggestion.reasoning,
+              suggestedDate: null,
+              suggestedTime: null,
+              priceEstimate: suggestion.priceEstimate || null,
+              timeConstraints: suggestion.timeConstraints || null,
+              timeCategory: categorizeByTime(suggestion.venueType),
+              complementaryPlaceName: null,
+              complementaryPlaceAddress: null,
+              complementaryPlaceId: null,
+              complementaryPlacePhotoUrl: null,
+              complementaryPlaceRating: null,
+              complementaryPlaceName2: null,
+              complementaryPlaceAddress2: null,
+              complementaryPlaceId2: null,
+              complementaryPlacePhotoUrl2: null,
+              complementaryPlaceRating2: null,
+            };
           }
           })
         );

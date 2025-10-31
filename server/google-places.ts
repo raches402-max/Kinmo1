@@ -802,54 +802,57 @@ export async function searchPlaces(
   // Create cache key from search parameters
   const cacheKey = `${query}|${location}|${radiusMiles}|${coordinates?.lat}|${coordinates?.lng}`;
   
-  // Check session cache (fastest for repeated searches)
-  if (sessionCache.searchResults.has(cacheKey)) {
-    sessionCache.stats.searchHits++;
-    console.log(`[Session Cache] HIT - searchPlaces for "${query}"`);
-    const cached = sessionCache.searchResults.get(cacheKey)!;
-    
-    // Merge with curated results if any
-    if (curatedResults.length > 0) {
-      const curatedPlaceIds = new Set(curatedResults.map(r => r.placeId));
-      const uniqueCached = cached.filter(r => !curatedPlaceIds.has(r.placeId));
-      const combined = [...curatedResults, ...uniqueCached].slice(0, 20);
-      console.log(`[Cache-First] Combined ${curatedResults.length} curated + ${uniqueCached.length} cached = ${combined.length} total`);
-      return combined.map(result => clonePlaceResult(result));
-    }
-    
-    // Return deep copy to prevent mutation
-    return cached.map(result => clonePlaceResult(result));
-  }
-
-  // Check database cache (persistent, 24-hour TTL)
-  const dbCachedResults = await getSearchResultsFromDB(query, location, radiusMiles);
-  if (dbCachedResults && dbCachedResults.length > 0) {
-    console.log(`[DB Cache] HIT - full search results for "${query}" (${dbCachedResults.length} cached results)`);
-    
-    // Parse cached results as PlaceResult array
-    const results: PlaceResult[] = dbCachedResults.map((cachedId: any) => {
-      if (typeof cachedId === 'string') {
-        return null;
-      }
-      return cachedId as PlaceResult;
-    }).filter((r): r is PlaceResult => r !== null);
-    
-    if (results.length > 0) {
-      // Merge with curated results
+  // Skip ALL caching when skipCurated is true (force fresh API call)
+  if (!skipCurated) {
+    // Check session cache (fastest for repeated searches)
+    if (sessionCache.searchResults.has(cacheKey)) {
+      sessionCache.stats.searchHits++;
+      console.log(`[Session Cache] HIT - searchPlaces for "${query}"`);
+      const cached = sessionCache.searchResults.get(cacheKey)!;
+      
+      // Merge with curated results if any
       if (curatedResults.length > 0) {
         const curatedPlaceIds = new Set(curatedResults.map(r => r.placeId));
-        const uniqueDb = results.filter(r => !curatedPlaceIds.has(r.placeId));
-        const combined = [...curatedResults, ...uniqueDb].slice(0, 20);
-        sessionCache.searchResults.set(cacheKey, combined.map(r => clonePlaceResult(r)));
-        console.log(`[Cache-First] Combined ${curatedResults.length} curated + ${uniqueDb.length} DB = ${combined.length} total`);
+        const uniqueCached = cached.filter(r => !curatedPlaceIds.has(r.placeId));
+        const combined = [...curatedResults, ...uniqueCached].slice(0, 20);
+        console.log(`[Cache-First] Combined ${curatedResults.length} curated + ${uniqueCached.length} cached = ${combined.length} total`);
         return combined.map(result => clonePlaceResult(result));
       }
       
-      // Cache in session for immediate reuse
-      sessionCache.searchResults.set(cacheKey, results.map(r => clonePlaceResult(r)));
-      sessionCache.stats.searchHits++;
+      // Return deep copy to prevent mutation
+      return cached.map(result => clonePlaceResult(result));
+    }
+
+    // Check database cache (persistent, 24-hour TTL)
+    const dbCachedResults = await getSearchResultsFromDB(query, location, radiusMiles);
+    if (dbCachedResults && dbCachedResults.length > 0) {
+      console.log(`[DB Cache] HIT - full search results for "${query}" (${dbCachedResults.length} cached results)`);
       
-      return results.map(result => clonePlaceResult(result));
+      // Parse cached results as PlaceResult array
+      const results: PlaceResult[] = dbCachedResults.map((cachedId: any) => {
+        if (typeof cachedId === 'string') {
+          return null;
+        }
+        return cachedId as PlaceResult;
+      }).filter((r): r is PlaceResult => r !== null);
+      
+      if (results.length > 0) {
+        // Merge with curated results
+        if (curatedResults.length > 0) {
+          const curatedPlaceIds = new Set(curatedResults.map(r => r.placeId));
+          const uniqueDb = results.filter(r => !curatedPlaceIds.has(r.placeId));
+          const combined = [...curatedResults, ...uniqueDb].slice(0, 20);
+          sessionCache.searchResults.set(cacheKey, combined.map(r => clonePlaceResult(r)));
+          console.log(`[Cache-First] Combined ${curatedResults.length} curated + ${uniqueDb.length} DB = ${combined.length} total`);
+          return combined.map(result => clonePlaceResult(result));
+        }
+        
+        // Cache in session for immediate reuse
+        sessionCache.searchResults.set(cacheKey, results.map(r => clonePlaceResult(r)));
+        sessionCache.stats.searchHits++;
+        
+        return results.map(result => clonePlaceResult(result));
+      }
     }
   }
 
