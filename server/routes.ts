@@ -7881,11 +7881,11 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       const categoryFilteredActivities = validActivities.filter((activity: any) => {
         const category = activity.category;
         const categoryEnabled = 
-          (category === 'meal' && (groupData.meal_enabled ?? true)) ||
-          (category === 'cafes' && (groupData.cafe_enabled ?? true)) ||
-          (category === 'drinks' && (groupData.drinks_enabled ?? true)) ||
-          (category === 'dessert' && (groupData.dessert_enabled ?? true)) ||
-          (category === 'experiences' && (groupData.experiences_enabled ?? true));
+          (category === 'meal' && (groupData.mealEnabled ?? true)) ||
+          (category === 'cafes' && (groupData.cafeEnabled ?? true)) ||
+          (category === 'drinks' && (groupData.drinksEnabled ?? true)) ||
+          (category === 'dessert' && (groupData.dessertEnabled ?? true)) ||
+          (category === 'experiences' && (groupData.experiencesEnabled ?? true));
         
         if (!categoryEnabled) {
           console.log(`[Post-AI Filter] ❌ REMOVING: ${activity.venueName} - AI categorized as "${category}" which is disabled`);
@@ -7958,11 +7958,11 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
 
         // Identify underrepresented ENABLED categories (less than 3)
         const enabledCategoriesForRetry = [];
-        if (groupData.meal_enabled ?? true) enabledCategoriesForRetry.push('meal');
-        if (groupData.cafe_enabled ?? true) enabledCategoriesForRetry.push('cafes');
-        if (groupData.drinks_enabled ?? true) enabledCategoriesForRetry.push('drinks');
-        if (groupData.dessert_enabled ?? true) enabledCategoriesForRetry.push('dessert');
-        if (groupData.experiences_enabled ?? true) enabledCategoriesForRetry.push('experiences');
+        if (groupData.mealEnabled ?? true) enabledCategoriesForRetry.push('meal');
+        if (groupData.cafeEnabled ?? true) enabledCategoriesForRetry.push('cafes');
+        if (groupData.drinksEnabled ?? true) enabledCategoriesForRetry.push('drinks');
+        if (groupData.dessertEnabled ?? true) enabledCategoriesForRetry.push('dessert');
+        if (groupData.experiencesEnabled ?? true) enabledCategoriesForRetry.push('experiences');
 
         const underrepresentedCategories = enabledCategoriesForRetry
           .filter(category => categoryCounts[category] < 3);
