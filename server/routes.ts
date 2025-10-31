@@ -1074,91 +1074,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 2. { meal_enabled: true, cafe_enabled: false } (direct field updates)
       const updates: any = {};
       
+      // Map snake_case API field names to camelCase database column names
+      const fieldMapping: Record<string, string> = {
+        'meal_enabled': 'mealEnabled',
+        'cafe_enabled': 'cafeEnabled',
+        'drinks_enabled': 'drinksEnabled',
+        'dessert_enabled': 'dessertEnabled',
+        'experiences_enabled': 'experiencesEnabled',
+        'autoActivitiesEnabled': 'autoActivitiesEnabled',
+        'autoItineraryEnabled': 'autoItineraryEnabled',
+        'autoScheduleEnabled': 'autoScheduleEnabled',
+      };
+      
       // Pattern 1: Single field/value pair (from mutation)
       if (req.body.field && req.body.value !== undefined) {
-        const field = req.body.field;
+        const apiField = req.body.field;
         const value = req.body.value;
         
         if (typeof value !== 'boolean') {
-          return res.status(400).json({ message: `${field} must be a boolean` });
+          return res.status(400).json({ message: `${apiField} must be a boolean` });
         }
         
-        const allowedFields = [
-          'autoActivitiesEnabled',
-          'autoItineraryEnabled', 
-          'autoScheduleEnabled',
-          'meal_enabled',
-          'cafe_enabled',
-          'drinks_enabled',
-          'dessert_enabled',
-          'experiences_enabled'
-        ];
-        
-        if (!allowedFields.includes(field)) {
-          return res.status(400).json({ message: `Invalid field: ${field}` });
+        const dbField = fieldMapping[apiField];
+        if (!dbField) {
+          return res.status(400).json({ message: `Invalid field: ${apiField}` });
         }
         
-        updates[field] = value;
+        updates[dbField] = value;
       } else {
-        // Pattern 2: Direct field updates
-        const { 
-          autoActivitiesEnabled, 
-          autoItineraryEnabled, 
-          autoScheduleEnabled,
-          meal_enabled,
-          cafe_enabled,
-          drinks_enabled,
-          dessert_enabled,
-          experiences_enabled
-        } = req.body;
-        
-        if (autoActivitiesEnabled !== undefined) {
-          if (typeof autoActivitiesEnabled !== 'boolean') {
-            return res.status(400).json({ message: "autoActivitiesEnabled must be a boolean" });
+        // Pattern 2: Direct field updates (accepts both snake_case and camelCase)
+        for (const apiField in req.body) {
+          const value = req.body[apiField];
+          const dbField = fieldMapping[apiField];
+          
+          if (dbField) {
+            if (typeof value !== 'boolean') {
+              return res.status(400).json({ message: `${apiField} must be a boolean` });
+            }
+            updates[dbField] = value;
           }
-          updates.autoActivitiesEnabled = autoActivitiesEnabled;
-        }
-        if (autoItineraryEnabled !== undefined) {
-          if (typeof autoItineraryEnabled !== 'boolean') {
-            return res.status(400).json({ message: "autoItineraryEnabled must be a boolean" });
-          }
-          updates.autoItineraryEnabled = autoItineraryEnabled;
-        }
-        if (autoScheduleEnabled !== undefined) {
-          if (typeof autoScheduleEnabled !== 'boolean') {
-            return res.status(400).json({ message: "autoScheduleEnabled must be a boolean" });
-          }
-          updates.autoScheduleEnabled = autoScheduleEnabled;
-        }
-        if (meal_enabled !== undefined) {
-          if (typeof meal_enabled !== 'boolean') {
-            return res.status(400).json({ message: "meal_enabled must be a boolean" });
-          }
-          updates.meal_enabled = meal_enabled;
-        }
-        if (cafe_enabled !== undefined) {
-          if (typeof cafe_enabled !== 'boolean') {
-            return res.status(400).json({ message: "cafe_enabled must be a boolean" });
-          }
-          updates.cafe_enabled = cafe_enabled;
-        }
-        if (drinks_enabled !== undefined) {
-          if (typeof drinks_enabled !== 'boolean') {
-            return res.status(400).json({ message: "drinks_enabled must be a boolean" });
-          }
-          updates.drinks_enabled = drinks_enabled;
-        }
-        if (dessert_enabled !== undefined) {
-          if (typeof dessert_enabled !== 'boolean') {
-            return res.status(400).json({ message: "dessert_enabled must be a boolean" });
-          }
-          updates.dessert_enabled = dessert_enabled;
-        }
-        if (experiences_enabled !== undefined) {
-          if (typeof experiences_enabled !== 'boolean') {
-            return res.status(400).json({ message: "experiences_enabled must be a boolean" });
-          }
-          updates.experiences_enabled = experiences_enabled;
         }
       }
 
@@ -2758,11 +2712,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         latitude: group.latitude,
         longitude: group.longitude,
         rejectedVenues: group.rejectedVenues,
-        meal_enabled: group.meal_enabled,
-        cafe_enabled: group.cafe_enabled,
-        drinks_enabled: group.drinks_enabled,
-        dessert_enabled: group.dessert_enabled,
-        experiences_enabled: group.experiences_enabled,
+        mealEnabled: group.mealEnabled,
+        cafeEnabled: group.cafeEnabled,
+        drinksEnabled: group.drinksEnabled,
+        dessertEnabled: group.dessertEnabled,
+        experiencesEnabled: group.experiencesEnabled,
       });
 
       res.json({ success: true, message: "Activity generation restarted" });
@@ -7380,11 +7334,11 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
 
       // Only ENABLED categories must have at least 3 cards
       const enabledCategories = [];
-      if (groupData.meal_enabled ?? true) enabledCategories.push('meal');
-      if (groupData.cafe_enabled ?? true) enabledCategories.push('cafes');
-      if (groupData.drinks_enabled ?? true) enabledCategories.push('drinks');
-      if (groupData.dessert_enabled ?? true) enabledCategories.push('dessert');
-      if (groupData.experiences_enabled ?? true) enabledCategories.push('experiences');
+      if (groupData.mealEnabled ?? true) enabledCategories.push('meal');
+      if (groupData.cafeEnabled ?? true) enabledCategories.push('cafes');
+      if (groupData.drinksEnabled ?? true) enabledCategories.push('drinks');
+      if (groupData.dessertEnabled ?? true) enabledCategories.push('dessert');
+      if (groupData.experiencesEnabled ?? true) enabledCategories.push('experiences');
 
       console.log(`[AI Generation] Checking balance for enabled categories: ${enabledCategories.join(', ')}`);
       console.log(`[AI Generation] Current counts:`, categoryCounts);
@@ -7435,11 +7389,11 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
           targetCategories: targetCategories, // Pass underrepresented categories on retry
           memberConstraints: memberConstraints.length > 0 ? memberConstraints : undefined, // Pass member RSVP constraints
           rejectedVenues: rejectedVenues, // Pass rejected venues blacklist
-          mealEnabled: groupData.meal_enabled ?? true,
-          cafeEnabled: groupData.cafe_enabled ?? true,
-          drinksEnabled: groupData.drinks_enabled ?? true,
-          dessertEnabled: groupData.dessert_enabled ?? true,
-          experiencesEnabled: groupData.experiences_enabled ?? true,
+          mealEnabled: groupData.mealEnabled ?? true,
+          cafeEnabled: groupData.cafeEnabled ?? true,
+          drinksEnabled: groupData.drinksEnabled ?? true,
+          dessertEnabled: groupData.dessertEnabled ?? true,
+          experiencesEnabled: groupData.experiencesEnabled ?? true,
         }),
         new Promise<never>((_, reject) => 
           setTimeout(() => reject(new Error('AI generation timed out after 180 seconds')), 180000)
