@@ -2028,7 +2028,21 @@ export class DatabaseStorage implements IStorage {
 
     const inserts = venues.map((v, idx) => {
       const name = v.name || v.venueName || v.title || v.businessName || `Venue ${idx + 1}`;
-      const address = v.address || v.venueAddress || v.location || 'Unknown address';
+      
+      // Build address from separate fields or use single field
+      let address = v.address || v.venueAddress || v.location;
+      if (!address && (v.street || v.city || v.state)) {
+        const parts = [v.street, v.city, v.state].filter(Boolean);
+        address = parts.join(', ');
+      }
+      if (!address) address = 'Unknown address';
+      
+      // Extract Google Place ID from URL if not directly available
+      let googlePlaceId = v.googlePlaceId || v.placeId || v.place_id;
+      if (!googlePlaceId && v.url) {
+        const match = v.url.match(/query_place_id=([^&]+)/);
+        if (match) googlePlaceId = match[1];
+      }
       
       return {
         name,
@@ -2036,7 +2050,7 @@ export class DatabaseStorage implements IStorage {
         categoryName: v.category || v.categoryName || null,
         totalScore: (v.rating || v.totalScore)?.toString() || null,
         reviewsCount: v.reviewCount || v.reviewsCount || null,
-        googlePlaceId: v.googlePlaceId || v.placeId || v.place_id || null,
+        googlePlaceId: googlePlaceId || null,
         rawData: v
       };
     });
