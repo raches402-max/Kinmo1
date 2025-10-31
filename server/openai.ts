@@ -486,33 +486,67 @@ Return JSON with this structure:
       return result.suggestions;
     }
 
-    // Optimized prompt - condensed from 400+ lines to ~150 while keeping all data & filters
-    const distributionNote = disabledBuckets.length > 0 
-      ? `Generate ${suggestionsPerCategory} suggestions per enabled category (${distributionText} = 15 total).`
-      : `Generate 15 diverse suggestions (3 per category: MEAL, CAFE, DRINKS, DESSERT, EXPERIENCES).`;
+    // Extract city name from locationBase for strict geographic filtering
+    const cityMatch = groupData.locationBase.match(/^([^,]+)/);
+    const cityName = cityMatch ? cityMatch[1].trim() : groupData.locationBase;
     
-    const prompt = `Generate 15 activity suggestions for a group:
+    // Build location enforcement based on search radius
+    const locationEnforcement = searchRadius <= 2 
+      ? `🚨 CRITICAL LOCATION RULE: ALL venues MUST be located in ${cityName} ONLY. DO NOT suggest venues from neighboring cities (e.g., San Mateo, Oakland, Berkeley, Palo Alto, etc.). Stay within ${cityName} city limits.`
+      : searchRadius <= 10
+      ? `LOCATION: Venues should be within ${cityName} and immediate metro area (< 10 miles).`
+      : `LOCATION: Venues within ${radiusTier} of ${cityName}.`;
 
-${distributionNote}
+    // Build exact distribution requirements with hard math
+    const enabledCategoryNames = enabledBuckets.map(cat => {
+      const nameMap: Record<string, string> = {
+        'MEAL': 'MEAL',
+        'CAFE': 'CAFE', 
+        'DRINKS': 'DRINKS',
+        'DESSERT': 'DESSERT',
+        'EXPERIENCES': 'EXPERIENCES'
+      };
+      return nameMap[cat] || cat;
+    });
+    
+    const exactDistribution = disabledBuckets.length > 0 
+      ? `EXACT DISTRIBUTION REQUIRED:\n${enabledCategoryNames.map(cat => `- ${cat}: EXACTLY ${suggestionsPerCategory} suggestions`).join('\n')}\nTOTAL: ${suggestionsPerCategory} × ${enabledBuckets.length} = ${suggestionCount} suggestions`
+      : `EXACT DISTRIBUTION REQUIRED:\n- MEAL: EXACTLY 3\n- CAFE: EXACTLY 3\n- DRINKS: EXACTLY 3\n- DESSERT: EXACTLY 3\n- EXPERIENCES: EXACTLY 3\nTOTAL: 15 suggestions`;
+    
+    // Build disabled categories warning
+    const disabledWarning = disabledBuckets.length > 0 
+      ? `\n\n🚨 DISABLED CATEGORIES (DO NOT SUGGEST):\n${disabledBuckets.map(cat => `- ${cat}: FORBIDDEN - Any suggestion from this category will be REJECTED`).join('\n')}\n\nIf you suggest ANY venue from disabled categories (${disabledBuckets.join(', ')}), those suggestions will be immediately deleted.`
+      : '';
+    
+    const prompt = `Generate ${suggestionCount} activity suggestions for a group.
 
-Location: ${groupData.locationBase} (${radiusTier})
-Budget: $${groupData.budgetMin}-${groupData.budgetMax}/person
-Availability: ${availabilityText}
+${exactDistribution}
+${locationEnforcement}${disabledWarning}
+
+Group Details:
+- Location: ${groupData.locationBase} (${radiusTier})
+- Budget: $${groupData.budgetMin}-${groupData.budgetMax}/person
+- Availability: ${availabilityText}
 ${groupData.additionalInstructions ? `\n🚨 USER INSTRUCTIONS: ${groupData.additionalInstructions}` : `${categoriesContext}
 ${groupData.pastPreferences ? `Past: ${groupData.pastPreferences}` : ''}${feedbackContext}${votingContext}${swipeContext}`}${constraintsContext}${avoidVenuesContext}${rejectedVenuesContext}${targetCategoriesContext}${categoryFilterContext}
 
-${groupData.additionalInstructions ? `🚨 FOLLOW USER INSTRUCTIONS ONLY - ignore other context. If they specify venue type (Boba/Sushi), generate ALL 15 of that type.` : `Use preferences/feedback to guide suggestions. ${familiarCount > 0 ? `${familiarCount} familiar + ${newCount} NEW (mark "NEW:" in reasoning).` : ''}`}
+${groupData.additionalInstructions ? `🚨 FOLLOW USER INSTRUCTIONS ONLY - ignore other context. If they specify venue type (Boba/Sushi), generate ALL ${suggestionCount} of that type.` : `Use preferences/feedback to guide suggestions. ${familiarCount > 0 ? `${familiarCount} familiar + ${newCount} NEW (mark "NEW:" in reasoning).` : ''}`}
 
-KEY RULES:
-1. NO airports unless explicitly requested
-2. 3 suggestions per enabled category: ${enabledBuckets.join(', ')}
+CRITICAL RULES:
+1. ${locationEnforcement}
+2. ${exactDistribution.replace('EXACT DISTRIBUTION REQUIRED:\n', '')}
 3. BE SPECIFIC: "sushi restaurant" NOT "Asian food"; "cocktail bar" NOT "bar"
-4. Avoid duplicates${groupData.previouslySuggestedVenues && groupData.previouslySuggestedVenues.length > 0 ? ` (already suggested: ${groupData.previouslySuggestedVenues.slice(0, 10).join(', ')}${groupData.previouslySuggestedVenues.length > 10 ? '...' : ''})` : ''}${groupData.rejectedVenues && groupData.rejectedVenues.length > 0 ? `; NEVER suggest: ${groupData.rejectedVenues.join(', ')}` : ''}
-5. Match availability window: ${availabilityText}
-6. Description: 1-4 words, nouns only (e.g. "Korean BBQ", "Cocktails")
-7. Reasoning: 2-5 words (e.g. "Familiar sushi preference", "NEW: Filipino cuisine")
-8. venueType: Specific type (e.g., "cocktail bar", "sushi restaurant", "ice cream shop")
-9. For events: add priceEstimate + timeConstraints matching availability
+4. NO duplicates${groupData.previouslySuggestedVenues && groupData.previouslySuggestedVenues.length > 0 ? ` (already: ${groupData.previouslySuggestedVenues.slice(0, 8).join(', ')}${groupData.previouslySuggestedVenues.length > 8 ? '...' : ''})` : ''}${groupData.rejectedVenues && groupData.rejectedVenues.length > 0 ? `; BANNED: ${groupData.rejectedVenues.join(', ')}` : ''}
+5. Match availability: ${availabilityText}
+6. Description: 1-4 words (e.g. "Korean BBQ", "Cocktails")
+7. Reasoning: 2-5 words (e.g. "Popular sushi", "NEW: Filipino")
+8. venueType: Specific (e.g. "cocktail bar", "sushi restaurant", "ice cream shop")
+
+BEFORE RESPONDING - VERIFY:
+✓ Suggestion count = ${suggestionCount}?
+✓ ${enabledCategoryNames.map((cat, i) => `${cat} count = ${suggestionsPerCategory}`).join('? ✓ ')}?
+✓ All venues in ${cityName} (${radiusTier})?
+✓ No disabled categories (${disabledBuckets.join(', ') || 'none'})?
 
 Return JSON with EXACTLY 15 suggestions:
 {
