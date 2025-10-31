@@ -775,20 +775,28 @@ export async function searchPlaces(
   query: string,
   location: string,
   radiusMiles: number = 2,
-  coordinates?: { lat: number; lng: number }
+  coordinates?: { lat: number; lng: number },
+  skipCurated: boolean = false
 ): Promise<PlaceResult[]> {
   // CACHE-FIRST STRATEGY: Check curated venues FIRST (10-50ms for SF searches)
-  const curatedResults = await searchCuratedVenues(query, location, radiusMiles, coordinates, 15);
+  // Skip curated search if explicitly requested (e.g., when curated filtering failed)
+  let curatedResults: PlaceResult[] = [];
   
-  if (curatedResults.length >= 15) {
-    // We have enough curated venues, return immediately (skip API call)
-    console.log(`[Cache-First] Returning ${curatedResults.length} curated venues (NO API CALL NEEDED)`);
-    return curatedResults;
-  }
-  
-  // If we have some curated results but not enough, we'll merge them with API results later
-  if (curatedResults.length > 0) {
-    console.log(`[Cache-First] Found ${curatedResults.length} curated venues, will supplement with API results`);
+  if (!skipCurated) {
+    curatedResults = await searchCuratedVenues(query, location, radiusMiles, coordinates, 15);
+    
+    if (curatedResults.length >= 15) {
+      // We have enough curated venues, return immediately (skip API call)
+      console.log(`[Cache-First] Returning ${curatedResults.length} curated venues (NO API CALL NEEDED)`);
+      return curatedResults;
+    }
+    
+    // If we have some curated results but not enough, we'll merge them with API results later
+    if (curatedResults.length > 0) {
+      console.log(`[Cache-First] Found ${curatedResults.length} curated venues, will supplement with API results`);
+    }
+  } else {
+    console.log(`[API Fallback] Skipping curated search, going directly to Google Places API for "${query}"`);
   }
   
   // Create cache key from search parameters
