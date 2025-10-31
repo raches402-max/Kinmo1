@@ -28,7 +28,10 @@ AI suggestion preferences:
 - **User Profile System**: Dedicated `/profile` page for authenticated users to manage personal information.
 
 ### Feature Specifications
-- **AI Suggestion Generation**: GPT-4o generates diverse venue suggestions, optimized for prompt length and Google Places API calls. Includes category filtering, on-demand generation, and a "Multi-venue outing" toggle. AI prompts explicitly request "SPECIFIC REAL VENUE NAME" to improve precision.
+- **AI Suggestion Generation**: GPT-4o generates diverse venue suggestions, optimized for prompt length and Google Places API calls. Includes category filtering (5 buckets: MEAL, CAFE, DRINKS, DESSERT, EXPERIENCES), on-demand generation, and a "Multi-venue outing" toggle. AI prompts explicitly request "SPECIFIC REAL VENUE NAME" to improve precision.
+  - **Category Filter Architecture**: Database stores category toggles as camelCase (`mealEnabled`, `cafeEnabled`, etc.). Frontend sends snake_case API requests (`meal_enabled`), which are mapped to camelCase before database updates. Generation code reads camelCase properties from database objects.
+  - **Hybrid Cache Matching Strategy**: (1) Fast path: Fuzzy name matching at 60% similarity threshold. (2) Fallback: Type-based matching returns highest-rated cached venue of same category when name doesn't match. (3) Google API call only if no cached venues of that type exist.
+  - **Budget Filter NaN Handling**: Venues with missing price data (NaN) are allowed for budgets ≥ $100 (treated as price level 0), rejected for budgets < $100 (treated as price level 999).
 - **Event Management**: Group owners can delete events with proper authorization.
 - **Google Reviews Integration**: Fetches and summarizes Google reviews for activity cards.
 - **Tinder-Style Swipe Feed**: Allows users to refine preferences by swiping on AI-generated activity concepts.
