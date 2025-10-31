@@ -6676,6 +6676,132 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Admin endpoint to get venue analytics (region x category breakdown)
+  app.get("/api/admin/venue-analytics", isAuthenticated, async (req: any, res) => {
+    try {
+      // Check if user is admin
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      const adminEmails = ['raches402@gmail.com'];
+      if (!user || !adminEmails.includes(user.email || '')) {
+        return res.status(403).json({ message: "Unauthorized: Admin access required" });
+      }
+
+      // Get all active curated venues
+      const allVenues = await db
+        .select()
+        .from(curatedVenues)
+        .where(eq(curatedVenues.isActive, true));
+
+      // Aggregate by region and category
+      const analytics: Record<string, Record<string, number>> = {};
+      const regions = new Set<string>();
+      const categories = new Set<string>();
+      
+      let totalRating = 0;
+      let totalReviewCount = 0;
+      let venuesWithRatings = 0;
+
+      for (const venue of allVenues) {
+        const region = venue.region || 'unknown';
+        const category = venue.category || 'unknown';
+        
+        regions.add(region);
+        categories.add(category);
+
+        if (!analytics[region]) {
+          analytics[region] = {};
+        }
+        analytics[region][category] = (analytics[region][category] || 0) + 1;
+
+        // Aggregate quality metrics
+        if (venue.rating) {
+          totalRating += parseFloat(venue.rating);
+          venuesWithRatings++;
+        }
+        if (venue.reviewCount) {
+          totalReviewCount += venue.reviewCount;
+        }
+      }
+
+      // Calculate averages
+      const avgRating = venuesWithRatings > 0 ? totalRating / venuesWithRatings : 0;
+      const avgReviews = allVenues.length > 0 ? totalReviewCount / allVenues.length : 0;
+
+      res.json({
+        success: true,
+        summary: {
+          totalVenues: allVenues.length,
+          totalRegions: regions.size,
+          totalCategories: categories.size,
+          avgRating: Math.round(avgRating * 10) / 10,
+          avgReviewCount: Math.round(avgReviews),
+        },
+        breakdown: analytics,
+        regions: Array.from(regions).sort(),
+        categories: Array.from(categories).sort(),
+      });
+    } catch (error: any) {
+      console.error("Error fetching venue analytics:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Admin endpoint to get filtered venues by region and category
+  app.get("/api/admin/venues-by-filter", isAuthenticated, async (req: any, res) => {
+    try {
+      // Check if user is admin
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      const adminEmails = ['raches402@gmail.com'];
+      if (!user || !adminEmails.includes(user.email || '')) {
+        return res.status(403).json({ message: "Unauthorized: Admin access required" });
+      }
+
+      const { region, category } = req.query;
+
+      if (!region || !category) {
+        return res.status(400).json({ message: "Missing region or category parameter" });
+      }
+
+      // Get filtered venues
+      const venues = await db
+        .select()
+        .from(curatedVenues)
+        .where(
+          and(
+            eq(curatedVenues.region, region as string),
+            eq(curatedVenues.category, category as string),
+            eq(curatedVenues.isActive, true)
+          )
+        )
+        .orderBy(desc(curatedVenues.rating));
+
+      res.json({
+        success: true,
+        region,
+        category,
+        count: venues.length,
+        venues: venues.map(v => ({
+          id: v.id,
+          name: v.name,
+          address: v.address,
+          rating: v.rating,
+          reviewCount: v.reviewCount,
+          priceLevel: v.priceLevel,
+          photoUrl: v.photoUrl,
+          googlePlaceId: v.googlePlaceId,
+          source: v.source,
+        })),
+      });
+    } catch (error: any) {
+      console.error("Error fetching filtered venues:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Admin endpoint to get API call logs with filtering
   app.get("/api/admin/api-logs", isAuthenticated, async (req: any, res) => {
     try {

@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from "recharts";
-import { Users, Calendar, TrendingUp, MapPin, Repeat, ArrowLeft, DollarSign, Database, Download, RefreshCw, FileText } from "lucide-react";
+import { Users, Calendar, TrendingUp, MapPin, Repeat, ArrowLeft, DollarSign, Database, Download, RefreshCw, FileText, BarChart3 } from "lucide-react";
 import { format } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -68,6 +68,31 @@ interface ApiCosts {
   };
 }
 
+interface VenueAnalytics {
+  summary: {
+    totalVenues: number;
+    totalRegions: number;
+    totalCategories: number;
+    avgRating: number;
+    avgReviewCount: number;
+  };
+  breakdown: Record<string, Record<string, number>>;
+  regions: string[];
+  categories: string[];
+}
+
+interface FilteredVenue {
+  id: string;
+  name: string;
+  address: string;
+  rating: string | null;
+  reviewCount: number | null;
+  priceLevel: number | null;
+  photoUrl: string | null;
+  googlePlaceId: string | null;
+  source: string;
+}
+
 export default function Admin() {
   const [selectedPeriod, setSelectedPeriod] = useState<string>("total");
   const [apiLogsService, setApiLogsService] = useState<string>("");
@@ -75,6 +100,7 @@ export default function Admin() {
   const [apiLogsCacheStatus, setApiLogsCacheStatus] = useState<string>("");
   const [apiLogsStatus, setApiLogsStatus] = useState<string>("");
   const [includeTestData, setIncludeTestData] = useState<boolean>(false);
+  const [drillDownModal, setDrillDownModal] = useState<{ region: string; category: string } | null>(null);
   const { toast } = useToast();
 
   const { data: stats, isLoading, error } = useQuery<AdminStats>({
@@ -132,6 +158,32 @@ export default function Admin() {
       if (!response.ok) throw new Error('Failed to fetch deleted venues');
       return response.json();
     },
+  });
+
+  const { data: analytics, isLoading: analyticsLoading } = useQuery<VenueAnalytics>({
+    queryKey: ["/api/admin/venue-analytics"],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/venue-analytics');
+      if (!response.ok) throw new Error('Failed to fetch venue analytics');
+      return response.json();
+    },
+  });
+
+  const { data: filteredVenues, isLoading: filteredVenuesLoading } = useQuery<{
+    success: boolean;
+    region: string;
+    category: string;
+    count: number;
+    venues: FilteredVenue[];
+  }>({
+    queryKey: ["/api/admin/venues-by-filter", drillDownModal],
+    queryFn: async () => {
+      if (!drillDownModal) return null;
+      const response = await fetch(`/api/admin/venues-by-filter?region=${drillDownModal.region}&category=${drillDownModal.category}`);
+      if (!response.ok) throw new Error('Failed to fetch filtered venues');
+      return response.json();
+    },
+    enabled: !!drillDownModal,
   });
 
   const cachePhotosMutation = useMutation({
@@ -312,6 +364,10 @@ export default function Admin() {
       <Tabs defaultValue="overview" className="space-y-6">
         <TabsList>
           <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
+          <TabsTrigger value="analytics" data-testid="tab-analytics">
+            <BarChart3 className="h-4 w-4 mr-2" />
+            Analytics
+          </TabsTrigger>
           <TabsTrigger value="api-logs" data-testid="tab-api-logs">
             <FileText className="h-4 w-4 mr-2" />
             API Logs
@@ -768,6 +824,218 @@ export default function Admin() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="analytics" className="space-y-6">
+          {analyticsLoading ? (
+            <div className="flex items-center justify-center h-96">
+              <div className="text-muted-foreground">Loading venue analytics...</div>
+            </div>
+          ) : analytics ? (
+            <>
+              {/* Summary Cards */}
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Venues</CardTitle>
+                    <Database className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{analytics.summary.totalVenues.toLocaleString()}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Across {analytics.summary.totalRegions} regions
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Avg Rating</CardTitle>
+                    <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{analytics.summary.avgRating}★</div>
+                    <p className="text-xs text-muted-foreground">
+                      Overall quality
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Avg Reviews</CardTitle>
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{analytics.summary.avgReviewCount}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Per venue
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Categories</CardTitle>
+                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{analytics.summary.totalCategories}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Activity types
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Pivot Table */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Region × Category Breakdown</CardTitle>
+                  <CardDescription>
+                    Click any cell to see detailed venue list. Red cells indicate sparse coverage (&lt;10 venues).
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="font-bold">Region</TableHead>
+                          {analytics.categories.map((category) => (
+                            <TableHead key={category} className="text-center font-bold capitalize">
+                              {category}
+                            </TableHead>
+                          ))}
+                          <TableHead className="text-center font-bold">Total</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {analytics.regions.map((region) => {
+                          const regionData = analytics.breakdown[region] || {};
+                          const regionTotal = Object.values(regionData).reduce((sum, count) => sum + count, 0);
+                          
+                          return (
+                            <TableRow key={region}>
+                              <TableCell className="font-medium capitalize">{region.replace(/_/g, ' ')}</TableCell>
+                              {analytics.categories.map((category) => {
+                                const count = regionData[category] || 0;
+                                const isSparse = count > 0 && count < 10;
+                                
+                                return (
+                                  <TableCell key={category} className="text-center">
+                                    {count > 0 ? (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className={`w-full ${isSparse ? 'text-destructive hover:text-destructive' : ''}`}
+                                        onClick={() => setDrillDownModal({ region, category })}
+                                        data-testid={`cell-${region}-${category}`}
+                                      >
+                                        {count}
+                                      </Button>
+                                    ) : (
+                                      <span className="text-muted-foreground">-</span>
+                                    )}
+                                  </TableCell>
+                                );
+                              })}
+                              <TableCell className="text-center font-bold">
+                                {regionTotal}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                        <TableRow className="font-bold">
+                          <TableCell>Total</TableCell>
+                          {analytics.categories.map((category) => {
+                            const categoryTotal = analytics.regions.reduce(
+                              (sum, region) => sum + (analytics.breakdown[region]?.[category] || 0),
+                              0
+                            );
+                            return (
+                              <TableCell key={category} className="text-center">
+                                {categoryTotal}
+                              </TableCell>
+                            );
+                          })}
+                          <TableCell className="text-center">
+                            {analytics.summary.totalVenues}
+                          </TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Drill-down Modal */}
+              {drillDownModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setDrillDownModal(null)}>
+                  <div className="bg-background rounded-lg p-6 max-w-4xl w-full max-h-[80vh] overflow-auto m-4" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h2 className="text-2xl font-bold capitalize">
+                          {drillDownModal.region.replace(/_/g, ' ')} - {drillDownModal.category}
+                        </h2>
+                        <p className="text-muted-foreground">
+                          {filteredVenues?.count || 0} venues
+                        </p>
+                      </div>
+                      <Button variant="ghost" size="icon" onClick={() => setDrillDownModal(null)}>
+                        ×
+                      </Button>
+                    </div>
+
+                    {filteredVenuesLoading ? (
+                      <div className="flex items-center justify-center h-64">
+                        <div className="text-muted-foreground">Loading venues...</div>
+                      </div>
+                    ) : filteredVenues && filteredVenues.venues.length > 0 ? (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Name</TableHead>
+                            <TableHead>Address</TableHead>
+                            <TableHead className="text-center">Rating</TableHead>
+                            <TableHead className="text-center">Reviews</TableHead>
+                            <TableHead>Source</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredVenues.venues.map((venue) => (
+                            <TableRow key={venue.id}>
+                              <TableCell className="font-medium">{venue.name}</TableCell>
+                              <TableCell className="text-sm text-muted-foreground">{venue.address}</TableCell>
+                              <TableCell className="text-center">
+                                {venue.rating ? `${venue.rating}★` : '-'}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                {venue.reviewCount || '-'}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={venue.source === 'manual' ? 'default' : 'secondary'}>
+                                  {venue.source}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    ) : (
+                      <div className="text-center text-muted-foreground py-8">
+                        No venues found
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="flex items-center justify-center h-96">
+              <div className="text-muted-foreground">No analytics data available</div>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="api-logs" className="space-y-6">
