@@ -2021,15 +2021,25 @@ export class DatabaseStorage implements IStorage {
   }
 
   async insertScrapedVenues(venues: Array<any>): Promise<void> {
-    const inserts = venues.map(v => ({
-      name: v.name || v.venueName || null,
-      address: v.address || v.venueAddress || null,
-      categoryName: v.category || v.categoryName || null,
-      totalScore: (v.rating || v.totalScore)?.toString() || null,
-      reviewsCount: v.reviewCount || v.reviewsCount || null,
-      googlePlaceId: v.googlePlaceId || v.placeId || null,
-      rawData: v.rawData || v
-    }));
+    // Log first venue to understand structure
+    if (venues.length > 0) {
+      console.log('[Scraped Import] Sample venue structure:', JSON.stringify(venues[0], null, 2));
+    }
+
+    const inserts = venues.map((v, idx) => {
+      const name = v.name || v.venueName || v.title || v.businessName || `Venue ${idx + 1}`;
+      const address = v.address || v.venueAddress || v.location || 'Unknown address';
+      
+      return {
+        name,
+        address,
+        categoryName: v.category || v.categoryName || null,
+        totalScore: (v.rating || v.totalScore)?.toString() || null,
+        reviewsCount: v.reviewCount || v.reviewsCount || null,
+        googlePlaceId: v.googlePlaceId || v.placeId || v.place_id || null,
+        rawData: v
+      };
+    });
 
     await db.insert(scrapedVenuesImport).values(inserts);
     console.log(`[Scraped Import] Inserted ${inserts.length} scraped venues`);
