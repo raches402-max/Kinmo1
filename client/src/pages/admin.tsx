@@ -104,6 +104,8 @@ interface ScrapedComparison {
 function ScrapedComparisonTab() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadedCount, setUploadedCount] = useState<number | null>(null);
+  const [selectedVenues, setSelectedVenues] = useState<Set<number>>(new Set());
+  const [subtab, setSubtab] = useState<"matched" | "new">("matched");
   const { toast } = useToast();
 
   const { data: comparison, isLoading, refetch } = useQuery<ScrapedComparison>({
@@ -141,11 +143,34 @@ function ScrapedComparisonTab() {
         description: "All scraped venues cleared",
       });
       setUploadedCount(null);
+      setSelectedVenues(new Set());
       queryClient.invalidateQueries({ queryKey: ["/api/admin/scraped-venues/comparison"] });
     },
     onError: (error: any) => {
       toast({
         title: "Clear failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const importMutation = useMutation({
+    mutationFn: async (venues: any[]) => {
+      return apiRequest("POST", "/api/admin/scraped-venues/import", { venues });
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "Import successful",
+        description: `Imported ${data.imported} venues to curated cache`,
+      });
+      setSelectedVenues(new Set());
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/scraped-venues/comparison"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/venue-analytics"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Import failed",
         description: error.message,
         variant: "destructive",
       });
@@ -181,6 +206,26 @@ function ScrapedComparisonTab() {
   const matchPercent = comparison 
     ? ((comparison.alreadyInDb / comparison.totalScraped) * 100).toFixed(1)
     : "0";
+
+  const handleToggleVenue = (idx: number) => {
+    const newSelected = new Set(selectedVenues);
+    if (newSelected.has(idx)) {
+      newSelected.delete(idx);
+    } else {
+      newSelected.add(idx);
+    }
+    setSelectedVenues(newSelected);
+  };
+
+  const handleImportSelected = () => {
+    if (!comparison || selectedVenues.size === 0) return;
+    
+    const venuesToImport = Array.from(selectedVenues)
+      .map(idx => comparison.newVenuesList[idx])
+      .filter(Boolean);
+    
+    importMutation.mutate(venuesToImport);
+  };
 
   return (
     <div className="space-y-6">
@@ -249,83 +294,139 @@ function ScrapedComparisonTab() {
             </Card>
           </div>
 
-          {comparison.matchedVenues.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Matched Venues ({comparison.matchedVenues.length})</CardTitle>
-                <CardDescription>Venues already in database</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Scraped Name</TableHead>
-                      <TableHead>DB Name</TableHead>
-                      <TableHead>Google Place ID</TableHead>
-                      <TableHead>Source</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {comparison.matchedVenues.slice(0, 50).map((match, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell className="font-medium">{match.scrapedName}</TableCell>
-                        <TableCell>{match.dbName}</TableCell>
-                        <TableCell className="font-mono text-xs">{match.googlePlaceId}</TableCell>
-                        <TableCell>
-                          <Badge variant={match.source === 'api_auto' ? 'default' : 'secondary'}>
-                            {match.source}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                {comparison.matchedVenues.length > 50 && (
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Showing first 50 of {comparison.matchedVenues.length} matches
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          )}
+          <Tabs value={subtab} onValueChange={(v) => setSubtab(v as "matched" | "new")} data-testid="tabs-scraped-comparison">
+            <div className="flex items-center justify-between mb-4">
+              <TabsList>
+                <TabsTrigger value="matched" data-testid="tab-matched">
+                  Already in DB ({comparison.matchedVenues.length})
+                </TabsTrigger>
+                <TabsTrigger value="new" data-testid="tab-new">
+                  New Venues ({comparison.newVenuesList.length})
+                </TabsTrigger>
+              </TabsList>
+              
+              {subtab === "new" && selectedVenues.size > 0 && (
+                <Button
+                  onClick={handleImportSelected}
+                  disabled={importMutation.isPending}
+                  data-testid="button-import-selected"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Import {selectedVenues.size} Selected
+                </Button>
+              )}
+            </div>
 
-          {comparison.newVenuesList.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>New Venues ({comparison.newVenuesList.length})</CardTitle>
-                <CardDescription>Venues not found in database</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Address</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Rating</TableHead>
-                      <TableHead>Google Place ID</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {comparison.newVenuesList.slice(0, 50).map((venue, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell className="font-medium">{venue.name}</TableCell>
-                        <TableCell className="text-sm">{venue.address}</TableCell>
-                        <TableCell>{venue.category || 'N/A'}</TableCell>
-                        <TableCell>{venue.rating?.toFixed(1) || 'N/A'}</TableCell>
-                        <TableCell className="font-mono text-xs">{venue.googlePlaceId || 'N/A'}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                {comparison.newVenuesList.length > 50 && (
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Showing first 50 of {comparison.newVenuesList.length} new venues
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          )}
+            <TabsContent value="matched">
+              {comparison.matchedVenues.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Matched Venues</CardTitle>
+                    <CardDescription>Venues already in database</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="max-h-[600px] overflow-y-auto">
+                      <Table>
+                        <TableHeader className="sticky top-0 bg-card">
+                          <TableRow>
+                            <TableHead>Scraped Name</TableHead>
+                            <TableHead>DB Name</TableHead>
+                            <TableHead>Google Place ID</TableHead>
+                            <TableHead>Source</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {comparison.matchedVenues.slice(0, 100).map((match, idx) => (
+                            <TableRow key={idx}>
+                              <TableCell className="font-medium">{match.scrapedName}</TableCell>
+                              <TableCell>{match.dbName}</TableCell>
+                              <TableCell className="font-mono text-xs">{match.googlePlaceId}</TableCell>
+                              <TableCell>
+                                <Badge variant={match.source === 'api_auto' ? 'default' : 'secondary'}>
+                                  {match.source}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                    {comparison.matchedVenues.length > 100 && (
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Showing first 100 of {comparison.matchedVenues.length} matches
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            <TabsContent value="new">
+              {comparison.newVenuesList.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>New Venues</CardTitle>
+                    <CardDescription>
+                      Select venues to import into curated cache
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="max-h-[600px] overflow-y-auto">
+                      <Table>
+                        <TableHeader className="sticky top-0 bg-card">
+                          <TableRow>
+                            <TableHead className="w-12">
+                              <input
+                                type="checkbox"
+                                checked={selectedVenues.size === comparison.newVenuesList.slice(0, 100).length}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedVenues(new Set(Array.from({ length: Math.min(100, comparison.newVenuesList.length) }, (_, i) => i)));
+                                  } else {
+                                    setSelectedVenues(new Set());
+                                  }
+                                }}
+                                data-testid="checkbox-select-all"
+                              />
+                            </TableHead>
+                            <TableHead>Name</TableHead>
+                            <TableHead>Address</TableHead>
+                            <TableHead>Category</TableHead>
+                            <TableHead>Rating</TableHead>
+                            <TableHead>Google Place ID</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {comparison.newVenuesList.slice(0, 100).map((venue, idx) => (
+                            <TableRow key={idx}>
+                              <TableCell>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedVenues.has(idx)}
+                                  onChange={() => handleToggleVenue(idx)}
+                                  data-testid={`checkbox-venue-${idx}`}
+                                />
+                              </TableCell>
+                              <TableCell className="font-medium">{venue.name}</TableCell>
+                              <TableCell className="text-sm">{venue.address}</TableCell>
+                              <TableCell>{venue.category || 'N/A'}</TableCell>
+                              <TableCell>{venue.rating?.toFixed(1) || 'N/A'}</TableCell>
+                              <TableCell className="font-mono text-xs">{venue.googlePlaceId || 'N/A'}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                    {comparison.newVenuesList.length > 100 && (
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Showing first 100 of {comparison.newVenuesList.length} new venues
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+          </Tabs>
         </div>
       )}
     </div>

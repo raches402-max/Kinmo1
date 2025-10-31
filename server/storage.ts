@@ -2107,6 +2107,34 @@ export class DatabaseStorage implements IStorage {
       newVenuesList
     };
   }
+
+  async importScrapedVenues(venues: Array<{ name: string; address: string; category?: string; rating?: number; googlePlaceId?: string }>): Promise<number> {
+    const inserts = venues
+      .filter(v => v.googlePlaceId)
+      .map(v => ({
+        name: v.name,
+        address: v.address,
+        latitude: '0',
+        longitude: '0',
+        region: 'SF Bay Area',
+        category: v.category || 'Other',
+        tags: v.category ? [v.category] : [],
+        rating: v.rating?.toString() || null,
+        reviewCount: null,
+        priceLevel: null,
+        photoUrl: null,
+        googlePlaceId: v.googlePlaceId!,
+        source: 'api_scrape' as const,
+      }));
+
+    if (inserts.length === 0) {
+      return 0;
+    }
+
+    await db.insert(curatedVenues).values(inserts);
+    console.log(`[Scraped Import] Imported ${inserts.length} venues to curated cache`);
+    return inserts.length;
+  }
 }
 
 export const storage = new DatabaseStorage();

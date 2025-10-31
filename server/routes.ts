@@ -7037,6 +7037,31 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Admin endpoint to import selected scraped venues to curated cache
+  app.post("/api/admin/scraped-venues/import", isAuthenticated, async (req: any, res) => {
+    try {
+      // Check if user is admin
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      const adminEmails = ['raches402@gmail.com'];
+      if (!user || !adminEmails.includes(user.email || '')) {
+        return res.status(403).json({ message: "Unauthorized: Admin access required" });
+      }
+
+      const { venues } = req.body;
+      if (!Array.isArray(venues)) {
+        return res.status(400).json({ message: "venues must be an array" });
+      }
+
+      const imported = await storage.importScrapedVenues(venues);
+      res.json({ success: true, imported });
+    } catch (error: any) {
+      console.error("Error importing scraped venues:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Admin endpoint to get API call logs with filtering
   app.get("/api/admin/api-logs", isAuthenticated, async (req: any, res) => {
     try {
