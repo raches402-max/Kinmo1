@@ -189,7 +189,7 @@ export interface IStorage {
 
   // Scraped Venues Import
   clearScrapedImport(): Promise<void>;
-  insertScrapedVenues(venues: Array<{ name: string; address: string; categoryName?: string; totalScore?: number; reviewsCount?: number; googlePlaceId?: string; rawData?: any }>): Promise<void>;
+  insertScrapedVenues(venues: Array<any>): Promise<void>;
   getScrapedVenuesComparison(): Promise<{
     totalScraped: number;
     alreadyInDb: number;
@@ -2020,15 +2020,15 @@ export class DatabaseStorage implements IStorage {
     console.log('[Scraped Import] Cleared all scraped venues');
   }
 
-  async insertScrapedVenues(venues: Array<{ name: string; address: string; categoryName?: string; totalScore?: number; reviewsCount?: number; googlePlaceId?: string; rawData?: any }>): Promise<void> {
+  async insertScrapedVenues(venues: Array<any>): Promise<void> {
     const inserts = venues.map(v => ({
-      name: v.name,
-      address: v.address,
-      categoryName: v.categoryName || null,
-      totalScore: v.totalScore?.toString() || null,
-      reviewsCount: v.reviewsCount || null,
-      googlePlaceId: v.googlePlaceId || null,
-      rawData: v.rawData || null
+      name: v.name || v.venueName || null,
+      address: v.address || v.venueAddress || null,
+      categoryName: v.category || v.categoryName || null,
+      totalScore: (v.rating || v.totalScore)?.toString() || null,
+      reviewsCount: v.reviewCount || v.reviewsCount || null,
+      googlePlaceId: v.googlePlaceId || v.placeId || null,
+      rawData: v.rawData || v
     }));
 
     await db.insert(scrapedVenuesImport).values(inserts);
