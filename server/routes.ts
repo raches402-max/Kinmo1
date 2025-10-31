@@ -2931,27 +2931,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Only use venues that meet quality AND budget standards
           const finalPlaces = budgetFiltered;
 
-          // Search for complementary places
-          let complementaryPlace = null;
-          let complementaryPlace2 = null;
-          if (suggestion.complementaryFoodPlace && finalPlaces.length > 0 && finalPlaces[0].location) {
-            const foodPlaces = await searchNearbyPlaces(
-              suggestion.complementaryFoodPlace,
-              finalPlaces[0].location,
-              805,
-              3.5
-            );
-            const validFoodPlaces = foodPlaces.filter(fp => fp.placeId !== finalPlaces[0].placeId);
-            if (validFoodPlaces.length > 0) {
-              complementaryPlace = validFoodPlaces[0];
-            }
-            if (validFoodPlaces.length > 1) {
-              complementaryPlace2 = validFoodPlaces[1];
-            }
-          }
-
           if (finalPlaces.length > 0) {
-            const place = finalPlaces[0];
+            // Rank venues by name similarity to AI suggestion
+            const rankedPlaces = finalPlaces.map(place => ({
+              place,
+              similarity: calculateNameSimilarity(suggestion.venueName, place.name)
+            })).sort((a, b) => b.similarity - a.similarity);
+
+            const bestMatch = rankedPlaces[0];
+            const SIMILARITY_THRESHOLD = 0.6;
+
+            // Only accept matches above threshold, otherwise fall back to API
+            if (bestMatch.similarity < SIMILARITY_THRESHOLD) {
+              console.log(`[Category Regen] ❌ Best curated match "${bestMatch.place.name}" has low similarity (${bestMatch.similarity.toFixed(2)}) to AI suggestion "${suggestion.venueName}" - falling back to API`);
+              return null; // This will trigger API fallback in searchPlaces
+            }
+
+            const place = bestMatch.place;
+            console.log(`[Category Regen] ✅ Matched "${place.name}" to AI suggestion "${suggestion.venueName}" with ${(bestMatch.similarity * 100).toFixed(0)}% similarity`);
+
+            // Search for complementary places
+            let complementaryPlace = null;
+            let complementaryPlace2 = null;
+            if (suggestion.complementaryFoodPlace && place.location) {
+              const foodPlaces = await searchNearbyPlaces(
+                suggestion.complementaryFoodPlace,
+                place.location,
+                805,
+                3.5
+              );
+              const validFoodPlaces = foodPlaces.filter(fp => fp.placeId !== place.placeId);
+              if (validFoodPlaces.length > 0) {
+                complementaryPlace = validFoodPlaces[0];
+              }
+              if (validFoodPlaces.length > 1) {
+                complementaryPlace2 = validFoodPlaces[1];
+              }
+            }
             
             // CRITICAL: Only include venues with verified Google Places data
             // Reject venues missing essential information (rating, address, or photo)
@@ -7503,7 +7519,23 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
           const finalPlaces = drinksFiltered;
 
           if (finalPlaces.length > 0) {
-            const place = finalPlaces[0];
+            // Rank venues by name similarity to AI suggestion
+            const rankedPlaces = finalPlaces.map(place => ({
+              place,
+              similarity: calculateNameSimilarity(suggestion.venueName, place.name)
+            })).sort((a, b) => b.similarity - a.similarity);
+
+            const bestMatch = rankedPlaces[0];
+            const SIMILARITY_THRESHOLD = 0.6;
+
+            // Only accept matches above threshold, otherwise fall back to API
+            if (bestMatch.similarity < SIMILARITY_THRESHOLD) {
+              console.log(`[Venue Matching] ❌ Best curated match "${bestMatch.place.name}" has low similarity (${bestMatch.similarity.toFixed(2)}) to AI suggestion "${suggestion.venueName}" - falling back to API`);
+              return null; // This will trigger API fallback in searchPlaces
+            }
+
+            const place = bestMatch.place;
+            console.log(`[Venue Matching] ✅ Matched "${place.name}" to AI suggestion "${suggestion.venueName}" with ${(bestMatch.similarity * 100).toFixed(0)}% similarity`);
             
             // CRITICAL: Only include venues with verified Google Places data
             // Reject venues missing essential information (rating, address, or photo)
