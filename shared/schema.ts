@@ -157,6 +157,7 @@ export const activities = pgTable("activities", {
   aiSuggestedName: text("ai_suggested_name"), // What AI originally suggested (e.g., "Italian Restaurant") before Google enrichment
   venueName: text("venue_name").notNull(),
   venueAddress: text("venue_address").notNull(),
+  city: text("city"), // City name extracted from address or Google Places
   venueType: text("venue_type").notNull(), // restaurant, museum, park, etc.
   description: text("description").notNull(),
   googlePlaceId: text("google_place_id"),
@@ -196,6 +197,7 @@ export const votingEvents = pgTable("voting_events", {
   title: text("title").notNull(),
   description: text("description"),
   venueAddress: text("venue_address"),
+  city: text("city"), // City name extracted from address or Google Places
   venueType: text("venue_type"),
   googlePlaceId: text("google_place_id"),
   latitude: text("latitude"), // Google Places coordinates

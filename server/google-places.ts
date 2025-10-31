@@ -443,6 +443,7 @@ export interface PlaceResult {
   placeId: string;
   name: string;
   address: string;
+  city?: string; // City extracted from addressComponents
   rating?: string;
   reviewCount?: number; // Total number of Google reviews (user_ratings_total)
   priceLevel?: string;
@@ -450,6 +451,39 @@ export interface PlaceResult {
   types: string[];
   location?: { lat: number; lng: number };
   review?: string; // Short positive review (80-100 chars)
+}
+
+// Helper function to extract city from Google Places addressComponents
+function extractCityFromAddressComponents(addressComponents: any[]): string | undefined {
+  if (!addressComponents || !Array.isArray(addressComponents)) {
+    return undefined;
+  }
+
+  // Try to find locality (city) - most common
+  const locality = addressComponents.find(component => 
+    component.types?.includes('locality')
+  );
+  if (locality?.longText) {
+    return locality.longText;
+  }
+
+  // Fallback: try sublocality (neighborhood in large cities)
+  const sublocality = addressComponents.find(component => 
+    component.types?.includes('sublocality') || component.types?.includes('sublocality_level_1')
+  );
+  if (sublocality?.longText) {
+    return sublocality.longText;
+  }
+
+  // Fallback: try administrative_area_level_3 (smaller administrative division)
+  const adminLevel3 = addressComponents.find(component => 
+    component.types?.includes('administrative_area_level_3')
+  );
+  if (adminLevel3?.longText) {
+    return adminLevel3.longText;
+  }
+
+  return undefined;
 }
 
 // Helper function to calculate distance between two coordinates in miles using Haversine formula
@@ -928,6 +962,7 @@ export async function searchPlaces(
       'places.id',
       'places.displayName',
       'places.formattedAddress',
+      'places.addressComponents',
       'places.rating',
       'places.userRatingCount',
       'places.priceLevel',
@@ -1032,10 +1067,14 @@ export async function searchPlaces(
         priceLevel = levelMap[place.priceLevel] || place.priceLevel;
       }
 
+      // Extract city from addressComponents
+      const city = extractCityFromAddressComponents(place.addressComponents);
+
       results.push({
         placeId: place.id || "",
         name: place.displayName?.text || query,
         address: place.formattedAddress || "",
+        city,
         rating: place.rating?.toString(),
         reviewCount: place.userRatingCount,
         priceLevel,
@@ -1160,6 +1199,7 @@ export async function searchNearbyPlaces(
       'places.id',
       'places.displayName',
       'places.formattedAddress',
+      'places.addressComponents',
       'places.rating',
       'places.userRatingCount',
       'places.priceLevel',
@@ -1243,10 +1283,14 @@ export async function searchNearbyPlaces(
         lng: place.location.longitude,
       } : undefined;
 
+      // Extract city from addressComponents
+      const city = extractCityFromAddressComponents(place.addressComponents);
+
       results.push({
         placeId: place.id || "",
         name: place.displayName?.text || query,
         address: place.formattedAddress || "",
+        city,
         rating: place.rating?.toString(),
         reviewCount: place.userRatingCount,
         priceLevel,
@@ -1417,6 +1461,7 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceResult | nu
       'id',
       'displayName',
       'formattedAddress',
+      'addressComponents',
       'rating',
       'userRatingCount',
       'priceLevel',
@@ -1483,10 +1528,14 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceResult | nu
       lng: place.location.longitude,
     } : undefined;
 
+    // Extract city from addressComponents
+    const city = extractCityFromAddressComponents(place.addressComponents);
+
     const result = {
       placeId: place.id || "",
       name: place.displayName?.text || "",
       address: place.formattedAddress || "",
+      city,
       rating: place.rating?.toString(),
       reviewCount: place.userRatingCount,
       priceLevel,
