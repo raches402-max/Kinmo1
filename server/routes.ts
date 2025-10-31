@@ -6962,6 +6962,81 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Admin endpoint to upload scraped venues for comparison
+  app.post("/api/admin/scraped-venues/upload", isAuthenticated, async (req: any, res) => {
+    try {
+      // Check if user is admin
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      const adminEmails = ['raches402@gmail.com'];
+      if (!user || !adminEmails.includes(user.email || '')) {
+        return res.status(403).json({ message: "Unauthorized: Admin access required" });
+      }
+
+      const { venues } = req.body;
+
+      if (!venues || !Array.isArray(venues)) {
+        return res.status(400).json({ message: "Invalid request: venues must be an array" });
+      }
+
+      if (venues.length === 0) {
+        return res.status(400).json({ message: "Invalid request: venues array cannot be empty" });
+      }
+
+      // Clear existing scraped venues
+      await storage.clearScrapedImport();
+
+      // Insert new scraped venues
+      await storage.insertScrapedVenues(venues);
+
+      res.json({ success: true, count: venues.length });
+    } catch (error: any) {
+      console.error("Error uploading scraped venues:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Admin endpoint to get scraped venues comparison
+  app.get("/api/admin/scraped-venues/comparison", isAuthenticated, async (req: any, res) => {
+    try {
+      // Check if user is admin
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      const adminEmails = ['raches402@gmail.com'];
+      if (!user || !adminEmails.includes(user.email || '')) {
+        return res.status(403).json({ message: "Unauthorized: Admin access required" });
+      }
+
+      const comparison = await storage.getScrapedVenuesComparison();
+      res.json(comparison);
+    } catch (error: any) {
+      console.error("Error fetching scraped venues comparison:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Admin endpoint to clear scraped venues import
+  app.delete("/api/admin/scraped-venues/clear", isAuthenticated, async (req: any, res) => {
+    try {
+      // Check if user is admin
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      const adminEmails = ['raches402@gmail.com'];
+      if (!user || !adminEmails.includes(user.email || '')) {
+        return res.status(403).json({ message: "Unauthorized: Admin access required" });
+      }
+
+      await storage.clearScrapedImport();
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error clearing scraped venues:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Admin endpoint to get API call logs with filtering
   app.get("/api/admin/api-logs", isAuthenticated, async (req: any, res) => {
     try {
