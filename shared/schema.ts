@@ -451,6 +451,19 @@ export const deletedVenues = pgTable("deleted_venues", {
   index("idx_deleted_venues_date").on(table.deletedAt),
 ]);
 
+// Scraped venues import - temporary table for comparing scraped data with existing database
+export const scrapedVenuesImport = pgTable("scraped_venues_import", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(), // Venue name
+  address: text("address").notNull(), // Full address
+  categoryName: text("category_name"), // Original category from scrape
+  totalScore: numeric("total_score"), // Rating from scrape
+  reviewsCount: integer("reviews_count"), // Number of reviews
+  googlePlaceId: text("google_place_id"), // Google Place ID if available
+  rawData: jsonb("raw_data"), // Complete original JSON for reference
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Google Place Photos API cache - cache downloaded photos for 30 days
 export const photosCache = pgTable("photos_cache", {
   photoReference: text("photo_reference").primaryKey(), // Google photo reference ID
