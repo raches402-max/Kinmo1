@@ -486,202 +486,48 @@ Return JSON with this structure:
       return result.suggestions;
     }
 
-    // Full comprehensive prompt for initial generation
+    // Optimized prompt - condensed from 400+ lines to ~150 while keeping all data & filters
     const distributionNote = disabledBuckets.length > 0 
-      ? `NOTE: Generate ${suggestionsPerCategory} suggestions per enabled category (${distributionText} = 15 total). This provides 3 per category.`
-      : `NOTE: Generate 15 diverse suggestions (3 per category: MEAL, CAFE, DRINKS, DESSERT, EXPERIENCES).`;
+      ? `Generate ${suggestionsPerCategory} suggestions per enabled category (${distributionText} = 15 total).`
+      : `Generate 15 diverse suggestions (3 per category: MEAL, CAFE, DRINKS, DESSERT, EXPERIENCES).`;
     
-    const prompt = `You are an expert activity planner. Generate 15 activity suggestions for a group with these preferences:
+    const prompt = `Generate 15 activity suggestions for a group:
 
 ${distributionNote}
 
-Location: ${groupData.locationBase}
-Search Radius: ${radiusTier} - ${searchRadius <= 2 ? 'Focus on nearby venues within walking or short drive distance' : searchRadius <= 10 ? 'Include venues across the city' : searchRadius <= 30 ? 'Include special destinations worth a drive' : 'Include road trip worthy destinations - only suggest highly-rated gems'}
-Budget Range: $${groupData.budgetMin}-${groupData.budgetMax} per person
-Meeting Frequency: ${groupData.meetingFrequency}
-Usual Availability: ${availabilityText}
-${groupData.additionalInstructions ? `\n🚨 USER INSTRUCTIONS (OVERRIDES EVERYTHING): ${groupData.additionalInstructions}` : `${categoriesContext}
-${groupData.pastPreferences ? `Past Preferences: ${groupData.pastPreferences}` : ''}${feedbackContext}${votingContext}${swipeContext}`}${constraintsContext}${avoidVenuesContext}${rejectedVenuesContext}${targetCategoriesContext}${categoryFilterContext}
+Location: ${groupData.locationBase} (${radiusTier})
+Budget: $${groupData.budgetMin}-${groupData.budgetMax}/person
+Availability: ${availabilityText}
+${groupData.additionalInstructions ? `\n🚨 USER INSTRUCTIONS: ${groupData.additionalInstructions}` : `${categoriesContext}
+${groupData.pastPreferences ? `Past: ${groupData.pastPreferences}` : ''}${feedbackContext}${votingContext}${swipeContext}`}${constraintsContext}${avoidVenuesContext}${rejectedVenuesContext}${targetCategoriesContext}${categoryFilterContext}
 
-CRITICAL - Availability Constraint:
-- The group is ONLY available during: ${availabilityText}
-- DO NOT suggest events/activities outside their availability times
-- If an event requires specific timing, it MUST match their availability
-- Example: If they're only available "Mon-Fri evenings", DO NOT suggest "Saturday events" or "Sunday morning" activities
+${groupData.additionalInstructions ? `🚨 FOLLOW USER INSTRUCTIONS ONLY - ignore other context. If they specify venue type (Boba/Sushi), generate ALL 15 of that type.` : `Use preferences/feedback to guide suggestions. ${familiarCount > 0 ? `${familiarCount} familiar + ${newCount} NEW (mark "NEW:" in reasoning).` : ''}`}
 
-${groupData.additionalInstructions ? `🚨 CRITICAL - USER INSTRUCTIONS MODE (ABSOLUTE PRIORITY):
-- The user has provided specific instructions in the text box above
-- IGNORE ALL OTHER CONTEXT: Activity Interests, Past Preferences, Voting Feedback, and Swipe Feedback are NOT relevant
-- ONLY focus on what the user typed in the USER INSTRUCTIONS
-- If they specify a venue type (like "Boba", "Sushi", "Pizza", "Korean BBQ"), generate ALL 15 suggestions of that exact type
-- If they provide general guidance (like "something fun", "adventurous"), maintain diversity while matching the theme
-- Use your natural language understanding to distinguish between specific venue types vs. general preferences` : `CRITICAL - How to interpret preferences:
-- If Activity Interests are specified, prioritize those activity types
-- Analyze Past Preferences to understand venue types they prefer
-- Consider Voting Feedback and Swipe Feedback to refine suggestions
-- Maintain diversity across time categories (balanced distribution)`}
+KEY RULES:
+1. NO airports unless explicitly requested
+2. 3 suggestions per enabled category: ${enabledBuckets.join(', ')}
+3. BE SPECIFIC: "sushi restaurant" NOT "Asian food"; "cocktail bar" NOT "bar"
+4. Avoid duplicates${groupData.previouslySuggestedVenues && groupData.previouslySuggestedVenues.length > 0 ? ` (already suggested: ${groupData.previouslySuggestedVenues.slice(0, 10).join(', ')}${groupData.previouslySuggestedVenues.length > 10 ? '...' : ''})` : ''}${groupData.rejectedVenues && groupData.rejectedVenues.length > 0 ? `; NEVER suggest: ${groupData.rejectedVenues.join(', ')}` : ''}
+5. Match availability window: ${availabilityText}
+6. Description: 1-4 words, nouns only (e.g. "Korean BBQ", "Cocktails")
+7. Reasoning: 2-5 words (e.g. "Familiar sushi preference", "NEW: Filipino cuisine")
+8. venueType: Specific type (e.g., "cocktail bar", "sushi restaurant", "ice cream shop")
+9. For events: add priceEstimate + timeConstraints matching availability
 
-CRITICAL - Time-Based Organization Strategy (ONLY applies when user provides GENERAL guidance):
-- Suggestions will be organized by TIME COMMITMENT:
-  * QUICK (<90 min): Drinks, bars, desserts, cafes - in and out
-  * STANDARD (1-3 hours): Full meals (breakfast, lunch, dinner) - the main event
-  * LARGE (4+ hours): Activities, hikes, shows, museums - commitment required
-- SUGGESTED DISTRIBUTION (only when user gives GENERAL guidance):
-  * 6 QUICK suggestions (boba tea shops, cocktail bars, ice cream parlors, coffee shops, wine bars, dessert cafes)
-  * 7 STANDARD suggestions (restaurants - various cuisines)
-  * 2 LARGE suggestions (activities, outdoor venues, shows) - only if the group's interests support them, otherwise add more QUICK or STANDARD
-- CRITICAL: QUICK items are STANDALONE main venue suggestions, NOT complementary options
-- Think of QUICK venues as pre-dinner drinks or post-dinner dessert spots - they complement the main meal but are separate experiences
-
-${!groupData.additionalInstructions ? `CRITICAL - Novelty Preference Strategy:
-- Suggest ${familiarCount} FAMILIAR venues (things similar to past preferences, favorites, or things they've loved)
-- Suggest ${newCount} NEW venues (novel experiences they haven't tried)
-- Mark NEW suggestions with "NEW:" prefix in reasoning` : ''}
-
-Requirements:
-1. ${groupData.additionalInstructions ? `🚨 FOLLOW ONLY THE USER INSTRUCTIONS ABOVE - Ignore all other context (Activity Interests, Past Preferences, Feedback). If they specify a venue type (like "Boba"), generate ALL 15 of that type. If they give general guidance, maintain diversity while matching the theme.` : (!groupData.pastPreferences && (!groupData.activityCategories || groupData.activityCategories.length === 0) ? `🌍 CULTURAL DIVERSITY FOR NEW GROUPS: This group has NO past preferences or activity interests. Ensure MAXIMUM CULTURAL DIVERSITY across ALL 15 suggestions. DO NOT bias toward any single cuisine type (Asian, Italian, Mexican, etc.). Mix: American, Italian, Mexican, Japanese, Korean, Thai, Vietnamese, Indian, Mediterranean, French, Chinese, etc. Spread cuisines evenly.` : 'Use Activity Interests, Past Preferences, and Feedback to guide suggestions')}
-2. ${!groupData.additionalInstructions && groupData.activityCategories && groupData.activityCategories.length > 0 ? `PRIORITIZE the Activity Interests - these are the types of activities the group specifically wants` : ''}
-3. ${!groupData.additionalInstructions && groupData.pastPreferences ? 'ANALYZE Past Preferences to identify venue TYPES they prefer (restaurants, bars, cafes, activities, etc.)' : ''}
-4. ${!groupData.additionalInstructions && groupData.pastPreferences ? 'PRIORITIZE suggesting the same TYPES of venues they\'ve enjoyed historically' : ''}
-5. 🚨 CRITICAL - NEVER SUGGEST AIRPORT VENUES: DO NOT suggest any venues located inside airports (terminals, gates, etc.) UNLESS the user EXPLICITLY asks for "airport activities" or "activities inside an airport". Airport restaurants, cafes, and shops are BANNED unless specifically requested.
-6. Suggest 15 specific types of venues/activities (not specific business names), aiming for 3 per category: MEAL, CAFES, DRINKS, DESSERT, EXPERIENCES
-7. 🎯 CATEGORY BALANCE GOAL: Aim for a balanced distribution across categories:
-   - MEAL venues (restaurants, brunch spots, food markets, food halls): ~3 suggestions
-   - CAFES (coffee shops, cafes): ~3 suggestions
-   - DRINKS (bars, cocktail lounges, breweries, wine bars): ~3 suggestions
-   - DESSERT (boba, ice cream, dessert shops): ~3 suggestions
-   - EXPERIENCES (museums, parks, concerts, activities): ~3 suggestions
-   - This distribution ensures visual balance with 3 cards displaying per category row
-8. Each suggestion should fit within the budget range
-9. CRITICAL - BE SPECIFIC WITH CUISINE TYPES:
-   - NEVER use broad categories like "Asian restaurants" or "Asian food"
-   - ALWAYS break down into SPECIFIC cuisines: Sushi, Korean BBQ (KBBQ), Ramen, Pho, Dumplings, Thai, Vietnamese, Chinese (Szechuan/Cantonese/Dim Sum), Japanese Izakaya, Malaysian, Filipino, etc.
-   - NEVER use generic "Italian restaurants" - specify: Pizza, Pasta, Trattoria, Osteria
-   - NEVER use generic "Mexican restaurants" - specify: Tacos, Burritos, Tortas, Tequila Bars
-   - Each cuisine type should be DISTINCT to avoid Google returning the same venues repeatedly
-   - Examples of GOOD search queries: "sushi restaurants near X", "Korean BBQ near X", "pho restaurants near X", "dim sum near X"
-   - Examples of BAD search queries: "Asian restaurants near X", "Asian food near X", "ethnic cuisine near X"
-10. CRITICAL - RECOGNIZE EXPERIENCE-BASED OPTIONS (beyond just venue types):
-   - The AI should adapt to broader experiential terms that people actually use
-   - EXPERIENCE TYPES to recognize and incorporate:
-     * Bottomless brunch (brunch + unlimited drinks like mimosas)
-     * Happy hour specials (drink deals at bars/restaurants)
-     * Prix fixe menus (fixed-price multi-course meals)
-     * Tasting menus (chef's curated multi-course experience)
-     * Wine tastings / Wine flights (at wine bars, wineries)
-     * Brewery tours / Beer flights (at breweries, beer gardens)
-     * Omakase (chef's choice sushi experience)
-     * High tea / Afternoon tea (tea service with pastries)
-     * Tapas-style dining (small plates, shareable)
-   - HOW TO USE: When user mentions these in instructions/preferences OR when past preferences suggest interest:
-     * Include the experience keyword in the venueType (e.g., "bottomless brunch spot", "prix fixe restaurant")
-     * Include the experience in the search query (e.g., "bottomless brunch near X", "happy hour bars near X")
-     * Mention the experience in the description if relevant (within 4-word limit)
-   - SEARCH QUERY STRATEGY:
-     * ✅ GOOD: "bottomless brunch near [location]", "happy hour bars near [location]", "prix fixe restaurants near [location]"
-     * ✅ GOOD: "wine tasting rooms near [location]", "omakase sushi near [location]", "tapas restaurants near [location]"
-     * ❌ BAD: Just "brunch near [location]" when they want bottomless brunch
-   - This allows natural language understanding - users say "bottomless brunch" not "brunch restaurants with drink specials"
-11. Provide a search query that can be used with Google Places API
-12. FOR EVENTS ONLY (festivals, concerts, shows, sporting events, movies, comedy shows, etc.): 
-   - Include a realistic "priceEstimate" (e.g., "$25-50 per person", "$15 tickets", "Free")
-   - Include "timeConstraints" if applicable (e.g., "Only on Friday afternoons", "Weekends in summer", "Saturday evenings")
-   - IMPORTANT: timeConstraints must match the group's availability (${availabilityText})
-${!groupData.additionalInstructions ? `13. IMPORTANT - Use previous feedback AND voting data to guide suggestions:
-   - If activities were "LOVED", suggest very similar venues/types
-   - If activities got "more", increase that type of suggestion
-   - If activities got "less", avoid or minimize that type
-   - If Favorites have HIGH net votes (popular), prioritize very similar venue types
-   - If Favorites have NEGATIVE net votes (unpopular), avoid similar venue types
-14. CRITICAL - Use Swipe Session Preferences to refine suggestions:
-   - LIKED concepts: These are activity types the group has shown interest in - PRIORITIZE suggesting these types
-   - PASSED concepts: These are activity types the group is NOT interested in - AVOID suggesting these types
-   - Swipe preferences reveal what the group wants to explore, so weight them heavily in your suggestions` : ''}
-15. FOR DESCRIPTION: ABSOLUTE MAXIMUM 4 WORDS. NOUNS ONLY. ZERO DESCRIPTIVE ADJECTIVES.
-   - HARD LIMIT: 1-4 words TOTAL. Not one word more. Count your words.
-   - RULE: Use ONLY food/cuisine nouns. Cuisine names (Korean, Italian, Japanese) are ALLOWED. Descriptive adjectives (fresh, authentic, high-quality) are BANNED.
-   - ALLOWED: Cuisine names (Korean, Italian, Mexican), food nouns (sushi, pizza, ramen, cocktails)
-   - BANNED: Quality adjectives (high-quality, fresh, authentic, traditional, wood-fired, small, spicy, rich)
-   - BANNED PHRASES: "with ingredients", "and more", "featuring", "known for", any connective phrases
-   - GOOD examples (1-4 words):
-     * "Sushi" (1 word)
-     * "Korean BBQ" (2 words - cuisine + noun)
-     * "Ramen" (1 word)
-     * "Dim sum" (2 words)
-     * "Italian pasta" (2 words - cuisine + noun)
-     * "Cocktails" (1 word)
-   - BAD examples (TOO LONG or has quality adjectives):
-     * "High-quality sushi and sashimi with fresh ingredients" ❌ (12 words! Has quality adjectives!)
-     * "Fresh sushi" ❌ ("Fresh" is quality adjective)
-     * "Authentic Italian pasta" ❌ ("Authentic" is quality adjective)
-     * "Wood-fired pizza" ❌ ("Wood-fired" is quality adjective)
-   - Format: Just the food/cuisine. 1-4 words max.
-16. FOR REASONING: CRITICAL - Ultra-short and direct. 2-5 words maximum. NO vague phrases. Be specific.
-   - DO NOT mention budget (it's assumed everything shown fits budget)
-   - BANNED VAGUE PHRASES: "interaction", "sharing", "social experience", "group dining", "intimate", "experience"
-   - INSTEAD be SPECIFIC about WHAT matches their preferences
-   - FOCUS on: Matches past preferences, Familiar cuisine type, NEW cuisine
-   - GOOD examples (specific, direct, 2-5 words):
-     * "Familiar sushi preference" (3 words)
-     * "Matches Korean BBQ history" (4 words)
-     * "Past dumpling favorite" (3 words)
-     * "Regular Thai spot" (3 words)
-   - BAD examples (vague, fluffy, or too long):
-     * "Social, shareable dining experience" ❌ (vague "social, shareable")
-     * "Interactive dining, great for groups" ❌ (vague "interactive", too long)
-     * "Interaction and sharing" ❌ (completely vague)
-     * "Intimate conversation spot" ❌ (vague "intimate")
-     * "Budget-friendly Korean BBQ" ❌ (mentions budget)
-17. When suggesting something NEW (outside their usual range), start with "NEW:" and be specific about what's new.
-   - GOOD: "NEW: Unfamiliar Filipino cuisine" (4 words - specific)
-   - BAD: "NEW: Unique flavors to explore" ❌ (vague)
-
-CRITICAL - venueType Field Specificity:
-- NEVER use generic categories like "drink", "Asian food", or "restaurant"
-- ALWAYS be SPECIFIC with venue types to enable proper categorization
-- For DRINKS venues, use specific types:
-  * "boba shop" or "bubble tea shop" (NOT "drink")
-  * "cocktail bar" or "craft cocktail bar" (NOT "bar" or "drink")
-  * "wine bar" (NOT "bar" or "drink")
-  * "brewery" or "beer garden" (NOT "bar" or "drink")
-  * "sake bar" (NOT "bar" or "drink")
-- For RESTAURANTS, be specific with cuisine:
-  * "sushi restaurant" (NOT "restaurant" or "Japanese restaurant")
-  * "Korean BBQ restaurant" (NOT "restaurant" or "Asian restaurant")
-  * "ramen restaurant" (NOT "restaurant")
-  * "taco restaurant" or "Mexican restaurant" (NOT "restaurant")
-- For CAFES/DESSERT, be specific:
-  * "coffee shop" or "cafe" (NOT "drink")
-  * "ice cream shop" (NOT "dessert shop" or "drink")
-  * "dessert cafe" (NOT "cafe" or "drink")
-- For EXPERIENCES, be specific:
-  * "hiking trail" or "park" (NOT "outdoor activity")
-  * "art museum" or "museum" (NOT "activity")
-  * "concert venue" or "live music venue" (NOT "event")
-
-🚨 CRITICAL - RESPONSE FORMAT REQUIREMENTS:
-- You MUST return EXACTLY 15 suggestions in the suggestions array
-- The array MUST contain 15 items - no more, no less
-- DO NOT stop generating suggestions until you reach exactly 15 items
-- This is a hard requirement - the system will fail if you return fewer than 15
-
-Return your response as a JSON object with this EXACT structure containing EXACTLY 15 items in the suggestions array:
+Return JSON with EXACTLY 15 suggestions:
 {
   "suggestions": [
     {
-      "venueName": "suggested venue type or activity name",
-      "venueType": "SPECIFIC category (e.g., 'boba shop', 'cocktail bar', 'sushi restaurant', 'ice cream shop', 'art museum') - NEVER use generic 'drink', 'restaurant', 'activity'",
-      "description": "brief description of the activity and why it suits this group",
-      "reasoning": "why this is a good fit for this specific group based on their preferences",
-      "searchQuery": "search terms for Google Places API (e.g., 'Italian restaurants in San Francisco')",
-      "priceEstimate": "ONLY for events: realistic price estimate",
-      "timeConstraints": "ONLY for events: date/time constraints if any"
-    },
-    ... (repeat for EXACTLY 15 total suggestions)
+      "venueName": "type/activity name",
+      "venueType": "specific category",
+      "description": "1-4 words max",
+      "reasoning": "2-5 words max",
+      "searchQuery": "Google Places query",
+      "priceEstimate": "optional - events only",
+      "timeConstraints": "optional - events only"
+    }
   ]
-}
-
-REMINDER: The suggestions array MUST contain EXACTLY 15 items. Count them if needed. Do not stop at 10 or any other number - you must provide all 15 suggestions.`;
+}`;
 
     console.log(`[OpenAI] Sending prompt with availability: ${availabilityText}`);
     

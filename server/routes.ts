@@ -6959,33 +6959,38 @@ Looking forward to planning great activities together!
 // Helper function to generate and store activities
 async function generateAndStoreActivities(groupId: string, groupData: any) {
   try {
-    // Clear Google Places cache at start of generation to get fresh session
-    clearPlacesCache();
-    
     // Update status to generating
     await storage.updateGroupStatus(groupId, "generating");
 
     console.log(`[AI Generation] Starting for group ${groupId}`);
     console.log(`[AI Generation] Group data:`, JSON.stringify(groupData, null, 2));
 
-    // Get ALL activities (including archived) to avoid repeating venue names
-    const allActivities = await storage.getAllGroupActivities(groupId);
+    // OPTIMIZED: Query only venue names (not full objects) to avoid loading large activity records
+    const venueNamesQuery = await db
+      .select({
+        aiSuggestedName: activitiesTable.aiSuggestedName,
+        venueName: activitiesTable.venueName,
+        complementaryPlaceName: activitiesTable.complementaryPlaceName,
+        complementaryPlaceName2: activitiesTable.complementaryPlaceName2,
+      })
+      .from(activitiesTable)
+      .where(eq(activitiesTable.groupId, groupId));
 
     // Track BOTH AI suggested types AND actual Google business names to prevent duplicates
     const previouslySuggestedVenues = [
       // AI suggested types (e.g., "Dessert Shop", "Public Park")
-      ...allActivities
+      ...venueNamesQuery
         .filter(a => a.aiSuggestedName)
         .map(a => a.aiSuggestedName!),
       // Actual Google business names (e.g., "Sweet Indulgence", "Central Park")
-      ...allActivities
+      ...venueNamesQuery
         .filter(a => a.venueName)
         .map(a => a.venueName),
       // Complementary food place names (prevent duplicate dessert/food suggestions)
-      ...allActivities
+      ...venueNamesQuery
         .filter(a => a.complementaryPlaceName)
         .map(a => a.complementaryPlaceName!),
-      ...allActivities
+      ...venueNamesQuery
         .filter(a => a.complementaryPlaceName2)
         .map(a => a.complementaryPlaceName2!)
     ].filter((name, index, self) => name && self.indexOf(name) === index); // Remove nulls and duplicates
