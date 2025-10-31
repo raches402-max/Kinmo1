@@ -2957,7 +2957,11 @@ export default function GroupDetail() {
                           type="button"
                           variant={editGroupData.mealEnabled !== false ? "default" : "outline"}
                           size="sm"
-                          onClick={() => setEditGroupData({ ...editGroupData, mealEnabled: editGroupData.mealEnabled === false ? true : false })}
+                          onClick={() => {
+                            const newValue = editGroupData.mealEnabled === false ? true : false;
+                            setEditGroupData({ ...editGroupData, mealEnabled: newValue });
+                            toggleAutomationMutation.mutate({ field: 'meal_enabled', value: newValue });
+                          }}
                           className="gap-1.5"
                           data-testid="button-toggle-meal"
                         >
@@ -2968,7 +2972,11 @@ export default function GroupDetail() {
                           type="button"
                           variant={editGroupData.cafeEnabled !== false ? "default" : "outline"}
                           size="sm"
-                          onClick={() => setEditGroupData({ ...editGroupData, cafeEnabled: editGroupData.cafeEnabled === false ? true : false })}
+                          onClick={() => {
+                            const newValue = editGroupData.cafeEnabled === false ? true : false;
+                            setEditGroupData({ ...editGroupData, cafeEnabled: newValue });
+                            toggleAutomationMutation.mutate({ field: 'cafe_enabled', value: newValue });
+                          }}
                           className="gap-1.5"
                           data-testid="button-toggle-cafe"
                         >
@@ -2979,7 +2987,11 @@ export default function GroupDetail() {
                           type="button"
                           variant={editGroupData.drinksEnabled !== false ? "default" : "outline"}
                           size="sm"
-                          onClick={() => setEditGroupData({ ...editGroupData, drinksEnabled: editGroupData.drinksEnabled === false ? true : false })}
+                          onClick={() => {
+                            const newValue = editGroupData.drinksEnabled === false ? true : false;
+                            setEditGroupData({ ...editGroupData, drinksEnabled: newValue });
+                            toggleAutomationMutation.mutate({ field: 'drinks_enabled', value: newValue });
+                          }}
                           className="gap-1.5"
                           data-testid="button-toggle-drinks"
                         >
@@ -2990,7 +3002,11 @@ export default function GroupDetail() {
                           type="button"
                           variant={editGroupData.dessertEnabled !== false ? "default" : "outline"}
                           size="sm"
-                          onClick={() => setEditGroupData({ ...editGroupData, dessertEnabled: editGroupData.dessertEnabled === false ? true : false })}
+                          onClick={() => {
+                            const newValue = editGroupData.dessertEnabled === false ? true : false;
+                            setEditGroupData({ ...editGroupData, dessertEnabled: newValue });
+                            toggleAutomationMutation.mutate({ field: 'dessert_enabled', value: newValue });
+                          }}
                           className="gap-1.5"
                           data-testid="button-toggle-dessert"
                         >
@@ -3001,7 +3017,11 @@ export default function GroupDetail() {
                           type="button"
                           variant={editGroupData.experiencesEnabled !== false ? "default" : "outline"}
                           size="sm"
-                          onClick={() => setEditGroupData({ ...editGroupData, experiencesEnabled: editGroupData.experiencesEnabled === false ? true : false })}
+                          onClick={() => {
+                            const newValue = editGroupData.experiencesEnabled === false ? true : false;
+                            setEditGroupData({ ...editGroupData, experiencesEnabled: newValue });
+                            toggleAutomationMutation.mutate({ field: 'experiences_enabled', value: newValue });
+                          }}
                           className="gap-1.5"
                           data-testid="button-toggle-experiences"
                         >

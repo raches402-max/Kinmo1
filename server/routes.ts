@@ -1061,7 +1061,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update automation settings
+  // Update automation settings and category filters
   app.patch("/api/groups/:id/automation", async (req, res) => {
     try {
       const group = await storage.getGroup(req.params.id);
@@ -1069,27 +1069,97 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Group not found" });
       }
 
-      // Validate automation settings - must be boolean if provided
-      const { autoActivitiesEnabled, autoItineraryEnabled, autoScheduleEnabled } = req.body;
-      
+      // Support both patterns:
+      // 1. { field: 'meal_enabled', value: true } (from toggleAutomationMutation)
+      // 2. { meal_enabled: true, cafe_enabled: false } (direct field updates)
       const updates: any = {};
-      if (autoActivitiesEnabled !== undefined) {
-        if (typeof autoActivitiesEnabled !== 'boolean') {
-          return res.status(400).json({ message: "autoActivitiesEnabled must be a boolean" });
+      
+      // Pattern 1: Single field/value pair (from mutation)
+      if (req.body.field && req.body.value !== undefined) {
+        const field = req.body.field;
+        const value = req.body.value;
+        
+        if (typeof value !== 'boolean') {
+          return res.status(400).json({ message: `${field} must be a boolean` });
         }
-        updates.autoActivitiesEnabled = autoActivitiesEnabled;
-      }
-      if (autoItineraryEnabled !== undefined) {
-        if (typeof autoItineraryEnabled !== 'boolean') {
-          return res.status(400).json({ message: "autoItineraryEnabled must be a boolean" });
+        
+        const allowedFields = [
+          'autoActivitiesEnabled',
+          'autoItineraryEnabled', 
+          'autoScheduleEnabled',
+          'meal_enabled',
+          'cafe_enabled',
+          'drinks_enabled',
+          'dessert_enabled',
+          'experiences_enabled'
+        ];
+        
+        if (!allowedFields.includes(field)) {
+          return res.status(400).json({ message: `Invalid field: ${field}` });
         }
-        updates.autoItineraryEnabled = autoItineraryEnabled;
-      }
-      if (autoScheduleEnabled !== undefined) {
-        if (typeof autoScheduleEnabled !== 'boolean') {
-          return res.status(400).json({ message: "autoScheduleEnabled must be a boolean" });
+        
+        updates[field] = value;
+      } else {
+        // Pattern 2: Direct field updates
+        const { 
+          autoActivitiesEnabled, 
+          autoItineraryEnabled, 
+          autoScheduleEnabled,
+          meal_enabled,
+          cafe_enabled,
+          drinks_enabled,
+          dessert_enabled,
+          experiences_enabled
+        } = req.body;
+        
+        if (autoActivitiesEnabled !== undefined) {
+          if (typeof autoActivitiesEnabled !== 'boolean') {
+            return res.status(400).json({ message: "autoActivitiesEnabled must be a boolean" });
+          }
+          updates.autoActivitiesEnabled = autoActivitiesEnabled;
         }
-        updates.autoScheduleEnabled = autoScheduleEnabled;
+        if (autoItineraryEnabled !== undefined) {
+          if (typeof autoItineraryEnabled !== 'boolean') {
+            return res.status(400).json({ message: "autoItineraryEnabled must be a boolean" });
+          }
+          updates.autoItineraryEnabled = autoItineraryEnabled;
+        }
+        if (autoScheduleEnabled !== undefined) {
+          if (typeof autoScheduleEnabled !== 'boolean') {
+            return res.status(400).json({ message: "autoScheduleEnabled must be a boolean" });
+          }
+          updates.autoScheduleEnabled = autoScheduleEnabled;
+        }
+        if (meal_enabled !== undefined) {
+          if (typeof meal_enabled !== 'boolean') {
+            return res.status(400).json({ message: "meal_enabled must be a boolean" });
+          }
+          updates.meal_enabled = meal_enabled;
+        }
+        if (cafe_enabled !== undefined) {
+          if (typeof cafe_enabled !== 'boolean') {
+            return res.status(400).json({ message: "cafe_enabled must be a boolean" });
+          }
+          updates.cafe_enabled = cafe_enabled;
+        }
+        if (drinks_enabled !== undefined) {
+          if (typeof drinks_enabled !== 'boolean') {
+            return res.status(400).json({ message: "drinks_enabled must be a boolean" });
+          }
+          updates.drinks_enabled = drinks_enabled;
+        }
+        if (dessert_enabled !== undefined) {
+          if (typeof dessert_enabled !== 'boolean') {
+            return res.status(400).json({ message: "dessert_enabled must be a boolean" });
+          }
+          updates.dessert_enabled = dessert_enabled;
+        }
+        if (experiences_enabled !== undefined) {
+          if (typeof experiences_enabled !== 'boolean') {
+            return res.status(400).json({ message: "experiences_enabled must be a boolean" });
+          }
+          updates.experiences_enabled = experiences_enabled;
+        }
       }
 
       if (Object.keys(updates).length === 0) {
@@ -7528,12 +7598,16 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
           // Only use venues that meet quality AND budget standards
           let finalPlaces = drinksFiltered;
 
-          // Check if we have curated venues AND they have good name similarity
+          // Check if we have curated venues - use TYPE-BASED matching instead of name matching
           let useCuratedVenue = false;
           let curatedPlace = null;
           
           if (finalPlaces.length > 0) {
-            // Rank venues by name similarity to AI suggestion
+            // STRATEGY: Use any high-quality curated venue instead of requiring name match
+            // Since AI suggests specific names but we want to maximize cache hits,
+            // we'll use the best-rated cached venue of the right type
+            
+            // First, try exact/fuzzy name match (faster when AI suggests known venues)
             const rankedPlaces = finalPlaces.map(place => ({
               place,
               similarity: calculateNameSimilarity(suggestion.venueName, place.name)
@@ -7542,14 +7616,21 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
             const bestMatch = rankedPlaces[0];
             const SIMILARITY_THRESHOLD = 0.6;
 
-            // Only accept matches above threshold, otherwise fall back to API
+            // Try name matching first
             if (bestMatch.similarity >= SIMILARITY_THRESHOLD) {
               console.log(`[Venue Matching] ✅ Matched "${bestMatch.place.name}" to AI suggestion "${suggestion.venueName}" with ${(bestMatch.similarity * 100).toFixed(0)}% similarity`);
               curatedPlace = bestMatch.place;
               useCuratedVenue = true;
             } else {
-              console.log(`[Venue Matching] ❌ Best curated match "${bestMatch.place.name}" has low similarity (${bestMatch.similarity.toFixed(2)}) to AI suggestion "${suggestion.venueName}" - calling Google Places API`);
-              useCuratedVenue = false;
+              // No good name match - use TYPE-BASED matching instead
+              // Return highest-rated venue from our cache (already filtered by type during search)
+              const bestRatedPlace = finalPlaces.sort((a, b) => 
+                (parseFloat(b.rating || '0') - parseFloat(a.rating || '0'))
+              )[0];
+              
+              console.log(`[Venue Matching] 🎯 TYPE-BASED MATCH: Using cached "${bestRatedPlace.name}" (${bestRatedPlace.rating}⭐) for AI suggestion "${suggestion.venueName}" (${suggestion.venueType})`);
+              curatedPlace = bestRatedPlace;
+              useCuratedVenue = true;
             }
           }
 
@@ -7709,7 +7790,9 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
             console.log(`[API Fallback] After quality filter: ${apiQualityFiltered.length}/${relevantPlaces.length} places passed`);
             
             const apiBudgetFiltered = apiQualityFiltered.filter(place => {
-              const priceLevel = parseInt(place.priceLevel || '0');
+              const priceLevelRaw = parseInt(place.priceLevel || '0');
+              // If NaN (missing price data), treat as 0 (cheapest) for budgets >= $100, otherwise reject
+              const priceLevel = isNaN(priceLevelRaw) ? (groupData.budgetMax >= 100 ? 0 : 999) : priceLevelRaw;
               const budgetMax = groupData.budgetMax;
               
               let maxPrice = 4;
