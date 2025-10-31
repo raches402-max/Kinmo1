@@ -475,7 +475,8 @@ async function searchCuratedVenues(
   location: string,
   radiusMiles: number = 2,
   coordinates?: { lat: number; lng: number },
-  maxResults: number = 15
+  maxResults: number = 15,
+  venueType?: string
 ): Promise<PlaceResult[]> {
   try {
     console.log(`[Curated Search] Searching for "${query}" in ${location}`);
@@ -561,6 +562,40 @@ async function searchCuratedVenues(
       .where(and(...conditions))
       .orderBy(desc(curatedVenues.rating))
       .limit(maxResults * 2); // Get more for filtering by distance
+    
+    // Apply venue type filtering if provided (post-SQL filter on tags array)
+    if (venueType && results.length > 0) {
+      console.log(`[Curated Search] Filtering by venue type: "${venueType}"`);
+      
+      // Normalize venue type for matching (lowercase, replace spaces with underscores)
+      const normalizedType = venueType.toLowerCase().replace(/\s+/g, '_');
+      
+      // First try exact tag match
+      const exactMatches = results.filter(venue => 
+        venue.tags && venue.tags.some(tag => tag.includes(normalizedType))
+      );
+      
+      if (exactMatches.length > 0) {
+        console.log(`[Curated Search] Found ${exactMatches.length} exact type matches for "${venueType}"`);
+        results = exactMatches;
+      } else {
+        // Fallback: fuzzy match on venue types
+        // Map venue type to common tag patterns
+        const typeKeywords = normalizedType.split('_');
+        const fuzzyMatches = results.filter(venue => 
+          venue.tags && venue.tags.some(tag => 
+            typeKeywords.some(keyword => tag.includes(keyword))
+          )
+        );
+        
+        if (fuzzyMatches.length > 0) {
+          console.log(`[Curated Search] Found ${fuzzyMatches.length} fuzzy type matches for "${venueType}"`);
+          results = fuzzyMatches;
+        } else {
+          console.log(`[Curated Search] No type matches found for "${venueType}", using category filter only`);
+        }
+      }
+    }
 
     // Filter by distance if coordinates provided
     if (coordinates && results.length > 0) {
