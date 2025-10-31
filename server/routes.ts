@@ -7406,7 +7406,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
 
       // Filter out rejected venues AND disabled categories BEFORE calling Google Places
       // (Duplicate checking happens after Google Places returns actual venue names)
-      console.log(`[Category Filter] Group settings: meal=${groupData.meal_enabled}, cafe=${groupData.cafe_enabled}, drinks=${groupData.drinks_enabled}, dessert=${groupData.dessert_enabled}, exp=${groupData.experiences_enabled}`);
+      console.log(`[Category Filter] Group settings: meal=${groupData.mealEnabled}, cafe=${groupData.cafeEnabled}, drinks=${groupData.drinksEnabled}, dessert=${groupData.dessertEnabled}, exp=${groupData.experiencesEnabled}`);
       
       const filteredSuggestions = suggestions.filter(s => {
         const normalized = s.venueName.trim().toLowerCase();
@@ -7424,11 +7424,11 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
         
         // Check if this category is disabled
         const categoryEnabled = 
-          (detectedCategory === 'meal' && (groupData.meal_enabled ?? true)) ||
-          (detectedCategory === 'cafes' && (groupData.cafe_enabled ?? true)) ||
-          (detectedCategory === 'drinks' && (groupData.drinks_enabled ?? true)) ||
-          (detectedCategory === 'dessert' && (groupData.dessert_enabled ?? true)) ||
-          (detectedCategory === 'experiences' && (groupData.experiences_enabled ?? true));
+          (detectedCategory === 'meal' && (groupData.mealEnabled ?? true)) ||
+          (detectedCategory === 'cafes' && (groupData.cafeEnabled ?? true)) ||
+          (detectedCategory === 'drinks' && (groupData.drinksEnabled ?? true)) ||
+          (detectedCategory === 'dessert' && (groupData.dessertEnabled ?? true)) ||
+          (detectedCategory === 'experiences' && (groupData.experiencesEnabled ?? true));
         
         console.log(`[Category Filter] "${s.venueName}" → category="${detectedCategory}", enabled=${categoryEnabled}`);
         
