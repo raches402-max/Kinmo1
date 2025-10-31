@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -115,6 +115,23 @@ function ScrapedComparisonTab() {
   const { data: comparison, isLoading, refetch } = useQuery<ScrapedComparison>({
     queryKey: ["/api/admin/scraped-venues/comparison"],
   });
+
+  // Auto-reset pagination when data changes and current page is out of bounds
+  useEffect(() => {
+    if (comparison) {
+      // Reset matchedPage if current page would be empty
+      const maxMatchedPage = Math.max(0, Math.ceil(comparison.matchedVenues.length / PAGE_SIZE) - 1);
+      if (matchedPage > maxMatchedPage) {
+        setMatchedPage(0);
+      }
+
+      // Reset newVenuesPage if current page would be empty
+      const maxNewPage = Math.max(0, Math.ceil(comparison.newVenuesList.length / PAGE_SIZE) - 1);
+      if (newVenuesPage > maxNewPage) {
+        setNewVenuesPage(0);
+      }
+    }
+  }, [comparison, matchedPage, newVenuesPage]);
 
   const uploadMutation = useMutation({
     mutationFn: async (venues: any[]) => {
