@@ -3095,6 +3095,104 @@ export default function GroupDetail() {
                 </CardContent>
               </Card>
 
+              {/* Automation Section */}
+              {isOwner && (
+                <Card className="bg-primary/5 border-primary/20">
+                  <CardHeader>
+                    <div className="flex items-center gap-2">
+                      <Bot className="h-5 w-5 text-primary" />
+                      <CardTitle>Automation</CardTitle>
+                    </div>
+                    <CardDescription>
+                      Let Kinmo handle the planning for you
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-4">
+                      {/* Auto-generate Activities */}
+                      <div className="flex items-start gap-3 p-3 bg-background rounded-md">
+                        <Switch
+                          id="auto-activities"
+                          checked={group?.autoActivitiesEnabled || false}
+                          onCheckedChange={(checked) => {
+                            toggleAutomationMutation.mutate({ 
+                              field: 'autoActivitiesEnabled', 
+                              value: checked 
+                            });
+                          }}
+                          data-testid="switch-auto-activities"
+                          className="mt-0.5"
+                        />
+                        <div className="flex-1 space-y-1">
+                          <Label htmlFor="auto-activities" className="cursor-pointer font-medium">
+                            Auto-generate Activities
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            AI suggests new venues weekly based on your group's preferences
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Auto-create Itinerary Drafts */}
+                      <div className="flex items-start gap-3 p-3 bg-background rounded-md">
+                        <Switch
+                          id="auto-itinerary"
+                          checked={group?.autoItineraryEnabled || false}
+                          onCheckedChange={(checked) => {
+                            toggleAutomationMutation.mutate({ 
+                              field: 'autoItineraryEnabled', 
+                              value: checked 
+                            });
+                          }}
+                          data-testid="switch-auto-itinerary"
+                          className="mt-0.5"
+                        />
+                        <div className="flex-1 space-y-1">
+                          <Label htmlFor="auto-itinerary" className="cursor-pointer font-medium">
+                            Auto-create Itinerary Drafts
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Builds ready-to-schedule event plans from your favorites
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Auto-schedule Events */}
+                      <div className="flex items-start gap-3 p-3 bg-background rounded-md">
+                        <Switch
+                          id="auto-schedule"
+                          checked={group?.autoScheduleEnabled || false}
+                          onCheckedChange={(checked) => {
+                            toggleAutomationMutation.mutate({ 
+                              field: 'autoScheduleEnabled', 
+                              value: checked 
+                            });
+                          }}
+                          data-testid="switch-auto-schedule"
+                          className="mt-0.5"
+                        />
+                        <div className="flex-1 space-y-1">
+                          <Label htmlFor="auto-schedule" className="cursor-pointer font-medium">
+                            Auto-schedule Events
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Creates and sends an event every {editFrequencyNumber} {editFrequencyUnit}{editFrequencyNumber !== 1 ? 's' : ''} automatically
+                            {group?.autoScheduleEnabled && group?.nextEventDueDate && (
+                              <span className="block mt-1">
+                                → Next auto-event: {new Date(group.nextEventDueDate).toLocaleDateString('en-US', { 
+                                  month: 'short', 
+                                  day: 'numeric' 
+                                })} <Link href="#" onClick={(e) => { e.preventDefault(); setActiveTab('home'); }} className="text-primary hover:underline">(view on Home tab)</Link>
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Preferences Section */}
               <Card>
                 <CardHeader>
