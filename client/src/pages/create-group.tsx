@@ -12,6 +12,8 @@ import { Slider } from "@/components/ui/slider";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import EmojiPicker from "emoji-picker-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { ArrowLeft, Plus, X, Users, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap } from "lucide-react";
@@ -84,6 +86,7 @@ export default function CreateGroup() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [showSwipeSession, setShowSwipeSession] = useState(false);
   const [createdGroupId, setCreatedGroupId] = useState<string | null>(null);
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [categoryToggles, setCategoryToggles] = useState({
     mealEnabled: true,
     cafeEnabled: true,
@@ -241,33 +244,30 @@ export default function CreateGroup() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Group Icon</FormLabel>
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-3">
-                          <div className="text-4xl">{field.value || "🎉"}</div>
-                          <FormControl>
-                            <Input 
-                              {...field} 
-                              placeholder="🎉" 
-                              className="w-20 text-center text-2xl"
-                              data-testid="input-group-emoji"
-                            />
-                          </FormControl>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {groupEmojis.map((emoji) => (
-                            <Button
-                              key={emoji}
+                      <div className="flex items-center gap-3">
+                        <div className="text-4xl" data-testid="text-selected-emoji">{field.value || "🎉"}</div>
+                        <Popover open={emojiPickerOpen} onOpenChange={setEmojiPickerOpen}>
+                          <PopoverTrigger asChild>
+                            <Button 
                               type="button"
-                              variant={field.value === emoji ? "default" : "outline"}
+                              variant="outline" 
                               size="sm"
-                              onClick={() => field.onChange(emoji)}
-                              className="text-xl h-10 w-10 p-0"
-                              data-testid={`button-emoji-${emoji}`}
+                              data-testid="button-choose-emoji"
                             >
-                              {emoji}
+                              Choose emoji 🙂
                             </Button>
-                          ))}
-                        </div>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0 border-0" align="start">
+                            <EmojiPicker
+                              onEmojiClick={(emojiData) => {
+                                field.onChange(emojiData.emoji);
+                                setEmojiPickerOpen(false);
+                              }}
+                              width={350}
+                              height={400}
+                            />
+                          </PopoverContent>
+                        </Popover>
                       </div>
                       <FormMessage />
                     </FormItem>
