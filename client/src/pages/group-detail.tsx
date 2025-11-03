@@ -3686,10 +3686,9 @@ export default function GroupDetail() {
                     data-testid="input-temp-instructions"
                   />
 
-                  {/* Smart Generate Button */}
+                  {/* Category-Specific Generate Button */}
                   <Button
                     onClick={() => {
-                      // Priority: category search over custom instructions
                       if (selectedCategory) {
                         generateCategoryMutation.mutate({
                           category: selectedCategory,
@@ -3698,27 +3697,17 @@ export default function GroupDetail() {
                           sortBy: multiVenueMode ? 'distance' : 'rating',
                           tempInstructions: tempInstructions.trim() || undefined,
                         });
-                      } else {
-                        const isGenerating = retryGenerationMutation.isPending || group?.activityGenerationStatus === "generating" || group?.activityGenerationStatus === "pending";
-                        if (isGenerating) {
-                          toast({
-                            title: "Already generating",
-                            description: "Please wait for the current generation to complete. This usually takes 10-20 seconds.",
-                          });
-                        } else {
-                          retryGenerationMutation.mutate();
-                        }
                       }
                     }}
-                    disabled={generateCategoryMutation.isPending || retryGenerationMutation.isPending || group?.activityGenerationStatus === "generating" || group?.activityGenerationStatus === "pending"}
+                    disabled={!selectedCategory || generateCategoryMutation.isPending}
                     size="sm"
                     className="w-full h-8"
                     data-testid="button-generate-category"
                   >
                     <Sparkles className="mr-2 h-3 w-3" />
-                    {(generateCategoryMutation.isPending || retryGenerationMutation.isPending) ? "Generating..." : 
+                    {generateCategoryMutation.isPending ? "Generating..." : 
                      selectedCategory ? `Generate ${selectedCategory === 'drinks' ? 'Bars' : selectedCategory === 'cafes' ? 'Coffee' : selectedCategory === 'meal' ? 'Meals' : selectedCategory === 'dessert' ? 'Dessert' : 'Events'}` :
-                     "Generate Activities"}
+                     "Select a category above"}
                   </Button>
                 </div>
               </div>
