@@ -69,14 +69,32 @@ export async function selectBestItineraryForAutoSchedule(
 /**
  * Calculate next event due date based on meeting frequency
  * Format: "2x week", "1x month", etc.
+ * Also handles legacy formats: "weekly", "biweekly", "monthly", "1-week", "2-month"
  */
 export function calculateNextEventDueDate(lastEventDate: Date, meetingFrequency: string): Date {
+  // Normalize legacy formats to new format
+  let normalizedFreq = meetingFrequency;
+  
+  if (meetingFrequency === "weekly") {
+    normalizedFreq = "1x week";
+  } else if (meetingFrequency === "biweekly") {
+    normalizedFreq = "2x week";
+  } else if (meetingFrequency === "monthly") {
+    normalizedFreq = "1x month";
+  } else if (meetingFrequency === "flexible") {
+    normalizedFreq = "1x month";
+  } else if (meetingFrequency.includes("-")) {
+    // Convert old format "2-week" to new format "2x week"
+    normalizedFreq = meetingFrequency.replace("-", "x ");
+  }
+  
   // Parse frequency format: "{number}x {unit}"
   // Examples: "1x week", "2x month", "1x day"
-  const match = meetingFrequency.match(/^(\d+)x\s+(\w+)$/);
+  const match = normalizedFreq.match(/^(\d+)x\s+(\w+)$/);
   
   if (!match) {
     // Default to 30 days if format is unexpected
+    console.warn(`Unrecognized meeting frequency format: "${meetingFrequency}", defaulting to 30 days`);
     return addDays(lastEventDate, 30);
   }
 

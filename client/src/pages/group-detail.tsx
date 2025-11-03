@@ -208,12 +208,13 @@ function formatMeetingFrequency(freq: string): string {
   if (freq === "monthly") return "Every month";
   if (freq === "flexible") return "Flexible";
   
-  // Handle new format: "2-week", "1-month", etc. (both singular and plural)
-  if (freq.includes("-")) {
-    const [num, unit] = freq.split("-");
+  // Handle new format "2x week" or old format "2-week"
+  if (freq.includes("x ") || freq.includes("-")) {
+    const parts = freq.includes("x ") ? freq.split("x ") : freq.split("-");
+    const [num, unit] = parts;
     const number = parseInt(num);
     // Remove 's' if plural for consistency
-    const singularUnit = unit.endsWith("s") ? unit.slice(0, -1) : unit;
+    const singularUnit = unit?.trim().endsWith("s") ? unit.trim().slice(0, -1) : unit?.trim() || "week";
     
     if (number === 1) {
       return `Every ${singularUnit}`;
@@ -943,7 +944,7 @@ export default function GroupDetail() {
       setEditNovelty(group.noveltyPreference);
       setEditCategories(group.activityCategories || []);
       
-      // Parse meeting frequency
+      // Parse meeting frequency - handle both old ("1-week") and new ("1x week") formats
       const freq = group.meetingFrequency;
       if (freq === "weekly") {
         setEditFrequencyNumber(1);
@@ -957,12 +958,13 @@ export default function GroupDetail() {
       } else if (freq === "flexible") {
         setEditFrequencyNumber(1);
         setEditFrequencyUnit("week");
-      } else if (freq && freq.includes("-")) {
-        // New format: "2-week", "1-month", etc.
-        const [num, unit] = freq.split("-");
+      } else if (freq && (freq.includes("-") || freq.includes("x "))) {
+        // Handle both formats: "2-week" (old) and "2x week" (new)
+        const parts = freq.includes("x ") ? freq.split("x ") : freq.split("-");
+        const [num, unit] = parts;
         const parsedNum = parseInt(num) || 1;
         // Convert old plural forms to singular
-        let singularUnit = unit || "week";
+        let singularUnit = unit?.trim() || "week";
         if (singularUnit.endsWith("s")) {
           singularUnit = singularUnit.slice(0, -1);
         }
@@ -2019,7 +2021,7 @@ export default function GroupDetail() {
       setEditNovelty(group.noveltyPreference);
       setEditCategories(group.activityCategories || []);
       
-      // Parse meeting frequency
+      // Parse meeting frequency - handle both old ("1-week") and new ("1x week") formats
       const freq = group.meetingFrequency;
       if (freq === "weekly") {
         setEditFrequencyNumber(1);
@@ -2033,12 +2035,13 @@ export default function GroupDetail() {
       } else if (freq === "flexible") {
         setEditFrequencyNumber(1);
         setEditFrequencyUnit("week");
-      } else if (freq && freq.includes("-")) {
-        // New format: "2-week", "1-month", etc.
-        const [num, unit] = freq.split("-");
+      } else if (freq && (freq.includes("-") || freq.includes("x "))) {
+        // Handle both formats: "2-week" (old) and "2x week" (new)
+        const parts = freq.includes("x ") ? freq.split("x ") : freq.split("-");
+        const [num, unit] = parts;
         const parsedNum = parseInt(num) || 1;
         // Convert old plural forms to singular
-        let singularUnit = unit || "week";
+        let singularUnit = unit?.trim() || "week";
         if (singularUnit.endsWith("s")) {
           singularUnit = singularUnit.slice(0, -1);
         }
@@ -2081,7 +2084,7 @@ export default function GroupDetail() {
       locationBase: editGroupData.locationBase,
       budgetMin: editBudgetRange[0],
       budgetMax: editBudgetRange[1],
-      meetingFrequency: `${editFrequencyNumber}-${editFrequencyUnit}`,
+      meetingFrequency: `${editFrequencyNumber}x ${editFrequencyUnit}`,
       closenessLevel: editCloseness,
       noveltyPreference: editNovelty,
       activityCategories: editCategories.length > 0 ? editCategories : undefined,
@@ -6196,10 +6199,13 @@ export default function GroupDetail() {
                                       }
                                       if (group?.meetingFrequency) {
                                         const freq = group.meetingFrequency;
-                                        if (freq.includes("-")) {
-                                          const [num, unit] = freq.split("-");
+                                        // Handle both old ("1-week") and new ("1x week") formats
+                                        if (freq.includes("-") || freq.includes("x ")) {
+                                          const parts = freq.includes("x ") ? freq.split("x ") : freq.split("-");
+                                          const [num, unit] = parts;
                                           setEditMeetingFreqNumber(parseInt(num));
-                                          setEditMeetingFreqUnit(unit.endsWith("s") ? unit : unit + "s");
+                                          const trimmedUnit = unit?.trim() || "weeks";
+                                          setEditMeetingFreqUnit(trimmedUnit.endsWith("s") ? trimmedUnit : trimmedUnit + "s");
                                         } else if (freq === "weekly") {
                                           setEditMeetingFreqNumber(1);
                                           setEditMeetingFreqUnit("weeks");
@@ -7960,7 +7966,7 @@ export default function GroupDetail() {
             </Button>
             <Button
               onClick={() => {
-                const meetingFrequency = `${editMeetingFreqNumber}-${editMeetingFreqUnit.replace(/s$/, '')}`;
+                const meetingFrequency = `${editMeetingFreqNumber}x ${editMeetingFreqUnit.replace(/s$/, '')}`;
                 updateGroupMutation.mutate({
                   updates: {
                     availability: editAvailabilityData,
