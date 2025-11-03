@@ -246,7 +246,7 @@ export default function CreateGroup() {
                       <FormLabel>Group Icon</FormLabel>
                       <div className="flex items-center gap-3">
                         <div className="text-4xl" data-testid="text-selected-emoji">{field.value || "🎉"}</div>
-                        <Popover open={emojiPickerOpen} onOpenChange={setEmojiPickerOpen}>
+                        <Popover open={emojiPickerOpen} onOpenChange={setEmojiPickerOpen} modal={true}>
                           <PopoverTrigger asChild>
                             <Button 
                               type="button"
@@ -257,15 +257,18 @@ export default function CreateGroup() {
                               Choose emoji 🙂
                             </Button>
                           </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0 border-0" align="start">
-                            <EmojiPicker
-                              onEmojiClick={(emojiData) => {
-                                field.onChange(emojiData.emoji);
-                                setEmojiPickerOpen(false);
-                              }}
-                              width={350}
-                              height={400}
-                            />
+                          <PopoverContent className="w-auto p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+                            <div className="overflow-hidden rounded-lg">
+                              <EmojiPicker
+                                onEmojiClick={(emojiData) => {
+                                  console.log("Emoji clicked:", emojiData.emoji);
+                                  field.onChange(emojiData.emoji);
+                                  setEmojiPickerOpen(false);
+                                }}
+                                width={350}
+                                height={400}
+                              />
+                            </div>
                           </PopoverContent>
                         </Popover>
                       </div>
