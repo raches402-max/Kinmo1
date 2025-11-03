@@ -1198,10 +1198,19 @@ export default function GroupDetail() {
       const fieldNames: Record<string, string> = {
         autoActivitiesEnabled: "Auto-generate Activities",
         autoItineraryEnabled: "Auto-create Itinerary Drafts",
-        autoScheduleEnabled: "Auto-schedule Events"
+        autoScheduleEnabled: "Auto-schedule Events",
+        meal_enabled: "Meals",
+        cafe_enabled: "Cafes",
+        drinks_enabled: "Drinks",
+        dessert_enabled: "Dessert",
+        experiences_enabled: "Experiences"
       };
+      const isCategoryToggle = variables.field.endsWith('_enabled');
+      const title = isCategoryToggle 
+        ? (variables.value ? "Category enabled" : "Category disabled")
+        : (variables.value ? "Automation enabled" : "Automation disabled");
       toast({
-        title: variables.value ? "Automation enabled" : "Automation disabled",
+        title,
         description: `${fieldNames[variables.field]} ${variables.value ? 'turned on' : 'turned off'}`,
       });
     },
