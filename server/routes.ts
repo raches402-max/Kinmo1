@@ -3211,7 +3211,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Search Google Places directly (no AI needed!)
-      // Note: Budget filtering intentionally NOT applied here - users exploring categories can see all options
+      // Apply budget filter to respect group's budget constraints
       const places = await searchPlaces(
         `${searchQuery} in ${searchLocation}`,
         searchLocation,
@@ -3219,7 +3219,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         coordinates,
         false, // skipCurated
         undefined, // venueType
-        undefined // No budget filter for category exploration
+        group.budgetMax || undefined // Apply budget filter if set
       );
 
       console.log(`[Category Generate] Got ${places.length} places from Google`);
@@ -3246,9 +3246,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.log(`[Category Generate] Skipping ${place.name} - quality filter (${rating}★, ${reviewCount} reviews)`);
             return null;
           }
-
-          // Skip budget filtering for category searches - user is exploring options
-          // They can see price levels and decide themselves
 
           // Only include venues with complete data
           if (!place.rating || !place.address || !place.photoUrl) {
