@@ -3157,17 +3157,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Not authorized to modify this group" });
       }
 
-      const { category, location, radius, count = 15, sortBy = 'rating', tempInstructions } = req.body;
+      const { categories, category, location, radius, count = 9, sortBy = 'rating', tempInstructions } = req.body;
 
-      if (!category || !['meal', 'cafes', 'drinks', 'dessert', 'experiences'].includes(category)) {
-        return res.status(400).json({ message: "Invalid category" });
+      // Support both single category (backward compatibility) and multiple categories
+      const categoriesToProcess = categories || (category ? [category] : []);
+      
+      if (!categoriesToProcess.length) {
+        return res.status(400).json({ message: "No categories provided" });
+      }
+
+      // Validate all categories
+      const validCategories = ['meal', 'cafes', 'drinks', 'dessert', 'experiences'];
+      for (const cat of categoriesToProcess) {
+        if (!validCategories.includes(cat)) {
+          return res.status(400).json({ message: `Invalid category: ${cat}` });
+        }
       }
 
       if (sortBy && !['distance', 'rating'].includes(sortBy)) {
         return res.status(400).json({ message: "Invalid sortBy parameter. Must be 'distance' or 'rating'" });
       }
 
-      console.log(`[Category Generate] Generating ${category} for group ${req.params.id}`);
+      console.log(`[Category Generate] Generating ${categoriesToProcess.length} categories for group ${req.params.id}: ${categoriesToProcess.join(', ')}`);
       console.log(`[Category Generate] Location: ${location?.address || group.locationBase}`);
       console.log(`[Category Generate] Radius: ${radius || group.searchRadius || 2}mi`);
       if (tempInstructions) {
@@ -3212,135 +3223,157 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'experiences': 'museums parks attractions activities'
       };
 
-      let searchQuery = categorySearchQueries[category] || category;
-      
-      // If custom instructions provided, append them to refine the search
-      if (tempInstructions && tempInstructions.trim()) {
-        searchQuery = `${tempInstructions.trim()} ${searchQuery}`;
-        console.log(`[Category Generate] Enhanced search with custom instructions: "${searchQuery} in ${searchLocation}"`);
-      } else {
-        console.log(`[Category Generate] Direct Google search: "${searchQuery} in ${searchLocation}"`);
-      }
+      // Process each category
+      const resultsByCategory: Record<string, any[]> = {};
+      const allResults: any[] = [];
 
-      // Search Google Places directly (no AI needed!)
-      // Apply budget filter to respect group's budget constraints
-      const places = await searchPlaces(
-        `${searchQuery} in ${searchLocation}`,
-        searchLocation,
-        searchRadius,
-        coordinates,
-        false, // skipCurated
-        undefined, // venueType
-        group.budgetMax || undefined // Apply budget filter if set
-      );
+      for (const currentCategory of categoriesToProcess) {
+        console.log(`[Category Generate] Processing category: ${currentCategory}`);
+        
+        let searchQuery = categorySearchQueries[currentCategory] || currentCategory;
+        
+        // If custom instructions provided, append them to refine the search
+        if (tempInstructions && tempInstructions.trim()) {
+          searchQuery = `${tempInstructions.trim()} ${searchQuery}`;
+          console.log(`[Category Generate] Enhanced search with custom instructions: "${searchQuery} in ${searchLocation}"`);
+        } else {
+          console.log(`[Category Generate] Direct Google search: "${searchQuery} in ${searchLocation}"`);
+        }
 
-      console.log(`[Category Generate] Got ${places.length} places from Google`);
-
-      if (places.length === 0) {
-        return res.json([]);
-      }
-
-      // Process and filter Google Places results
-      const enrichedActivities = await Promise.all(
-        places.map(async (place) => {
-          // Skip if already in existing activities
-          if (existingVenueNames.includes(place.name)) {
-            console.log(`[Category Generate] Skipping duplicate: ${place.name}`);
-            return null;
-          }
-
-          // Relaxed quality filtering for category-specific searches
-          const rating = parseFloat(place.rating || '0');
-          const reviewCount = place.reviewCount || 0;
-          
-          // Ensure minimum quality (3.5★ + 10 reviews) regardless of radius
-          if (rating < 3.5 || reviewCount < 10) {
-            console.log(`[Category Generate] Skipping ${place.name} - quality filter (${rating}★, ${reviewCount} reviews)`);
-            return null;
-          }
-
-          // Only include venues with complete data
-          if (!place.rating || !place.address || !place.photoUrl) {
-            console.log(`[Category Generate] Skipping ${place.name} - missing data`);
-            return null;
-          }
-
-          // Calculate distance from search center
-          let distanceFromBase: number | undefined;
-          if (coordinates && place.location?.lat && place.location?.lng) {
-            const R = 3959; // Earth's radius in miles
-            const lat1 = coordinates.lat * Math.PI / 180;
-            const lat2 = place.location.lat * Math.PI / 180;
-            const dLat = (place.location.lat - coordinates.lat) * Math.PI / 180;
-            const dLng = (place.location.lng - coordinates.lng) * Math.PI / 180;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                     Math.cos(lat1) * Math.cos(lat2) *
-                     Math.sin(dLng/2) * Math.sin(dLng/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            distanceFromBase = R * c;
-          }
-
-          // Skip AI categorization - trust Google's results for category searches
-          // Google already filtered to bars/restaurants/etc based on our search query
-          
-          return {
-            venueName: place.name,
-            venueAddress: place.address,
-            city: place.city || null,
-            venueType: place.types[0] || 'venue',
-            description: place.review || '',
-            googlePlaceId: place.placeId,
-            latitude: place.location?.lat?.toString() || null,
-            longitude: place.location?.lng?.toString() || null,
-            rating: place.rating,
-            reviewCount: place.reviewCount || null,
-            priceLevel: place.priceLevel,
-            photoUrl: place.photoUrl,
-            googleReview: place.review || null,
-            category: category, // Use the requested category directly
-            distanceFromGroupBase: distanceFromBase,
-          };
-        })
-      );
-
-      // Filter out nulls (filtered items) and limit to requested count
-      const validActivities = enrichedActivities
-        .filter(a => a !== null)
-        .slice(0, count * 2); // Get 2x to account for any additional filtering
-
-      // Sort based on mode: distance for multi-venue outings, rating for single destinations
-      if (sortBy === 'distance') {
-        validActivities.sort((a, b) => {
-          const distA = a.distanceFromGroupBase || 999;
-          const distB = b.distanceFromGroupBase || 999;
-          return distA - distB;
-        });
-        console.log(`[Category Generate] Returning ${validActivities.length} activities (filtered to ${category} category, sorted by distance for multi-venue outings)`);
-      } else {
-        validActivities.sort((a, b) => {
-          const ratingA = parseFloat(a.rating || '0');
-          const ratingB = parseFloat(b.rating || '0');
-          return ratingB - ratingA; // Highest rating first
-        });
-        console.log(`[Category Generate] Returning ${validActivities.length} activities (filtered to ${category} category, sorted by rating for quality)`);
-      }
-
-      // Save search to history for quick re-access
-      try {
-        await storage.saveCategorySearch({
-          groupId: req.params.id,
-          category,
+        // Search Google Places directly (no AI needed!)
+        // Apply budget filter to respect group's budget constraints
+        const places = await searchPlaces(
+          `${searchQuery} in ${searchLocation}`,
           searchLocation,
           searchRadius,
-          results: validActivities,
-        });
-        console.log(`[Category Generate] Saved search to history`);
-      } catch (err) {
-        console.error(`[Category Generate] Failed to save search history:`, err);
-        // Non-critical, continue
+          coordinates,
+          false, // skipCurated
+          undefined, // venueType
+          group.budgetMax || undefined // Apply budget filter if set
+        );
+
+        console.log(`[Category Generate] Got ${places.length} places from Google for ${currentCategory}`);
+
+        if (places.length === 0) {
+          resultsByCategory[currentCategory] = [];
+          continue;
+        }
+
+        // Process and filter Google Places results
+        const enrichedActivities = await Promise.all(
+          places.map(async (place) => {
+            // Skip if already in existing activities
+            if (existingVenueNames.includes(place.name)) {
+              console.log(`[Category Generate] Skipping duplicate: ${place.name}`);
+              return null;
+            }
+
+            // Relaxed quality filtering for category-specific searches
+            const rating = parseFloat(place.rating || '0');
+            const reviewCount = place.reviewCount || 0;
+            
+            // Ensure minimum quality (3.5★ + 10 reviews) regardless of radius
+            if (rating < 3.5 || reviewCount < 10) {
+              console.log(`[Category Generate] Skipping ${place.name} - quality filter (${rating}★, ${reviewCount} reviews)`);
+              return null;
+            }
+
+            // Only include venues with complete data
+            if (!place.rating || !place.address || !place.photoUrl) {
+              console.log(`[Category Generate] Skipping ${place.name} - missing data`);
+              return null;
+            }
+
+            // Calculate distance from search center
+            let distanceFromBase: number | undefined;
+            if (coordinates && place.location?.lat && place.location?.lng) {
+              const R = 3959; // Earth's radius in miles
+              const lat1 = coordinates.lat * Math.PI / 180;
+              const lat2 = place.location.lat * Math.PI / 180;
+              const dLat = (place.location.lat - coordinates.lat) * Math.PI / 180;
+              const dLng = (place.location.lng - coordinates.lng) * Math.PI / 180;
+              const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                       Math.cos(lat1) * Math.cos(lat2) *
+                       Math.sin(dLng/2) * Math.sin(dLng/2);
+              const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+              distanceFromBase = R * c;
+            }
+
+            // Skip AI categorization - trust Google's results for category searches
+            // Google already filtered to bars/restaurants/etc based on our search query
+            
+            return {
+              venueName: place.name,
+              venueAddress: place.address,
+              city: place.city || null,
+              venueType: place.types[0] || 'venue',
+              description: place.review || '',
+              googlePlaceId: place.placeId,
+              latitude: place.location?.lat?.toString() || null,
+              longitude: place.location?.lng?.toString() || null,
+              rating: place.rating,
+              reviewCount: place.reviewCount || null,
+              priceLevel: place.priceLevel,
+              photoUrl: place.photoUrl,
+              googleReview: place.review || null,
+              category: currentCategory, // Use the requested category directly
+              distanceFromGroupBase: distanceFromBase,
+            };
+          })
+        );
+
+        // Filter out nulls (filtered items) and limit to requested count
+        let validActivities = enrichedActivities
+          .filter(a => a !== null)
+          .slice(0, count * 2); // Get 2x to account for any additional filtering
+
+        // Sort based on mode: distance for multi-venue outings, rating for single destinations
+        if (sortBy === 'distance') {
+          validActivities.sort((a, b) => {
+            const distA = a.distanceFromGroupBase || 999;
+            const distB = b.distanceFromGroupBase || 999;
+            return distA - distB;
+          });
+          console.log(`[Category Generate] Sorted ${currentCategory} by distance`);
+        } else {
+          validActivities.sort((a, b) => {
+            const ratingA = parseFloat(a.rating || '0');
+            const ratingB = parseFloat(b.rating || '0');
+            return ratingB - ratingA; // Highest rating first
+          });
+          console.log(`[Category Generate] Sorted ${currentCategory} by rating`);
+        }
+
+        // Limit to exactly `count` results per category
+        validActivities = validActivities.slice(0, count);
+        
+        resultsByCategory[currentCategory] = validActivities;
+        allResults.push(...validActivities);
+
+        // Save search to history for quick re-access
+        try {
+          await storage.saveCategorySearch({
+            groupId: req.params.id,
+            category: currentCategory,
+            searchLocation,
+            searchRadius,
+            results: validActivities,
+          });
+          console.log(`[Category Generate] Saved search to history for ${currentCategory}`);
+        } catch (err) {
+          console.error(`[Category Generate] Failed to save search history for ${currentCategory}:`, err);
+          // Non-critical, continue
+        }
       }
 
-      res.json(validActivities);
+      console.log(`[Category Generate] Completed. Total: ${allResults.length} venues across ${categoriesToProcess.length} categories`);
+      
+      // Return grouped results if multiple categories, flat array if single category
+      if (categoriesToProcess.length === 1) {
+        res.json(allResults);
+      } else {
+        res.json(resultsByCategory);
+      }
     } catch (error: any) {
       console.error("[Category Generate] Error:", error);
       res.status(500).json({ message: error.message });

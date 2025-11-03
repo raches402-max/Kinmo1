@@ -682,7 +682,7 @@ export default function GroupDetail() {
   const [guestEmail, setGuestEmail] = useState("");
   
   // Category-specific generation state
-  const [selectedCategory, setSelectedCategory] = useState<'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences' | null>(null);
+  const [selectedCategories, setSelectedCategories] = useState<('meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences')[]>([]);
   const [categoryLocation, setCategoryLocation] = useState("");
   const [categoryRadius, setCategoryRadius] = useState<number>(2);
   const [categoryResults, setCategoryResults] = useState<any[]>([]);
@@ -1031,12 +1031,12 @@ export default function GroupDetail() {
   */
 
   const generateCategoryMutation = useMutation({
-    mutationFn: async ({ category, location, radius, sortBy, tempInstructions }: { category: string; location?: { address: string; lat: number; lng: number }; radius?: number; sortBy?: 'distance' | 'rating'; tempInstructions?: string }) => {
+    mutationFn: async ({ categories, location, radius, sortBy, tempInstructions }: { categories: string[]; location?: { address: string; lat: number; lng: number }; radius?: number; sortBy?: 'distance' | 'rating'; tempInstructions?: string }) => {
       return await apiRequest("POST", `/api/groups/${groupId}/generate-category`, {
-        category,
+        categories,
         location,
         radius,
-        count: 15,
+        count: 9,
         sortBy: sortBy || 'rating',
         tempInstructions: tempInstructions?.trim() || undefined,
       });
@@ -1045,9 +1045,10 @@ export default function GroupDetail() {
       // Clear old results and set new ones
       setCategoryResults(data);
       setTempInstructions(""); // Clear the temp instructions after use
+      const totalResults = Array.isArray(data) ? data.length : Object.values(data).flat().length;
       toast({
         title: "Generated suggestions",
-        description: `Found ${data.length} ${selectedCategory} options for you`,
+        description: `Found ${totalResults} venues across ${selectedCategories.length} ${selectedCategories.length === 1 ? 'category' : 'categories'}`,
       });
     },
     onError: (error: Error) => {
@@ -3591,59 +3592,94 @@ export default function GroupDetail() {
                   <div className="space-y-2">
                     <div className="flex gap-1.5">
                       <Button
-                        variant={selectedCategory === 'drinks' ? 'default' : 'ghost'}
+                        variant={selectedCategories.includes('drinks') ? 'default' : 'ghost'}
                         size="sm"
-                        onClick={() => setSelectedCategory(selectedCategory === 'drinks' ? null : 'drinks')}
+                        onClick={() => {
+                          if (selectedCategories.includes('drinks')) {
+                            setSelectedCategories(selectedCategories.filter(c => c !== 'drinks'));
+                          } else {
+                            setSelectedCategories([...selectedCategories, 'drinks']);
+                          }
+                        }}
                         className="flex-1 h-8"
                         data-testid="button-category-drinks"
                       >
                         <Wine className="h-3 w-3 mr-1" />
                         <span className="text-xs">Bars</span>
+                        {selectedCategories.includes('drinks') && <Check className="h-3 w-3 ml-1" />}
                       </Button>
                     <Button
-                      variant={selectedCategory === 'cafes' ? 'default' : 'ghost'}
+                      variant={selectedCategories.includes('cafes') ? 'default' : 'ghost'}
                       size="sm"
-                      onClick={() => setSelectedCategory(selectedCategory === 'cafes' ? null : 'cafes')}
+                      onClick={() => {
+                        if (selectedCategories.includes('cafes')) {
+                          setSelectedCategories(selectedCategories.filter(c => c !== 'cafes'));
+                        } else {
+                          setSelectedCategories([...selectedCategories, 'cafes']);
+                        }
+                      }}
                       className="flex-1 h-8"
                       data-testid="button-category-cafes"
                     >
                       <Coffee className="h-3 w-3 mr-1" />
                       <span className="text-xs">Coffee</span>
+                      {selectedCategories.includes('cafes') && <Check className="h-3 w-3 ml-1" />}
                     </Button>
                     <Button
-                      variant={selectedCategory === 'meal' ? 'default' : 'ghost'}
+                      variant={selectedCategories.includes('meal') ? 'default' : 'ghost'}
                       size="sm"
-                      onClick={() => setSelectedCategory(selectedCategory === 'meal' ? null : 'meal')}
+                      onClick={() => {
+                        if (selectedCategories.includes('meal')) {
+                          setSelectedCategories(selectedCategories.filter(c => c !== 'meal'));
+                        } else {
+                          setSelectedCategories([...selectedCategories, 'meal']);
+                        }
+                      }}
                       className="flex-1 h-8"
                       data-testid="button-category-meal"
                     >
                       <UtensilsCrossed className="h-3 w-3 mr-1" />
                       <span className="text-xs">Meals</span>
+                      {selectedCategories.includes('meal') && <Check className="h-3 w-3 ml-1" />}
                     </Button>
                     <Button
-                      variant={selectedCategory === 'dessert' ? 'default' : 'ghost'}
+                      variant={selectedCategories.includes('dessert') ? 'default' : 'ghost'}
                       size="sm"
-                      onClick={() => setSelectedCategory(selectedCategory === 'dessert' ? null : 'dessert')}
+                      onClick={() => {
+                        if (selectedCategories.includes('dessert')) {
+                          setSelectedCategories(selectedCategories.filter(c => c !== 'dessert'));
+                        } else {
+                          setSelectedCategories([...selectedCategories, 'dessert']);
+                        }
+                      }}
                       className="flex-1 h-8"
                       data-testid="button-category-dessert"
                     >
                       <Croissant className="h-3 w-3 mr-1" />
                       <span className="text-xs">Dessert</span>
+                      {selectedCategories.includes('dessert') && <Check className="h-3 w-3 ml-1" />}
                     </Button>
                       <Button
-                        variant={selectedCategory === 'experiences' ? 'default' : 'ghost'}
+                        variant={selectedCategories.includes('experiences') ? 'default' : 'ghost'}
                         size="sm"
-                        onClick={() => setSelectedCategory(selectedCategory === 'experiences' ? null : 'experiences')}
+                        onClick={() => {
+                          if (selectedCategories.includes('experiences')) {
+                            setSelectedCategories(selectedCategories.filter(c => c !== 'experiences'));
+                          } else {
+                            setSelectedCategories([...selectedCategories, 'experiences']);
+                          }
+                        }}
                         className="flex-1 h-8"
                         data-testid="button-category-experiences"
                       >
                         <Compass className="h-3 w-3 mr-1" />
                         <span className="text-xs">Events</span>
+                        {selectedCategories.includes('experiences') && <Check className="h-3 w-3 ml-1" />}
                       </Button>
                     </div>
                     
                     {/* Multi-venue mode toggle */}
-                    {selectedCategory && (
+                    {selectedCategories.length > 0 && (
                       <div className="flex items-center justify-between px-1 py-2 border-t">
                         <div className="flex items-center gap-2">
                           <Switch
@@ -3663,17 +3699,23 @@ export default function GroupDetail() {
                     )}
                     
                     {/* Contextual messaging */}
-                    {selectedCategory && (
+                    {selectedCategories.length > 0 && (
                       <div className="text-xs text-muted-foreground px-1">
                         {multiVenueMode ? (
                           <>Perfect for bar crawls or venue hopping! Results sorted by distance for easy route planning.</>
                         ) : (
                           <>
-                            {selectedCategory === 'drinks' && "Find the best bars in the area"}
-                            {selectedCategory === 'cafes' && "Find the best coffee shops"}
-                            {selectedCategory === 'meal' && "Discover top-rated restaurants"}
-                            {selectedCategory === 'dessert' && "Find the sweetest spots"}
-                            {selectedCategory === 'experiences' && "Explore fun activities"}
+                            {selectedCategories.length === 1 ? (
+                              <>
+                                {selectedCategories.includes('drinks') && "Find the best bars in the area"}
+                                {selectedCategories.includes('cafes') && "Find the best coffee shops"}
+                                {selectedCategories.includes('meal') && "Discover top-rated restaurants"}
+                                {selectedCategories.includes('dessert') && "Find the sweetest spots"}
+                                {selectedCategories.includes('experiences') && "Explore fun activities"}
+                              </>
+                            ) : (
+                              <>Generating {selectedCategories.length} categories with 9 results each</>
+                            )}
                           </>
                         )}
                       </div>
@@ -3693,9 +3735,9 @@ export default function GroupDetail() {
                   {/* Category-Specific Generate Button */}
                   <Button
                     onClick={() => {
-                      if (selectedCategory) {
+                      if (selectedCategories.length > 0) {
                         generateCategoryMutation.mutate({
-                          category: selectedCategory,
+                          categories: selectedCategories,
                           location: categoryLocation.trim() ? { address: categoryLocation.trim(), lat: 0, lng: 0 } : undefined,
                           radius: categoryRadius,
                           sortBy: multiVenueMode ? 'distance' : 'rating',
@@ -3703,14 +3745,18 @@ export default function GroupDetail() {
                         });
                       }
                     }}
-                    disabled={!selectedCategory || generateCategoryMutation.isPending}
+                    disabled={selectedCategories.length === 0 || generateCategoryMutation.isPending}
                     size="sm"
                     className="w-full h-8"
                     data-testid="button-generate-category"
                   >
                     <Sparkles className="mr-2 h-3 w-3" />
                     {generateCategoryMutation.isPending ? "Generating..." : 
-                     selectedCategory ? `Generate ${selectedCategory === 'drinks' ? 'Bars' : selectedCategory === 'cafes' ? 'Coffee' : selectedCategory === 'meal' ? 'Meals' : selectedCategory === 'dessert' ? 'Dessert' : 'Events'}` :
+                     selectedCategories.length > 0 ? (
+                       selectedCategories.length === 1 
+                         ? `Generate ${selectedCategories[0] === 'drinks' ? 'Bars' : selectedCategories[0] === 'cafes' ? 'Coffee' : selectedCategories[0] === 'meal' ? 'Meals' : selectedCategories[0] === 'dessert' ? 'Dessert' : 'Events'}`
+                         : `Generate ${selectedCategories.length} Categories`
+                     ) :
                      "Select a category above"}
                   </Button>
                 </div>
@@ -3826,27 +3872,41 @@ export default function GroupDetail() {
             ) : (
               <>
                 {/* Category Search Results - Temporary explorations */}
-                {categoryResults.length > 0 && (() => {
-                  // Sort results based on multi-venue mode
-                  const sortedResults = [...categoryResults].sort((a, b) => {
-                    if (multiVenueMode) {
-                      // Sort by distance (closest first)
-                      const distA = a.distanceFromGroupBase ?? 999;
-                      const distB = b.distanceFromGroupBase ?? 999;
-                      return distA - distB;
-                    } else {
-                      // Sort by rating (highest first)
-                      const ratingA = parseFloat(a.rating || '0');
-                      const ratingB = parseFloat(b.rating || '0');
-                      if (ratingA !== ratingB) {
-                        return ratingB - ratingA;
+                {(Array.isArray(categoryResults) ? categoryResults.length > 0 : Object.keys(categoryResults).length > 0) && (() => {
+                  // Check if results are grouped by category (object) or flat array
+                  const isGrouped = !Array.isArray(categoryResults);
+                  const categoryLabels = {
+                    meal: 'Meals',
+                    cafes: 'Coffee',
+                    drinks: 'Bars',
+                    dessert: 'Dessert',
+                    experiences: 'Events'
+                  };
+                  
+                  // Helper to sort results
+                  const sortResults = (results: any[]) => {
+                    return [...results].sort((a, b) => {
+                      if (multiVenueMode) {
+                        // Sort by distance (closest first)
+                        const distA = a.distanceFromGroupBase ?? 999;
+                        const distB = b.distanceFromGroupBase ?? 999;
+                        return distA - distB;
+                      } else {
+                        // Sort by rating (highest first)
+                        const ratingA = parseFloat(a.rating || '0');
+                        const ratingB = parseFloat(b.rating || '0');
+                        if (ratingA !== ratingB) {
+                          return ratingB - ratingA;
+                        }
+                        // Tie-breaker: review count
+                        const reviewCountA = a.reviewCount || 0;
+                        const reviewCountB = b.reviewCount || 0;
+                        return reviewCountB - reviewCountA;
                       }
-                      // Tie-breaker: review count
-                      const reviewCountA = a.reviewCount || 0;
-                      const reviewCountB = b.reviewCount || 0;
-                      return reviewCountB - reviewCountA;
-                    }
-                  });
+                    });
+                  };
+                  
+                  const sortedResults = isGrouped ? null : sortResults(categoryResults as any[]);
 
                   return (
                     <div className="mb-8">
@@ -3873,9 +3933,12 @@ export default function GroupDetail() {
                             </Button>
                           </div>
                           
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {sortedResults.map((result) => {
-                            const tempActivity = {
+                          <>
+                            {/* Single category - flat grid */}
+                            {!isGrouped && sortedResults && (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              {sortedResults.map((result) => {
+                                const tempActivity = {
                               id: result.placeId || result.googlePlaceId || `temp-${Math.random()}`,
                               groupId: groupId || '',
                               venueName: result.venueName,
@@ -4012,7 +4075,167 @@ export default function GroupDetail() {
                                 </div>
                               </Card>
                             );
-                          })}
+                              })}
+                            </div>
+                          )}
+                          
+                          {/* Multiple categories - grouped by category with headers */}
+                          {isGrouped && (
+                            <div className="space-y-8">
+                              {Object.entries(categoryResults as Record<string, any[]>).map(([cat, venues]) => {
+                                const sortedVenues = sortResults(venues);
+                                return (
+                                  <div key={cat} className="space-y-3">
+                                    <div className="flex items-center gap-2 border-b pb-2">
+                                      <h4 className="text-md font-semibold">{categoryLabels[cat as keyof typeof categoryLabels]}</h4>
+                                      <span className="text-sm text-muted-foreground">({sortedVenues.length} results)</span>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                      {sortedVenues.map((result) => {
+                                        const tempActivity = {
+                                          id: result.placeId || result.googlePlaceId || `temp-${Math.random()}`,
+                                          groupId: groupId || '',
+                                          venueName: result.venueName,
+                                          venueAddress: result.venueAddress,
+                                          venueType: result.venueType || 'Venue',
+                                          description: result.description,
+                                          rating: result.rating?.toString() || null,
+                                          reviewCount: result.reviewCount || null,
+                                          priceLevel: result.priceLevel?.toString() || null,
+                                          photoUrl: result.photoUrl || null,
+                                          googlePlaceId: result.googlePlaceId || result.placeId || null,
+                                          feedback: (result as any).feedback || null,
+                                          category: result.category || null,
+                                        };
+                                        
+                                        const isSelected = selectedVenues.some(v => v.sourceType === 'activity' && v.sourceId === tempActivity.id);
+                                        
+                                        return (
+                                          <Card 
+                                            key={tempActivity.id} 
+                                            className={`relative overflow-hidden hover-elevate transition-all flex flex-col ${isSelected ? 'ring-2 ring-primary' : ''}`} 
+                                            data-testid={`search-result-${tempActivity.id}`}
+                                          >
+                                            {tempActivity.photoUrl && (
+                                              <div className="aspect-video w-full overflow-hidden bg-muted">
+                                                <img
+                                                  src={tempActivity.photoUrl}
+                                                  alt={tempActivity.venueName}
+                                                  className="w-full h-full object-cover"
+                                                />
+                                              </div>
+                                            )}
+                                            <div className="absolute top-3 left-3 z-10" onClick={(e) => e.stopPropagation()}>
+                                              <Checkbox
+                                                checked={isSelected}
+                                                onCheckedChange={() => toggleVenueSelection('activity', tempActivity.id)}
+                                                className="h-6 w-6 bg-white border-2"
+                                                data-testid={`checkbox-search-result-${tempActivity.id}`}
+                                              />
+                                            </div>
+                                            <button
+                                              className={`absolute top-3 right-3 p-2 rounded-full transition-all z-10 ${
+                                                tempActivity.feedback === "love"
+                                                  ? "bg-pink-500/90 hover:bg-pink-600/90"
+                                                  : "bg-black/40 hover:bg-black/60 border-2 border-white"
+                                              }`}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                
+                                                if (tempActivity.feedback === "love") {
+                                                  toast({
+                                                    title: "Already saved",
+                                                    description: "This venue is already in your list",
+                                                  });
+                                                  return;
+                                                }
+                                                
+                                                createActivityFromCategoryResultMutation.mutate({
+                                                  googlePlaceId: tempActivity.googlePlaceId || tempActivity.id,
+                                                  activityData: {
+                                                    venueName: tempActivity.venueName,
+                                                    venueAddress: tempActivity.venueAddress,
+                                                    venueType: tempActivity.venueType,
+                                                    description: tempActivity.description || '',
+                                                    googlePlaceId: tempActivity.googlePlaceId,
+                                                    rating: tempActivity.rating,
+                                                    priceLevel: tempActivity.priceLevel,
+                                                    photoUrl: tempActivity.photoUrl,
+                                                    reviewCount: tempActivity.reviewCount,
+                                                    category: tempActivity.category,
+                                                  },
+                                                });
+                                              }}
+                                              data-testid={`button-favorite-search-${tempActivity.id}`}
+                                            >
+                                              <Heart 
+                                                className={`h-6 w-6 transition-all ${
+                                                  tempActivity.feedback === "love" 
+                                                    ? "fill-white stroke-white" 
+                                                    : "fill-none stroke-white"
+                                                }`} 
+                                                strokeWidth={2.5}
+                                              />
+                                            </button>
+                                            <div className="p-4 flex-1 flex flex-col">
+                                              <div className="flex items-start justify-between gap-2 mb-1">
+                                                <h3 className="font-semibold line-clamp-1">{tempActivity.venueName}</h3>
+                                                {tempActivity.googlePlaceId && (
+                                                  <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    asChild
+                                                    className="h-6 px-2 flex-shrink-0"
+                                                    data-testid={`button-google-link-search-${tempActivity.id}`}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                  >
+                                                    <a
+                                                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tempActivity.venueName)}&query_place_id=${tempActivity.googlePlaceId}`}
+                                                      target="_blank"
+                                                      rel="noopener noreferrer"
+                                                      className="gap-1"
+                                                    >
+                                                      <ExternalLink className="h-3 w-3" />
+                                                      <span className="text-xs">Maps</span>
+                                                    </a>
+                                                  </Button>
+                                                )}
+                                              </div>
+                                              <p className="text-xs text-muted-foreground mb-2 line-clamp-1">{tempActivity.venueType}</p>
+                                              
+                                              <div className="flex items-center gap-3 mb-3">
+                                                {tempActivity.rating && (
+                                                  <div className="flex items-center gap-1">
+                                                    <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                                                    <span className="text-sm font-medium">{tempActivity.rating}</span>
+                                                    {tempActivity.reviewCount && (
+                                                      <span className="text-xs text-muted-foreground">({tempActivity.reviewCount})</span>
+                                                    )}
+                                                  </div>
+                                                )}
+                                                {tempActivity.priceLevel && (
+                                                  <div className="text-sm text-muted-foreground">
+                                                    {priceDisplay(tempActivity.priceLevel)}
+                                                  </div>
+                                                )}
+                                              </div>
+                                              
+                                              {tempActivity.description && (
+                                                <p className="text-xs text-muted-foreground line-clamp-2 mb-3">{tempActivity.description}</p>
+                                              )}
+                                              
+                                              <p className="text-xs text-muted-foreground mt-auto line-clamp-2">{tempActivity.venueAddress}</p>
+                                            </div>
+                                          </Card>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                          </>
                         </div>
                       </div>
                     </Card>
