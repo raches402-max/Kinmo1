@@ -981,6 +981,21 @@ export default function GroupDetail() {
     }
   }, [group]);
 
+  // Initialize selectedCategories from group preferences
+  useEffect(() => {
+    if (group && selectedCategories.length === 0) {
+      const initialCategories: ('meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences')[] = [];
+      
+      if (group.mealEnabled) initialCategories.push('meal');
+      if (group.cafeEnabled) initialCategories.push('cafes');
+      if (group.drinksEnabled) initialCategories.push('drinks');
+      if (group.dessertEnabled) initialCategories.push('dessert');
+      if (group.experiencesEnabled) initialCategories.push('experiences');
+      
+      setSelectedCategories(initialCategories);
+    }
+  }, [group]);
+
   const sendInvitationsMutation = useMutation({
     mutationFn: async () => {
       return await apiRequest("POST", `/api/groups/${groupId}/send-invitations`, {});
