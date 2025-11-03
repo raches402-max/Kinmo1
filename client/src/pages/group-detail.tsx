@@ -3038,7 +3038,7 @@ export default function GroupDetail() {
                           className="gap-1.5"
                           data-testid="button-toggle-drinks"
                         >
-                          <span>🍷</span>
+                          <span>🍺</span>
                           <span>Drinks</span>
                         </Button>
                         <Button
