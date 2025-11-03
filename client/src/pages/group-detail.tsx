@@ -3177,15 +3177,33 @@ export default function GroupDetail() {
                           </Label>
                           <p className="text-xs text-muted-foreground">
                             Creates and sends an event every {editFrequencyNumber} {editFrequencyUnit}{editFrequencyNumber !== 1 ? 's' : ''} automatically
-                            {group?.autoScheduleEnabled && group?.nextEventDueDate && (
-                              <span className="block mt-1">
-                                → Next auto-event: {new Date(group.nextEventDueDate).toLocaleDateString('en-US', { 
-                                  month: 'short', 
-                                  day: 'numeric' 
-                                })} <Link href="#" onClick={(e) => { e.preventDefault(); setActiveTab('home'); }} className="text-primary hover:underline">(view on Home tab)</Link>
-                              </span>
-                            )}
                           </p>
+                          {group?.autoScheduleEnabled && (
+                            <div className="text-xs mt-1.5">
+                              {group?.nextEventDueDate ? (
+                                <span className="text-muted-foreground">
+                                  → Next auto-event: {new Date(group.nextEventDueDate).toLocaleDateString('en-US', { 
+                                    month: 'short', 
+                                    day: 'numeric' 
+                                  })}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">
+                                  → Auto-scheduling active
+                                </span>
+                              )}
+                              {' '}
+                              <Button 
+                                variant="link" 
+                                size="sm" 
+                                className="h-auto p-0 text-xs text-primary hover:underline"
+                                onClick={() => setActiveTab('home')}
+                                data-testid="link-view-home-tab"
+                              >
+                                (view on Home tab)
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
