@@ -2153,8 +2153,31 @@ export default function GroupDetail() {
   }
 
   const priceDisplay = (level: string) => {
+    // Handle PRICE_LEVEL_X format from curated venues
+    if (level.startsWith('PRICE_LEVEL_')) {
+      const levelMap: Record<string, number> = {
+        'PRICE_LEVEL_FREE': 0,
+        'PRICE_LEVEL_INEXPENSIVE': 1,
+        'PRICE_LEVEL_MODERATE': 2,
+        'PRICE_LEVEL_EXPENSIVE': 3,
+        'PRICE_LEVEL_VERY_EXPENSIVE': 4,
+      };
+      const count = levelMap[level];
+      // If unknown enum value, return original string as fallback
+      if (count === undefined) {
+        return level;
+      }
+      return count === 0 ? 'Free' : "$".repeat(count);
+    }
+    
+    // Handle $ symbols from API (already formatted)
+    if (level.startsWith('$')) {
+      return level;
+    }
+    
+    // Handle numeric strings (legacy format)
     const count = parseInt(level) || 0;
-    return "$".repeat(Math.max(1, count));
+    return count === 0 ? 'Free' : "$".repeat(Math.max(1, count));
   };
 
   const extractCity = (address: string | null | undefined): string => {
@@ -3991,7 +4014,7 @@ export default function GroupDetail() {
                                     )}
                                     {tempActivity.priceLevel && (
                                       <div className="text-sm text-muted-foreground">
-                                        {"$".repeat(parseInt(tempActivity.priceLevel))}
+                                        {priceDisplay(tempActivity.priceLevel)}
                                       </div>
                                     )}
                                   </div>
