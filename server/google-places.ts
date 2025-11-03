@@ -70,14 +70,14 @@ export function getApiKeyStats() {
 /**
  * Map budgetMax to maximum allowed price level
  * Price Rules:
- * $ (<$30) = 1
- * $$ (<$60) = 2
+ * $ (≤$30) = 1
+ * $$ (≤$60) = 2
  * $$$ (<$100) = 3
  * $$$$ ($100+) = 4
  */
 export function getMaxPriceLevelForBudget(budgetMax: number): number {
-  if (budgetMax < 30) return 1;
-  if (budgetMax < 60) return 2;
+  if (budgetMax <= 30) return 1;
+  if (budgetMax <= 60) return 2;
   if (budgetMax < 100) return 3;
   return 4; // $100+
 }
