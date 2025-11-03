@@ -2679,6 +2679,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // The app now uses category-specific generation (/generate-category) instead.
   // Retry activity generation (protected)
   app.post("/api/groups/:id/retry-generation", isAuthenticated, async (req: any, res) => {
+    // Return 410 Gone - this feature has been replaced with category-specific generation
+    return res.status(410).json({ 
+      message: "General AI generation is no longer supported. Please use category-specific generation instead.",
+      hint: "Select a category (Bars, Coffee, Meals, Dessert, Events) and generate from there."
+    });
+
+    /*
+    // OLD CODE - kept for reference
     try {
       const group = await storage.getGroup(req.params.id);
       if (!group) {
@@ -2729,6 +2737,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
+    */
   });
 
   // Cancel AI generation (protected)

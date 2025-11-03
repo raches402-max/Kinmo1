@@ -1002,6 +1002,9 @@ export default function GroupDetail() {
     },
   });
 
+  // ARCHIVED: General AI generation mutation (Nov 2025)
+  // Replaced with category-specific generation
+  /*
   const retryGenerationMutation = useMutation({
     mutationFn: async () => {
       return await apiRequest("POST", `/api/groups/${groupId}/retry-generation`, {
@@ -1025,6 +1028,7 @@ export default function GroupDetail() {
       });
     },
   });
+  */
 
   const generateCategoryMutation = useMutation({
     mutationFn: async ({ category, location, radius, sortBy, tempInstructions }: { category: string; location?: { address: string; lat: number; lng: number }; radius?: number; sortBy?: 'distance' | 'rating'; tempInstructions?: string }) => {
@@ -3729,19 +3733,11 @@ export default function GroupDetail() {
                 <div className="text-center">
                   {group?.activityGenerationStatus === "failed" ? (
                     <>
-                      <Calendar className="h-12 w-12 text-destructive mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold mb-2">Generation Failed</h3>
+                      <Sparkles className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold mb-2">Ready to Explore</h3>
                       <p className="text-muted-foreground mb-4">
-                        {group.activityGenerationError || "Unable to generate activity suggestions"}
+                        Select a category above (Bars, Coffee, Meals, Dessert, or Events) to discover venues
                       </p>
-                      <Button 
-                        onClick={() => retryGenerationMutation.mutate()} 
-                        variant="outline"
-                        disabled={retryGenerationMutation.isPending}
-                        data-testid="button-retry-generation"
-                      >
-                        {retryGenerationMutation.isPending ? "Retrying..." : "Retry Generation"}
-                      </Button>
                     </>
                   ) : (
                     <>
