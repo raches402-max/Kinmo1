@@ -67,6 +67,72 @@ export function getApiKeyStats() {
   };
 }
 
+/**
+ * Map budgetMax to maximum allowed price level
+ * Price Rules:
+ * $ (<$30) = 1
+ * $$ (<$60) = 2
+ * $$$ (<$100) = 3
+ * $$$$ ($100+) = 4
+ */
+export function getMaxPriceLevelForBudget(budgetMax: number): number {
+  if (budgetMax < 30) return 1;
+  if (budgetMax < 60) return 2;
+  if (budgetMax < 100) return 3;
+  return 4; // $100+
+}
+
+/**
+ * Convert price level string to numeric value
+ */
+function priceLevelToNumber(priceLevel: string | undefined): number | null {
+  if (!priceLevel) return null;
+  
+  const priceMap: Record<string, number> = {
+    '$': 1,
+    '$$': 2,
+    '$$$': 3,
+    '$$$$': 4,
+    'PRICE_LEVEL_INEXPENSIVE': 1,
+    'PRICE_LEVEL_MODERATE': 2,
+    'PRICE_LEVEL_EXPENSIVE': 3,
+    'PRICE_LEVEL_VERY_EXPENSIVE': 4
+  };
+  
+  return priceMap[priceLevel] || null;
+}
+
+/**
+ * Filter venues by budget
+ * Venues with missing price data:
+ * - Allowed for budgets >= $100 (benefit of doubt for high-end groups)
+ * - Rejected for budgets < $100 (safer default for budget-conscious groups)
+ */
+export function filterByBudget(venues: PlaceResult[], budgetMax: number): PlaceResult[] {
+  const maxPriceLevel = getMaxPriceLevelForBudget(budgetMax);
+  
+  return venues.filter(venue => {
+    const priceNum = priceLevelToNumber(venue.priceLevel);
+    
+    // Handle missing price data
+    if (priceNum === null) {
+      const allowed = budgetMax >= 100;
+      if (!allowed) {
+        console.log(`[Budget Filter] Filtering out "${venue.name}" - no price data (budget: $${budgetMax})`);
+      }
+      return allowed;
+    }
+    
+    // Filter by price level
+    if (priceNum > maxPriceLevel) {
+      console.log(`[Budget Filter] Filtering out "${venue.name}" - ${venue.priceLevel} exceeds budget $${budgetMax} (max: ${maxPriceLevel === 1 ? '$' : maxPriceLevel === 2 ? '$$' : maxPriceLevel === 3 ? '$$$' : '$$$$'})`);
+      return false;
+    }
+    
+    return true;
+  });
+}
+
 // Session-level cache for Google Places API results
 // This dramatically reduces API calls by caching results during activity generation
 interface PlacesCache {
