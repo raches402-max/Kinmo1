@@ -261,7 +261,6 @@ export default function CreateGroup() {
                             <div className="overflow-hidden rounded-lg">
                               <EmojiPicker
                                 onEmojiClick={(emojiData) => {
-                                  console.log("Emoji clicked:", emojiData.emoji);
                                   field.onChange(emojiData.emoji);
                                   setEmojiPickerOpen(false);
                                 }}
