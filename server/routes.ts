@@ -2527,7 +2527,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             validatedEvent.title, 
             group.locationBase,
             group.searchRadius || 2, // Use group's search radius
-            coordinates
+            coordinates,
+            false, // skipCurated
+            undefined, // venueType
+            group.budgetMax // Pass budget for filtering
           );
 
           // Merge Google Places data if found
@@ -2919,7 +2922,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             suggestion.searchQuery,
             refreshedGroup.locationBase,
             refreshedGroup.searchRadius || 2,
-            coordinates
+            coordinates,
+            false, // skipCurated
+            undefined, // venueType
+            refreshedGroup.budgetMax // Pass budget for filtering
           );
 
           // If Google Places returns NO results at all, this is likely a fake/non-existent venue
@@ -2946,21 +2952,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           });
 
-          // Apply budget filtering based on Google Places price level
-          const budgetFiltered = qualityFiltered.filter(place => {
-            const priceLevel = parseInt(place.priceLevel || '0');
-            const budgetMax = group.budgetMax;
-
-            if (budgetMax < 50) {
-              return priceLevel <= 1; // Free or $ only
-            } else if (budgetMax < 100) {
-              return priceLevel <= 2; // Free, $, or $$
-            } else if (budgetMax < 200) {
-              return priceLevel <= 3; // Free, $, $$, or $$$
-            } else {
-              return priceLevel <= 4; // All price levels
-            }
-          });
+          // Budget filtering now handled by searchPlaces itself
+          const budgetFiltered = qualityFiltered;
 
           // Only use venues that meet quality AND budget standards
           const finalPlaces = budgetFiltered;
@@ -3218,11 +3211,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Search Google Places directly (no AI needed!)
+      // Note: Budget filtering intentionally NOT applied here - users exploring categories can see all options
       const places = await searchPlaces(
         `${searchQuery} in ${searchLocation}`,
         searchLocation,
         searchRadius,
-        coordinates
+        coordinates,
+        false, // skipCurated
+        undefined, // venueType
+        undefined // No budget filter for category exploration
       );
 
       console.log(`[Category Generate] Got ${places.length} places from Google`);
@@ -3508,12 +3505,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const searchQuery = `${schedulingParams.activityType} ${categorySearchQueries[schedulingParams.category] || ''}`;
       console.log(`[AI Scheduling] Searching: "${searchQuery} in ${searchLocation}"`);
 
-      // Search Google Places
+      // Search Google Places with budget filtering
       const places = await searchPlaces(
         `${searchQuery} in ${searchLocation}`,
         searchLocation,
         searchRadius,
-        coordinates
+        coordinates,
+        false, // skipCurated
+        undefined, // venueType
+        group.budgetMax // Pass budget for filtering
       );
 
       console.log(`[AI Scheduling] Found ${places.length} places`);
@@ -3979,7 +3979,7 @@ Looking forward to planning great activities together!
               const coordinates = (lat !== undefined && lng !== undefined) ? { lat, lng } : undefined;
 
               const places = await import('./google-places').then(m => 
-                m.searchPlaces(concept.searchQuery, group.locationBase, radius, coordinates)
+                m.searchPlaces(concept.searchQuery, group.locationBase, radius, coordinates, false, undefined, group.budgetMax)
               );
 
               if (places.length > 0) {
@@ -4346,7 +4346,7 @@ Looking forward to planning great activities together!
         ? { lat: parseFloat(group.latitude), lng: parseFloat(group.longitude) }
         : undefined;
 
-      const results = await searchPlaces(searchQuery, location, radius, coordinates);
+      const results = await searchPlaces(searchQuery, location, radius, coordinates, false, undefined, group.budgetMax);
 
       // Return top 10 results
       const limitedResults = results.slice(0, 10).map(place => ({
@@ -7643,7 +7643,8 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
               groupData.searchRadius || 2,
               coordinates,
               false, // skipCurated
-              suggestion.venueType // Pass venueType for better cache matching
+              suggestion.venueType, // Pass venueType for better cache matching
+              groupData.budgetMax // Pass budget for filtering
             );
 
           // If Google Places returns NO results at all, this is likely a fake/non-existent venue
@@ -7677,21 +7678,8 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
             }
           });
 
-          // Apply budget filtering based on Google Places price level
-          const budgetFiltered = qualityFiltered.filter(place => {
-            const priceLevel = parseInt(place.priceLevel || '0');
-            const budgetMax = groupData.budgetMax;
-
-            if (budgetMax < 50) {
-              return priceLevel <= 1; // Free or $ only
-            } else if (budgetMax < 100) {
-              return priceLevel <= 2; // Free, $, or $$
-            } else if (budgetMax < 200) {
-              return priceLevel <= 3; // Free, $, $$, or $$$
-            } else {
-              return priceLevel <= 4; // All price levels
-            }
-          });
+          // Budget filtering now handled by searchPlaces itself
+          const budgetFiltered = qualityFiltered;
 
           // Apply drinks category post-filter to reject restaurants and sushi bars
           const detectedCategory = detectCategory(suggestion.venueName, suggestion.venueType);
@@ -7825,7 +7813,8 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
               groupData.searchRadius || 2,
               coordinates,
               true, // skipCurated = true (force fresh API call)
-              suggestion.venueType // Pass venueType for better cache matching
+              suggestion.venueType, // Pass venueType for better cache matching
+              groupData.budgetMax // Pass budget for filtering
             );
             
             // If API also returns no results, this is likely a fake venue

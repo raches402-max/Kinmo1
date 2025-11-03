@@ -912,7 +912,8 @@ export async function searchPlaces(
   radiusMiles: number = 2,
   coordinates?: { lat: number; lng: number },
   skipCurated: boolean = false,
-  venueType?: string
+  venueType?: string,
+  budgetMax?: number
 ): Promise<PlaceResult[]> {
   // CACHE-FIRST STRATEGY: Check curated venues FIRST (10-50ms for SF searches)
   // Skip curated search if explicitly requested (e.g., when curated filtering failed)
@@ -924,6 +925,12 @@ export async function searchPlaces(
     if (curatedResults.length >= 15) {
       // We have enough curated venues, return immediately (skip API call)
       console.log(`[Cache-First] Returning ${curatedResults.length} curated venues (NO API CALL NEEDED)`);
+      // Apply budget filter if provided (only filter if budgetMax is a real number)
+      if (budgetMax != null && typeof budgetMax === 'number') {
+        const filtered = filterByBudget(curatedResults, budgetMax);
+        console.log(`[Budget Filter] ${curatedResults.length} → ${filtered.length} venues after budget filter ($${budgetMax})`);
+        return filtered;
+      }
       return curatedResults;
     }
     
@@ -952,11 +959,24 @@ export async function searchPlaces(
         const uniqueCached = cached.filter(r => !curatedPlaceIds.has(r.placeId));
         const combined = [...curatedResults, ...uniqueCached].slice(0, 20);
         console.log(`[Cache-First] Combined ${curatedResults.length} curated + ${uniqueCached.length} cached = ${combined.length} total`);
+        // Apply budget filter if provided (only filter if budgetMax is a real number)
+        if (budgetMax != null && typeof budgetMax === 'number') {
+          const filtered = filterByBudget(combined, budgetMax);
+          console.log(`[Budget Filter] ${combined.length} → ${filtered.length} venues after budget filter ($${budgetMax})`);
+          return filtered.map(result => clonePlaceResult(result));
+        }
         return combined.map(result => clonePlaceResult(result));
       }
       
       // Return deep copy to prevent mutation
-      return cached.map(result => clonePlaceResult(result));
+      const results = cached.map(result => clonePlaceResult(result));
+      // Apply budget filter if provided (only filter if budgetMax is a real number)
+      if (budgetMax != null && typeof budgetMax === 'number') {
+        const filtered = filterByBudget(results, budgetMax);
+        console.log(`[Budget Filter] ${results.length} → ${filtered.length} venues after budget filter ($${budgetMax})`);
+        return filtered;
+      }
+      return results;
     }
 
     // Check database cache (persistent, 24-hour TTL)
@@ -980,6 +1000,12 @@ export async function searchPlaces(
           const combined = [...curatedResults, ...uniqueDb].slice(0, 20);
           sessionCache.searchResults.set(cacheKey, combined.map(r => clonePlaceResult(r)));
           console.log(`[Cache-First] Combined ${curatedResults.length} curated + ${uniqueDb.length} DB = ${combined.length} total`);
+          // Apply budget filter if provided (only filter if budgetMax is a real number)
+          if (budgetMax != null && typeof budgetMax === 'number') {
+            const filtered = filterByBudget(combined, budgetMax);
+            console.log(`[Budget Filter] ${combined.length} → ${filtered.length} venues after budget filter ($${budgetMax})`);
+            return filtered.map(result => clonePlaceResult(result));
+          }
           return combined.map(result => clonePlaceResult(result));
         }
         
@@ -987,7 +1013,14 @@ export async function searchPlaces(
         sessionCache.searchResults.set(cacheKey, results.map(r => clonePlaceResult(r)));
         sessionCache.stats.searchHits++;
         
-        return results.map(result => clonePlaceResult(result));
+        // Apply budget filter if provided (only filter if budgetMax is a real number)
+        const toReturn = results.map(result => clonePlaceResult(result));
+        if (budgetMax != null && typeof budgetMax === 'number') {
+          const filtered = filterByBudget(toReturn, budgetMax);
+          console.log(`[Budget Filter] ${toReturn.length} → ${filtered.length} venues after budget filter ($${budgetMax})`);
+          return filtered;
+        }
+        return toReturn;
       }
     }
   }
@@ -1177,10 +1210,22 @@ export async function searchPlaces(
       const uniqueApiResults = results.filter(r => !curatedPlaceIds.has(r.placeId));
       const combined = [...curatedResults, ...uniqueApiResults].slice(0, 20);
       console.log(`[Cache-First] Final: ${curatedResults.length} curated + ${uniqueApiResults.length} API = ${combined.length} total`);
+      // Apply budget filter if provided (only filter if budgetMax is a real number)
+      if (budgetMax != null && typeof budgetMax === 'number') {
+        const filtered = filterByBudget(combined, budgetMax);
+        console.log(`[Budget Filter] ${combined.length} → ${filtered.length} venues after budget filter ($${budgetMax})`);
+        return filtered;
+      }
       return combined;
     }
     
     // Return original (caller can mutate without affecting cache)
+    // Apply budget filter if provided (only filter if budgetMax is a real number)
+    if (budgetMax != null && typeof budgetMax === 'number') {
+      const filtered = filterByBudget(results, budgetMax);
+      console.log(`[Budget Filter] ${results.length} → ${filtered.length} venues after budget filter ($${budgetMax})`);
+      return filtered;
+    }
     return results;
   } catch (error) {
     console.error("Error searching Google Places:", error);
@@ -1190,6 +1235,12 @@ export async function searchPlaces(
     // Even if API fails, return curated results if we have them
     if (curatedResults.length > 0) {
       console.log(`[Cache-First] API failed, returning ${curatedResults.length} curated venues as fallback`);
+      // Apply budget filter if provided (only filter if budgetMax is a real number)
+      if (budgetMax != null && typeof budgetMax === 'number') {
+        const filtered = filterByBudget(curatedResults, budgetMax);
+        console.log(`[Budget Filter] ${curatedResults.length} → ${filtered.length} venues after budget filter ($${budgetMax})`);
+        return filtered;
+      }
       return curatedResults;
     }
     
