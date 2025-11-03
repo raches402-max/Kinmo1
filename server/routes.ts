@@ -2674,6 +2674,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ARCHIVED: General AI activity generation (Nov 2025)
+  // This endpoint is kept for backward compatibility but is no longer used in the UI.
+  // The app now uses category-specific generation (/generate-category) instead.
   // Retry activity generation (protected)
   app.post("/api/groups/:id/retry-generation", isAuthenticated, async (req: any, res) => {
     try {
