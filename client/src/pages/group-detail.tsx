@@ -4020,17 +4020,18 @@ export default function GroupDetail() {
                   );
                 })()}
 
+                {/* ARCHIVED (Nov 2025): Old "Saved Activities" section from general AI generation flow
                 {/* Divider between search results and saved activities */}
-                {categoryResults.length > 0 && activities.length > 0 && (
+                {/* categoryResults.length > 0 && activities.length > 0 && (
                   <div className="my-8 flex items-center gap-4">
                     <div className="flex-1 h-px bg-border"></div>
                     <span className="text-sm text-muted-foreground font-medium">Your Saved Activities</span>
                     <div className="flex-1 h-px bg-border"></div>
                   </div>
-                )}
+                ) */}
 
                 {/* Group activities by food/beverage category */}
-                {(() => {
+                {/* (() => {
                   const filteredActivities = activities
                     .filter(activity => activity.feedback !== "less")
                     .sort((a, b) => {
@@ -4379,14 +4380,14 @@ export default function GroupDetail() {
                       </CardHeader>
                     </Card>
                   );
-                })}
-                            </div>
+                }) */}
+                            {/* </div>
                           </div>
                         );
                       })}
                     </div>
                   );
-                })()}
+                })() */}
               </>
             )}
             </div>
