@@ -693,6 +693,9 @@ export default function GroupDetail() {
   const [schedulePromptDialogOpen, setSchedulePromptDialogOpen] = useState(false);
   const [schedulePrompt, setSchedulePrompt] = useState("");
   const [schedulePromptLoading, setSchedulePromptLoading] = useState(false);
+  
+  // Auto-refresh state for countdowns
+  const [, forceUpdate] = useState(0);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -911,6 +914,15 @@ export default function GroupDetail() {
 
     return () => clearTimeout(timer);
   }, [dialogVenueSearchQuery]);
+
+  // Auto-refresh countdowns every minute
+  useEffect(() => {
+    const interval = setInterval(() => {
+      forceUpdate(prev => prev + 1);
+    }, 60000); // 60 seconds
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Auto-open edit dialog when URL contains ?edit=<itineraryId>
   useEffect(() => {

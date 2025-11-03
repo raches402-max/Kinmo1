@@ -46,7 +46,11 @@ AI suggestion preferences:
 - **AI-Driven Scheduling System**: Organizers set general group availability, and AI picks optimal times, supporting RSVP and structured feedback.
 - **Organizer RSVP System**: Group owners can RSVP to their own events.
 - **Multi-Date/Time Voting**: Organizers propose multiple date/time options, with member voting and "Most Popular" badges.
-- **AI Auto-Scheduling**: Proactive event generation with organizer approval flows.
+- **AI Auto-Scheduling**: Proactive event generation with organizer approval flows. Features include:
+  - **Auto-Scheduling Visibility (Nov 2025)**: "Next Auto-Event" card shows countdown to next event creation (10 days before due date) with precise hour/minute timing when <24h away.
+  - **Pending Events UI**: Displays pending auto-events awaiting volunteer hosts with 48-hour countdown timer, venue preview, and clear auto-send deadline messaging ("Auto-send in 17h unless someone volunteers").
+  - **In-App Volunteer Prompts**: Members can volunteer to host directly from pending event cards, replacing email-based notifications.
+  - **Auto-Refresh Countdowns**: Timers update every minute via useEffect to show real-time remaining time.
 - **Group Collections/Tags**: Users can organize groups into custom collections.
 - **Event Hosting Rotation**: Opt-in hosting system where members volunteer to host.
 - **Optional Member Registration**: Members can optionally complete profiles to improve AI recommendations.
