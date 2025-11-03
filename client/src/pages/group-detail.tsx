@@ -48,6 +48,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import EmojiPicker from 'emoji-picker-react';
 
 // Timezone helper functions
 function getTimezoneIdentifier(location: string): string {
@@ -681,6 +682,9 @@ export default function GroupDetail() {
   const [inviteGuestItineraryId, setInviteGuestItineraryId] = useState<string | null>(null);
   const [guestName, setGuestName] = useState("");
   const [guestEmail, setGuestEmail] = useState("");
+  
+  // Emoji picker state for inline group edit
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   
   // Category-specific generation state
   const [selectedCategories, setSelectedCategories] = useState<('meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences')[]>([]);
@@ -3065,33 +3069,32 @@ export default function GroupDetail() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="inline-group-emoji">Group Icon</Label>
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-3">
-                        <div className="text-4xl">{editGroupData.emoji || "🎉"}</div>
-                        <Input 
-                          id="inline-group-emoji"
-                          value={editGroupData.emoji} 
-                          onChange={(e) => setEditGroupData({ ...editGroupData, emoji: e.target.value })}
-                          placeholder="🎉" 
-                          className="w-20 text-center text-2xl"
-                          data-testid="input-inline-group-emoji"
-                        />
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {groupEmojis.map((emoji) => (
-                          <Button
-                            key={emoji}
+                    <div className="flex items-center gap-3">
+                      <div className="text-4xl" data-testid="text-selected-emoji">{editGroupData.emoji || "🎉"}</div>
+                      <Popover open={emojiPickerOpen} onOpenChange={setEmojiPickerOpen} modal={true}>
+                        <PopoverTrigger asChild>
+                          <Button 
                             type="button"
-                            variant={editGroupData.emoji === emoji ? "default" : "outline"}
+                            variant="outline" 
                             size="sm"
-                            onClick={() => setEditGroupData({ ...editGroupData, emoji })}
-                            className="text-xl h-10 w-10 p-0"
-                            data-testid={`button-inline-emoji-${emoji}`}
+                            data-testid="button-choose-emoji"
                           >
-                            {emoji}
+                            Choose emoji 🙂
                           </Button>
-                        ))}
-                      </div>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+                          <div className="overflow-hidden rounded-lg">
+                            <EmojiPicker
+                              onEmojiClick={(emojiData) => {
+                                setEditGroupData({ ...editGroupData, emoji: emojiData.emoji });
+                                setEmojiPickerOpen(false);
+                              }}
+                              width={350}
+                              height={400}
+                            />
+                          </div>
+                        </PopoverContent>
+                      </Popover>
                     </div>
                   </div>
                   <div className="space-y-2">
