@@ -105,6 +105,7 @@ export interface IStorage {
   // Auto-scheduled Events
   createAutoScheduledEvent(event: InsertAutoScheduledEvent): Promise<AutoScheduledEvent>;
   getPendingAutoScheduledEvent(groupId: string): Promise<AutoScheduledEvent | undefined>;
+  getPendingAutoScheduledEvents(groupId: string): Promise<Array<AutoScheduledEvent & { itinerary?: Itinerary & { items: ItineraryItem[] } }>>;
   getAutoScheduledEvent(id: string): Promise<AutoScheduledEvent | undefined>;
   updateAutoScheduledEventStatus(id: string, status: string): Promise<AutoScheduledEvent>;
   getAutoScheduledEventsReadyForAutoSend(): Promise<AutoScheduledEvent[]>;
@@ -1089,6 +1090,31 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(autoScheduledEvents.createdAt))
       .limit(1);
     return event;
+  }
+
+  async getPendingAutoScheduledEvents(groupId: string): Promise<Array<AutoScheduledEvent & { itinerary?: Itinerary & { items: ItineraryItem[] } }>> {
+    const events = await db
+      .select()
+      .from(autoScheduledEvents)
+      .where(and(
+        eq(autoScheduledEvents.groupId, groupId),
+        eq(autoScheduledEvents.status, 'pending')
+      ))
+      .orderBy(desc(autoScheduledEvents.createdAt));
+    
+    // Fetch itinerary data for each event
+    const eventsWithItineraries = await Promise.all(
+      events.map(async (event) => {
+        if (!event.itineraryId) {
+          return { ...event, itinerary: undefined };
+        }
+        
+        const itinerary = await this.getItinerary(event.itineraryId);
+        return { ...event, itinerary };
+      })
+    );
+    
+    return eventsWithItineraries;
   }
 
   async getAutoScheduledEvent(id: string): Promise<AutoScheduledEvent | undefined> {

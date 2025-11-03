@@ -5501,6 +5501,16 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Get pending auto-scheduled events for a group
+  app.get("/api/groups/:groupId/auto-scheduled-events", async (req, res) => {
+    try {
+      const events = await storage.getPendingAutoScheduledEvents(req.params.groupId);
+      res.json(events);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Create an RSVP for an itinerary
   app.post("/api/itineraries/:id/rsvps", async (req, res) => {
     try {

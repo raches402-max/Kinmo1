@@ -750,6 +750,12 @@ export default function GroupDetail() {
     enabled: !!groupId,
   });
 
+  // Fetch pending auto-scheduled events
+  const { data: pendingAutoEvents = [], isLoading: pendingAutoEventsLoading } = useQuery<any[]>({
+    queryKey: ["/api/groups", groupId, "auto-scheduled-events"],
+    enabled: !!groupId,
+  });
+
   // Fetch feedback summary
   const { data: feedbackSummary, isLoading: feedbackLoading } = useQuery<any>({
     queryKey: ["/api/groups", groupId, "feedback-summary"],
@@ -2375,6 +2381,81 @@ export default function GroupDetail() {
                 </Button>
               </div>
 
+              {/* Auto-Scheduling Info Card */}
+              {group?.autoScheduleEnabled && group?.nextEventDueDate && (
+                <Card className="border-primary/50 bg-primary/5" data-testid="card-next-auto-event">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-2">
+                      <Bot className="h-5 w-5 text-primary" />
+                      <CardTitle className="text-base">Next Auto-Scheduled Event</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {(() => {
+                      const nextDue = new Date(group.nextEventDueDate);
+                      const now = new Date();
+                      const msUntil = nextDue.getTime() - now.getTime();
+                      const hoursUntil = Math.floor(msUntil / (1000 * 60 * 60));
+                      const daysUntil = Math.floor(msUntil / (1000 * 60 * 60 * 24));
+                      const willTriggerSoon = daysUntil <= 10 && daysUntil >= 0;
+                      
+                      // Format time remaining
+                      let timeRemainingText = '';
+                      if (msUntil < 0) {
+                        timeRemainingText = 'Overdue';
+                      } else if (hoursUntil < 24) {
+                        const minutesRemaining = Math.floor((msUntil % (1000 * 60 * 60)) / (1000 * 60));
+                        timeRemainingText = hoursUntil === 0 
+                          ? `${minutesRemaining}m away` 
+                          : `${hoursUntil}h ${minutesRemaining}m away`;
+                      } else {
+                        timeRemainingText = `${daysUntil} day${daysUntil !== 1 ? 's' : ''} away`;
+                      }
+                      
+                      return (
+                        <>
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 space-y-1">
+                              <p className="text-sm font-medium">
+                                Target: {nextDue.toLocaleDateString('en-US', { 
+                                  weekday: 'long', 
+                                  month: 'long', 
+                                  day: 'numeric' 
+                                })}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {timeRemainingText}
+                              </p>
+                            </div>
+                            {willTriggerSoon && (
+                              <Badge variant="default" className="gap-1">
+                                <Clock className="h-3 w-3" />
+                                Creating soon
+                              </Badge>
+                            )}
+                          </div>
+                          
+                          {willTriggerSoon ? (
+                            <div className="text-xs text-muted-foreground bg-background/50 rounded-md p-3 space-y-1">
+                              <p className="font-medium">Auto-scheduling activates 10 days before target:</p>
+                              <ol className="list-decimal list-inside space-y-1 ml-2">
+                                <li>Event created from saved plans or favorites</li>
+                                <li>48-hour window for members to volunteer as host</li>
+                                <li>If no volunteers, event automatically sends</li>
+                              </ol>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-muted-foreground">
+                              Auto-scheduling activates 10 days before the target date
+                            </p>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </CardContent>
+                </Card>
+              )}
+
               {(() => {
                 const now = new Date();
                 
@@ -2423,6 +2504,115 @@ export default function GroupDetail() {
 
                 return (
                   <>
+                    {/* Pending Auto-Scheduled Events */}
+                    {pendingAutoEvents.length > 0 && (
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h2 className="text-xl font-bold flex items-center gap-2">
+                            <Bot className="h-5 w-5 text-primary" />
+                            Pending Auto-Events
+                          </h2>
+                        </div>
+                        <div className="grid gap-4">
+                          {pendingAutoEvents.map((autoEvent: any) => {
+                            const autoSendTime = new Date(autoEvent.autoSendAt);
+                            const msUntilAutoSend = autoSendTime.getTime() - now.getTime();
+                            const hoursUntilAutoSend = Math.max(0, Math.floor(msUntilAutoSend / (1000 * 60 * 60)));
+                            const minutesUntilAutoSend = Math.max(0, Math.floor((msUntilAutoSend % (1000 * 60 * 60)) / (1000 * 60)));
+                            
+                            // Format countdown text
+                            let countdownText = '';
+                            let countdownBadge = '';
+                            if (msUntilAutoSend <= 0) {
+                              countdownText = 'Auto-sending now';
+                              countdownBadge = 'Sending';
+                            } else if (hoursUntilAutoSend < 1) {
+                              countdownText = `Auto-send in ${minutesUntilAutoSend}m unless someone volunteers`;
+                              countdownBadge = `${minutesUntilAutoSend}m left`;
+                            } else if (hoursUntilAutoSend < 24) {
+                              countdownText = `Auto-send in ${hoursUntilAutoSend}h ${minutesUntilAutoSend}m unless someone volunteers`;
+                              countdownBadge = `${hoursUntilAutoSend}h left`;
+                            } else {
+                              const daysLeft = Math.floor(hoursUntilAutoSend / 24);
+                              countdownText = `Auto-send in ${daysLeft} day${daysLeft !== 1 ? 's' : ''} unless someone volunteers`;
+                              countdownBadge = `${daysLeft}d left`;
+                            }
+                            
+                            const itinerary = autoEvent.itinerary;
+                            
+                            return (
+                              <Card key={autoEvent.id} data-testid={`card-pending-auto-event-${autoEvent.id}`} className="border-primary/50 bg-primary/5">
+                                <CardContent className="p-4">
+                                  <div className="space-y-3">
+                                    <div className="flex items-start justify-between gap-4">
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <h3 className="font-semibold">{itinerary?.name || 'Auto-Generated Event'}</h3>
+                                          <Badge variant="secondary" className="gap-1 text-xs">
+                                            <Clock className="h-3 w-3" />
+                                            {countdownBadge}
+                                          </Badge>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground mb-2">
+                                          Proposed: {new Date(autoEvent.proposedDate).toLocaleDateString('en-US', { 
+                                            weekday: 'short',
+                                            month: 'short', 
+                                            day: 'numeric',
+                                            hour: 'numeric',
+                                            minute: '2-digit'
+                                          })}
+                                        </p>
+                                        {itinerary?.items && itinerary.items.length > 0 && (
+                                          <div className="space-y-1">
+                                            {itinerary.items.slice(0, 2).map((item: any, idx: number) => (
+                                              <p key={item.id} className="text-xs text-muted-foreground">
+                                                {idx + 1}. {item.venueName}
+                                              </p>
+                                            ))}
+                                            {itinerary.items.length > 2 && (
+                                              <p className="text-xs text-muted-foreground">
+                                                +{itinerary.items.length - 2} more
+                                              </p>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="flex flex-col gap-2">
+                                        <Button 
+                                          variant="default" 
+                                          size="sm"
+                                          className="gap-1"
+                                          data-testid={`button-volunteer-host-${autoEvent.id}`}
+                                        >
+                                          <UserCheck className="h-4 w-4" />
+                                          Volunteer to Host
+                                        </Button>
+                                        {isOwner && (
+                                          <Button 
+                                            variant="outline" 
+                                            size="sm"
+                                            data-testid={`button-edit-auto-event-${autoEvent.id}`}
+                                          >
+                                            <Edit2 className="h-4 w-4" />
+                                          </Button>
+                                        )}
+                                      </div>
+                                    </div>
+                                    
+                                    <div className="text-xs bg-background/50 rounded-md p-2 border-l-2 border-primary">
+                                      <p className="text-muted-foreground">
+                                        <strong>48-hour volunteer window:</strong> {countdownText}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Active Plans (Not Scheduled Yet) */}
                     {activePlans.length > 0 && (
                       <div className="space-y-4">
