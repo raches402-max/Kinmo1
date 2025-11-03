@@ -2988,49 +2988,17 @@ export default function GroupDetail() {
                   <CardDescription>Basic information about your group</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-group-name">Group Name</Label>
-                    <Input
-                      id="edit-group-name"
-                      value={editGroupData.name}
-                      onChange={(e) => setEditGroupData({ ...editGroupData, name: e.target.value })}
-                      data-testid="input-edit-group-name"
-                    />
-                  </div>
-                  
-                  {/* Emoji + Location - side by side */}
-                  <div className="flex flex-col sm:flex-row gap-4">
-                    <div className="sm:w-36 space-y-2">
-                      <Label htmlFor="inline-group-emoji">Group Icon</Label>
-                      <div className="flex items-center gap-3">
-                        <div className="text-4xl" data-testid="text-selected-emoji">{editGroupData.emoji || "🎉"}</div>
-                        <Popover open={emojiPickerOpen} onOpenChange={setEmojiPickerOpen} modal={true}>
-                          <PopoverTrigger asChild>
-                            <Button 
-                              type="button"
-                              variant="outline" 
-                              size="sm"
-                              data-testid="button-choose-emoji"
-                            >
-                              Choose emoji 🙂
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
-                            <div className="overflow-hidden rounded-lg">
-                              <EmojiPicker
-                                onEmojiClick={(emojiData) => {
-                                  setEditGroupData({ ...editGroupData, emoji: emojiData.emoji });
-                                  setEmojiPickerOpen(false);
-                                }}
-                                width={350}
-                                height={400}
-                              />
-                            </div>
-                          </PopoverContent>
-                        </Popover>
-                      </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-group-name">Group Name</Label>
+                      <Input
+                        id="edit-group-name"
+                        value={editGroupData.name}
+                        onChange={(e) => setEditGroupData({ ...editGroupData, name: e.target.value })}
+                        data-testid="input-edit-group-name"
+                      />
                     </div>
-                    <div className="flex-1 space-y-2">
+                    <div className="space-y-2">
                       <Label htmlFor="edit-location">Location Base</Label>
                       <Input
                         id="edit-location"
@@ -3038,6 +3006,37 @@ export default function GroupDetail() {
                         onChange={(e) => setEditGroupData({ ...editGroupData, locationBase: e.target.value })}
                         data-testid="input-edit-location"
                       />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="inline-group-emoji">Group Icon</Label>
+                    <div className="flex items-center gap-3">
+                      <div className="text-5xl" data-testid="text-selected-emoji">{editGroupData.emoji || "🎉"}</div>
+                      <Popover open={emojiPickerOpen} onOpenChange={setEmojiPickerOpen} modal={true}>
+                        <PopoverTrigger asChild>
+                          <Button 
+                            type="button"
+                            variant="outline" 
+                            size="sm"
+                            data-testid="button-choose-emoji"
+                          >
+                            Choose emoji 🙂
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+                          <div className="overflow-hidden rounded-lg">
+                            <EmojiPicker
+                              onEmojiClick={(emojiData) => {
+                                setEditGroupData({ ...editGroupData, emoji: emojiData.emoji });
+                                setEmojiPickerOpen(false);
+                              }}
+                              width={350}
+                              height={400}
+                            />
+                          </div>
+                        </PopoverContent>
+                      </Popover>
                     </div>
                   </div>
 
