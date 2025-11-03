@@ -2997,92 +2997,100 @@ export default function GroupDetail() {
                       data-testid="input-edit-group-name"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="inline-group-emoji">Group Icon</Label>
-                    <div className="flex items-center gap-3">
-                      <div className="text-4xl" data-testid="text-selected-emoji">{editGroupData.emoji || "🎉"}</div>
-                      <Popover open={emojiPickerOpen} onOpenChange={setEmojiPickerOpen} modal={true}>
-                        <PopoverTrigger asChild>
-                          <Button 
-                            type="button"
-                            variant="outline" 
-                            size="sm"
-                            data-testid="button-choose-emoji"
-                          >
-                            Choose emoji 🙂
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
-                          <div className="overflow-hidden rounded-lg">
-                            <EmojiPicker
-                              onEmojiClick={(emojiData) => {
-                                setEditGroupData({ ...editGroupData, emoji: emojiData.emoji });
-                                setEmojiPickerOpen(false);
-                              }}
-                              width={350}
-                              height={400}
-                            />
-                          </div>
-                        </PopoverContent>
-                      </Popover>
+                  
+                  {/* Emoji + Location - side by side */}
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <div className="sm:w-36 space-y-2">
+                      <Label htmlFor="inline-group-emoji">Group Icon</Label>
+                      <div className="flex items-center gap-3">
+                        <div className="text-4xl" data-testid="text-selected-emoji">{editGroupData.emoji || "🎉"}</div>
+                        <Popover open={emojiPickerOpen} onOpenChange={setEmojiPickerOpen} modal={true}>
+                          <PopoverTrigger asChild>
+                            <Button 
+                              type="button"
+                              variant="outline" 
+                              size="sm"
+                              data-testid="button-choose-emoji"
+                            >
+                              Choose emoji 🙂
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+                            <div className="overflow-hidden rounded-lg">
+                              <EmojiPicker
+                                onEmojiClick={(emojiData) => {
+                                  setEditGroupData({ ...editGroupData, emoji: emojiData.emoji });
+                                  setEmojiPickerOpen(false);
+                                }}
+                                width={350}
+                                height={400}
+                              />
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-location">Location Base</Label>
-                    <Input
-                      id="edit-location"
-                      value={editGroupData.locationBase}
-                      onChange={(e) => setEditGroupData({ ...editGroupData, locationBase: e.target.value })}
-                      data-testid="input-edit-location"
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <Label>Budget Range (per person)</Label>
-                    <div className="space-y-3">
-                      <Slider
-                        min={0}
-                        max={250}
-                        step={10}
-                        value={editBudgetRange}
-                        onValueChange={setEditBudgetRange}
-                        className="w-full"
-                        data-testid="slider-edit-budget"
+                    <div className="flex-1 space-y-2">
+                      <Label htmlFor="edit-location">Location Base</Label>
+                      <Input
+                        id="edit-location"
+                        value={editGroupData.locationBase}
+                        onChange={(e) => setEditGroupData({ ...editGroupData, locationBase: e.target.value })}
+                        data-testid="input-edit-location"
                       />
-                      <div className="flex justify-between text-sm">
-                        <span className="font-medium" data-testid="text-edit-budget-min">
-                          {editBudgetRange[0] >= 200 ? "$200+" : `$${editBudgetRange[0]}`}
-                        </span>
-                        <span className="font-medium" data-testid="text-edit-budget-max">
-                          {editBudgetRange[1] >= 200 ? "$200+" : `$${editBudgetRange[1]}`}
-                        </span>
-                      </div>
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label>How Often to Meet</Label>
-                    <div className="flex items-center gap-2">
-                      <div className="w-20">
-                        <Input
-                          type="number"
-                          min={1}
-                          max={99}
-                          value={editFrequencyNumber}
-                          onChange={(e) => setEditFrequencyNumber(parseInt(e.target.value) || 1)}
-                          data-testid="input-edit-frequency-number"
+
+                  {/* Budget + Meeting Frequency - side by side on desktop */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-3">
+                      <Label>Budget Range (per person)</Label>
+                      <div className="space-y-3">
+                        <Slider
+                          min={0}
+                          max={250}
+                          step={10}
+                          value={editBudgetRange}
+                          onValueChange={setEditBudgetRange}
+                          className="w-full"
+                          data-testid="slider-edit-budget"
                         />
+                        <div className="flex justify-between text-sm">
+                          <span className="font-medium" data-testid="text-edit-budget-min">
+                            {editBudgetRange[0] >= 200 ? "$200+" : `$${editBudgetRange[0]}`}
+                          </span>
+                          <span className="font-medium" data-testid="text-edit-budget-max">
+                            {editBudgetRange[1] >= 200 ? "$200+" : `$${editBudgetRange[1]}`}
+                          </span>
+                        </div>
                       </div>
-                      <span className="text-sm text-muted-foreground">x each</span>
-                      <Select value={editFrequencyUnit} onValueChange={setEditFrequencyUnit}>
-                        <SelectTrigger className="flex-1" data-testid="select-edit-frequency-unit">
-                          <SelectValue placeholder="Select unit" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="day">day</SelectItem>
-                          <SelectItem value="week">week</SelectItem>
-                          <SelectItem value="month">month</SelectItem>
-                          <SelectItem value="year">year</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>How Often to Meet</Label>
+                      <div className="flex items-center gap-2">
+                        <div className="w-20">
+                          <Input
+                            type="number"
+                            min={1}
+                            max={99}
+                            value={editFrequencyNumber}
+                            onChange={(e) => setEditFrequencyNumber(parseInt(e.target.value) || 1)}
+                            data-testid="input-edit-frequency-number"
+                          />
+                        </div>
+                        <span className="text-sm text-muted-foreground">x each</span>
+                        <Select value={editFrequencyUnit} onValueChange={setEditFrequencyUnit}>
+                          <SelectTrigger className="flex-1" data-testid="select-edit-frequency-unit">
+                            <SelectValue placeholder="Select unit" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="day">day</SelectItem>
+                            <SelectItem value="week">week</SelectItem>
+                            <SelectItem value="month">month</SelectItem>
+                            <SelectItem value="year">year</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                   </div>
                   <div className="space-y-3">
