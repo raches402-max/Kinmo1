@@ -4237,7 +4237,6 @@ export default function GroupDetail() {
                           )}
                           </>
                         </div>
-                      </div>
                     </Card>
                   </div>
                   );
