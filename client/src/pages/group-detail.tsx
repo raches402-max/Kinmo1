@@ -3592,6 +3592,40 @@ export default function GroupDetail() {
                   <div className="space-y-2">
                     <div className="flex gap-1.5">
                       <Button
+                        variant={selectedCategories.includes('meal') ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => {
+                          if (selectedCategories.includes('meal')) {
+                            setSelectedCategories(selectedCategories.filter(c => c !== 'meal'));
+                          } else {
+                            setSelectedCategories([...selectedCategories, 'meal']);
+                          }
+                        }}
+                        className="flex-1 h-8 gap-1.5"
+                        data-testid="button-category-meal"
+                      >
+                        <span>🍽️</span>
+                        <span className="text-xs">Meals</span>
+                        {selectedCategories.includes('meal') && <Check className="h-3 w-3 ml-1" />}
+                      </Button>
+                      <Button
+                        variant={selectedCategories.includes('cafes') ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => {
+                          if (selectedCategories.includes('cafes')) {
+                            setSelectedCategories(selectedCategories.filter(c => c !== 'cafes'));
+                          } else {
+                            setSelectedCategories([...selectedCategories, 'cafes']);
+                          }
+                        }}
+                        className="flex-1 h-8 gap-1.5"
+                        data-testid="button-category-cafes"
+                      >
+                        <span>☕</span>
+                        <span className="text-xs">Cafes</span>
+                        {selectedCategories.includes('cafes') && <Check className="h-3 w-3 ml-1" />}
+                      </Button>
+                      <Button
                         variant={selectedCategories.includes('drinks') ? 'default' : 'ghost'}
                         size="sm"
                         onClick={() => {
@@ -3601,64 +3635,30 @@ export default function GroupDetail() {
                             setSelectedCategories([...selectedCategories, 'drinks']);
                           }
                         }}
-                        className="flex-1 h-8"
+                        className="flex-1 h-8 gap-1.5"
                         data-testid="button-category-drinks"
                       >
-                        <Wine className="h-3 w-3 mr-1" />
-                        <span className="text-xs">Bars</span>
+                        <span>🍺</span>
+                        <span className="text-xs">Drinks</span>
                         {selectedCategories.includes('drinks') && <Check className="h-3 w-3 ml-1" />}
                       </Button>
-                    <Button
-                      variant={selectedCategories.includes('cafes') ? 'default' : 'ghost'}
-                      size="sm"
-                      onClick={() => {
-                        if (selectedCategories.includes('cafes')) {
-                          setSelectedCategories(selectedCategories.filter(c => c !== 'cafes'));
-                        } else {
-                          setSelectedCategories([...selectedCategories, 'cafes']);
-                        }
-                      }}
-                      className="flex-1 h-8"
-                      data-testid="button-category-cafes"
-                    >
-                      <Coffee className="h-3 w-3 mr-1" />
-                      <span className="text-xs">Coffee</span>
-                      {selectedCategories.includes('cafes') && <Check className="h-3 w-3 ml-1" />}
-                    </Button>
-                    <Button
-                      variant={selectedCategories.includes('meal') ? 'default' : 'ghost'}
-                      size="sm"
-                      onClick={() => {
-                        if (selectedCategories.includes('meal')) {
-                          setSelectedCategories(selectedCategories.filter(c => c !== 'meal'));
-                        } else {
-                          setSelectedCategories([...selectedCategories, 'meal']);
-                        }
-                      }}
-                      className="flex-1 h-8"
-                      data-testid="button-category-meal"
-                    >
-                      <UtensilsCrossed className="h-3 w-3 mr-1" />
-                      <span className="text-xs">Meals</span>
-                      {selectedCategories.includes('meal') && <Check className="h-3 w-3 ml-1" />}
-                    </Button>
-                    <Button
-                      variant={selectedCategories.includes('dessert') ? 'default' : 'ghost'}
-                      size="sm"
-                      onClick={() => {
-                        if (selectedCategories.includes('dessert')) {
-                          setSelectedCategories(selectedCategories.filter(c => c !== 'dessert'));
-                        } else {
-                          setSelectedCategories([...selectedCategories, 'dessert']);
-                        }
-                      }}
-                      className="flex-1 h-8"
-                      data-testid="button-category-dessert"
-                    >
-                      <Croissant className="h-3 w-3 mr-1" />
-                      <span className="text-xs">Dessert</span>
-                      {selectedCategories.includes('dessert') && <Check className="h-3 w-3 ml-1" />}
-                    </Button>
+                      <Button
+                        variant={selectedCategories.includes('dessert') ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => {
+                          if (selectedCategories.includes('dessert')) {
+                            setSelectedCategories(selectedCategories.filter(c => c !== 'dessert'));
+                          } else {
+                            setSelectedCategories([...selectedCategories, 'dessert']);
+                          }
+                        }}
+                        className="flex-1 h-8 gap-1.5"
+                        data-testid="button-category-dessert"
+                      >
+                        <span>🍰</span>
+                        <span className="text-xs">Dessert</span>
+                        {selectedCategories.includes('dessert') && <Check className="h-3 w-3 ml-1" />}
+                      </Button>
                       <Button
                         variant={selectedCategories.includes('experiences') ? 'default' : 'ghost'}
                         size="sm"
@@ -3669,11 +3669,11 @@ export default function GroupDetail() {
                             setSelectedCategories([...selectedCategories, 'experiences']);
                           }
                         }}
-                        className="flex-1 h-8"
+                        className="flex-1 h-8 gap-1.5"
                         data-testid="button-category-experiences"
                       >
-                        <Compass className="h-3 w-3 mr-1" />
-                        <span className="text-xs">Events</span>
+                        <span>🎭</span>
+                        <span className="text-xs">Experiences</span>
                         {selectedCategories.includes('experiences') && <Check className="h-3 w-3 ml-1" />}
                       </Button>
                     </div>
