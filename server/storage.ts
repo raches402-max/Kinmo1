@@ -1,7 +1,7 @@
 // Reference: javascript_database blueprint
 // Reference: javascript_log_in_with_replit blueprint
 import {
-  users, groups, members, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, itineraryInvites, reminderLogs, autoScheduledEvents, frequencyFeedback, userProfiles, proposedTimeSlots, timeSlotVotes, groupCollections, categorySearchHistory, hostAssignments, groupBackups, databaseBackups, scrapedVenuesImport, curatedVenues, seenActivities,
+  users, groups, members, memberGroupPreferences, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, itineraryInvites, reminderLogs, autoScheduledEvents, frequencyFeedback, userProfiles, proposedTimeSlots, timeSlotVotes, groupCollections, categorySearchHistory, hostAssignments, groupBackups, databaseBackups, scrapedVenuesImport, curatedVenues, seenActivities,
   type User, type UpsertUser,
   type Group, type InsertGroup, type UpdateGroup,
   type Member, type InsertMember, type UpdateMember,
@@ -22,7 +22,8 @@ import {
   type CategorySearchHistory, type InsertCategorySearchHistory,
   type HostAssignment, type InsertHostAssignment,
   type GroupBackup, type InsertGroupBackup,
-  type DatabaseBackup, type InsertDatabaseBackup
+  type DatabaseBackup, type InsertDatabaseBackup,
+  type MemberGroupPreferences, type InsertMemberGroupPreferences
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, or, inArray, isNull } from "drizzle-orm";
@@ -51,6 +52,10 @@ export interface IStorage {
   updateMember(id: string, updates: UpdateMember): Promise<Member>;
   deleteMember(id: string): Promise<void>;
   markInvitationsSent(groupId: string): Promise<void>;
+
+  // Member Group Preferences
+  getMemberGroupPreferences(userId: string, groupId: string): Promise<MemberGroupPreferences | undefined>;
+  upsertMemberGroupPreferences(userId: string, groupId: string, preferences: Partial<InsertMemberGroupPreferences>): Promise<MemberGroupPreferences>;
 
   // Activities
   getGroupActivities(groupId: string): Promise<Activity[]>;
@@ -564,6 +569,53 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(members)
       .where(eq(members.id, id));
+  }
+
+  // Member Group Preferences operations
+  async getMemberGroupPreferences(userId: string, groupId: string): Promise<MemberGroupPreferences | undefined> {
+    const [preferences] = await db
+      .select()
+      .from(memberGroupPreferences)
+      .where(
+        and(
+          eq(memberGroupPreferences.userId, userId),
+          eq(memberGroupPreferences.groupId, groupId)
+        )
+      );
+    return preferences || undefined;
+  }
+
+  async upsertMemberGroupPreferences(
+    userId: string,
+    groupId: string,
+    preferences: Partial<InsertMemberGroupPreferences>
+  ): Promise<MemberGroupPreferences> {
+    // First try to get existing preferences
+    const existing = await this.getMemberGroupPreferences(userId, groupId);
+
+    if (existing) {
+      // Update existing preferences
+      const [updated] = await db
+        .update(memberGroupPreferences)
+        .set({
+          ...preferences,
+          updatedAt: new Date(),
+        })
+        .where(eq(memberGroupPreferences.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      // Create new preferences
+      const [created] = await db
+        .insert(memberGroupPreferences)
+        .values({
+          userId,
+          groupId,
+          ...preferences,
+        })
+        .returning();
+      return created;
+    }
   }
 
   // Voting Events operations

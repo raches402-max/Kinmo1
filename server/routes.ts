@@ -1274,6 +1274,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Member Group Preferences Routes
+  // Get member's preferences for a specific group
+  app.get("/api/groups/:groupId/my-preferences", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { groupId } = req.params;
+
+      // Verify user is a member of this group
+      const members = await storage.getGroupMembers(groupId);
+      const member = members.find(m => m.userId === userId);
+      if (!member) {
+        return res.status(403).json({ message: "Not a member of this group" });
+      }
+
+      const preferences = await storage.getMemberGroupPreferences(userId, groupId);
+      res.json(preferences || null);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Update member's preferences for a specific group
+  app.patch("/api/groups/:groupId/my-preferences", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { groupId } = req.params;
+
+      // Verify user is a member of this group
+      const members = await storage.getGroupMembers(groupId);
+      const member = members.find(m => m.userId === userId);
+      if (!member) {
+        return res.status(403).json({ message: "Not a member of this group" });
+      }
+
+      const { budgetOverride, categoryPreferencesOverride, availabilityOverride } = req.body;
+
+      const preferences = await storage.upsertMemberGroupPreferences(userId, groupId, {
+        budgetOverride,
+        categoryPreferencesOverride,
+        availabilityOverride,
+      });
+
+      res.json(preferences);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Member RSVP Routes
 
   // Verify an invite token and return member data (no auth required)
