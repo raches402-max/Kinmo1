@@ -16,6 +16,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -3145,38 +3146,54 @@ export default function GroupDetail() {
                                   return acc;
                                 }, {});
                                 const uniqueBudgets = Object.keys(budgetCounts).map(Number);
+                                const averagePosition = (stats.average / 250) * 100;
                                 
-                                return uniqueBudgets.map((budget) => {
-                                  const position = (budget / 250) * 100;
-                                  const count = budgetCounts[budget];
-                                  const isAverage = budget === stats.average;
-                                  
-                                  return (
-                                    <Tooltip key={budget}>
+                                return (
+                                  <>
+                                    {/* Show all member budget dots as small grey dots */}
+                                    {uniqueBudgets.map((budget) => {
+                                      const position = (budget / 250) * 100;
+                                      const count = budgetCounts[budget];
+                                      
+                                      return (
+                                        <Tooltip key={`member-${budget}`}>
+                                          <TooltipTrigger asChild>
+                                            <div
+                                              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 pointer-events-auto cursor-help"
+                                              style={{ left: `${position}%` }}
+                                              data-testid={`budget-dot-${budget}`}
+                                            >
+                                              <div className="w-2 h-2 rounded-full bg-muted-foreground/40" />
+                                            </div>
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            <p className="text-xs">
+                                              ${budget} ({count} {count === 1 ? 'member' : 'members'})
+                                            </p>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      );
+                                    })}
+                                    
+                                    {/* Show average as a larger, distinct dot */}
+                                    <Tooltip key="average">
                                       <TooltipTrigger asChild>
                                         <div
                                           className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 pointer-events-auto cursor-help"
-                                          style={{ left: `${position}%` }}
-                                          data-testid={`budget-dot-${budget}`}
+                                          style={{ left: `${averagePosition}%` }}
+                                          data-testid="budget-dot-average"
                                         >
-                                          <div 
-                                            className={`rounded-full ${
-                                              isAverage 
-                                                ? 'w-3 h-3 bg-primary/60 ring-2 ring-primary/30' 
-                                                : 'w-2 h-2 bg-muted-foreground/40'
-                                            }`}
-                                          />
+                                          <div className="w-3 h-3 rounded-full bg-primary/60 ring-2 ring-primary/30" />
                                         </div>
                                       </TooltipTrigger>
                                       <TooltipContent>
-                                        <p className="text-xs">
-                                          {isAverage && <span className="font-medium">Avg: </span>}
-                                          ${budget} ({count} {count === 1 ? 'member' : 'members'})
+                                        <p className="text-xs font-medium">
+                                          Group Avg: ${stats.average}
                                         </p>
                                       </TooltipContent>
                                     </Tooltip>
-                                  );
-                                });
+                                  </>
+                                );
                               })()}
                             </div>
                           )}

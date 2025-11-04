@@ -1023,7 +1023,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Gather member budget data for visualization
-      const members = await storage.getMembers(req.params.id);
+      const members = await storage.getGroupMembers(req.params.id);
       const memberBudgets: number[] = [];
       
       for (const member of members) {

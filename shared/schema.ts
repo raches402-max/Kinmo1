@@ -26,13 +26,17 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// User profiles table (extended user information)
+// User profiles table (extended user information + global preferences)
 export const userProfiles = pgTable("user_profiles", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
   displayName: text("display_name"), // User's preferred display name
   bio: text("bio"), // Short bio or description
   emailNotifications: boolean("email_notifications").default(true).notNull(), // Whether to receive email notifications
+  // Global preferences (used as fallback when member_group_preferences not set)
+  budget: integer("budget"), // Preferred budget per person
+  activityPreferences: text("activity_preferences").array(), // Preferred activity categories (e.g., ["meal", "cafes"])
+  personalAvailability: jsonb("personal_availability"), // Personal availability grid
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
