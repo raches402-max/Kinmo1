@@ -972,7 +972,22 @@ export default function GroupDetail() {
     mutationFn: async (preferences: { budgetOverrideMin?: number | null; budgetOverrideMax?: number | null; categoryPreferencesOverride?: string[] | null; availabilityOverride?: any }) => {
       return await apiRequest("PATCH", `/api/groups/${groupId}/my-preferences`, preferences);
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
+      // Update local state immediately from the saved values
+      if (variables.budgetOverrideMin !== undefined && variables.budgetOverrideMax !== undefined) {
+        if (variables.budgetOverrideMin !== null && variables.budgetOverrideMax !== null) {
+          setMyPreferencesBudget({ min: variables.budgetOverrideMin, max: variables.budgetOverrideMax });
+        } else {
+          setMyPreferencesBudget(null);
+        }
+      }
+      if (variables.categoryPreferencesOverride !== undefined) {
+        setMyPreferencesCategories(variables.categoryPreferencesOverride);
+      }
+      if (variables.availabilityOverride !== undefined) {
+        setMyPreferencesAvailability(variables.availabilityOverride);
+      }
+      
       toast({
         title: "Preferences saved",
         description: "Your preferences for this group have been updated",
@@ -1083,15 +1098,6 @@ export default function GroupDetail() {
       setSelectedCategories(initialCategories);
     }
   }, [group]);
-
-  // Sync member preferences when loaded
-  useEffect(() => {
-    if (memberPreferences) {
-      setMyPreferencesBudget(memberPreferences.budgetOverride ?? null);
-      setMyPreferencesCategories(memberPreferences.categoryPreferencesOverride ?? null);
-      setMyPreferencesAvailability(memberPreferences.availabilityOverride ?? null);
-    }
-  }, [memberPreferences]);
 
   const sendInvitationsMutation = useMutation({
     mutationFn: async () => {
