@@ -300,7 +300,7 @@ export default function MemberProfileSetup() {
                 <CardTitle>What do you enjoy doing?</CardTitle>
               </div>
               <CardDescription>
-                Select all activities you're interested in
+                Select all activities you're interested in with this group
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
