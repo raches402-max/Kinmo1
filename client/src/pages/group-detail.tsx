@@ -644,7 +644,7 @@ export default function GroupDetail() {
   const [favoritesSearch, setFavoritesSearch] = useState("");
   const [categorySortMode, setCategorySortMode] = useState<Record<string, 'rating' | 'votes'>>({});
   const [activitiesSubTab, setActivitiesSubTab] = useState("ai-suggested");
-  const [groupSubTab, setGroupSubTab] = useState("overview");
+  const [groupSubTab, setGroupSubTab] = useState("details");
   const [myPreferencesBudget, setMyPreferencesBudget] = useState<number | null>(null);
   const [myPreferencesCategories, setMyPreferencesCategories] = useState<string[] | null>(null);
   const [myPreferencesAvailability, setMyPreferencesAvailability] = useState<any>(null);
@@ -3058,15 +3058,34 @@ export default function GroupDetail() {
             </div>
           </TabsContent>
 
-          {/* Tab 2: Group Details */}
+          {/* Tab 2: Group */}
           <TabsContent value="preferences" className="space-y-6">
-            <div className="max-w-3xl mx-auto space-y-6">
-              {/* Group Details Section */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Group Details</CardTitle>
-                  <CardDescription>Basic information about your group</CardDescription>
-                </CardHeader>
+            <Tabs value={groupSubTab} onValueChange={setGroupSubTab}>
+              <TabsList className="grid w-full max-w-md mx-auto grid-cols-2">
+                <TabsTrigger value="details" data-testid="subtab-group-details">
+                  <Settings className="h-4 w-4 mr-2" />
+                  Group Settings
+                </TabsTrigger>
+                <TabsTrigger value="my-preferences" data-testid="subtab-my-preferences">
+                  <UserCheck className="h-4 w-4 mr-2" />
+                  My Preferences
+                </TabsTrigger>
+              </TabsList>
+
+              {/* Subtab 1: Group Details */}
+              <TabsContent value="details" className="space-y-6">
+                <div className="max-w-3xl mx-auto space-y-6">
+                  {/* Group Details Section */}
+                  <Card>
+                    <CardHeader>
+                      <div className="flex items-center gap-2">
+                        <Settings className="h-5 w-5 text-primary" />
+                        <div>
+                          <CardTitle>Group Settings</CardTitle>
+                          <CardDescription>Configure settings for the entire group</CardDescription>
+                        </div>
+                      </div>
+                    </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -3944,153 +3963,158 @@ export default function GroupDetail() {
                 </Card>
               )}
 
-              {/* My Preferences for this Group */}
-              {!isOwner && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>My Preferences for this Group</CardTitle>
-                    <CardDescription>
-                      Customize your preferences for this specific group. These will override your global preferences.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-3">
-                      <Label>Budget Override (per person)</Label>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="checkbox"
-                          checked={myPreferencesBudget !== null}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setMyPreferencesBudget(group?.budgetMax || 100);
-                            } else {
-                              setMyPreferencesBudget(null);
-                            }
-                          }}
-                          data-testid="checkbox-budget-override"
-                        />
-                        <span className="text-sm text-muted-foreground">
-                          Override group budget
-                        </span>
+                  {/* Save Button for Group Settings */}
+                  <div className="flex justify-end">
+                    <Button 
+                      onClick={handleUpdateGroup} 
+                      disabled={updateGroupMutation.isPending}
+                      size="lg"
+                      data-testid="button-save-group"
+                    >
+                      {updateGroupMutation.isPending ? "Saving..." : "Save Group Settings"}
+                    </Button>
+                  </div>
+                </div>
+              </TabsContent>
+
+              {/* Subtab 2: My Preferences */}
+              <TabsContent value="my-preferences" className="space-y-6">
+                <div className="max-w-3xl mx-auto space-y-6">
+                  <Card>
+                    <CardHeader>
+                      <div className="flex items-center gap-2">
+                        <UserCheck className="h-5 w-5 text-primary" />
+                        <div>
+                          <CardTitle>My Personal Preferences</CardTitle>
+                          <CardDescription>
+                            Override group settings with your own preferences. Leave blank to use group defaults.
+                          </CardDescription>
+                        </div>
                       </div>
-                      {myPreferencesBudget !== null && (
-                        <div className="space-y-3">
-                          <Slider
-                            min={0}
-                            max={250}
-                            step={10}
-                            value={[myPreferencesBudget]}
-                            onValueChange={(vals) => setMyPreferencesBudget(vals[0])}
-                            className="w-full"
-                            data-testid="slider-my-budget"
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-3">
+                        <Label>My Budget (per person)</Label>
+                        <div className="flex items-center gap-3 mb-2">
+                          <Checkbox
+                            checked={myPreferencesBudget !== null}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setMyPreferencesBudget(group?.budgetMax || 100);
+                              } else {
+                                setMyPreferencesBudget(null);
+                              }
+                            }}
+                            data-testid="checkbox-budget-override"
                           />
-                          <div className="text-sm font-medium" data-testid="text-my-budget">
-                            {myPreferencesBudget >= 200 ? "$200+" : `$${myPreferencesBudget}`}
+                          <span className="text-sm text-muted-foreground">
+                            Set a personal budget (group default: ${group?.budgetMin}-${group?.budgetMax})
+                          </span>
+                        </div>
+                        {myPreferencesBudget !== null && (
+                          <div className="space-y-3">
+                            <Slider
+                              min={0}
+                              max={250}
+                              step={10}
+                              value={[myPreferencesBudget]}
+                              onValueChange={(vals) => setMyPreferencesBudget(vals[0])}
+                              className="w-full"
+                              data-testid="slider-my-budget"
+                            />
+                            <div className="text-sm font-medium" data-testid="text-my-budget">
+                              {myPreferencesBudget >= 200 ? "$200+" : `$${myPreferencesBudget}`}
+                            </div>
                           </div>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="space-y-3">
-                      <Label>Category Preferences Override</Label>
-                      <div className="flex items-center gap-3 mb-2">
-                        <input
-                          type="checkbox"
-                          checked={myPreferencesCategories !== null}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setMyPreferencesCategories(['meal', 'cafes', 'drinks']);
-                            } else {
-                              setMyPreferencesCategories(null);
-                            }
-                          }}
-                          data-testid="checkbox-categories-override"
-                        />
-                        <span className="text-sm text-muted-foreground">
-                          Override group categories
-                        </span>
+                        )}
                       </div>
-                      {myPreferencesCategories !== null && (
-                        <div className="grid grid-cols-2 gap-2">
-                          {['meal', 'cafes', 'drinks', 'dessert', 'experiences'].map((cat) => (
-                            <label key={cat} className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={myPreferencesCategories.includes(cat)}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setMyPreferencesCategories([...myPreferencesCategories, cat]);
-                                  } else {
-                                    setMyPreferencesCategories(myPreferencesCategories.filter(c => c !== cat));
-                                  }
-                                }}
-                                data-testid={`checkbox-my-category-${cat}`}
-                              />
-                              <span className="text-sm capitalize">{cat}</span>
-                            </label>
-                          ))}
+
+                      <div className="space-y-3">
+                        <Label>My Category Preferences</Label>
+                        <div className="flex items-center gap-3 mb-2">
+                          <Checkbox
+                            checked={myPreferencesCategories !== null}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setMyPreferencesCategories(['meal', 'cafes', 'drinks']);
+                              } else {
+                                setMyPreferencesCategories(null);
+                              }
+                            }}
+                            data-testid="checkbox-categories-override"
+                          />
+                          <span className="text-sm text-muted-foreground">
+                            Customize which categories I prefer
+                          </span>
                         </div>
-                      )}
-                    </div>
-
-                    <div className="space-y-3">
-                      <Label>Availability Override</Label>
-                      <div className="flex items-center gap-3 mb-2">
-                        <input
-                          type="checkbox"
-                          checked={myPreferencesAvailability !== null}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setMyPreferencesAvailability(createEmptyAvailability());
-                            } else {
-                              setMyPreferencesAvailability(null);
-                            }
-                          }}
-                          data-testid="checkbox-availability-override"
-                        />
-                        <span className="text-sm text-muted-foreground">
-                          Override group availability
-                        </span>
+                        {myPreferencesCategories !== null && (
+                          <div className="grid grid-cols-2 gap-2">
+                            {['meal', 'cafes', 'drinks', 'dessert', 'experiences'].map((cat) => (
+                              <label key={cat} className="flex items-center gap-2">
+                                <Checkbox
+                                  checked={myPreferencesCategories.includes(cat)}
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      setMyPreferencesCategories([...myPreferencesCategories, cat]);
+                                    } else {
+                                      setMyPreferencesCategories(myPreferencesCategories.filter(c => c !== cat));
+                                    }
+                                  }}
+                                  data-testid={`checkbox-my-category-${cat}`}
+                                />
+                                <span className="text-sm capitalize">{cat}</span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                      {myPreferencesAvailability !== null && (
-                        <AvailabilityGrid
-                          value={myPreferencesAvailability}
-                          onChange={setMyPreferencesAvailability}
-                        />
-                      )}
-                    </div>
 
-                    <div className="flex justify-end pt-4">
-                      <Button
-                        onClick={() => {
-                          updateMyPreferencesMutation.mutate({
-                            budgetOverride: myPreferencesBudget,
-                            categoryPreferencesOverride: myPreferencesCategories,
-                            availabilityOverride: myPreferencesAvailability,
-                          });
-                        }}
-                        disabled={updateMyPreferencesMutation.isPending}
-                        data-testid="button-save-my-preferences"
-                      >
-                        {updateMyPreferencesMutation.isPending ? "Saving..." : "Save My Preferences"}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+                      <div className="space-y-3">
+                        <Label>My Availability</Label>
+                        <div className="flex items-center gap-3 mb-2">
+                          <Checkbox
+                            checked={myPreferencesAvailability !== null}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setMyPreferencesAvailability(createEmptyAvailability());
+                              } else {
+                                setMyPreferencesAvailability(null);
+                              }
+                            }}
+                            data-testid="checkbox-availability-override"
+                          />
+                          <span className="text-sm text-muted-foreground">
+                            Set my personal availability schedule
+                          </span>
+                        </div>
+                        {myPreferencesAvailability !== null && (
+                          <AvailabilityGrid
+                            value={myPreferencesAvailability}
+                            onChange={setMyPreferencesAvailability}
+                          />
+                        )}
+                      </div>
 
-              {/* Save Button */}
-              <div className="flex justify-end">
-                <Button 
-                  onClick={handleUpdateGroup} 
-                  disabled={updateGroupMutation.isPending}
-                  size="lg"
-                  data-testid="button-save-group"
-                >
-                  {updateGroupMutation.isPending ? "Saving..." : "Save Changes"}
-                </Button>
-              </div>
-            </div>
+                      <div className="flex justify-end pt-4">
+                        <Button
+                          onClick={() => {
+                            updateMyPreferencesMutation.mutate({
+                              budgetOverride: myPreferencesBudget,
+                              categoryPreferencesOverride: myPreferencesCategories,
+                              availabilityOverride: myPreferencesAvailability,
+                            });
+                          }}
+                          disabled={updateMyPreferencesMutation.isPending}
+                          data-testid="button-save-my-preferences"
+                        >
+                          {updateMyPreferencesMutation.isPending ? "Saving..." : "Save My Preferences"}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
           {/* Tab 2: Activities */}
