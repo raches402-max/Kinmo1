@@ -672,6 +672,25 @@ export default function Admin() {
     },
   });
 
+  const recategorizeVenuesMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", "/api/admin/recategorize-venues");
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "Recategorization complete!",
+        description: `Checked ${data.stats.totalVenues} venues, updated ${data.stats.venuesUpdated} miscategorized venues`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Recategorization failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const { data: backups, isLoading: backupsLoading } = useQuery<any[]>({
     queryKey: ["/api/admin/backups"],
     queryFn: async () => {
@@ -1669,6 +1688,38 @@ export default function Admin() {
                     <>
                       <RefreshCw className="mr-2 h-4 w-4" />
                       Clean Up Curated Venues
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {/* Fix Miscategorized Venues */}
+              <div className="bg-purple-50 dark:bg-purple-950/20 p-4 rounded-lg space-y-3">
+                <div>
+                  <h4 className="font-semibold text-purple-900 dark:text-purple-200">Fix Miscategorized Venues</h4>
+                  <p className="text-sm text-purple-800 dark:text-purple-300 mt-1">
+                    Scan all curated venues and fix any with incorrect categories. Uses Google Place types to determine the correct category for each venue.
+                  </p>
+                  <p className="text-xs text-purple-700 dark:text-purple-400 mt-2">
+                    Examples: Coffee shops in "Meals" → "Cafes", Ice cream shops → "Dessert"
+                  </p>
+                </div>
+                <Button
+                  onClick={() => recategorizeVenuesMutation.mutate()}
+                  disabled={recategorizeVenuesMutation.isPending}
+                  className="w-full"
+                  data-testid="button-recategorize-venues"
+                  variant="outline"
+                >
+                  {recategorizeVenuesMutation.isPending ? (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                      Recategorizing...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Fix Miscategorized Venues
                     </>
                   )}
                 </Button>
