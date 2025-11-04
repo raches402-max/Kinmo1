@@ -59,6 +59,41 @@ AI suggestion preferences:
   - **Analytics Tab**: Interactive venue analytics dashboard showing curated venues distribution and drill-down capabilities.
   - **Maintenance Tab**: Tools for cleaning up curated venues using AI validation (GPT-4o-mini) and accessing archived deleted venues.
 
+## Testing Guidelines
+
+### Admin Account Protection
+- **Protected Accounts**: `raches402@gmail.com` is protected from test data contamination
+- The auth system prevents overwriting existing admin accounts during testing
+- Protected accounts maintain their profile data even if test OIDC claims use the same email
+
+### E2E Test Data Isolation
+**CRITICAL: Always use test-specific emails for all e2e testing scenarios**
+
+✅ **Correct Test Email Patterns:**
+- Use format: `test-{feature}-{random}@example.com`
+- Examples: `pagination-test@example.com`, `test-user-${nanoid(6)}@example.com`
+- Always generate unique test emails for each test run when possible
+
+❌ **NEVER Use in Tests:**
+- Real user emails (especially `raches402@gmail.com`)
+- Production email domains
+- Any email that could match an existing user account
+
+**Test OIDC Configuration Example:**
+```typescript
+{
+  sub: "test-user-" + nanoid(6),
+  email: "test-user-" + nanoid(6) + "@example.com",
+  first_name: "Test",
+  last_name: "User"
+}
+```
+
+This ensures:
+- Test data stays completely isolated from production user data
+- No accidental overwrites of real user profiles
+- Tests can run repeatedly without data conflicts
+
 ## External Dependencies
 
 -   **OpenAI**: GPT-4o for main activity suggestion generation; GPT-4o-mini for other AI features (swipe concepts, categorization, preference insights, naming, time selection, scheduling).
