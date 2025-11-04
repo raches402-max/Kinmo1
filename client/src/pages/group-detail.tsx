@@ -5836,7 +5836,7 @@ export default function GroupDetail() {
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                           {venueSearchResults.map((result: any) => {
                             // Check if already favorited (ONLY in activities OR voting events - NOT optimistic tracker)
-                            const alreadyFavorited = activities.some(a => a.googlePlaceId === result.placeId) ||
+                            const alreadyFavorited = activities.some(a => !a.archivedAt && a.googlePlaceId === result.placeId) ||
                               votingEvents.some(e => e.googlePlaceId === result.placeId);
                             
                             // Check if already in cart (selected venues OR existing itineraries OR optimistically added)
@@ -6745,7 +6745,7 @@ export default function GroupDetail() {
                                 })
                               );
 
-                              const alreadyAdded = activities.some(a => a.googlePlaceId === result.placeId) ||
+                              const alreadyAdded = activities.some(a => !a.archivedAt && a.googlePlaceId === result.placeId) ||
                                 votingEvents.some(e => e.googlePlaceId === result.placeId) ||
                                 addedSuggestionPlaceIds.has(result.placeId);
 
@@ -6866,7 +6866,7 @@ export default function GroupDetail() {
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             {venueSearchResults.map((result: any) => {
                               // Check if already added to cart or favorited
-                              const alreadyAdded = activities.some(a => a.googlePlaceId === result.placeId) ||
+                              const alreadyAdded = activities.some(a => !a.archivedAt && a.googlePlaceId === result.placeId) ||
                                 votingEvents.some(e => e.googlePlaceId === result.placeId) ||
                                 addedSuggestionPlaceIds.has(result.placeId);
 
@@ -7011,7 +7011,7 @@ export default function GroupDetail() {
                     <CardContent className="pt-0">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       {nearbySuggestions.map((suggestion: any) => {
-                        const alreadySelected = activities.some(a => a.googlePlaceId === suggestion.placeId) ||
+                        const alreadySelected = activities.some(a => !a.archivedAt && a.googlePlaceId === suggestion.placeId) ||
                           votingEvents.some(e => e.googlePlaceId === suggestion.placeId) ||
                           addedSuggestionPlaceIds.has(suggestion.placeId);
 
