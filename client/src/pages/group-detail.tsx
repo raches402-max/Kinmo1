@@ -703,6 +703,15 @@ export default function GroupDetail() {
   const [categoryResults, setCategoryResults] = useState<any[]>([]);
   const [multiVenueMode, setMultiVenueMode] = useState(false);
   
+  // Pagination state for category results
+  const [categoryPages, setCategoryPages] = useState<Record<string, number>>({
+    meal: 0,
+    cafes: 0,
+    drinks: 0,
+    dessert: 0,
+    experiences: 0
+  });
+  
   // Natural language scheduling state
   const [schedulePromptDialogOpen, setSchedulePromptDialogOpen] = useState(false);
   const [schedulePrompt, setSchedulePrompt] = useState("");
