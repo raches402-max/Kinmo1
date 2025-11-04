@@ -3328,10 +3328,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           })
         );
 
-        // Filter out nulls (filtered items) and limit to requested count
-        let validActivities = enrichedActivities
-          .filter(a => a !== null)
-          .slice(0, count * 2); // Get 2x to account for any additional filtering
+        // Filter out nulls (filtered items)
+        let validActivities = enrichedActivities.filter(a => a !== null);
 
         // Sort based on mode: distance for multi-venue outings, rating for single destinations
         if (sortBy === 'distance') {
@@ -3350,8 +3348,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log(`[Category Generate] Sorted ${currentCategory} by rating`);
         }
 
-        // Limit to exactly `count` results per category
-        validActivities = validActivities.slice(0, count);
+        // Return ALL results for pagination (don't limit to count)
+        // Users can now scroll through dozens of venues without extra API calls
+        console.log(`[Category Generate] Returning all ${validActivities.length} ${currentCategory} venues for pagination`);
         
         resultsByCategory[currentCategory] = validActivities;
         allResults.push(...validActivities);

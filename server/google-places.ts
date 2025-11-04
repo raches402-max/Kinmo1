@@ -958,11 +958,13 @@ export async function searchPlaces(
   let curatedResults: PlaceResult[] = [];
   
   if (!skipCurated) {
-    curatedResults = await searchCuratedVenues(query, location, radiusMiles, coordinates, 15, venueType, seenVenues);
+    // Request up to 100 results from cache to support pagination
+    curatedResults = await searchCuratedVenues(query, location, radiusMiles, coordinates, 100, venueType, seenVenues);
     
-    if (curatedResults.length >= 15) {
-      // We have enough curated venues, return immediately (skip API call)
-      console.log(`[Cache-First] Returning ${curatedResults.length} curated venues (NO API CALL NEEDED)`);
+    if (curatedResults.length >= 9) {
+      // We have enough curated venues, return ALL of them (skip API call)
+      // This allows users to paginate through many results without extra API costs
+      console.log(`[Cache-First] Returning ALL ${curatedResults.length} curated venues for pagination (NO API CALL NEEDED)`);
       // Apply budget filter if provided (only filter if budgetMax is a real number)
       if (budgetMax != null && typeof budgetMax === 'number') {
         const filtered = filterByBudget(curatedResults, budgetMax);
@@ -972,9 +974,9 @@ export async function searchPlaces(
       return curatedResults;
     }
     
-    // If we have some curated results but not enough, we'll merge them with API results later
+    // If we have some curated results but not enough (<9), we'll merge them with API results
     if (curatedResults.length > 0) {
-      console.log(`[Cache-First] Found ${curatedResults.length} curated venues, will supplement with API results`);
+      console.log(`[Cache-First] Found only ${curatedResults.length} curated venues (need 9+), will supplement with API results`);
     }
   } else {
     console.log(`[API Fallback] Skipping curated search, going directly to Google Places API for "${query}"`);
