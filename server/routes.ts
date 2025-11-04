@@ -1021,7 +1021,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!group) {
         return res.status(404).json({ message: "Group not found" });
       }
-      res.json(group);
+
+      // Gather member budget data for visualization
+      const members = await storage.getMembers(req.params.id);
+      const memberBudgets: number[] = [];
+      
+      for (const member of members) {
+        if (member.userId) {
+          // Get member group preferences
+          const memberPrefs = await storage.getMemberGroupPreferences(member.userId, req.params.id);
+          
+          // Use fallback chain: budgetOverride → global profile budget
+          if (memberPrefs?.budgetOverride) {
+            memberBudgets.push(memberPrefs.budgetOverride);
+          } else {
+            // Try global profile
+            const profile = await storage.getUserProfile(member.userId);
+            if (profile?.budget) {
+              memberBudgets.push(profile.budget);
+            }
+          }
+        }
+      }
+
+      // Calculate statistics
+      const memberBudgetStats = memberBudgets.length > 0 ? {
+        budgets: memberBudgets,
+        average: Math.round(memberBudgets.reduce((a, b) => a + b, 0) / memberBudgets.length),
+        count: memberBudgets.length,
+      } : null;
+
+      res.json({ ...group, memberBudgetStats });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
