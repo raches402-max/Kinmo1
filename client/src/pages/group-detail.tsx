@@ -648,6 +648,7 @@ export default function GroupDetail() {
   const [myPreferencesBudget, setMyPreferencesBudget] = useState<{ min: number; max: number } | null>(null);
   const [myPreferencesCategories, setMyPreferencesCategories] = useState<string[] | null>(null);
   const [myPreferencesAvailability, setMyPreferencesAvailability] = useState<any>(null);
+  const [myPreferencesMeetingFrequency, setMyPreferencesMeetingFrequency] = useState<{ number: number; unit: string } | null>(null);
   const [hoveredFavoriteId, setHoveredFavoriteId] = useState<string | null>(null);
   const [showFavoritesMap, setShowFavoritesMap] = useState(false);
   const [addedSuggestionPlaceIds, setAddedSuggestionPlaceIds] = useState<Set<string>>(new Set());
@@ -969,7 +970,7 @@ export default function GroupDetail() {
 
   // Update member group preferences
   const updateMyPreferencesMutation = useMutation({
-    mutationFn: async (preferences: { budgetOverrideMin?: number | null; budgetOverrideMax?: number | null; categoryPreferencesOverride?: string[] | null; availabilityOverride?: any }) => {
+    mutationFn: async (preferences: { budgetOverrideMin?: number | null; budgetOverrideMax?: number | null; categoryPreferencesOverride?: string[] | null; availabilityOverride?: any; meetingFrequencyOverride?: string | null }) => {
       return await apiRequest("PATCH", `/api/groups/${groupId}/my-preferences`, preferences);
     },
     onSuccess: (data, variables) => {
@@ -4152,6 +4153,60 @@ export default function GroupDetail() {
                         )}
                       </div>
 
+                      <div className="space-y-3">
+                        <Label className="text-base font-medium">My Meeting Frequency</Label>
+                        <div className="flex items-center gap-3 mb-2">
+                          <Checkbox
+                            checked={myPreferencesMeetingFrequency !== null}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setMyPreferencesMeetingFrequency({ number: 1, unit: 'weeks' });
+                              } else {
+                                setMyPreferencesMeetingFrequency(null);
+                              }
+                            }}
+                            data-testid="checkbox-frequency-override"
+                          />
+                          <span className="text-sm">
+                            Set my preferred meeting frequency
+                            <span className="text-muted-foreground ml-1">
+                              (Using group frequency by default)
+                            </span>
+                          </span>
+                        </div>
+                        {myPreferencesMeetingFrequency !== null && (
+                          <div className="flex gap-2 items-center">
+                            <Input
+                              type="number"
+                              min="1"
+                              value={myPreferencesMeetingFrequency.number}
+                              onChange={(e) => setMyPreferencesMeetingFrequency({ 
+                                ...myPreferencesMeetingFrequency, 
+                                number: parseInt(e.target.value) || 1 
+                              })}
+                              className="w-20"
+                              data-testid="input-my-frequency-number"
+                            />
+                            <Select
+                              value={myPreferencesMeetingFrequency.unit}
+                              onValueChange={(value) => setMyPreferencesMeetingFrequency({ 
+                                ...myPreferencesMeetingFrequency, 
+                                unit: value 
+                              })}
+                            >
+                              <SelectTrigger className="flex-1" data-testid="select-my-frequency-unit">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="days">days</SelectItem>
+                                <SelectItem value="weeks">weeks</SelectItem>
+                                <SelectItem value="months">months</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                      </div>
+
                       <div className="flex justify-end pt-4">
                         <Button
                           onClick={() => {
@@ -4160,6 +4215,9 @@ export default function GroupDetail() {
                               budgetOverrideMax: myPreferencesBudget?.max,
                               categoryPreferencesOverride: myPreferencesCategories,
                               availabilityOverride: myPreferencesAvailability,
+                              meetingFrequencyOverride: myPreferencesMeetingFrequency 
+                                ? `${myPreferencesMeetingFrequency.number}x ${myPreferencesMeetingFrequency.unit.replace(/s$/, '')}`
+                                : null,
                             });
                           }}
                           disabled={updateMyPreferencesMutation.isPending}
