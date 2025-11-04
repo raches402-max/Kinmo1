@@ -6151,7 +6151,7 @@ Looking forward to planning great activities together!
       
       // For now, only allow specific admin email
       // TODO: Add admin role to user profile for better scalability
-      const adminEmails = ['raches402@gmail.com'];
+      const adminEmails = getAdminEmails();
       if (!user || !adminEmails.includes(user.email || '')) {
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
@@ -6171,7 +6171,7 @@ Looking forward to planning great activities together!
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       
-      const adminEmails = ['raches402@gmail.com'];
+      const adminEmails = getAdminEmails();
       if (!user || !adminEmails.includes(user.email || '')) {
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
@@ -6203,7 +6203,7 @@ Looking forward to planning great activities together!
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       
-      const adminEmails = ['raches402@gmail.com'];
+      const adminEmails = getAdminEmails();
       if (!user || !adminEmails.includes(user.email || '')) {
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
@@ -6232,7 +6232,7 @@ Looking forward to planning great activities together!
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       
-      const adminEmails = ['raches402@gmail.com'];
+      const adminEmails = getAdminEmails();
       if (!user || !adminEmails.includes(user.email || '')) {
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
@@ -6258,7 +6258,7 @@ Looking forward to planning great activities together!
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       
-      const adminEmails = ['raches402@gmail.com'];
+      const adminEmails = getAdminEmails();
       if (!user || !adminEmails.includes(user.email || '')) {
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
@@ -6279,7 +6279,7 @@ Looking forward to planning great activities together!
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       
-      const adminEmails = ['raches402@gmail.com'];
+      const adminEmails = getAdminEmails();
       if (!user || !adminEmails.includes(user.email || '')) {
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
@@ -6319,7 +6319,7 @@ Looking forward to planning great activities together!
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       
-      const adminEmails = ['raches402@gmail.com'];
+      const adminEmails = getAdminEmails();
       if (!user || !adminEmails.includes(user.email || '')) {
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
@@ -6461,7 +6461,7 @@ Looking forward to planning great activities together!
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       
-      const adminEmails = ['raches402@gmail.com'];
+      const adminEmails = getAdminEmails();
       if (!user || !adminEmails.includes(user.email || '')) {
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
@@ -6563,7 +6563,7 @@ Looking forward to planning great activities together!
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       
-      const adminEmails = ['raches402@gmail.com'];
+      const adminEmails = getAdminEmails();
       if (!user || !adminEmails.includes(user.email || '')) {
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
@@ -6633,7 +6633,7 @@ Looking forward to planning great activities together!
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       
-      const adminEmails = ['raches402@gmail.com'];
+      const adminEmails = getAdminEmails();
       if (!user || !adminEmails.includes(user.email || '')) {
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
@@ -6809,7 +6809,7 @@ Looking forward to planning great activities together!
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       
-      const adminEmails = ['raches402@gmail.com'];
+      const adminEmails = getAdminEmails();
       if (!user || !adminEmails.includes(user.email || '')) {
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
@@ -6840,7 +6840,7 @@ Looking forward to planning great activities together!
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       
-      const adminEmails = ['raches402@gmail.com'];
+      const adminEmails = getAdminEmails();
       if (!user || !adminEmails.includes(user.email || '')) {
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
@@ -6916,7 +6916,7 @@ Looking forward to planning great activities together!
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       
-      const adminEmails = ['raches402@gmail.com'];
+      const adminEmails = getAdminEmails();
       if (!user || !adminEmails.includes(user.email || '')) {
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
@@ -6947,7 +6947,7 @@ Looking forward to planning great activities together!
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       
-      const adminEmails = ['raches402@gmail.com'];
+      const adminEmails = getAdminEmails();
       if (!user || !adminEmails.includes(user.email || '')) {
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
@@ -6970,7 +6970,7 @@ Looking forward to planning great activities together!
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       
-      const adminEmails = ['raches402@gmail.com'];
+      const adminEmails = getAdminEmails();
       if (!user || !adminEmails.includes(user.email || '')) {
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
@@ -6994,7 +6994,7 @@ Looking forward to planning great activities together!
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       
-      const adminEmails = ['raches402@gmail.com'];
+      const adminEmails = getAdminEmails();
       if (!user || !adminEmails.includes(user.email || '')) {
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
@@ -7066,7 +7066,7 @@ Looking forward to planning great activities together!
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       
-      const adminEmails = ['raches402@gmail.com'];
+      const adminEmails = getAdminEmails();
       if (!user || !adminEmails.includes(user.email || '')) {
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
@@ -7120,7 +7120,7 @@ Looking forward to planning great activities together!
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       
-      const adminEmails = ['raches402@gmail.com'];
+      const adminEmails = getAdminEmails();
       if (!user || !adminEmails.includes(user.email || '')) {
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
@@ -7155,7 +7155,7 @@ Looking forward to planning great activities together!
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       
-      const adminEmails = ['raches402@gmail.com'];
+      const adminEmails = getAdminEmails();
       if (!user || !adminEmails.includes(user.email || '')) {
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
@@ -7175,7 +7175,7 @@ Looking forward to planning great activities together!
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       
-      const adminEmails = ['raches402@gmail.com'];
+      const adminEmails = getAdminEmails();
       if (!user || !adminEmails.includes(user.email || '')) {
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
@@ -7195,7 +7195,7 @@ Looking forward to planning great activities together!
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       
-      const adminEmails = ['raches402@gmail.com'];
+      const adminEmails = getAdminEmails();
       if (!user || !adminEmails.includes(user.email || '')) {
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
@@ -7220,7 +7220,7 @@ Looking forward to planning great activities together!
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       
-      const adminEmails = ['raches402@gmail.com'];
+      const adminEmails = getAdminEmails();
       if (!user || !adminEmails.includes(user.email || '')) {
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
@@ -7296,7 +7296,7 @@ Looking forward to planning great activities together!
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       
-      const adminEmails = ['raches402@gmail.com'];
+      const adminEmails = getAdminEmails();
       if (!user || !adminEmails.includes(user.email || '')) {
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
