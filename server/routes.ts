@@ -13,6 +13,21 @@ import { eq, sql, and, or, gte, desc } from "drizzle-orm";
 import { format } from 'date-fns';
 
 /**
+ * Get list of admin emails based on environment
+ * In development: includes test admin for automated testing
+ * In production: only real admin emails
+ */
+function getAdminEmails(): string[] {
+  const prodAdmins = ['raches402@gmail.com'];
+  
+  if (process.env.NODE_ENV === 'development') {
+    return [...prodAdmins, 'test-admin@example.com'];
+  }
+  
+  return prodAdmins;
+}
+
+/**
  * Calculate similarity score between two strings (0 = no match, 1 = exact match)
  * Uses normalized comparison, word overlap, and substring matching
  */
