@@ -1295,14 +1295,34 @@ export default function GroupDetail() {
       
       // Update local categoryResults to mark this item as favorited
       // Match on either googlePlaceId or placeId since variables.googlePlaceId could be either
-      setCategoryResults(prev => prev.map(result => {
-        if (variables.googlePlaceId && 
-            (result.googlePlaceId === variables.googlePlaceId || 
-             result.placeId === variables.googlePlaceId)) {
-          return { ...result, feedback: "love" };
+      setCategoryResults(prev => {
+        if (Array.isArray(prev)) {
+          return prev.map(result => {
+            if (variables.googlePlaceId && 
+                (result.googlePlaceId === variables.googlePlaceId || 
+                 result.placeId === variables.googlePlaceId)) {
+              return { ...result, feedback: "love" };
+            }
+            return result;
+          });
         }
-        return result;
-      }));
+        // If it's grouped by category (object), update within each category
+        if (typeof prev === 'object' && prev !== null) {
+          const updated: any = {};
+          for (const [category, venues] of Object.entries(prev)) {
+            updated[category] = (venues as any[]).map((result: any) => {
+              if (variables.googlePlaceId && 
+                  (result.googlePlaceId === variables.googlePlaceId || 
+                   result.placeId === variables.googlePlaceId)) {
+                return { ...result, feedback: "love" };
+              }
+              return result;
+            });
+          }
+          return updated;
+        }
+        return prev;
+      });
       
       toast({
         title: "Added to favorites",
