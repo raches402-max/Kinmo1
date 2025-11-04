@@ -643,6 +643,10 @@ export default function GroupDetail() {
   const [favoritesSearch, setFavoritesSearch] = useState("");
   const [categorySortMode, setCategorySortMode] = useState<Record<string, 'rating' | 'votes'>>({});
   const [activitiesSubTab, setActivitiesSubTab] = useState("ai-suggested");
+  const [groupSubTab, setGroupSubTab] = useState("overview");
+  const [myPreferencesBudget, setMyPreferencesBudget] = useState<number | null>(null);
+  const [myPreferencesCategories, setMyPreferencesCategories] = useState<string[] | null>(null);
+  const [myPreferencesAvailability, setMyPreferencesAvailability] = useState<any>(null);
   const [hoveredFavoriteId, setHoveredFavoriteId] = useState<string | null>(null);
   const [showFavoritesMap, setShowFavoritesMap] = useState(false);
   const [addedSuggestionPlaceIds, setAddedSuggestionPlaceIds] = useState<Set<string>>(new Set());
@@ -956,6 +960,33 @@ export default function GroupDetail() {
     }
   }, [editItineraryIdFromUrl, proposedItineraries, editItineraryOpen]);
 
+  // Fetch member group preferences
+  const { data: memberPreferences } = useQuery({
+    queryKey: ["/api/groups", groupId, "my-preferences"],
+    enabled: !!user && !!groupId,
+  });
+
+  // Update member group preferences
+  const updateMyPreferencesMutation = useMutation({
+    mutationFn: async (preferences: { budgetOverride?: number | null; categoryPreferencesOverride?: string[] | null; availabilityOverride?: any }) => {
+      return await apiRequest("PATCH", `/api/groups/${groupId}/my-preferences`, preferences);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Preferences saved",
+        description: "Your preferences for this group have been updated",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "my-preferences"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error saving preferences",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   // Initialize form fields from group data when it loads
   useEffect(() => {
     if (group) {
@@ -1029,6 +1060,15 @@ export default function GroupDetail() {
       setSelectedCategories(initialCategories);
     }
   }, [group]);
+
+  // Sync member preferences when loaded
+  useEffect(() => {
+    if (memberPreferences) {
+      setMyPreferencesBudget(memberPreferences.budgetOverride ?? null);
+      setMyPreferencesCategories(memberPreferences.categoryPreferencesOverride ?? null);
+      setMyPreferencesAvailability(memberPreferences.availabilityOverride ?? null);
+    }
+  }, [memberPreferences]);
 
   const sendInvitationsMutation = useMutation({
     mutationFn: async () => {
@@ -3835,6 +3875,141 @@ export default function GroupDetail() {
                         </div>
                       </div>
                     ))}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* My Preferences for this Group */}
+              {!isOwner && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>My Preferences for this Group</CardTitle>
+                    <CardDescription>
+                      Customize your preferences for this specific group. These will override your global preferences.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-3">
+                      <Label>Budget Override (per person)</Label>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={myPreferencesBudget !== null}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setMyPreferencesBudget(group?.budgetMax || 100);
+                            } else {
+                              setMyPreferencesBudget(null);
+                            }
+                          }}
+                          data-testid="checkbox-budget-override"
+                        />
+                        <span className="text-sm text-muted-foreground">
+                          Override group budget
+                        </span>
+                      </div>
+                      {myPreferencesBudget !== null && (
+                        <div className="space-y-3">
+                          <Slider
+                            min={0}
+                            max={250}
+                            step={10}
+                            value={[myPreferencesBudget]}
+                            onValueChange={(vals) => setMyPreferencesBudget(vals[0])}
+                            className="w-full"
+                            data-testid="slider-my-budget"
+                          />
+                          <div className="text-sm font-medium" data-testid="text-my-budget">
+                            {myPreferencesBudget >= 200 ? "$200+" : `$${myPreferencesBudget}`}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-3">
+                      <Label>Category Preferences Override</Label>
+                      <div className="flex items-center gap-3 mb-2">
+                        <input
+                          type="checkbox"
+                          checked={myPreferencesCategories !== null}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setMyPreferencesCategories(['meal', 'cafes', 'drinks']);
+                            } else {
+                              setMyPreferencesCategories(null);
+                            }
+                          }}
+                          data-testid="checkbox-categories-override"
+                        />
+                        <span className="text-sm text-muted-foreground">
+                          Override group categories
+                        </span>
+                      </div>
+                      {myPreferencesCategories !== null && (
+                        <div className="grid grid-cols-2 gap-2">
+                          {['meal', 'cafes', 'drinks', 'dessert', 'experiences'].map((cat) => (
+                            <label key={cat} className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={myPreferencesCategories.includes(cat)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setMyPreferencesCategories([...myPreferencesCategories, cat]);
+                                  } else {
+                                    setMyPreferencesCategories(myPreferencesCategories.filter(c => c !== cat));
+                                  }
+                                }}
+                                data-testid={`checkbox-my-category-${cat}`}
+                              />
+                              <span className="text-sm capitalize">{cat}</span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-3">
+                      <Label>Availability Override</Label>
+                      <div className="flex items-center gap-3 mb-2">
+                        <input
+                          type="checkbox"
+                          checked={myPreferencesAvailability !== null}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setMyPreferencesAvailability(createEmptyAvailability());
+                            } else {
+                              setMyPreferencesAvailability(null);
+                            }
+                          }}
+                          data-testid="checkbox-availability-override"
+                        />
+                        <span className="text-sm text-muted-foreground">
+                          Override group availability
+                        </span>
+                      </div>
+                      {myPreferencesAvailability !== null && (
+                        <AvailabilityGrid
+                          value={myPreferencesAvailability}
+                          onChange={setMyPreferencesAvailability}
+                        />
+                      )}
+                    </div>
+
+                    <div className="flex justify-end pt-4">
+                      <Button
+                        onClick={() => {
+                          updateMyPreferencesMutation.mutate({
+                            budgetOverride: myPreferencesBudget,
+                            categoryPreferencesOverride: myPreferencesCategories,
+                            availabilityOverride: myPreferencesAvailability,
+                          });
+                        }}
+                        disabled={updateMyPreferencesMutation.isPending}
+                        data-testid="button-save-my-preferences"
+                      >
+                        {updateMyPreferencesMutation.isPending ? "Saving..." : "Save My Preferences"}
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               )}

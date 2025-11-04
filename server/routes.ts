@@ -3226,13 +3226,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Not authorized to modify this group" });
       }
 
+      // Fetch member group preferences for fallback chain
+      const memberPreferences = await storage.getMemberGroupPreferences(userId, req.params.id);
+      
+      // Fetch global user profile for fallback chain
+      const userProfile = await storage.getUserProfile(userId);
+
+      // Implement preference fallback chain for all preferences:
+      // 1. Member group preferences (budgetOverride, categoryPreferencesOverride, availabilityOverride)
+      // 2. Global user profile (budget, activityPreferences, personalAvailability)
+      // 3. Group defaults (budgetMax, enabled categories, availability)
+      const effectiveBudget = memberPreferences?.budgetOverride ?? userProfile?.budget ?? group.budgetMax;
+      const effectiveCategories = memberPreferences?.categoryPreferencesOverride ?? userProfile?.activityPreferences ?? null;
+      const effectiveAvailability = memberPreferences?.availabilityOverride ?? userProfile?.personalAvailability ?? group.availability;
+      
+      console.log(`[Category Generate] Preference fallback chain:`);
+      console.log(`  Budget: ${effectiveBudget} (member: ${memberPreferences?.budgetOverride}, profile: ${userProfile?.budget}, group: ${group.budgetMax})`);
+      console.log(`  Categories: ${effectiveCategories ? JSON.stringify(effectiveCategories) : 'null'} (member: ${memberPreferences?.categoryPreferencesOverride ? 'set' : 'null'}, profile: ${userProfile?.activityPreferences ? 'set' : 'null'})`);
+      console.log(`  Availability: ${effectiveAvailability ? 'set' : 'null'} (member: ${memberPreferences?.availabilityOverride ? 'set' : 'null'}, profile: ${userProfile?.personalAvailability ? 'set' : 'null'}, group: ${group.availability ? 'set' : 'null'})`);
+
       const { categories, category, location, radius, count = 9, sortBy = 'rating', tempInstructions } = req.body;
 
       // Support both single category (backward compatibility) and multiple categories
-      const categoriesToProcess = categories || (category ? [category] : []);
+      let categoriesToProcess = categories || (category ? [category] : []);
+      
+      // Apply category preference override: if user has category preferences, 
+      // filter requested categories to only include those in their preferences
+      if (effectiveCategories && Array.isArray(effectiveCategories) && effectiveCategories.length > 0) {
+        if (categoriesToProcess.length > 0) {
+          // Filter requested categories to only include user's preferred categories
+          const originalCount = categoriesToProcess.length;
+          categoriesToProcess = categoriesToProcess.filter((cat: string) => effectiveCategories.includes(cat));
+          if (categoriesToProcess.length < originalCount) {
+            console.log(`[Category Generate] Filtered categories based on user preferences: ${originalCount} → ${categoriesToProcess.length}`);
+          }
+        } else {
+          // No explicit categories requested, use user's preferred categories
+          categoriesToProcess = effectiveCategories;
+          console.log(`[Category Generate] Using user's preferred categories: ${categoriesToProcess.join(', ')}`);
+        }
+      }
       
       if (!categoriesToProcess.length) {
-        return res.status(400).json({ message: "No categories provided" });
+        return res.status(400).json({ message: "No categories provided or all requested categories filtered out by preferences" });
       }
 
       // Validate all categories
@@ -3310,7 +3346,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Search Google Places directly (no AI needed!)
-        // Apply budget filter to respect group's budget constraints
+        // Apply budget filter using preference fallback chain
         const places = await searchPlaces(
           `${searchQuery} in ${searchLocation}`,
           searchLocation,
@@ -3318,7 +3354,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           coordinates,
           false, // skipCurated
           undefined, // venueType
-          group.budgetMax || undefined // Apply budget filter if set
+          effectiveBudget || undefined // Apply effective budget from fallback chain
         );
 
         console.log(`[Category Generate] Got ${places.length} places from Google for ${currentCategory}`);
