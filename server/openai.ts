@@ -776,6 +776,13 @@ Return as JSON:
 // AI-based venue categorization for edge cases
 const categorizationCache = new Map<string, string>();
 
+// Clear categorization cache (useful when categorization logic changes)
+export function clearCategorizationCache() {
+  const size = categorizationCache.size;
+  categorizationCache.clear();
+  console.log(`[AI Categorization] Cleared ${size} cached categorizations`);
+}
+
 // Keyword-based fallback categorization
 function keywordCategorize(venueType: string): 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences' {
   const lowerType = venueType.toLowerCase();
@@ -823,6 +830,11 @@ export async function categorizeVenue(
   if (googleTypes && googleTypes.length > 0) {
     const typeString = googleTypes.join(',').toLowerCase();
     
+    // Debug logging for troubleshooting
+    if (venueName.toLowerCase().includes('fugazi') || venueName.toLowerCase().includes('philmore') || venueName.toLowerCase().includes("mo's")) {
+      console.log(`[AI Categorization DEBUG] "${venueName}" - typeString: "${typeString}"`);
+    }
+    
     // Dessert types - very specific, high confidence
     const dessertTypes = ['ice_cream_shop', 'dessert_shop', 'bakery', 'candy_store', 'chocolate_shop', 'donut_shop', 'frozen_yogurt_shop', 'bubble_tea_shop'];
     if (dessertTypes.some(type => typeString.includes(type))) {
@@ -838,6 +850,15 @@ export async function categorizeVenue(
       return 'cafes';
     }
     
+    // Experiences types - Check BEFORE drinks to prioritize entertainment venues
+    // (e.g., performing arts theaters with night_club tags should be experiences)
+    const experienceTypes = ['museum', 'art_gallery', 'amusement_park', 'aquarium', 'zoo', 'bowling_alley', 'movie_theater', 'park', 'tourist_attraction', 'stadium', 'performing_arts_theater'];
+    if (experienceTypes.some(type => typeString.includes(type))) {
+      console.log(`[AI Categorization] Google type hint: "${venueName}" → experiences (matched: ${experienceTypes.find(t => typeString.includes(t))})`);
+      categorizationCache.set(cacheKey, 'experiences');
+      return 'experiences';
+    }
+    
     // Drinks types
     const drinksTypes = ['bar', 'night_club', 'brewery', 'winery', 'wine_bar', 'cocktail_bar', 'tapas_bar', 'sports_bar'];
     const matchedDrink = drinksTypes.find(type => typeString.includes(type));
@@ -851,14 +872,6 @@ export async function categorizeVenue(
       console.log(`[AI Categorization] Google type hint: "${venueName}" → drinks (matched: ${matchedDrink})`);
       categorizationCache.set(cacheKey, 'drinks');
       return 'drinks';
-    }
-    
-    // Experiences types
-    const experienceTypes = ['museum', 'art_gallery', 'amusement_park', 'aquarium', 'zoo', 'bowling_alley', 'movie_theater', 'park', 'tourist_attraction', 'stadium', 'performing_arts_theater'];
-    if (experienceTypes.some(type => typeString.includes(type))) {
-      console.log(`[AI Categorization] Google type hint: "${venueName}" → experiences (matched: ${experienceTypes.find(t => typeString.includes(t))})`);
-      categorizationCache.set(cacheKey, 'experiences');
-      return 'experiences';
     }
     
     // Restaurant types (fallback to meal)

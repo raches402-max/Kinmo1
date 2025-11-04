@@ -6847,11 +6847,13 @@ Looking forward to planning great activities together!
 
       console.log("[Venue Recategorization] Starting recategorization of all curated venues...");
 
+      // Clear categorization cache to ensure all venues are re-evaluated with current logic
+      const { categorizeVenue, clearCategorizationCache } = await import('./openai');
+      clearCategorizationCache();
+
       // Get all curated venues
       const venues = await storage.getAllCuratedVenues();
       console.log(`[Venue Recategorization] Checking ${venues.length} venues...`);
-
-      const { categorizeVenue } = await import('./openai');
       const changes: Array<{ id: string; name: string; oldCategory: string; newCategory: string }> = [];
       let checked = 0;
       let errors = 0;
