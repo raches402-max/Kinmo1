@@ -6,8 +6,10 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { useState } from "react";
 import {
   Calendar,
   MapPin,
@@ -41,6 +43,7 @@ export default function EventDetailsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const [guestName, setGuestName] = useState("");
 
   const { data: event, isLoading } = useQuery<any>({
     queryKey: ["/api/user/events", eventId],
@@ -48,6 +51,16 @@ export default function EventDetailsPage() {
     queryFn: async () => {
       const events = await fetch(`/api/user/events`).then(r => r.json());
       return events.find((e: any) => e.itineraryId === eventId);
+    },
+  });
+
+  const { data: guestInvites = [], isLoading: isLoadingGuests } = useQuery<any[]>({
+    queryKey: ["/api/itineraries/:id/guest-invites", eventId],
+    enabled: !!eventId,
+    queryFn: async () => {
+      const response = await fetch(`/api/itineraries/${eventId}/guest-invites`);
+      if (!response.ok) throw new Error('Failed to fetch guest invites');
+      return response.json();
     },
   });
 
@@ -94,6 +107,22 @@ export default function EventDetailsPage() {
     },
   });
 
+  const addGuestMutation = useMutation({
+    mutationFn: async (guestName: string) => {
+      return apiRequest("POST", `/api/itineraries/${eventId}/guest-invites`, {
+        guestName,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/itineraries/:id/guest-invites", eventId] });
+      setGuestName("");
+      toast({
+        title: "Guest invited",
+        description: "Guest invite link created successfully",
+      });
+    },
+  });
+
   const copyInviteLink = () => {
     if (!event) return;
     const link = `${window.location.origin}/rsvp/${event.itineraryId}/${event.inviteToken}`;
@@ -102,6 +131,20 @@ export default function EventDetailsPage() {
       title: "Link copied!",
       description: "Share this link to invite others",
     });
+  };
+
+  const copyGuestLink = (guestToken: string, guestName: string) => {
+    const link = `${window.location.origin}/guest-rsvp/${guestToken}`;
+    navigator.clipboard.writeText(link);
+    toast({
+      title: "Guest link copied!",
+      description: `Link for ${guestName} copied to clipboard`,
+    });
+  };
+
+  const handleAddGuest = () => {
+    if (!guestName.trim()) return;
+    addGuestMutation.mutate(guestName.trim());
   };
 
   if (isLoading) {
@@ -406,6 +449,97 @@ export default function EventDetailsPage() {
                   )}
                 </div>
               </div>
+
+              {/* Guest Invites Section */}
+              {isOrganizer && (
+                <div>
+                  <h3 className="font-semibold text-sm mb-3">
+                    Guests ({guestInvites.length})
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="flex gap-2">
+                      <Input
+                        type="text"
+                        placeholder="Guest name..."
+                        value={guestName}
+                        onChange={(e) => setGuestName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            handleAddGuest();
+                          }
+                        }}
+                        data-testid="input-guest-name"
+                        className="flex-1"
+                      />
+                      <Button
+                        size="sm"
+                        onClick={handleAddGuest}
+                        disabled={!guestName.trim() || addGuestMutation.isPending}
+                        className="gap-2"
+                        data-testid="button-add-guest"
+                      >
+                        <UserPlus className="h-4 w-4" />
+                        Add Guest
+                      </Button>
+                    </div>
+
+                    {isLoadingGuests ? (
+                      <div className="text-sm text-muted-foreground">Loading guests...</div>
+                    ) : guestInvites.length > 0 ? (
+                      <div className="space-y-2">
+                        {guestInvites.map((guest: any) => (
+                          <Card key={guest.id} className="p-3">
+                            <div className="flex items-center justify-between gap-3 flex-wrap">
+                              <div className="flex items-center gap-2 flex-1">
+                                <span className="font-medium">{guest.guestName}</span>
+                                {guest.rsvpStatus && (
+                                  <Badge
+                                    variant={
+                                      guest.rsvpStatus === "yes"
+                                        ? "default"
+                                        : guest.rsvpStatus === "maybe"
+                                        ? "secondary"
+                                        : "outline"
+                                    }
+                                    className="gap-1"
+                                  >
+                                    {guest.rsvpStatus === "yes" && (
+                                      <CheckCircle className="h-3 w-3" />
+                                    )}
+                                    {guest.rsvpStatus === "maybe" && (
+                                      <HelpCircle className="h-3 w-3" />
+                                    )}
+                                    {guest.rsvpStatus === "no" && (
+                                      <XCircle className="h-3 w-3" />
+                                    )}
+                                    {guest.rsvpStatus === "yes" && "Yes"}
+                                    {guest.rsvpStatus === "maybe" && "Maybe"}
+                                    {guest.rsvpStatus === "no" && "No"}
+                                  </Badge>
+                                )}
+                              </div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => copyGuestLink(guest.guestToken, guest.guestName)}
+                                className="gap-2"
+                                data-testid={`button-copy-guest-link-${guest.id}`}
+                              >
+                                <Copy className="h-4 w-4" />
+                                Copy Link
+                              </Button>
+                            </div>
+                          </Card>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        No guests invited yet. Add guests to generate shareable invite links.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

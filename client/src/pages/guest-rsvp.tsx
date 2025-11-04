@@ -11,29 +11,30 @@ import { Calendar, MapPin, Check, X, HelpCircle } from "lucide-react";
 import { format } from "date-fns";
 
 type GuestRsvpData = {
-  rsvp: {
+  guestInvite: {
     id: string;
     guestName: string;
-    response: string;
+    rsvpStatus: string | null;
+    guestToken: string;
   };
   itinerary: {
     id: string;
     name: string;
     eventDate: string | null;
-    items: Array<{
-      id: string;
-      venueName: string;
-      venueType: string;
-      venueAddress: string;
-      photoUrl: string | null;
-      rating: string | null;
-    }>;
   };
-  group: {
+  items: Array<{
     id: string;
+    venueName: string;
+    venueType: string;
+    venueAddress: string;
+    photoUrl: string | null;
+    rating: string | null;
+    googlePlaceId: string | null;
+  }>;
+  group: {
     name: string;
     emoji: string;
-  };
+  } | null;
 };
 
 export default function GuestRsvpPage() {
@@ -45,30 +46,18 @@ export default function GuestRsvpPage() {
 
   // Fetch guest RSVP and event details
   const { data, isLoading } = useQuery<GuestRsvpData>({
-    queryKey: [`/api/guest-rsvp/${guestToken}`],
+    queryKey: ["/api/guest-rsvp", guestToken],
     enabled: !!guestToken,
   });
 
   // Update RSVP mutation
   const updateRsvpMutation = useMutation({
     mutationFn: async (response: string) => {
-      return await apiRequest("PATCH", `/api/guest-rsvp/${guestToken}`, { response });
+      return await apiRequest("POST", `/api/guest-rsvp/${guestToken}`, { response });
     },
-    onSuccess: (updatedRsvp) => {
-      // Get the latest cached data (not the closure-captured value)
-      const currentData = queryClient.getQueryData<GuestRsvpData>([`/api/guest-rsvp/${guestToken}`]);
-      
-      if (currentData) {
-        const updatedData = {
-          ...currentData,
-          rsvp: {
-            ...currentData.rsvp,
-            response: updatedRsvp.response,
-          },
-        };
-        // Update the query cache with fresh response
-        queryClient.setQueryData([`/api/guest-rsvp/${guestToken}`], updatedData);
-      }
+    onSuccess: () => {
+      // Invalidate and refetch the guest RSVP data
+      queryClient.invalidateQueries({ queryKey: ["/api/guest-rsvp", guestToken] });
       // Reset selected response to match saved response
       setSelectedResponse(null);
       toast({
@@ -114,16 +103,16 @@ export default function GuestRsvpPage() {
     );
   }
 
-  const { rsvp, itinerary, group } = data;
-  const currentResponse = selectedResponse || rsvp.response;
+  const { guestInvite, itinerary, items, group } = data;
+  const currentResponse = selectedResponse || guestInvite.rsvpStatus || '';
 
   return (
     <div className="min-h-screen bg-background p-4">
       <div className="max-w-2xl mx-auto py-8 space-y-6">
         {/* Header */}
         <div className="text-center space-y-2">
-          <div className="text-4xl mb-2">{group.emoji}</div>
-          <h1 className="text-3xl font-bold">{group.name}</h1>
+          {group && <div className="text-4xl mb-2">{group.emoji}</div>}
+          {group && <h1 className="text-3xl font-bold">{group.name}</h1>}
           <p className="text-muted-foreground">You're invited to join us!</p>
         </div>
 
@@ -132,7 +121,7 @@ export default function GuestRsvpPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Calendar className="h-5 w-5" />
-              {itinerary.name}
+              {itinerary.name || "Group Event"}
             </CardTitle>
             {itinerary.eventDate && (
               <CardDescription className="text-base font-medium">
@@ -143,7 +132,7 @@ export default function GuestRsvpPage() {
           <CardContent className="space-y-4">
             <div className="space-y-3">
               <h3 className="font-semibold text-sm text-muted-foreground">Event Details</h3>
-              {itinerary.items.map((item, idx) => (
+              {items.map((item, idx) => (
                 <div key={item.id} className="flex gap-3 p-3 rounded-lg bg-muted/50" data-testid={`venue-${item.id}`}>
                   <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold text-primary">
                     {idx + 1}
@@ -174,7 +163,7 @@ export default function GuestRsvpPage() {
           <CardHeader>
             <CardTitle>Your RSVP</CardTitle>
             <CardDescription>
-              Hi {rsvp.guestName}! Will you be able to join us?
+              Hi {guestInvite.guestName}! Will you be able to join us?
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -213,7 +202,7 @@ export default function GuestRsvpPage() {
               </div>
             </RadioGroup>
 
-            {selectedResponse && selectedResponse !== rsvp.response && (
+            {selectedResponse && selectedResponse !== guestInvite.rsvpStatus && (
               <Button
                 onClick={handleSubmit}
                 disabled={updateRsvpMutation.isPending}
@@ -224,10 +213,10 @@ export default function GuestRsvpPage() {
               </Button>
             )}
 
-            {!selectedResponse || selectedResponse === rsvp.response ? (
+            {(!selectedResponse || selectedResponse === guestInvite.rsvpStatus) && guestInvite.rsvpStatus ? (
               <div className="text-center text-sm text-muted-foreground">
                 Your current response: <span className="font-medium text-foreground">
-                  {rsvp.response === 'yes' ? "Yes, I'll be there!" : rsvp.response === 'maybe' ? 'Maybe' : "Can't make it"}
+                  {guestInvite.rsvpStatus === 'yes' ? "Yes, I'll be there!" : guestInvite.rsvpStatus === 'maybe' ? 'Maybe' : "Can't make it"}
                 </span>
               </div>
             ) : null}

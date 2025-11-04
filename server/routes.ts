@@ -2,7 +2,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, updateUserProfileSchema, activities as activitiesTable, groups as groupsTable, members as membersTable, itineraryInvites, rsvps as rsvpsTable, itineraries, itineraryItems, proposedTimeSlots, userProfiles, photosCache, geocodingCache, hostAssignments, curatedVenues, votingEvents as votingEventsTable, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
+import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, updateUserProfileSchema, activities as activitiesTable, groups as groupsTable, members as membersTable, itineraryInvites, guestInvites, rsvps as rsvpsTable, itineraries, itineraryItems, proposedTimeSlots, userProfiles, photosCache, geocodingCache, hostAssignments, curatedVenues, votingEvents as votingEventsTable, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
 import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue, analyzePreferencePatterns, parseSchedulingPrompt, detectCategory } from "./openai";
 import { searchPlaces, searchNearbyPlaces, geocodeLocation, clearPlacesCache, getCacheStats, getPlaceDetails } from "./google-places";
 import { setupAuth, isAuthenticated } from "./replitAuth";
@@ -848,6 +848,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .where(
             sql`itinerary_id = ${invite.itineraryId} AND requires_approval = true AND approved = false`
           ) : [];
+
+        // Get all guest invites for this itinerary
+        const allGuestInvites = await db
+          .select()
+          .from(guestInvites)
+          .where(eq(guestInvites.itineraryId, invite.itineraryId));
+
+        // Add guest invites to detailed RSVPs
+        for (const gi of allGuestInvites) {
+          // Only add if they have responded (to avoid duplicating pending invites)
+          if (gi.rsvpStatus && gi.rsvpStatus !== null) {
+            detailedRsvps.push({
+              name: gi.guestName,
+              response: gi.rsvpStatus,
+              additionalAttendees: [],
+              numberOfKids: 0,
+              isGuest: true,
+            });
+
+            // Add to RSVP summary
+            if (gi.rsvpStatus in rsvpSummary) {
+              rsvpSummary[gi.rsvpStatus as 'yes' | 'maybe' | 'no'].push(gi.guestName);
+            }
+          }
+        }
 
         return {
           inviteId: invite.inviteId,
@@ -5834,6 +5859,152 @@ Looking forward to planning great activities together!
         totalInvited: invites.length,
         totalResponses: rsvps.length,
       });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Create guest invite for an itinerary
+  app.post("/api/itineraries/:itineraryId/guest-invites", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { itineraryId } = req.params;
+      const { guestName } = req.body;
+
+      if (!guestName || !guestName.trim()) {
+        return res.status(400).json({ message: "Guest name is required" });
+      }
+
+      // Verify itinerary exists and user is authorized (group owner)
+      const itinerary = await storage.getItinerary(itineraryId);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      const group = await storage.getGroup(itinerary.groupId);
+      if (!group || group.userId !== userId) {
+        return res.status(403).json({ message: "Only the group owner can invite guests" });
+      }
+
+      // Generate unique token for guest link
+      const guestToken = `guest_${crypto.randomUUID()}`;
+
+      // Create guest invite
+      const [guestInvite] = await db
+        .insert(guestInvites)
+        .values({
+          itineraryId,
+          guestName: guestName.trim(),
+          guestToken,
+          createdBy: userId,
+        })
+        .returning();
+
+      res.json(guestInvite);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get all guest invites for an itinerary
+  app.get("/api/itineraries/:itineraryId/guest-invites", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { itineraryId } = req.params;
+
+      // Verify itinerary exists and user is authorized
+      const itinerary = await storage.getItinerary(itineraryId);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      const group = await storage.getGroup(itinerary.groupId);
+      if (!group || group.userId !== userId) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+
+      // Get all guest invites
+      const invites = await db
+        .select()
+        .from(guestInvites)
+        .where(eq(guestInvites.itineraryId, itineraryId));
+
+      res.json(invites);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get guest RSVP details by token (public endpoint)
+  app.get("/api/guest-rsvp/:guestToken", async (req, res) => {
+    try {
+      const { guestToken } = req.params;
+
+      // Find guest invite
+      const [guestInvite] = await db
+        .select()
+        .from(guestInvites)
+        .where(eq(guestInvites.guestToken, guestToken))
+        .limit(1);
+
+      if (!guestInvite) {
+        return res.status(404).json({ message: "Guest invite not found" });
+      }
+
+      // Get itinerary details with items
+      const itinerary = await storage.getItinerary(guestInvite.itineraryId);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      const items = await db
+        .select()
+        .from(itineraryItems)
+        .where(eq(itineraryItems.itineraryId, guestInvite.itineraryId))
+        .orderBy(itineraryItems.orderIndex);
+
+      const group = await storage.getGroup(itinerary.groupId);
+
+      res.json({
+        guestInvite,
+        itinerary,
+        items,
+        group: group ? { name: group.name, emoji: group.emoji } : null,
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Submit guest RSVP (public endpoint)
+  app.post("/api/guest-rsvp/:guestToken", async (req, res) => {
+    try {
+      const { guestToken } = req.params;
+      const { response } = req.body;
+
+      if (!response || !["yes", "maybe", "no"].includes(response)) {
+        return res.status(400).json({ message: "Valid response required (yes, maybe, or no)" });
+      }
+
+      // Find guest invite
+      const [guestInvite] = await db
+        .select()
+        .from(guestInvites)
+        .where(eq(guestInvites.guestToken, guestToken))
+        .limit(1);
+
+      if (!guestInvite) {
+        return res.status(404).json({ message: "Guest invite not found" });
+      }
+
+      // Update RSVP status on guest invite
+      const [updated] = await db
+        .update(guestInvites)
+        .set({ rsvpStatus: response })
+        .where(eq(guestInvites.guestToken, guestToken))
+        .returning();
+
+      res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }

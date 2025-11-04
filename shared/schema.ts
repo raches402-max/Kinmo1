@@ -339,6 +339,17 @@ export const itineraryInvites = pgTable("itinerary_invites", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Guest invites - allow event organizers to invite non-member guests via shareable links
+export const guestInvites = pgTable("guest_invites", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  itineraryId: varchar("itinerary_id").notNull().references(() => itineraries.id, { onDelete: "cascade" }),
+  guestName: text("guest_name").notNull(), // Name of the guest (no email required)
+  guestToken: varchar("guest_token").notNull().unique(), // Unique token for shareable link
+  rsvpStatus: text("rsvp_status"), // 'yes', 'maybe', 'no' - null if not yet responded
+  createdBy: varchar("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Seen activities - track which venues have been shown to avoid repetition
 export const seenActivities = pgTable("seen_activities", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -613,6 +624,7 @@ export const itinerariesRelations = relations(itineraries, ({ one, many }) => ({
   items: many(itineraryItems),
   rsvps: many(rsvps),
   invites: many(itineraryInvites),
+  guestInvites: many(guestInvites),
   reminderLogs: many(reminderLogs),
   proposedTimeSlots: many(proposedTimeSlots),
   backupFor: one(itineraries, {
@@ -651,6 +663,17 @@ export const itineraryInvitesRelations = relations(itineraryInvites, ({ one }) =
   member: one(members, {
     fields: [itineraryInvites.memberId],
     references: [members.id],
+  }),
+}));
+
+export const guestInvitesRelations = relations(guestInvites, ({ one }) => ({
+  itinerary: one(itineraries, {
+    fields: [guestInvites.itineraryId],
+    references: [itineraries.id],
+  }),
+  creator: one(users, {
+    fields: [guestInvites.createdBy],
+    references: [users.id],
   }),
 }));
 
@@ -778,6 +801,13 @@ export const insertItineraryItemSchema = createInsertSchema(itineraryItems).omit
 
 export const insertRsvpSchema = createInsertSchema(rsvps).omit({
   id: true,
+  createdAt: true,
+});
+
+export const insertGuestInviteSchema = createInsertSchema(guestInvites).omit({
+  id: true,
+  guestToken: true,
+  createdBy: true,
   createdAt: true,
 });
 
@@ -909,6 +939,9 @@ export type ItineraryItem = typeof itineraryItems.$inferSelect;
 
 export type InsertRsvp = z.infer<typeof insertRsvpSchema>;
 export type Rsvp = typeof rsvps.$inferSelect;
+
+export type InsertGuestInvite = z.infer<typeof insertGuestInviteSchema>;
+export type GuestInvite = typeof guestInvites.$inferSelect;
 
 export type InsertReminderLog = z.infer<typeof insertReminderLogSchema>;
 export type ReminderLog = typeof reminderLogs.$inferSelect;
