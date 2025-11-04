@@ -670,12 +670,13 @@ async function searchCuratedVenues(
     }
 
     // Query curated venues
+    // Use larger limit (100) to ensure shuffle has diverse pool, preventing repetitive suggestions
     let results = await db
       .select()
       .from(curatedVenues)
       .where(and(...conditions))
       .orderBy(desc(curatedVenues.rating))
-      .limit(maxResults * 2); // Get more for filtering by distance
+      .limit(100); // Large pool for shuffle variety
     
     // Apply venue type filtering if provided (post-SQL filter on tags array)
     if (venueType && results.length > 0) {
@@ -723,9 +724,8 @@ async function searchCuratedVenues(
             parseFloat(venue.longitude)
           )
         }))
-        .filter(venue => venue.distance <= radiusMiles)
-        .sort((a, b) => (b.rating ? parseFloat(b.rating) : 0) - (a.rating ? parseFloat(a.rating) : 0))
-        .slice(0, maxResults);
+        .filter(venue => venue.distance <= radiusMiles);
+      // Don't slice yet - we'll shuffle first for variety, then slice
     }
 
     // Convert to PlaceResult format and fetch photos on-demand
