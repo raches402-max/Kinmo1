@@ -1311,10 +1311,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const { groupId } = req.params;
 
-      // Verify user is a member of this group
+      // Verify user is a member or owner of this group
+      const group = await storage.getGroup(groupId);
       const members = await storage.getGroupMembers(groupId);
       const member = members.find(m => m.userId === userId);
-      if (!member) {
+      const isOwner = group?.userId === userId;
+      
+      if (!member && !isOwner) {
         return res.status(403).json({ message: "Not a member of this group" });
       }
 
@@ -1331,10 +1334,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const { groupId } = req.params;
 
-      // Verify user is a member of this group
+      // Verify user is a member or owner of this group
+      const group = await storage.getGroup(groupId);
       const members = await storage.getGroupMembers(groupId);
       const member = members.find(m => m.userId === userId);
-      if (!member) {
+      const isOwner = group?.userId === userId;
+      
+      if (!member && !isOwner) {
         return res.status(403).json({ message: "Not a member of this group" });
       }
 
