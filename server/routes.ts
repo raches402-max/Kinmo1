@@ -2831,6 +2831,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .filter(s => s.feedback === 'pass')
         .map(s => s.conceptDescription);
 
+      // Fetch seen venues from database to prevent repetitive suggestions
+      const seenVenuesFromDB = await storage.getSeenVenues(req.params.id);
+      const seenVenueNames = seenVenuesFromDB.map(v => v.venueName);
+      console.log(`[Category Regen] Found ${seenVenueNames.length} seen venues to exclude from suggestions`);
+
       // Retry logic to ensure we get enough quality venues
       let allValidActivities: any[] = [];
       const seenVenues = new Set<string>(); // Track across attempts
@@ -2888,10 +2893,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           drinksEnabled: refreshedGroup.drinksEnabled ?? true,
           dessertEnabled: refreshedGroup.dessertEnabled ?? true,
           experiencesEnabled: refreshedGroup.experiencesEnabled ?? true,
-          previouslySuggestedVenues: currentVenueNames || [],
+          previouslySuggestedVenues: [...(currentVenueNames || []), ...seenVenueNames],
           targetCategories: [category],
           memberConstraints: memberConstraints.length > 0 ? memberConstraints : undefined,
           rejectedVenues: rejectedVenues,
+          seenVenues: seenVenueNames.length > 0 ? seenVenueNames : undefined,
         });
 
         console.log(`[Category Regen] Attempt ${attempt}: Got ${suggestions.length} suggestions for ${category}`);
@@ -7531,6 +7537,11 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       .filter(m => m.memberConstraints)
       .map(m => m.memberConstraints as { scheduleConflicts?: string[]; budgetConcern?: boolean; distanceConcern?: boolean; notes?: string });
 
+    // Fetch seen venues from database to prevent repetitive suggestions
+    const seenVenuesFromDB = await storage.getSeenVenues(groupId);
+    const seenVenueNames = seenVenuesFromDB.map(v => v.venueName);
+    console.log(`[AI Generation] Found ${seenVenueNames.length} seen venues to exclude from suggestions`);
+
     console.log(`[AI Generation] Found ${previousFeedback.length} activities with feedback`);
     console.log(`[AI Generation] Found ${votingFeedback.length} favorites with voting data`);
     console.log(`[AI Generation] Found ${likedConcepts.length} liked concepts from swipe sessions`);
@@ -7583,7 +7594,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
     while (!hasBalancedDistribution(allUniqueActivities) && attempt < maxAttempts) {
       attempt++;
       const attemptStart = Date.now();
-      const needed = 15 - allUniqueActivities.length;
+      const needed = 20 - allUniqueActivities.length;
       console.log(`[AI Generation] Attempt ${attempt}/${maxAttempts}: Need ${needed} more unique activities (have ${allUniqueActivities.length})`);
 
       // Refresh group data to get latest rejected venues
@@ -7618,10 +7629,11 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
           votingFeedback: votingFeedback.length > 0 ? votingFeedback : undefined,
           likedConcepts: likedConcepts.length > 0 ? likedConcepts : undefined,
           passedConcepts: passedConcepts.length > 0 ? passedConcepts : undefined,
-          previouslySuggestedVenues: previouslySuggestedVenues.length > 0 ? previouslySuggestedVenues : undefined,
+          previouslySuggestedVenues: [...(previouslySuggestedVenues.length > 0 ? previouslySuggestedVenues : []), ...seenVenueNames],
           targetCategories: targetCategories, // Pass underrepresented categories on retry
           memberConstraints: memberConstraints.length > 0 ? memberConstraints : undefined, // Pass member RSVP constraints
           rejectedVenues: rejectedVenues, // Pass rejected venues blacklist
+          seenVenues: seenVenueNames.length > 0 ? seenVenueNames : undefined, // Pass seen venues to exclude
           mealEnabled: groupData.mealEnabled ?? true,
           cafeEnabled: groupData.cafeEnabled ?? true,
           drinksEnabled: groupData.drinksEnabled ?? true,
@@ -8235,6 +8247,15 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       console.log(`[AI Generation] Final category distribution:`, finalCategoryCounts);
       console.log(`[AI Generation] Storing ${allUniqueActivities.length} unique activities`);
       await storage.createActivities(allUniqueActivities);
+      
+      // Mark venues as seen in the database to prevent repetitive suggestions
+      const venuesToMark = allUniqueActivities.map(a => ({
+        venueName: a.venueName,
+        googlePlaceId: a.googlePlaceId || undefined,
+        category: a.category
+      }));
+      await storage.markVenuesAsSeen(groupId, venuesToMark);
+      console.log(`[AI Generation] Marked ${venuesToMark.length} venues as seen for group ${groupId}`);
     } else {
       console.warn(`[AI Generation] WARNING: No unique activities generated after ${maxAttempts} attempts`);
     }

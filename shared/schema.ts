@@ -318,6 +318,16 @@ export const itineraryInvites = pgTable("itinerary_invites", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Seen activities - track which venues have been shown to avoid repetition
+export const seenActivities = pgTable("seen_activities", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  groupId: varchar("group_id").notNull().references(() => groups.id, { onDelete: "cascade" }),
+  venueName: text("venue_name").notNull(),
+  googlePlaceId: text("google_place_id"), // Optional Google Place ID
+  category: text("category").notNull(), // meal, cafes, drinks, dessert, experiences
+  firstSeenAt: timestamp("first_seen_at").defaultNow().notNull(),
+});
+
 // Reminder logs - track automated reminder emails sent
 export const reminderLogs = pgTable("reminder_logs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

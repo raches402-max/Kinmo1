@@ -19,7 +19,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, ChevronRight, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell, Edit2, Edit, Compass, Home, UserCheck, MessageCircle, TrendingUp, AlertCircle, Users, Loader2, Map } from "lucide-react";
+import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, ChevronRight, ChevronLeft, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell, Edit2, Edit, Compass, Home, UserCheck, MessageCircle, TrendingUp, AlertCircle, Users, Loader2, Map } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -630,6 +630,16 @@ export default function GroupDetail() {
   const [pendingEventTitle, setPendingEventTitle] = useState("");
   const [selectedVenues, setSelectedVenues] = useState<Array<{sourceType: 'activity' | 'voting_event', sourceId: string}>>([]);
   const [regeneratingCategory, setRegeneratingCategory] = useState<string | null>(null);
+  
+  // Pagination state for each category
+  const [categoryPages, setCategoryPages] = useState<Record<string, number>>({
+    meal: 0,
+    cafes: 0,
+    drinks: 0,
+    dessert: 0,
+    experiences: 0,
+  });
+
   const [favoritesSearch, setFavoritesSearch] = useState("");
   const [categorySortMode, setCategorySortMode] = useState<Record<string, 'rating' | 'votes'>>({});
   const [activitiesSubTab, setActivitiesSubTab] = useState("ai-suggested");
@@ -4538,7 +4548,7 @@ export default function GroupDetail() {
                 ) */}
 
                 {/* Group activities by food/beverage category */}
-                {/* (() => {
+                {(() => {
                   const filteredActivities = activities
                     .filter(activity => activity.feedback !== "less")
                     .sort((a, b) => {
@@ -4587,6 +4597,34 @@ export default function GroupDetail() {
                         const allChecked = checkedCount === categoryActivities.length;
                         const isRegenerating = regeneratingCategory === category;
                         
+                        // Pagination with auto-clamping to prevent empty pages after regeneration
+                        const ITEMS_PER_PAGE = 5;
+                        const totalPages = Math.ceil(categoryActivities.length / ITEMS_PER_PAGE);
+                        let currentPage = categoryPages[category] || 0;
+                        // Clamp to valid range: if current page is beyond available pages, reset to last valid page
+                        if (currentPage >= totalPages && totalPages > 0) {
+                          currentPage = totalPages - 1;
+                          // Update state to reflect the clamped value
+                          setCategoryPages(prev => ({ ...prev, [category]: currentPage }));
+                        }
+                        const startIndex = currentPage * ITEMS_PER_PAGE;
+                        const endIndex = startIndex + ITEMS_PER_PAGE;
+                        const paginatedActivities = categoryActivities.slice(startIndex, endIndex);
+                        
+                        const handlePrevPage = () => {
+                          setCategoryPages(prev => ({
+                            ...prev,
+                            [category]: Math.max(0, (prev[category] || 0) - 1)
+                          }));
+                        };
+                        
+                        const handleNextPage = () => {
+                          setCategoryPages(prev => ({
+                            ...prev,
+                            [category]: Math.min(totalPages - 1, (prev[category] || 0) + 1)
+                          }));
+                        };
+                        
                         return (
                           <div key={category} className="space-y-4">
                             <div className="flex items-center gap-3">
@@ -4611,7 +4649,7 @@ export default function GroupDetail() {
                               </Button>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                              {categoryActivities.map((activity) => {
+                              {paginatedActivities.map((activity) => {
                   // Determine label for complementary places
                   const isRestaurant = ['restaurant', 'cafe', 'bar', 'brewery', 'bakery', 'food'].some(type => 
                     activity.venueType.toLowerCase().includes(type)
@@ -4887,14 +4925,43 @@ export default function GroupDetail() {
                       </CardHeader>
                     </Card>
                   );
-                }) */}
-                            {/* </div>
+                })}
+                            </div>
+                            
+                            {/* Pagination Navigation */}
+                            {totalPages > 1 && (
+                              <div className="flex items-center justify-center gap-4 mt-4">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={handlePrevPage}
+                                  disabled={currentPage === 0}
+                                  data-testid={`button-prev-${category}`}
+                                  className="h-8 w-8 p-0"
+                                >
+                                  <ChevronLeft className="h-4 w-4" />
+                                </Button>
+                                <span className="text-sm text-muted-foreground" data-testid={`text-page-${category}`}>
+                                  Page {currentPage + 1} of {totalPages}
+                                </span>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={handleNextPage}
+                                  disabled={currentPage === totalPages - 1}
+                                  data-testid={`button-next-${category}`}
+                                  className="h-8 w-8 p-0"
+                                >
+                                  <ChevronRight className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
                     </div>
                   );
-                })() */}
+                })()}
               </>
             )}
             </div>

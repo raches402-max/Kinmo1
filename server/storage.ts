@@ -1,7 +1,7 @@
 // Reference: javascript_database blueprint
 // Reference: javascript_log_in_with_replit blueprint
 import {
-  users, groups, members, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, itineraryInvites, reminderLogs, autoScheduledEvents, frequencyFeedback, userProfiles, proposedTimeSlots, timeSlotVotes, groupCollections, categorySearchHistory, hostAssignments, groupBackups, databaseBackups, scrapedVenuesImport, curatedVenues,
+  users, groups, members, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, itineraryInvites, reminderLogs, autoScheduledEvents, frequencyFeedback, userProfiles, proposedTimeSlots, timeSlotVotes, groupCollections, categorySearchHistory, hostAssignments, groupBackups, databaseBackups, scrapedVenuesImport, curatedVenues, seenActivities,
   type User, type UpsertUser,
   type Group, type InsertGroup, type UpdateGroup,
   type Member, type InsertMember, type UpdateMember,
@@ -198,6 +198,10 @@ export interface IStorage {
     matchedVenues: Array<{ scrapedName: string; dbName: string; googlePlaceId: string; source: string }>;
     newVenuesList: Array<{ name: string; address: string; category?: string; rating?: number; googlePlaceId?: string }>;
   }>;
+
+  // Seen Activities
+  markVenuesAsSeen(groupId: string, venues: Array<{venueName: string, googlePlaceId?: string, category: string}>): Promise<void>;
+  getSeenVenues(groupId: string): Promise<Array<{venueName: string, googlePlaceId?: string, category: string}>>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2199,6 +2203,37 @@ export class DatabaseStorage implements IStorage {
     await db.insert(curatedVenues).values(enrichedVenues);
     console.log(`[Scraped Import] Successfully imported ${enrichedVenues.length} venues with real coordinates (${failedCount} failed)`);
     return enrichedVenues.length;
+  }
+
+  // Seen Activities
+  async markVenuesAsSeen(groupId: string, venues: Array<{venueName: string, googlePlaceId?: string, category: string}>): Promise<void> {
+    if (venues.length === 0) return;
+
+    const values = venues.map(v => ({
+      groupId,
+      venueName: v.venueName,
+      googlePlaceId: v.googlePlaceId || null,
+      category: v.category
+    }));
+
+    await db.insert(seenActivities).values(values).onConflictDoNothing();
+  }
+
+  async getSeenVenues(groupId: string): Promise<Array<{venueName: string, googlePlaceId?: string, category: string}>> {
+    const seen = await db
+      .select({
+        venueName: seenActivities.venueName,
+        googlePlaceId: seenActivities.googlePlaceId,
+        category: seenActivities.category
+      })
+      .from(seenActivities)
+      .where(eq(seenActivities.groupId, groupId));
+
+    return seen.map(s => ({
+      venueName: s.venueName,
+      googlePlaceId: s.googlePlaceId || undefined,
+      category: s.category
+    }));
   }
 }
 

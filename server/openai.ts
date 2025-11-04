@@ -172,6 +172,7 @@ export async function generateActivitySuggestions(groupData: {
   targetCategories?: string[]; // NEW: For category-specific generation
   memberConstraints?: { scheduleConflicts?: string[]; budgetConcern?: boolean; distanceConcern?: boolean; notes?: string }[]; // Member RSVP constraints
   rejectedVenues?: string[]; // Venues that don't exist in Google Places (blacklist)
+  seenVenues?: string[]; // Venues already shown to the group (to prevent repetition)
   // High-level category filters
   mealEnabled?: boolean;
   cafeEnabled?: boolean;
@@ -180,14 +181,14 @@ export async function generateActivitySuggestions(groupData: {
   experiencesEnabled?: boolean;
 }): Promise<ActivitySuggestion[]> {
   try {
-    // Generate 15 suggestions (3 per category)
-    // This balances API costs with having diverse options
+    // Generate 20 suggestions (4 per category)
+    // Increased from 15 to provide more variety and reduce repetition
     
-    // Calculate novelty split based on 15 suggestions
-    // novelty 1 = 15 familiar, novelty 3 = 7-8 split, novelty 5 = 15 new
-    // Formula: familiar = 15 - (noveltyPreference - 1) * 3.75, rounded
-    const familiarCount = Math.round(15 - (groupData.noveltyPreference - 1) * 3.75);
-    const newCount = 15 - familiarCount;
+    // Calculate novelty split based on 20 suggestions
+    // novelty 1 = 20 familiar, novelty 3 = 10-10 split, novelty 5 = 20 new
+    // Formula: familiar = 20 - (noveltyPreference - 1) * 5, rounded
+    const familiarCount = Math.round(20 - (groupData.noveltyPreference - 1) * 5);
+    const newCount = 20 - familiarCount;
 
     // Format availability for display
     const formatAvailabilityForPrompt = (availability: any): string => {
@@ -329,6 +330,12 @@ export async function generateActivitySuggestions(groupData: {
       avoidVenuesContext = `\n\nIMPORTANT - DO NOT suggest these venues again (already suggested): ${groupData.previouslySuggestedVenues.join(', ')}`;
     }
 
+    // Format seen venues to prevent repetitive suggestions
+    let seenVenuesContext = '';
+    if (groupData.seenVenues && groupData.seenVenues.length > 0) {
+      seenVenuesContext = `\n\n🚫 CRITICAL - ALREADY SHOWN TO GROUP - These venues have already been presented to this group. DO NOT suggest them again: ${groupData.seenVenues.join(', ')}`;
+    }
+
     // Format rejected venues (venues that don't exist in Google Places)
     let rejectedVenuesContext = '';
     if (groupData.rejectedVenues && groupData.rejectedVenues.length > 0) {
@@ -380,7 +387,7 @@ export async function generateActivitySuggestions(groupData: {
     
     // Calculate category distribution based on enabled categories
     const enabledCount = enabledBuckets.length;
-    const suggestionsPerCategory = Math.floor(15 / enabledCount);
+    const suggestionsPerCategory = Math.floor(20 / enabledCount);
     const distributionText = enabledBuckets.map(cat => `${suggestionsPerCategory} ${cat}`).join(' + ');
     
     if (disabledBuckets.length > 0) {
@@ -388,7 +395,7 @@ export async function generateActivitySuggestions(groupData: {
 - The group has DISABLED these categories - you MUST generate ZERO suggestions from them:
   ${disabledBuckets.map(b => `  ❌ ${b}`).join('\n')}
 - ONLY generate suggestions from these ENABLED categories: ${enabledBuckets.join(', ')}
-- Distribute ALL 15 suggestions like this: ${distributionText} = 15 total
+- Distribute ALL 20 suggestions like this: ${distributionText} = 20 total
 - Generate ${suggestionsPerCategory} suggestions for EACH enabled category
 - If you suggest ANY venue from a disabled category, that suggestion will be REJECTED
 - Example: If CAFE is disabled, DO NOT suggest any cafes or coffee shops - suggest ${suggestionsPerCategory} meals + ${suggestionsPerCategory} drinks + ${suggestionsPerCategory} dessert + ${suggestionsPerCategory} experiences instead`;
@@ -413,7 +420,7 @@ export async function generateActivitySuggestions(groupData: {
 
     // Detect if this is category-specific generation (fast path)
     const isCategorySpecific = groupData.targetCategories && groupData.targetCategories.length > 0;
-    const suggestionCount = isCategorySpecific ? 10 : 15;
+    const suggestionCount = isCategorySpecific ? 10 : 20;
     const useSimplifiedPrompt = isCategorySpecific;
 
     // Category-specific simplified prompt (70% shorter, 3-5x faster)
@@ -434,7 +441,7 @@ export async function generateActivitySuggestions(groupData: {
 Location: ${groupData.locationBase}
 Search Radius: ${radiusTier}
 Budget: $${groupData.budgetMin}-${groupData.budgetMax} per person
-Category: ${categoryName}${avoidVenuesContext}${rejectedVenuesContext}
+Category: ${categoryName}${avoidVenuesContext}${seenVenuesContext}${rejectedVenuesContext}
 
 Requirements:
 1. Generate ONLY ${categoryName} - no other categories
@@ -515,7 +522,7 @@ Return JSON with this structure:
     
     const exactDistribution = disabledBuckets.length > 0 
       ? `EXACT DISTRIBUTION REQUIRED:\n${enabledCategoryNames.map(cat => `- ${cat}: EXACTLY ${suggestionsPerCategory} suggestions`).join('\n')}\nTOTAL: ${suggestionsPerCategory} × ${enabledBuckets.length} = ${suggestionCount} suggestions`
-      : `EXACT DISTRIBUTION REQUIRED:\n- MEAL: EXACTLY 3\n- CAFE: EXACTLY 3\n- DRINKS: EXACTLY 3\n- DESSERT: EXACTLY 3\n- EXPERIENCES: EXACTLY 3\nTOTAL: 15 suggestions`;
+      : `EXACT DISTRIBUTION REQUIRED:\n- MEAL: EXACTLY 4\n- CAFE: EXACTLY 4\n- DRINKS: EXACTLY 4\n- DESSERT: EXACTLY 4\n- EXPERIENCES: EXACTLY 4\nTOTAL: 20 suggestions`;
     
     // Build disabled categories warning
     const disabledWarning = disabledBuckets.length > 0 
@@ -532,7 +539,7 @@ Group Details:
 - Budget: $${groupData.budgetMin}-${groupData.budgetMax}/person
 - Availability: ${availabilityText}
 ${groupData.additionalInstructions ? `\n🚨 USER INSTRUCTIONS: ${groupData.additionalInstructions}` : `${categoriesContext}
-${groupData.pastPreferences ? `Past: ${groupData.pastPreferences}` : ''}${feedbackContext}${votingContext}${swipeContext}`}${constraintsContext}${avoidVenuesContext}${rejectedVenuesContext}${targetCategoriesContext}${categoryFilterContext}
+${groupData.pastPreferences ? `Past: ${groupData.pastPreferences}` : ''}${feedbackContext}${votingContext}${swipeContext}`}${constraintsContext}${avoidVenuesContext}${seenVenuesContext}${rejectedVenuesContext}${targetCategoriesContext}${categoryFilterContext}
 
 ${groupData.additionalInstructions ? `🚨 FOLLOW USER INSTRUCTIONS ONLY - ignore other context. If they specify venue type (Boba/Sushi), generate ALL ${suggestionCount} of that type.` : `Use preferences/feedback to guide suggestions. ${familiarCount > 0 ? `${familiarCount} familiar + ${newCount} NEW (mark "NEW:" in reasoning).` : ''}`}
 
@@ -558,7 +565,7 @@ BEFORE RESPONDING - VERIFY:
 ✓ No disabled categories (${disabledBuckets.join(', ') || 'none'})?
 ✓ Every venueName is a SPECIFIC REAL VENUE NAME (not a type)?
 
-Return JSON with EXACTLY 15 suggestions:
+Return JSON with EXACTLY 20 suggestions:
 {
   "suggestions": [
     {
@@ -582,7 +589,7 @@ Return JSON with EXACTLY 15 suggestions:
       messages: [
         {
           role: "system",
-          content: "You are an expert activity planner who creates personalized suggestions based on group preferences. CRITICAL: You MUST always return EXACTLY 15 suggestions in the suggestions array. Always respond with valid JSON containing exactly 15 items."
+          content: "You are an expert activity planner who creates personalized suggestions based on group preferences. CRITICAL: You MUST always return EXACTLY 20 suggestions in the suggestions array. Always respond with valid JSON containing exactly 20 items."
         },
         {
           role: "user",
@@ -590,25 +597,25 @@ Return JSON with EXACTLY 15 suggestions:
         }
       ],
       response_format: { type: "json_object" },
-      max_completion_tokens: 3000, // Supports 15 suggestions (~200 tokens each = ~3000 total)
+      max_completion_tokens: 4000, // Supports 20 suggestions (~200 tokens each = ~4000 total)
     });
 
     const result = JSON.parse(response.choices[0].message.content || '{}');
     const suggestionsCount = result.suggestions?.length || 0;
-    console.log(`[OpenAI] ✅ Received response with ${suggestionsCount} suggestions (target: 15)`);
+    console.log(`[OpenAI] ✅ Received response with ${suggestionsCount} suggestions (target: 20)`);
     
     // Log token usage for debugging
-    console.log(`[OpenAI] Token usage: ${response.usage?.completion_tokens || 0} completion tokens (max: 3000)`);
+    console.log(`[OpenAI] Token usage: ${response.usage?.completion_tokens || 0} completion tokens (max: 4000)`);
     
     if (!result.suggestions || result.suggestions.length === 0) {
       throw new Error("OpenAI returned no activity suggestions. The response may be empty or malformed.");
     }
     
-    if (result.suggestions.length < 15) {
-      console.log(`[OpenAI] ℹ️  Received ${result.suggestions.length}/15 suggestions (OpenAI sometimes returns fewer than requested - this is normal)`);
+    if (result.suggestions.length < 20) {
+      console.log(`[OpenAI] ℹ️  Received ${result.suggestions.length}/20 suggestions (OpenAI sometimes returns fewer than requested - this is normal)`);
     }
     
-    if (result.suggestions.length < 10) {
+    if (result.suggestions.length < 15) {
       console.warn(`[OpenAI] ⚠️ Very low suggestion count (${result.suggestions.length}) - may need additional retries for balanced categories`);
     }
     
