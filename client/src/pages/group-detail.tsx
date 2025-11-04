@@ -703,15 +703,6 @@ export default function GroupDetail() {
   const [categoryResults, setCategoryResults] = useState<any[]>([]);
   const [multiVenueMode, setMultiVenueMode] = useState(false);
   
-  // Pagination state for category results
-  const [categoryPages, setCategoryPages] = useState<Record<string, number>>({
-    meal: 0,
-    cafes: 0,
-    drinks: 0,
-    dessert: 0,
-    experiences: 0
-  });
-  
   // Natural language scheduling state
   const [schedulePromptDialogOpen, setSchedulePromptDialogOpen] = useState(false);
   const [schedulePrompt, setSchedulePrompt] = useState("");
@@ -4408,14 +4399,62 @@ export default function GroupDetail() {
                             <div className="space-y-8">
                               {Object.entries(categoryResults as Record<string, any[]>).map(([cat, venues]) => {
                                 const sortedVenues = sortResults(venues);
+                                const ITEMS_PER_PAGE = 6;
+                                const currentPage = categoryPages[cat as keyof typeof categoryPages] || 0;
+                                const totalPages = Math.ceil(sortedVenues.length / ITEMS_PER_PAGE);
+                                const startIdx = currentPage * ITEMS_PER_PAGE;
+                                const endIdx = startIdx + ITEMS_PER_PAGE;
+                                const paginatedVenues = sortedVenues.slice(startIdx, endIdx);
+                                
+                                const handlePrevPage = () => {
+                                  if (currentPage > 0) {
+                                    setCategoryPages(prev => ({ ...prev, [cat]: currentPage - 1 }));
+                                  }
+                                };
+                                
+                                const handleNextPage = () => {
+                                  if (currentPage < totalPages - 1) {
+                                    setCategoryPages(prev => ({ ...prev, [cat]: currentPage + 1 }));
+                                  }
+                                };
+                                
                                 return (
                                   <div key={cat} className="space-y-3">
-                                    <div className="flex items-center gap-2 border-b pb-2">
-                                      <h4 className="text-md font-semibold">{categoryLabels[cat as keyof typeof categoryLabels]}</h4>
-                                      <span className="text-sm text-muted-foreground">({sortedVenues.length} results)</span>
+                                    <div className="flex items-center justify-between gap-2 border-b pb-2">
+                                      <div className="flex items-center gap-2">
+                                        <h4 className="text-md font-semibold">{categoryLabels[cat as keyof typeof categoryLabels]}</h4>
+                                        <span className="text-sm text-muted-foreground">({sortedVenues.length} results)</span>
+                                      </div>
+                                      {totalPages > 1 && (
+                                        <div className="flex items-center gap-2">
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={handlePrevPage}
+                                            disabled={currentPage === 0}
+                                            className="h-7 w-7 p-0"
+                                            data-testid={`button-prev-${cat}`}
+                                          >
+                                            <ChevronLeft className="h-4 w-4" />
+                                          </Button>
+                                          <span className="text-xs text-muted-foreground min-w-[4rem] text-center">
+                                            {currentPage + 1} / {totalPages}
+                                          </span>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={handleNextPage}
+                                            disabled={currentPage >= totalPages - 1}
+                                            className="h-7 w-7 p-0"
+                                            data-testid={`button-next-${cat}`}
+                                          >
+                                            <ChevronRight className="h-4 w-4" />
+                                          </Button>
+                                        </div>
+                                      )}
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                      {sortedVenues.map((result) => {
+                                      {paginatedVenues.map((result) => {
                                         const tempActivity = {
                                           id: result.placeId || result.googlePlaceId || `temp-${Math.random()}`,
                                           groupId: groupId || '',
