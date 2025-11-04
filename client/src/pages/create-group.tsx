@@ -16,7 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import EmojiPicker from "emoji-picker-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ArrowLeft, Plus, X, Users, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap } from "lucide-react";
+import { ArrowLeft, Plus, X, Users, Mic2, Music, Trophy, Mountain, PartyPopper, Gamepad2, Palette, Film, Laugh, GraduationCap } from "lucide-react";
 import { Link } from "wouter";
 import { AvailabilityGrid, createEmptyAvailability } from "@/components/AvailabilityGrid";
 import { SwipeSession } from "@/components/SwipeSession";
@@ -45,13 +45,6 @@ const closenessLabels = ["Acquaintances", "Friends", "Good Friends", "Close Frie
 const noveltyLabels = ["We like our usual spots", "Leaning familiar", "Open sometimes", "Pretty adventurous", "Always up for new things!"];
 
 const activityCategories = [
-  { id: "restaurants", label: "Restaurants", icon: ChefHat },
-  { id: "brunch", label: "Brunch Spots", icon: Croissant },
-  { id: "cafes", label: "Cafes", icon: Coffee },
-  { id: "wine-bars", label: "Wine / Cocktail Bars", icon: Wine },
-  { id: "breweries", label: "Breweries / Beer Gardens", icon: Beer },
-  { id: "food-markets", label: "Food Markets / Food Halls", icon: ShoppingBasket },
-  { id: "potlucks", label: "Potlucks", icon: UtensilsCrossed },
   { id: "concerts", label: "Concerts", icon: Music },
   { id: "karaoke", label: "Karaoke", icon: Mic2 },
   { id: "dancing", label: "Dancing / Clubs", icon: PartyPopper },
@@ -62,6 +55,7 @@ const activityCategories = [
   { id: "outdoors", label: "Hikes / Outdoors", icon: Mountain },
   { id: "game-nights", label: "Game Nights", icon: Gamepad2 },
   { id: "trivia", label: "Trivia Nights", icon: GraduationCap },
+  { id: "family", label: "Family Activities", icon: Users },
 ];
 
 const groupEmojis = [
@@ -381,7 +375,9 @@ export default function CreateGroup() {
 
                 <div className="space-y-3">
                   <Label className="text-base">What types of activities interest your group?</Label>
-                  <p className="text-sm text-muted-foreground">Choose broad categories, then select specific types (optional)</p>
+                  <p className="text-sm text-muted-foreground">First, choose which broad categories to enable - AI will only generate suggestions from enabled categories</p>
+                  <Label className="text-sm font-medium">Enable/Disable Activity Categories</Label>
+                  <p className="text-xs text-muted-foreground">Toggle to control which types of suggestions AI generates</p>
                   <div className="flex flex-wrap gap-2">
                     <Button
                       type="button"
@@ -439,6 +435,7 @@ export default function CreateGroup() {
                       <span>Experiences</span>
                     </Button>
                   </div>
+                  <p className="text-sm text-muted-foreground pt-2">Then select specific experience types to further refine suggestions (optional)</p>
                   <div className="flex flex-wrap gap-2">
                     {activityCategories.map((category) => {
                       const Icon = category.icon;
