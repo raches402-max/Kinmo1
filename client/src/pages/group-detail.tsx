@@ -645,7 +645,7 @@ export default function GroupDetail() {
   const [categorySortMode, setCategorySortMode] = useState<Record<string, 'rating' | 'votes'>>({});
   const [activitiesSubTab, setActivitiesSubTab] = useState("ai-suggested");
   const [groupSubTab, setGroupSubTab] = useState("details");
-  const [myPreferencesBudget, setMyPreferencesBudget] = useState<number | null>(null);
+  const [myPreferencesBudget, setMyPreferencesBudget] = useState<{ min: number; max: number } | null>(null);
   const [myPreferencesCategories, setMyPreferencesCategories] = useState<string[] | null>(null);
   const [myPreferencesAvailability, setMyPreferencesAvailability] = useState<any>(null);
   const [hoveredFavoriteId, setHoveredFavoriteId] = useState<string | null>(null);
@@ -969,7 +969,7 @@ export default function GroupDetail() {
 
   // Update member group preferences
   const updateMyPreferencesMutation = useMutation({
-    mutationFn: async (preferences: { budgetOverride?: number | null; categoryPreferencesOverride?: string[] | null; availabilityOverride?: any }) => {
+    mutationFn: async (preferences: { budgetOverrideMin?: number | null; budgetOverrideMax?: number | null; categoryPreferencesOverride?: string[] | null; availabilityOverride?: any }) => {
       return await apiRequest("PATCH", `/api/groups/${groupId}/my-preferences`, preferences);
     },
     onSuccess: () => {
@@ -987,6 +987,28 @@ export default function GroupDetail() {
       });
     },
   });
+
+  // Initialize my preferences from fetched data
+  useEffect(() => {
+    if (memberPreferences) {
+      // Handle both camelCase and snake_case from API
+      const budgetMin = (memberPreferences as any).budgetOverrideMin ?? (memberPreferences as any).budget_override_min;
+      const budgetMax = (memberPreferences as any).budgetOverrideMax ?? (memberPreferences as any).budget_override_max;
+      
+      if (budgetMin !== undefined && budgetMax !== undefined && 
+          budgetMin !== null && budgetMax !== null) {
+        setMyPreferencesBudget({ min: budgetMin, max: budgetMax });
+      } else {
+        setMyPreferencesBudget(null);
+      }
+      
+      const categories = (memberPreferences as any).categoryPreferencesOverride ?? (memberPreferences as any).category_preferences_override;
+      setMyPreferencesCategories(categories || null);
+      
+      const availability = (memberPreferences as any).availabilityOverride ?? (memberPreferences as any).availability_override;
+      setMyPreferencesAvailability(availability || null);
+    }
+  }, [memberPreferences]);
 
   // Initialize form fields from group data when it loads
   useEffect(() => {
@@ -4020,7 +4042,7 @@ export default function GroupDetail() {
                             checked={myPreferencesBudget !== null}
                             onCheckedChange={(checked) => {
                               if (checked) {
-                                setMyPreferencesBudget(group?.budgetMax || 100);
+                                setMyPreferencesBudget({ min: group?.budgetMin || 0, max: group?.budgetMax || 60 });
                               } else {
                                 setMyPreferencesBudget(null);
                               }
@@ -4040,13 +4062,13 @@ export default function GroupDetail() {
                               min={0}
                               max={250}
                               step={10}
-                              value={[myPreferencesBudget]}
-                              onValueChange={(vals) => setMyPreferencesBudget(vals[0])}
+                              value={[myPreferencesBudget.min, myPreferencesBudget.max]}
+                              onValueChange={(vals) => setMyPreferencesBudget({ min: vals[0], max: vals[1] })}
                               className="w-full"
                               data-testid="slider-my-budget"
                             />
                             <div className="text-sm font-medium" data-testid="text-my-budget">
-                              {myPreferencesBudget >= 200 ? "$200+" : `$${myPreferencesBudget}`}
+                              ${myPreferencesBudget.min}-{myPreferencesBudget.max >= 200 ? "$200+" : `$${myPreferencesBudget.max}`}
                             </div>
                           </div>
                         )}
@@ -4128,7 +4150,8 @@ export default function GroupDetail() {
                         <Button
                           onClick={() => {
                             updateMyPreferencesMutation.mutate({
-                              budgetOverride: myPreferencesBudget,
+                              budgetOverrideMin: myPreferencesBudget?.min,
+                              budgetOverrideMax: myPreferencesBudget?.max,
                               categoryPreferencesOverride: myPreferencesCategories,
                               availabilityOverride: myPreferencesAvailability,
                             });

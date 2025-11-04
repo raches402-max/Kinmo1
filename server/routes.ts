@@ -1344,10 +1344,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Not a member of this group" });
       }
 
-      const { budgetOverride, categoryPreferencesOverride, availabilityOverride } = req.body;
+      const { budgetOverrideMin, budgetOverrideMax, categoryPreferencesOverride, availabilityOverride } = req.body;
 
       const preferences = await storage.upsertMemberGroupPreferences(userId, groupId, {
-        budgetOverride,
+        budgetOverrideMin,
+        budgetOverrideMax,
         categoryPreferencesOverride,
         availabilityOverride,
       });

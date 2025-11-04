@@ -161,7 +161,8 @@ export const memberGroupPreferences = pgTable("member_group_preferences", {
   groupId: varchar("group_id").notNull().references(() => groups.id, { onDelete: "cascade" }),
   
   // Optional overrides (null means use global profile or group defaults)
-  budgetOverride: integer("budget_override"), // Override budget for this specific group
+  budgetOverrideMin: integer("budget_override_min"), // Override min budget for this specific group
+  budgetOverrideMax: integer("budget_override_max"), // Override max budget for this specific group
   categoryPreferencesOverride: jsonb("category_preferences_override"), // Array of enabled categories: ["meal", "drinks", "cafes"]
   availabilityOverride: jsonb("availability_override"), // Availability grid override: {Monday: {morning: true, ...}, ...}
   

@@ -58,6 +58,11 @@ AI suggestion preferences:
 - **Admin Dashboard**: Platform health monitoring dashboard at `/admin` with analytics and database maintenance tools. Includes:
   - **Analytics Tab**: Interactive venue analytics dashboard showing curated venues distribution and drill-down capabilities.
   - **Maintenance Tab**: Tools for cleaning up curated venues using AI validation (GPT-4o-mini) and accessing archived deleted venues.
+- **Personal Preference System (Nov 2025)**: Two-tier preference architecture with global user preferences and per-group overrides. Features include:
+  - **Nested Tabs UI**: Group tab contains "Group Settings" (primary theme, "For Everyone" badge) and "My Preferences" (purple theme, "Just For Me" badge) subtabs for clear visual distinction.
+  - **Two-Sided Budget Range Slider**: Personal budget override uses range slider ($min-$max) instead of single value, matching group-level budget configuration. Database stores `budget_override_min` and `budget_override_max` in `member_group_preferences` table.
+  - **Fallback Chain**: Group preferences → Global profile → Group defaults → System defaults ensure preferences are always available.
+  - **Authorization Fix**: Group owners can now set personal preferences (previously blocked with 403 error).
 
 ## Testing Guidelines
 
