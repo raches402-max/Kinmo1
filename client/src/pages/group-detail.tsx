@@ -3124,15 +3124,63 @@ export default function GroupDetail() {
                     <div className="space-y-3">
                       <Label>Budget Range (per person)</Label>
                       <div className="space-y-3">
-                        <Slider
-                          min={0}
-                          max={250}
-                          step={10}
-                          value={editBudgetRange}
-                          onValueChange={setEditBudgetRange}
-                          className="w-full"
-                          data-testid="slider-edit-budget"
-                        />
+                        <div className="relative">
+                          <Slider
+                            min={0}
+                            max={250}
+                            step={10}
+                            value={editBudgetRange}
+                            onValueChange={setEditBudgetRange}
+                            className="w-full"
+                            data-testid="slider-edit-budget"
+                          />
+                          {/* Member budget dots overlay */}
+                          {group && (group as any).memberBudgetStats && (
+                            <div className="absolute inset-0 pointer-events-none">
+                              {(() => {
+                                const stats = (group as any).memberBudgetStats;
+                                // Group budgets by value to show count on hover
+                                const budgetCounts = stats.budgets.reduce((acc: Record<number, number>, budget: number) => {
+                                  acc[budget] = (acc[budget] || 0) + 1;
+                                  return acc;
+                                }, {});
+                                const uniqueBudgets = Object.keys(budgetCounts).map(Number);
+                                
+                                return uniqueBudgets.map((budget) => {
+                                  const position = (budget / 250) * 100;
+                                  const count = budgetCounts[budget];
+                                  const isAverage = budget === stats.average;
+                                  
+                                  return (
+                                    <Tooltip key={budget}>
+                                      <TooltipTrigger asChild>
+                                        <div
+                                          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 pointer-events-auto cursor-help"
+                                          style={{ left: `${position}%` }}
+                                          data-testid={`budget-dot-${budget}`}
+                                        >
+                                          <div 
+                                            className={`rounded-full ${
+                                              isAverage 
+                                                ? 'w-3 h-3 bg-primary/60 ring-2 ring-primary/30' 
+                                                : 'w-2 h-2 bg-muted-foreground/40'
+                                            }`}
+                                          />
+                                        </div>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p className="text-xs">
+                                          {isAverage && <span className="font-medium">Avg: </span>}
+                                          ${budget} ({count} {count === 1 ? 'member' : 'members'})
+                                        </p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  );
+                                });
+                              })()}
+                            </div>
+                          )}
+                        </div>
                         <div className="flex justify-between text-sm">
                           <span className="font-medium" data-testid="text-edit-budget-min">
                             {editBudgetRange[0] >= 200 ? "$200+" : `$${editBudgetRange[0]}`}
