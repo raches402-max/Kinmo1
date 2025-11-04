@@ -165,6 +165,7 @@ export const memberGroupPreferences = pgTable("member_group_preferences", {
   budgetOverrideMax: integer("budget_override_max"), // Override max budget for this specific group
   categoryPreferencesOverride: jsonb("category_preferences_override"), // Array of enabled categories: ["meal", "drinks", "cafes"]
   availabilityOverride: jsonb("availability_override"), // Availability grid override: {Monday: {morning: true, ...}, ...}
+  meetingFrequencyOverride: text("meeting_frequency_override"), // Override meeting frequency: e.g., "1x week", "2x month"
   
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
