@@ -4537,7 +4537,7 @@ export default function GroupDetail() {
                   );
                 })()}
 
-                {/* ARCHIVED (Nov 2025): Old "Saved Activities" section from general AI generation flow
+                {/* ARCHIVED (Nov 2025): Old "Saved Activities" section from general AI generation flow */}
                 {/* Divider between search results and saved activities */}
                 {/* categoryResults.length > 0 && activities.length > 0 && (
                   <div className="my-8 flex items-center gap-4">
@@ -4547,8 +4547,8 @@ export default function GroupDetail() {
                   </div>
                 ) */}
 
-                {/* Group activities by food/beverage category */}
-                {(() => {
+                {/* HIDDEN: Old category-based display (MEAL, CAFES, DRINKS, etc.) - disabled via {false && */}
+                {false && (() => {
                   const filteredActivities = activities
                     .filter(activity => activity.feedback !== "less")
                     .sort((a, b) => {
