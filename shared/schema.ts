@@ -150,6 +150,21 @@ export const members = pgTable("members", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// Member group preferences table (per-group preference overrides)
+export const memberGroupPreferences = pgTable("member_group_preferences", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  groupId: varchar("group_id").notNull().references(() => groups.id, { onDelete: "cascade" }),
+  
+  // Optional overrides (null means use global profile or group defaults)
+  budgetOverride: integer("budget_override"), // Override budget for this specific group
+  categoryPreferencesOverride: jsonb("category_preferences_override"), // Array of enabled categories: ["meal", "drinks", "cafes"]
+  availabilityOverride: jsonb("availability_override"), // Availability grid override: {Monday: {morning: true, ...}, ...}
+  
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // Activities table (AI-generated suggestions)
 export const activities = pgTable("activities", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -717,6 +732,12 @@ export const insertMemberSchema = createInsertSchema(members).omit({
   createdAt: true,
 });
 
+export const insertMemberGroupPreferencesSchema = createInsertSchema(memberGroupPreferences).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertActivitySchema = createInsertSchema(activities).omit({
   id: true,
   createdAt: true,
@@ -856,6 +877,9 @@ export type GroupBackup = typeof groupBackups.$inferSelect;
 export type InsertMember = z.infer<typeof insertMemberSchema>;
 export type Member = typeof members.$inferSelect;
 export type UpdateMember = z.infer<typeof updateMemberSchema>;
+
+export type InsertMemberGroupPreferences = z.infer<typeof insertMemberGroupPreferencesSchema>;
+export type MemberGroupPreferences = typeof memberGroupPreferences.$inferSelect;
 
 export type InsertActivity = z.infer<typeof insertActivitySchema>;
 export type Activity = typeof activities.$inferSelect;
