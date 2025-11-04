@@ -670,13 +670,13 @@ async function searchCuratedVenues(
     }
 
     // Query curated venues
-    // Use larger limit (100) to ensure shuffle has diverse pool, preventing repetitive suggestions
+    // Use large limit (200) to ensure shuffle has diverse pool and support pagination
     let results = await db
       .select()
       .from(curatedVenues)
       .where(and(...conditions))
       .orderBy(desc(curatedVenues.rating))
-      .limit(100); // Large pool for shuffle variety
+      .limit(200); // Large pool for shuffle variety and pagination support
     
     // Apply venue type filtering if provided (post-SQL filter on tags array)
     if (venueType && results.length > 0) {
