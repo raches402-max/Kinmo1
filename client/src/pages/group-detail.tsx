@@ -649,6 +649,7 @@ export default function GroupDetail() {
   const [myPreferencesCategories, setMyPreferencesCategories] = useState<string[] | null>(null);
   const [myPreferencesAvailability, setMyPreferencesAvailability] = useState<any>(null);
   const [myPreferencesMeetingFrequency, setMyPreferencesMeetingFrequency] = useState<{ number: number; unit: string } | null>(null);
+  const [myPreferencesMeetingFrequencyOriginal, setMyPreferencesMeetingFrequencyOriginal] = useState<string | null>(null);
   const [hoveredFavoriteId, setHoveredFavoriteId] = useState<string | null>(null);
   const [showFavoritesMap, setShowFavoritesMap] = useState(false);
   const [addedSuggestionPlaceIds, setAddedSuggestionPlaceIds] = useState<Set<string>>(new Set());
@@ -1023,6 +1024,53 @@ export default function GroupDetail() {
       
       const availability = (memberPreferences as any).availabilityOverride ?? (memberPreferences as any).availability_override;
       setMyPreferencesAvailability(availability || null);
+      
+      const meetingFreq = (memberPreferences as any).meetingFrequencyOverride ?? (memberPreferences as any).meeting_frequency_override;
+      if (meetingFreq) {
+        // Store the original value to preserve it if user doesn't edit
+        setMyPreferencesMeetingFrequencyOriginal(meetingFreq);
+        
+        // Handle both legacy and new frequency formats for display
+        if (meetingFreq === "weekly") {
+          setMyPreferencesMeetingFrequency({ number: 1, unit: 'weeks' });
+        } else if (meetingFreq === "biweekly") {
+          setMyPreferencesMeetingFrequency({ number: 2, unit: 'weeks' });
+        } else if (meetingFreq === "monthly") {
+          setMyPreferencesMeetingFrequency({ number: 1, unit: 'months' });
+        } else if (meetingFreq === "flexible") {
+          setMyPreferencesMeetingFrequency({ number: 1, unit: 'months' });
+        } else if (meetingFreq.includes("x ")) {
+          // New format: "{number}x {unit}"
+          const match = meetingFreq.match(/^(\d+)x\s+(\w+)$/);
+          if (match) {
+            const [, num, unit] = match;
+            const normalizedUnit = unit.endsWith('s') ? unit : unit + 's';
+            setMyPreferencesMeetingFrequency({ number: parseInt(num, 10), unit: normalizedUnit });
+          } else {
+            // Invalid format, clear state
+            setMyPreferencesMeetingFrequency(null);
+            setMyPreferencesMeetingFrequencyOriginal(null);
+          }
+        } else if (meetingFreq.includes("-")) {
+          // Old format: "{number}-{unit}"
+          const parts = meetingFreq.split("-");
+          if (parts.length === 2) {
+            const [num, unit] = parts;
+            const normalizedUnit = unit.trim().endsWith('s') ? unit.trim() : unit.trim() + 's';
+            setMyPreferencesMeetingFrequency({ number: parseInt(num, 10), unit: normalizedUnit });
+          } else {
+            setMyPreferencesMeetingFrequency(null);
+            setMyPreferencesMeetingFrequencyOriginal(null);
+          }
+        } else {
+          // Unknown format, clear state
+          setMyPreferencesMeetingFrequency(null);
+          setMyPreferencesMeetingFrequencyOriginal(null);
+        }
+      } else {
+        setMyPreferencesMeetingFrequency(null);
+        setMyPreferencesMeetingFrequencyOriginal(null);
+      }
     }
   }, [memberPreferences]);
 
@@ -4161,8 +4209,10 @@ export default function GroupDetail() {
                             onCheckedChange={(checked) => {
                               if (checked) {
                                 setMyPreferencesMeetingFrequency({ number: 1, unit: 'weeks' });
+                                setMyPreferencesMeetingFrequencyOriginal(null); // Clear original when user enables
                               } else {
                                 setMyPreferencesMeetingFrequency(null);
+                                setMyPreferencesMeetingFrequencyOriginal(null);
                               }
                             }}
                             data-testid="checkbox-frequency-override"
@@ -4180,19 +4230,25 @@ export default function GroupDetail() {
                               type="number"
                               min="1"
                               value={myPreferencesMeetingFrequency.number}
-                              onChange={(e) => setMyPreferencesMeetingFrequency({ 
-                                ...myPreferencesMeetingFrequency, 
-                                number: parseInt(e.target.value) || 1 
-                              })}
+                              onChange={(e) => {
+                                setMyPreferencesMeetingFrequency({ 
+                                  ...myPreferencesMeetingFrequency, 
+                                  number: parseInt(e.target.value) || 1 
+                                });
+                                setMyPreferencesMeetingFrequencyOriginal(null); // Clear original when user edits
+                              }}
                               className="w-20"
                               data-testid="input-my-frequency-number"
                             />
                             <Select
                               value={myPreferencesMeetingFrequency.unit}
-                              onValueChange={(value) => setMyPreferencesMeetingFrequency({ 
-                                ...myPreferencesMeetingFrequency, 
-                                unit: value 
-                              })}
+                              onValueChange={(value) => {
+                                setMyPreferencesMeetingFrequency({ 
+                                  ...myPreferencesMeetingFrequency, 
+                                  unit: value 
+                                });
+                                setMyPreferencesMeetingFrequencyOriginal(null); // Clear original when user edits
+                              }}
                             >
                               <SelectTrigger className="flex-1" data-testid="select-my-frequency-unit">
                                 <SelectValue />
@@ -4210,14 +4266,24 @@ export default function GroupDetail() {
                       <div className="flex justify-end pt-4">
                         <Button
                           onClick={() => {
+                            // Use original value if it exists (hasn't been edited), otherwise serialize current state
+                            let frequencyValue = null;
+                            if (myPreferencesMeetingFrequency) {
+                              if (myPreferencesMeetingFrequencyOriginal) {
+                                // User hasn't edited, preserve original format (including legacy values like "flexible")
+                                frequencyValue = myPreferencesMeetingFrequencyOriginal;
+                              } else {
+                                // User has edited, use new serialized format
+                                frequencyValue = `${myPreferencesMeetingFrequency.number}x ${myPreferencesMeetingFrequency.unit.replace(/s$/, '')}`;
+                              }
+                            }
+                            
                             updateMyPreferencesMutation.mutate({
                               budgetOverrideMin: myPreferencesBudget?.min,
                               budgetOverrideMax: myPreferencesBudget?.max,
                               categoryPreferencesOverride: myPreferencesCategories,
                               availabilityOverride: myPreferencesAvailability,
-                              meetingFrequencyOverride: myPreferencesMeetingFrequency 
-                                ? `${myPreferencesMeetingFrequency.number}x ${myPreferencesMeetingFrequency.unit.replace(/s$/, '')}`
-                                : null,
+                              meetingFrequencyOverride: frequencyValue,
                             });
                           }}
                           disabled={updateMyPreferencesMutation.isPending}
