@@ -1,7 +1,7 @@
 import { Client } from "@googlemaps/google-maps-services-js";
 import { db } from "./db";
 import { placesCache, searchCache, geocodingCache, curatedVenues } from "@shared/schema";
-import { eq, and, or, sql as drizzleSql, like, desc } from "drizzle-orm";
+import { eq, and, or, sql as drizzleSql, like, desc, ilike } from "drizzle-orm";
 
 // Legacy client for Geocoding and Timezone (still using old API)
 const legacyClient = new Client({});
@@ -664,8 +664,14 @@ async function searchCuratedVenues(
     conditions.push(eq(curatedVenues.isActive, true));
     conditions.push(eq(curatedVenues.region, 'san_francisco'));
     
-    // Filter by category if detected
+    // CRITICAL FIX: Add text search for venue name
+    // This ensures "souvla" returns venues with "souvla" in the name
+    // Use ILIKE for case-insensitive partial matching
+    conditions.push(ilike(curatedVenues.name, `%${query}%`));
+    
+    // Filter by category if detected (optional - enhances results)
     if (categoryFilter) {
+      console.log(`[Curated Search] Category filter detected: "${categoryFilter}"`);
       conditions.push(eq(curatedVenues.category, categoryFilter));
     }
 
