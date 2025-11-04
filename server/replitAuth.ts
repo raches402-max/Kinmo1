@@ -55,9 +55,23 @@ function updateUserSession(
   user.expires_at = user.claims?.exp;
 }
 
+const PROTECTED_ADMIN_EMAILS = [
+  'raches402@gmail.com'
+];
+
 async function upsertUser(
   claims: any,
 ) {
+  const email = claims["email"];
+  
+  if (PROTECTED_ADMIN_EMAILS.includes(email)) {
+    const existingUser = await storage.getUserByEmail(email);
+    if (existingUser) {
+      console.log(`[Auth] Protected admin account detected: ${email}. Skipping profile update to prevent test data contamination.`);
+      return;
+    }
+  }
+  
   await storage.upsertUser({
     id: claims["sub"],
     email: claims["email"],
