@@ -203,6 +203,10 @@ export interface IStorage {
   // Seen Activities
   markVenuesAsSeen(groupId: string, venues: Array<{venueName: string, googlePlaceId?: string, category: string}>): Promise<void>;
   getSeenVenues(groupId: string): Promise<Array<{venueName: string, googlePlaceId?: string, category: string}>>;
+
+  // Curated Venues Management
+  getAllCuratedVenues(): Promise<Array<{id: string; name: string; category: string; tags: string[] | null}>>;
+  updateVenueCategory(id: string, category: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2240,6 +2244,28 @@ export class DatabaseStorage implements IStorage {
       googlePlaceId: s.googlePlaceId || undefined,
       category: s.category
     }));
+  }
+
+  // Curated Venues Management
+  async getAllCuratedVenues(): Promise<Array<{id: string; name: string; category: string; tags: string[] | null}>> {
+    const venues = await db
+      .select({
+        id: curatedVenues.id,
+        name: curatedVenues.name,
+        category: curatedVenues.category,
+        tags: curatedVenues.tags
+      })
+      .from(curatedVenues)
+      .where(eq(curatedVenues.isActive, true));
+
+    return venues;
+  }
+
+  async updateVenueCategory(id: string, category: string): Promise<void> {
+    await db
+      .update(curatedVenues)
+      .set({ category })
+      .where(eq(curatedVenues.id, id));
   }
 }
 
