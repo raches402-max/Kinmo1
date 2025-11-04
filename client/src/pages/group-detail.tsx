@@ -3076,13 +3076,20 @@ export default function GroupDetail() {
               <TabsContent value="details" className="space-y-6">
                 <div className="max-w-3xl mx-auto space-y-6">
                   {/* Group Details Section */}
-                  <Card>
-                    <CardHeader>
-                      <div className="flex items-center gap-2">
-                        <Settings className="h-5 w-5 text-primary" />
+                  <Card className="border-primary/20">
+                    <CardHeader className="bg-primary/5">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-primary/10 rounded-md">
+                          <Settings className="h-5 w-5 text-primary" />
+                        </div>
                         <div>
-                          <CardTitle>Group Settings</CardTitle>
-                          <CardDescription>Configure settings for the entire group</CardDescription>
+                          <CardTitle className="flex items-center gap-2">
+                            Group Settings
+                            <Badge variant="outline" className="text-xs font-normal">
+                              For Everyone
+                            </Badge>
+                          </CardTitle>
+                          <CardDescription>Configure settings that apply to all members</CardDescription>
                         </div>
                       </div>
                     </CardHeader>
@@ -3980,21 +3987,34 @@ export default function GroupDetail() {
               {/* Subtab 2: My Preferences */}
               <TabsContent value="my-preferences" className="space-y-6">
                 <div className="max-w-3xl mx-auto space-y-6">
-                  <Card>
-                    <CardHeader>
-                      <div className="flex items-center gap-2">
-                        <UserCheck className="h-5 w-5 text-primary" />
+                  <Card className="border-purple-500/20">
+                    <CardHeader className="bg-purple-500/5">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-purple-500/10 rounded-md">
+                          <UserCheck className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                        </div>
                         <div>
-                          <CardTitle>My Personal Preferences</CardTitle>
+                          <CardTitle className="flex items-center gap-2">
+                            My Personal Preferences
+                            <Badge variant="secondary" className="text-xs font-normal bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/20">
+                              Just For Me
+                            </Badge>
+                          </CardTitle>
                           <CardDescription>
-                            Override group settings with your own preferences. Leave blank to use group defaults.
+                            Override group settings with your own preferences. Leave unchecked to use group defaults.
                           </CardDescription>
                         </div>
                       </div>
                     </CardHeader>
-                    <CardContent className="space-y-4">
+                    <CardContent className="space-y-6">
+                      <div className="bg-muted/30 p-3 rounded-md text-sm">
+                        <p className="text-muted-foreground">
+                          <strong>Note:</strong> These preferences override the group settings for you. Leave unchecked to use group defaults.
+                        </p>
+                      </div>
+
                       <div className="space-y-3">
-                        <Label>My Budget (per person)</Label>
+                        <Label className="text-base font-medium">My Budget (per person)</Label>
                         <div className="flex items-center gap-3 mb-2">
                           <Checkbox
                             checked={myPreferencesBudget !== null}
@@ -4007,8 +4027,11 @@ export default function GroupDetail() {
                             }}
                             data-testid="checkbox-budget-override"
                           />
-                          <span className="text-sm text-muted-foreground">
-                            Set a personal budget (group default: ${group?.budgetMin}-${group?.budgetMax})
+                          <span className="text-sm">
+                            Set a personal budget 
+                            <span className="text-muted-foreground ml-1">
+                              (Group: ${group?.budgetMin}-${group?.budgetMax})
+                            </span>
                           </span>
                         </div>
                         {myPreferencesBudget !== null && (
@@ -4030,7 +4053,7 @@ export default function GroupDetail() {
                       </div>
 
                       <div className="space-y-3">
-                        <Label>My Category Preferences</Label>
+                        <Label className="text-base font-medium">My Category Preferences</Label>
                         <div className="flex items-center gap-3 mb-2">
                           <Checkbox
                             checked={myPreferencesCategories !== null}
@@ -4043,8 +4066,11 @@ export default function GroupDetail() {
                             }}
                             data-testid="checkbox-categories-override"
                           />
-                          <span className="text-sm text-muted-foreground">
+                          <span className="text-sm">
                             Customize which categories I prefer
+                            <span className="text-muted-foreground ml-1">
+                              (Using group categories by default)
+                            </span>
                           </span>
                         </div>
                         {myPreferencesCategories !== null && (
@@ -4070,7 +4096,7 @@ export default function GroupDetail() {
                       </div>
 
                       <div className="space-y-3">
-                        <Label>My Availability</Label>
+                        <Label className="text-base font-medium">My Availability</Label>
                         <div className="flex items-center gap-3 mb-2">
                           <Checkbox
                             checked={myPreferencesAvailability !== null}
@@ -4083,8 +4109,11 @@ export default function GroupDetail() {
                             }}
                             data-testid="checkbox-availability-override"
                           />
-                          <span className="text-sm text-muted-foreground">
+                          <span className="text-sm">
                             Set my personal availability schedule
+                            <span className="text-muted-foreground ml-1">
+                              (Using group availability by default)
+                            </span>
                           </span>
                         </div>
                         {myPreferencesAvailability !== null && (
