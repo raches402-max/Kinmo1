@@ -4151,23 +4151,92 @@ export default function GroupDetail() {
                           </span>
                         </div>
                         {myPreferencesCategories !== null && (
-                          <div className="grid grid-cols-2 gap-2">
-                            {['meal', 'cafes', 'drinks', 'dessert', 'experiences'].map((cat) => (
-                              <label key={cat} className="flex items-center gap-2">
-                                <Checkbox
-                                  checked={myPreferencesCategories.includes(cat)}
-                                  onCheckedChange={(checked) => {
-                                    if (checked) {
-                                      setMyPreferencesCategories([...myPreferencesCategories, cat]);
-                                    } else {
-                                      setMyPreferencesCategories(myPreferencesCategories.filter(c => c !== cat));
-                                    }
-                                  }}
-                                  data-testid={`checkbox-my-category-${cat}`}
-                                />
-                                <span className="text-sm capitalize">{cat}</span>
-                              </label>
-                            ))}
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              variant={myPreferencesCategories.includes('meal') ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => {
+                                if (myPreferencesCategories.includes('meal')) {
+                                  setMyPreferencesCategories(myPreferencesCategories.filter(c => c !== 'meal'));
+                                } else {
+                                  setMyPreferencesCategories([...myPreferencesCategories, 'meal']);
+                                }
+                              }}
+                              className="gap-1.5"
+                              data-testid="button-my-category-meal"
+                            >
+                              <span>🍽️</span>
+                              <span>Meals</span>
+                            </Button>
+                            <Button
+                              type="button"
+                              variant={myPreferencesCategories.includes('cafes') ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => {
+                                if (myPreferencesCategories.includes('cafes')) {
+                                  setMyPreferencesCategories(myPreferencesCategories.filter(c => c !== 'cafes'));
+                                } else {
+                                  setMyPreferencesCategories([...myPreferencesCategories, 'cafes']);
+                                }
+                              }}
+                              className="gap-1.5"
+                              data-testid="button-my-category-cafes"
+                            >
+                              <span>☕</span>
+                              <span>Cafes</span>
+                            </Button>
+                            <Button
+                              type="button"
+                              variant={myPreferencesCategories.includes('drinks') ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => {
+                                if (myPreferencesCategories.includes('drinks')) {
+                                  setMyPreferencesCategories(myPreferencesCategories.filter(c => c !== 'drinks'));
+                                } else {
+                                  setMyPreferencesCategories([...myPreferencesCategories, 'drinks']);
+                                }
+                              }}
+                              className="gap-1.5"
+                              data-testid="button-my-category-drinks"
+                            >
+                              <span>🍺</span>
+                              <span>Drinks</span>
+                            </Button>
+                            <Button
+                              type="button"
+                              variant={myPreferencesCategories.includes('dessert') ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => {
+                                if (myPreferencesCategories.includes('dessert')) {
+                                  setMyPreferencesCategories(myPreferencesCategories.filter(c => c !== 'dessert'));
+                                } else {
+                                  setMyPreferencesCategories([...myPreferencesCategories, 'dessert']);
+                                }
+                              }}
+                              className="gap-1.5"
+                              data-testid="button-my-category-dessert"
+                            >
+                              <span>🍰</span>
+                              <span>Dessert</span>
+                            </Button>
+                            <Button
+                              type="button"
+                              variant={myPreferencesCategories.includes('experiences') ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => {
+                                if (myPreferencesCategories.includes('experiences')) {
+                                  setMyPreferencesCategories(myPreferencesCategories.filter(c => c !== 'experiences'));
+                                } else {
+                                  setMyPreferencesCategories([...myPreferencesCategories, 'experiences']);
+                                }
+                              }}
+                              className="gap-1.5"
+                              data-testid="button-my-category-experiences"
+                            >
+                              <span>🎭</span>
+                              <span>Experiences</span>
+                            </Button>
                           </div>
                         )}
                       </div>
