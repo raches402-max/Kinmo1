@@ -6835,17 +6835,21 @@ Looking forward to planning great activities together!
 
   // Admin endpoint to recategorize all curated venues based on their Google types
   app.post("/api/admin/recategorize-venues", isAuthenticated, async (req: any, res) => {
+    console.log("[Venue Recategorization] ===== ENDPOINT CALLED =====");
     try {
       // Check if user is admin
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
+      console.log(`[Venue Recategorization] User check: userId=${userId}, user=${user?.email || 'null'}`);
       
       const adminEmails = getAdminEmails();
+      console.log(`[Venue Recategorization] Admin emails: ${adminEmails.join(', ')}`);
       if (!user || !adminEmails.includes(user.email || '')) {
+        console.log(`[Venue Recategorization] UNAUTHORIZED: User is not admin`);
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
 
-      console.log("[Venue Recategorization] Starting recategorization of all curated venues...");
+      console.log("[Venue Recategorization] ✓ Auth passed. Starting recategorization of all curated venues...");
 
       // Clear categorization cache to ensure all venues are re-evaluated with current logic
       const { categorizeVenue, clearCategorizationCache } = await import('./openai');
@@ -6854,9 +6858,29 @@ Looking forward to planning great activities together!
       // Get all curated venues
       const venues = await storage.getAllCuratedVenues();
       console.log(`[Venue Recategorization] Checking ${venues.length} venues...`);
+
+      // Track category distribution before and after
+      const CANONICAL_CATEGORIES = ['meal', 'cafes', 'drinks', 'dessert', 'experiences'];
+      const categoriesBefore: Record<string, number> = {};
+      const categoriesAfter: Record<string, number> = {};
+      
+      // Count existing categories
+      venues.forEach(venue => {
+        categoriesBefore[venue.category] = (categoriesBefore[venue.category] || 0) + 1;
+      });
+
+      console.log("[Venue Recategorization] Category distribution BEFORE:");
+      console.log(`  Canonical: ${CANONICAL_CATEGORIES.map(c => `${c}=${categoriesBefore[c] || 0}`).join(', ')}`);
+      const nonCanonical = Object.entries(categoriesBefore)
+        .filter(([cat]) => !CANONICAL_CATEGORIES.includes(cat))
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10);
+      console.log(`  Top 10 non-canonical: ${nonCanonical.map(([cat, count]) => `"${cat}"=${count}`).join(', ')}`);
+
       const changes: Array<{ id: string; name: string; oldCategory: string; newCategory: string }> = [];
       let checked = 0;
       let errors = 0;
+      let forcedUpdates = 0; // Count venues updated just for being non-canonical
 
       // Process venues in batches to avoid overwhelming the system
       for (const venue of venues) {
@@ -6867,9 +6891,16 @@ Looking forward to planning great activities together!
           const googleTypes = venue.tags || [];
           const correctCategory = await categorizeVenue(venue.name, '', googleTypes);
 
-          // Check if category needs updating
-          if (venue.category !== correctCategory) {
-            console.log(`[Venue Recategorization] ${venue.name}: ${venue.category} → ${correctCategory}`);
+          // AGGRESSIVE: Recategorize if venue is not in canonical categories OR if category doesn't match
+          const isNonCanonical = !CANONICAL_CATEGORIES.includes(venue.category);
+          const needsUpdate = isNonCanonical || venue.category !== correctCategory;
+          
+          if (needsUpdate) {
+            if (isNonCanonical && venue.category === correctCategory) {
+              forcedUpdates++;
+            }
+            
+            console.log(`[Venue Recategorization] ${venue.name}: "${venue.category}" → "${correctCategory}"${isNonCanonical ? ' (non-canonical)' : ''}`);
             
             // Update the venue
             await storage.updateVenueCategory(venue.id, correctCategory);
@@ -6880,10 +6911,16 @@ Looking forward to planning great activities together!
               oldCategory: venue.category,
               newCategory: correctCategory
             });
+
+            // Track new category
+            categoriesAfter[correctCategory] = (categoriesAfter[correctCategory] || 0) + 1;
+          } else {
+            // No change needed, count existing category
+            categoriesAfter[venue.category] = (categoriesAfter[venue.category] || 0) + 1;
           }
 
-          // Log progress every 50 venues
-          if (checked % 50 === 0) {
+          // Log progress every 100 venues
+          if (checked % 100 === 0) {
             console.log(`[Venue Recategorization] Progress: ${checked}/${venues.length} venues checked, ${changes.length} changes made`);
           }
         } catch (error: any) {
@@ -6892,18 +6929,33 @@ Looking forward to planning great activities together!
         }
       }
 
-      console.log(`[Venue Recategorization] Complete! Checked ${checked} venues, made ${changes.length} changes, ${errors} errors`);
+      console.log("[Venue Recategorization] Category distribution AFTER:");
+      console.log(`  Canonical: ${CANONICAL_CATEGORIES.map(c => `${c}=${categoriesAfter[c] || 0}`).join(', ')}`);
+      const nonCanonicalAfter = Object.entries(categoriesAfter)
+        .filter(([cat]) => !CANONICAL_CATEGORIES.includes(cat))
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10);
+      if (nonCanonicalAfter.length > 0) {
+        console.log(`  Remaining non-canonical: ${nonCanonicalAfter.map(([cat, count]) => `"${cat}"=${count}`).join(', ')}`);
+      } else {
+        console.log("  ✓ All venues now in canonical categories!");
+      }
+
+      console.log(`[Venue Recategorization] Complete! Checked ${checked} venues, made ${changes.length} changes (${forcedUpdates} were non-canonical), ${errors} errors`);
 
       res.json({
         success: true,
-        message: `Recategorization complete: ${changes.length} venues updated`,
+        message: `Recategorization complete: ${changes.length} venues updated (${forcedUpdates} non-canonical)`,
         stats: {
           totalVenues: venues.length,
           venuesChecked: checked,
           venuesUpdated: changes.length,
-          errors
+          nonCanonicalFixed: forcedUpdates,
+          errors,
+          categoriesBefore,
+          categoriesAfter
         },
-        changes
+        changes: changes.slice(0, 100) // Limit to first 100 changes in response
       });
     } catch (error: any) {
       console.error("Error recategorizing venues:", error);
