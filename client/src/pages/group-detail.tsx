@@ -20,7 +20,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, ChevronRight, ChevronLeft, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell, Edit2, Edit, Compass, Home, UserCheck, MessageCircle, TrendingUp, AlertCircle, Users, Loader2, Map } from "lucide-react";
+import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, ChevronRight, ChevronLeft, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell, Edit2, Edit, Compass, Home, UserCheck, MessageCircle, TrendingUp, AlertCircle, Users, Loader2, Map, Info } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -4085,9 +4085,23 @@ export default function GroupDetail() {
                     </CardHeader>
                     <CardContent className="space-y-6">
                       <div className="bg-muted/30 p-3 rounded-md text-sm">
-                        <p className="text-muted-foreground">
-                          <strong>Note:</strong> These preferences override the group settings for you. Leave unchecked to use group defaults.
-                        </p>
+                        <div className="flex items-start gap-2">
+                          <p className="text-muted-foreground flex-1">
+                            <strong>Note:</strong> These preferences override the group settings for you. Leave unchecked to use group defaults.
+                          </p>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button className="text-muted-foreground hover:text-foreground transition-colors">
+                                <Info className="h-4 w-4" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs" side="left">
+                              <p className="text-sm">
+                                Your personal preferences only affect AI suggestions <strong>you</strong> generate. For example, if you set your budget to $10-$30 in a group with a $0-$60 default, you'll only see venues in your range—other members will still see the full $0-$60 range.
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
                       </div>
 
                       <div className="space-y-3">
@@ -4113,17 +4127,42 @@ export default function GroupDetail() {
                         </div>
                         {myPreferencesBudget !== null && (
                           <div className="space-y-3">
-                            <Slider
-                              min={0}
-                              max={250}
-                              step={10}
-                              value={[myPreferencesBudget.min, myPreferencesBudget.max]}
-                              onValueChange={(vals) => setMyPreferencesBudget({ min: vals[0], max: vals[1] })}
-                              className="w-full"
-                              data-testid="slider-my-budget"
-                            />
-                            <div className="text-sm font-medium" data-testid="text-my-budget">
-                              ${myPreferencesBudget.min}-{myPreferencesBudget.max >= 200 ? "$200+" : `$${myPreferencesBudget.max}`}
+                            <div className="relative pt-1">
+                              <Slider
+                                min={0}
+                                max={250}
+                                step={10}
+                                value={[myPreferencesBudget.min, myPreferencesBudget.max]}
+                                onValueChange={(vals) => setMyPreferencesBudget({ min: vals[0], max: vals[1] })}
+                                className="w-full"
+                                data-testid="slider-my-budget"
+                              />
+                              {/* Group budget range markers */}
+                              {group?.budgetMin !== undefined && group?.budgetMax !== undefined && (
+                                <>
+                                  <div 
+                                    className="absolute top-0 w-0.5 h-2 bg-muted-foreground/40 rounded-full"
+                                    style={{ left: `${(group.budgetMin / 250) * 100}%` }}
+                                    title={`Group min: $${group.budgetMin}`}
+                                  />
+                                  <div 
+                                    className="absolute top-0 w-0.5 h-2 bg-muted-foreground/40 rounded-full"
+                                    style={{ left: `${(group.budgetMax / 250) * 100}%` }}
+                                    title={`Group max: $${group.budgetMax}`}
+                                  />
+                                </>
+                              )}
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <div className="text-sm font-medium" data-testid="text-my-budget">
+                                ${myPreferencesBudget.min}-{myPreferencesBudget.max >= 200 ? "$200+" : `$${myPreferencesBudget.max}`}
+                              </div>
+                              {group?.budgetMin !== undefined && group?.budgetMax !== undefined && (
+                                <div className="text-xs text-muted-foreground flex items-center gap-1">
+                                  <div className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full" />
+                                  <span>Group: ${group.budgetMin}-${group.budgetMax}</span>
+                                </div>
+                              )}
                             </div>
                           </div>
                         )}
