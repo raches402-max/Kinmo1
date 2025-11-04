@@ -7708,7 +7708,8 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
               coordinates,
               false, // skipCurated
               suggestion.venueType, // Pass venueType for better cache matching
-              groupData.budgetMax // Pass budget for filtering
+              groupData.budgetMax, // Pass budget for filtering
+              seenVenueNames // Pass seen venues for variety
             );
 
           // If Google Places returns NO results at all, this is likely a fake/non-existent venue

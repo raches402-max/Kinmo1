@@ -566,9 +566,22 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
 }
 
 /**
+ * Shuffle array using Fisher-Yates algorithm for randomization
+ */
+function shuffleArray<T>(array: T[]): T[] {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
+/**
  * Search curated venues (cache-first strategy)
  * Returns pre-loaded venues that match the query and location
  * STRICT GEOGRAPHIC VALIDATION: Only returns results if location is confirmed to be within SF
+ * VARIETY OPTIMIZATION: Prioritizes fresh (unseen) venues and randomizes results
  */
 async function searchCuratedVenues(
   query: string,
@@ -576,7 +589,8 @@ async function searchCuratedVenues(
   radiusMiles: number = 2,
   coordinates?: { lat: number; lng: number },
   maxResults: number = 15,
-  venueType?: string
+  venueType?: string,
+  seenVenues?: string[]
 ): Promise<PlaceResult[]> {
   try {
     console.log(`[Curated Search] Searching for "${query}" in ${location}`);
@@ -755,8 +769,31 @@ async function searchCuratedVenues(
       };
     }));
 
-    console.log(`[Curated Search] Found ${placeResults.length} curated venues`);
-    return placeResults;
+    // VARIETY OPTIMIZATION: Separate fresh vs seen venues, randomize both, prioritize fresh
+    if (seenVenues && seenVenues.length > 0) {
+      const seenVenuesLower = new Set(seenVenues.map(v => v.toLowerCase()));
+      
+      // Separate into fresh (unseen) and seen venues
+      const freshVenues = placeResults.filter(v => !seenVenuesLower.has(v.name.toLowerCase()));
+      const seenVenuesList = placeResults.filter(v => seenVenuesLower.has(v.name.toLowerCase()));
+      
+      console.log(`[Curated Search] Found ${placeResults.length} venues: ${freshVenues.length} fresh, ${seenVenuesList.length} seen`);
+      
+      // Randomize both groups
+      const shuffledFresh = shuffleArray(freshVenues);
+      const shuffledSeen = shuffleArray(seenVenuesList);
+      
+      // Prioritize fresh venues, use seen as fallback, limit to maxResults
+      const finalResults = [...shuffledFresh, ...shuffledSeen].slice(0, maxResults);
+      
+      console.log(`[Curated Search] Returning ${finalResults.length} venues (${Math.min(shuffledFresh.length, maxResults)} fresh prioritized)`);
+      return finalResults;
+    } else {
+      // No seen venues tracking, just randomize for variety
+      const shuffled = shuffleArray(placeResults);
+      console.log(`[Curated Search] Found ${shuffled.length} curated venues (randomized for variety)`);
+      return shuffled.slice(0, maxResults);
+    }
     
   } catch (error) {
     console.error('[Curated Search] Error:', error);
@@ -913,14 +950,15 @@ export async function searchPlaces(
   coordinates?: { lat: number; lng: number },
   skipCurated: boolean = false,
   venueType?: string,
-  budgetMax?: number
+  budgetMax?: number,
+  seenVenues?: string[]
 ): Promise<PlaceResult[]> {
   // CACHE-FIRST STRATEGY: Check curated venues FIRST (10-50ms for SF searches)
   // Skip curated search if explicitly requested (e.g., when curated filtering failed)
   let curatedResults: PlaceResult[] = [];
   
   if (!skipCurated) {
-    curatedResults = await searchCuratedVenues(query, location, radiusMiles, coordinates, 15, venueType);
+    curatedResults = await searchCuratedVenues(query, location, radiusMiles, coordinates, 15, venueType, seenVenues);
     
     if (curatedResults.length >= 15) {
       // We have enough curated venues, return immediately (skip API call)
@@ -957,8 +995,10 @@ export async function searchPlaces(
       if (curatedResults.length > 0) {
         const curatedPlaceIds = new Set(curatedResults.map(r => r.placeId));
         const uniqueCached = cached.filter(r => !curatedPlaceIds.has(r.placeId));
-        const combined = [...curatedResults, ...uniqueCached].slice(0, 20);
-        console.log(`[Cache-First] Combined ${curatedResults.length} curated + ${uniqueCached.length} cached = ${combined.length} total`);
+        // Shuffle session cache results for variety
+        const shuffledCached = shuffleArray(uniqueCached);
+        const combined = [...curatedResults, ...shuffledCached].slice(0, 20);
+        console.log(`[Cache-First] Combined ${curatedResults.length} curated + ${shuffledCached.length} cached (shuffled) = ${combined.length} total`);
         // Apply budget filter if provided (only filter if budgetMax is a real number)
         if (budgetMax != null && typeof budgetMax === 'number') {
           const filtered = filterByBudget(combined, budgetMax);
@@ -968,8 +1008,9 @@ export async function searchPlaces(
         return combined.map(result => clonePlaceResult(result));
       }
       
-      // Return deep copy to prevent mutation
-      const results = cached.map(result => clonePlaceResult(result));
+      // Return deep copy to prevent mutation, shuffled for variety
+      const results = shuffleArray(cached.map(result => clonePlaceResult(result)));
+      console.log(`[Session Cache] Returning ${results.length} results (shuffled for variety)`);
       // Apply budget filter if provided (only filter if budgetMax is a real number)
       if (budgetMax != null && typeof budgetMax === 'number') {
         const filtered = filterByBudget(results, budgetMax);
