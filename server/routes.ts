@@ -6818,6 +6818,82 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Admin endpoint to recategorize all curated venues based on their Google types
+  app.post("/api/admin/recategorize-venues", isAuthenticated, async (req: any, res) => {
+    try {
+      // Check if user is admin
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      const adminEmails = ['raches402@gmail.com'];
+      if (!user || !adminEmails.includes(user.email || '')) {
+        return res.status(403).json({ message: "Unauthorized: Admin access required" });
+      }
+
+      console.log("[Venue Recategorization] Starting recategorization of all curated venues...");
+
+      // Get all curated venues
+      const venues = await storage.getAllCuratedVenues();
+      console.log(`[Venue Recategorization] Checking ${venues.length} venues...`);
+
+      const { categorizeVenue } = await import('./openai');
+      const changes: Array<{ id: string; name: string; oldCategory: string; newCategory: string }> = [];
+      let checked = 0;
+      let errors = 0;
+
+      // Process venues in batches to avoid overwhelming the system
+      for (const venue of venues) {
+        checked++;
+        
+        try {
+          // Use Google types (stored in tags) to determine correct category
+          const googleTypes = venue.tags || [];
+          const correctCategory = await categorizeVenue(venue.name, '', googleTypes);
+
+          // Check if category needs updating
+          if (venue.category !== correctCategory) {
+            console.log(`[Venue Recategorization] ${venue.name}: ${venue.category} → ${correctCategory}`);
+            
+            // Update the venue
+            await storage.updateVenueCategory(venue.id, correctCategory);
+            
+            changes.push({
+              id: venue.id,
+              name: venue.name,
+              oldCategory: venue.category,
+              newCategory: correctCategory
+            });
+          }
+
+          // Log progress every 50 venues
+          if (checked % 50 === 0) {
+            console.log(`[Venue Recategorization] Progress: ${checked}/${venues.length} venues checked, ${changes.length} changes made`);
+          }
+        } catch (error: any) {
+          console.error(`[Venue Recategorization] Error processing ${venue.name}:`, error.message);
+          errors++;
+        }
+      }
+
+      console.log(`[Venue Recategorization] Complete! Checked ${checked} venues, made ${changes.length} changes, ${errors} errors`);
+
+      res.json({
+        success: true,
+        message: `Recategorization complete: ${changes.length} venues updated`,
+        stats: {
+          totalVenues: venues.length,
+          venuesChecked: checked,
+          venuesUpdated: changes.length,
+          errors
+        },
+        changes
+      });
+    } catch (error: any) {
+      console.error("Error recategorizing venues:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Scraped venues comparison endpoints
   app.post("/api/admin/scraped-venues/upload", isAuthenticated, async (req: any, res) => {
     try {
