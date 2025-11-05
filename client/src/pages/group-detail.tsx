@@ -5840,18 +5840,6 @@ export default function GroupDetail() {
                             const inVotingEvents = votingEvents.some(e => e.googlePlaceId && e.googlePlaceId === result.placeId);
                             const alreadyFavorited = inActivities || inVotingEvents;
                             
-                            // Debug logging for Tang Bar
-                            if (result.name === 'Tang Bar') {
-                              console.log('🔍 Tang Bar Debug:', {
-                                placeId: result.placeId,
-                                inActivities,
-                                inVotingEvents,
-                                alreadyFavorited,
-                                votingEventsPlaceIds: votingEvents.map(e => ({ id: e.id, title: e.title, placeId: e.googlePlaceId })),
-                                activitiesPlaceIds: activities.filter(a => !a.archivedAt).map(a => ({ id: a.id, placeId: a.googlePlaceId }))
-                              });
-                            }
-                            
                             // Check if already in cart (selected venues OR existing itineraries OR optimistically added)
                             const inSelectedVenues = selectedVenues.some(v => {
                               if (v.sourceType === 'voting_event') {
