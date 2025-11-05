@@ -2677,6 +2677,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get group-specific voting events (top 10 with vote counts)
   app.get("/api/groups/:groupId/voting-events", async (req, res) => {
     try {
+      // Validate that the group exists and is active
+      const group = await storage.getGroup(req.params.groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
       const events = await storage.getGroupVotingEvents(req.params.groupId);
       res.json(events);
     } catch (error: any) {

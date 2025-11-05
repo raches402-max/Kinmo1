@@ -42,6 +42,7 @@ export interface IStorage {
   getUserGroups(userId: string): Promise<Array<Group & { members: Array<{ id: string; name: string | null; email: string | null }> }>>;
   getAllGroups(): Promise<Group[]>;
   updateGroup(id: string, updates: UpdateGroup): Promise<Group>;
+  softDeleteGroup(id: string): Promise<void>;
   updateGroupStatus(id: string, status: string, error?: string): Promise<void>;
   addRejectedVenue(groupId: string, venueName: string): Promise<void>;
 
@@ -377,12 +378,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getGroup(id: string): Promise<Group | undefined> {
-    const [group] = await db.select().from(groups).where(eq(groups.id, id));
+    const [group] = await db.select().from(groups).where(and(eq(groups.id, id), isNull(groups.deletedAt)));
     return group || undefined;
   }
 
   async getGroupByShareableLink(link: string): Promise<Group | undefined> {
-    const [group] = await db.select().from(groups).where(eq(groups.shareableLink, link));
+    const [group] = await db.select().from(groups).where(and(eq(groups.shareableLink, link), isNull(groups.deletedAt)));
     return group || undefined;
   }
 
@@ -492,11 +493,36 @@ export class DatabaseStorage implements IStorage {
       .set(updates)
       .where(eq(groups.id, id))
       .returning();
-    
+
     // Automatically backup after update (even if userId is null - orphaned groups still get backups)
     await this.createAutomaticBackup(group.id, group.userId, 'update');
-    
+
     return group;
+  }
+
+  /**
+   * Soft delete a group and clean up associated voting events
+   * This prevents orphaned favorited venues from appearing in other groups
+   */
+  async softDeleteGroup(id: string): Promise<void> {
+    // Create backup before deletion
+    const group = await this.getGroup(id);
+    if (group) {
+      await this.createAutomaticBackup(group.id, group.userId, 'delete');
+    }
+
+    // Soft delete the group
+    await db
+      .update(groups)
+      .set({ deletedAt: sql`now()` })
+      .where(eq(groups.id, id));
+
+    // Hard delete associated voting events to prevent orphans
+    await db
+      .delete(votingEvents)
+      .where(eq(votingEvents.groupId, id));
+
+    console.log(`[Soft Delete] Group ${id} soft-deleted and ${await db.select().from(votingEvents).where(eq(votingEvents.groupId, id)).then(r => r.length)} voting events cleaned up`);
   }
 
   // Automatic backup function - creates snapshot of group data
@@ -635,6 +661,7 @@ export class DatabaseStorage implements IStorage {
         title: votingEvents.title,
         description: votingEvents.description,
         venueAddress: votingEvents.venueAddress,
+        city: votingEvents.city,
         venueType: votingEvents.venueType,
         googlePlaceId: votingEvents.googlePlaceId,
         latitude: votingEvents.latitude,
@@ -679,6 +706,7 @@ export class DatabaseStorage implements IStorage {
         title: votingEvents.title,
         description: votingEvents.description,
         venueAddress: votingEvents.venueAddress,
+        city: votingEvents.city,
         venueType: votingEvents.venueType,
         googlePlaceId: votingEvents.googlePlaceId,
         latitude: votingEvents.latitude,
@@ -707,8 +735,12 @@ export class DatabaseStorage implements IStorage {
         netVotes: sql<number>`COUNT(CASE WHEN ${votes.voteType} = 'upvote' THEN 1 END) - COUNT(CASE WHEN ${votes.voteType} = 'downvote' THEN 1 END)`.as('netVotes'),
       })
       .from(votingEvents)
+      .innerJoin(groups, eq(votingEvents.groupId, groups.id))
       .leftJoin(votes, eq(votingEvents.id, votes.eventId))
-      .where(eq(votingEvents.groupId, groupId))
+      .where(and(
+        eq(votingEvents.groupId, groupId),
+        isNull(groups.deletedAt)
+      ))
       .groupBy(votingEvents.id)
       .orderBy(desc(sql`COUNT(CASE WHEN ${votes.voteType} = 'upvote' THEN 1 END) - COUNT(CASE WHEN ${votes.voteType} = 'downvote' THEN 1 END)`))
       .limit(10);
