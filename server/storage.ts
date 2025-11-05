@@ -26,7 +26,7 @@ import {
   type MemberGroupPreferences, type InsertMemberGroupPreferences
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql, and, or, inArray, isNull } from "drizzle-orm";
+import { eq, desc, sql, and, or, inArray, isNull, isNotNull } from "drizzle-orm";
 import { randomBytes } from "crypto";
 
 export interface IStorage {
@@ -552,8 +552,8 @@ export class DatabaseStorage implements IStorage {
       .from(votingEvents)
       .leftJoin(groups, eq(votingEvents.groupId, groups.id))
       .where(or(
-        sql`${groups.id} IS NULL`, // group doesn't exist at all
-        sql`${groups.deletedAt} IS NOT NULL` // group is soft deleted
+        isNull(groups.id), // group doesn't exist at all
+        isNotNull(groups.deletedAt) // group is soft deleted
       ));
 
     const orphanedEventIds = orphanedEvents.map(e => e.id);
@@ -588,7 +588,7 @@ export class DatabaseStorage implements IStorage {
       .select({ id: votes.id })
       .from(votes)
       .leftJoin(votingEvents, eq(votes.eventId, votingEvents.id))
-      .where(sql`${votingEvents.id} IS NULL`);
+      .where(isNull(votingEvents.id));
 
     if (orphanedVotes.length > 0) {
       const orphanedVoteIds = orphanedVotes.map(v => v.id);
