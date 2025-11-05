@@ -5836,8 +5836,21 @@ export default function GroupDetail() {
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                           {venueSearchResults.map((result: any) => {
                             // Check if already favorited (ONLY in activities OR voting events - NOT optimistic tracker)
-                            const alreadyFavorited = activities.some(a => !a.archivedAt && a.googlePlaceId === result.placeId) ||
-                              votingEvents.some(e => e.googlePlaceId === result.placeId);
+                            const inActivities = activities.some(a => !a.archivedAt && a.googlePlaceId && a.googlePlaceId === result.placeId);
+                            const inVotingEvents = votingEvents.some(e => e.googlePlaceId && e.googlePlaceId === result.placeId);
+                            const alreadyFavorited = inActivities || inVotingEvents;
+                            
+                            // Debug logging for Tang Bar
+                            if (result.name === 'Tang Bar') {
+                              console.log('🔍 Tang Bar Debug:', {
+                                placeId: result.placeId,
+                                inActivities,
+                                inVotingEvents,
+                                alreadyFavorited,
+                                votingEventsPlaceIds: votingEvents.map(e => ({ id: e.id, title: e.title, placeId: e.googlePlaceId })),
+                                activitiesPlaceIds: activities.filter(a => !a.archivedAt).map(a => ({ id: a.id, placeId: a.googlePlaceId }))
+                              });
+                            }
                             
                             // Check if already in cart (selected venues OR existing itineraries OR optimistically added)
                             const inSelectedVenues = selectedVenues.some(v => {
