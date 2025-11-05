@@ -691,6 +691,25 @@ export default function Admin() {
     },
   });
 
+  const cleanupOrphanedVotingDataMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", "/api/admin/cleanup-orphaned-voting-data");
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "Cleanup complete!",
+        description: data.message || `Removed ${data.votingEventsDeleted} orphaned voting events and ${data.votesDeleted} orphaned votes`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Cleanup failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const { data: backups, isLoading: backupsLoading } = useQuery<any[]>({
     queryKey: ["/api/admin/backups"],
     queryFn: async () => {
@@ -1720,6 +1739,38 @@ export default function Admin() {
                     <>
                       <RefreshCw className="mr-2 h-4 w-4" />
                       Fix Miscategorized Venues
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {/* Cleanup Orphaned Voting Data */}
+              <div className="bg-red-50 dark:bg-red-950/20 p-4 rounded-lg space-y-3">
+                <div>
+                  <h4 className="font-semibold text-red-900 dark:text-red-200">Clean Up Orphaned Favorites</h4>
+                  <p className="text-sm text-red-800 dark:text-red-300 mt-1">
+                    Remove favorited venues (voting events) from deleted groups. This fixes issues where venues show as "already favorited" even though they're not in the current group.
+                  </p>
+                  <p className="text-xs text-red-700 dark:text-red-400 mt-2">
+                    This will clean up orphaned data from groups that were deleted without properly cleaning up their favorites.
+                  </p>
+                </div>
+                <Button
+                  onClick={() => cleanupOrphanedVotingDataMutation.mutate()}
+                  disabled={cleanupOrphanedVotingDataMutation.isPending}
+                  className="w-full"
+                  data-testid="button-cleanup-orphaned-voting"
+                  variant="outline"
+                >
+                  {cleanupOrphanedVotingDataMutation.isPending ? (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                      Cleaning up...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Clean Up Orphaned Favorites
                     </>
                   )}
                 </Button>

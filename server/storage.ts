@@ -43,6 +43,7 @@ export interface IStorage {
   getAllGroups(): Promise<Group[]>;
   updateGroup(id: string, updates: UpdateGroup): Promise<Group>;
   softDeleteGroup(id: string): Promise<void>;
+  cleanupOrphanedVotingData(): Promise<{ votingEventsDeleted: number; votesDeleted: number }>;
   updateGroupStatus(id: string, status: string, error?: string): Promise<void>;
   addRejectedVenue(groupId: string, venueName: string): Promise<void>;
 
@@ -511,18 +512,96 @@ export class DatabaseStorage implements IStorage {
       await this.createAutomaticBackup(group.id, group.userId, 'delete');
     }
 
-    // Soft delete the group
-    await db
-      .update(groups)
-      .set({ deletedAt: sql`now()` })
-      .where(eq(groups.id, id));
+    // Get all voting event IDs for this group before deletion
+    const eventsToDelete = await db
+      .select({ id: votingEvents.id })
+      .from(votingEvents)
+      .where(eq(votingEvents.groupId, id));
+
+    const eventIds = eventsToDelete.map(e => e.id);
+
+    // Delete orphaned votes first (before deleting the voting events they reference)
+    if (eventIds.length > 0) {
+      await db
+        .delete(votes)
+        .where(inArray(votes.eventId, eventIds));
+    }
 
     // Hard delete associated voting events to prevent orphans
     await db
       .delete(votingEvents)
       .where(eq(votingEvents.groupId, id));
 
-    console.log(`[Soft Delete] Group ${id} soft-deleted and ${await db.select().from(votingEvents).where(eq(votingEvents.groupId, id)).then(r => r.length)} voting events cleaned up`);
+    // Soft delete the group
+    await db
+      .update(groups)
+      .set({ deletedAt: sql`now()` })
+      .where(eq(groups.id, id));
+
+    console.log(`[Soft Delete] Group ${id} soft-deleted, ${eventIds.length} voting events and associated votes cleaned up`);
+  }
+
+  /**
+   * Clean up orphaned voting data from deleted groups
+   * Finds voting events that belong to soft-deleted groups and removes them along with associated votes
+   */
+  async cleanupOrphanedVotingData(): Promise<{ votingEventsDeleted: number; votesDeleted: number }> {
+    // Find voting events that belong to deleted groups
+    const orphanedEvents = await db
+      .select({ id: votingEvents.id })
+      .from(votingEvents)
+      .leftJoin(groups, eq(votingEvents.groupId, groups.id))
+      .where(or(
+        sql`${groups.id} IS NULL`, // group doesn't exist at all
+        sql`${groups.deletedAt} IS NOT NULL` // group is soft deleted
+      ));
+
+    const orphanedEventIds = orphanedEvents.map(e => e.id);
+
+    let votesDeleted = 0;
+    let votingEventsDeleted = 0;
+
+    if (orphanedEventIds.length > 0) {
+      // Delete orphaned votes first
+      const deletedVotes = await db
+        .delete(votes)
+        .where(inArray(votes.eventId, orphanedEventIds))
+        .returning();
+
+      votesDeleted = deletedVotes.length;
+
+      // Delete orphaned voting events
+      const deletedEvents = await db
+        .delete(votingEvents)
+        .where(inArray(votingEvents.id, orphanedEventIds))
+        .returning();
+
+      votingEventsDeleted = deletedEvents.length;
+
+      console.log(`[Cleanup] Removed ${votingEventsDeleted} orphaned voting events and ${votesDeleted} orphaned votes`);
+    } else {
+      console.log(`[Cleanup] No orphaned voting data found`);
+    }
+
+    // Also clean up votes that reference non-existent voting events
+    const orphanedVotes = await db
+      .select({ id: votes.id })
+      .from(votes)
+      .leftJoin(votingEvents, eq(votes.eventId, votingEvents.id))
+      .where(sql`${votingEvents.id} IS NULL`);
+
+    if (orphanedVotes.length > 0) {
+      const orphanedVoteIds = orphanedVotes.map(v => v.id);
+      const additionalDeletedVotes = await db
+        .delete(votes)
+        .where(inArray(votes.id, orphanedVoteIds))
+        .returning();
+
+      votesDeleted += additionalDeletedVotes.length;
+      console.log(`[Cleanup] Removed ${additionalDeletedVotes.length} additional votes referencing non-existent events`);
+    }
+
+    return { votingEventsDeleted, votesDeleted };
   }
 
   // Automatic backup function - creates snapshot of group data
@@ -690,7 +769,9 @@ export class DatabaseStorage implements IStorage {
         netVotes: sql<number>`COUNT(CASE WHEN ${votes.voteType} = 'upvote' THEN 1 END) - COUNT(CASE WHEN ${votes.voteType} = 'downvote' THEN 1 END)`.as('netVotes'),
       })
       .from(votingEvents)
+      .innerJoin(groups, eq(votingEvents.groupId, groups.id))
       .leftJoin(votes, eq(votingEvents.id, votes.eventId))
+      .where(isNull(groups.deletedAt))
       .groupBy(votingEvents.id)
       .orderBy(desc(sql`COUNT(CASE WHEN ${votes.voteType} = 'upvote' THEN 1 END) - COUNT(CASE WHEN ${votes.voteType} = 'downvote' THEN 1 END)`))
       .limit(10);

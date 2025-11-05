@@ -10,7 +10,8 @@
       "Bash(npx tsc:*)",
       "Bash(lsof:*)",
       "Bash(netstat:*)",
-      "Bash(ss:*)"
+      "Bash(ss:*)",
+      "Bash(kill:*)"
     ],
     "deny": [],
     "ask": []

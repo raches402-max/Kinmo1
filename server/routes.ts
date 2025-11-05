@@ -7211,6 +7211,33 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Admin endpoint to clean up orphaned voting data from deleted groups
+  app.post("/api/admin/cleanup-orphaned-voting-data", isAuthenticated, async (req: any, res) => {
+    try {
+      // Check if user is admin
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+
+      const adminEmails = getAdminEmails();
+      if (!user || !adminEmails.includes(user.email || '')) {
+        return res.status(403).json({ message: "Unauthorized: Admin access required" });
+      }
+
+      console.log("[Cleanup] Starting orphaned voting data cleanup...");
+      const result = await storage.cleanupOrphanedVotingData();
+
+      res.json({
+        success: true,
+        votingEventsDeleted: result.votingEventsDeleted,
+        votesDeleted: result.votesDeleted,
+        message: `Cleaned up ${result.votingEventsDeleted} orphaned voting events and ${result.votesDeleted} orphaned votes`
+      });
+    } catch (error: any) {
+      console.error("Error cleaning up orphaned voting data:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Admin endpoint to recategorize all curated venues based on their Google types
   app.post("/api/admin/recategorize-venues", isAuthenticated, async (req: any, res) => {
     console.log("[Venue Recategorization] ===== ENDPOINT CALLED =====");
