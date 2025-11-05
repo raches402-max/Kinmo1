@@ -18,12 +18,20 @@ app.use(helmet({
 }));
 
 // Security: CORS protection
+const isDevelopment = env.NODE_ENV === 'development';
 const allowedOrigins = env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5000'];
+
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
 
+    // In development mode, allow all origins for Replit preview
+    if (isDevelopment) {
+      return callback(null, true);
+    }
+
+    // In production, check against allowedOrigins
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
