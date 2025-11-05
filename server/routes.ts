@@ -6,11 +6,41 @@ import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberS
 import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue, analyzePreferencePatterns, parseSchedulingPrompt, detectCategory } from "./openai";
 import { searchPlaces, searchNearbyPlaces, geocodeLocation, clearPlacesCache, getCacheStats, getPlaceDetails } from "./google-places";
 import { setupAuth, isAuthenticated } from "./replitAuth";
+import {
+  requireGroupOwnership,
+  requireGroupAccess,
+  requireItineraryAccess,
+  requireVotingEventAccess,
+  requireCollectionOwnership,
+  requireMemberAccess,
+  requireAdmin,
+  getUserId
+} from "./authorization";
 import { validateItinerary } from "./itinerary-validation";
 import { sendMemberWelcome, type EmailRecipient, type MemberWelcomeData } from "./email-service";
 import { db } from "./db";
 import { eq, sql, and, or, gte, desc } from "drizzle-orm";
 import { format } from 'date-fns';
+import { validate, safeParse } from './validation-middleware';
+import {
+  createGroupSchema,
+  createRsvpSchema,
+  sendItinerarySchema,
+  generateCategorySchema,
+  regenerateCategorySchema,
+  postEventFeedbackSchema,
+  switchUserSchema,
+  importVenuesSchema,
+  joinGroupSchema,
+  updateGroupRadiusSchema,
+  updateAutomationSchema,
+  updateActivityFeedbackSchema,
+  castVoteSchema,
+  addItineraryItemsSchema,
+  saveItinerarySchema,
+  organizerRsvpSchema,
+  createItineraryRsvpSchema,
+} from './validation-schemas';
 
 /**
  * Get list of admin emails based on environment
@@ -356,16 +386,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Bulk import curated venues (admin only - for seeding SF data)
-  app.post('/api/admin/import-venues', async (req, res) => {
+  app.post('/api/admin/import-venues', isAuthenticated, requireAdmin(), async (req, res) => {
     try {
       console.log('[Venue Import] Endpoint hit, body:', typeof req.body, Object.keys(req.body || {}));
-      
-      const { venues } = req.body;
-      
-      if (!Array.isArray(venues)) {
-        console.log('[Venue Import] venues is not an array:', typeof venues);
-        return res.status(400).json({ message: "venues must be an array", received: typeof venues });
-      }
+
+      // Validate request body
+      const validatedData = safeParse(importVenuesSchema, req.body, res);
+      if (!validatedData) return;
+
+      const { venues } = validatedData;
 
       console.log(`[Venue Import] Starting import of ${venues.length} venues`);
 
@@ -981,10 +1010,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create group with AI suggestions (protected)
   app.post("/api/groups", isAuthenticated, async (req: any, res) => {
     try {
-      const { members, ...groupData } = req.body;
+      // Validate entire request body with createGroupSchema
+      const validatedInput = safeParse(createGroupSchema, req.body, res);
+      if (!validatedInput) return;
+
+      const { members, ...groupData } = validatedInput;
       const userId = req.user.claims.sub;
 
-      // Validate group data
+      // Validate group data for database insertion
       const validatedGroup = insertGroupSchema.parse(groupData);
 
       // Geocode location to get coordinates and timezone
@@ -1083,13 +1116,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update group details
-  app.patch("/api/groups/:id", async (req, res) => {
+  app.patch("/api/groups/:id", isAuthenticated, requireGroupOwnership(), async (req: any, res) => {
     try {
-      const group = await storage.getGroup(req.params.id);
-      if (!group) {
-        return res.status(404).json({ message: "Group not found" });
-      }
-
+      // Group is already fetched and validated by requireGroupOwnership middleware
+      const group = req.group;
       const validatedUpdates = updateGroupSchema.parse(req.body);
 
       // If location is being updated, geocode it
@@ -1116,13 +1146,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update search radius
-  app.patch("/api/groups/:id/radius", async (req, res) => {
+  app.patch("/api/groups/:id/radius", isAuthenticated, requireGroupOwnership(), async (req: any, res) => {
     try {
-      const { searchRadius } = req.body;
+      // Validate request body
+      const validatedData = safeParse(updateGroupRadiusSchema, req.body, res);
+      if (!validatedData) return;
 
-      if (![2, 10, 30, 50].includes(searchRadius)) {
-        return res.status(400).json({ message: "Invalid search radius. Must be 2, 10, 30, or 50 miles." });
-      }
+      const { searchRadius } = validatedData;
 
       const updatedGroup = await storage.updateGroup(req.params.id, { searchRadius });
       res.json(updatedGroup);
@@ -1132,8 +1162,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update automation settings and category filters
-  app.patch("/api/groups/:id/automation", async (req, res) => {
+  app.patch("/api/groups/:id/automation", isAuthenticated, requireGroupOwnership(), async (req: any, res) => {
     try {
+      // Validate request body
+      const validatedData = safeParse(updateAutomationSchema, req.body, res);
+      if (!validatedData) return;
+
       const group = await storage.getGroup(req.params.id);
       if (!group) {
         return res.status(404).json({ message: "Group not found" });
@@ -1157,30 +1191,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       
       // Pattern 1: Single field/value pair (from mutation)
-      if (req.body.field && req.body.value !== undefined) {
-        const apiField = req.body.field;
-        const value = req.body.value;
-        
-        if (typeof value !== 'boolean') {
-          return res.status(400).json({ message: `${apiField} must be a boolean` });
-        }
-        
+      if (validatedData.field && validatedData.value !== undefined) {
+        const apiField = validatedData.field;
+        const value = validatedData.value;
+
         const dbField = fieldMapping[apiField];
         if (!dbField) {
           return res.status(400).json({ message: `Invalid field: ${apiField}` });
         }
-        
+
         updates[dbField] = value;
       } else {
         // Pattern 2: Direct field updates (accepts both snake_case and camelCase)
-        for (const apiField in req.body) {
-          const value = req.body[apiField];
+        for (const apiField in validatedData) {
+          const value = validatedData[apiField as keyof typeof validatedData];
           const dbField = fieldMapping[apiField];
-          
-          if (dbField) {
-            if (typeof value !== 'boolean') {
-              return res.status(400).json({ message: `${apiField} must be a boolean` });
-            }
+
+          if (dbField && typeof value === 'boolean') {
             updates[dbField] = value;
           }
         }
@@ -1231,19 +1258,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update activity feedback
-  app.patch("/api/activities/:activityId/feedback", async (req, res) => {
+  app.patch("/api/activities/:activityId/feedback", isAuthenticated, async (req: any, res) => {
     try {
-      const { feedback } = req.body;
-      if (feedback !== null && !["love", "more", "less"].includes(feedback)) {
-        return res.status(400).json({ message: "Invalid feedback value" });
+      // Validate request body
+      const validatedData = safeParse(updateActivityFeedbackSchema, req.body, res);
+      if (!validatedData) return;
+
+      const { feedback } = validatedData;
+
+      // First fetch the activity to check ownership
+      const activities = await storage.getAllGroupActivities(''); // We'll use a workaround
+      const activity = activities.find(a => a.id === req.params.activityId);
+
+      if (!activity) {
+        return res.status(404).json({ message: "Activity not found" });
       }
-      const activity = await storage.updateActivityFeedback(req.params.activityId, feedback);
-      
-      if (activity.groupId) {
-        await trackFeedbackAndMaybeAnalyze(activity.groupId);
+
+      // Verify user owns the group
+      const userId = getUserId(req);
+      const group = await storage.getGroup(activity.groupId);
+
+      if (!group || group.userId !== userId) {
+        return res.status(403).json({ message: "Forbidden: You don't have access to this activity" });
       }
-      
-      res.json(activity);
+
+      const updatedActivity = await storage.updateActivityFeedback(req.params.activityId, feedback);
+
+      if (updatedActivity.groupId) {
+        await trackFeedbackAndMaybeAnalyze(updatedActivity.groupId);
+      }
+
+      res.json(updatedActivity);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -1252,7 +1297,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Join a group
   app.post("/api/groups/:id/join", async (req, res) => {
     try {
-      const { name, email, availability, preferences } = req.body;
+      // Validate request body
+      const validatedData = safeParse(joinGroupSchema, req.body, res);
+      if (!validatedData) return;
+
+      const { name, email, availability, preferences } = validatedData;
 
       const memberData = {
         groupId: req.params.id,
@@ -1319,8 +1368,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete member
-  app.delete("/api/members/:id", async (req, res) => {
+  app.delete("/api/members/:id", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = getUserId(req);
+      const member = await storage.getMember(req.params.id);
+
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+
+      // Verify user owns the group
+      const group = await storage.getGroup(member.groupId);
+      if (!group || group.userId !== userId) {
+        return res.status(403).json({ message: "Forbidden: You don't have access to this member" });
+      }
+
       await storage.deleteMember(req.params.id);
       res.json({ success: true });
     } catch (error: any) {
@@ -1492,7 +1554,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update member RSVP status (no auth required, validates claim token)
-  app.patch("/api/members/:id/rsvp", async (req, res) => {
+  app.patch("/api/members/:id/rsvp", requireMemberAccess(), async (req: any, res) => {
     try {
       const { rsvpStatus, claimToken } = req.body;
 
@@ -1526,7 +1588,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update member preferences (no auth required, validates claim token)
-  app.patch("/api/members/:id/preferences", async (req, res) => {
+  app.patch("/api/members/:id/preferences", requireMemberAccess(), async (req: any, res) => {
     try {
       const { memberLocation, memberBudgetMin, memberBudgetMax, memberAvailability, claimToken } = req.body;
 
@@ -1561,7 +1623,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update member constraints from RSVP follow-ups (no auth required, validates claim token)
-  app.patch("/api/members/:id/constraints", async (req, res) => {
+  app.patch("/api/members/:id/constraints", requireMemberAccess(), async (req: any, res) => {
     try {
       const { memberConstraints, claimToken } = req.body;
 
@@ -1628,7 +1690,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Event Hosting Routes
 
   // Toggle member hosting availability (authenticated or via claim token)
-  app.patch("/api/members/:id/hosting-toggle", async (req: any, res) => {
+  app.patch("/api/members/:id/hosting-toggle", requireMemberAccess(), async (req: any, res) => {
     try {
       const { openToHosting, claimToken } = req.body;
       const userId = req.user?.claims?.sub;
@@ -1659,7 +1721,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Volunteer to host an event (authenticated or via claim token)
-  app.post("/api/itineraries/:id/volunteer-host", async (req: any, res) => {
+  app.post("/api/itineraries/:id/volunteer-host", requireMemberAccess(), async (req: any, res) => {
     try {
       const { claimToken } = req.body;
       const userId = req.user?.claims?.sub;
@@ -1719,7 +1781,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Hand off hosting to another member (authenticated or via claim token)
-  app.post("/api/itineraries/:id/hand-off-host", async (req: any, res) => {
+  app.post("/api/itineraries/:id/hand-off-host", requireMemberAccess(), async (req: any, res) => {
     try {
       const { newHostMemberId, claimToken } = req.body;
       const userId = req.user?.claims?.sub;
@@ -1791,7 +1853,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Rotating Host Assignment Routes
 
   // Request a host for an event (organizer only)
-  app.post("/api/groups/:groupId/request-host", async (req: any, res) => {
+  app.post("/api/groups/:groupId/request-host", isAuthenticated, requireGroupOwnership(), async (req: any, res) => {
     try {
       const { itineraryId } = req.body;
       const userId = req.user?.claims?.sub;
@@ -1890,7 +1952,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Respond to host assignment (accept/decline)
-  app.post("/api/host-assignments/:assignmentId/respond", async (req: any, res) => {
+  app.post("/api/host-assignments/:assignmentId/respond", requireMemberAccess(), async (req: any, res) => {
     try {
       const { accepted, claimToken } = req.body;
       const userId = req.user?.claims?.sub;
@@ -2268,15 +2330,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create or update RSVP for an itinerary (no auth required, validates invite token)
   app.post("/api/rsvps", async (req, res) => {
     try {
-      const { itineraryId, inviteToken, response, rsvpFeedback, claimedMemberId, guestName, additionalAttendees, numberOfKids } = req.body;
+      // Validate request body
+      const validatedData = safeParse(createRsvpSchema, req.body, res);
+      if (!validatedData) return;
 
-      if (!itineraryId || !inviteToken || !response) {
-        return res.status(400).json({ message: "Itinerary ID, invite token, and response required" });
-      }
-
-      if (!["yes", "maybe", "no"].includes(response)) {
-        return res.status(400).json({ message: "Invalid response. Must be yes, maybe, or no" });
-      }
+      const { itineraryId, inviteToken, response, rsvpFeedback, claimedMemberId, guestName, additionalAttendees, numberOfKids } = validatedData;
 
       // Verify invite token
       const invites = await db
@@ -2441,13 +2499,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Organizer RSVP - allows authenticated group owners to RSVP to their own events
   app.post("/api/itineraries/:itineraryId/organizer-rsvp", isAuthenticated, async (req: any, res) => {
     try {
+      // Validate request body
+      const validatedData = safeParse(organizerRsvpSchema, req.body, res);
+      if (!validatedData) return;
+
       const userId = req.user.claims.sub;
       const { itineraryId } = req.params;
-      const { response, rsvpFeedback } = req.body;
-
-      if (!response || !["yes", "maybe", "no"].includes(response)) {
-        return res.status(400).json({ message: "Valid response required (yes, maybe, or no)" });
-      }
+      const { response, rsvpFeedback } = validatedData;
 
       // Verify itinerary exists and user is the group owner
       const itinerary = await storage.getItinerary(itineraryId);
@@ -2627,7 +2685,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create a voting event (authenticated) - enriches with Google Places data
-  app.post("/api/voting-events", isAuthenticated, async (req: any, res) => {
+  app.post("/api/voting-events", isAuthenticated, requireGroupOwnership(), async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const validatedEvent = insertVotingEventSchema.parse(req.body);
@@ -2705,7 +2763,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update a voting event (authenticated)
-  app.patch("/api/voting-events/:id", isAuthenticated, async (req: any, res) => {
+  app.patch("/api/voting-events/:id", isAuthenticated, requireVotingEventAccess(), async (req: any, res) => {
     try {
       const event = await storage.getVotingEvent(req.params.id);
       if (!event) {
@@ -2726,7 +2784,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete a voting event (authenticated)
-  app.delete("/api/voting-events/:id", isAuthenticated, async (req: any, res) => {
+  app.delete("/api/voting-events/:id", isAuthenticated, requireVotingEventAccess(), async (req: any, res) => {
     try {
       const event = await storage.getVotingEvent(req.params.id);
       if (!event) {
@@ -2748,12 +2806,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Cast a vote (authenticated)
   app.post("/api/voting-events/:id/vote", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const { voteType } = req.body;
+      // Validate request body
+      const validatedData = safeParse(castVoteSchema, req.body, res);
+      if (!validatedData) return;
 
-      if (!['upvote', 'downvote'].includes(voteType)) {
-        return res.status(400).json({ message: "Invalid vote type" });
-      }
+      const userId = req.user.claims.sub;
+      const { voteType } = validatedData;
 
       const vote = await storage.castVote(req.params.id, userId, voteType);
       
@@ -2890,18 +2948,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Regenerate specific category
-  app.post("/api/groups/:id/activities/regenerate-category", async (req, res) => {
+  app.post("/api/groups/:id/activities/regenerate-category", isAuthenticated, requireGroupOwnership(), async (req: any, res) => {
     try {
       const group = await storage.getGroup(req.params.id);
       if (!group) {
         return res.status(404).json({ message: "Group not found" });
       }
 
-      const { category, currentVenueNames, checkedActivityIds } = req.body;
+      // Validate request body
+      const validatedData = safeParse(regenerateCategorySchema, req.body, res);
+      if (!validatedData) return;
 
-      if (!category || !['meal', 'cafes', 'drinks', 'dessert', 'experiences'].includes(category)) {
-        return res.status(400).json({ message: "Invalid category" });
-      }
+      const { category, currentVenueNames, checkedActivityIds } = validatedData;
 
       console.log(`[Category Regen] Regenerating ${category} for group ${req.params.id}`);
       console.log(`[Category Regen] Avoiding ${currentVenueNames?.length || 0} current venues`);
@@ -3308,7 +3366,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`  Categories: ${effectiveCategories ? JSON.stringify(effectiveCategories) : 'null'} (member: ${memberPreferences?.categoryPreferencesOverride ? 'set' : 'null'}, profile: ${userProfile?.activityPreferences ? 'set' : 'null'})`);
       console.log(`  Availability: ${effectiveAvailability ? 'set' : 'null'} (member: ${memberPreferences?.availabilityOverride ? 'set' : 'null'}, profile: ${userProfile?.personalAvailability ? 'set' : 'null'}, group: ${group.availability ? 'set' : 'null'})`);
 
-      const { categories, category, location, radius, count = 9, sortBy = 'rating', tempInstructions } = req.body;
+      // Validate request body
+      const validatedData = safeParse(generateCategorySchema, req.body, res);
+      if (!validatedData) return;
+
+      const { categories, category, location, radius, count = 9, sortBy = 'rating', tempInstructions } = validatedData;
 
       // Support both single category (backward compatibility) and multiple categories
       let categoriesToProcess = categories || (category ? [category] : []);
@@ -3841,7 +3903,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Analyze preference patterns and generate insights
-  app.post("/api/groups/:id/analyze-patterns", async (req, res) => {
+  app.post("/api/groups/:id/analyze-patterns", isAuthenticated, requireGroupOwnership(), async (req: any, res) => {
     try {
       const group = await storage.getGroup(req.params.id);
       if (!group) {
@@ -3907,7 +3969,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Clear all activities for a group
-  app.delete("/api/groups/:id/activities", async (req, res) => {
+  app.delete("/api/groups/:id/activities", isAuthenticated, requireGroupOwnership(), async (req: any, res) => {
     try {
       const group = await storage.getGroup(req.params.id);
       if (!group) {
@@ -3956,7 +4018,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Send email invitations (simplified - logs to console for MVP)
-  app.post("/api/groups/:id/send-invitations", async (req, res) => {
+  app.post("/api/groups/:id/send-invitations", isAuthenticated, requireGroupOwnership(), async (req: any, res) => {
     try {
       const group = await storage.getGroup(req.params.id);
       if (!group) {
@@ -4005,7 +4067,7 @@ Looking forward to planning great activities together!
   });
 
   // Generate swipeable concepts for preference refinement
-  app.post("/api/groups/:id/swipe-concepts", async (req, res) => {
+  app.post("/api/groups/:id/swipe-concepts", isAuthenticated, requireGroupOwnership(), async (req: any, res) => {
     try {
       const group = await storage.getGroup(req.params.id);
       if (!group) {
@@ -4038,7 +4100,7 @@ Looking forward to planning great activities together!
   });
 
   // Save swipe feedback (like or pass)
-  app.post("/api/groups/:id/swipe-feedback", async (req, res) => {
+  app.post("/api/groups/:id/swipe-feedback", isAuthenticated, requireGroupOwnership(), async (req: any, res) => {
     try {
       const { conceptType, conceptDescription, feedback } = req.body;
 
@@ -4392,7 +4454,7 @@ Looking forward to planning great activities together!
   });
 
   // Get nearby add-on suggestions for selected venues
-  app.post("/api/groups/:groupId/nearby-suggestions", async (req, res) => {
+  app.post("/api/groups/:groupId/nearby-suggestions", isAuthenticated, requireGroupOwnership(), async (req: any, res) => {
     try {
       const { selectedVenues } = req.body; // Array of { sourceType, sourceId }
       const { groupId } = req.params;
@@ -4644,14 +4706,14 @@ Looking forward to planning great activities together!
   });
 
   // Add items to an existing itinerary
-  app.post("/api/itineraries/:id/items", isAuthenticated, async (req, res) => {
+  app.post("/api/itineraries/:id/items", isAuthenticated, requireItineraryAccess(), async (req: any, res) => {
     try {
-      const itineraryId = req.params.id;
-      const { items } = req.body; // Array of { sourceType, sourceId }
+      // Validate request body
+      const validatedData = safeParse(addItineraryItemsSchema, req.body, res);
+      if (!validatedData) return;
 
-      if (!items || !Array.isArray(items) || items.length === 0) {
-        return res.status(400).json({ message: "No items provided" });
-      }
+      const itineraryId = req.params.id;
+      const { items } = validatedData;
 
       // Verify itinerary exists
       const itinerary = await storage.getItinerary(itineraryId);
@@ -4802,7 +4864,7 @@ Looking forward to planning great activities together!
   });
   
   // Create time slots for an itinerary (organizer only)
-  app.post("/api/itineraries/:itineraryId/time-slots", isAuthenticated, async (req: any, res) => {
+  app.post("/api/itineraries/:itineraryId/time-slots", isAuthenticated, requireItineraryAccess(), async (req: any, res) => {
     try {
       const { itineraryId } = req.params;
       const { timeSlots } = req.body; // Array of { proposedDateTime, label }
@@ -4935,9 +4997,13 @@ Looking forward to planning great activities together!
   });
 
   // Save an itinerary (creates a copy so the draft remains editable)
-  app.post("/api/itineraries/:id/save", isAuthenticated, async (req: any, res) => {
+  app.post("/api/itineraries/:id/save", isAuthenticated, requireItineraryAccess(), async (req: any, res) => {
     try {
-      let { name, timingRecommendations } = req.body;
+      // Validate request body
+      const validatedData = safeParse(saveItinerarySchema, req.body, res);
+      if (!validatedData) return;
+
+      let { name, timingRecommendations } = validatedData;
       const userId = req.user.claims.sub;
       
       // Get the original itinerary with items
@@ -4994,7 +5060,7 @@ Looking forward to planning great activities together!
   });
 
   // Duplicate a saved itinerary to create an editable draft copy
-  app.post("/api/itineraries/:id/duplicate", isAuthenticated, async (req: any, res) => {
+  app.post("/api/itineraries/:id/duplicate", isAuthenticated, requireItineraryAccess(), async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       
@@ -5111,9 +5177,13 @@ Looking forward to planning great activities together!
   });
 
   // Send an itinerary as a proposal to the group
-  app.post("/api/itineraries/:id/send", isAuthenticated, async (req: any, res) => {
+  app.post("/api/itineraries/:id/send", isAuthenticated, requireItineraryAccess(), async (req: any, res) => {
     try {
-      const { isPrimary, eventDate, eventDates, autoScheduleConfig } = req.body;
+      // Validate request body
+      const validatedData = safeParse(sendItinerarySchema, req.body, res);
+      if (!validatedData) return;
+
+      const { isPrimary, eventDate, eventDates, autoScheduleConfig } = validatedData;
       const userId = req.user.claims.sub;
       
       const itinerary = await storage.getItinerary(req.params.id);
@@ -5565,7 +5635,7 @@ Looking forward to planning great activities together!
   }
 
   // Send a backup itinerary linked to another itinerary
-  app.post("/api/itineraries/:id/send-backup", isAuthenticated, async (req, res) => {
+  app.post("/api/itineraries/:id/send-backup", isAuthenticated, requireItineraryAccess(), async (req: any, res) => {
     try {
       const { backupForItineraryId } = req.body;
       const updates: UpdateItinerary = {
@@ -5615,7 +5685,7 @@ Looking forward to planning great activities together!
   });
 
   // Finalize an itinerary as "The Plan" and trigger next auto-event
-  app.post("/api/itineraries/:id/finalize", isAuthenticated, async (req, res) => {
+  app.post("/api/itineraries/:id/finalize", isAuthenticated, requireItineraryAccess(), async (req: any, res) => {
     try {
       const itinerary = await storage.getItinerary(req.params.id);
       if (!itinerary) {
@@ -5681,7 +5751,11 @@ Looking forward to planning great activities together!
   // Create an RSVP for an itinerary
   app.post("/api/itineraries/:id/rsvps", async (req, res) => {
     try {
-      const { response, constraintText, memberId, userId, memberName } = req.body;
+      // Validate request body
+      const validatedData = safeParse(createItineraryRsvpSchema, req.body, res);
+      if (!validatedData) return;
+
+      const { response, constraintText, memberId, userId, memberName } = validatedData;
       const rsvp = await storage.createRsvp({
         itineraryId: req.params.id,
         response,
@@ -5865,7 +5939,7 @@ Looking forward to planning great activities together!
   });
 
   // Create guest invite for an itinerary
-  app.post("/api/itineraries/:itineraryId/guest-invites", isAuthenticated, async (req: any, res) => {
+  app.post("/api/itineraries/:itineraryId/guest-invites", isAuthenticated, requireItineraryAccess(), async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const { itineraryId } = req.params;
@@ -6013,9 +6087,13 @@ Looking forward to planning great activities together!
   // Submit post-event feedback
   app.post("/api/itineraries/:id/post-event-feedback", isAuthenticated, async (req: any, res) => {
     try {
+      // Validate request body
+      const validatedData = safeParse(postEventFeedbackSchema, req.body, res);
+      if (!validatedData) return;
+
       const userId = req.user.claims.sub;
       const { itineraryId } = { itineraryId: req.params.id };
-      const { actuallyAttended, venueRating, frequencyPreference, wouldDoAgain, improvementNotes } = req.body;
+      const { actuallyAttended, venueRating, frequencyPreference, wouldDoAgain, improvementNotes } = validatedData;
 
       // Get the itinerary to check group ownership
       const [itinerary] = await db
@@ -6577,10 +6655,11 @@ Looking forward to planning great activities together!
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
 
-      const { targetUserId } = req.body;
-      if (!targetUserId) {
-        return res.status(400).json({ message: "targetUserId is required" });
-      }
+      // Validate request body
+      const validatedData = safeParse(switchUserSchema, req.body, res);
+      if (!validatedData) return;
+
+      const { targetUserId } = validatedData;
 
       // Get the target user to verify they're a test account
       const targetUser = await storage.getUser(targetUserId);

@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(env)",
+      "Bash(npm run dev:*)",
+      "Bash(curl:*)",
+      "Bash(for i in {1..5})",
+      "Bash(do echo \"Request $i:\")",
+      "Bash(done)",
+      "Bash(npx tsc:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
