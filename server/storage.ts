@@ -823,8 +823,7 @@ export class DatabaseStorage implements IStorage {
         isNull(groups.deletedAt)
       ))
       .groupBy(votingEvents.id)
-      .orderBy(desc(sql`COUNT(CASE WHEN ${votes.voteType} = 'upvote' THEN 1 END) - COUNT(CASE WHEN ${votes.voteType} = 'downvote' THEN 1 END)`))
-      .limit(10);
+      .orderBy(desc(sql`COUNT(CASE WHEN ${votes.voteType} = 'upvote' THEN 1 END) - COUNT(CASE WHEN ${votes.voteType} = 'downvote' THEN 1 END)`));
 
     return events;
   }

@@ -1,7 +1,7 @@
 import { Client } from "@googlemaps/google-maps-services-js";
 import { db } from "./db";
 import { placesCache, searchCache, geocodingCache, curatedVenues } from "@shared/schema";
-import { eq, and, or, sql as drizzleSql, like, desc, ilike } from "drizzle-orm";
+import { eq, and, or, sql as drizzleSql, like, desc, ilike, inArray } from "drizzle-orm";
 
 // Legacy client for Geocoding and Timezone (still using old API)
 const legacyClient = new Client({});
@@ -517,6 +517,7 @@ export interface PlaceResult {
   types: string[];
   location?: { lat: number; lng: number };
   review?: string; // Short positive review (80-100 chars)
+  distance?: number; // Distance in miles from search location
 }
 
 // Helper function to extract city from Google Places addressComponents
@@ -580,13 +581,13 @@ function shuffleArray<T>(array: T[]): T[] {
 /**
  * Search curated venues (cache-first strategy)
  * Returns pre-loaded venues that match the query and location
- * STRICT GEOGRAPHIC VALIDATION: Only returns results if location is confirmed to be within SF
+ * GEOGRAPHIC VALIDATION: Only returns results if location is confirmed to be within Bay Area
  * VARIETY OPTIMIZATION: Prioritizes fresh (unseen) venues and randomizes results
  */
 async function searchCuratedVenues(
   query: string,
   location: string,
-  radiusMiles: number = 2,
+  radiusMiles: number = 30,
   coordinates?: { lat: number; lng: number },
   maxResults: number = 15,
   venueType?: string,
@@ -595,49 +596,53 @@ async function searchCuratedVenues(
   try {
     console.log(`[Curated Search] Searching for "${query}" in ${location}`);
 
-    // CRITICAL: Strict geographic validation
-    // Only use curated SF venues if we can confirm the search is for SF
+    // Geographic validation for Bay Area
+    // Use curated venues if search is for SF Bay Area
     const locationLower = location.toLowerCase();
-    const isSFLocation = locationLower.includes('san francisco') || 
-                         locationLower.includes('sf') || 
-                         locationLower.includes(' sf ') ||
-                         locationLower.includes('sf,');
-    
-    // SF bounding box (approximate): lat 37.7-37.85, lng -122.52 to -122.35
-    const SF_BOUNDS = {
-      latMin: 37.7,
-      latMax: 37.85,
-      lngMin: -122.52,
-      lngMax: -122.35
+    const isBayAreaLocation = locationLower.includes('san francisco') ||
+                              locationLower.includes('sf') ||
+                              locationLower.includes(' sf ') ||
+                              locationLower.includes('sf,') ||
+                              locationLower.includes('san mateo') ||
+                              locationLower.includes('oakland') ||
+                              locationLower.includes('san jose') ||
+                              locationLower.includes('bay area');
+
+    // Bay Area bounding box (approximate): covers SF, Oakland, San Mateo, San Jose
+    const BAY_AREA_BOUNDS = {
+      latMin: 37.2,
+      latMax: 38.0,
+      lngMin: -122.6,
+      lngMax: -121.5
     };
-    
-    // Geographic validation: Require EITHER string match OR coordinates within SF bounds
-    let isValidSFSearch = false;
-    
-    if (isSFLocation) {
-      // Location string explicitly mentions SF
-      isValidSFSearch = true;
-      console.log(`[Curated Search] ✓ Location string matches SF: "${location}"`);
+
+    // Geographic validation: Require EITHER string match OR coordinates within Bay Area bounds
+    let isValidBayAreaSearch = false;
+
+    if (isBayAreaLocation) {
+      // Location string explicitly mentions Bay Area city
+      isValidBayAreaSearch = true;
+      console.log(`[Curated Search] ✓ Location string matches Bay Area: "${location}"`);
     } else if (coordinates) {
-      // Check if coordinates fall within SF bounding box
-      const inSFBounds = coordinates.lat >= SF_BOUNDS.latMin &&
-                         coordinates.lat <= SF_BOUNDS.latMax &&
-                         coordinates.lng >= SF_BOUNDS.lngMin &&
-                         coordinates.lng <= SF_BOUNDS.lngMax;
-      
-      if (inSFBounds) {
-        isValidSFSearch = true;
-        console.log(`[Curated Search] ✓ Coordinates within SF bounds: ${coordinates.lat}, ${coordinates.lng}`);
+      // Check if coordinates fall within Bay Area bounding box
+      const inBayAreaBounds = coordinates.lat >= BAY_AREA_BOUNDS.latMin &&
+                              coordinates.lat <= BAY_AREA_BOUNDS.latMax &&
+                              coordinates.lng >= BAY_AREA_BOUNDS.lngMin &&
+                              coordinates.lng <= BAY_AREA_BOUNDS.lngMax;
+
+      if (inBayAreaBounds) {
+        isValidBayAreaSearch = true;
+        console.log(`[Curated Search] ✓ Coordinates within Bay Area bounds: ${coordinates.lat}, ${coordinates.lng}`);
       } else {
-        console.log(`[Curated Search] ✗ Coordinates outside SF bounds: ${coordinates.lat}, ${coordinates.lng}`);
+        console.log(`[Curated Search] ✗ Coordinates outside Bay Area bounds: ${coordinates.lat}, ${coordinates.lng}`);
       }
     } else {
-      console.log(`[Curated Search] ✗ No SF location match and no coordinates provided`);
+      console.log(`[Curated Search] ✗ No Bay Area location match and no coordinates provided`);
     }
-    
-    // If not a valid SF search, skip curated venues entirely
-    if (!isValidSFSearch) {
-      console.log(`[Curated Search] Skipping curated venues - not a SF search`);
+
+    // If not a valid Bay Area search, skip curated venues entirely
+    if (!isValidBayAreaSearch) {
+      console.log(`[Curated Search] Skipping curated venues - not a Bay Area search`);
       return [];
     }
 
@@ -659,10 +664,10 @@ async function searchCuratedVenues(
 
     // Build SQL query
     const conditions = [];
-    
-    // Filter by active status AND region (always require san_francisco)
+
+    // Filter by active status AND Bay Area regions
     conditions.push(eq(curatedVenues.isActive, true));
-    conditions.push(eq(curatedVenues.region, 'san_francisco'));
+    conditions.push(inArray(curatedVenues.region, ['san_francisco', 'san_mateo', 'oakland', 'san_jose', 'bay_area']));
     
     // CRITICAL FIX: Add text search for venue name
     // This ensures "souvla" returns venues with "souvla" in the name
@@ -771,7 +776,8 @@ async function searchCuratedVenues(
         location: {
           lat: parseFloat(venue.latitude),
           lng: parseFloat(venue.longitude)
-        }
+        },
+        distance: (venue as any).distance || undefined
       };
     }));
 

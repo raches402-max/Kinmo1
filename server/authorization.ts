@@ -46,7 +46,8 @@ export function requireGroupOwnership() {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const userId = getUserId(req);
-      const groupId = req.params.id || req.params.groupId;
+      // Check URL params first, then fall back to request body for POST endpoints
+      const groupId = req.params.id || req.params.groupId || (req.body as any)?.groupId;
 
       if (!groupId) {
         return res.status(400).json({ message: "Group ID is required" });

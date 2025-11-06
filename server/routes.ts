@@ -2761,6 +2761,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`[Voting Event] Skipping enrichment check for "${validatedEvent.title}"`);
       }
 
+      // Check for duplicates (unless explicitly allowing duplicates)
+      const allowDuplicate = req.body.allowDuplicate === true;
+      if (!allowDuplicate && enrichedEvent.googlePlaceId) {
+        const existingEvents = await storage.getGroupVotingEvents(validatedEvent.groupId);
+        const duplicate = existingEvents.find(e => e.googlePlaceId === enrichedEvent.googlePlaceId);
+
+        if (duplicate) {
+          console.log(`[Voting Event] Duplicate detected: "${validatedEvent.title}" (Google Place ID: ${enrichedEvent.googlePlaceId})`);
+          return res.status(409).json({
+            message: "This venue is already in your favorites",
+            existingEvent: duplicate
+          });
+        }
+      }
+
       const event = await storage.createVotingEvent(enrichedEvent, userId);
       res.json({ event, enrichmentStatus });
     } catch (error: any) {

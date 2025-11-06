@@ -13,6 +13,7 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -20,7 +21,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, ChevronRight, ChevronLeft, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell, Edit2, Edit, Compass, Home, UserCheck, MessageCircle, TrendingUp, AlertCircle, Users, Loader2, Map, Info } from "lucide-react";
+import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, ChevronRight, ChevronLeft, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell, Edit2, Edit, Compass, Home, UserCheck, MessageCircle, TrendingUp, AlertCircle, Users, Loader2, Map, Info, MoreVertical } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -652,6 +653,18 @@ export default function GroupDetail() {
   const [myPreferencesMeetingFrequencyOriginal, setMyPreferencesMeetingFrequencyOriginal] = useState<string | null>(null);
   const [hoveredFavoriteId, setHoveredFavoriteId] = useState<string | null>(null);
   const [showFavoritesMap, setShowFavoritesMap] = useState(false);
+  const [favoriteToDelete, setFavoriteToDelete] = useState<VotingEvent | null>(null);
+  const [editFavoriteOpen, setEditFavoriteOpen] = useState(false);
+  const [editingFavorite, setEditingFavorite] = useState<VotingEvent | null>(null);
+  const [editFavoriteData, setEditFavoriteData] = useState({
+    title: "",
+    description: "",
+    venueType: "",
+    priceLevel: ""
+  });
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
+  const [duplicateEventData, setDuplicateEventData] = useState<any>(null);
+  const [existingDuplicate, setExistingDuplicate] = useState<VotingEvent | null>(null);
   const [addedSuggestionPlaceIds, setAddedSuggestionPlaceIds] = useState<Set<string>>(new Set());
   const [venueSearchQuery, setVenueSearchQuery] = useState("");
   const [debouncedVenueSearchQuery, setDebouncedVenueSearchQuery] = useState("");
@@ -1747,7 +1760,7 @@ export default function GroupDetail() {
   });
 
   const createEventMutation = useMutation({
-    mutationFn: async (eventData: { 
+    mutationFn: async (eventData: {
       title: string;
       description?: string;
       venueAddress?: string;
@@ -1770,8 +1783,32 @@ export default function GroupDetail() {
       complementaryPlacePhotoUrl2?: string;
       complementaryPlaceRating2?: string;
       skipEnrichmentCheck?: boolean;
+      allowDuplicate?: boolean;
     }) => {
-      return await apiRequest("POST", "/api/voting-events", { groupId, ...eventData });
+      if (!groupId) {
+        throw new Error("Group ID is required");
+      }
+
+      // Custom fetch to handle 409 duplicates specially
+      const res = await fetch("/api/voting-events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ groupId, ...eventData }),
+        credentials: "include",
+      });
+
+      if (res.status === 409) {
+        // Parse duplicate response
+        const data = await res.json();
+        throw { isDuplicate: true, ...data };
+      }
+
+      if (!res.ok) {
+        const text = (await res.text()) || res.statusText;
+        throw new Error(`${res.status}: ${text}`);
+      }
+
+      return await res.json();
     },
     onSuccess: (data: { event?: any; enrichmentStatus: 'success' | 'no_results' | 'error' | 'skipped' }) => {
       // Check if Google Places found the venue
@@ -1793,32 +1830,63 @@ export default function GroupDetail() {
         });
       }
     },
-    onError: (error: Error) => {
-      toast({
-        title: "Error adding event",
-        description: error.message,
-        variant: "destructive",
-      });
+    onError: (error: any, variables) => {
+      if (error.isDuplicate) {
+        // Show duplicate dialog
+        setExistingDuplicate(error.existingEvent);
+        setDuplicateEventData(variables);
+        setDuplicateDialogOpen(true);
+      } else {
+        toast({
+          title: "Error adding event",
+          description: error.message || "Failed to add favorite",
+          variant: "destructive",
+        });
+      }
     },
   });
 
   const addVotingEventMutation = useMutation({
-    mutationFn: async (eventData: { 
+    mutationFn: async (eventData: {
       title: string;
       venueAddress?: string;
       venueType?: string;
       googlePlaceId?: string;
       addToCart?: boolean; // Flag to control whether to add to cart
       showToast?: boolean; // Flag to control toast display
+      allowDuplicate?: boolean; // Allow override for duplicates
     }) => {
-      return await apiRequest("POST", "/api/voting-events", { 
-        groupId, 
-        title: eventData.title,
-        venueAddress: eventData.venueAddress,
-        venueType: eventData.venueType,
-        googlePlaceId: eventData.googlePlaceId,
-        skipEnrichmentCheck: true // Skip confirmation since we already have Google data
+      if (!groupId) {
+        throw new Error("Group ID is required");
+      }
+
+      // Custom fetch to handle 409 duplicates
+      const res = await fetch("/api/voting-events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          groupId,
+          title: eventData.title,
+          venueAddress: eventData.venueAddress,
+          venueType: eventData.venueType,
+          googlePlaceId: eventData.googlePlaceId,
+          skipEnrichmentCheck: true,
+          allowDuplicate: eventData.allowDuplicate
+        }),
+        credentials: "include",
       });
+
+      if (res.status === 409) {
+        const data = await res.json();
+        throw { isDuplicate: true, ...data };
+      }
+
+      if (!res.ok) {
+        const text = (await res.text()) || res.statusText;
+        throw new Error(`${res.status}: ${text}`);
+      }
+
+      return await res.json();
     },
     onSuccess: (data: { event?: any }, variables) => {
       if (data.event) {
@@ -1848,12 +1916,20 @@ export default function GroupDetail() {
         }
       }
     },
-    onError: (error: Error) => {
-      toast({
-        title: "Error adding venue",
-        description: error.message,
-        variant: "destructive",
-      });
+    onError: (error: any, variables) => {
+      if (error.isDuplicate) {
+        // For duplicates, just show a toast since this is from AI suggestions
+        toast({
+          title: "Already in favorites",
+          description: `"${variables.title}" is already in your favorites list`,
+        });
+      } else {
+        toast({
+          title: "Error adding venue",
+          description: error.message || "Failed to add venue",
+          variant: "destructive",
+        });
+      }
     },
   });
 
@@ -2116,10 +2192,38 @@ export default function GroupDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "voting-events"] });
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "my-votes"] });
+      setFavoriteToDelete(null);
+      toast({
+        title: "Favorite deleted",
+        description: "The favorite has been removed from your list",
+      });
     },
     onError: (error: Error) => {
       toast({
         title: "Error removing event",
+        description: error.message,
+        variant: "destructive",
+      });
+      setFavoriteToDelete(null);
+    },
+  });
+
+  const updateEventMutation = useMutation({
+    mutationFn: async ({ eventId, updates }: { eventId: string; updates: any }) => {
+      return await apiRequest("PATCH", `/api/voting-events/${eventId}`, updates);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "voting-events"] });
+      setEditFavoriteOpen(false);
+      setEditingFavorite(null);
+      toast({
+        title: "Favorite updated",
+        description: "Your changes have been saved",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error updating favorite",
         description: error.message,
         variant: "destructive",
       });
@@ -2179,6 +2283,32 @@ export default function GroupDetail() {
     } else {
       voteMutation.mutate({ eventId, voteType });
     }
+  };
+
+  const openEditFavorite = (event: VotingEvent) => {
+    setEditingFavorite(event);
+    setEditFavoriteData({
+      title: event.title,
+      description: event.description || "",
+      venueType: event.venueType || "",
+      priceLevel: event.priceLevel || ""
+    });
+    setEditFavoriteOpen(true);
+  };
+
+  const handleSaveEditFavorite = () => {
+    if (!editingFavorite) return;
+
+    updateEventMutation.mutate({
+      eventId: editingFavorite.id,
+      updates: {
+        groupId: editingFavorite.groupId,
+        title: editFavoriteData.title,
+        description: editFavoriteData.description || null,
+        venueType: editFavoriteData.venueType || null,
+        priceLevel: editFavoriteData.priceLevel || null
+      }
+    });
   };
 
   const openEditGroup = () => {
@@ -6301,6 +6431,56 @@ export default function GroupDetail() {
                                           </Button>
                                         </div>
 
+                                        <DropdownMenu>
+                                          <DropdownMenuTrigger asChild>
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              className="h-8 w-8 shrink-0"
+                                              onClick={(e) => e.stopPropagation()}
+                                              data-testid={`button-favorite-menu-${event.id}`}
+                                            >
+                                              <MoreVertical className="h-4 w-4" />
+                                            </Button>
+                                          </DropdownMenuTrigger>
+                                          <DropdownMenuContent align="end">
+                                            <DropdownMenuItem
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                openEditFavorite(event);
+                                              }}
+                                              data-testid={`menu-edit-${event.id}`}
+                                            >
+                                              <Edit className="h-4 w-4 mr-2" />
+                                              Edit
+                                            </DropdownMenuItem>
+                                            {event.googlePlaceId && (
+                                              <DropdownMenuItem
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.title)}&query_place_id=${event.googlePlaceId}`;
+                                                  window.open(mapsUrl, '_blank');
+                                                }}
+                                              >
+                                                <MapPin className="h-4 w-4 mr-2" />
+                                                Open in Maps
+                                              </DropdownMenuItem>
+                                            )}
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setFavoriteToDelete(event);
+                                              }}
+                                              className="text-destructive focus:text-destructive"
+                                              data-testid={`menu-delete-${event.id}`}
+                                            >
+                                              <Trash2 className="h-4 w-4 mr-2" />
+                                              Delete
+                                            </DropdownMenuItem>
+                                          </DropdownMenuContent>
+                                        </DropdownMenu>
+
                                         <Dialog>
                                           <DialogTrigger asChild>
                                             <Button
@@ -6431,6 +6611,179 @@ export default function GroupDetail() {
                 </>
               )}
                 </div>
+
+                {/* Delete Confirmation Dialog */}
+                <AlertDialog open={!!favoriteToDelete} onOpenChange={(open) => !open && setFavoriteToDelete(null)}>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Favorite?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to delete "{favoriteToDelete?.title}"? This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => {
+                          if (favoriteToDelete) {
+                            deleteEventMutation.mutate(favoriteToDelete.id);
+                          }
+                        }}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+
+                {/* Edit Favorite Dialog */}
+                <Dialog open={editFavoriteOpen} onOpenChange={setEditFavoriteOpen}>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Edit Favorite</DialogTitle>
+                      <DialogDescription>
+                        Update the details for this favorite venue
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-title">Venue Name</Label>
+                        <Input
+                          id="edit-title"
+                          value={editFavoriteData.title}
+                          onChange={(e) => setEditFavoriteData({ ...editFavoriteData, title: e.target.value })}
+                          placeholder="e.g., The Blue Room"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-description">Description (Optional)</Label>
+                        <Textarea
+                          id="edit-description"
+                          value={editFavoriteData.description}
+                          onChange={(e) => setEditFavoriteData({ ...editFavoriteData, description: e.target.value })}
+                          placeholder="Add notes about this venue..."
+                          rows={3}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-venue-type">Venue Type (Optional)</Label>
+                        <Input
+                          id="edit-venue-type"
+                          value={editFavoriteData.venueType}
+                          onChange={(e) => setEditFavoriteData({ ...editFavoriteData, venueType: e.target.value })}
+                          placeholder="e.g., Bar, Restaurant, Cafe"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-price-level">Price Level (Optional)</Label>
+                        <Select
+                          value={editFavoriteData.priceLevel || "NONE"}
+                          onValueChange={(value) => setEditFavoriteData({ ...editFavoriteData, priceLevel: value === "NONE" ? "" : value })}
+                        >
+                          <SelectTrigger id="edit-price-level">
+                            <SelectValue placeholder="Select price level" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="NONE">None</SelectItem>
+                            <SelectItem value="PRICE_LEVEL_INEXPENSIVE">$ - Inexpensive</SelectItem>
+                            <SelectItem value="PRICE_LEVEL_MODERATE">$$ - Moderate</SelectItem>
+                            <SelectItem value="PRICE_LEVEL_EXPENSIVE">$$$ - Expensive</SelectItem>
+                            <SelectItem value="PRICE_LEVEL_VERY_EXPENSIVE">$$$$ - Very Expensive</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setEditFavoriteOpen(false);
+                          setEditingFavorite(null);
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={handleSaveEditFavorite}
+                        disabled={!editFavoriteData.title.trim() || updateEventMutation.isPending}
+                      >
+                        {updateEventMutation.isPending ? "Saving..." : "Save Changes"}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+
+                {/* Duplicate Confirmation Dialog */}
+                <AlertDialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Venue Already in Favorites</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        {existingDuplicate && (
+                          <>
+                            "{existingDuplicate.title}" is already in your favorites list
+                            {existingDuplicate.rating && (
+                              <span> with a {existingDuplicate.rating} rating</span>
+                            )}.
+                          </>
+                        )}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel
+                        onClick={() => {
+                          setDuplicateDialogOpen(false);
+                          setDuplicateEventData(null);
+                          setExistingDuplicate(null);
+                          setAddEventOpen(false);
+                          setNewEventTitle("");
+                        }}
+                      >
+                        Cancel
+                      </AlertDialogCancel>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          if (existingDuplicate) {
+                            // Scroll to the existing favorite and highlight it
+                            const element = document.querySelector(`[data-testid="favorites-row-${existingDuplicate.id}"]`);
+                            if (element) {
+                              element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              setHoveredFavoriteId(existingDuplicate.id);
+                              setTimeout(() => setHoveredFavoriteId(null), 3000);
+                            }
+                            setDuplicateDialogOpen(false);
+                            setDuplicateEventData(null);
+                            setExistingDuplicate(null);
+                            setAddEventOpen(false);
+                            setNewEventTitle("");
+                          }
+                        }}
+                      >
+                        View Existing
+                      </Button>
+                      <AlertDialogAction
+                        onClick={() => {
+                          if (duplicateEventData) {
+                            // Retry with allowDuplicate flag
+                            createEventMutation.mutate({
+                              ...duplicateEventData,
+                              allowDuplicate: true
+                            });
+                          }
+                          setDuplicateDialogOpen(false);
+                          setDuplicateEventData(null);
+                          setExistingDuplicate(null);
+                          setAddEventOpen(false);
+                          setNewEventTitle("");
+                        }}
+                      >
+                        Add Anyway
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </TabsContent>
             </Tabs>
 

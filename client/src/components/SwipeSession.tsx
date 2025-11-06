@@ -66,7 +66,7 @@ export function SwipeSession({ groupId, open, onOpenChange, onComplete }: SwipeS
     },
     onSuccess: () => {
       // Invalidate voting events cache to refresh Favorites tab
-      queryClient.invalidateQueries({ queryKey: [`/api/groups/${groupId}/voting-events`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "voting-events"] });
     }
   });
 
