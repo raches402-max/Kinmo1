@@ -74,10 +74,10 @@ export const createGroupSchema = z.object({
   locationBase: z.string().min(1, "Location is required"),
   budgetMin: z.number().min(0, "Budget must be positive").optional(),
   budgetMax: z.number().min(0, "Budget must be positive"),
-  meetingFrequency: z.enum(['weekly', 'biweekly', 'monthly', 'bimonthly']).optional(),
+  meetingFrequency: z.string().optional(), // Format: "N-unit" or "Nx unit" (e.g., "1-week", "2x month")
   availability: z.any().optional(), // JSON object
-  closenessLevel: z.enum(['casual', 'regular', 'close']).optional(),
-  noveltyPreference: z.enum(['familiar', 'mixed', 'adventurous']).optional(),
+  closenessLevel: z.number().int().min(1).max(5).optional(),
+  noveltyPreference: z.number().int().min(1).max(5).optional(),
   pastPreferences: z.string().optional(),
   additionalInstructions: z.string().optional(),
   activityCategories: z.array(z.string()).optional(),
@@ -90,7 +90,7 @@ export const createGroupSchema = z.object({
 });
 
 export const updateGroupRadiusSchema = z.object({
-  searchRadius: z.enum([2, 10, 30, 50] as const, {
+  searchRadius: z.union([z.literal(2), z.literal(10), z.literal(30), z.literal(50)], {
     errorMap: () => ({ message: "Invalid search radius. Must be 2, 10, 30, or 50 miles." })
   }),
 });
