@@ -150,6 +150,7 @@ export interface ActivitySuggestion {
   searchQuery: string; // For Google Places search
   priceEstimate?: string; // For events: "$25-50 per person", "Free", etc.
   timeConstraints?: string; // For events: "Only on Friday afternoons", "Weekends only", etc.
+  complementaryFoodPlace?: string; // Optional nearby food suggestion (e.g., "coffee shop" for a park)
 }
 
 export async function generateActivitySuggestions(groupData: {

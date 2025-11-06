@@ -63,9 +63,9 @@ function generateFallbackName(venues: VenueForNaming[], location: string): strin
   if (venues.length === 2) {
     return `${venues[0].name} & ${venues[1].name} - ${city}`;
   }
-  
-  const types = [...new Set(venues.map(v => v.type.toLowerCase()))];
-  
+
+  const types = Array.from(new Set(venues.map(v => v.type.toLowerCase())));
+
   if (types.length === 1) {
     return `${city} ${types[0]} Tour`;
   }

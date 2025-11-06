@@ -1022,11 +1022,11 @@ export default function Dashboard() {
                               ))}
                             </div>
 
-                            <TimeSlotVoting 
+                            {/* <TimeSlotVoting
                               itineraryId={event.itineraryId}
                               userId={user?.id}
                               isOrganizer={false}
-                            />
+                            /> */}
 
                             <div className="flex gap-2 flex-wrap">
                               <Button 

@@ -360,9 +360,15 @@ export async function processAutoScheduling(): Promise<void> {
       .where(eq(groups.autoScheduleEnabled, true));
 
     for (const group of autoEnabledGroups) {
+      // Skip groups without a valid userId (deleted owner)
+      if (!group.userId) {
+        console.log(`Skipping auto-schedule for group ${group.name} - no userId`);
+        continue;
+      }
+
       // Check if there's already a pending auto-event
       const pendingEvent = await storage.getPendingAutoScheduledEvent(group.id);
-      
+
       // Determine if we should trigger auto-scheduling
       if (shouldTriggerAutoSchedule(group, !!pendingEvent)) {
         console.log(`Creating auto-scheduled event for group: ${group.name}`);
@@ -418,10 +424,55 @@ export async function processAutoScheduling(): Promise<void> {
           continue;
         }
 
-        // Use the next event due date, or default to 14 days from now
-        const proposedDate = group.nextEventDueDate 
-          ? new Date(group.nextEventDueDate)
-          : addDays(new Date(), 14);
+        // Use AI time picker to find optimal date/time based on availability
+        let proposedDate;
+
+        try {
+          // Get itinerary items to understand venue types
+          const itinerary = await storage.getItinerary(itineraryId);
+          if (!itinerary) {
+            console.log(`[Auto-Schedule] Could not fetch itinerary ${itineraryId}`);
+            continue;
+          }
+
+          const venues = itinerary.items.map((item: any) => ({
+            name: item.venueName,
+            type: item.venueType,
+          }));
+
+          // Aggregate member availability
+          const { aggregateMemberAvailability, convertAvailabilityToText } = await import('./availability-utils');
+          const aggregatedAvailability = await aggregateMemberAvailability(group.id, storage);
+
+          console.log(`[Auto-Schedule] Using aggregated availability from ${aggregatedAvailability.memberCount} members`);
+
+          // Convert to text format for AI
+          const availabilityString = convertAvailabilityToText(
+            aggregatedAvailability.grid,
+            aggregatedAvailability.conflicts,
+            aggregatedAvailability.memberCount
+          );
+
+          // Use AI to find optimal time
+          const { suggestOptimalTime } = await import('./ai-time-picker');
+          const timeResult = await suggestOptimalTime({
+            generalAvailability: availabilityString,
+            venues,
+            location: group.locationBase,
+            meetingFrequency: group.meetingFrequency || undefined,
+            timezone: group.timezone || undefined, // Use stored timezone
+          });
+
+          proposedDate = timeResult.eventDate;
+          console.log(`[Auto-Schedule] AI suggested optimal time: ${proposedDate.toISOString()}, reasoning: ${timeResult.reasoning}`);
+        } catch (aiError) {
+          console.error('[Auto-Schedule] AI time picker failed, falling back to nextEventDueDate:', aiError);
+
+          // Fallback to original logic if AI fails
+          proposedDate = group.nextEventDueDate
+            ? new Date(group.nextEventDueDate)
+            : addDays(new Date(), 14);
+        }
 
         // Calculate auto-send deadline: 48 hours from now (volunteer window)
         // If no one volunteers to host within 48 hours, AI auto-approves and sends

@@ -17,7 +17,15 @@
       "Bash(npm run:*)",
       "Bash(find:*)",
       "Bash(sqlite3:*)",
-      "Bash(journalctl:*)"
+      "Bash(journalctl:*)",
+      "Bash(xargs kill:*)",
+      "Bash(npx tsx test-scheduling.ts)",
+      "Bash(node -e:*)",
+      "Bash(npx tsx:*)",
+      "Bash(cat:*)",
+      "Bash(awk:*)",
+      "Bash(git checkout:*)",
+      "Bash(rm:*)"
     ],
     "deny": [],
     "ask": []

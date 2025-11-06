@@ -964,6 +964,178 @@ async function autoCacheApiResults(
   }
 }
 
+/**
+ * Interface for Google Maps URL parsing results
+ */
+export interface GoogleMapsUrlResult {
+  type: 'place_id' | 'coordinates' | 'text_search' | 'share_link' | 'unknown';
+  placeId?: string;
+  lat?: number;
+  lng?: number;
+  placeName?: string;
+  rawUrl: string;
+}
+
+/**
+ * Detect and parse Google Maps URLs to extract place IDs, coordinates, or search text
+ * Supports various Google Maps URL formats:
+ * - Place URLs with place IDs: maps.google.com/maps/place/Name/@lat,lng/data=!4m6!3m5!1sPlaceID
+ * - Coordinate URLs: maps.google.com/maps/search/@lat,lng
+ * - Text search URLs: maps.google.com/maps/search/coffee+shops
+ * - Legacy CID URLs: maps.google.com?cid=123456789
+ * - Shortened URLs: maps.app.goo.gl/ABC123
+ *
+ * @param query - User input that might be a Google Maps URL
+ * @returns Parsed URL result or null if not a Google Maps URL
+ */
+export async function detectAndParseGoogleMapsUrl(query: string): Promise<GoogleMapsUrlResult | null> {
+  // Return null if not a URL-like string
+  if (!query.includes('google.com/maps') && !query.includes('goo.gl/maps') && !query.includes('maps.app.goo.gl')) {
+    return null;
+  }
+
+  try {
+    const url = new URL(query);
+
+    // Pattern 1: CID-based URLs (maps.google.com?cid=NUMERIC_ID)
+    // This is a legacy format that we'll treat as text search
+    const cidMatch = url.search.match(/cid=(\d+)/);
+    if (cidMatch) {
+      console.log(`[URL Parser] Detected CID-based URL (legacy format)`);
+      return {
+        type: 'text_search',
+        placeName: cidMatch[1],
+        rawUrl: query,
+      };
+    }
+
+    // Pattern 2: Data-based Place IDs (most common modern format)
+    // Google Maps stores place ID in the `data` parameter
+    // Format: data=!4m6!3m5!1s{PLACE_ID}!...
+    // The data can be in query params OR in the pathname (e.g., /data=!3m1!...)
+    let dataParam = url.searchParams.get('data') || url.search;
+
+    // Also check pathname for /data=... pattern
+    if (!dataParam || !dataParam.includes('!1s')) {
+      const pathDataMatch = url.pathname.match(/\/data=([^?]*)/);
+      if (pathDataMatch) {
+        dataParam = pathDataMatch[1];
+      }
+    }
+
+    if (dataParam) {
+      const placeIdMatch = dataParam.match(/!1s([^!&]+)/);
+      if (placeIdMatch && placeIdMatch[1]) {
+        const potentialPlaceId = placeIdMatch[1];
+        // Validate that this looks like a real place ID
+        // Only accept ChIJ format for direct place ID lookup
+        // (0x format is deprecated and not supported by new Places API)
+        if (potentialPlaceId.length > 10 && potentialPlaceId.startsWith('ChIJ')) {
+          console.log(`[URL Parser] Detected Place ID: ${potentialPlaceId}`);
+          return {
+            type: 'place_id',
+            placeId: potentialPlaceId,
+            rawUrl: query,
+          };
+        }
+      }
+    }
+
+    // Pattern 3: Coordinate extraction from @ notation
+    // Example: https://www.google.com/maps/place/Cafe/@37.7749,-122.4194,17z/...
+    const pathMatch = url.pathname.match(/@([\d\.\-]+),([\d\.\-]+)/);
+    if (pathMatch) {
+      const lat = parseFloat(pathMatch[1]);
+      const lng = parseFloat(pathMatch[2]);
+
+      // Validate coordinates are within valid ranges
+      if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+        // Try to extract place name from the path
+        const placeMatch = url.pathname.match(/\/maps\/place\/([^/@]+)/);
+        const placeName = placeMatch ? decodeURIComponent(placeMatch[1]).replace(/\+/g, ' ') : undefined;
+
+        // Check if we already found a ChIJ format place ID in the data param
+        const placeIdInData = dataParam?.match(/!1s(ChIJ[^!&]+)/);
+
+        console.log(`[URL Parser] Detected coordinates: ${lat}, ${lng}${placeName ? ` for ${placeName}` : ''}`);
+
+        // If we have a place name, use coordinates type (which will do a text search with the name)
+        // This handles both old 0x format place IDs and missing place IDs
+        return {
+          type: placeIdInData ? 'place_id' : 'coordinates',
+          placeId: placeIdInData ? placeIdInData[1] : undefined,
+          lat,
+          lng,
+          placeName,
+          rawUrl: query,
+        };
+      }
+    }
+
+    // Pattern 4: Text search URLs
+    // Example: https://www.google.com/maps/search/coffee+shop+san+francisco
+    if (url.pathname.includes('/maps/search/')) {
+      const searchMatch = url.pathname.match(/\/maps\/search\/([^/]+)/);
+      if (searchMatch) {
+        const searchText = decodeURIComponent(searchMatch[1]).replace(/\+/g, ' ');
+        console.log(`[URL Parser] Detected text search: ${searchText}`);
+        return {
+          type: 'text_search',
+          placeName: searchText,
+          rawUrl: query,
+        };
+      }
+    }
+
+    // Pattern 5: Place name extraction (fallback)
+    // Example: https://www.google.com/maps/place/Chick-fil-A/@37.777,-122.419
+    const placeNameMatch = url.pathname.match(/\/maps\/place\/([^/@]+)/);
+    if (placeNameMatch) {
+      const placeName = decodeURIComponent(placeNameMatch[1]).replace(/\+/g, ' ');
+      console.log(`[URL Parser] Detected place name: ${placeName}`);
+
+      return {
+        type: 'text_search',
+        placeName,
+        rawUrl: query,
+      };
+    }
+
+    // Pattern 6: Shortened share links
+    // Example: https://maps.app.goo.gl/ABC123
+    // Follow the redirect to get the full URL, then parse it
+    if (url.hostname.includes('goo.gl') || url.hostname.includes('maps.app.goo.gl')) {
+      console.log(`[URL Parser] Detected shortened share link, following redirect...`);
+      try {
+        // Follow the redirect to get the full URL
+        const response = await fetch(query, {
+          method: 'HEAD',
+          redirect: 'follow'
+        });
+
+        const fullUrl = response.url;
+        console.log(`[URL Parser] Shortened link resolved to: ${fullUrl}`);
+
+        // Recursively parse the full URL
+        return await detectAndParseGoogleMapsUrl(fullUrl);
+      } catch (error) {
+        console.error(`[URL Parser] Failed to follow redirect for shortened link:`, error);
+        // Fall back to treating it as a share_link
+        return {
+          type: 'share_link',
+          rawUrl: query,
+        };
+      }
+    }
+
+    console.log(`[URL Parser] Could not parse Google Maps URL format`);
+    return null;
+  } catch (error) {
+    console.error(`[URL Parser] Failed to parse URL: ${query}`, error);
+    return null;
+  }
+}
+
 export async function searchPlaces(
   query: string,
   location: string,
@@ -975,6 +1147,44 @@ export async function searchPlaces(
   seenVenues?: string[],
   forceComprehensiveSearch: boolean = false
 ): Promise<PlaceResult[]> {
+  // GOOGLE MAPS URL DETECTION: Check if query is a Google Maps URL
+  const urlResult = await detectAndParseGoogleMapsUrl(query);
+
+  if (urlResult) {
+    console.log(`[URL Parser] Detected Google Maps URL:`, urlResult);
+
+    // Handle place_id type - directly fetch the specific place
+    if (urlResult.type === 'place_id' && urlResult.placeId) {
+      console.log(`[URL Parser] Fetching place details for place ID: ${urlResult.placeId}`);
+      const placeDetails = await getPlaceDetails(urlResult.placeId);
+      if (placeDetails) {
+        return [placeDetails];
+      }
+      // If place details fetch failed, fall through to normal search
+      console.log(`[URL Parser] Failed to fetch place details, falling back to normal search`);
+    }
+
+    // Handle coordinates type - use extracted coordinates and place name
+    if (urlResult.type === 'coordinates' && urlResult.lat && urlResult.lng) {
+      console.log(`[URL Parser] Using coordinates (${urlResult.lat}, ${urlResult.lng}) with place name: ${urlResult.placeName || 'none'}`);
+      // Override coordinates with extracted values
+      coordinates = { lat: urlResult.lat, lng: urlResult.lng };
+      // Use place name if available, otherwise keep original query
+      if (urlResult.placeName) {
+        query = urlResult.placeName;
+      }
+    }
+
+    // Handle text_search type - use extracted place name
+    if (urlResult.type === 'text_search' && urlResult.placeName) {
+      console.log(`[URL Parser] Using extracted place name for text search: ${urlResult.placeName}`);
+      query = urlResult.placeName;
+    }
+
+    // For share_link or unknown types, continue with original query
+    // The detectAndParseGoogleMapsUrl should have already tried to follow redirects
+  }
+
   // CACHE-FIRST STRATEGY: Check curated venues FIRST (10-50ms for SF searches)
   // Skip curated search if explicitly requested (e.g., when curated filtering failed)
   let curatedResults: PlaceResult[] = [];

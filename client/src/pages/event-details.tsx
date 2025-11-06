@@ -291,11 +291,11 @@ export default function EventDetailsPage() {
             </div>
 
             {/* Time Slot Voting */}
-            <TimeSlotVoting
+            {/* <TimeSlotVoting
               itineraryId={event.itineraryId}
               userId={user?.id}
               isOrganizer={isOrganizer}
-            />
+            /> */}
 
             {/* RSVP Summary */}
             {event.detailedRsvps && event.detailedRsvps.length > 0 && (

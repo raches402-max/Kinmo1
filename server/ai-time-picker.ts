@@ -283,6 +283,8 @@ interface TimeSelectionInput {
   memberConstraints?: string[]; // e.g., ["Not available Thursdays", "Prefer weekends"]
   rescheduleReason?: string; // Why previous time didn't work (for rescheduling)
   location?: string; // Group location for timezone context (e.g., "San Francisco, CA")
+  meetingFrequency?: string; // e.g., "1x week", "2x month", "1x month"
+  timezone?: string; // IANA timezone identifier (e.g., "America/Los_Angeles") - preferred over location-based inference
 }
 
 interface TimeSelectionResult {
@@ -301,19 +303,69 @@ interface MultipleTimeSelectionsResult {
   options: TimeOption[];
 }
 
+/**
+ * Calculate appropriate date range based on meeting frequency
+ */
+function getDateRangeForFrequency(meetingFrequency?: string): { minDays: number; maxDays: number } {
+  if (!meetingFrequency) {
+    // Default range if no frequency specified
+    return { minDays: 2, maxDays: 21 };
+  }
+
+  const freq = meetingFrequency.toLowerCase();
+
+  // Multiple times per week (2-3x week)
+  if (freq.includes('2x week') || freq.includes('3x week') || freq.includes('twice week') || freq.includes('thrice week')) {
+    return { minDays: 2, maxDays: 7 }; // Suggest within the next week
+  }
+
+  // Weekly (1x week)
+  if (freq.includes('1x week') || freq.includes('once week') || freq.includes('weekly')) {
+    return { minDays: 3, maxDays: 14 }; // 3 days to 2 weeks out
+  }
+
+  // Biweekly (1x 2 weeks, 2x month)
+  if (freq.includes('2x month') || freq.includes('biweekly') || freq.includes('every 2 weeks') || freq.includes('1x 2 weeks')) {
+    return { minDays: 7, maxDays: 21 }; // 1-3 weeks out
+  }
+
+  // Monthly (1x month)
+  if (freq.includes('1x month') || freq.includes('once month') || freq.includes('monthly')) {
+    return { minDays: 10, maxDays: 35 }; // 10 days to 5 weeks out
+  }
+
+  // Quarterly or less frequent
+  if (freq.includes('quarter') || freq.includes('3 month') || freq.includes('season')) {
+    return { minDays: 21, maxDays: 60 }; // 3 weeks to 2 months out
+  }
+
+  // Default fallback
+  return { minDays: 2, maxDays: 21 };
+}
+
 export async function suggestMultipleTimeOptions(
   input: TimeSelectionInput
 ): Promise<MultipleTimeSelectionsResult> {
   try {
     const now = new Date();
-    const minDate = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000); // Min 2 days from now
-    const maxDate = new Date(now.getTime() + 21 * 24 * 60 * 60 * 1000); // Max 3 weeks out
+
+    // Adjust date range based on meeting frequency
+    const { minDays, maxDays } = getDateRangeForFrequency(input.meetingFrequency);
+    const minDate = new Date(now.getTime() + minDays * 24 * 60 * 60 * 1000);
+    const maxDate = new Date(now.getTime() + maxDays * 24 * 60 * 60 * 1000);
 
     const venueList = input.venues.map(v => `${v.name} (${v.type})`).join(', ');
     const constraints = input.memberConstraints?.join('; ') || 'None';
-    
-    // Get timezone identifier for the location
-    const tzIdentifier = input.location ? getTimezoneIdentifier(input.location) : 'America/Los_Angeles';
+
+    // Use stored timezone if provided, otherwise infer from location
+    let tzIdentifier: string;
+    if (input.timezone) {
+      tzIdentifier = input.timezone;
+      console.log(`[Time Picker] Using stored timezone: ${tzIdentifier}`);
+    } else {
+      tzIdentifier = input.location ? getTimezoneIdentifier(input.location) : 'America/Los_Angeles';
+      console.log(`[Time Picker] Inferred timezone from location: ${tzIdentifier}`);
+    }
     const tzName = getTimezoneName(tzIdentifier);
 
     // Extract allowed days from availability string
@@ -341,6 +393,7 @@ ${availabilityConstraint}
 Venues: ${venueList}
 Member constraints: ${constraints}
 Timezone: ${tzName} (all times should be in this timezone)
+${input.meetingFrequency ? `Meeting frequency: ${input.meetingFrequency} (dates should be spaced appropriately)` : ''}
 
 Current date: ${now.toISOString().split('T')[0]}
 Date range: ${minDate.toISOString().split('T')[0]} to ${maxDate.toISOString().split('T')[0]}
@@ -490,20 +543,30 @@ export async function suggestOptimalTime(
   input: TimeSelectionInput
 ): Promise<TimeSelectionResult> {
   const maxRetries = 3;
-  
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       console.log(`[AI Time Picker] Attempt ${attempt} of ${maxRetries}`);
-      
+
       const now = new Date();
-      const minDate = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000); // Min 2 days from now
-      const maxDate = new Date(now.getTime() + 21 * 24 * 60 * 60 * 1000); // Max 3 weeks out
+
+      // Adjust date range based on meeting frequency
+      const { minDays, maxDays } = getDateRangeForFrequency(input.meetingFrequency);
+      const minDate = new Date(now.getTime() + minDays * 24 * 60 * 60 * 1000);
+      const maxDate = new Date(now.getTime() + maxDays * 24 * 60 * 60 * 1000);
 
       const venueList = input.venues.map(v => `${v.name} (${v.type})`).join(', ');
       const constraints = input.memberConstraints?.join('; ') || 'None';
-      
-      // Get timezone identifier for the location
-      const tzIdentifier = input.location ? getTimezoneIdentifier(input.location) : 'America/Los_Angeles';
+
+      // Use stored timezone if provided, otherwise infer from location
+      let tzIdentifier: string;
+      if (input.timezone) {
+        tzIdentifier = input.timezone;
+        console.log(`[Time Picker] Using stored timezone: ${tzIdentifier}`);
+      } else {
+        tzIdentifier = input.location ? getTimezoneIdentifier(input.location) : 'America/Los_Angeles';
+        console.log(`[Time Picker] Inferred timezone from location: ${tzIdentifier}`);
+      }
       const tzName = getTimezoneName(tzIdentifier);
 
       const prompt = `You are scheduling a group outing. Pick ONE specific date and time.
@@ -513,6 +576,7 @@ Group general availability: ${input.generalAvailability || 'Not specified'}
 Member constraints: ${constraints}
 ${input.rescheduleReason ? `Previous attempt failed: ${input.rescheduleReason}` : ''}
 Timezone: ${tzName} (all times should be in this timezone)
+${input.meetingFrequency ? `Meeting frequency: ${input.meetingFrequency} (pick an appropriate date based on this cadence)` : ''}
 
 Current date: ${now.toISOString().split('T')[0]}
 Date range: ${minDate.toISOString().split('T')[0]} to ${maxDate.toISOString().split('T')[0]}

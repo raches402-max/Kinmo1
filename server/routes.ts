@@ -4620,13 +4620,17 @@ Looking forward to planning great activities together!
       const { query } = req.query;
       const { groupId } = req.params;
 
+      console.log(`[SEARCH VENUES] Received request - GroupID: ${groupId}, Query: "${query}"`);
+
       if (!query || typeof query !== 'string' || query.trim().length < 2) {
+        console.log(`[SEARCH VENUES] Query too short, returning empty results`);
         return res.json({ results: [] });
       }
 
       // Get group location for context
       const group = await storage.getGroup(groupId);
       if (!group) {
+        console.log(`[SEARCH VENUES] Group not found: ${groupId}`);
         return res.status(404).json({ message: "Group not found" });
       }
 
@@ -4638,7 +4642,11 @@ Looking forward to planning great activities together!
         ? { lat: parseFloat(group.latitude), lng: parseFloat(group.longitude) }
         : undefined;
 
+      console.log(`[SEARCH VENUES] Searching: "${searchQuery}" in ${location} (radius: ${radius} miles)`);
+
       const results = await searchPlaces(searchQuery, location, radius, coordinates, false, undefined, group.budgetMax, undefined, true);
+
+      console.log(`[SEARCH VENUES] Found ${results.length} results`);
 
       // Return top 10 results
       const limitedResults = results.slice(0, 10).map(place => ({
@@ -4650,6 +4658,11 @@ Looking forward to planning great activities together!
         reviewCount: place.reviewCount,
         types: place.types || [],
       }));
+
+      console.log(`[SEARCH VENUES] Returning ${limitedResults.length} results to frontend`);
+      if (limitedResults.length > 0) {
+        console.log(`[SEARCH VENUES] First result: ${limitedResults[0].name}`);
+      }
 
       res.json({ results: limitedResults });
     } catch (error: any) {
