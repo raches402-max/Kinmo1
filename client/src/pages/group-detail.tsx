@@ -3599,7 +3599,7 @@ export default function GroupDetail() {
                               )}
                               {' '}
                               <Button 
-                                variant="link" 
+                                variant="ghost" 
                                 size="sm" 
                                 className="h-auto p-0 text-xs text-primary hover:underline"
                                 onClick={() => setActiveTab('home')}
@@ -5525,7 +5525,6 @@ export default function GroupDetail() {
                                   complementaryPlacePhotoUrl2: activity.complementaryPlacePhotoUrl2,
                                   complementaryPlaceRating2: activity.complementaryPlaceRating2,
                                 },
-                                feedback: "love",
                               });
                               
                               // Also create voting event
@@ -7498,7 +7497,7 @@ export default function GroupDetail() {
                           <SelectValue placeholder="Choose a saved plan..." />
                         </SelectTrigger>
                         <SelectContent>
-                          {savedItineraries.map((itinerary: any) => (
+                          {savedItineraries.filter((itinerary: any) => itinerary.id).map((itinerary: any) => (
                             <SelectItem key={itinerary.id} value={itinerary.id}>
                               {itinerary.name} ({itinerary.items?.length || 0} stops)
                             </SelectItem>
