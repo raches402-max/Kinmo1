@@ -15,7 +15,9 @@
       "Bash(pkill:*)",
       "Bash(npm run dev:server:*)",
       "Bash(npm run:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(sqlite3:*)",
+      "Bash(journalctl:*)"
     ],
     "deny": [],
     "ask": []

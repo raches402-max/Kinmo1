@@ -4638,7 +4638,7 @@ Looking forward to planning great activities together!
         ? { lat: parseFloat(group.latitude), lng: parseFloat(group.longitude) }
         : undefined;
 
-      const results = await searchPlaces(searchQuery, location, radius, coordinates, false, undefined, group.budgetMax);
+      const results = await searchPlaces(searchQuery, location, radius, coordinates, false, undefined, group.budgetMax, undefined, true);
 
       // Return top 10 results
       const limitedResults = results.slice(0, 10).map(place => ({

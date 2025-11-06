@@ -1706,12 +1706,19 @@ export default function GroupDetail() {
       });
       return;
     }
-    
+
     addVotingEventMutation.mutate({
       title: suggestion.name,
       venueType: suggestion.types?.[0] || 'venue',
       venueAddress: suggestion.address,
       googlePlaceId: suggestion.placeId,
+      photoUrl: suggestion.photoUrl,
+      rating: suggestion.rating,
+      reviewCount: suggestion.reviewCount,
+      priceLevel: suggestion.priceLevel,
+      latitude: suggestion.location?.lat?.toString(),
+      longitude: suggestion.location?.lng?.toString(),
+      city: suggestion.city,
     });
   };
 
@@ -1852,6 +1859,13 @@ export default function GroupDetail() {
       venueAddress?: string;
       venueType?: string;
       googlePlaceId?: string;
+      photoUrl?: string;
+      rating?: string;
+      reviewCount?: number;
+      priceLevel?: string;
+      latitude?: string;
+      longitude?: string;
+      city?: string;
       addToCart?: boolean; // Flag to control whether to add to cart
       showToast?: boolean; // Flag to control toast display
       allowDuplicate?: boolean; // Allow override for duplicates
@@ -1870,6 +1884,13 @@ export default function GroupDetail() {
           venueAddress: eventData.venueAddress,
           venueType: eventData.venueType,
           googlePlaceId: eventData.googlePlaceId,
+          photoUrl: eventData.photoUrl,
+          rating: eventData.rating,
+          reviewCount: eventData.reviewCount,
+          priceLevel: eventData.priceLevel,
+          latitude: eventData.latitude,
+          longitude: eventData.longitude,
+          city: eventData.city,
           skipEnrichmentCheck: true,
           allowDuplicate: eventData.allowDuplicate
         }),
@@ -6036,6 +6057,13 @@ export default function GroupDetail() {
                                             venueType: result.types?.[0] || 'venue',
                                             venueAddress: result.address,
                                             googlePlaceId: result.placeId,
+                                            photoUrl: result.photoUrl,
+                                            rating: result.rating,
+                                            reviewCount: result.reviewCount,
+                                            priceLevel: result.priceLevel,
+                                            latitude: result.location?.lat?.toString(),
+                                            longitude: result.location?.lng?.toString(),
+                                            city: result.city,
                                             addToCart: false, // Just favorite, don't add to cart
                                           });
                                         }
@@ -6076,6 +6104,13 @@ export default function GroupDetail() {
                                             venueType: result.types?.[0] || 'venue',
                                             venueAddress: result.address,
                                             googlePlaceId: result.placeId,
+                                            photoUrl: result.photoUrl,
+                                            rating: result.rating,
+                                            reviewCount: result.reviewCount,
+                                            priceLevel: result.priceLevel,
+                                            latitude: result.location?.lat?.toString(),
+                                            longitude: result.location?.lng?.toString(),
+                                            city: result.city,
                                             addToCart: true, // Favorite AND add to cart
                                           });
                                         } else if (alreadyFavorited) {
@@ -7110,12 +7145,19 @@ export default function GroupDetail() {
                                   key={result.placeId}
                                   onClick={() => {
                                     if (disabled) return;
-                                    
+
                                     addVotingEventMutation.mutate({
                                       title: result.name,
                                       venueType: result.types?.[0] || 'venue',
                                       venueAddress: result.address,
                                       googlePlaceId: result.placeId,
+                                      photoUrl: result.photoUrl,
+                                      rating: result.rating,
+                                      reviewCount: result.reviewCount,
+                                      priceLevel: result.priceLevel,
+                                      latitude: result.location?.lat?.toString(),
+                                      longitude: result.location?.lng?.toString(),
+                                      city: result.city,
                                     });
                                   }}
                                   disabled={disabled}
@@ -7237,12 +7279,19 @@ export default function GroupDetail() {
                                       });
                                       return;
                                     }
-                                    
+
                                     addVotingEventMutation.mutate({
                                       title: result.name,
                                       venueType: result.types?.[0] || 'venue',
                                       venueAddress: result.address,
                                       googlePlaceId: result.placeId,
+                                      photoUrl: result.photoUrl,
+                                      rating: result.rating,
+                                      reviewCount: result.reviewCount,
+                                      priceLevel: result.priceLevel,
+                                      latitude: result.location?.lat?.toString(),
+                                      longitude: result.location?.lng?.toString(),
+                                      city: result.city,
                                     });
                                   }}
                                   disabled={alreadyAdded || addVotingEventMutation.isPending}

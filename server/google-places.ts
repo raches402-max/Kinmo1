@@ -669,10 +669,19 @@ async function searchCuratedVenues(
     conditions.push(eq(curatedVenues.isActive, true));
     conditions.push(inArray(curatedVenues.region, ['san_francisco', 'san_mateo', 'oakland', 'san_jose', 'bay_area']));
     
-    // CRITICAL FIX: Add text search for venue name
-    // This ensures "souvla" returns venues with "souvla" in the name
-    // Use ILIKE for case-insensitive partial matching
-    conditions.push(ilike(curatedVenues.name, `%${query}%`));
+    // CRITICAL FIX: Add text search for venue name with token-based matching
+    // Split query into words to handle plural/singular ("dumpling" matches "dumplings")
+    // This ensures "supreme dumpling" matches "Supreme Dumplings"
+    const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length >= 3);
+    if (queryWords.length > 0) {
+      const nameConditions = queryWords.map(word =>
+        ilike(curatedVenues.name, `%${word}%`)
+      );
+      conditions.push(and(...nameConditions)); // All words must match
+    } else {
+      // Fallback to exact matching for very short queries
+      conditions.push(ilike(curatedVenues.name, `%${query}%`));
+    }
     
     // Filter by category if detected (optional - enhances results)
     if (categoryFilter) {
@@ -963,7 +972,8 @@ export async function searchPlaces(
   skipCurated: boolean = false,
   venueType?: string,
   budgetMax?: number,
-  seenVenues?: string[]
+  seenVenues?: string[],
+  forceComprehensiveSearch: boolean = false
 ): Promise<PlaceResult[]> {
   // CACHE-FIRST STRATEGY: Check curated venues FIRST (10-50ms for SF searches)
   // Skip curated search if explicitly requested (e.g., when curated filtering failed)
@@ -973,9 +983,10 @@ export async function searchPlaces(
     // Request up to 100 results from cache to support pagination
     curatedResults = await searchCuratedVenues(query, location, radiusMiles, coordinates, 100, venueType, seenVenues);
     
-    if (curatedResults.length >= 9) {
+    if (curatedResults.length >= 9 && !forceComprehensiveSearch) {
       // We have enough curated venues, return ALL of them (skip API call)
       // This allows users to paginate through many results without extra API costs
+      // NOTE: Skip this optimization if forceComprehensiveSearch is true (for user-initiated searches)
       console.log(`[Cache-First] Returning ALL ${curatedResults.length} curated venues for pagination (NO API CALL NEEDED)`);
       // Apply budget filter if provided (only filter if budgetMax is a real number)
       if (budgetMax != null && typeof budgetMax === 'number') {
@@ -984,6 +995,11 @@ export async function searchPlaces(
         return filtered;
       }
       return curatedResults;
+    }
+
+    // If forceComprehensiveSearch is true and we have 9+ curated results, log that we're calling API anyway
+    if (curatedResults.length >= 9 && forceComprehensiveSearch) {
+      console.log(`[Comprehensive Search] Found ${curatedResults.length} curated venues but forceComprehensiveSearch=true, will also call Google API for complete results`);
     }
     
     // If we have some curated results but not enough (<9), we'll merge them with API results
