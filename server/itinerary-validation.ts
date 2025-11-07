@@ -6,13 +6,14 @@ const openai = new OpenAI({
 });
 
 interface SelectedVenue {
-  sourceType: 'activity' | 'voting_event';
+  sourceType: 'activity' | 'voting_event' | 'ad_hoc';
   sourceId: string;
   venueName: string;
   venueType: string;
   venueAddress: string | null;
   googlePlaceId: string | null;
   location?: { lat: number; lng: number };
+  adHocData?: any;
 }
 
 interface ValidationResult {

@@ -66,9 +66,12 @@ export const reorderGroupsSchema = z.object({
 
 export const createGroupSchema = z.object({
   members: z.array(z.object({
-    name: z.string().min(1, "Member name is required"),
+    name: z.string().optional(),
     email: z.string().email("Invalid email format").optional(),
-  })).optional(),
+  }).refine(
+    (data) => data.name || data.email,
+    { message: "Either name or email must be provided for each member" }
+  )).optional(),
   name: z.string().min(1, "Group name is required").max(100, "Group name too long"),
   emoji: z.string().optional(),
   locationBase: z.string().min(1, "Location is required"),
@@ -420,6 +423,20 @@ export const frequencyFeedbackSchema = z.object({
   feedback: z.enum(['more_often', 'just_right', 'less_often']),
 });
 
+// ========== AD-HOC VENUE SCHEMAS ==========
+
+export const addAdHocVenueSchema = z.object({
+  name: z.string().min(1, "Venue name is required"),
+  address: z.string().optional(),
+  googlePlaceId: z.string().optional(),
+  googleMapsUrl: z.string().optional(),
+  notes: z.string().optional(),
+  venueType: z.string().optional(),
+}).refine(
+  (data) => data.address || data.googlePlaceId || data.googleMapsUrl,
+  { message: "Either address, googlePlaceId, or googleMapsUrl must be provided" }
+);
+
 // ========== SEARCH SCHEMAS ==========
 
 export const searchVenuesSchema = z.object({
@@ -435,3 +452,4 @@ export type CreateRsvpInput = z.infer<typeof createRsvpSchema>;
 export type GenerateCategoryInput = z.infer<typeof generateCategorySchema>;
 export type SendItineraryInput = z.infer<typeof sendItinerarySchema>;
 export type PostEventFeedbackInput = z.infer<typeof postEventFeedbackSchema>;
+export type AddAdHocVenueInput = z.infer<typeof addAdHocVenueSchema>;

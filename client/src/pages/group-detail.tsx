@@ -30,6 +30,7 @@ import { AvailabilityGrid, createEmptyAvailability } from "@/components/Availabi
 import { ReadOnlyAvailabilityGrid } from "@/components/ReadOnlyAvailabilityGrid";
 import { SwipeSession } from "@/components/SwipeSession";
 import { FavoritesMap } from "@/components/FavoritesMap";
+import { AddAdHocVenueDialog } from "@/components/AddAdHocVenueDialog";
 import { calculateDistance, getDistanceCategory, formatDistance } from "@/lib/distance";
 import { format } from 'date-fns';
 import { toZonedTime, fromZonedTime, formatInTimeZone } from 'date-fns-tz';
@@ -630,8 +631,10 @@ export default function GroupDetail() {
   const [showSwipeSession, setShowSwipeSession] = useState(false);
   const [showEnrichmentConfirm, setShowEnrichmentConfirm] = useState(false);
   const [pendingEventTitle, setPendingEventTitle] = useState("");
-  const [selectedVenues, setSelectedVenues] = useState<Array<{sourceType: 'activity' | 'voting_event', sourceId: string}>>([]);
+  const [selectedVenues, setSelectedVenues] = useState<Array<{sourceType: 'activity' | 'voting_event' | 'ad_hoc', sourceId: string, adHocData?: any}>>([]);
   const [regeneratingCategory, setRegeneratingCategory] = useState<string | null>(null);
+  const [showAddAdHocDialog, setShowAddAdHocDialog] = useState(false);
+  const [pendingAdHocItineraryId, setPendingAdHocItineraryId] = useState<string | null>(null);
   
   // Pagination state for each category
   const [categoryPages, setCategoryPages] = useState<Record<string, number>>({
@@ -1602,7 +1605,7 @@ export default function GroupDetail() {
 
   // Itinerary validation mutation
   const validateItineraryMutation = useMutation({
-    mutationFn: async (venues: Array<{sourceType: 'activity' | 'voting_event', sourceId: string}>) => {
+    mutationFn: async (venues: Array<{sourceType: 'activity' | 'voting_event' | 'ad_hoc', sourceId: string, adHocData?: any}>) => {
       return await apiRequest("POST", `/api/groups/${groupId}/itineraries/validate`, { selectedVenues: venues });
     },
     onSuccess: () => {
@@ -1626,7 +1629,7 @@ export default function GroupDetail() {
     },
   });
 
-  const toggleVenueSelection = (sourceType: 'activity' | 'voting_event', sourceId: string) => {
+  const toggleVenueSelection = (sourceType: 'activity' | 'voting_event' | 'ad_hoc', sourceId: string) => {
     setSelectedVenues(prev => {
       const exists = prev.some(v => v.sourceType === sourceType && v.sourceId === sourceId);
       if (exists) {
@@ -6959,6 +6962,16 @@ export default function GroupDetail() {
                       <CardTitle className="text-base">Selected Venues ({selectedVenues.length}/5)</CardTitle>
                       <div className="flex gap-2">
                         <Button
+                          onClick={() => setShowAddAdHocDialog(true)}
+                          disabled={selectedVenues.length >= 5}
+                          variant="outline"
+                          size="sm"
+                          className="gap-2"
+                        >
+                          <MapPin className="h-4 w-4" />
+                          Add Custom
+                        </Button>
+                        <Button
                           onClick={() => validateItineraryMutation.mutate(selectedVenues)}
                           disabled={validateItineraryMutation.isPending || selectedVenues.length < 1}
                           variant="default"
@@ -6985,15 +6998,20 @@ export default function GroupDetail() {
                     {selectedVenues.map((venue, index) => {
                       let venueName = '';
                       let venueType = '';
-                      
+                      let isAdHoc = false;
+
                       if (venue.sourceType === 'activity') {
                         const activity = activities.find(a => a.id === venue.sourceId);
                         venueName = activity?.venueName || 'Unknown';
                         venueType = activity?.venueType || '';
-                      } else {
+                      } else if (venue.sourceType === 'voting_event') {
                         const event = votingEvents.find(e => e.id === venue.sourceId);
                         venueName = event?.title || 'Unknown';
                         venueType = event?.venueType || '';
+                      } else if (venue.sourceType === 'ad_hoc') {
+                        venueName = venue.adHocData?.name || 'Custom Location';
+                        venueType = venue.adHocData?.address || '';
+                        isAdHoc = true;
                       }
 
                       return (
@@ -7006,7 +7024,12 @@ export default function GroupDetail() {
                             {index + 1}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{venueName}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium truncate">{venueName}</p>
+                              {isAdHoc && (
+                                <Badge variant="secondary" className="text-xs">Custom</Badge>
+                              )}
+                            </div>
                             {venueType && (
                               <p className="text-xs text-muted-foreground truncate">{venueType}</p>
                             )}
@@ -7229,13 +7252,26 @@ export default function GroupDetail() {
               {selectedVenues.length === 0 && itineraries.length === 0 && (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Search className="h-5 w-5" />
-                      Search for Venues
-                    </CardTitle>
-                    <CardDescription>
-                      Search for restaurants, cafes, parks, or any venue to add to your itinerary
-                    </CardDescription>
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <CardTitle className="flex items-center gap-2">
+                          <Search className="h-5 w-5" />
+                          Search for Venues
+                        </CardTitle>
+                        <CardDescription>
+                          Search for restaurants, cafes, parks, or any venue to add to your itinerary
+                        </CardDescription>
+                      </div>
+                      <Button
+                        onClick={() => setShowAddAdHocDialog(true)}
+                        variant="outline"
+                        size="sm"
+                        className="gap-2 shrink-0"
+                      >
+                        <MapPin className="h-4 w-4" />
+                        Add Custom
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {/* Search Input */}
@@ -7854,7 +7890,7 @@ export default function GroupDetail() {
                             const eventDates: string[] = [];
                             
                             if (scheduleMethod === 'manual' && eventDate && eventTime) {
-                              eventDates.push(`${eventDate}T${eventTime}:00`);
+                              eventDates.push(new Date(`${eventDate}T${eventTime}:00`).toISOString());
                             } else if (scheduleMethod === 'ai' && selectedTimeOptionIds.length > 0) {
                               const selectedOptions = aiTimeOptions.filter(opt => 
                                 selectedTimeOptionIds.includes(opt.id)
@@ -9582,6 +9618,29 @@ export default function GroupDetail() {
           }}
         />
       )}
+
+      {/* Add Ad-hoc Venue Dialog */}
+      <AddAdHocVenueDialog
+        open={showAddAdHocDialog}
+        onOpenChange={setShowAddAdHocDialog}
+        itineraryId={pendingAdHocItineraryId || undefined}
+        onAdd={(venueData) => {
+          // Add to shopping cart
+          const tempId = `temp-${Date.now()}`;
+          setSelectedVenues(prev => [...prev, {
+            sourceType: 'ad_hoc',
+            sourceId: tempId,
+            adHocData: venueData
+          }]);
+        }}
+        onSuccess={() => {
+          // When adding to existing itinerary
+          if (pendingAdHocItineraryId) {
+            queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "itineraries"] });
+            setPendingAdHocItineraryId(null);
+          }
+        }}
+      />
     </div>
   );
 }

@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { TimeSlotVoting } from "@/components/TimeSlotVoting";
 import { Link } from "wouter";
+import { AddAdHocVenueDialog } from "@/components/AddAdHocVenueDialog";
 
 export default function EventDetailsPage() {
   const [, params] = useRoute("/event/:id");
@@ -44,6 +45,7 @@ export default function EventDetailsPage() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [guestName, setGuestName] = useState("");
+  const [showAddVenueDialog, setShowAddVenueDialog] = useState(false);
 
   const { data: event, isLoading } = useQuery<any>({
     queryKey: ["/api/user/events", eventId],
@@ -186,6 +188,7 @@ export default function EventDetailsPage() {
   const hostableMembers = event.members?.filter((m: any) => m.openToHosting && m.id !== event.currentUserMemberId) || [];
 
   const formatRsvpName = (rsvp: any) => {
+    if (rsvp.name) return rsvp.name;
     if (rsvp.memberName) return rsvp.memberName;
     if (rsvp.firstName && rsvp.lastName) return `${rsvp.firstName} ${rsvp.lastName}`;
     if (rsvp.firstName) return rsvp.firstName;
@@ -251,17 +254,40 @@ export default function EventDetailsPage() {
           <CardContent className="space-y-6">
             {/* Venues */}
             <div className="space-y-3">
-              <h3 className="font-semibold text-lg">Venues</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-lg">Venues</h3>
+                {isOrganizer && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowAddVenueDialog(true)}
+                    className="gap-2"
+                  >
+                    <MapPin className="h-4 w-4" />
+                    Add Location
+                  </Button>
+                )}
+              </div>
               {event.items.map((venue: any, idx: number) => (
                 <Card key={venue.id} className="p-4">
                   <div className="flex items-start gap-3">
                     <Badge variant="outline" className="h-6 shrink-0 mt-1">{idx + 1}</Badge>
                     <div className="flex-1 space-y-2">
-                      <h4 className="font-semibold text-lg">{venue.venueName}</h4>
+                      <div className="flex items-start gap-2">
+                        <h4 className="font-semibold text-lg flex-1">{venue.venueName}</h4>
+                        {venue.sourceType === 'ad_hoc' && (
+                          <Badge variant="secondary" className="text-xs">Custom</Badge>
+                        )}
+                      </div>
                       {venue.venueAddress && (
                         <div className="flex items-start gap-2 text-sm text-muted-foreground">
                           <MapPin className="h-4 w-4 shrink-0 mt-0.5" />
                           <span>{venue.venueAddress}</span>
+                        </div>
+                      )}
+                      {venue.notes && (
+                        <div className="text-sm text-muted-foreground italic">
+                          Note: {venue.notes}
                         </div>
                       )}
                       <div className="flex items-center gap-4 flex-wrap">
@@ -544,6 +570,18 @@ export default function EventDetailsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Add Ad-hoc Venue Dialog */}
+      {event?.itineraryId && (
+        <AddAdHocVenueDialog
+          open={showAddVenueDialog}
+          onOpenChange={setShowAddVenueDialog}
+          itineraryId={event.itineraryId}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ["/api/user/events", eventId] });
+          }}
+        />
+      )}
     </div>
   );
 }

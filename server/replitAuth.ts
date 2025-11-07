@@ -63,15 +63,24 @@ async function upsertUser(
   claims: any,
 ) {
   const email = claims["email"];
-  
+
+  // For protected admin accounts, still sync the user ID but preserve existing profile data
   if (PROTECTED_ADMIN_EMAILS.includes(email)) {
     const existingUser = await storage.getUserByEmail(email);
     if (existingUser) {
-      console.log(`[Auth] Protected admin account detected: ${email}. Skipping profile update to prevent test data contamination.`);
+      console.log(`[Auth] Protected admin account detected: ${email}. Syncing session ID but preserving existing profile data.`);
+      // CRITICAL: Must still call upsertUser to ensure session ID matches database ID
+      await storage.upsertUser({
+        id: claims["sub"], // Update ID to match session
+        email: existingUser.email, // Preserve existing email
+        firstName: existingUser.firstName, // Preserve existing first name
+        lastName: existingUser.lastName, // Preserve existing last name
+        profileImageUrl: existingUser.profileImageUrl, // Preserve existing profile image
+      });
       return;
     }
   }
-  
+
   await storage.upsertUser({
     id: claims["sub"],
     email: claims["email"],

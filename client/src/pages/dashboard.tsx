@@ -390,16 +390,16 @@ export default function Dashboard() {
 
   // Post-event feedback mutation
   const postEventFeedbackMutation = useMutation({
-    mutationFn: async ({ itineraryId, actuallyAttended, venueRating, frequencyPreference, wouldDoAgain, improvementNotes }: { 
+    mutationFn: async ({ itineraryId, actuallyAttended, venueRating, frequencyPreference, wouldDoAgain, improvementNotes }: {
       itineraryId: string;
       actuallyAttended: string;
-      venueRating: number; 
-      frequencyPreference: string; 
-      wouldDoAgain: string; 
+      venueRating: number;
+      frequencyPreference: string;
+      wouldDoAgain: string;
       improvementNotes: string;
     }) => {
       return await apiRequest("POST", `/api/itineraries/${itineraryId}/post-event-feedback`, {
-        actuallyAttended,
+        actuallyAttended: actuallyAttended === "yes",
         venueRating,
         frequencyPreference,
         wouldDoAgain,

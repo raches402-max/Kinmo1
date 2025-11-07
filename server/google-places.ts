@@ -665,19 +665,48 @@ async function searchCuratedVenues(
     // Build SQL query
     const conditions = [];
 
-    // Filter by active status AND Bay Area regions
+    // Filter by active status only (regions are now actual city names)
     conditions.push(eq(curatedVenues.isActive, true));
-    conditions.push(inArray(curatedVenues.region, ['san_francisco', 'san_mateo', 'oakland', 'san_jose', 'bay_area']));
     
-    // CRITICAL FIX: Add text search for venue name with token-based matching
-    // Split query into words to handle plural/singular ("dumpling" matches "dumplings")
-    // This ensures "supreme dumpling" matches "Supreme Dumplings"
+    // Text search for venue name with flexible token-based matching
+    // Normalize search terms to handle apostrophes, possessives, and plurals
+    const normalizeWord = (word: string): string[] => {
+      const variants: string[] = [word];
+
+      // Strip possessive 's (e.g., "lovely's" → "lovely")
+      if (word.endsWith("'s")) {
+        variants.push(word.slice(0, -2));
+      }
+
+      // Handle plural "ies" → "y" (e.g., "lovelies" → "lovely")
+      if (word.endsWith('ies') && word.length > 4) {
+        variants.push(word.slice(0, -3) + 'y');
+      }
+
+      // Handle plural "s" (e.g., "dumplings" → "dumpling")
+      if (word.endsWith('s') && word.length > 3 && !word.endsWith('ss')) {
+        variants.push(word.slice(0, -1));
+      }
+
+      return variants;
+    };
+
+    // Split query into words and normalize each word
     const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length >= 3);
     if (queryWords.length > 0) {
-      const nameConditions = queryWords.map(word =>
-        ilike(curatedVenues.name, `%${word}%`)
-      );
-      conditions.push(and(...nameConditions)); // All words must match
+      const nameConditions: any[] = [];
+
+      for (const word of queryWords) {
+        const variants = normalizeWord(word);
+        // Add all variants for this word
+        for (const variant of variants) {
+          nameConditions.push(ilike(curatedVenues.name, `%${variant}%`));
+        }
+      }
+
+      // Use OR logic for flexibility - any matching word variant is sufficient
+      // Results are later sorted by name similarity, so better matches rank higher
+      conditions.push(or(...nameConditions));
     } else {
       // Fallback to exact matching for very short queries
       conditions.push(ilike(curatedVenues.name, `%${query}%`));
@@ -1145,7 +1174,8 @@ export async function searchPlaces(
   venueType?: string,
   budgetMax?: number,
   seenVenues?: string[],
-  forceComprehensiveSearch: boolean = false
+  forceComprehensiveSearch: boolean = false,
+  userDirected: boolean = false
 ): Promise<PlaceResult[]> {
   // GOOGLE MAPS URL DETECTION: Check if query is a Google Maps URL
   const urlResult = await detectAndParseGoogleMapsUrl(query);
@@ -1198,8 +1228,8 @@ export async function searchPlaces(
       // This allows users to paginate through many results without extra API costs
       // NOTE: Skip this optimization if forceComprehensiveSearch is true (for user-initiated searches)
       console.log(`[Cache-First] Returning ALL ${curatedResults.length} curated venues for pagination (NO API CALL NEEDED)`);
-      // Apply budget filter if provided (only filter if budgetMax is a real number)
-      if (budgetMax != null && typeof budgetMax === 'number') {
+      // Apply budget filter if provided (only filter if budgetMax is a real number and not user-directed)
+      if (!userDirected && budgetMax != null && typeof budgetMax === 'number') {
         const filtered = filterByBudget(curatedResults, budgetMax);
         console.log(`[Budget Filter] ${curatedResults.length} → ${filtered.length} venues after budget filter ($${budgetMax})`);
         return filtered;
@@ -1239,8 +1269,8 @@ export async function searchPlaces(
         const shuffledCached = shuffleArray(uniqueCached);
         const combined = [...curatedResults, ...shuffledCached].slice(0, 20);
         console.log(`[Cache-First] Combined ${curatedResults.length} curated + ${shuffledCached.length} cached (shuffled) = ${combined.length} total`);
-        // Apply budget filter if provided (only filter if budgetMax is a real number)
-        if (budgetMax != null && typeof budgetMax === 'number') {
+        // Apply budget filter if provided (only filter if budgetMax is a real number and not user-directed)
+        if (!userDirected && budgetMax != null && typeof budgetMax === 'number') {
           const filtered = filterByBudget(combined, budgetMax);
           console.log(`[Budget Filter] ${combined.length} → ${filtered.length} venues after budget filter ($${budgetMax})`);
           return filtered.map(result => clonePlaceResult(result));
@@ -1251,8 +1281,8 @@ export async function searchPlaces(
       // Return deep copy to prevent mutation, shuffled for variety
       const results = shuffleArray(cached.map(result => clonePlaceResult(result)));
       console.log(`[Session Cache] Returning ${results.length} results (shuffled for variety)`);
-      // Apply budget filter if provided (only filter if budgetMax is a real number)
-      if (budgetMax != null && typeof budgetMax === 'number') {
+      // Apply budget filter if provided (only filter if budgetMax is a real number and not user-directed)
+      if (!userDirected && budgetMax != null && typeof budgetMax === 'number') {
         const filtered = filterByBudget(results, budgetMax);
         console.log(`[Budget Filter] ${results.length} → ${filtered.length} venues after budget filter ($${budgetMax})`);
         return filtered;
@@ -1281,8 +1311,8 @@ export async function searchPlaces(
           const combined = [...curatedResults, ...uniqueDb].slice(0, 20);
           sessionCache.searchResults.set(cacheKey, combined.map(r => clonePlaceResult(r)));
           console.log(`[Cache-First] Combined ${curatedResults.length} curated + ${uniqueDb.length} DB = ${combined.length} total`);
-          // Apply budget filter if provided (only filter if budgetMax is a real number)
-          if (budgetMax != null && typeof budgetMax === 'number') {
+          // Apply budget filter if provided (only filter if budgetMax is a real number and not user-directed)
+          if (!userDirected && budgetMax != null && typeof budgetMax === 'number') {
             const filtered = filterByBudget(combined, budgetMax);
             console.log(`[Budget Filter] ${combined.length} → ${filtered.length} venues after budget filter ($${budgetMax})`);
             return filtered.map(result => clonePlaceResult(result));
@@ -1293,10 +1323,10 @@ export async function searchPlaces(
         // Cache in session for immediate reuse
         sessionCache.searchResults.set(cacheKey, results.map(r => clonePlaceResult(r)));
         sessionCache.stats.searchHits++;
-        
-        // Apply budget filter if provided (only filter if budgetMax is a real number)
+
+        // Apply budget filter if provided (only filter if budgetMax is a real number and not user-directed)
         const toReturn = results.map(result => clonePlaceResult(result));
-        if (budgetMax != null && typeof budgetMax === 'number') {
+        if (!userDirected && budgetMax != null && typeof budgetMax === 'number') {
           const filtered = filterByBudget(toReturn, budgetMax);
           console.log(`[Budget Filter] ${toReturn.length} → ${filtered.length} venues after budget filter ($${budgetMax})`);
           return filtered;
@@ -1320,7 +1350,8 @@ export async function searchPlaces(
     
     // Build request body
     const requestBody: any = {
-      textQuery: coordinates ? query : `${query} in ${location}`,
+      // Always include location context for better matching, even with coordinates
+      textQuery: `${query} in ${location}`,
       maxResultCount: 20,
     };
     
@@ -1374,14 +1405,20 @@ export async function searchPlaces(
         errorDetails = `${response.status}: ${errorText}`;
       }
       console.error(`[Google Places API] Text Search Error:`, errorDetails);
-      sessionCache.searchResults.set(cacheKey, []);
+      // Don't cache empty results for user-directed searches (allow retry)
+      if (!userDirected) {
+        sessionCache.searchResults.set(cacheKey, []);
+      }
       return [];
     }
 
     const data = await response.json();
 
     if (!data.places || data.places.length === 0) {
-      sessionCache.searchResults.set(cacheKey, []);
+      // Don't cache empty results for user-directed searches (allow retry)
+      if (!userDirected) {
+        sessionCache.searchResults.set(cacheKey, []);
+      }
       return [];
     }
 
@@ -1401,23 +1438,24 @@ export async function searchPlaces(
       } : undefined;
       
       // Check if place is within radius (if coordinates provided)
-      if (coordinates && placeLocation) {
+      // Skip distance filter for user-directed searches - user knows what they want
+      if (!userDirected && coordinates && placeLocation) {
         const distance = calculateDistance(
           coordinates.lat,
           coordinates.lng,
           placeLocation.lat,
           placeLocation.lng
         );
-        
+
         if (distance > radiusMiles) {
           console.log(`[Google Places] Filtering out "${place.displayName?.text || 'Unknown'}" - ${distance.toFixed(2)} miles away (radius: ${radiusMiles} miles)`);
           continue; // Skip this place, but keep processing others
         }
       }
       
-      // Filter out places with fewer than 50 reviews
+      // Filter out places with fewer than 50 reviews (skip filter for user-directed searches)
       // NEW API: userRatingCount instead of user_ratings_total
-      if (!place.userRatingCount || place.userRatingCount < MIN_REVIEWS) {
+      if (!userDirected && (!place.userRatingCount || place.userRatingCount < MIN_REVIEWS)) {
         console.log(`[Google Places] Filtering out "${place.displayName?.text || 'Unknown'}" - only ${place.userRatingCount || 0} reviews (minimum: ${MIN_REVIEWS})`);
         continue;
       }
@@ -1491,8 +1529,8 @@ export async function searchPlaces(
       const uniqueApiResults = results.filter(r => !curatedPlaceIds.has(r.placeId));
       const combined = [...curatedResults, ...uniqueApiResults].slice(0, 20);
       console.log(`[Cache-First] Final: ${curatedResults.length} curated + ${uniqueApiResults.length} API = ${combined.length} total`);
-      // Apply budget filter if provided (only filter if budgetMax is a real number)
-      if (budgetMax != null && typeof budgetMax === 'number') {
+      // Apply budget filter if provided (only filter if budgetMax is a real number and not user-directed)
+      if (!userDirected && budgetMax != null && typeof budgetMax === 'number') {
         const filtered = filterByBudget(combined, budgetMax);
         console.log(`[Budget Filter] ${combined.length} → ${filtered.length} venues after budget filter ($${budgetMax})`);
         return filtered;
@@ -1501,8 +1539,8 @@ export async function searchPlaces(
     }
     
     // Return original (caller can mutate without affecting cache)
-    // Apply budget filter if provided (only filter if budgetMax is a real number)
-    if (budgetMax != null && typeof budgetMax === 'number') {
+    // Apply budget filter if provided (only filter if budgetMax is a real number and not user-directed)
+    if (!userDirected && budgetMax != null && typeof budgetMax === 'number') {
       const filtered = filterByBudget(results, budgetMax);
       console.log(`[Budget Filter] ${results.length} → ${filtered.length} venues after budget filter ($${budgetMax})`);
       return filtered;
@@ -1510,14 +1548,16 @@ export async function searchPlaces(
     return results;
   } catch (error) {
     console.error("Error searching Google Places:", error);
-    // Cache empty result to avoid retrying failed searches
-    sessionCache.searchResults.set(cacheKey, []);
+    // Cache empty result to avoid retrying failed searches (skip for user-directed)
+    if (!userDirected) {
+      sessionCache.searchResults.set(cacheKey, []);
+    }
     
     // Even if API fails, return curated results if we have them
     if (curatedResults.length > 0) {
       console.log(`[Cache-First] API failed, returning ${curatedResults.length} curated venues as fallback`);
-      // Apply budget filter if provided (only filter if budgetMax is a real number)
-      if (budgetMax != null && typeof budgetMax === 'number') {
+      // Apply budget filter if provided (only filter if budgetMax is a real number and not user-directed)
+      if (!userDirected && budgetMax != null && typeof budgetMax === 'number') {
         const filtered = filterByBudget(curatedResults, budgetMax);
         console.log(`[Budget Filter] ${curatedResults.length} → ${filtered.length} venues after budget filter ($${budgetMax})`);
         return filtered;

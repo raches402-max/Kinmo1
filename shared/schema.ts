@@ -294,14 +294,17 @@ export const itineraries = pgTable("itineraries", {
 export const itineraryItems = pgTable("itinerary_items", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   itineraryId: varchar("itinerary_id").notNull().references(() => itineraries.id, { onDelete: "cascade" }),
-  sourceType: text("source_type").notNull(), // 'activity' or 'voting_event'
-  sourceId: varchar("source_id").notNull(), // ID from activities or votingEvents table
+  sourceType: text("source_type").notNull(), // 'activity', 'voting_event', or 'ad_hoc'
+  sourceId: varchar("source_id"), // ID from activities or votingEvents table (null for ad_hoc)
   venueName: text("venue_name").notNull(),
   venueAddress: text("venue_address"),
   venueType: text("venue_type").notNull(),
   googlePlaceId: text("google_place_id"),
   rating: text("rating"),
   photoUrl: text("photo_url"),
+  latitude: text("latitude"), // For ad-hoc venues with geocoded addresses
+  longitude: text("longitude"), // For ad-hoc venues with geocoded addresses
+  notes: text("notes"), // Optional custom notes for ad-hoc venues
   orderIndex: integer("order_index").notNull(), // Position in itinerary sequence
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

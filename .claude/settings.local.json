@@ -25,7 +25,12 @@
       "Bash(cat:*)",
       "Bash(awk:*)",
       "Bash(git checkout:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "WebFetch(domain:code.claude.com)",
+      "Bash(psql:*)",
+      "Bash(bun run server/check-venues.ts)",
+      "Bash(git log:*)",
+      "Bash(fuser:*)"
     ],
     "deny": [],
     "ask": []

@@ -2,9 +2,9 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, updateUserProfileSchema, activities as activitiesTable, groups as groupsTable, members as membersTable, itineraryInvites, guestInvites, rsvps as rsvpsTable, itineraries, itineraryItems, proposedTimeSlots, userProfiles, photosCache, geocodingCache, hostAssignments, curatedVenues, votingEvents as votingEventsTable, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
+import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, updateUserProfileSchema, activities as activitiesTable, groups as groupsTable, members as membersTable, itineraryInvites, guestInvites, rsvps as rsvpsTable, itineraries, itineraryItems, proposedTimeSlots, users, userProfiles, photosCache, geocodingCache, hostAssignments, curatedVenues, votingEvents as votingEventsTable, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
 import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue, analyzePreferencePatterns, parseSchedulingPrompt, detectCategory } from "./openai";
-import { searchPlaces, searchNearbyPlaces, geocodeLocation, clearPlacesCache, getCacheStats, getPlaceDetails } from "./google-places";
+import { searchPlaces, searchNearbyPlaces, geocodeLocation, clearPlacesCache, getCacheStats, getPlaceDetails, detectAndParseGoogleMapsUrl } from "./google-places";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import {
   requireGroupOwnership,
@@ -40,6 +40,7 @@ import {
   saveItinerarySchema,
   organizerRsvpSchema,
   createItineraryRsvpSchema,
+  addAdHocVenueSchema,
 } from './validation-schemas';
 
 /**
@@ -845,12 +846,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const member = groupMembers.find(m => m.id === r.memberId);
             name = member?.name || member?.email || 'Unknown';
           } else if (r.userId) {
-            // Organizer RSVP - get user profile name
-            const [userProfile] = await db
-              .select({ displayName: userProfiles.displayName })
-              .from(userProfiles)
-              .where(eq(userProfiles.userId, r.userId));
-            name = userProfile?.displayName || 'Organizer';
+            // Organizer RSVP - get user name with proper fallback chain
+            const [userInfo] = await db
+              .select({
+                displayName: userProfiles.displayName,
+                firstName: users.firstName,
+                lastName: users.lastName,
+                email: users.email
+              })
+              .from(users)
+              .leftJoin(userProfiles, eq(userProfiles.userId, users.id))
+              .where(eq(users.id, r.userId));
+
+            if (userInfo) {
+              name = userInfo.displayName ||
+                     (userInfo.firstName && userInfo.lastName
+                       ? `${userInfo.firstName} ${userInfo.lastName}`
+                       : userInfo.firstName || userInfo.email || 'Organizer');
+            } else {
+              name = 'Organizer';
+            }
           } else if (r.guestName) {
             // Guest RSVP
             name = r.guestName;
@@ -4373,7 +4388,7 @@ Looking forward to planning great activities together!
 
       // Fetch venue details with location data
       const venuesWithDetails = await Promise.all(
-        selectedVenues.map(async (v: { sourceType: string; sourceId: string }) => {
+        selectedVenues.map(async (v: { sourceType: string; sourceId: string; adHocData?: any }) => {
           if (v.sourceType === 'activity') {
             const activities = await storage.getGroupActivities(groupId);
             const activity = activities.find(a => a.id === v.sourceId);
@@ -4397,7 +4412,7 @@ Looking forward to planning great activities together!
               googlePlaceId: activity.googlePlaceId,
               location,
             };
-          } else {
+          } else if (v.sourceType === 'voting_event') {
             const events = await storage.getGroupVotingEvents(groupId);
             const event = events.find(e => e.id === v.sourceId);
             if (!event) return null;
@@ -4420,7 +4435,37 @@ Looking forward to planning great activities together!
               googlePlaceId: event.googlePlaceId,
               location,
             };
+          } else if (v.sourceType === 'ad_hoc' && v.adHocData) {
+            // Handle ad-hoc venue
+            const { name, address, googlePlaceId, googleMapsUrl, notes } = v.adHocData;
+
+            // For validation purposes, create a temporary venue object
+            let location: { lat: number; lng: number } | undefined;
+
+            // Try to geocode if we have an address but no coordinates
+            if (address) {
+              try {
+                const geocoded = await geocodeLocation(address);
+                if (geocoded) {
+                  location = { lat: geocoded.lat, lng: geocoded.lng };
+                }
+              } catch (error) {
+                console.error('[Validate Itinerary] Error geocoding ad-hoc venue:', error);
+              }
+            }
+
+            return {
+              sourceType: 'ad_hoc' as const,
+              sourceId: v.sourceId, // temp ID
+              venueName: name,
+              venueType: 'venue',
+              venueAddress: address || '',
+              googlePlaceId,
+              location,
+              adHocData: v.adHocData, // Pass through for later
+            };
           }
+          return null;
         })
       );
 
@@ -4451,6 +4496,13 @@ Looking forward to planning great activities together!
         userId,
         validation.proposedOrder.map(sourceId => {
           const venue = validVenues.find(v => v?.sourceId === sourceId);
+          if (venue?.sourceType === 'ad_hoc') {
+            return {
+              sourceType: 'ad_hoc' as const,
+              sourceId: sourceId,
+              adHocData: venue.adHocData,
+            };
+          }
           return {
             sourceType: (venue?.sourceType || 'activity') as 'activity' | 'voting_event',
             sourceId: sourceId,
@@ -4614,6 +4666,40 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Simple places search (for ad-hoc venue dialog)
+  app.get("/api/places/search", async (req, res) => {
+    try {
+      const { query } = req.query;
+
+      if (!query || typeof query !== 'string' || query.trim().length < 2) {
+        return res.json({ results: [] });
+      }
+
+      // Use a default location (Bay Area) for context
+      const searchQuery = query.trim();
+      const defaultLocation = "San Francisco Bay Area";
+      const defaultRadius = 25; // miles
+
+      const results = await searchPlaces(searchQuery, defaultLocation, defaultRadius, undefined, false, undefined, undefined, undefined, true, true);
+
+      // Return top 10 results
+      const limitedResults = results.slice(0, 10).map(place => ({
+        placeId: place.placeId,
+        name: place.name,
+        address: place.address,
+        photoUrl: place.photoUrl,
+        rating: place.rating,
+        reviewCount: place.reviewCount,
+        types: place.types || [],
+      }));
+
+      res.json({ results: limitedResults });
+    } catch (error: any) {
+      console.error("[Places Search] Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Search for venues by query string
   app.get("/api/groups/:groupId/search-venues", async (req, res) => {
     try {
@@ -4644,7 +4730,7 @@ Looking forward to planning great activities together!
 
       console.log(`[SEARCH VENUES] Searching: "${searchQuery}" in ${location} (radius: ${radius} miles)`);
 
-      const results = await searchPlaces(searchQuery, location, radius, coordinates, false, undefined, group.budgetMax, undefined, true);
+      const results = await searchPlaces(searchQuery, location, radius, coordinates, false, undefined, group.budgetMax, undefined, true, true);
 
       console.log(`[SEARCH VENUES] Found ${results.length} results`);
 
@@ -4762,6 +4848,100 @@ Looking forward to planning great activities together!
     } catch (error: any) {
       console.error("[Add Itinerary Items] Error:", error);
       res.status(500).json({ message: error.message || "Failed to add itinerary items" });
+    }
+  });
+
+  // Add ad-hoc venue to itinerary
+  app.post("/api/itineraries/:id/items/ad-hoc", isAuthenticated, requireItineraryAccess(), async (req: any, res) => {
+    try {
+      // Validate request body
+      const validatedData = safeParse(addAdHocVenueSchema, req.body, res);
+      if (!validatedData) return;
+
+      const itineraryId = req.params.id;
+      let { name, address, googlePlaceId, googleMapsUrl, notes, venueType } = validatedData;
+
+      // Verify itinerary exists
+      const itinerary = await storage.getItinerary(itineraryId);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      let latitude: string | null = null;
+      let longitude: string | null = null;
+      let photoUrl: string | null = null;
+      let rating: string | null = null;
+
+      // Handle Google Maps URL parsing
+      if (googleMapsUrl) {
+        try {
+          const parsedPlace = await detectAndParseGoogleMapsUrl(googleMapsUrl);
+          if (parsedPlace?.placeId) {
+            googlePlaceId = parsedPlace.placeId;
+            // Override name and address if parsed from URL
+            if (parsedPlace.name) name = parsedPlace.name;
+            if (parsedPlace.address) address = parsedPlace.address;
+          }
+        } catch (error) {
+          console.error('[Add Ad-hoc Venue] Error parsing Google Maps URL:', error);
+          // Continue with manual address if URL parsing fails
+        }
+      }
+
+      // Fetch Google Places details if placeId is provided
+      if (googlePlaceId) {
+        try {
+          const placeDetails = await getPlaceDetails(googlePlaceId);
+          if (placeDetails) {
+            // Use Google Places data to enrich the venue
+            if (!address) address = placeDetails.address;
+            if (!venueType && placeDetails.types && placeDetails.types.length > 0) {
+              venueType = placeDetails.types[0];
+            }
+            if (placeDetails.location) {
+              latitude = placeDetails.location.lat.toString();
+              longitude = placeDetails.location.lng.toString();
+            }
+            if (placeDetails.photoUrl) photoUrl = placeDetails.photoUrl;
+            if (placeDetails.rating) rating = placeDetails.rating.toString();
+          }
+        } catch (error) {
+          console.error('[Add Ad-hoc Venue] Error fetching place details:', error);
+          // Continue with provided data if Google Places fetch fails
+        }
+      }
+
+      // Geocode manual address if no coordinates yet
+      if (address && !latitude && !longitude) {
+        try {
+          const geocoded = await geocodeLocation(address);
+          if (geocoded) {
+            latitude = geocoded.lat.toString();
+            longitude = geocoded.lng.toString();
+          }
+        } catch (error) {
+          console.error('[Add Ad-hoc Venue] Error geocoding address:', error);
+          // Continue without coordinates if geocoding fails
+        }
+      }
+
+      // Add the ad-hoc venue to itinerary
+      const newItem = await storage.addAdHocVenueToItinerary(itineraryId, {
+        venueName: name,
+        venueAddress: address || '',
+        venueType: venueType || 'venue',
+        googlePlaceId: googlePlaceId || null,
+        latitude,
+        longitude,
+        notes: notes || null,
+        rating,
+        photoUrl,
+      });
+
+      res.json(newItem);
+    } catch (error: any) {
+      console.error("[Add Ad-hoc Venue] Error:", error);
+      res.status(500).json({ message: error.message || "Failed to add ad-hoc venue" });
     }
   });
 
@@ -7266,6 +7446,39 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Admin endpoint to permanently delete a group and all associated data
+  app.delete("/api/admin/groups/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      // Check if user is admin
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+
+      const adminEmails = getAdminEmails();
+      if (!user || !adminEmails.includes(user.email || '')) {
+        return res.status(403).json({ message: "Unauthorized: Admin access required" });
+      }
+
+      const groupId = req.params.id;
+
+      // Verify group exists before attempting deletion
+      const group = await storage.getGroup(groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      console.log(`[Hard Delete] Admin ${user.email} permanently deleting group ${groupId} (${group.name})`);
+      await storage.hardDeleteGroup(groupId);
+
+      res.json({
+        success: true,
+        message: `Group "${group.name}" permanently deleted. Backup created for recovery if needed.`
+      });
+    } catch (error: any) {
+      console.error("Error deleting group:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Admin endpoint to recategorize all curated venues based on their Google types
   app.post("/api/admin/recategorize-venues", isAuthenticated, async (req: any, res) => {
     console.log("[Venue Recategorization] ===== ENDPOINT CALLED =====");
@@ -8279,14 +8492,16 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
         const batchResults = await Promise.all(
           batch.map(async (suggestion) => {
             const places = await searchPlaces(
-              suggestion.searchQuery, 
-              groupData.locationBase, 
+              suggestion.searchQuery,
+              groupData.locationBase,
               groupData.searchRadius || 2,
               coordinates,
               false, // skipCurated
               suggestion.venueType, // Pass venueType for better cache matching
               groupData.budgetMax, // Pass budget for filtering
-              seenVenueNames // Pass seen venues for variety
+              seenVenueNames, // Pass seen venues for variety
+              false, // forceComprehensiveSearch
+              true // userDirected - skip strict 50+ review filter, use our own quality filter
             );
 
           // If Google Places returns NO results at all, this is likely a fake/non-existent venue
@@ -8303,20 +8518,20 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
             const rating = parseFloat(place.rating || '0');
             const reviewCount = place.reviewCount || 0;
 
-            // Quality requirements by tier (stricter to ensure legitimacy):
-            // < 2 miles (Nearby): 3.5+ stars, 20+ reviews
-            // < 10 miles (Citywide): 3.8+ stars, 50+ reviews
-            // < 30 miles (Special Trip): 4.0+ stars, 100+ reviews
-            // < 50 miles (Road Trip): 4.2+ stars, 150+ reviews
+            // Relaxed quality requirements for better activity variety:
+            // < 2 miles (Nearby): 3.5+ stars, 10+ reviews
+            // < 10 miles (Citywide): 3.5+ stars, 15+ reviews
+            // < 30 miles (Special Trip): 3.7+ stars, 25+ reviews
+            // < 50 miles (Road Trip): 3.9+ stars, 40+ reviews
 
             if (searchRadius <= 2) {
-              return rating >= 3.5 && reviewCount >= 20;
+              return rating >= 3.5 && reviewCount >= 10;
             } else if (searchRadius <= 10) {
-              return rating >= 3.8 && reviewCount >= 50;
+              return rating >= 3.5 && reviewCount >= 15;
             } else if (searchRadius <= 30) {
-              return rating >= 4.0 && reviewCount >= 100;
+              return rating >= 3.7 && reviewCount >= 25;
             } else {
-              return rating >= 4.2 && reviewCount >= 150;
+              return rating >= 3.9 && reviewCount >= 40;
             }
           });
 
@@ -8450,13 +8665,16 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
             console.log(`[API Fallback] Calling Google Places API for "${suggestion.venueName}"`);
             
             const apiPlaces = await searchPlaces(
-              suggestion.searchQuery, 
-              groupData.locationBase, 
+              suggestion.searchQuery,
+              groupData.locationBase,
               groupData.searchRadius || 2,
               coordinates,
               true, // skipCurated = true (force fresh API call)
               suggestion.venueType, // Pass venueType for better cache matching
-              groupData.budgetMax // Pass budget for filtering
+              groupData.budgetMax, // Pass budget for filtering
+              seenVenueNames, // Pass seen venues for variety
+              false, // forceComprehensiveSearch
+              true // userDirected - skip strict 50+ review filter, use our own quality filter
             );
             
             // If API also returns no results, this is likely a fake venue
@@ -8531,22 +8749,22 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
               let minRating = 0;
               let minReviews = 0;
               
-              // RELAXED thresholds - focus on rating quality over review count
+              // VERY RELAXED fallback thresholds - prioritize variety
               if (searchRadius <= 2) {
-                minRating = 3.5;
-                minReviews = 10; // Reduced from 20
+                minRating = 3.3;
+                minReviews = 5; // Very relaxed for nearby venues
                 passed = rating >= minRating && reviewCount >= minReviews;
               } else if (searchRadius <= 10) {
-                minRating = 3.7; // Reduced from 3.8
-                minReviews = 25; // Reduced from 50
+                minRating = 3.5;
+                minReviews = 10; // Relaxed for citywide
                 passed = rating >= minRating && reviewCount >= minReviews;
               } else if (searchRadius <= 30) {
-                minRating = 3.9; // Reduced from 4.0
-                minReviews = 50; // Reduced from 100
+                minRating = 3.7;
+                minReviews = 20; // Relaxed for special trips
                 passed = rating >= minRating && reviewCount >= minReviews;
               } else {
-                minRating = 4.0; // Reduced from 4.2
-                minReviews = 75; // Reduced from 150
+                minRating = 3.8;
+                minReviews = 30; // Relaxed for road trips
                 passed = rating >= minRating && reviewCount >= minReviews;
               }
               

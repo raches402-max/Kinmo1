@@ -389,10 +389,12 @@ export async function processAutoScheduling(): Promise<void> {
           const original = await storage.getItinerary(selection.itineraryId);
           if (!original) continue;
 
-          const itemsData = original.items.map(item => ({
-            sourceType: item.sourceType as 'activity' | 'voting_event',
-            sourceId: item.sourceId
-          }));
+          const itemsData = original.items
+            .filter(item => item.sourceType !== 'ad_hoc' && item.sourceId !== null)
+            .map(item => ({
+              sourceType: item.sourceType as 'activity' | 'voting_event',
+              sourceId: item.sourceId!
+            }));
 
           const newItinerary = await storage.createItinerary(
             {

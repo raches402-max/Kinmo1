@@ -36,13 +36,14 @@ export interface IStorage {
   upsertUser(user: UpsertUser): Promise<User>;
 
   // Groups
-  createGroup(group: InsertGroup, userId: string, memberInputs: Array<{name: string, email: string}>): Promise<Group>;
+  createGroup(group: InsertGroup, userId: string, memberInputs: Array<{name?: string, email?: string}>): Promise<Group>;
   getGroup(id: string): Promise<Group | undefined>;
   getGroupByShareableLink(link: string): Promise<Group | undefined>;
   getUserGroups(userId: string): Promise<Array<Group & { members: Array<{ id: string; name: string | null; email: string | null }> }>>;
   getAllGroups(): Promise<Group[]>;
   updateGroup(id: string, updates: UpdateGroup): Promise<Group>;
   softDeleteGroup(id: string): Promise<void>;
+  hardDeleteGroup(id: string): Promise<void>;
   cleanupOrphanedVotingData(): Promise<{ votingEventsDeleted: number; votesDeleted: number }>;
   updateGroupStatus(id: string, status: string, error?: string): Promise<void>;
   addRejectedVenue(groupId: string, venueName: string): Promise<void>;
@@ -258,7 +259,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Group operations
-  async createGroup(insertGroup: InsertGroup, userId: string, memberInputs: Array<{name: string, email: string}>): Promise<Group> {
+  async createGroup(insertGroup: InsertGroup, userId: string, memberInputs: Array<{name?: string, email?: string}>): Promise<Group> {
     // Generate unique shareable link
     const shareableLink = randomBytes(16).toString('hex');
 
@@ -604,6 +605,30 @@ export class DatabaseStorage implements IStorage {
     return { votingEventsDeleted, votesDeleted };
   }
 
+  /**
+   * Permanently delete a group and all associated data
+   * Creates backup before deletion. CASCADE deletes will handle all related data.
+   * WARNING: This is irreversible!
+   */
+  async hardDeleteGroup(id: string): Promise<void> {
+    // Create backup before deletion
+    const group = await this.getGroup(id);
+    if (group) {
+      await this.createAutomaticBackup(group.id, group.userId, 'hard_delete');
+      console.log(`[Hard Delete] Created backup for group ${id}`);
+    }
+
+    // Hard delete the group - CASCADE deletes will automatically remove:
+    // - members, activities, votingEvents, votes, itineraries, rsvps,
+    // - itineraryItems, invites, preferenceSignals, seenActivities,
+    // - categorySearchHistory, autoScheduledEvents, frequencyFeedback, etc.
+    await db
+      .delete(groups)
+      .where(eq(groups.id, id));
+
+    console.log(`[Hard Delete] Group ${id} permanently deleted with all associated data`);
+  }
+
   // Automatic backup function - creates snapshot of group data
   async createAutomaticBackup(groupId: string, userId: string | null, trigger: string): Promise<void> {
     try {
@@ -907,7 +932,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(preferenceSignals.createdAt));
   }
 
-  async createItinerary(insertItinerary: InsertItinerary, userId: string, itemsData: Array<{sourceType: 'activity' | 'voting_event', sourceId: string}>): Promise<Itinerary> {
+  async createItinerary(insertItinerary: InsertItinerary, userId: string, itemsData: Array<{sourceType: 'activity' | 'voting_event' | 'ad_hoc', sourceId: string, adHocData?: any}>): Promise<Itinerary> {
     const results = await db
       .insert(itineraries)
       .values({ ...insertItinerary, createdBy: userId })
@@ -926,6 +951,9 @@ export class DatabaseStorage implements IStorage {
         let googlePlaceId = null;
         let rating = null;
         let photoUrl = null;
+        let latitude = null;
+        let longitude = null;
+        let notes = null;
 
         if (item.sourceType === 'activity') {
           const [activity] = await db.select().from(activities).where(eq(activities.id, item.sourceId));
@@ -937,7 +965,7 @@ export class DatabaseStorage implements IStorage {
             rating = activity.rating;
             photoUrl = activity.photoUrl;
           }
-        } else {
+        } else if (item.sourceType === 'voting_event') {
           const [votingEvent] = await db.select().from(votingEvents).where(eq(votingEvents.id, item.sourceId));
           if (votingEvent) {
             venueName = votingEvent.title;
@@ -947,18 +975,41 @@ export class DatabaseStorage implements IStorage {
             rating = votingEvent.rating;
             photoUrl = votingEvent.photoUrl;
           }
+        } else if (item.sourceType === 'ad_hoc' && item.adHocData) {
+          // Handle ad-hoc venue
+          venueName = item.adHocData.name;
+          venueAddress = item.adHocData.address || '';
+          venueType = 'venue';
+          googlePlaceId = item.adHocData.googlePlaceId || null;
+          notes = item.adHocData.notes || null;
+
+          // Try to geocode if we have an address but no coordinates
+          if (venueAddress) {
+            try {
+              const geocoded = await geocodeLocation(venueAddress);
+              if (geocoded) {
+                latitude = geocoded.lat.toString();
+                longitude = geocoded.lng.toString();
+              }
+            } catch (error) {
+              console.error('[Create Itinerary] Error geocoding ad-hoc venue:', error);
+            }
+          }
         }
 
         itemsToInsert.push({
           itineraryId: itinerary.id,
           sourceType: item.sourceType,
-          sourceId: item.sourceId,
+          sourceId: item.sourceType === 'ad_hoc' ? null : item.sourceId,
           venueName,
           venueAddress,
           venueType,
           googlePlaceId,
           rating,
           photoUrl,
+          latitude,
+          longitude,
+          notes,
           orderIndex: i,
         });
       }
@@ -1037,14 +1088,14 @@ export class DatabaseStorage implements IStorage {
 
   async addItineraryItems(itineraryId: string, items: Array<{sourceType: 'activity' | 'voting_event', sourceId: string}>): Promise<ItineraryItem[]> {
     const itemsToInsert: InsertItineraryItem[] = [];
-    
+
     // Get current max order index
     const existingItems = await db
       .select()
       .from(itineraryItems)
       .where(eq(itineraryItems.itineraryId, itineraryId));
-    
-    const maxOrderIndex = existingItems.length > 0 
+
+    const maxOrderIndex = existingItems.length > 0
       ? Math.max(...existingItems.map(item => item.orderIndex || 0))
       : -1;
 
@@ -1096,8 +1147,51 @@ export class DatabaseStorage implements IStorage {
     if (itemsToInsert.length > 0) {
       return await db.insert(itineraryItems).values(itemsToInsert).returning();
     }
-    
+
     return [];
+  }
+
+  async addAdHocVenueToItinerary(
+    itineraryId: string,
+    venue: {
+      venueName: string;
+      venueAddress: string;
+      venueType: string;
+      googlePlaceId: string | null;
+      latitude: string | null;
+      longitude: string | null;
+      notes: string | null;
+      rating: string | null;
+      photoUrl: string | null;
+    }
+  ): Promise<ItineraryItem> {
+    // Get current max order index
+    const existingItems = await db
+      .select()
+      .from(itineraryItems)
+      .where(eq(itineraryItems.itineraryId, itineraryId));
+
+    const maxOrderIndex = existingItems.length > 0
+      ? Math.max(...existingItems.map(item => item.orderIndex || 0))
+      : -1;
+
+    const [newItem] = await db.insert(itineraryItems).values({
+      itineraryId,
+      sourceType: 'ad_hoc',
+      sourceId: null,
+      venueName: venue.venueName,
+      venueAddress: venue.venueAddress,
+      venueType: venue.venueType,
+      googlePlaceId: venue.googlePlaceId,
+      latitude: venue.latitude,
+      longitude: venue.longitude,
+      notes: venue.notes,
+      rating: venue.rating,
+      photoUrl: venue.photoUrl,
+      orderIndex: maxOrderIndex + 1,
+    }).returning();
+
+    return newItem;
   }
 
   async updateItineraryItemOrder(itineraryId: string, proposedOrder: string[]): Promise<void> {
