@@ -1,4 +1,4 @@
-import { useRoute, useLocation } from "wouter";
+import { useRoute, useLocation, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -40,7 +40,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { TimeSlotVoting } from "@/components/TimeSlotVoting";
-import { Link } from "wouter";
 import { AddAdHocVenueDialog } from "@/components/AddAdHocVenueDialog";
 
 export default function EventDetailsPage() {
