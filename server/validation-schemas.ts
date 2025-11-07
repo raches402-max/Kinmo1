@@ -437,6 +437,16 @@ export const addAdHocVenueSchema = z.object({
   { message: "Either address, googlePlaceId, or googleMapsUrl must be provided" }
 );
 
+export const updateItineraryItemSchema = z.object({
+  venueName: z.string().min(1).optional(),
+  venueAddress: z.string().optional(),
+  notes: z.string().optional(),
+  googleMapsUrl: z.string().optional(),
+  arrivalTime: z.string().datetime().optional().nullable(),
+  departureTime: z.string().datetime().optional().nullable(),
+  travelNotes: z.string().optional(),
+});
+
 // ========== SEARCH SCHEMAS ==========
 
 export const searchVenuesSchema = z.object({

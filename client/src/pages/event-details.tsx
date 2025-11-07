@@ -25,6 +25,11 @@ import {
   UserPlus,
   Sparkles,
   ExternalLink,
+  Clock,
+  Link as LinkIcon,
+  Navigation,
+  Edit,
+  Trash2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -275,9 +280,57 @@ export default function EventDetailsPage() {
                     <div className="flex-1 space-y-2">
                       <div className="flex items-start gap-2">
                         <h4 className="font-semibold text-lg flex-1">{venue.venueName}</h4>
-                        {venue.sourceType === 'ad_hoc' && (
-                          <Badge variant="secondary" className="text-xs">Custom</Badge>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {venue.sourceType === 'ad_hoc' && (
+                            <Badge variant="secondary" className="text-xs">Custom</Badge>
+                          )}
+                          {isOrganizer && (
+                            <div className="flex gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0"
+                                onClick={() => {
+                                  // TODO: Open edit dialog
+                                  toast({
+                                    title: "Edit coming soon",
+                                    description: "Inline editing will be available shortly",
+                                  });
+                                }}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                                onClick={async () => {
+                                  if (confirm(`Remove "${venue.venueName}" from itinerary?`)) {
+                                    try {
+                                      await fetch(`/api/itinerary-items/${venue.id}`, {
+                                        method: "DELETE",
+                                        credentials: "include",
+                                      });
+                                      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
+                                      toast({
+                                        title: "Removed",
+                                        description: `${venue.venueName} has been removed`,
+                                      });
+                                    } catch (error) {
+                                      toast({
+                                        title: "Error",
+                                        description: "Failed to remove venue",
+                                        variant: "destructive",
+                                      });
+                                    }
+                                  }
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                       {venue.venueAddress && (
                         <div className="flex items-start gap-2 text-sm text-muted-foreground">
@@ -285,11 +338,46 @@ export default function EventDetailsPage() {
                           <span>{venue.venueAddress}</span>
                         </div>
                       )}
-                      {venue.notes && (
-                        <div className="text-sm text-muted-foreground italic">
-                          Note: {venue.notes}
+
+                      {/* Timing Information */}
+                      {(venue.arrivalTime || venue.departureTime) && (
+                        <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-md space-y-1">
+                          {venue.arrivalTime && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Clock className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                              <span className="font-medium text-blue-900 dark:text-blue-100">
+                                Arrive: {format(new Date(venue.arrivalTime), 'MMM d, h:mm a')}
+                              </span>
+                            </div>
+                          )}
+                          {venue.departureTime && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Clock className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                              <span className="font-medium text-blue-900 dark:text-blue-100">
+                                Depart: {format(new Date(venue.departureTime), 'MMM d, h:mm a')}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       )}
+
+                      {/* Travel Instructions */}
+                      {venue.travelNotes && (
+                        <div className="flex items-start gap-2 bg-amber-50 dark:bg-amber-950 p-3 rounded-md">
+                          <Navigation className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                          <span className="text-sm font-medium text-amber-900 dark:text-amber-100">{venue.travelNotes}</span>
+                        </div>
+                      )}
+
+                      {/* Notes */}
+                      {venue.notes && (
+                        <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded-md">
+                          <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            📝 {venue.notes}
+                          </div>
+                        </div>
+                      )}
+
                       <div className="flex items-center gap-4 flex-wrap">
                         {venue.rating && (
                           <div className="flex items-center gap-1 text-sm">
@@ -307,6 +395,17 @@ export default function EventDetailsPage() {
                           >
                             <ExternalLink className="h-3 w-3" />
                             View on Google Maps
+                          </a>
+                        )}
+                        {venue.googleMapsUrl && (
+                          <a
+                            href={venue.googleMapsUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm text-primary hover:underline flex items-center gap-1"
+                          >
+                            <LinkIcon className="h-3 w-3" />
+                            View Original Link
                           </a>
                         )}
                       </div>

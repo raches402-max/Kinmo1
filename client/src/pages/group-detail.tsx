@@ -1629,22 +1629,29 @@ export default function GroupDetail() {
     },
   });
 
-  const toggleVenueSelection = (sourceType: 'activity' | 'voting_event' | 'ad_hoc', sourceId: string) => {
+  const toggleVenueSelection = (sourceType: 'activity' | 'voting_event' | 'ad_hoc', sourceId: string, forceAdd: boolean = false) => {
     setSelectedVenues(prev => {
-      const exists = prev.some(v => v.sourceType === sourceType && v.sourceId === sourceId);
-      if (exists) {
-        return prev.filter(v => !(v.sourceType === sourceType && v.sourceId === sourceId));
-      } else {
-        if (prev.length >= 5) {
-          toast({
-            title: "Maximum reached",
-            description: "You can select up to 5 venues",
-            variant: "destructive",
-          });
-          return prev;
+      // Allow duplicates: only remove if clicking the same venue in the UI (forceAdd=false and exists)
+      // But allow adding the same venue multiple times when explicitly requested (forceAdd=true)
+      if (!forceAdd) {
+        const exists = prev.some(v => v.sourceType === sourceType && v.sourceId === sourceId);
+        if (exists) {
+          // Remove the first instance of this venue
+          const indexToRemove = prev.findIndex(v => v.sourceType === sourceType && v.sourceId === sourceId);
+          return prev.filter((_, idx) => idx !== indexToRemove);
         }
-        return [...prev, { sourceType, sourceId }];
       }
+
+      // Add venue (even if it already exists)
+      if (prev.length >= 5) {
+        toast({
+          title: "Maximum reached",
+          description: "You can select up to 5 venues",
+          variant: "destructive",
+        });
+        return prev;
+      }
+      return [...prev, { sourceType, sourceId }];
     });
   };
 

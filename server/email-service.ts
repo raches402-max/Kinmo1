@@ -1,5 +1,8 @@
 import { Resend } from 'resend';
 
+// 🚫 EMAIL DISABLED - Set to true to enable email sending
+const EMAIL_ENABLED = false;
+
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export interface EmailRecipient {
@@ -60,6 +63,10 @@ export async function sendItineraryInvite(
   recipient: EmailRecipient,
   data: ItineraryInviteData
 ): Promise<{ success: boolean; error?: string }> {
+  if (!EMAIL_ENABLED) {
+    console.log('[EMAIL DISABLED] Would send itinerary invite to:', recipient.email);
+    return { success: true };
+  }
   try {
     const venueList = data.venues.map((v, idx) => 
       `${idx + 1}. ${v.name} (${v.type})${v.address ? ` - ${v.address}` : ''}`
@@ -150,6 +157,10 @@ export async function sendGentleNudge(
   recipient: EmailRecipient,
   data: ReminderData
 ): Promise<{ success: boolean; error?: string }> {
+  if (!EMAIL_ENABLED) {
+    console.log('[EMAIL DISABLED] Would send gentle nudge to:', recipient.email);
+    return { success: true };
+  }
   try {
     const eventsUrl = getEventsUrl(data.rsvpLink);
     await resend.emails.send({
@@ -219,6 +230,10 @@ export async function sendFinalCall(
   recipient: EmailRecipient,
   data: ReminderData
 ): Promise<{ success: boolean; error?: string }> {
+  if (!EMAIL_ENABLED) {
+    console.log('[EMAIL DISABLED] Would send final call to:', recipient.email);
+    return { success: true };
+  }
   try {
     const eventsUrl = getEventsUrl(data.rsvpLink);
     await resend.emails.send({
@@ -290,6 +305,10 @@ export async function sendDayBeforeReminder(
   recipient: EmailRecipient,
   data: ReminderData
 ): Promise<{ success: boolean; error?: string }> {
+  if (!EMAIL_ENABLED) {
+    console.log('[EMAIL DISABLED] Would send day-before reminder to:', recipient.email);
+    return { success: true };
+  }
   try {
     const eventsUrl = getEventsUrl(data.rsvpLink);
     await resend.emails.send({
@@ -367,6 +386,10 @@ export async function sendMemberWelcome(
   recipient: EmailRecipient,
   data: MemberWelcomeData
 ): Promise<{ success: boolean; error?: string }> {
+  if (!EMAIL_ENABLED) {
+    console.log('[EMAIL DISABLED] Would send member welcome to:', recipient.email);
+    return { success: true };
+  }
   try {
     const eventsUrl = getEventsUrl(data.claimLink);
     await resend.emails.send({
@@ -461,6 +484,10 @@ export async function sendItineraryReschedule(
   recipient: EmailRecipient,
   data: RescheduleData
 ): Promise<{ success: boolean; error?: string }> {
+  if (!EMAIL_ENABLED) {
+    console.log('[EMAIL DISABLED] Would send reschedule notice to:', recipient.email);
+    return { success: true };
+  }
   try {
     const eventsUrl = getEventsUrl(data.rsvpLink);
     await resend.emails.send({

@@ -954,6 +954,10 @@ export class DatabaseStorage implements IStorage {
         let latitude = null;
         let longitude = null;
         let notes = null;
+        let googleMapsUrl = null;
+        let arrivalTime = null;
+        let departureTime = null;
+        let travelNotes = null;
 
         if (item.sourceType === 'activity') {
           const [activity] = await db.select().from(activities).where(eq(activities.id, item.sourceId));
@@ -982,6 +986,10 @@ export class DatabaseStorage implements IStorage {
           venueType = 'venue';
           googlePlaceId = item.adHocData.googlePlaceId || null;
           notes = item.adHocData.notes || null;
+          googleMapsUrl = item.adHocData.googleMapsUrl || null;
+          arrivalTime = item.adHocData.arrivalTime || null;
+          departureTime = item.adHocData.departureTime || null;
+          travelNotes = item.adHocData.travelNotes || null;
 
           // Try to geocode if we have an address but no coordinates
           if (venueAddress) {
@@ -1010,6 +1018,10 @@ export class DatabaseStorage implements IStorage {
           latitude,
           longitude,
           notes,
+          googleMapsUrl,
+          arrivalTime,
+          departureTime,
+          travelNotes,
           orderIndex: i,
         });
       }
@@ -1161,6 +1173,10 @@ export class DatabaseStorage implements IStorage {
       latitude: string | null;
       longitude: string | null;
       notes: string | null;
+      googleMapsUrl: string | null;
+      arrivalTime: Date | null;
+      departureTime: Date | null;
+      travelNotes: string | null;
       rating: string | null;
       photoUrl: string | null;
     }
@@ -1186,12 +1202,37 @@ export class DatabaseStorage implements IStorage {
       latitude: venue.latitude,
       longitude: venue.longitude,
       notes: venue.notes,
+      googleMapsUrl: venue.googleMapsUrl,
+      arrivalTime: venue.arrivalTime,
+      departureTime: venue.departureTime,
+      travelNotes: venue.travelNotes,
       rating: venue.rating,
       photoUrl: venue.photoUrl,
       orderIndex: maxOrderIndex + 1,
     }).returning();
 
     return newItem;
+  }
+
+  async updateItineraryItem(
+    itemId: string,
+    updates: {
+      venueName?: string;
+      venueAddress?: string;
+      notes?: string;
+      googleMapsUrl?: string;
+      arrivalTime?: Date | null;
+      departureTime?: Date | null;
+      travelNotes?: string;
+    }
+  ): Promise<ItineraryItem | undefined> {
+    const [updatedItem] = await db
+      .update(itineraryItems)
+      .set(updates)
+      .where(eq(itineraryItems.id, itemId))
+      .returning();
+
+    return updatedItem;
   }
 
   async updateItineraryItemOrder(itineraryId: string, proposedOrder: string[]): Promise<void> {

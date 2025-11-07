@@ -14,7 +14,16 @@ interface AddAdHocVenueDialogProps {
   onOpenChange: (open: boolean) => void;
   itineraryId?: string;
   onSuccess?: () => void;
-  onAdd?: (venueData: { name: string; address?: string; googlePlaceId?: string; googleMapsUrl?: string; notes?: string }) => void;
+  onAdd?: (venueData: {
+    name: string;
+    address?: string;
+    googlePlaceId?: string;
+    googleMapsUrl?: string;
+    notes?: string;
+    arrivalTime?: string;
+    departureTime?: string;
+    travelNotes?: string;
+  }) => void;
 }
 
 export function AddAdHocVenueDialog({ open, onOpenChange, itineraryId, onSuccess, onAdd }: AddAdHocVenueDialogProps) {
@@ -27,6 +36,9 @@ export function AddAdHocVenueDialog({ open, onOpenChange, itineraryId, onSuccess
   const [address, setAddress] = useState("");
   const [notes, setNotes] = useState("");
   const [googleMapsUrl, setGoogleMapsUrl] = useState("");
+  const [arrivalTime, setArrivalTime] = useState("");
+  const [departureTime, setDepartureTime] = useState("");
+  const [travelNotes, setTravelNotes] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [selectedPlace, setSelectedPlace] = useState<any>(null);
@@ -36,6 +48,9 @@ export function AddAdHocVenueDialog({ open, onOpenChange, itineraryId, onSuccess
     setAddress("");
     setNotes("");
     setGoogleMapsUrl("");
+    setArrivalTime("");
+    setDepartureTime("");
+    setTravelNotes("");
     setSearchQuery("");
     setSearchResults([]);
     setSelectedPlace(null);
@@ -44,7 +59,16 @@ export function AddAdHocVenueDialog({ open, onOpenChange, itineraryId, onSuccess
 
   // Add ad-hoc venue mutation
   const addVenueMutation = useMutation({
-    mutationFn: async (data: { name: string; address?: string; googlePlaceId?: string; googleMapsUrl?: string; notes?: string }) => {
+    mutationFn: async (data: {
+      name: string;
+      address?: string;
+      googlePlaceId?: string;
+      googleMapsUrl?: string;
+      notes?: string;
+      arrivalTime?: string;
+      departureTime?: string;
+      travelNotes?: string;
+    }) => {
       const response = await fetch(`/api/itineraries/${itineraryId}/items/ad-hoc`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -110,7 +134,23 @@ export function AddAdHocVenueDialog({ open, onOpenChange, itineraryId, onSuccess
   };
 
   const handleSubmit = () => {
-    let venueData: { name: string; address?: string; googlePlaceId?: string; googleMapsUrl?: string; notes?: string } | null = null;
+    let venueData: {
+      name: string;
+      address?: string;
+      googlePlaceId?: string;
+      googleMapsUrl?: string;
+      notes?: string;
+      arrivalTime?: string;
+      departureTime?: string;
+      travelNotes?: string;
+    } | null = null;
+
+    // Common timing data
+    const timingData = {
+      arrivalTime: arrivalTime || undefined,
+      departureTime: departureTime || undefined,
+      travelNotes: travelNotes || undefined,
+    };
 
     if (activeTab === "manual") {
       if (!name.trim() || !address.trim()) {
@@ -121,7 +161,7 @@ export function AddAdHocVenueDialog({ open, onOpenChange, itineraryId, onSuccess
         });
         return;
       }
-      venueData = { name, address, notes };
+      venueData = { name, address, notes, ...timingData };
     } else if (activeTab === "url") {
       if (!googleMapsUrl.trim()) {
         toast({
@@ -132,7 +172,7 @@ export function AddAdHocVenueDialog({ open, onOpenChange, itineraryId, onSuccess
         return;
       }
       const finalName = name.trim() || "Custom Location";
-      venueData = { name: finalName, googleMapsUrl, notes };
+      venueData = { name: finalName, googleMapsUrl, notes, ...timingData };
     } else if (activeTab === "search") {
       if (!selectedPlace) {
         toast({
@@ -147,6 +187,7 @@ export function AddAdHocVenueDialog({ open, onOpenChange, itineraryId, onSuccess
         address: selectedPlace.address,
         googlePlaceId: selectedPlace.placeId,
         notes,
+        ...timingData,
       };
     }
 
@@ -228,6 +269,33 @@ export function AddAdHocVenueDialog({ open, onOpenChange, itineraryId, onSuccess
                 rows={3}
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="manual-arrival-time">Arrival Time (optional)</Label>
+              <Input
+                id="manual-arrival-time"
+                type="datetime-local"
+                value={arrivalTime}
+                onChange={(e) => setArrivalTime(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="manual-departure-time">Departure Time (optional)</Label>
+              <Input
+                id="manual-departure-time"
+                type="datetime-local"
+                value={departureTime}
+                onChange={(e) => setDepartureTime(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="manual-travel-notes">Travel Instructions (optional)</Label>
+              <Input
+                id="manual-travel-notes"
+                placeholder="e.g., Uber from previous location (15 min)"
+                value={travelNotes}
+                onChange={(e) => setTravelNotes(e.target.value)}
+              />
+            </div>
           </TabsContent>
 
           <TabsContent value="search" className="space-y-4 mt-4">
@@ -277,16 +345,45 @@ export function AddAdHocVenueDialog({ open, onOpenChange, itineraryId, onSuccess
             )}
 
             {selectedPlace && (
-              <div className="space-y-2">
-                <Label htmlFor="search-notes">Notes (optional)</Label>
-                <Textarea
-                  id="search-notes"
-                  placeholder="Additional notes..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  rows={3}
-                />
-              </div>
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="search-notes">Notes (optional)</Label>
+                  <Textarea
+                    id="search-notes"
+                    placeholder="Additional notes..."
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="search-arrival-time">Arrival Time (optional)</Label>
+                  <Input
+                    id="search-arrival-time"
+                    type="datetime-local"
+                    value={arrivalTime}
+                    onChange={(e) => setArrivalTime(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="search-departure-time">Departure Time (optional)</Label>
+                  <Input
+                    id="search-departure-time"
+                    type="datetime-local"
+                    value={departureTime}
+                    onChange={(e) => setDepartureTime(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="search-travel-notes">Travel Instructions (optional)</Label>
+                  <Input
+                    id="search-travel-notes"
+                    placeholder="e.g., Uber from previous location (15 min)"
+                    value={travelNotes}
+                    onChange={(e) => setTravelNotes(e.target.value)}
+                  />
+                </div>
+              </>
             )}
           </TabsContent>
 
@@ -323,6 +420,33 @@ export function AddAdHocVenueDialog({ open, onOpenChange, itineraryId, onSuccess
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={3}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="url-arrival-time">Arrival Time (optional)</Label>
+              <Input
+                id="url-arrival-time"
+                type="datetime-local"
+                value={arrivalTime}
+                onChange={(e) => setArrivalTime(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="url-departure-time">Departure Time (optional)</Label>
+              <Input
+                id="url-departure-time"
+                type="datetime-local"
+                value={departureTime}
+                onChange={(e) => setDepartureTime(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="url-travel-notes">Travel Instructions (optional)</Label>
+              <Input
+                id="url-travel-notes"
+                placeholder="e.g., Uber from previous location (15 min)"
+                value={travelNotes}
+                onChange={(e) => setTravelNotes(e.target.value)}
               />
             </div>
           </TabsContent>

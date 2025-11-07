@@ -305,6 +305,10 @@ export const itineraryItems = pgTable("itinerary_items", {
   latitude: text("latitude"), // For ad-hoc venues with geocoded addresses
   longitude: text("longitude"), // For ad-hoc venues with geocoded addresses
   notes: text("notes"), // Optional custom notes for ad-hoc venues
+  googleMapsUrl: text("google_maps_url"), // Original Google Maps URL if provided
+  arrivalTime: timestamp("arrival_time"), // Optional time to arrive at this location
+  departureTime: timestamp("departure_time"), // Optional time to leave this location
+  travelNotes: text("travel_notes"), // Optional travel instructions (e.g., "Uber from previous location")
   orderIndex: integer("order_index").notNull(), // Position in itinerary sequence
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

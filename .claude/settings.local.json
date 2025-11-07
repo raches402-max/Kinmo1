@@ -30,7 +30,8 @@
       "Bash(psql:*)",
       "Bash(bun run server/check-venues.ts)",
       "Bash(git log:*)",
-      "Bash(fuser:*)"
+      "Bash(fuser:*)",
+      "Bash(npx drizzle-kit:*)"
     ],
     "deny": [],
     "ask": []

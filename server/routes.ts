@@ -41,6 +41,7 @@ import {
   organizerRsvpSchema,
   createItineraryRsvpSchema,
   addAdHocVenueSchema,
+  updateItineraryItemSchema,
 } from './validation-schemas';
 
 /**
@@ -961,6 +962,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             photoUrl: item.photoUrl,
             rating: item.rating,
             googlePlaceId: item.googlePlaceId,
+            notes: item.notes,
+            googleMapsUrl: item.googleMapsUrl,
+            sourceType: item.sourceType,
+            arrivalTime: item.arrivalTime,
+            departureTime: item.departureTime,
+            travelNotes: item.travelNotes,
           })),
         };
       }));
@@ -2298,6 +2305,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             photoUrl: item.photoUrl,
             rating: item.rating,
             googlePlaceId: item.googlePlaceId,
+            notes: item.notes,
+            googleMapsUrl: item.googleMapsUrl,
+            sourceType: item.sourceType,
+            arrivalTime: item.arrivalTime,
+            departureTime: item.departureTime,
+            travelNotes: item.travelNotes,
           })),
         };
 
@@ -4825,6 +4838,40 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Update itinerary item
+  app.patch("/api/itinerary-items/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const itemId = req.params.id;
+
+      // Validate request body
+      const validatedData = safeParse(updateItineraryItemSchema, req.body, res);
+      if (!validatedData) return;
+
+      // Get the item to verify it exists
+      const item = await storage.getItineraryItemById(itemId);
+      if (!item) {
+        return res.status(404).json({ message: "Itinerary item not found" });
+      }
+
+      // Parse date strings to Date objects if provided
+      const updates: any = { ...validatedData };
+      if (updates.arrivalTime) {
+        updates.arrivalTime = new Date(updates.arrivalTime);
+      }
+      if (updates.departureTime) {
+        updates.departureTime = new Date(updates.departureTime);
+      }
+
+      // Update the item
+      const updatedItem = await storage.updateItineraryItem(itemId, updates);
+
+      res.json(updatedItem);
+    } catch (error: any) {
+      console.error("[Update Itinerary Item] Error:", error);
+      res.status(500).json({ message: error.message || "Failed to update itinerary item" });
+    }
+  });
+
   // Add items to an existing itinerary
   app.post("/api/itineraries/:id/items", isAuthenticated, requireItineraryAccess(), async (req: any, res) => {
     try {
@@ -4934,6 +4981,10 @@ Looking forward to planning great activities together!
         latitude,
         longitude,
         notes: notes || null,
+        googleMapsUrl: googleMapsUrl || null,
+        arrivalTime: null,
+        departureTime: null,
+        travelNotes: null,
         rating,
         photoUrl,
       });
