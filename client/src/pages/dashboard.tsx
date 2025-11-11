@@ -35,7 +35,7 @@ type SafeMember = {
 type UserEvent = {
   inviteId: string;
   inviteToken: string;
-  itineraryId: string;
+  itineraryId: string | null;
   itineraryName: string;
   eventDate: string | null;
   status: string;
@@ -43,6 +43,8 @@ type UserEvent = {
   groupName: string;
   groupEmoji: string;
   isOrganizer: boolean;
+  isVirtual?: boolean;
+  meetingFrequency?: string;
   hostMemberId: string | null;
   hostMemberName: string | null;
   currentUserMemberId: string | null;
@@ -492,8 +494,8 @@ export default function Dashboard() {
   };
 
   const handleSubmitPostEventFeedback = () => {
-    if (!postEventData) return;
-    
+    if (!postEventData || !postEventData.itineraryId) return;
+
     postEventFeedbackMutation.mutate({
       itineraryId: postEventData.itineraryId,
       actuallyAttended,
@@ -505,6 +507,8 @@ export default function Dashboard() {
   };
 
   const handleRsvpClick = (event: UserEvent, response: string) => {
+    if (!event.itineraryId) return; // Guard for virtual events
+
     if (response === 'yes') {
       // Yes responses don't need feedback - submit directly
       if (event.isOrganizer) {
@@ -520,7 +524,7 @@ export default function Dashboard() {
   };
 
   const handleSubmitFeedback = () => {
-    if (!feedbackEvent) return;
+    if (!feedbackEvent || !feedbackEvent.event.itineraryId) return;
 
     const feedback: any = {};
     if (budgetConcern) feedback.budgetConcern = true;
@@ -533,24 +537,26 @@ export default function Dashboard() {
     const rsvpFeedback = Object.keys(feedback).length > 0 ? feedback : undefined;
 
     if (feedbackEvent.event.isOrganizer) {
-      organizerRsvpMutation.mutate({ 
-        itineraryId: feedbackEvent.event.itineraryId, 
+      organizerRsvpMutation.mutate({
+        itineraryId: feedbackEvent.event.itineraryId,
         response: feedbackEvent.response,
-        rsvpFeedback 
+        rsvpFeedback
       });
     } else {
-      rsvpMutation.mutate({ 
-        itineraryId: feedbackEvent.event.itineraryId, 
-        inviteToken: feedbackEvent.event.inviteToken, 
+      rsvpMutation.mutate({
+        itineraryId: feedbackEvent.event.itineraryId,
+        inviteToken: feedbackEvent.event.inviteToken,
         response: feedbackEvent.response,
-        rsvpFeedback 
+        rsvpFeedback
       });
     }
   };
 
   const copyInviteLink = (event: UserEvent) => {
+    if (!event.itineraryId) return; // Guard for virtual events
+
     const url = `${window.location.origin}/rsvp/${event.itineraryId}/${event.inviteToken}`;
-    
+
     // Fallback function using textarea and execCommand - returns true on success
     const fallbackCopy = (): boolean => {
       // Check if execCommand is supported
@@ -1062,11 +1068,11 @@ export default function Dashboard() {
                                 <XCircle className="h-4 w-4" />
                                 Can't Make It
                               </Button>
-                              {canVolunteerToHost && (
-                                <Button 
+                              {canVolunteerToHost && event.itineraryId && (
+                                <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => volunteerToHostMutation.mutate({ itineraryId: event.itineraryId })}
+                                  onClick={() => volunteerToHostMutation.mutate({ itineraryId: event.itineraryId! })}
                                   disabled={volunteerToHostMutation.isPending}
                                   className="gap-1"
                                   data-testid={`button-volunteer-host-${event.itineraryId}`}
@@ -1209,6 +1215,55 @@ export default function Dashboard() {
                   <h3 className="text-xl font-bold mb-4">Upcoming Events ({upcomingEvents.length})</h3>
                   <div className="space-y-3">
                     {upcomingEvents.map((event) => {
+                      // Virtual events (future recurring placeholders)
+                      if (event.isVirtual) {
+                        return (
+                          <Link key={event.inviteId} href={`/group/${event.groupId}`}>
+                            <Card className="hover-elevate cursor-pointer border-dashed border-2" data-testid={`virtual-event-${event.groupId}`}>
+                              <CardContent className="p-4">
+                                <div className="flex gap-4">
+                                  {/* Date/Time Block */}
+                                  <div className="flex-shrink-0 w-20">
+                                    <div className="bg-primary/20 text-primary rounded-lg p-2 text-center border-2 border-primary/30">
+                                      <div className="text-xs font-semibold uppercase">
+                                        {event.eventDate ? format(new Date(event.eventDate), 'MMM') : 'TBD'}
+                                      </div>
+                                      <div className="text-2xl font-bold leading-none my-1">
+                                        {event.eventDate ? format(new Date(event.eventDate), 'd') : '--'}
+                                      </div>
+                                      <div className="text-xs">
+                                        {event.eventDate ? format(new Date(event.eventDate), 'EEE') : ''}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Content */}
+                                  <div className="flex-1 min-w-0 space-y-2">
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="flex-1 min-w-0">
+                                        <h3 className="font-semibold text-base flex items-center gap-2">
+                                          <span className="text-xl">{event.groupEmoji}</span>
+                                          {event.itineraryName}
+                                        </h3>
+                                        <p className="text-sm text-muted-foreground">{event.groupName}</p>
+                                      </div>
+                                      <Badge variant="outline" className="gap-1 bg-purple-500/10 text-purple-700 dark:text-purple-400">
+                                        <Sparkles className="h-3 w-3" />
+                                        AI Scheduling
+                                      </Badge>
+                                    </div>
+
+                                    <p className="text-sm text-muted-foreground">
+                                      AI will schedule this event closer to the date. Click to view group details.
+                                    </p>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </Link>
+                        );
+                      }
+
                       // Organizer events get RSVP status badge and buttons
                       if (event.isOrganizer) {
                         const rsvpResponse = event.rsvp?.response;

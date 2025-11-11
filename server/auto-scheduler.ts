@@ -128,6 +128,27 @@ export function calculateNextEventDueDate(lastEventDate: Date, meetingFrequency:
 }
 
 /**
+ * Calculate the next N future event dates for a recurring group
+ * Used to display virtual/placeholder events on the home page
+ */
+export function calculateFutureEventDates(
+  nextEventDueDate: Date,
+  meetingFrequency: string,
+  count: number
+): Date[] {
+  const futureDates: Date[] = [];
+  let currentDate = new Date(nextEventDueDate);
+
+  for (let i = 0; i < count; i++) {
+    futureDates.push(new Date(currentDate));
+    // Calculate the next occurrence
+    currentDate = calculateNextEventDueDate(currentDate, meetingFrequency);
+  }
+
+  return futureDates;
+}
+
+/**
  * Check if a group needs auto-scheduling
  * Returns true if:
  * - Auto-schedule is enabled

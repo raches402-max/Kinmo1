@@ -753,6 +753,45 @@ export default function GroupDetail() {
     })
   );
 
+  // Helper function to calculate next event date based on meeting frequency
+  const calculateNextEventDate = (lastEventDate: string | null, frequencyNumber: number, frequencyUnit: string): Date => {
+    const now = new Date();
+    const startDate = lastEventDate ? new Date(lastEventDate) : now;
+
+    // Calculate interval in days
+    let intervalDays = 0;
+    const unit = frequencyUnit.replace(/s$/, ''); // Remove trailing 's'
+
+    switch (unit) {
+      case 'day':
+        intervalDays = 1 / frequencyNumber; // e.g., 2x day = every 0.5 days
+        break;
+      case 'week':
+        intervalDays = 7 / frequencyNumber; // e.g., 1x week = every 7 days, 2x week = every 3.5 days
+        break;
+      case 'month':
+        intervalDays = 30 / frequencyNumber; // e.g., 1x month = every 30 days
+        break;
+      case 'year':
+        intervalDays = 365 / frequencyNumber;
+        break;
+      default:
+        intervalDays = 30; // Default to monthly
+    }
+
+    const nextDate = new Date(startDate);
+    nextDate.setDate(nextDate.getDate() + Math.round(intervalDays));
+
+    // If calculated date is in the past (and we used lastEventDate), default to 30 days from now
+    if (nextDate < now && lastEventDate) {
+      const fallbackDate = new Date(now);
+      fallbackDate.setDate(fallbackDate.getDate() + 30);
+      return fallbackDate;
+    }
+
+    return nextDate;
+  };
+
   const { data: user } = useQuery<any>({
     queryKey: ["/api/auth/user"],
   });
@@ -1380,6 +1419,32 @@ export default function GroupDetail() {
         description: error.message,
         variant: "destructive",
       });
+    },
+  });
+
+  const triggerAutoScheduleMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("POST", `/api/groups/${groupId}/trigger-auto-schedule`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "auto-scheduled-events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId] });
+      toast({
+        title: "Event created!",
+        description: "Check the Pending Auto-Events section on the Home tab",
+      });
+    },
+    onError: (error: any) => {
+      // Don't show error if it's just "not within window" - this is expected
+      if (error.message?.includes("Not within 10-day creation window")) {
+        console.log("Auto-schedule trigger skipped - not within window");
+      } else {
+        toast({
+          title: "Could not create event",
+          description: error.message || "Please try again later",
+          variant: "destructive",
+        });
+      }
     },
   });
 
@@ -10107,15 +10172,55 @@ export default function GroupDetail() {
                     Events every {editFrequencyNumber} {editFrequencyUnit}{editFrequencyNumber !== 1 ? 's' : ''}
                   </div>
                 </div>
-                <div className="space-y-1">
-                  <div className="text-sm font-semibold">Timeline</div>
-                  <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
-                    <li>AI creates event 10 days before target date</li>
-                    <li>48-hour window for members to volunteer as host</li>
-                    <li>Auto-sends invites if no host volunteers</li>
-                  </ul>
-                </div>
-                <div className="space-y-1">
+
+                {/* Calculate and show next event date */}
+                {(() => {
+                  const lastEventDateStr = group?.lastEventDate ? (typeof group.lastEventDate === 'string' ? group.lastEventDate : new Date(group.lastEventDate).toISOString()) : null;
+                  const nextEventDate = calculateNextEventDate(lastEventDateStr, editFrequencyNumber, editFrequencyUnit);
+                  const now = new Date();
+                  const daysAway = Math.ceil((nextEventDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                  const withinTriggerWindow = daysAway <= 10 && daysAway >= 0;
+
+                  return (
+                    <div className="space-y-1 pt-2 border-t">
+                      <div className="text-sm font-semibold flex items-center gap-2">
+                        <Calendar className="h-4 w-4" />
+                        Next Event Target
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {nextEventDate.toLocaleDateString('en-US', {
+                          weekday: 'short',
+                          month: 'short',
+                          day: 'numeric',
+                          year: nextEventDate.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+                        })}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={withinTriggerWindow ? "default" : "secondary"} className="text-xs">
+                          {daysAway === 0 ? 'Today' : daysAway === 1 ? 'Tomorrow' : `${daysAway} days away`}
+                        </Badge>
+                      </div>
+
+                      {withinTriggerWindow ? (
+                        <div className="flex items-start gap-2 mt-2 p-2 bg-primary/10 rounded-md">
+                          <Sparkles className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                          <div className="text-xs">
+                            <strong className="text-primary">Event will be created immediately</strong>
+                            <p className="text-muted-foreground mt-1">
+                              Within 10-day creation window. AI will create the pending event now and give members 48 hours to volunteer as host.
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-xs text-muted-foreground mt-2">
+                          AI will create event on {new Date(nextEventDate.getTime() - (10 * 24 * 60 * 60 * 1000)).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} (10 days before target)
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                <div className="space-y-1 pt-2 border-t">
                   <div className="text-sm font-semibold">Content Priority</div>
                   <div className="text-xs text-muted-foreground">
                     AI pulls from: <strong>Saved plans</strong> → <strong>Favorited venues</strong> → <strong>Viable activities</strong>
@@ -10123,8 +10228,14 @@ export default function GroupDetail() {
                 </div>
                 {itineraries && itineraries.length > 0 && (
                   <div className="pt-2 border-t text-xs">
-                    <span className="text-muted-foreground">First event would likely use: </span>
+                    <span className="text-muted-foreground">Would likely use: </span>
                     <span className="font-semibold">{itineraries[0].name}</span>
+                  </div>
+                )}
+                {(!itineraries || itineraries.length === 0) && activities && activities.filter((a: any) => a.feedback === 'love' || a.feedback === 'favorite').length > 0 && (
+                  <div className="pt-2 border-t text-xs">
+                    <span className="text-muted-foreground">Would create from: </span>
+                    <span className="font-semibold">{activities.filter((a: any) => a.feedback === 'love' || a.feedback === 'favorite').length} favorited venues</span>
                   </div>
                 )}
               </CardContent>
@@ -10139,17 +10250,33 @@ export default function GroupDetail() {
               Cancel
             </Button>
             <Button
-              onClick={() => {
-                toggleAutomationMutation.mutate({
+              onClick={async () => {
+                // Calculate if within trigger window
+                const lastEventDateStr = group?.lastEventDate ? (typeof group.lastEventDate === 'string' ? group.lastEventDate : new Date(group.lastEventDate).toISOString()) : null;
+                const nextEventDate = calculateNextEventDate(lastEventDateStr, editFrequencyNumber, editFrequencyUnit);
+                const now = new Date();
+                const daysAway = Math.ceil((nextEventDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                const withinTriggerWindow = daysAway <= 10 && daysAway >= 0;
+
+                // Enable automation first
+                await toggleAutomationMutation.mutateAsync({
                   field: 'autoScheduleEnabled',
                   value: true
                 });
+
+                // If within trigger window, create event immediately
+                if (withinTriggerWindow) {
+                  await triggerAutoScheduleMutation.mutateAsync();
+                }
+
                 setAutoSchedulePreviewOpen(false);
               }}
-              disabled={toggleAutomationMutation.isPending}
+              disabled={toggleAutomationMutation.isPending || triggerAutoScheduleMutation.isPending}
               data-testid="button-confirm-auto-schedule"
             >
-              Enable Automation
+              {toggleAutomationMutation.isPending || triggerAutoScheduleMutation.isPending
+                ? "Enabling..."
+                : "Enable Automation"}
             </Button>
           </DialogFooter>
         </DialogContent>

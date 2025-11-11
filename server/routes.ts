@@ -22,7 +22,7 @@ import { autoUpdateMemberConstraints, calculateEngagement } from "./member-learn
 import { generateGroupInsights, saveGroupInsights, dismissInsight, editInsightSuggestion } from "./group-insights";
 import { triggerInsightUpdate, triggerInsightUpdateDebounced } from "./insight-triggers";
 import { db } from "./db";
-import { eq, sql, and, or, gte, desc } from "drizzle-orm";
+import { eq, sql, and, or, gte, desc, isNotNull } from "drizzle-orm";
 import { format } from 'date-fns';
 import { validate, safeParse } from './validation-middleware';
 import {
@@ -975,15 +975,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       }));
 
+      // Add virtual future events for recurring groups with auto-schedule enabled
+      const userGroups = await db
+        .select()
+        .from(groupsTable)
+        .where(
+          and(
+            eq(groupsTable.userId, userId),
+            eq(groupsTable.autoScheduleEnabled, true),
+            isNotNull(groupsTable.nextEventDueDate)
+          )
+        );
+
+      const virtualEvents = [];
+      for (const group of userGroups) {
+        if (!group.nextEventDueDate || !group.meetingFrequency) continue;
+
+        // Calculate next 2 future event dates
+        const { calculateFutureEventDates } = await import('./auto-scheduler');
+        const futureDates = calculateFutureEventDates(
+          new Date(group.nextEventDueDate),
+          group.meetingFrequency,
+          2
+        );
+
+        // Check which dates already have real events to avoid duplicates
+        const existingEventDates = new Set(
+          events
+            .filter(e => e.groupId === group.id && e.eventDate)
+            .map(e => new Date(e.eventDate!).toISOString().split('T')[0])
+        );
+
+        for (const date of futureDates) {
+          const dateStr = date.toISOString().split('T')[0];
+
+          // Skip if a real event already exists for this date
+          if (existingEventDates.has(dateStr)) continue;
+
+          // Create virtual event object
+          virtualEvents.push({
+            inviteId: `virtual-${group.id}-${dateStr}`,
+            inviteToken: null,
+            itineraryId: null,
+            itineraryName: `${group.name} meetup`,
+            eventDate: date.toISOString(),
+            status: 'virtual' as any, // Special status to indicate this is a placeholder
+            groupId: group.id,
+            groupName: group.name,
+            groupEmoji: group.emoji || '🎉',
+            isOrganizer: true,
+            hostMemberId: null,
+            hostMemberName: null,
+            currentUserMemberId: null,
+            currentUserOpenToHosting: false,
+            members: [],
+            rsvp: null,
+            rsvpSummary: { yes: [], maybe: [], no: [] },
+            detailedRsvps: [],
+            pendingGuestRsvps: [],
+            items: [],
+            isVirtual: true, // Flag to identify virtual events
+            meetingFrequency: group.meetingFrequency,
+          });
+        }
+      }
+
+      // Merge real and virtual events
+      const allEvents = [...events, ...virtualEvents];
+
       // Sort by event date (upcoming first, then past)
-      events.sort((a, b) => {
+      allEvents.sort((a, b) => {
         if (!a.eventDate && !b.eventDate) return 0;
         if (!a.eventDate) return 1;
         if (!b.eventDate) return -1;
         return new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime();
       });
 
-      res.json(events);
+      res.json(allEvents);
     } catch (error: any) {
       console.error('[User Events] Error:', error);
       res.status(500).json({ message: error.message });
@@ -1246,6 +1314,136 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updatedGroup);
     } catch (error: any) {
       res.status(400).json({ message: error.message });
+    }
+  });
+
+  // Trigger auto-schedule for a group (manually create pending event if within window)
+  app.post("/api/groups/:id/trigger-auto-schedule", isAuthenticated, requireGroupOwnership(), async (req: any, res) => {
+    try {
+      const group = await storage.getGroup(req.params.id);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      if (!group.autoScheduleEnabled) {
+        return res.status(400).json({ message: "Auto-scheduling is not enabled for this group" });
+      }
+
+      if (!group.userId) {
+        return res.status(400).json({ message: "Group must have an owner" });
+      }
+
+      // Check if there's already a pending auto-event
+      const existingPendingEvents = await storage.getPendingAutoScheduledEvents(req.params.id);
+      if (existingPendingEvents.length > 0) {
+        return res.status(200).json({
+          message: "Event already exists",
+          event: existingPendingEvents[0]
+        });
+      }
+
+      // Import auto-scheduler functions
+      const { shouldTriggerAutoSchedule, selectBestItineraryForAutoSchedule } = await import('./auto-scheduler.js');
+      const { suggestOptimalTime } = await import('./ai-time-picker.js');
+
+      const hasPendingEvent = existingPendingEvents.length > 0;
+
+      // Check if we should trigger (within 10-day window)
+      if (!shouldTriggerAutoSchedule(group, hasPendingEvent)) {
+        return res.status(400).json({
+          message: "Not within 10-day creation window",
+          nextEventDueDate: group.nextEventDueDate
+        });
+      }
+
+      // Select itinerary or venues
+      const selection = await selectBestItineraryForAutoSchedule(group);
+
+      if (!selection) {
+        return res.status(400).json({ message: "No viable itineraries or activities to schedule" });
+      }
+
+      let itineraryId: string;
+
+      // If we selected an existing itinerary, duplicate it manually
+      if ('itineraryId' in selection && selection.itineraryId) {
+        const originalItinerary = await storage.getItinerary(selection.itineraryId);
+        if (!originalItinerary) {
+          return res.status(404).json({ message: "Selected itinerary not found" });
+        }
+
+        // Manually duplicate by creating new itinerary with same items
+        const originalItems = await storage.getItineraryItems(selection.itineraryId);
+        const duplicatedItinerary = await storage.createItinerary(
+          {
+            groupId: group.id,
+            name: `${originalItinerary.name} (Auto-Scheduled)`,
+            status: "draft",
+          },
+          group.userId,
+          originalItems.map(item => ({
+            sourceType: item.sourceType,
+            sourceId: item.sourceId
+          }))
+        );
+        itineraryId = duplicatedItinerary.id;
+      } else if ('selectedVenues' in selection && selection.selectedVenues) {
+        // Create new itinerary from selected activities
+        const newItinerary = await storage.createItinerary(
+          {
+            groupId: group.id,
+            name: "Upcoming Hangout",
+            status: "draft",
+          },
+          group.userId,
+          selection.selectedVenues.map(venue => ({
+            sourceType: 'activity' as const,
+            sourceId: venue.id
+          }))
+        );
+        itineraryId = newItinerary.id;
+      } else {
+        return res.status(400).json({ message: "No valid selection" });
+      }
+
+      // AI suggests optimal time
+      const itinerary = await storage.getItinerary(itineraryId);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Created itinerary not found" });
+      }
+
+      let proposedDate: Date;
+      try {
+        proposedDate = await suggestOptimalTime({
+          groupAvailability: group.availability as any,
+          memberAvailability: [], // Use empty array since we don't need individual member overrides for auto-schedule
+          venueTypes: itinerary.items?.map(i => (i as any).type || 'restaurant') || [],
+          meetingFrequency: group.meetingFrequency || '1x month',
+          timezone: group.timezone || 'America/Los_Angeles',
+        });
+      } catch (err) {
+        console.error('AI time suggestion failed, using fallback:', err);
+        proposedDate = group.nextEventDueDate ? new Date(group.nextEventDueDate) : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+      }
+
+      // Create pending auto-scheduled event
+      const autoSendAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours from now
+
+      const pendingEvent = await storage.createAutoScheduledEvent({
+        groupId: group.id,
+        itineraryId,
+        proposedDate,
+        autoSendAt,
+        status: 'pending'
+      });
+
+      res.json({
+        message: "Auto-scheduled event created",
+        event: pendingEvent
+      });
+    } catch (error: any) {
+      console.error('Error triggering auto-schedule:', error);
+      res.status(500).json({ message: error.message });
     }
   });
 

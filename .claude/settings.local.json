@@ -33,7 +33,9 @@
       "Bash(fuser:*)",
       "Bash(npx drizzle-kit:*)",
       "Bash(npx vite build --mode development)",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(chmod:*)",
+      "Bash(./fix-replit.sh)"
     ],
     "deny": [],
     "ask": []
