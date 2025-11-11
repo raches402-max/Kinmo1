@@ -16,7 +16,7 @@ export async function generateItineraryName(
   try {
     const venueList = venues.map((v, idx) => `${idx + 1}. ${v.name} (${v.type})`).join('\n');
 
-    const prompt = `Generate a short, catchy name for a group outing itinerary.
+    const prompt = `Generate a short, descriptive name for this itinerary based on the actual venues.
 
 Venues:
 ${venueList}
@@ -24,11 +24,14 @@ ${venueList}
 Location: ${location}
 
 Guidelines:
-- If there's 1 main venue, use format: "[Activity] at [Venue Name] - [City]" (e.g., "Dinner at Ryoko's - Oakland")
-- If multiple venues, create a thematic name that captures the experience (e.g., "SF Coffee & Desserts Tour", "North Beach Food Crawl")
+- Be literal and practical - describe what's actually in the itinerary
+- If there's 1 venue, use: "[Venue Name] - [City]" (e.g., "Ryoko's - Oakland")
+- If there are 2-3 venues of the same type, use: "[Type] at [Venue1] & [Venue2] - [City]" (e.g., "Ramen at Marufuku & Ippudo - SF")
+- If there are 2-3 venues of different types, list the types: "[Type1] & [Type2] in [Neighborhood/City]" (e.g., "Ramen & Coffee in Stonestown")
+- If there are 4+ venues, describe what they are: "[Types] in [City]" (e.g., "Japanese Food & Drinks - SF" or "Dinner & Dessert Spots - Oakland")
 - Keep it under 50 characters
-- Include the city name
-- Make it conversational and fun
+- DO NOT use embellished words like: adventure, journey, experience, tour, crawl, exploration, day, night
+- Be straightforward - just say what the venues are
 - Don't use quotation marks in the name
 
 Return ONLY the itinerary name, nothing else.`;
@@ -55,11 +58,11 @@ Return ONLY the itinerary name, nothing else.`;
 
 function generateFallbackName(venues: VenueForNaming[], location: string): string {
   const city = location.split(',')[0].trim();
-  
+
   if (venues.length === 1) {
     return `${venues[0].name} - ${city}`;
   }
-  
+
   if (venues.length === 2) {
     return `${venues[0].name} & ${venues[1].name} - ${city}`;
   }
@@ -67,8 +70,9 @@ function generateFallbackName(venues: VenueForNaming[], location: string): strin
   const types = Array.from(new Set(venues.map(v => v.type.toLowerCase())));
 
   if (types.length === 1) {
-    return `${city} ${types[0]} Tour`;
+    const typeCapitalized = types[0].charAt(0).toUpperCase() + types[0].slice(1);
+    return `${typeCapitalized} in ${city}`;
   }
-  
-  return `${city} Outing (${venues.length} stops)`;
+
+  return `${venues.length} Spots - ${city}`;
 }

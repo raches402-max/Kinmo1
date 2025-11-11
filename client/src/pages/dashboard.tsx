@@ -1929,6 +1929,27 @@ export default function Dashboard() {
               Your feedback helps us plan better future events
             </DialogDescription>
           </DialogHeader>
+
+          {/* Event Details */}
+          {postEventData && (
+            <Card className="bg-muted/30">
+              <CardContent className="pt-4 pb-3 space-y-1">
+                <div className="font-semibold text-base">{postEventData.itineraryName}</div>
+                <div className="text-sm text-muted-foreground">
+                  {postEventData.groupName}
+                </div>
+                {postEventData.eventDate && (
+                  <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                    <Calendar className="h-3.5 w-3.5" />
+                    <span>
+                      {format(new Date(postEventData.eventDate), 'MMMM d, yyyy')} at {format(new Date(postEventData.eventDate), 'h:mm a')}
+                    </span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Did you actually attend this event?</Label>

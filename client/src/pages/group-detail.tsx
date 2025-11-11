@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useRoute, Link } from "wouter";
+import { useRoute, Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -594,6 +594,7 @@ function SortableCartVenue({ id, index, venueName, venueType, photoUrl, onRemove
 
 export default function GroupDetail() {
   const [, params] = useRoute("/group/:id");
+  const [, navigate] = useLocation();
   const groupId = params?.id;
   const { toast } = useToast();
   
@@ -735,7 +736,13 @@ export default function GroupDetail() {
   const [schedulePromptDialogOpen, setSchedulePromptDialogOpen] = useState(false);
   const [schedulePrompt, setSchedulePrompt] = useState("");
   const [schedulePromptLoading, setSchedulePromptLoading] = useState(false);
-  
+
+  // Auto-schedule preview dialog state
+  const [autoSchedulePreviewOpen, setAutoSchedulePreviewOpen] = useState(false);
+
+  // Automation sidebar state
+  const [automationSidebarCollapsed, setAutomationSidebarCollapsed] = useState(false);
+
   // Auto-refresh state for countdowns
   const [, forceUpdate] = useState(0);
 
@@ -2941,10 +2948,19 @@ export default function GroupDetail() {
                                       </p>
                                     )}
                                   </div>
-                                  <Button 
-                                    variant="default" 
+                                  <Button
+                                    variant="default"
                                     size="sm"
-                                    onClick={() => setActiveTab('schedule')}
+                                    onClick={() => {
+                                      setSelectedItineraryForScheduling(plan);
+                                      setShowInlineScheduling(true);
+                                      setActiveTab('build');
+                                      requestAnimationFrame(() => {
+                                        setTimeout(() => {
+                                          document.getElementById('inline-schedule-section')?.scrollIntoView({ behavior: 'smooth' });
+                                        }, 150);
+                                      });
+                                    }}
                                     data-testid={`button-schedule-plan-${plan.id}`}
                                   >
                                     <Calendar className="h-4 w-4 mr-2" />
@@ -3100,10 +3116,10 @@ export default function GroupDetail() {
                           </div>
 
                           <div className="flex items-center gap-2 pt-2">
-                            <Button 
+                            <Button
                               size="sm"
                               onClick={() => {
-                                setActiveTab('schedule');
+                                navigate(`/event/${nextEvent.id}`);
                               }}
                               data-testid="button-view-event-details"
                             >
@@ -3239,10 +3255,10 @@ export default function GroupDetail() {
                                           Open in Maps
                                         </Button>
                                       )}
-                                      <Button 
-                                        variant="outline" 
+                                      <Button
+                                        variant="outline"
                                         size="sm"
-                                        onClick={() => setActiveTab('schedule')}
+                                        onClick={() => navigate(`/event/${event.id}`)}
                                         data-testid={`button-view-upcoming-${event.id}`}
                                       >
                                         View Details
@@ -3552,11 +3568,29 @@ export default function GroupDetail() {
                           className="mt-0.5"
                         />
                         <div className="flex-1 space-y-1">
-                          <Label htmlFor="auto-activities" className="cursor-pointer font-medium">
-                            Auto-generate Activities
-                          </Label>
+                          <div className="flex items-center gap-1.5">
+                            <Label htmlFor="auto-activities" className="cursor-pointer font-medium">
+                              Auto-generate Activities
+                            </Label>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-4 w-4 p-0">
+                                  <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-80 text-sm space-y-2">
+                                <div className="font-semibold">How it works:</div>
+                                <p className="text-muted-foreground">
+                                  AI discovers new venues weekly matching your group's taste. It analyzes your feedback → finds similar places → adds them to your Activities tab.
+                                </p>
+                                <div className="text-xs text-muted-foreground pt-1 border-t">
+                                  <strong>Example:</strong> Based on your ❤️ for Marufuku Ramen, AI might suggest Ippudo and Mensho Tokyo
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                          </div>
                           <p className="text-xs text-muted-foreground">
-                            AI suggests new venues weekly based on your group's preferences
+                            AI suggests new venues weekly based on preferences
                           </p>
                         </div>
                       </div>
@@ -3576,11 +3610,29 @@ export default function GroupDetail() {
                           className="mt-0.5"
                         />
                         <div className="flex-1 space-y-1">
-                          <Label htmlFor="auto-itinerary" className="cursor-pointer font-medium">
-                            Auto-create Itinerary Drafts
-                          </Label>
+                          <div className="flex items-center gap-1.5">
+                            <Label htmlFor="auto-itinerary" className="cursor-pointer font-medium">
+                              Auto-create Itinerary Drafts
+                            </Label>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-4 w-4 p-0">
+                                  <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-80 text-sm space-y-2">
+                                <div className="font-semibold">How it works:</div>
+                                <p className="text-muted-foreground">
+                                  AI builds 2-3 venue itineraries you can review and schedule. Priority: <strong>Saved plans</strong> → <strong>favorited venues</strong> → <strong>AI suggestions</strong>
+                                </p>
+                                <div className="text-xs text-muted-foreground pt-1 border-t">
+                                  <strong>Example:</strong> Creates "Dinner at Ryoko's & Dessert at Bi-Rite" from your favorited venues
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                          </div>
                           <p className="text-xs text-muted-foreground">
-                            Builds ready-to-schedule event plans from your favorites
+                            Builds ready-to-schedule plans from your favorites
                           </p>
                         </div>
                       </div>
@@ -3591,18 +3643,47 @@ export default function GroupDetail() {
                           id="auto-schedule"
                           checked={group?.autoScheduleEnabled || false}
                           onCheckedChange={(checked) => {
-                            toggleAutomationMutation.mutate({ 
-                              field: 'autoScheduleEnabled', 
-                              value: checked 
-                            });
+                            if (checked) {
+                              // Show preview dialog before enabling
+                              setAutoSchedulePreviewOpen(true);
+                            } else {
+                              // Disable immediately without preview
+                              toggleAutomationMutation.mutate({
+                                field: 'autoScheduleEnabled',
+                                value: false
+                              });
+                            }
                           }}
                           data-testid="switch-auto-schedule"
                           className="mt-0.5"
                         />
                         <div className="flex-1 space-y-1">
-                          <Label htmlFor="auto-schedule" className="cursor-pointer font-medium">
-                            Auto-schedule Events
-                          </Label>
+                          <div className="flex items-center gap-1.5">
+                            <Label htmlFor="auto-schedule" className="cursor-pointer font-medium">
+                              Auto-schedule Events
+                            </Label>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-4 w-4 p-0">
+                                  <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-80 text-sm space-y-2">
+                                <div className="font-semibold">How it works:</div>
+                                <ul className="text-muted-foreground space-y-1 list-disc list-inside text-xs">
+                                  <li><strong>10 days before target:</strong> AI creates event</li>
+                                  <li><strong>48-hour window:</strong> Members can volunteer to host</li>
+                                  <li><strong>Auto-sends</strong> if no host volunteers</li>
+                                </ul>
+                                <p className="text-muted-foreground text-xs">
+                                  <strong>Content:</strong> Saved plans → favorites → viable activities
+                                </p>
+                                <div className="text-xs text-muted-foreground pt-1 border-t">
+                                  <strong>Example:</strong> "Tue, March 5 at 7:00 PM using your saved 'Ramen Night' plan"
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                          </div>
                           <p className="text-xs text-muted-foreground">
                             Creates and sends an event every {editFrequencyNumber} {editFrequencyUnit}{editFrequencyNumber !== 1 ? 's' : ''} automatically
                           </p>
@@ -6842,11 +6923,9 @@ export default function GroupDetail() {
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
-              </TabsContent>
-            </Tabs>
 
-            {/* Saved Plans Section */}
-            {!savedItinerariesLoading && savedItineraries.length > 0 && (
+                {/* Saved Plans Section */}
+                {!savedItinerariesLoading && savedItineraries.length > 0 && (
               <div className="mt-12 pt-8 border-t">
                 <div className="mb-6">
                   <h3 className="text-xl font-bold mb-2">Saved Plans</h3>
@@ -6958,11 +7037,15 @@ export default function GroupDetail() {
                 </div>
               </div>
             )}
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
           {/* Tab 3: Itinerary */}
           <TabsContent value="build" className="space-y-6">
-            <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+              {/* Main Content */}
+              <div className="space-y-6">
               <div>
                 <h2 className="text-2xl font-bold mb-2">Create Your Itinerary</h2>
                 <p className="text-muted-foreground">
@@ -8268,6 +8351,185 @@ export default function GroupDetail() {
                   </CardContent>
                 </Card>
               </div>
+            </div>
+
+            {/* Automation Sidebar */}
+            {group?.autoScheduleEnabled && (
+              <div className="space-y-4 lg:block hidden">
+                <Collapsible
+                  open={!automationSidebarCollapsed}
+                  onOpenChange={(open) => setAutomationSidebarCollapsed(!open)}
+                >
+                  <Card className="border-primary/50 bg-primary/5 sticky top-4">
+                    <CollapsibleTrigger asChild>
+                      <CardHeader className="pb-3 cursor-pointer hover:bg-primary/10 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Bot className="h-5 w-5 text-primary" />
+                            <CardTitle className="text-base">Auto-scheduling</CardTitle>
+                          </div>
+                          {automationSidebarCollapsed ? (
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </div>
+                      </CardHeader>
+                    </CollapsibleTrigger>
+
+                    <CollapsibleContent>
+                      <CardContent className="space-y-4 pt-0">
+                        {/* Section A: Automation Status */}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="default" className="gap-1">
+                              <CheckCircle2 className="h-3 w-3" />
+                              ON
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              Every {editFrequencyNumber} {editFrequencyUnit}{editFrequencyNumber !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-xs w-full justify-start"
+                            onClick={() => setActiveTab('preferences')}
+                          >
+                            Manage automation →
+                          </Button>
+                        </div>
+
+                        <div className="border-t pt-4 space-y-3">
+                          {/* Section B: Next Auto-Event Target */}
+                          {group?.nextEventDueDate && (() => {
+                            const nextDue = new Date(group.nextEventDueDate);
+                            const now = new Date();
+                            const daysAway = Math.ceil((nextDue.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+                            return (
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-semibold">Next Target</span>
+                                  {daysAway >= 0 && daysAway <= 14 && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      {daysAway === 0 ? 'Today' : `${daysAway}d away`}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  {nextDue.toLocaleDateString('en-US', {
+                                    weekday: 'short',
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: nextDue.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+                                  })}
+                                </p>
+                                {itineraries && itineraries.length > 0 && (
+                                  <p className="text-xs text-muted-foreground">
+                                    <strong className="text-foreground">Would use:</strong> {itineraries[0].name}
+                                  </p>
+                                )}
+                                {(!itineraries || itineraries.length === 0) && activities && activities.filter((a: any) => a.feedback === 'love' || a.feedback === 'favorite').length > 0 && (
+                                  <p className="text-xs text-muted-foreground">
+                                    <strong className="text-foreground">Would create from:</strong> Favorited venues
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </div>
+
+                        {/* Section C: Pending Events */}
+                        {pendingAutoEvents && pendingAutoEvents.length > 0 && (
+                          <div className="border-t pt-4 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-semibold">Pending Events</span>
+                              <Badge variant="outline" className="text-xs">
+                                {pendingAutoEvents.length}
+                              </Badge>
+                            </div>
+
+                            {pendingAutoEvents.slice(0, 2).map((event: any) => {
+                              const autoSendTime = new Date(event.autoSendAt);
+                              const now = new Date();
+                              const diffMs = autoSendTime.getTime() - now.getTime();
+                              const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+                              const diffDays = Math.floor(diffHours / 24);
+
+                              let countdownText = '';
+                              if (diffMs < 0) {
+                                countdownText = 'Sending soon';
+                              } else if (diffDays > 0) {
+                                countdownText = `${diffDays}d`;
+                              } else if (diffHours > 0) {
+                                countdownText = `${diffHours}h`;
+                              } else {
+                                countdownText = 'Soon';
+                              }
+
+                              return (
+                                <div key={event.id} className="bg-background rounded-md p-2 space-y-1">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <p className="text-xs font-medium line-clamp-1 flex-1">
+                                      {event.itinerary?.name || 'Upcoming Event'}
+                                    </p>
+                                    <Badge variant="secondary" className="text-xs shrink-0">
+                                      {countdownText}
+                                    </Badge>
+                                  </div>
+                                  {event.proposedDate && (
+                                    <p className="text-xs text-muted-foreground">
+                                      {new Date(event.proposedDate).toLocaleDateString('en-US', {
+                                        month: 'short',
+                                        day: 'numeric',
+                                        hour: 'numeric',
+                                        minute: '2-digit'
+                                      })}
+                                    </p>
+                                  )}
+                                  {event.itinerary?.items && event.itinerary.items.length > 0 && (
+                                    <p className="text-xs text-muted-foreground">
+                                      {event.itinerary.items[0].venueName}
+                                      {event.itinerary.items.length > 1 && ` +${event.itinerary.items.length - 1}`}
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            })}
+
+                            {pendingAutoEvents.length > 2 && (
+                              <p className="text-xs text-muted-foreground text-center">
+                                +{pendingAutoEvents.length - 2} more
+                              </p>
+                            )}
+
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full text-xs"
+                              onClick={() => setActiveTab('home')}
+                            >
+                              View All on Home
+                            </Button>
+                          </div>
+                        )}
+
+                        {/* Footer Info */}
+                        {(!pendingAutoEvents || pendingAutoEvents.length === 0) && group?.nextEventDueDate && (
+                          <div className="border-t pt-4">
+                            <p className="text-xs text-muted-foreground">
+                              AI creates events 10 days before target
+                            </p>
+                          </div>
+                        )}
+                      </CardContent>
+                    </CollapsibleContent>
+                  </Card>
+                </Collapsible>
+              </div>
+            )}
+
             </div>
           </TabsContent>
           {/* Tab 5: Feedback */}
@@ -9823,6 +10085,76 @@ export default function GroupDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Auto-schedule Preview Dialog */}
+      <Dialog open={autoSchedulePreviewOpen} onOpenChange={setAutoSchedulePreviewOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bot className="h-5 w-5 text-primary" />
+              Enable Auto-scheduling?
+            </DialogTitle>
+            <DialogDescription>
+              Here's what will happen when you enable automation
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Card className="bg-muted/30">
+              <CardContent className="pt-4 space-y-3">
+                <div className="space-y-1">
+                  <div className="text-sm font-semibold">Meeting Frequency</div>
+                  <div className="text-sm text-muted-foreground">
+                    Events every {editFrequencyNumber} {editFrequencyUnit}{editFrequencyNumber !== 1 ? 's' : ''}
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-sm font-semibold">Timeline</div>
+                  <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+                    <li>AI creates event 10 days before target date</li>
+                    <li>48-hour window for members to volunteer as host</li>
+                    <li>Auto-sends invites if no host volunteers</li>
+                  </ul>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-sm font-semibold">Content Priority</div>
+                  <div className="text-xs text-muted-foreground">
+                    AI pulls from: <strong>Saved plans</strong> → <strong>Favorited venues</strong> → <strong>Viable activities</strong>
+                  </div>
+                </div>
+                {itineraries && itineraries.length > 0 && (
+                  <div className="pt-2 border-t text-xs">
+                    <span className="text-muted-foreground">First event would likely use: </span>
+                    <span className="font-semibold">{itineraries[0].name}</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setAutoSchedulePreviewOpen(false)}
+              data-testid="button-cancel-auto-schedule"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                toggleAutomationMutation.mutate({
+                  field: 'autoScheduleEnabled',
+                  value: true
+                });
+                setAutoSchedulePreviewOpen(false);
+              }}
+              disabled={toggleAutomationMutation.isPending}
+              data-testid="button-confirm-auto-schedule"
+            >
+              Enable Automation
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Schedule Event with AI Dialog */}
       <Dialog open={schedulePromptDialogOpen} onOpenChange={setSchedulePromptDialogOpen}>
         <DialogContent className="sm:max-w-2xl">
