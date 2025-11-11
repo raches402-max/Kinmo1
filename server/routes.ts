@@ -18,6 +18,9 @@ import {
 } from "./authorization";
 import { validateItinerary } from "./itinerary-validation";
 import { sendMemberWelcome, type EmailRecipient, type MemberWelcomeData } from "./email-service";
+import { autoUpdateMemberConstraints, calculateEngagement } from "./member-learning";
+import { generateGroupInsights, saveGroupInsights, dismissInsight, editInsightSuggestion } from "./group-insights";
+import { triggerInsightUpdate, triggerInsightUpdateDebounced } from "./insight-triggers";
 import { db } from "./db";
 import { eq, sql, and, or, gte, desc } from "drizzle-orm";
 import { format } from 'date-fns';
@@ -2450,6 +2453,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error(`[RSVP] Auto-reschedule check failed:`, err);
       });
 
+      // 🤖 LEARNING LOOP #3: Auto-update member constraints from RSVP patterns
+      // Only analyze patterns if this is a member RSVP (not guest) with feedback
+      if (memberId && rsvpFeedback) {
+        autoUpdateMemberConstraints(memberId, itinerary.groupId).catch(err => {
+          console.error(`[RSVP] Pattern analysis failed:`, err);
+        });
+
+        // 🎯 INSIGHT TRIGGER: Update group insights after RSVP with feedback
+        // Debounced to avoid excessive regeneration (max once per 6 hours)
+        triggerInsightUpdateDebounced(itinerary.groupId, 'rsvp-collected', 6).catch(err => {
+          console.error(`[RSVP] Insight update failed:`, err);
+        });
+      }
+
       res.json(rsvp);
     } catch (error: any) {
       console.error('[RSVP] Error:', error);
@@ -3104,6 +3121,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .filter(m => m.memberConstraints)
           .map(m => m.memberConstraints as { scheduleConflicts?: string[]; budgetConcern?: boolean; distanceConcern?: boolean; notes?: string });
 
+        // Get group insights for AI context
+        const groupInsights = refreshedGroup.preferenceInsights || undefined;
+
         // Generate suggestions for this specific category
         const suggestions = await generateActivitySuggestions({
           locationBase: refreshedGroup.locationBase,
@@ -3131,6 +3151,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           memberConstraints: memberConstraints.length > 0 ? memberConstraints : undefined,
           rejectedVenues: rejectedVenues,
           seenVenues: seenVenueNames.length > 0 ? seenVenueNames : undefined,
+          groupInsights: groupInsights,
         });
 
         console.log(`[Category Regen] Attempt ${attempt}: Got ${suggestions.length} suggestions for ${category}`);
@@ -6425,6 +6446,31 @@ Looking forward to planning great activities together!
         .where(eq(rsvpsTable.id, rsvp[0].id))
         .returning();
 
+      // 🤖 LEARNING LOOP #1: Auto-blacklist low-rated venues
+      // If venue rated ≤2 stars OR "would not do again", add to rejected list
+      if (venueRating !== undefined && venueRating !== null && (venueRating <= 2 || wouldDoAgain === 'no')) {
+        try {
+          // Get itinerary items to extract venue info
+          const itineraryItems = itinerary.items as any[] || [];
+
+          for (const item of itineraryItems) {
+            if (item.venueName) {
+              console.log(`🚫 Auto-blacklisting venue "${item.venueName}" (rating: ${venueRating}, wouldDoAgain: ${wouldDoAgain})`);
+              await storage.addRejectedVenue(itinerary.groupId, item.venueName);
+            }
+          }
+        } catch (error) {
+          console.error('[Auto-blacklist] Error adding rejected venue:', error);
+          // Don't fail the request if blacklisting fails
+        }
+      }
+
+      // 🎯 INSIGHT TRIGGER: Update group insights after post-event feedback
+      // This is a significant data point - trigger update immediately
+      triggerInsightUpdate(itinerary.groupId, 'post-event-feedback').catch(err => {
+        console.error(`[Post Event Feedback] Insight update failed:`, err);
+      });
+
       res.json(updated[0]);
     } catch (error: any) {
       console.error('[Post Event Feedback] Error:', error);
@@ -6722,6 +6768,207 @@ Looking forward to planning great activities together!
 
       res.json({ success: true });
     } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get learning insights for a group (what the system has learned)
+  app.get("/api/groups/:groupId/learning-insights", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { groupId } = req.params;
+
+      // Verify user has access to the group
+      const group = await storage.getGroup(groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      // Check if user is group owner or member
+      const isOwner = group.userId === userId;
+      const members = await storage.getGroupMembers(groupId);
+      const isMember = members.some(m => m.userId === userId);
+
+      if (!isOwner && !isMember) {
+        return res.status(403).json({ message: "Not authorized to view this group's insights" });
+      }
+
+      // Get rejected venues (auto-blacklisted)
+      const rejectedVenues = group.rejectedVenues || [];
+
+      // Get member constraints (auto-learned preferences)
+      const memberConstraints = await Promise.all(
+        members.map(async (member) => {
+          const constraints = member.memberConstraints as any;
+          return {
+            memberId: member.id,
+            memberName: member.name,
+            budgetConcern: constraints?.budgetConcern || false,
+            distanceConcern: constraints?.distanceConcern || false,
+            scheduleConflicts: constraints?.scheduleConflicts || [],
+            notes: constraints?.notes || null,
+          };
+        })
+      );
+
+      // Calculate engagement scores for all members
+      const { calculateGroupEngagement } = await import('./member-learning');
+      const engagementScores = await calculateGroupEngagement(groupId);
+
+      // Get frequency adjustment info
+      const frequencyFeedback = await storage.getGroupFrequencyFeedback(groupId);
+      const moreOften = frequencyFeedback.filter(f => f.feedback === 'more_often').length;
+      const lessOften = frequencyFeedback.filter(f => f.feedback === 'less_often').length;
+      const justRight = frequencyFeedback.filter(f => f.feedback === 'just_right').length;
+
+      res.json({
+        groupId,
+        groupName: group.name,
+        learningInsights: {
+          // Venue learning
+          rejectedVenues: {
+            count: rejectedVenues.length,
+            venues: rejectedVenues,
+            description: "Venues that have been auto-blacklisted due to low ratings or negative feedback",
+          },
+
+          // Member constraints learning
+          memberConstraints: {
+            count: memberConstraints.filter(m => m.budgetConcern || m.distanceConcern || m.scheduleConflicts.length > 0).length,
+            constraints: memberConstraints.filter(m => m.budgetConcern || m.distanceConcern || m.scheduleConflicts.length > 0),
+            description: "Member preferences auto-learned from RSVP patterns",
+          },
+
+          // Engagement tracking
+          engagement: {
+            totalMembers: members.length,
+            active: engagementScores.filter(e => e.status === 'active').length,
+            atRisk: engagementScores.filter(e => e.status === 'at-risk').length,
+            inactive: engagementScores.filter(e => e.status === 'inactive').length,
+            scores: engagementScores,
+            description: "Member engagement based on RSVP response rates and attendance",
+          },
+
+          // Frequency learning
+          frequency: {
+            current: group.meetingFrequency || 'monthly',
+            feedbackCount: frequencyFeedback.length,
+            moreOften,
+            lessOften,
+            justRight,
+            description: "Meeting frequency auto-adjusted based on member feedback",
+          },
+        },
+      });
+    } catch (error: any) {
+      console.error('[Learning Insights] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Generate and retrieve group-level insights (budget, availability, activity types)
+  app.get("/api/groups/:groupId/insights", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { groupId } = req.params;
+      const { regenerate } = req.query; // ?regenerate=true to force regeneration
+
+      // Verify user has access to the group
+      const group = await storage.getGroup(groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      // Check if user is group owner or member
+      const isOwner = group.userId === userId;
+      const members = await storage.getGroupMembers(groupId);
+      const isMember = members.some(m => m.userId === userId);
+
+      if (!isOwner && !isMember) {
+        return res.status(403).json({ message: "Not authorized to view this group's insights" });
+      }
+
+      // Check if we need to regenerate insights
+      const shouldRegenerate = regenerate === 'true' ||
+        !group.preferenceInsights ||
+        !group.lastInsightsUpdate ||
+        (new Date().getTime() - new Date(group.lastInsightsUpdate).getTime()) > 7 * 24 * 60 * 60 * 1000; // 7 days
+
+      let insights;
+      if (shouldRegenerate) {
+        console.log(`[Insights] Generating insights for group ${groupId}`);
+        insights = await generateGroupInsights(groupId);
+        await saveGroupInsights(groupId, insights);
+      } else {
+        insights = group.preferenceInsights;
+      }
+
+      res.json({
+        groupId,
+        insights,
+      });
+    } catch (error: any) {
+      console.error('[Group Insights] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Dismiss a specific insight
+  app.post("/api/groups/:groupId/insights/dismiss", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { groupId } = req.params;
+      const { insightType } = req.body; // 'budget', 'availability', 'activityTypes'
+
+      // Verify user is group owner
+      const group = await storage.getGroup(groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      if (group.userId !== userId) {
+        return res.status(403).json({ message: "Only group owners can dismiss insights" });
+      }
+
+      if (!['budget', 'availability', 'activityTypes'].includes(insightType)) {
+        return res.status(400).json({ message: "Invalid insight type" });
+      }
+
+      await dismissInsight(groupId, insightType as 'budget' | 'availability' | 'activityTypes');
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('[Dismiss Insight] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Edit an insight suggestion
+  app.patch("/api/groups/:groupId/insights/:insightType", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { groupId, insightType } = req.params;
+      const { suggestion } = req.body;
+
+      // Verify user is group owner
+      const group = await storage.getGroup(groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      if (group.userId !== userId) {
+        return res.status(403).json({ message: "Only group owners can edit insights" });
+      }
+
+      if (!['budget', 'availability', 'activityTypes'].includes(insightType)) {
+        return res.status(400).json({ message: "Invalid insight type" });
+      }
+
+      await editInsightSuggestion(groupId, insightType as 'budget' | 'availability' | 'activityTypes', suggestion);
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('[Edit Insight] Error:', error);
       res.status(500).json({ message: error.message });
     }
   });
@@ -8447,6 +8694,9 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       const rejectedSet = new Set(rejectedVenues.map(v => v.toLowerCase()));
       console.log(`[AI Generation] Blacklisted venues: ${rejectedVenues.length}`);
 
+      // Get group insights for AI context
+      const groupInsights = refreshedGroup.preferenceInsights || undefined;
+
       // Update progress in database so frontend can display it
       await storage.updateGroupStatus(groupId, "generating", `Generating suggestions (attempt ${attempt} of ${maxAttempts})`);
 
@@ -8475,6 +8725,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
           memberConstraints: memberConstraints.length > 0 ? memberConstraints : undefined, // Pass member RSVP constraints
           rejectedVenues: rejectedVenues, // Pass rejected venues blacklist
           seenVenues: seenVenueNames.length > 0 ? seenVenueNames : undefined, // Pass seen venues to exclude
+          groupInsights: groupInsights, // Pass learned group preferences to guide suggestions
           mealEnabled: groupData.mealEnabled ?? true,
           cafeEnabled: groupData.cafeEnabled ?? true,
           drinksEnabled: groupData.drinksEnabled ?? true,

@@ -31,6 +31,7 @@ import { ReadOnlyAvailabilityGrid } from "@/components/ReadOnlyAvailabilityGrid"
 import { SwipeSession } from "@/components/SwipeSession";
 import { FavoritesMap } from "@/components/FavoritesMap";
 import { AddAdHocVenueDialog } from "@/components/AddAdHocVenueDialog";
+import { GroupInsights } from "@/components/GroupInsights";
 import { calculateDistance, getDistanceCategory, formatDistance } from "@/lib/distance";
 import { format } from 'date-fns';
 import { toZonedTime, fromZonedTime, formatInTimeZone } from 'date-fns-tz';
@@ -7976,6 +7977,15 @@ export default function GroupDetail() {
           </TabsContent>
           {/* Tab 5: Feedback */}
           <TabsContent value="feedback" className="space-y-6">
+            {/* Automated Group Insights */}
+            {groupId && <GroupInsights groupId={groupId} />}
+
+            {/* Divider */}
+            <div className="border-t my-6" />
+
+            {/* RSVP Feedback Summary */}
+            <div>
+              <h3 className="text-lg font-semibold mb-4">RSVP Feedback</h3>
             {feedbackLoading ? (
               <div className="space-y-4">
                 <Skeleton className="h-32 w-full" />
@@ -8261,6 +8271,7 @@ export default function GroupDetail() {
                 </CardContent>
               </Card>
             )}
+            </div>
           </TabsContent>
         </Tabs>
       </div>

@@ -31,7 +31,9 @@
       "Bash(bun run server/check-venues.ts)",
       "Bash(git log:*)",
       "Bash(fuser:*)",
-      "Bash(npx drizzle-kit:*)"
+      "Bash(npx drizzle-kit:*)",
+      "Bash(npx vite build --mode development)",
+      "Bash(echo:*)"
     ],
     "deny": [],
     "ask": []

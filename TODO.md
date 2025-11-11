@@ -54,6 +54,46 @@ npx tsx server/import-scraped-venues.ts
 
 ## 🔴 High Priority
 
+### UI Integration for Learning Insights
+**Priority:** 🔴 High
+**Status:** Not started
+**Date Added:** 2025-11-11
+
+**What:**
+Create user-facing dashboards and UI to surface the learning system's insights.
+
+**Tasks:**
+1. **Organizer Dashboard - Auto-Blacklisted Venues**
+   - Display list of rejected venues with reasons (low rating, "would not do again")
+   - Allow manual removal from blacklist
+   - Show when venue was blacklisted
+
+2. **Organizer Dashboard - Member Constraints**
+   - Show auto-learned member constraints (budget, location, schedule conflicts)
+   - Highlight which constraints were auto-detected vs manually set
+   - Allow organizer to override or confirm auto-learned constraints
+
+3. **Engagement Scores Dashboard**
+   - Display member engagement metrics (active/at-risk/inactive status)
+   - Show RSVP response rate and attendance rate per member
+   - Alert organizers when members transition to "at-risk" or "inactive" status
+   - Suggest actions: "3 members at risk - review their preferences?"
+
+4. **Member View - Learning Transparency**
+   - Show members what the system has learned about their preferences
+   - Allow members to confirm or reject auto-learned constraints
+   - Privacy controls for constraint visibility
+
+**Related files:**
+- Create new file: `client/src/pages/GroupInsights.tsx`
+- Update: `server/routes.ts` (learning insights endpoint already exists at line 6757)
+- Use existing endpoint: GET `/api/groups/:groupId/learning-insights`
+
+**Impact:**
+Makes the learning system visible and actionable for both organizers and members.
+
+---
+
 ### 🤖 "Set It and Forget It" Automation - Phase 1: Close the Organizer Loop
 **Vision:** Remove all manual organizer intervention from the event cycle
 **Current Status:** Auto-scheduler exists but requires manual approval for each event
@@ -109,30 +149,124 @@ Once implemented, organizers can truly "set it and forget it" - groups will self
 
 ## 🟡 Medium Priority
 
-### 🤖 "Set It and Forget It" Automation - Phase 2: Learning Loops
-**Vision:** AI learns from feedback and automatically improves suggestions
-**Current Status:** Feedback is collected but not automatically applied
-**Date Added:** 2025-11-07
+### Member Notifications for Auto-Learning
+**Priority:** 🟡 Medium
+**Status:** Not started
+**Date Added:** 2025-11-11
 
-#### 1. Venue Ratings → Auto-Blacklist Low-Rated Venues
-**Current State:**
-- ✅ Post-event venue ratings (1-5 stars) are collected (`postEventFeedback.venueRating`)
-- ✅ Fake venues are auto-blacklisted when Google Places can't find them
-- ❌ Low-rated venues are NOT auto-blacklisted
+**What:**
+Notify members when the system auto-learns their preferences and give them control.
 
-**Task:**
-- After post-event feedback is submitted, check venue rating
-- If rating ≤ 2 stars, add venue to `groups.rejectedVenues` array
-- If "would not do again", add to blacklist regardless of rating
-- Pass blacklisted venues to AI on future activity generation
-- Create `lowRatedVenues` field separate from `rejectedVenues` for tracking
-- **Related files:**
-  - `server/routes.ts` (post-event feedback endpoint at lines 6122-6201)
-  - `server/storage.ts` (add method similar to `addRejectedVenue()` at lines 459-473)
-  - `server/openai.ts` (activity generation receives rejectedVenues at lines 3075-3103)
+**Tasks:**
+1. **Constraint Update Notifications**
+   - Send notification when member constraints are auto-updated
+   - Example: "We noticed you often decline Thursday events. We've updated your availability preferences."
+   - Provide link to review/confirm/reject the change
+
+2. **Proactive Preference Prompts**
+   - After 2-3 consistent RSVP patterns, ask member to confirm before auto-updating
+   - Example: "You've declined 3 events due to budget concerns. Should we adjust your preferences?"
+   - Respect member choice (opt-in vs auto-apply)
+
+3. **Learning Transparency**
+   - Show members what patterns were detected
+   - Example: "Based on your last 5 RSVPs, we noticed: 4 budget concerns, 3 Thursday conflicts"
+   - Allow members to disable auto-learning per preference type
+
+**Related files:**
+- `server/member-learning.ts` (add notification triggers)
+- `server/email-service.ts` (create notification templates)
+- Create new endpoint: POST `/api/members/:memberId/confirm-constraints`
 
 **Impact:**
-Groups will never get suggestions for venues they didn't enjoy in the past.
+Members stay informed and in control of their learned preferences, building trust in the automation.
+
+---
+
+### Testing for Member Learning System
+**Priority:** 🟡 Medium
+**Status:** Not started
+**Date Added:** 2025-11-11
+
+**What:**
+Comprehensive test coverage for the member learning system to ensure reliability.
+
+**Tasks:**
+1. **Unit Tests for Pattern Detection**
+   - Test threshold logic (4+ occurrences OR 50%)
+   - Test edge cases: new members, sparse RSVP history
+   - Test pattern aggregation (multiple concern types)
+
+2. **Integration Tests for Auto-Updates**
+   - Test constraint updates flow end-to-end
+   - Test that constraints are properly passed to AI
+   - Test that blacklisted venues are excluded from suggestions
+
+3. **Engagement Scoring Tests**
+   - Test engagement calculations with various RSVP patterns
+   - Test status transitions (active → at-risk → inactive)
+   - Test edge cases: no RSVPs, all "yes", all "no"
+
+4. **API Endpoint Tests**
+   - Test learning insights endpoint authorization
+   - Test engagement scores endpoint
+   - Test constraint update endpoint
+
+**Related files:**
+- Create: `server/member-learning.test.ts`
+- Add tests to existing test suite
+
+**Impact:**
+Ensures learning system works reliably and doesn't make incorrect assumptions about member preferences.
+
+---
+
+### Custom Venue Enhancements
+**Priority:** 🟡 Medium
+**Status:** Partially complete (basic functionality done)
+**Date Added:** 2025-11-11
+
+**Current State:**
+- ✅ Can add custom venues to itineraries
+- ✅ Google Maps URL parsing works
+- ✅ Enhanced itinerary editing with custom venue details
+- ❌ Cannot edit custom venue details after creation
+- ❌ No bulk import for custom venues
+- ❌ No venue sharing across groups
+
+**Tasks:**
+1. **Edit Custom Venues**
+   - Allow users to edit custom venue name, address, description
+   - Add ability to add photos to custom venues
+   - Update price level and category after creation
+
+2. **Bulk Import Custom Venues**
+   - CSV import for multiple custom venues
+   - Import from Google Maps saved lists
+   - Import from shared spreadsheets
+
+3. **Cross-Group Venue Sharing** (optional)
+   - Allow sharing custom venues across user's groups
+   - Create "My Favorite Venues" library per user
+   - Import from another group's custom venues
+
+**Related files:**
+- `server/routes.ts` (custom venue endpoints)
+- `client/src/components/itinerary/*` (custom venue UI)
+
+**Impact:**
+Makes custom venues a first-class feature with full CRUD operations and bulk management.
+
+---
+
+### 🤖 "Set It and Forget It" Automation - Phase 2: Learning Loops
+**Vision:** AI learns from feedback and automatically improves suggestions
+**Current Status:** ✅ Core learning loops implemented! UI integration pending.
+**Date Added:** 2025-11-07
+**Last Updated:** 2025-11-11
+
+#### 1. Venue Ratings → Auto-Blacklist Low-Rated Venues
+**Status:** ✅ COMPLETE (moved to Completed section)
 
 #### 2. Frequency Feedback → Auto-Adjust Schedule
 **Current State:**
@@ -150,100 +284,10 @@ Groups will never get suggestions for venues they didn't enjoy in the past.
 Already working! Groups automatically adjust cadence based on member feedback.
 
 #### 3. RSVP Patterns → Auto-Update Member Constraints
-**Current State:**
-- ✅ RSVP decline feedback is collected (`rsvps.rsvpFeedback`)
-- ✅ Captures: budgetConcern, locationConcern, timeConcern, unavailableOn, etc.
-- ✅ `members.memberConstraints` field exists and is passed to AI
-- ❌ RSVP feedback is NOT automatically written to `memberConstraints`
-
-**Task:**
-- After 2-3 RSVPs with consistent patterns, auto-update `members.memberConstraints`
-- **Budget concerns:** If budgetConcern appears 2+ times, set `budgetConcern: true`
-- **Distance concerns:** If locationConcern appears 2+ times, set `distanceConcern: true`
-- **Time patterns:** If "unavailableOn" shows consistent day (e.g., "Thursdays"), add to `scheduleConflicts`
-- Create background job to analyze RSVP patterns and update constraints
-- Show member a notification: "We noticed you often decline Thursday events. Update your availability?"
-- **Related files:**
-  - `server/routes.ts` (RSVP endpoint at lines 2334-2403, constraint update at 1625-1649)
-  - `shared/schema.ts` (memberConstraints schema at line 139)
-  - `server/openai.ts` (constraints passed to AI at lines 8146-8244)
-
-**Implementation approach:**
-```typescript
-// After RSVP is saved with feedback
-async function analyzeRSVPPatterns(memberId: number, groupId: number) {
-  // Get last 5 RSVPs for this member in this group
-  const recentRSVPs = await getRecentRSVPs(memberId, groupId, 5);
-
-  // Count patterns
-  const budgetConcerns = recentRSVPs.filter(r => r.rsvpFeedback?.budgetConcern).length;
-  const locationConcerns = recentRSVPs.filter(r => r.rsvpFeedback?.locationConcern).length;
-
-  // If 2+ consistent concerns, update constraints
-  if (budgetConcerns >= 2 || locationConcerns >= 2) {
-    await updateMemberConstraints(memberId, {
-      budgetConcern: budgetConcerns >= 2,
-      distanceConcern: locationConcerns >= 2,
-      notes: "Auto-detected from RSVP patterns"
-    });
-  }
-}
-```
-
-**Impact:**
-AI will learn member preferences automatically and stop suggesting incompatible activities.
+**Status:** ✅ COMPLETE (moved to Completed section)
 
 #### 4. Attendance Tracking → Member Engagement Monitoring
-**Current State:**
-- ✅ Post-event attendance is collected (`postEventFeedback.actuallyAttended`)
-- ✅ Repeat attendance metrics are calculated (analytics only)
-- ❌ No automated detection of inactive members
-- ❌ No engagement scoring or nudge system
-
-**Task:**
-- Create engagement scoring system for members:
-  - RSVP response rate (% of invites responded to)
-  - Attendance rate (% of "yes" RSVPs that actually attended)
-  - Decline rate (% of "no" RSVPs)
-  - Consistency (recent activity vs historical)
-- Auto-detect disengaged members (< 30% response rate over last 5 events)
-- Send automated "we miss you" email with preference update prompt
-- Flag to organizer: "3 members seem disengaged, review their preferences?"
-- Track re-engagement success rate
-- **Related files:**
-  - `server/storage.ts` (add engagement scoring methods)
-  - `server/routes.ts` (add engagement tracking endpoint)
-  - Create new file: `server/member-engagement.ts`
-
-**Implementation approach:**
-```typescript
-interface MemberEngagementScore {
-  memberId: number;
-  rsvpResponseRate: number;  // 0-100
-  attendanceRate: number;    // 0-100
-  lastActiveDate: Date;
-  status: 'active' | 'at-risk' | 'inactive';
-}
-
-async function calculateEngagement(memberId: number, groupId: number): Promise<MemberEngagementScore> {
-  const last10Events = await getRecentInvites(memberId, groupId, 10);
-  const responded = last10Events.filter(e => e.rsvpStatus !== null);
-  const attended = last10Events.filter(e => e.postEventFeedback?.actuallyAttended);
-
-  const rsvpResponseRate = (responded.length / last10Events.length) * 100;
-  const attendanceRate = responded.length > 0 ? (attended.length / responded.length) * 100 : 0;
-
-  let status: 'active' | 'at-risk' | 'inactive';
-  if (rsvpResponseRate < 30) status = 'inactive';
-  else if (rsvpResponseRate < 60) status = 'at-risk';
-  else status = 'active';
-
-  return { memberId, rsvpResponseRate, attendanceRate, lastActiveDate: new Date(), status };
-}
-```
-
-**Impact:**
-Organizers will be alerted to member disengagement and can proactively intervene before members ghost the group.
+**Status:** ✅ COMPLETE (moved to Completed section)
 
 ---
 
@@ -261,6 +305,45 @@ Fixed search to be user-directed (no filters on reviews, budget, distance) so us
 ---
 
 ## 🟢 Low Priority
+
+### Learning System Analytics
+**Priority:** 🟢 Low
+**Status:** Not started
+**Date Added:** 2025-11-11
+
+**What:**
+Track and measure the effectiveness of the member learning system.
+
+**Tasks:**
+1. **Constraint Accuracy Tracking**
+   - Track how often auto-learned constraints lead to "yes" RSVPs
+   - Compare RSVP rates before vs after constraint updates
+   - Measure false positives (constraints that don't reflect actual preferences)
+
+2. **Re-engagement Metrics**
+   - Track re-engagement success after constraint updates
+   - Measure how many "at-risk" members become "active" after updates
+   - Track how many "inactive" members return after nudges
+
+3. **Blacklist Effectiveness**
+   - Track how often blacklisted venues would have been suggested
+   - Measure satisfaction improvement after venue blacklisting
+   - Identify patterns in low-rated venue types
+
+4. **Analytics Dashboard**
+   - Admin view showing learning system performance across all groups
+   - Metrics: constraint update frequency, accuracy, re-engagement rates
+   - Identify groups that benefit most from auto-learning
+
+**Related files:**
+- Create: `server/learning-analytics.ts`
+- Add analytics endpoints to `server/routes.ts`
+- Create admin dashboard component
+
+**Impact:**
+Data-driven insights to continuously improve the learning system's accuracy and effectiveness.
+
+---
 
 ### 🤖 "Set It and Forget It" Automation - Phase 3: Proactive Maintenance
 **Vision:** System self-maintains and self-heals without intervention
@@ -432,6 +515,95 @@ Allow groups to be archived democratically with a grace period for ownership tra
 
 ## ✅ Completed
 
+### 🤖 Learning Loop #1: Auto-Blacklist Low-Rated Venues (2025-11-11)
+**Completed:** 2025-11-11
+**Part of:** Phase 2 Learning Loops automation
+
+**What was done:**
+1. ✅ Implemented auto-blacklisting for venues with ≤2 star ratings
+2. ✅ Auto-blacklist venues marked "would not do again" regardless of rating
+3. ✅ Integration with post-event feedback flow
+4. ✅ Blacklisted venues automatically excluded from future AI suggestions
+
+**Implementation:**
+- Added auto-blacklist logic in `server/routes.ts:6437-6453`
+- Triggers after post-event feedback submission
+- Uses existing `storage.addRejectedVenue()` method
+- Extracts venue names from itinerary items and adds to `groups.rejectedVenues`
+
+**Impact:**
+Groups will never receive suggestions for venues they rated poorly or marked as "would not do again."
+
+---
+
+### 🤖 Learning Loop #3: RSVP Patterns → Auto-Update Member Constraints (2025-11-11)
+**Completed:** 2025-11-11
+**Part of:** Phase 2 Learning Loops automation
+
+**What was done:**
+1. ✅ Created comprehensive member learning system (`server/member-learning.ts`)
+2. ✅ Pattern analysis for last 10 RSVPs per member
+3. ✅ Auto-detects budget, location, and time concerns
+4. ✅ Conservative threshold: 4+ occurrences OR 50% of last 10 RSVPs
+5. ✅ Auto-updates `members.memberConstraints` when patterns detected
+6. ✅ Integration with RSVP flow
+
+**Implementation:**
+- New file: `server/member-learning.ts` (370 lines)
+- Functions: `analyzeRSVPPatterns()`, `autoUpdateMemberConstraints()`
+- Integration: `server/routes.ts:2454-2459` (triggers after RSVP submission)
+- Tracks: `budgetConcern`, `distanceConcern`, `scheduleConflicts`
+
+**Impact:**
+AI automatically learns member preferences from behavior and stops suggesting incompatible activities.
+
+---
+
+### 🤖 Learning Loop #4: Engagement Scoring & Monitoring (2025-11-11)
+**Completed:** 2025-11-11
+**Part of:** Phase 2 Learning Loops automation
+
+**What was done:**
+1. ✅ Built engagement scoring system for all members
+2. ✅ Calculates RSVP response rate (% of invites responded to)
+3. ✅ Calculates attendance rate (% of "yes" RSVPs actually attended)
+4. ✅ Status classification: active (≥60%), at-risk (30-60%), inactive (<30%)
+5. ✅ Group-level engagement analysis
+6. ✅ API endpoint for learning insights
+
+**Implementation:**
+- Functions in `server/member-learning.ts`:
+  - `calculateEngagement()` - Individual member scoring
+  - `calculateGroupEngagement()` - All members in group
+  - `getInactiveMembers()` - Filter for disengaged members
+  - `logEngagementSummary()` - Debug/monitoring
+- New endpoint: GET `/api/groups/:groupId/learning-insights` (`server/routes.ts:6757+`)
+
+**Impact:**
+Organizers can identify disengaged members and proactively intervene before members ghost the group.
+
+---
+
+### Custom Venue Features (2025-11-06 to 2025-11-11)
+**Completed:** 2025-11-11
+**Recent commits:** 2f26b86, 4f09fa6
+
+**What was done:**
+1. ✅ Add custom venues to itineraries
+2. ✅ Google Maps URL parsing capabilities
+3. ✅ Enhanced itinerary planning with custom venue details
+4. ✅ Editing functionality for itinerary venue details
+
+**Files changed:**
+- Itinerary planning components
+- Venue search and selection UI
+- Server routes for custom venue handling
+
+**Impact:**
+Users can now add any venue to itineraries, not just curated database venues. Enables fully customized event planning.
+
+---
+
 ### Hard Delete Group Functionality (2025-11-06)
 **Completed:** 2025-11-06
 
@@ -473,4 +645,4 @@ Allow groups to be archived democratically with a grace period for ownership tra
 
 ---
 
-*Last updated: 2025-11-07*
+*Last updated: 2025-11-11*

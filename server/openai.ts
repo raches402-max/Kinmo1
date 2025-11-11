@@ -174,6 +174,7 @@ export async function generateActivitySuggestions(groupData: {
   memberConstraints?: { scheduleConflicts?: string[]; budgetConcern?: boolean; distanceConcern?: boolean; notes?: string }[]; // Member RSVP constraints
   rejectedVenues?: string[]; // Venues that don't exist in Google Places (blacklist)
   seenVenues?: string[]; // Venues already shown to the group (to prevent repetition)
+  groupInsights?: any; // Group-level learned insights (budget, availability, activity types)
   // High-level category filters
   mealEnabled?: boolean;
   cafeEnabled?: boolean;
@@ -302,6 +303,46 @@ export async function generateActivitySuggestions(groupData: {
       }
       if (notes.length > 0) {
         constraintsContext += `\n- MEMBER FEEDBACK: ${notes.join(' | ')}`;
+      }
+    }
+
+    // Format group-level insights from learning system
+    let insightsContext = '';
+    if (groupData.groupInsights) {
+      const insights = groupData.groupInsights;
+      const insightsParts: string[] = [];
+
+      // Budget insights
+      if (insights.budget && !insights.budget.dismissed) {
+        if (insights.budget.membersConcerned > 0) {
+          insightsParts.push(`💰 BUDGET: ${insights.budget.membersConcerned} members prefer budget-friendly options`);
+        }
+      }
+
+      // Availability insights
+      if (insights.availability && !insights.availability.dismissed) {
+        if (insights.availability.lowTurnoutDays && insights.availability.lowTurnoutDays.length > 0) {
+          const lowDays = insights.availability.lowTurnoutDays.map((d: any) => `${d.day} (${d.averageAttendance}% attendance)`);
+          insightsParts.push(`📅 LOW ATTENDANCE DAYS: ${lowDays.join(', ')} - Consider scheduling on other days`);
+        }
+        if (insights.availability.bestDays && insights.availability.bestDays.length > 0) {
+          const bestDays = insights.availability.bestDays.slice(0, 2).map((d: any) => d.day).join(', ');
+          insightsParts.push(`📅 BEST DAYS: ${bestDays} have highest attendance`);
+        }
+      }
+
+      // Activity type insights
+      if (insights.activityTypes && !insights.activityTypes.dismissed) {
+        if (insights.activityTypes.distribution && insights.activityTypes.distribution.length > 0) {
+          const dominantCategory = insights.activityTypes.distribution[0];
+          if (dominantCategory.percentage > 40) {
+            insightsParts.push(`🎯 ACTIVITY DIVERSITY: Group has done lots of ${dominantCategory.category} (${dominantCategory.percentage}%) - consider suggesting variety from other categories`);
+          }
+        }
+      }
+
+      if (insightsParts.length > 0) {
+        insightsContext = '\n\n📊 GROUP LEARNING INSIGHTS (What we\'ve learned about this group):\n' + insightsParts.map(p => `- ${p}`).join('\n');
       }
     }
 
@@ -540,7 +581,7 @@ Group Details:
 - Budget: $${groupData.budgetMin}-${groupData.budgetMax}/person
 - Availability: ${availabilityText}
 ${groupData.additionalInstructions ? `\n🚨 USER INSTRUCTIONS: ${groupData.additionalInstructions}` : `${categoriesContext}
-${groupData.pastPreferences ? `Past: ${groupData.pastPreferences}` : ''}${feedbackContext}${votingContext}${swipeContext}`}${constraintsContext}${avoidVenuesContext}${seenVenuesContext}${rejectedVenuesContext}${targetCategoriesContext}${categoryFilterContext}
+${groupData.pastPreferences ? `Past: ${groupData.pastPreferences}` : ''}${feedbackContext}${votingContext}${swipeContext}`}${constraintsContext}${insightsContext}${avoidVenuesContext}${seenVenuesContext}${rejectedVenuesContext}${targetCategoriesContext}${categoryFilterContext}
 
 ${groupData.additionalInstructions ? `🚨 FOLLOW USER INSTRUCTIONS ONLY - ignore other context. If they specify venue type (Boba/Sushi), generate ALL ${suggestionCount} of that type.` : `Use preferences/feedback to guide suggestions. ${familiarCount > 0 ? `${familiarCount} familiar + ${newCount} NEW (mark "NEW:" in reasoning).` : ''}`}
 
