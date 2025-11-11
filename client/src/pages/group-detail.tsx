@@ -722,6 +722,10 @@ export default function GroupDetail() {
   
   // Category-specific generation state
   const [selectedCategories, setSelectedCategories] = useState<('meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences')[]>([]);
+
+  // Schedule flow state
+  const [showInlineScheduling, setShowInlineScheduling] = useState(false);
+  const [ephemeralItinerary, setEphemeralItinerary] = useState<any | null>(null);
   const [categoryLocation, setCategoryLocation] = useState("");
   const [categoryRadius, setCategoryRadius] = useState<number>(2);
   const [categoryResults, setCategoryResults] = useState<any[]>([]);
@@ -1609,17 +1613,25 @@ export default function GroupDetail() {
     mutationFn: async (venues: Array<{sourceType: 'activity' | 'voting_event' | 'ad_hoc', sourceId: string, adHocData?: any}>) => {
       return await apiRequest("POST", `/api/groups/${groupId}/itineraries/validate`, { selectedVenues: venues });
     },
-    onSuccess: () => {
+    onSuccess: async (data: any) => {
       setSelectedVenues([]);
       setAddedSuggestionPlaceIds(new Set()); // Clear tracking set
       setActiveTab("build");
-      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "itineraries"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "itineraries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "voting-events"] });
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "nearby-suggestions"] });
-      toast({
-        title: "Itinerary created!",
-        description: "AI has validated and organized your evening plan",
-      });
+
+      // Auto-show scheduling section after creating itinerary
+      if (data.itinerary) {
+        setEphemeralItinerary(data.itinerary);
+        setSelectedItineraryForScheduling(data.itinerary);
+        setShowInlineScheduling(true);
+
+        // Scroll to scheduling section
+        setTimeout(() => {
+          document.getElementById('inline-schedule-section')?.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+      }
     },
     onError: (error: Error) => {
       toast({
@@ -6057,47 +6069,16 @@ export default function GroupDetail() {
                                     {result.address}
                                   </p>
                                   <div className="flex items-center gap-2 mt-2">
+                                    {/* Primary Action: Add to Itinerary */}
                                     <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => {
-                                        if (!alreadyFavorited && !addVotingEventMutation.isPending) {
-                                          addVotingEventMutation.mutate({
-                                            title: result.name,
-                                            venueType: result.types?.[0] || 'venue',
-                                            venueAddress: result.address,
-                                            googlePlaceId: result.placeId,
-                                            photoUrl: result.photoUrl,
-                                            rating: result.rating,
-                                            reviewCount: result.reviewCount,
-                                            priceLevel: result.priceLevel,
-                                            latitude: result.location?.lat?.toString(),
-                                            longitude: result.location?.lng?.toString(),
-                                            city: result.city,
-                                            addToCart: false, // Just favorite, don't add to cart
-                                          });
-                                        }
-                                      }}
-                                      disabled={alreadyFavorited || addVotingEventMutation.isPending}
-                                      className="gap-1.5"
-                                      data-testid={`button-favorite-search-${result.placeId}`}
-                                    >
-                                      <Heart className={`h-3.5 w-3.5 transition-all ${
-                                        alreadyFavorited 
-                                          ? 'fill-pink-500 text-pink-500' 
-                                          : ''
-                                      }`} />
-                                      {alreadyFavorited ? "Favorited" : "Favorite"}
-                                    </Button>
-                                    <Button
-                                      variant={alreadyInCart ? "default" : "outline"}
+                                      variant={alreadyInCart ? "default" : "default"}
                                       size="sm"
                                       onClick={() => {
                                         if (alreadyInCart) return;
-                                        
+
                                         // Optimistically track this placeId
                                         setAddedSuggestionPlaceIds(prev => new Set(Array.from(prev).concat(result.placeId)));
-                                        
+
                                         // First add to favorites if not already there
                                         if (!alreadyFavorited && !addVotingEventMutation.isPending) {
                                           if (selectedVenues.length >= 5) {
@@ -6108,7 +6089,7 @@ export default function GroupDetail() {
                                             });
                                             return;
                                           }
-                                          
+
                                           addVotingEventMutation.mutate({
                                             title: result.name,
                                             venueType: result.types?.[0] || 'venue',
@@ -6128,7 +6109,7 @@ export default function GroupDetail() {
                                           // Check if it's in activities or voting events
                                           const activity = activities.find(a => a.googlePlaceId === result.placeId);
                                           const votingEvent = votingEvents.find(e => e.googlePlaceId === result.placeId);
-                                          
+
                                           if (activity || votingEvent) {
                                             if (selectedVenues.length >= 5) {
                                               toast({
@@ -6138,7 +6119,7 @@ export default function GroupDetail() {
                                               });
                                               return;
                                             }
-                                            
+
                                             if (activity) {
                                               setSelectedVenues([...selectedVenues, { sourceType: 'activity', sourceId: activity.id }]);
                                             } else if (votingEvent) {
@@ -6149,11 +6130,43 @@ export default function GroupDetail() {
                                       }}
                                       disabled={alreadyInCart}
                                       className="gap-1.5"
-                                      data-testid={`button-add-cart-search-${result.placeId}`}
+                                      data-testid={`button-add-itinerary-search-${result.placeId}`}
                                     >
                                       <Plus className="h-3.5 w-3.5" />
-                                      {alreadyInCart ? "In Cart" : "Add to Cart"}
+                                      {alreadyInCart ? "In Itinerary" : selectedVenues.length === 0 ? "Start Itinerary" : "Add to Itinerary"}
                                     </Button>
+
+                                    {/* Secondary Action: Save for Later */}
+                                    {!alreadyFavorited && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => {
+                                          if (!alreadyFavorited && !addVotingEventMutation.isPending) {
+                                            addVotingEventMutation.mutate({
+                                              title: result.name,
+                                              venueType: result.types?.[0] || 'venue',
+                                              venueAddress: result.address,
+                                              googlePlaceId: result.placeId,
+                                              photoUrl: result.photoUrl,
+                                              rating: result.rating,
+                                              reviewCount: result.reviewCount,
+                                              priceLevel: result.priceLevel,
+                                              latitude: result.location?.lat?.toString(),
+                                              longitude: result.location?.lng?.toString(),
+                                              city: result.city,
+                                              addToCart: false, // Just favorite, don't add to cart
+                                            });
+                                          }
+                                        }}
+                                        disabled={addVotingEventMutation.isPending}
+                                        className="gap-1.5 text-xs"
+                                        data-testid={`button-save-later-search-${result.placeId}`}
+                                      >
+                                        <Heart className="h-3 w-3" />
+                                        Save for later
+                                      </Button>
+                                    )}
                                   </div>
                                 </div>
                               </div>
@@ -7073,44 +7086,326 @@ export default function GroupDetail() {
                           AI has organized your selections - drag to reorder
                         </CardDescription>
                       </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            if (itineraries.length > 0) {
-                              setSavingItineraryId(itineraries[0].id);
-                              setSaveItineraryOpen(true);
-                            }
-                          }}
-                          data-testid="button-save-itinerary"
-                        >
-                          <Save className="h-4 w-4 mr-2" />
-                          Save Plan
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => setAddMoreStopsOpen(!addMoreStopsOpen)}
-                          data-testid="button-add-more-stops"
-                        >
-                          {addMoreStopsOpen ? (
-                            <>
-                              <ChevronDown className="h-4 w-4 mr-2" />
-                              Hide Search
-                            </>
-                          ) : (
-                            <>
-                              <Plus className="h-4 w-4 mr-2" />
-                              Add More Stops
-                            </>
-                          )}
-                        </Button>
-                      </div>
+                      {!showInlineScheduling && (
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              if (itineraries.length > 0) {
+                                setSavingItineraryId(itineraries[0].id);
+                                setSaveItineraryOpen(true);
+                              }
+                            }}
+                            data-testid="button-save-itinerary"
+                          >
+                            <Save className="h-4 w-4 mr-2" />
+                            Save Plan
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={() => setAddMoreStopsOpen(!addMoreStopsOpen)}
+                            data-testid="button-add-more-stops"
+                          >
+                            {addMoreStopsOpen ? (
+                              <>
+                                <ChevronDown className="h-4 w-4 mr-2" />
+                                Hide Search
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="h-4 w-4 mr-2" />
+                                Add More Stops
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </CardHeader>
                   <CardContent>
                     {itineraries.map((itinerary: any) => (
                       <ItineraryDisplay key={itinerary.id} itinerary={itinerary} groupId={groupId!} />
                     ))}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Inline Scheduling Section */}
+              {showInlineScheduling && selectedItineraryForScheduling && (
+                <Card id="inline-schedule-section" className="mt-6" data-testid="card-inline-schedule">
+                  <CardHeader>
+                    <CardTitle className="text-lg">Schedule This Event</CardTitle>
+                    <CardDescription>Choose when to meet with your group</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {/* When to Meet Section */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-medium">When to Meet</Label>
+                        {/* Compact Availability Reference */}
+                        <Collapsible>
+                          <CollapsibleTrigger asChild>
+                            <Button variant="ghost" size="sm" className="gap-1 h-7 text-xs text-muted-foreground" data-testid="button-view-availability-inline">
+                              <Calendar className="h-3 w-3" />
+                              View Availability
+                              <ChevronDown className="h-3 w-3" />
+                            </Button>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="mt-2">
+                            <div className="p-3 bg-muted/30 rounded-md border space-y-3">
+                              {group?.availability && (
+                                <div className="space-y-1.5">
+                                  <p className="text-xs font-medium text-muted-foreground">Group Availability</p>
+                                  <ReadOnlyAvailabilityGrid
+                                    value={group.availability as Record<string, {morning: boolean; afternoon: boolean; evening: boolean}>}
+                                    compact={true as boolean}
+                                  />
+                                </div>
+                              )}
+                              {group?.generalAvailability && (
+                                <div className="space-y-1">
+                                  <p className="text-xs font-medium text-muted-foreground">Notes</p>
+                                  <p className="text-xs text-muted-foreground">{group.generalAvailability}</p>
+                                </div>
+                              )}
+                              {group?.meetingFrequency && (
+                                <div className="space-y-1">
+                                  <p className="text-xs font-medium text-muted-foreground">Frequency</p>
+                                  <p className="text-xs text-muted-foreground">{formatMeetingFrequency(group.meetingFrequency)}</p>
+                                </div>
+                              )}
+                            </div>
+                          </CollapsibleContent>
+                        </Collapsible>
+                      </div>
+
+                      {/* Time Selection Tabs */}
+                      <Tabs value={scheduleMethod} onValueChange={(v) => {
+                        setScheduleMethod(v as 'manual' | 'ai');
+                        setAiTimeOptions([]);
+                        setSelectedTimeOptionIds([]);
+                      }} className="w-full">
+                        <TabsList className="grid w-full grid-cols-2 h-9">
+                          <TabsTrigger value="manual" className="text-xs" data-testid="tab-manual-time-inline">Pick Date/Time</TabsTrigger>
+                          <TabsTrigger value="ai" className="text-xs" data-testid="tab-ai-time-inline">AI Suggestions</TabsTrigger>
+                        </TabsList>
+
+                        <TabsContent value="manual" className="mt-4 space-y-3">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-2">
+                              <Label htmlFor="event-date-inline" className="text-xs">Date</Label>
+                              <Input
+                                id="event-date-inline"
+                                type="date"
+                                value={eventDate}
+                                onChange={(e) => setEventDate(e.target.value)}
+                                className="h-9"
+                                data-testid="input-event-date-inline"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="event-time-inline" className="text-xs">Time</Label>
+                              <Input
+                                id="event-time-inline"
+                                type="time"
+                                value={eventTime}
+                                onChange={(e) => setEventTime(e.target.value)}
+                                className="h-9"
+                                data-testid="input-event-time-inline"
+                              />
+                            </div>
+                          </div>
+                        </TabsContent>
+
+                        <TabsContent value="ai" className="mt-4 space-y-3">
+                          {aiTimeOptions.length === 0 && !getAiTimeSuggestionMutation.isPending && (
+                            <Button
+                              onClick={() => {
+                                if (!selectedItineraryForScheduling) return;
+                                const venues = selectedItineraryForScheduling.items?.map((item: any) => ({
+                                  name: item.venueName,
+                                  type: item.venueType,
+                                })) || [];
+                                getAiTimeSuggestionMutation.mutate({
+                                  itineraryId: selectedItineraryForScheduling.id,
+                                  venues
+                                });
+                              }}
+                              className="w-full gap-2"
+                              data-testid="button-get-ai-suggestion-inline"
+                            >
+                              <Bot className="h-4 w-4" />
+                              Get AI Suggestions
+                            </Button>
+                          )}
+
+                          {getAiTimeSuggestionMutation.isPending && (
+                            <div className="text-center py-4 text-sm text-muted-foreground">
+                              Analyzing group availability...
+                            </div>
+                          )}
+
+                          {aiTimeOptions.length > 0 && (
+                            <div className="space-y-3">
+                              <div className="space-y-2">
+                                <p className="text-sm font-medium">Select one or more times to send:</p>
+                                <div className="grid grid-cols-2 gap-2">
+                                  {aiTimeOptions.map((option) => (
+                                    <div
+                                      key={option.id}
+                                      onClick={() => {
+                                        setSelectedTimeOptionIds(prev =>
+                                          prev.includes(option.id)
+                                            ? prev.filter(id => id !== option.id)
+                                            : [...prev, option.id]
+                                        );
+                                      }}
+                                      className={`w-full p-3 rounded-lg border-2 cursor-pointer text-left transition-colors ${
+                                        selectedTimeOptionIds.includes(option.id)
+                                          ? 'border-primary bg-primary/5'
+                                          : 'border-border hover-elevate'
+                                      }`}
+                                      data-testid={`time-option-inline-${option.id}`}
+                                    >
+                                      <div className="flex items-start gap-2">
+                                        <input
+                                          type="checkbox"
+                                          checked={selectedTimeOptionIds.includes(option.id)}
+                                          onChange={() => {}}
+                                          className="mt-0.5"
+                                          data-testid={`checkbox-time-inline-${option.id}`}
+                                        />
+                                        <div className="flex-1">
+                                          <p className="font-medium text-sm">{option.dayLabel}</p>
+                                          <p className="text-sm text-muted-foreground">{option.timeLabel}</p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                                {selectedTimeOptionIds.length > 0 && (
+                                  <p className="text-sm text-muted-foreground">
+                                    {selectedTimeOptionIds.length} time{selectedTimeOptionIds.length === 1 ? '' : 's'} selected
+                                  </p>
+                                )}
+                              </div>
+                              <Button
+                                variant="outline"
+                                onClick={async () => {
+                                  setAiTimeOptions([]);
+                                  setSelectedTimeOptionIds([]);
+                                  if (!selectedItineraryForScheduling) return;
+                                  const venues = selectedItineraryForScheduling.items?.map((item: any) => ({
+                                    name: item.venueName,
+                                    type: item.venueType,
+                                  })) || [];
+                                  await getAiTimeSuggestionMutation.mutateAsync({
+                                    itineraryId: selectedItineraryForScheduling.id,
+                                    venues
+                                  });
+                                }}
+                                className="w-full gap-2"
+                                disabled={getAiTimeSuggestionMutation.isPending}
+                                data-testid="button-try-different-times-inline"
+                              >
+                                <Bot className="h-4 w-4" />
+                                Get Different Options
+                              </Button>
+                            </div>
+                          )}
+                        </TabsContent>
+                      </Tabs>
+
+                      {/* Action Buttons */}
+                      <div className="flex gap-2 pt-4">
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            if (ephemeralItinerary) {
+                              setSavingItineraryId(ephemeralItinerary.id);
+                              setSaveItineraryOpen(true);
+                            }
+                          }}
+                          className="flex-1"
+                          data-testid="button-save-for-later-inline"
+                        >
+                          <Save className="h-4 w-4 mr-2" />
+                          Save for Later
+                        </Button>
+                        <Button
+                          onClick={async () => {
+                            if (!selectedItineraryForScheduling) return;
+
+                            const eventDates: string[] = [];
+
+                            if (scheduleMethod === 'manual' && eventDate && eventTime) {
+                              eventDates.push(new Date(`${eventDate}T${eventTime}:00`).toISOString());
+                            } else if (scheduleMethod === 'ai' && selectedTimeOptionIds.length > 0) {
+                              const selectedOptions = aiTimeOptions.filter(opt =>
+                                selectedTimeOptionIds.includes(opt.id)
+                              );
+                              eventDates.push(...selectedOptions.map(opt => opt.eventDate));
+                            }
+
+                            if (eventDates.length === 0) {
+                              toast({
+                                title: "Missing time selection",
+                                description: "Please select at least one time before sending",
+                                variant: "destructive",
+                              });
+                              return;
+                            }
+
+                            try {
+                              // If multiple dates, send as array; otherwise send single eventDate
+                              if (eventDates.length > 1) {
+                                await sendItineraryMutation.mutateAsync({
+                                  itineraryId: selectedItineraryForScheduling.id,
+                                  eventDates,
+                                });
+                              } else {
+                                await sendItineraryMutation.mutateAsync({
+                                  itineraryId: selectedItineraryForScheduling.id,
+                                  eventDate: eventDates[0],
+                                });
+                              }
+
+                              // Reset inline scheduling
+                              setShowInlineScheduling(false);
+                              setSelectedItineraryForScheduling(null);
+                              setEphemeralItinerary(null);
+                              setEventDate("");
+                              setEventTime("19:00");
+                              setAiTimeOptions([]);
+                              setSelectedTimeOptionIds([]);
+
+                              toast({
+                                title: eventDates.length === 1 ? "Plan sent to group" : "Plan sent to group",
+                                description: eventDates.length === 1
+                                  ? "Members can now RSVP to your itinerary"
+                                  : `Sent with ${eventDates.length} time options - members can vote on their preferred time`,
+                              });
+                            } catch (error) {
+                              // Error toast is handled by mutation
+                            }
+                          }}
+                          disabled={
+                            sendItineraryMutation.isPending ||
+                            (scheduleMethod === 'manual' && (!eventDate || !eventTime)) ||
+                            (scheduleMethod === 'ai' && selectedTimeOptionIds.length === 0)
+                          }
+                          className="flex-[2]"
+                          data-testid="button-send-to-group-inline"
+                        >
+                          <Send className="h-4 w-4 mr-2" />
+                          {sendItineraryMutation.isPending
+                            ? "Sending..."
+                            : scheduleMethod === 'ai' && selectedTimeOptionIds.length > 1
+                              ? `Send ${selectedTimeOptionIds.length} Time Options`
+                              : "Send to Group"}
+                        </Button>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
               )}
@@ -8609,6 +8904,7 @@ export default function GroupDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
       {/* Save Itinerary Dialog */}
       <Dialog open={saveItineraryOpen} onOpenChange={setSaveItineraryOpen}>
         <DialogContent data-testid="dialog-save-itinerary">
