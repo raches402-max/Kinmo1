@@ -7241,7 +7241,7 @@ export default function GroupDetail() {
                                   <p className="text-xs font-medium text-muted-foreground">Group Availability</p>
                                   <ReadOnlyAvailabilityGrid
                                     value={group.availability as Record<string, {morning: boolean; afternoon: boolean; evening: boolean}>}
-                                    compact={true as boolean}
+                                    compact={true}
                                   />
                                 </div>
                               )}
@@ -7950,7 +7950,7 @@ export default function GroupDetail() {
                                       <p className="text-xs font-medium text-muted-foreground">Group Availability</p>
                                       <ReadOnlyAvailabilityGrid 
                                         value={group.availability as Record<string, {morning: boolean; afternoon: boolean; evening: boolean}>} 
-                                        compact={true as boolean}
+                                        compact={true}
                                       />
                                     </div>
                                   )}
