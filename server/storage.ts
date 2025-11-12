@@ -1,7 +1,7 @@
 // Reference: javascript_database blueprint
 // Reference: javascript_log_in_with_replit blueprint
 import {
-  users, groups, members, memberGroupPreferences, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, itineraryInvites, reminderLogs, autoScheduledEvents, frequencyFeedback, userProfiles, proposedTimeSlots, timeSlotVotes, groupCollections, categorySearchHistory, hostAssignments, groupBackups, databaseBackups, scrapedVenuesImport, curatedVenues, seenActivities,
+  users, groups, members, memberGroupPreferences, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, itineraryInvites, reminderLogs, autoScheduledEvents, frequencyFeedback, venueVisitHistory, userProfiles, proposedTimeSlots, timeSlotVotes, groupCollections, categorySearchHistory, hostAssignments, groupBackups, databaseBackups, scrapedVenuesImport, curatedVenues, seenActivities,
   type User, type UpsertUser,
   type Group, type InsertGroup, type UpdateGroup,
   type Member, type InsertMember, type UpdateMember,
@@ -15,6 +15,7 @@ import {
   type ReminderLog, type InsertReminderLog,
   type AutoScheduledEvent, type InsertAutoScheduledEvent,
   type FrequencyFeedback, type InsertFrequencyFeedback,
+  type VenueVisitHistory, type InsertVenueVisitHistory,
   type UserProfile, type InsertUserProfile, type UpdateUserProfile,
   type ProposedTimeSlot, type InsertProposedTimeSlot,
   type TimeSlotVote, type InsertTimeSlotVote,
@@ -100,6 +101,10 @@ export interface IStorage {
   deleteItineraryItem(itemId: string): Promise<void>;
   addItineraryItems(itineraryId: string, items: Array<{sourceType: 'activity' | 'voting_event', sourceId: string}>): Promise<ItineraryItem[]>;
   updateItineraryItemOrder(itineraryId: string, proposedOrder: string[]): Promise<void>;
+
+  // Venue Visit Tracking
+  logVenueVisits(itineraryId: string, eventDate: Date): Promise<void>;
+  getVenueVisitHistory(groupId: string): Promise<any[]>;
 
   // RSVPs
   createRsvp(rsvp: InsertRsvp): Promise<Rsvp>;
@@ -1249,6 +1254,43 @@ export class DatabaseStorage implements IStorage {
           )
         );
     }
+  }
+
+  async logVenueVisits(itineraryId: string, eventDate: Date): Promise<void> {
+    const itinerary = await this.getItinerary(itineraryId);
+    if (!itinerary) {
+      console.log(`[Visit Tracking] Itinerary ${itineraryId} not found, skipping visit logging`);
+      return;
+    }
+
+    const visits: InsertVenueVisitHistory[] = itinerary.items
+      .filter(item => item.sourceType !== 'ad_hoc') // Only track actual activities/voting events
+      .map(item => ({
+        groupId: itinerary.groupId,
+        activityId: item.sourceType === 'activity' ? item.sourceId : null,
+        votingEventId: item.sourceType === 'voting_event' ? item.sourceId : null,
+        venueName: item.venueName,
+        venueType: item.venueType,
+        visitedAt: eventDate,
+        itineraryId,
+      }));
+
+    if (visits.length > 0) {
+      await db.insert(venueVisitHistory).values(visits);
+      console.log(`[Visit Tracking] Logged ${visits.length} venue visit(s) for itinerary ${itineraryId} on ${eventDate.toISOString()}`);
+    } else {
+      console.log(`[Visit Tracking] No trackable venues in itinerary ${itineraryId}`);
+    }
+  }
+
+  async getVenueVisitHistory(groupId: string): Promise<any[]> {
+    const visits = await db
+      .select()
+      .from(venueVisitHistory)
+      .where(eq(venueVisitHistory.groupId, groupId))
+      .orderBy(desc(venueVisitHistory.visitedAt));
+
+    return visits;
   }
 
   async getSavedItineraries(groupId: string): Promise<Array<Itinerary & { items: ItineraryItem[] }>> {

@@ -1,68 +1,163 @@
 import { IStorage } from "./storage";
-import type { Group, Itinerary, Activity } from "@shared/schema";
+import type { Group, Itinerary, Activity, VotingEvent } from "@shared/schema";
 import { addDays } from "date-fns";
+import { db } from "./db";
+import { venueVisitHistory } from "@shared/schema";
+import { eq, sql } from "drizzle-orm";
 
 /**
- * Smart itinerary selection for auto-scheduling
- * Priority: Saved itineraries → Favorites (high-rated activities) → AI-generated similar content
+ * Get visit statistics for all venues in a group
+ */
+async function getVenueVisitStats(groupId: string) {
+  const visits = await db.select({
+    activityId: venueVisitHistory.activityId,
+    votingEventId: venueVisitHistory.votingEventId,
+    count: sql<number>`count(*)`.as('count'),
+    lastVisit: sql<Date>`max(visited_at)`.as('last_visit'),
+  })
+  .from(venueVisitHistory)
+  .where(eq(venueVisitHistory.groupId, groupId))
+  .groupBy(venueVisitHistory.activityId, venueVisitHistory.votingEventId);
+
+  return visits;
+}
+
+/**
+ * Smart itinerary selection with visit frequency tracking
+ * Scores venues based on: Quality (feedback) × Recency × Frequency
+ * Ensures fair rotation through all available venues
  */
 export async function selectBestItineraryForAutoSchedule(
   storage: IStorage,
   group: Group
 ): Promise<{ itineraryId?: string; selectedVenues?: Array<{ sourceType: 'activity' | 'voting_event', sourceId: string }> }> {
-  
-  // 1. First priority: Use saved itineraries (organizer has already vetted these)
-  const savedItineraries = await storage.getSavedItineraries(group.id);
-  if (savedItineraries.length > 0) {
-    // Pick the most recently saved itinerary
-    const mostRecent = savedItineraries[0];
-    return { itineraryId: mostRecent.id };
-  }
 
-  // 2. Second priority: Build from favorited/highly-rated activities
+  console.log(`[Selection] Starting venue selection for group ${group.name}`);
+
+  // Get all available venues (activities + voting events)
   const activities = await storage.getGroupActivities(group.id);
-  const favorites = activities.filter(a => 
-    a.feedback === 'upvote' || 
-    a.feedback === 'favorite' ||
-    a.feedback === 'more_like_this'
-  );
+  const votingEvents = await storage.getGroupVotingEvents(group.id);
 
-  if (favorites.length >= 2) {
-    // Select 2-3 top-rated favorites
-    const selectedFavorites = favorites
-      .sort((a, b) => {
-        // Prioritize explicit favorites over upvotes
-        const scoreA = a.feedback === 'favorite' ? 3 : a.feedback === 'more_like_this' ? 2 : 1;
-        const scoreB = b.feedback === 'favorite' ? 3 : b.feedback === 'more_like_this' ? 2 : 1;
-        return scoreB - scoreA;
-      })
-      .slice(0, 3)
-      .map(a => ({ sourceType: 'activity' as const, sourceId: a.id }));
+  console.log(`[Selection] Found ${activities.length} activities, ${votingEvents.length} voting events`);
 
-    return { selectedVenues: selectedFavorites };
-  }
+  // Get visit history
+  const visitStats = await getVenueVisitStats(group.id);
+  console.log(`[Selection] ${visitStats.length} venues have visit history`);
 
-  // 3. Third priority: Use AI-generated content similar to liked activities
-  if (activities.length > 0) {
-    // Pick activities that match the group's preferences (not downvoted)
-    const viableActivities = activities.filter(a => 
-      a.feedback !== 'downvote' && 
-      a.feedback !== 'not_this' &&
-      a.feedback !== 'pass'
-    );
+  // Score all venues
+  type ScoredVenue = {
+    type: 'activity' | 'voting_event';
+    id: string;
+    name: string;
+    score: number;
+    visitCount: number;
+    daysSinceLastVisit: number;
+    qualityScore: number;
+  };
 
-    if (viableActivities.length >= 2) {
-      // Select 2-3 random viable activities
-      const shuffled = viableActivities.sort(() => Math.random() - 0.5);
-      const selectedActivities = shuffled
-        .slice(0, Math.min(3, viableActivities.length))
-        .map(a => ({ sourceType: 'activity' as const, sourceId: a.id }));
+  const scoredVenues: ScoredVenue[] = [];
+  const now = Date.now();
 
-      return { selectedVenues: selectedActivities };
+  // Score activities
+  for (const activity of activities) {
+    // Skip downvoted
+    if (activity.feedback === 'downvote' || activity.feedback === 'not_this' || activity.feedback === 'pass') {
+      continue;
     }
+
+    // Quality score from feedback
+    let qualityScore = 1; // neutral
+    if (activity.feedback === 'favorite') qualityScore = 3;
+    else if (activity.feedback === 'more_like_this') qualityScore = 2.5;
+    else if (activity.feedback === 'upvote') qualityScore = 2;
+
+    // Visit stats
+    const stats = visitStats.find(v => v.activityId === activity.id);
+    const visitCount = stats?.count || 0;
+    const lastVisit = stats?.lastVisit ? new Date(stats.lastVisit).getTime() : 0;
+    const daysSinceLastVisit = lastVisit ? (now - lastVisit) / (1000 * 60 * 60 * 24) : 999;
+
+    // Never visited bonus
+    const neverVisitedBonus = visitCount === 0 ? 3 : 1;
+
+    // Recency bonus: more days = higher bonus (max 2x at 60+ days)
+    const recencyBonus = Math.min(daysSinceLastVisit / 30, 2);
+
+    // Frequency penalty: halve score for each visit
+    const frequencyPenalty = Math.pow(0.5, visitCount);
+
+    // Final score
+    const score = qualityScore * neverVisitedBonus * recencyBonus * frequencyPenalty;
+
+    scoredVenues.push({
+      type: 'activity',
+      id: activity.id,
+      name: activity.venueName,
+      score,
+      visitCount,
+      daysSinceLastVisit,
+      qualityScore,
+    });
   }
 
-  // Fallback: No good options available, return empty
+  // Score voting events
+  for (const votingEvent of votingEvents) {
+    // Quality score (voting events are pre-vetted by group)
+    const qualityScore = 2; // Default good score for voted items
+
+    // Visit stats
+    const stats = visitStats.find(v => v.votingEventId === votingEvent.id);
+    const visitCount = stats?.count || 0;
+    const lastVisit = stats?.lastVisit ? new Date(stats.lastVisit).getTime() : 0;
+    const daysSinceLastVisit = lastVisit ? (now - lastVisit) / (1000 * 60 * 60 * 24) : 999;
+
+    // Never visited bonus
+    const neverVisitedBonus = visitCount === 0 ? 3 : 1;
+
+    // Recency bonus
+    const recencyBonus = Math.min(daysSinceLastVisit / 30, 2);
+
+    // Frequency penalty
+    const frequencyPenalty = Math.pow(0.5, visitCount);
+
+    // Final score
+    const score = qualityScore * neverVisitedBonus * recencyBonus * frequencyPenalty;
+
+    scoredVenues.push({
+      type: 'voting_event',
+      id: votingEvent.id,
+      name: votingEvent.title,
+      score,
+      visitCount,
+      daysSinceLastVisit,
+      qualityScore,
+    });
+  }
+
+  // Sort by score (highest first)
+  scoredVenues.sort((a, b) => b.score - a.score);
+
+  // Log top 5 for debugging
+  console.log(`[Selection] Top 5 scored venues:`);
+  scoredVenues.slice(0, 5).forEach((v, i) => {
+    console.log(`  ${i+1}. ${v.name} (${v.type})`);
+    console.log(`     Score: ${v.score.toFixed(2)}, Visits: ${v.visitCount}, Days since: ${v.daysSinceLastVisit.toFixed(0)}, Quality: ${v.qualityScore}`);
+  });
+
+  // Select top 2-3 venues
+  if (scoredVenues.length >= 2) {
+    const selected = scoredVenues
+      .slice(0, Math.min(3, scoredVenues.length))
+      .map(v => ({
+        sourceType: v.type,
+        sourceId: v.id,
+      }));
+
+    console.log(`[Selection] Selected ${selected.length} venues for event`);
+    return { selectedVenues: selected };
+  }
+
+  console.log(`[Selection] Not enough viable venues (need 2+, found ${scoredVenues.length})`);
   return {};
 }
 

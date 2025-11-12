@@ -1310,6 +1310,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "No valid automation settings provided" });
       }
 
+      // When enabling auto-scheduling, initialize nextEventDueDate if not set
+      if (updates.autoScheduleEnabled === true && !group.nextEventDueDate && group.meetingFrequency) {
+        const { calculateNextEventDueDate } = await import('./auto-scheduler');
+        const baseDate = group.lastEventDate ? new Date(group.lastEventDate) : new Date();
+        updates.nextEventDueDate = calculateNextEventDueDate(baseDate, group.meetingFrequency);
+      }
+
       const updatedGroup = await storage.updateGroup(req.params.id, updates);
       res.json(updatedGroup);
     } catch (error: any) {
@@ -1414,15 +1421,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       let proposedDate: Date;
       try {
-        proposedDate = await suggestOptimalTime({
-          groupAvailability: group.availability as any,
-          memberAvailability: [], // Use empty array since we don't need individual member overrides for auto-schedule
-          venueTypes: itinerary.items?.map(i => (i as any).type || 'restaurant') || [],
-          meetingFrequency: group.meetingFrequency || '1x month',
-          timezone: group.timezone || 'America/Los_Angeles',
+        // Get venue information
+        const venues = itinerary.items.map((item: any) => ({
+          name: item.venueName,
+          type: item.venueType,
+        }));
+
+        // Aggregate member availability
+        const { aggregateMemberAvailability, convertAvailabilityToText } = await import('./availability-utils');
+        const aggregatedAvailability = await aggregateMemberAvailability(group.id, storage);
+
+        console.log(`[Manual Trigger] Using aggregated availability from ${aggregatedAvailability.memberCount} members`);
+
+        // Convert to text format for AI
+        const availabilityString = convertAvailabilityToText(
+          aggregatedAvailability.grid,
+          aggregatedAvailability.conflicts,
+          aggregatedAvailability.memberCount
+        );
+
+        console.log(`[Manual Trigger] Availability string: "${availabilityString}"`);
+        console.log(`[Manual Trigger] Venues: ${JSON.stringify(venues)}`);
+
+        // Use AI to find optimal time
+        const timeResult = await suggestOptimalTime({
+          generalAvailability: availabilityString,
+          venues,
+          location: group.locationBase,
+          meetingFrequency: group.meetingFrequency || undefined,
+          timezone: group.timezone || undefined,
         });
+
+        proposedDate = timeResult.eventDate;
+        console.log(`[Manual Trigger] AI suggested optimal time: ${proposedDate.toISOString()}, reasoning: ${timeResult.reasoning}`);
       } catch (err) {
-        console.error('AI time suggestion failed, using fallback:', err);
+        console.error('[Manual Trigger] AI time suggestion failed, using fallback:', err);
         proposedDate = group.nextEventDueDate ? new Date(group.nextEventDueDate) : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
       }
 
@@ -6180,6 +6213,11 @@ Looking forward to planning great activities together!
         status: 'scheduled',
       };
       const updatedItinerary = await storage.updateItinerary(req.params.id, updates);
+
+      // Log venue visits for rotation tracking
+      if (itinerary.eventDate) {
+        await storage.logVenueVisits(req.params.id, new Date(itinerary.eventDate));
+      }
 
       // Update group's lastEventDate and nextEventDueDate
       if (itinerary.eventDate) {

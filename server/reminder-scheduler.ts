@@ -555,6 +555,9 @@ export async function processAutoSend(): Promise<void> {
           }
         });
 
+        // Log venue visits for rotation tracking
+        await storage.logVenueVisits(itinerary.id, new Date(event.proposedDate));
+
         // Send initial invites
         await sendInitialInvites(itinerary, group);
 
@@ -576,24 +579,38 @@ export function startReminderScheduler(): void {
   const REMINDER_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
   const AUTO_SCHEDULE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
   const AUTO_SEND_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
-  
+
   console.log('Starting reminder scheduler...');
-  
-  // Run reminders immediately and every 5 minutes
-  processScheduledReminders();
+
+  // Run reminders immediately and every 5 minutes (async, non-blocking)
+  processScheduledReminders().catch(err => {
+    console.error('Error in initial reminder processing:', err);
+  });
   setInterval(() => {
-    processScheduledReminders();
+    processScheduledReminders().catch(err => {
+      console.error('Error in scheduled reminder processing:', err);
+    });
   }, REMINDER_INTERVAL_MS);
 
-  // Run auto-scheduling immediately and daily
-  processAutoScheduling();
+  // Run auto-scheduling immediately and daily (async, non-blocking)
+  processAutoScheduling().catch(err => {
+    console.error('Error in initial auto-scheduling:', err);
+  });
   setInterval(() => {
-    processAutoScheduling();
+    processAutoScheduling().catch(err => {
+      console.error('Error in scheduled auto-scheduling:', err);
+    });
   }, AUTO_SCHEDULE_INTERVAL_MS);
 
-  // Run auto-send immediately and every hour
-  processAutoSend();
+  // Run auto-send immediately and every hour (async, non-blocking)
+  processAutoSend().catch(err => {
+    console.error('Error in initial auto-send:', err);
+  });
   setInterval(() => {
-    processAutoSend();
+    processAutoSend().catch(err => {
+      console.error('Error in scheduled auto-send:', err);
+    });
   }, AUTO_SEND_INTERVAL_MS);
+
+  console.log('Reminder scheduler started successfully');
 }

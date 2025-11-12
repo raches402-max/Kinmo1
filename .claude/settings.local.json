@@ -35,7 +35,8 @@
       "Bash(npx vite build --mode development)",
       "Bash(echo:*)",
       "Bash(chmod:*)",
-      "Bash(./fix-replit.sh)"
+      "Bash(./fix-replit.sh)",
+      "WebSearch"
     ],
     "deny": [],
     "ask": []

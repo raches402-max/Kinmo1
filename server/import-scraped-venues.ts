@@ -33,6 +33,23 @@ function extractPlaceId(url: string): string | null {
   }
 }
 
+// Check if venue is food/drinks related (returns true if relevant)
+function isFoodOrDrinks(categoryName: string): boolean {
+  const lower = categoryName.toLowerCase();
+
+  // Food & drinks keywords
+  const relevantKeywords = [
+    'restaurant', 'cafe', 'coffee', 'bar', 'pub', 'lounge', 'brewery', 'winery',
+    'food', 'cuisine', 'dining', 'eatery', 'grill', 'kitchen', 'bistro', 'diner',
+    'pizza', 'burger', 'taco', 'sushi', 'ramen', 'noodle', 'dumpling', 'bbq',
+    'steakhouse', 'bakery', 'dessert', 'ice cream', 'donut', 'pastry',
+    'sandwich', 'deli', 'brunch', 'breakfast', 'lunch', 'dinner',
+    'wine', 'cocktail', 'beer', 'tea', 'juice', 'smoothie', 'bubble tea'
+  ];
+
+  return relevantKeywords.some(keyword => lower.includes(keyword));
+}
+
 // Map scraped category to our category system
 function mapCategory(categoryName: string): string {
   const lower = categoryName.toLowerCase();
@@ -91,6 +108,7 @@ async function importScrapedVenues() {
   let totalVenues = 0;
   let importedVenues = 0;
   let skippedVenues = 0;
+  let skippedNonFood = 0;
   let errorVenues = 0;
 
   for (const file of files) {
@@ -104,6 +122,13 @@ async function importScrapedVenues() {
 
     for (const venue of venues) {
       try {
+        // Filter: Skip non-food/drinks venues
+        if (!isFoodOrDrinks(venue.categoryName)) {
+          console.log(`  🚫 Skipping "${venue.title}" - not food/drinks (${venue.categoryName})`);
+          skippedNonFood++;
+          continue;
+        }
+
         // Extract place ID
         const placeId = extractPlaceId(venue.url);
         if (!placeId) {
@@ -177,6 +202,7 @@ async function importScrapedVenues() {
   console.log(`Import Summary:`);
   console.log(`  Total venues found: ${totalVenues}`);
   console.log(`  Successfully imported: ${importedVenues}`);
+  console.log(`  Skipped (non-food/drinks): ${skippedNonFood}`);
   console.log(`  Skipped (duplicates): ${skippedVenues}`);
   console.log(`  Errors: ${errorVenues}`);
   console.log(`${'='.repeat(60)}\n`);

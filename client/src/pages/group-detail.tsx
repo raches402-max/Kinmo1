@@ -1666,14 +1666,36 @@ export default function GroupDetail() {
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "members"] });
       toast({
         title: variables.openToHosting ? "Hosting enabled" : "Hosting disabled",
-        description: variables.openToHosting 
-          ? "Member is now open to hosting events" 
+        description: variables.openToHosting
+          ? "Member is now open to hosting events"
           : "Member will no longer be asked to host events",
       });
     },
     onError: (error: Error) => {
       toast({
         title: "Error updating member",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Volunteer to host mutation for auto-scheduled events
+  const volunteerToHostMutation = useMutation({
+    mutationFn: async (itineraryId: string) => {
+      return apiRequest("POST", `/api/itineraries/${itineraryId}/volunteer-host`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "auto-scheduled-events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "proposed-itineraries"] });
+      toast({
+        title: "You're now hosting!",
+        description: "Your RSVP has been automatically set to 'Going'",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error volunteering to host",
         description: error.message,
         variant: "destructive",
       });
@@ -2927,19 +2949,40 @@ export default function GroupDetail() {
                                         )}
                                       </div>
                                       <div className="flex flex-col gap-2">
-                                        <Button 
-                                          variant="default" 
+                                        <Button
+                                          variant="default"
                                           size="sm"
                                           className="gap-1"
+                                          onClick={() => {
+                                            if (autoEvent.itinerary?.id) {
+                                              volunteerToHostMutation.mutate(autoEvent.itinerary.id);
+                                            }
+                                          }}
+                                          disabled={volunteerToHostMutation.isPending}
                                           data-testid={`button-volunteer-host-${autoEvent.id}`}
                                         >
                                           <UserCheck className="h-4 w-4" />
                                           Volunteer to Host
                                         </Button>
                                         {isOwner && (
-                                          <Button 
-                                            variant="outline" 
+                                          <Button
+                                            variant="outline"
                                             size="sm"
+                                            onClick={() => {
+                                              if (autoEvent.itinerary) {
+                                                // For pending auto-events, use proposedDate from autoEvent as fallback
+                                                const itineraryWithDate = {
+                                                  ...autoEvent.itinerary,
+                                                  eventDate: autoEvent.itinerary.eventDate || autoEvent.proposedDate
+                                                };
+                                                setEditingItinerary(itineraryWithDate);
+                                                setEditItineraryName(autoEvent.itinerary.name || "");
+                                                setEditItineraryItems(autoEvent.itinerary.items || []);
+                                                setEditTimingRecommendations(autoEvent.itinerary.timingRecommendations || "");
+                                                setEditProposedDate(autoEvent.itinerary.eventDate || autoEvent.proposedDate);
+                                                setEditItineraryOpen(true);
+                                              }
+                                            }}
                                             data-testid={`button-edit-auto-event-${autoEvent.id}`}
                                           >
                                             <Edit2 className="h-4 w-4" />

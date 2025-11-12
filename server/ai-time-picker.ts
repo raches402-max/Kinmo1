@@ -604,6 +604,7 @@ Based on the group's availability and the venues, suggest:
    * Ramen/Asian restaurant → can be lunch (12:00) or dinner (18:30)
    * Bars/Drinks → 19:00-22:00 (evening)
    * Matcha/Tea/Coffee → 10:00-16:00 (morning to afternoon)
+   * Ice Cream/Dessert/Bakery/Creamery → 14:00-20:00 (afternoon to evening), prefer 15:00-19:00
 
 **STEP 3: Select a valid date**
    * Pick a day from your Step 1 list (NEVER pick a day not in that list)
@@ -772,6 +773,9 @@ function generateFallbackTime(
   } else if (venueTypes.includes('lunch')) {
     hours = 12; // Noon for lunch
     minutes = 30;
+  } else if (venueTypes.includes('ice cream') || venueTypes.includes('ice_cream') || venueTypes.includes('dessert') || venueTypes.includes('bakery') || venueTypes.includes('creamery')) {
+    hours = 16; // 4 PM for ice cream/dessert (afternoon/early evening)
+    minutes = 0;
   } else if (venueTypes.includes('bar') || venueTypes.includes('drinks') || venueTypes.includes('cocktail')) {
     hours = 20; // 8 PM for drinks
   }

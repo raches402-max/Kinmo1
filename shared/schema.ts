@@ -400,6 +400,19 @@ export const frequencyFeedback = pgTable("frequency_feedback", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Venue visit history - track all venue visits for rotation and analytics
+export const venueVisitHistory = pgTable("venue_visit_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  groupId: varchar("group_id").notNull().references(() => groups.id, { onDelete: "cascade" }),
+  activityId: varchar("activity_id").references(() => activities.id, { onDelete: "set null" }), // Null if activity was deleted
+  votingEventId: varchar("voting_event_id").references(() => votingEvents.id, { onDelete: "set null" }), // Null if voting event was deleted
+  venueName: text("venue_name").notNull(), // Denormalized for deleted venues
+  venueType: text("venue_type").notNull(), // Denormalized for deleted venues
+  visitedAt: timestamp("visited_at").notNull(), // When the event actually occurred
+  itineraryId: varchar("itinerary_id").notNull().references(() => itineraries.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Proposed time slots - multiple date/time options for an event
 export const proposedTimeSlots = pgTable("proposed_time_slots", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -958,6 +971,9 @@ export type AutoScheduledEvent = typeof autoScheduledEvents.$inferSelect;
 
 export type InsertFrequencyFeedback = z.infer<typeof insertFrequencyFeedbackSchema>;
 export type FrequencyFeedback = typeof frequencyFeedback.$inferSelect;
+
+export type InsertVenueVisitHistory = typeof venueVisitHistory.$inferInsert;
+export type VenueVisitHistory = typeof venueVisitHistory.$inferSelect;
 
 export type InsertUserProfile = z.infer<typeof insertUserProfileSchema>;
 export type UserProfile = typeof userProfiles.$inferSelect;
