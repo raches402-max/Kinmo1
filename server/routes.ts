@@ -1356,7 +1356,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const hasPendingEvent = existingPendingEvents.length > 0;
 
       // Check if we should trigger (within 10-day window)
-      if (!shouldTriggerAutoSchedule(group, hasPendingEvent)) {
+      if (!await shouldTriggerAutoSchedule(storage, group, hasPendingEvent)) {
         return res.status(400).json({
           message: "Not within 10-day creation window",
           nextEventDueDate: group.nextEventDueDate
@@ -1364,7 +1364,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Select itinerary or venues
-      const selection = await selectBestItineraryForAutoSchedule(group);
+      const selection = await selectBestItineraryForAutoSchedule(storage, group);
 
       if (!selection) {
         return res.status(400).json({ message: "No viable itineraries or activities to schedule" });

@@ -123,6 +123,13 @@ export interface IStorage {
   getAutoScheduledEvent(id: string): Promise<AutoScheduledEvent | undefined>;
   updateAutoScheduledEventStatus(id: string, status: string): Promise<AutoScheduledEvent>;
   getAutoScheduledEventsReadyForAutoSend(): Promise<AutoScheduledEvent[]>;
+  hasExistingProposedEvents(groupId: string): Promise<boolean>;
+  getUserUpcomingEventsWithTimeSlots(userId: string, startDate?: Date, endDate?: Date): Promise<Array<{
+    groupId: string;
+    groupName: string;
+    eventDate: Date;
+    timePeriod: 'morning' | 'afternoon' | 'evening';
+  }>>;
 
   // Frequency Feedback
   createFrequencyFeedback(feedback: InsertFrequencyFeedback): Promise<FrequencyFeedback>;
@@ -1498,6 +1505,125 @@ export class DatabaseStorage implements IStorage {
         eq(autoScheduledEvents.status, 'pending'),
         sql`${autoScheduledEvents.autoSendAt} <= ${now}`
       ));
+  }
+
+  async hasExistingProposedEvents(groupId: string): Promise<boolean> {
+    // Check for pending auto-scheduled events
+    const pendingAutoEvents = await db
+      .select()
+      .from(autoScheduledEvents)
+      .where(and(
+        eq(autoScheduledEvents.groupId, groupId),
+        eq(autoScheduledEvents.status, 'pending')
+      ))
+      .limit(1);
+
+    if (pendingAutoEvents.length > 0) {
+      return true;
+    }
+
+    // Check for proposed or scheduled itineraries
+    const proposedItineraries = await db
+      .select()
+      .from(itineraries)
+      .where(and(
+        eq(itineraries.groupId, groupId),
+        or(
+          eq(itineraries.status, 'proposed'),
+          eq(itineraries.status, 'scheduled')
+        )
+      ))
+      .limit(1);
+
+    return proposedItineraries.length > 0;
+  }
+
+  async getUserUpcomingEventsWithTimeSlots(
+    userId: string,
+    startDate?: Date,
+    endDate?: Date
+  ): Promise<Array<{
+    groupId: string;
+    groupName: string;
+    eventDate: Date;
+    timePeriod: 'morning' | 'afternoon' | 'evening';
+  }>> {
+    const { inferTimePeriod } = await import('./availability-utils.js');
+    const results: Array<{
+      groupId: string;
+      groupName: string;
+      eventDate: Date;
+      timePeriod: 'morning' | 'afternoon' | 'evening';
+    }> = [];
+
+    const now = startDate || new Date();
+    const futureLimit = endDate || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000); // 90 days from now
+
+    // Get all groups owned by this user
+    const userGroups = await db
+      .select()
+      .from(groups)
+      .where(eq(groups.userId, userId));
+
+    for (const group of userGroups) {
+      // Get proposed/scheduled itineraries
+      const itins = await db
+        .select()
+        .from(itineraries)
+        .where(and(
+          eq(itineraries.groupId, group.id),
+          or(
+            eq(itineraries.status, 'proposed'),
+            eq(itineraries.status, 'scheduled')
+          ),
+          sql`${itineraries.eventDate} IS NOT NULL`,
+          sql`${itineraries.eventDate} >= ${now}`,
+          sql`${itineraries.eventDate} <= ${futureLimit}`
+        ));
+
+      for (const itin of itins) {
+        if (itin.eventDate) {
+          const date = new Date(itin.eventDate);
+          const timePeriod = inferTimePeriod(date.getHours());
+          results.push({
+            groupId: group.id,
+            groupName: group.name,
+            eventDate: date,
+            timePeriod,
+          });
+        }
+      }
+
+      // Get pending auto-scheduled events
+      const autoEvents = await db
+        .select()
+        .from(autoScheduledEvents)
+        .where(and(
+          eq(autoScheduledEvents.groupId, group.id),
+          eq(autoScheduledEvents.status, 'pending'),
+          sql`${autoScheduledEvents.proposedDate} IS NOT NULL`,
+          sql`${autoScheduledEvents.proposedDate} >= ${now}`,
+          sql`${autoScheduledEvents.proposedDate} <= ${futureLimit}`
+        ));
+
+      for (const autoEvent of autoEvents) {
+        if (autoEvent.proposedDate) {
+          const date = new Date(autoEvent.proposedDate);
+          const timePeriod = inferTimePeriod(date.getHours());
+          results.push({
+            groupId: group.id,
+            groupName: group.name,
+            eventDate: date,
+            timePeriod,
+          });
+        }
+      }
+    }
+
+    // Sort by event date
+    results.sort((a, b) => a.eventDate.getTime() - b.eventDate.getTime());
+
+    return results;
   }
 
   // Frequency Feedback

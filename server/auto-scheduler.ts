@@ -244,16 +244,72 @@ export function calculateFutureEventDates(
 }
 
 /**
+ * Calculate cadence in days from meeting frequency string
+ * Examples: "2x week" = 3.5 days, "1x month" = 30 days
+ */
+export function calculateCadenceInDays(meetingFrequency: string): number {
+  // Normalize legacy formats to new format
+  let normalizedFreq = meetingFrequency;
+
+  if (meetingFrequency === "weekly") {
+    normalizedFreq = "1x week";
+  } else if (meetingFrequency === "biweekly") {
+    normalizedFreq = "2x week";
+  } else if (meetingFrequency === "monthly") {
+    normalizedFreq = "1x month";
+  } else if (meetingFrequency === "flexible") {
+    normalizedFreq = "1x month";
+  } else if (meetingFrequency.includes("-")) {
+    normalizedFreq = meetingFrequency.replace("-", "x ");
+  }
+
+  const match = normalizedFreq.match(/^(\d+)x\s+(\w+)$/);
+
+  if (!match) {
+    return 30; // Default to 30 days
+  }
+
+  const [, countStr, unit] = match;
+  const count = parseInt(countStr, 10);
+
+  let intervalDays: number;
+  switch (unit) {
+    case 'day':
+    case 'days':
+      intervalDays = 1 / count;
+      break;
+    case 'week':
+    case 'weeks':
+      intervalDays = 7 / count;
+      break;
+    case 'month':
+    case 'months':
+      intervalDays = 30 / count;
+      break;
+    case 'year':
+    case 'years':
+      intervalDays = 365 / count;
+      break;
+    default:
+      intervalDays = 30;
+  }
+
+  return intervalDays;
+}
+
+/**
  * Check if a group needs auto-scheduling
  * Returns true if:
  * - Auto-schedule is enabled
  * - We're within 10 days of the next event due date
  * - No pending auto-scheduled event exists
+ * - For high-cadence groups (<10 days), also checks if any proposed/scheduled events exist
  */
-export function shouldTriggerAutoSchedule(
+export async function shouldTriggerAutoSchedule(
+  storage: IStorage,
   group: Group,
   hasPendingAutoEvent: boolean
-): boolean {
+): Promise<boolean> {
   if (!group.autoScheduleEnabled) {
     return false;
   }
@@ -270,6 +326,20 @@ export function shouldTriggerAutoSchedule(
   const dueDate = new Date(group.nextEventDueDate);
   const daysUntilDue = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
-  // Trigger when we're 10 days or less from the due date
-  return daysUntilDue <= 10 && daysUntilDue >= 0;
+  // Not yet within the 10-day window
+  if (daysUntilDue > 10 || daysUntilDue < 0) {
+    return false;
+  }
+
+  // For high-cadence groups (<10 days between events), limit to 1 event on calendar
+  const cadence = calculateCadenceInDays(group.meetingFrequency);
+  if (cadence < 10) {
+    const hasExistingEvents = await storage.hasExistingProposedEvents(group.id);
+    if (hasExistingEvents) {
+      console.log(`[Auto-Schedule] Skipping high-cadence group ${group.name} (cadence: ${cadence.toFixed(1)} days) - already has proposed/scheduled event`);
+      return false;
+    }
+  }
+
+  return true;
 }

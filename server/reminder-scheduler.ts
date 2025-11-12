@@ -370,7 +370,7 @@ export async function processAutoScheduling(): Promise<void> {
       const pendingEvent = await storage.getPendingAutoScheduledEvent(group.id);
 
       // Determine if we should trigger auto-scheduling
-      if (shouldTriggerAutoSchedule(group, !!pendingEvent)) {
+      if (await shouldTriggerAutoSchedule(storage, group, !!pendingEvent)) {
         console.log(`Creating auto-scheduled event for group: ${group.name}`);
         
         // Select best itinerary/venues for this event
@@ -443,7 +443,7 @@ export async function processAutoScheduling(): Promise<void> {
           }));
 
           // Aggregate member availability
-          const { aggregateMemberAvailability, convertAvailabilityToText } = await import('./availability-utils');
+          const { aggregateMemberAvailability, convertAvailabilityToText, calculateDayDensity } = await import('./availability-utils');
           const aggregatedAvailability = await aggregateMemberAvailability(group.id, storage);
 
           console.log(`[Auto-Schedule] Using aggregated availability from ${aggregatedAvailability.memberCount} members`);
@@ -455,6 +455,18 @@ export async function processAutoScheduling(): Promise<void> {
             aggregatedAvailability.memberCount
           );
 
+          // Calculate density scores for smart spacing
+          const densityScores = calculateDayDensity(aggregatedAvailability.grid);
+          console.log(`[Auto-Schedule] Availability density:`, densityScores);
+
+          // Get existing events to avoid time slot conflicts
+          const existingEvents = await storage.getUserUpcomingEventsWithTimeSlots(
+            group.userId,
+            new Date(),
+            addDays(new Date(), 90)
+          );
+          console.log(`[Auto-Schedule] Found ${existingEvents.length} existing events for user ${group.userId}`);
+
           // Use AI to find optimal time
           const { suggestOptimalTime } = await import('./ai-time-picker');
           const timeResult = await suggestOptimalTime({
@@ -463,6 +475,9 @@ export async function processAutoScheduling(): Promise<void> {
             location: group.locationBase,
             meetingFrequency: group.meetingFrequency || undefined,
             timezone: group.timezone || undefined, // Use stored timezone
+            densityScores, // Pass density for smart spacing
+            existingEvents, // Pass existing events to avoid conflicts
+            currentGroupId: group.id, // Pass current group to exclude from conflict check
           });
 
           proposedDate = timeResult.eventDate;

@@ -285,6 +285,14 @@ interface TimeSelectionInput {
   location?: string; // Group location for timezone context (e.g., "San Francisco, CA")
   meetingFrequency?: string; // e.g., "1x week", "2x month", "1x month"
   timezone?: string; // IANA timezone identifier (e.g., "America/Los_Angeles") - preferred over location-based inference
+  densityScores?: Record<string, number>; // Density scores per day (0-3 available slots)
+  existingEvents?: Array<{
+    groupId: string;
+    groupName: string;
+    eventDate: Date;
+    timePeriod: 'morning' | 'afternoon' | 'evening';
+  }>; // Existing events to avoid conflicts
+  currentGroupId?: string; // Current group ID to exclude from conflict checking
 }
 
 interface TimeSelectionResult {
@@ -569,14 +577,45 @@ export async function suggestOptimalTime(
       }
       const tzName = getTimezoneName(tzIdentifier);
 
+      // Build density context
+      let densityContext = '';
+      if (input.densityScores) {
+        const dayDensities = Object.entries(input.densityScores)
+          .filter(([_, score]) => score > 0)
+          .map(([day, score]) => `${day}: ${score} slot${score > 1 ? 's' : ''}`)
+          .join(', ');
+        densityContext = `\nAvailability density (slots per day): ${dayDensities}`;
+      }
+
+      // Build existing events context (excluding current group)
+      let existingEventsContext = '';
+      if (input.existingEvents && input.existingEvents.length > 0) {
+        const relevantEvents = input.existingEvents.filter(
+          e => e.groupId !== input.currentGroupId
+        );
+        if (relevantEvents.length > 0) {
+          const eventList = relevantEvents
+            .map(e => {
+              const date = new Date(e.eventDate);
+              const dayName = date.toLocaleDateString('en-US', { weekday: 'long', timeZone: tzIdentifier });
+              const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: tzIdentifier });
+              return `${dayName}, ${dateStr} (${e.timePeriod}) - ${e.groupName}`;
+            })
+            .join('\n  ');
+          existingEventsContext = `\n\nExisting scheduled events:\n  ${eventList}
+
+IMPORTANT: Try to avoid scheduling on the same day/time as existing events when possible. If a day has multiple available slots (2-3), you can use different time periods (morning/afternoon/evening). If a day only has 1 available slot, prefer a different day to spread events out.`;
+        }
+      }
+
       const prompt = `You are scheduling a group outing. Pick ONE specific date and time.
 
 Venues: ${venueList}
-Group general availability: ${input.generalAvailability || 'Not specified'}
+Group general availability: ${input.generalAvailability || 'Not specified'}${densityContext}
 Member constraints: ${constraints}
 ${input.rescheduleReason ? `Previous attempt failed: ${input.rescheduleReason}` : ''}
 Timezone: ${tzName} (all times should be in this timezone)
-${input.meetingFrequency ? `Meeting frequency: ${input.meetingFrequency} (pick an appropriate date based on this cadence)` : ''}
+${input.meetingFrequency ? `Meeting frequency: ${input.meetingFrequency} (pick an appropriate date based on this cadence)` : ''}${existingEventsContext}
 
 Current date: ${now.toISOString().split('T')[0]}
 Date range: ${minDate.toISOString().split('T')[0]} to ${maxDate.toISOString().split('T')[0]}
@@ -682,6 +721,36 @@ Return ONLY a JSON object with this exact structure:
             console.log('[AI Time Picker] Max retries reached, using fallback');
             return generateFallbackTime(input, minDate, maxDate, tzIdentifier);
           }
+        }
+      }
+
+      // Validate time period conflicts with existing events
+      if (input.existingEvents && input.existingEvents.length > 0) {
+        const { inferTimePeriod } = await import('./availability-utils.js');
+        const suggestedHour = eventDate.getHours();
+        const suggestedPeriod = inferTimePeriod(suggestedHour);
+        const suggestedDateStr = eventDate.toISOString().split('T')[0];
+
+        // Check for conflicts (excluding current group)
+        const conflicts = input.existingEvents.filter(e => {
+          if (e.groupId === input.currentGroupId) return false; // Exclude current group
+          const existingDateStr = new Date(e.eventDate).toISOString().split('T')[0];
+          return existingDateStr === suggestedDateStr && e.timePeriod === suggestedPeriod;
+        });
+
+        if (conflicts.length > 0) {
+          const conflictDetails = conflicts.map(c => `${c.groupName} (${c.timePeriod})`).join(', ');
+          console.log(`[AI Time Picker] CONFLICT (attempt ${attempt}): Suggested ${suggestedDateStr} ${suggestedPeriod} conflicts with: ${conflictDetails}`);
+
+          if (attempt < maxRetries) {
+            console.log('[AI Time Picker] Retrying to avoid time slot conflict...');
+            continue; // Try again
+          } else {
+            console.log('[AI Time Picker] Max retries reached despite conflicts, using suggestion anyway');
+            // Continue with the suggestion even if there's a conflict after max retries
+          }
+        } else {
+          console.log(`[AI Time Picker] No time slot conflicts for ${suggestedDateStr} ${suggestedPeriod}`);
         }
       }
 

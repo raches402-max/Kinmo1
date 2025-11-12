@@ -195,3 +195,71 @@ export function convertAvailabilityToText(
 
   return text;
 }
+
+/**
+ * Infer time period from hour of day
+ * Morning: 6am-12pm, Afternoon: 12pm-5pm, Evening: 5pm-midnight
+ */
+export function inferTimePeriod(hour: number): 'morning' | 'afternoon' | 'evening' {
+  if (hour >= 6 && hour < 12) {
+    return 'morning';
+  } else if (hour >= 12 && hour < 17) {
+    return 'afternoon';
+  } else {
+    return 'evening';
+  }
+}
+
+/**
+ * Calculate density score for each day (0-3 available slots)
+ * Returns map of day -> number of available time periods
+ */
+export function calculateDayDensity(grid: AvailabilityGrid): Record<string, number> {
+  const density: Record<string, number> = {};
+
+  for (const day of DAYS) {
+    const slots = grid[day];
+    if (!slots) {
+      density[day] = 0;
+      continue;
+    }
+
+    let count = 0;
+    if (slots.morning) count++;
+    if (slots.afternoon) count++;
+    if (slots.evening) count++;
+
+    density[day] = count;
+  }
+
+  return density;
+}
+
+/**
+ * Get list of days with at least one available slot
+ */
+export function getAvailableDays(grid: AvailabilityGrid): string[] {
+  const availableDays: string[] = [];
+
+  for (const day of DAYS) {
+    const slots = grid[day];
+    if (slots && (slots.morning || slots.afternoon || slots.evening)) {
+      availableDays.push(day);
+    }
+  }
+
+  return availableDays;
+}
+
+/**
+ * Check if a specific day and time period is available
+ */
+export function isSlotAvailable(
+  grid: AvailabilityGrid,
+  day: string,
+  period: 'morning' | 'afternoon' | 'evening'
+): boolean {
+  const slots = grid[day as keyof AvailabilityGrid];
+  if (!slots) return false;
+  return slots[period] === true;
+}

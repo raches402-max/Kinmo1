@@ -36,7 +36,8 @@
       "Bash(echo:*)",
       "Bash(chmod:*)",
       "Bash(./fix-replit.sh)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(xargs:*)"
     ],
     "deny": [],
     "ask": []
