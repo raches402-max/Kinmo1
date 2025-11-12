@@ -2,10 +2,41 @@ import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+import net from "net";
 import { env } from "./config"; // Validate environment variables at startup
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { startReminderScheduler } from "./reminder-scheduler";
+
+/**
+ * Check if a port is available
+ * Returns the port if available, or the next available port
+ */
+async function getAvailablePort(preferredPort: number): Promise<number> {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+
+    server.once('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EADDRINUSE') {
+        // Port is in use, try next one
+        console.warn(`⚠️  Port ${preferredPort} is already in use, trying ${preferredPort + 1}...`);
+        resolve(getAvailablePort(preferredPort + 1));
+      } else {
+        // Other error, use preferred port anyway
+        resolve(preferredPort);
+      }
+    });
+
+    server.once('listening', () => {
+      // Port is available
+      const address = server.address();
+      const port = typeof address === 'object' ? address?.port : preferredPort;
+      server.close(() => resolve(port || preferredPort));
+    });
+
+    server.listen(preferredPort, '0.0.0.0');
+  });
+}
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
@@ -127,14 +158,26 @@ app.use((req, res, next) => {
   // Other ports are firewalled. Default to 5000 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5000', 10);
+  const preferredPort = parseInt(process.env.PORT || '5000', 10);
+
+  // Check if preferred port is available
+  const port = await getAvailablePort(preferredPort);
+
+  if (port !== preferredPort) {
+    console.log(`📌 Using port ${port} instead of ${preferredPort} (original port was occupied)`);
+    console.log(`💡 Tip: Use 'npm run dev:claude' to run on port 3000 (for Claude Code)`);
+    console.log(`💡 Tip: Use 'npm run dev' to run on port 5000 (for Replit Agent)`);
+  } else {
+    console.log(`✅ Port ${port} is available`);
+  }
+
   server.listen({
     port,
     host: "0.0.0.0",
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
-    
+
     // Start the automated reminder scheduler
     startReminderScheduler();
   });
