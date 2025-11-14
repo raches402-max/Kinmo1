@@ -63,31 +63,34 @@ async function upsertUser(
   claims: any,
 ) {
   const email = claims["email"];
+  const oidcSub = claims["sub"];
 
-  // For protected admin accounts, still sync the user ID but preserve existing profile data
-  if (PROTECTED_ADMIN_EMAILS.includes(email)) {
-    const existingUser = await storage.getUserByEmail(email);
-    if (existingUser) {
-      console.log(`[Auth] Protected admin account detected: ${email}. Syncing session ID but preserving existing profile data.`);
-      // CRITICAL: Must still call upsertUser to ensure session ID matches database ID
-      await storage.upsertUser({
-        id: claims["sub"], // Update ID to match session
-        email: existingUser.email, // Preserve existing email
-        firstName: existingUser.firstName, // Preserve existing first name
-        lastName: existingUser.lastName, // Preserve existing last name
-        profileImageUrl: existingUser.profileImageUrl, // Preserve existing profile image
-      });
-      return;
-    }
+  // Check if user exists by email (stable identifier)
+  const existingUser = await storage.getUserByEmail(email);
+
+  if (existingUser) {
+    // User exists - update with new OAuth sub (if changed)
+    console.log(`[Auth] Updating existing user by email: ${email}`);
+    await storage.upsertUser({
+      id: existingUser.id, // Keep stable user ID
+      email: email,
+      oidcSub: oidcSub, // Update OAuth sub (may have changed)
+      firstName: claims["first_name"] || existingUser.firstName,
+      lastName: claims["last_name"] || existingUser.lastName,
+      profileImageUrl: claims["profile_image_url"] || existingUser.profileImageUrl,
+    } as any);
+  } else {
+    // New user - use OAuth sub as initial ID (will be stable going forward)
+    console.log(`[Auth] Creating new user: ${email}`);
+    await storage.upsertUser({
+      id: oidcSub, // For new users, start with OAuth sub as ID
+      email: email,
+      oidcSub: oidcSub,
+      firstName: claims["first_name"],
+      lastName: claims["last_name"],
+      profileImageUrl: claims["profile_image_url"],
+    } as any);
   }
-
-  await storage.upsertUser({
-    id: claims["sub"],
-    email: claims["email"],
-    firstName: claims["first_name"],
-    lastName: claims["last_name"],
-    profileImageUrl: claims["profile_image_url"],
-  });
 }
 
 export async function setupAuth(app: Express) {

@@ -67,7 +67,7 @@ export const reorderGroupsSchema = z.object({
 export const createGroupSchema = z.object({
   members: z.array(z.object({
     name: z.string().optional(),
-    email: z.string().email("Invalid email format").optional(),
+    email: z.union([z.string().email("Invalid email format"), z.literal("")]).optional(),
   }).refine(
     (data) => data.name || data.email,
     { message: "Either name or email must be provided for each member" }

@@ -13,6 +13,7 @@ import {
 } from './email-service';
 import { storage } from './storage';
 import { selectBestItineraryForAutoSchedule, shouldTriggerAutoSchedule } from './auto-scheduler';
+import { calculateEventConfidence, shouldRequireReview } from './confidence-scoring';
 import { randomBytes } from 'crypto';
 
 interface ReminderToSend {
@@ -372,18 +373,86 @@ export async function processAutoScheduling(): Promise<void> {
       // Determine if we should trigger auto-scheduling
       if (await shouldTriggerAutoSchedule(storage, group, !!pendingEvent)) {
         console.log(`Creating auto-scheduled event for group: ${group.name}`);
-        
+
         // Select best itinerary/venues for this event
         const selection = await selectBestItineraryForAutoSchedule(storage, group);
-        
+
+        // Check if we got 3 itinerary options (new flow)
+        if (selection.options && selection.options.length > 0) {
+          console.log(`[Auto-Schedule] Generated ${selection.options.length} itinerary options for ${group.name}`);
+
+          // Use nextEventDueDate for the proposed date (AI time picker will be used after option selection)
+          const proposedDate = group.nextEventDueDate
+            ? new Date(group.nextEventDueDate)
+            : addDays(new Date(), 14);
+
+          // Create auto-scheduled event with pending_approval status
+          const autoEvent = await storage.createAutoScheduledEvent({
+            groupId: group.id,
+            proposedDate: proposedDate,
+            autoSendAt: addDays(new Date(), 2),
+            status: 'pending_approval',
+            allowMemberVoting: false,
+            approvedByOrganizer: false,
+          });
+
+          // Store the 3 itinerary options
+          const { itineraryOptions: itineraryOptionsTable } = await import('../shared/schema');
+          await Promise.all(
+            selection.options.map(async (option) => {
+              await db.insert(itineraryOptionsTable).values({
+                autoEventId: autoEvent.id,
+                optionNumber: option.optionNumber,
+                venues: option.venues,
+                description: option.description,
+              });
+            })
+          );
+
+          console.log(`Created auto-event with ${selection.options.length} options for group ${group.name}, organizer needs to select an option`);
+
+          // Trigger post-AI swipe session (collect feedback on generated venues)
+          try {
+            const { triggerSwipeSession } = await import('./swipe-trigger-manager');
+
+            // Collect all activity IDs from the 3 options
+            const allActivityIds = selection.options.flatMap(opt =>
+              opt.venues
+                .filter((v: any) => v.sourceType === 'activity' && v.sourceId)
+                .map((v: any) => v.sourceId)
+            );
+
+            if (allActivityIds.length >= 3) {
+              const triggerResult = await triggerSwipeSession({
+                groupId: group.id,
+                triggerType: 'post_ai',
+                activityIds: allActivityIds,
+                reason: `AI generated ${selection.options.length} itinerary options with ${allActivityIds.length} venues - your feedback helps improve future suggestions!`,
+                expiresInHours: 48,
+              });
+
+              if (triggerResult.triggered) {
+                console.log(`[SwipeTrigger] ${triggerResult.reason}`);
+              } else {
+                console.log(`[SwipeTrigger] Skipped: ${triggerResult.skippedReason}`);
+              }
+            }
+          } catch (triggerError) {
+            console.error('[SwipeTrigger] Error triggering post-AI swipe session:', triggerError);
+          }
+
+          continue;
+        }
+
+        // Fallback to old flow if no options returned
         if (!selection.itineraryId && (!selection.selectedVenues || selection.selectedVenues.length === 0)) {
           console.log(`No viable options for auto-scheduling group ${group.name}`);
           continue;
         }
 
-        // Create or duplicate itinerary for this auto-event
+        // OLD FLOW: Create or duplicate itinerary for this auto-event
         let itineraryId: string;
-        
+
         if (selection.itineraryId) {
           // Duplicate the saved itinerary
           const original = await storage.getItinerary(selection.itineraryId);
@@ -395,6 +464,15 @@ export async function processAutoScheduling(): Promise<void> {
               sourceType: item.sourceType as 'activity' | 'voting_event',
               sourceId: item.sourceId!
             }));
+
+          // Clean up any existing draft itineraries before creating a new one
+          await db.delete(itineraries).where(
+            and(
+              eq(itineraries.groupId, group.id),
+              eq(itineraries.status, "draft"),
+              eq(itineraries.isSaved, false)
+            )
+          );
 
           const newItinerary = await storage.createItinerary(
             {
@@ -409,6 +487,15 @@ export async function processAutoScheduling(): Promise<void> {
           );
           itineraryId = newItinerary.id;
         } else if (selection.selectedVenues) {
+          // Clean up any existing draft itineraries before creating a new one
+          await db.delete(itineraries).where(
+            and(
+              eq(itineraries.groupId, group.id),
+              eq(itineraries.status, "draft"),
+              eq(itineraries.isSaved, false)
+            )
+          );
+
           // Create new itinerary from selected venues
           const newItinerary = await storage.createItinerary(
             {
@@ -440,6 +527,8 @@ export async function processAutoScheduling(): Promise<void> {
           const venues = itinerary.items.map((item: any) => ({
             name: item.venueName,
             type: item.venueType,
+            openingHours: item.openingHours,
+            businessStatus: item.businessStatus,
           }));
 
           // Aggregate member availability
@@ -495,16 +584,125 @@ export async function processAutoScheduling(): Promise<void> {
         // If no one volunteers to host within 48 hours, AI auto-approves and sends
         const autoSendAt = addDays(new Date(), 2);
 
+        // Calculate confidence score for this event
+        const itinerary = await storage.getItinerary(itineraryId);
+        const venuesForConfidence = itinerary?.items.map(item => ({
+          sourceType: item.sourceType,
+          sourceId: item.sourceId || '',
+          venueName: item.venueName,
+        })) || [];
+
+        const confidenceResult = await calculateEventConfidence(
+          storage,
+          group.id,
+          venuesForConfidence,
+          proposedDate
+        );
+
+        console.log(`[Confidence] Score: ${confidenceResult.score}, Summary: ${confidenceResult.plainLanguageSummary}`);
+
+        // Determine if review is required based on automation level and confidence
+        const { requiresReview, reason } = shouldRequireReview(
+          confidenceResult.score,
+          {
+            automationLevel: group.automationLevel || 'smart',
+            confidenceThreshold: group.confidenceThreshold || 80,
+            automationPaused: group.automationPaused || false,
+            reviewEveryNthEvent: group.reviewEveryNthEvent || null,
+            eventCountSinceLastReview: group.eventCountSinceLastReview || 0,
+          }
+        );
+
+        console.log(`[Review] Required: ${requiresReview}, Reason: ${reason || 'none'}`);
+
         // Create auto-scheduled event record
-        await storage.createAutoScheduledEvent({
+        const autoEvent = await storage.createAutoScheduledEvent({
           groupId: group.id,
           itineraryId,
           proposedDate,
           autoSendAt,
-          status: 'pending',
+          status: requiresReview ? 'pending' : 'auto_approved', // Auto-approve if no review needed
+          confidenceScore: confidenceResult.score,
+          confidenceFactors: confidenceResult.factors,
+          requiresReview,
+          reviewReason: reason,
         });
 
-        console.log(`Created pending auto-event for group ${group.name}, proposed date: ${proposedDate.toISOString()}, auto-send at: ${autoSendAt.toISOString()} (48hr volunteer window)`);
+        // Log prediction for calibration
+        const { logConfidencePrediction, getGroupConfidenceWeights } = await import('./confidence-scoring');
+        const weights = await getGroupConfidenceWeights(group.id);
+        await logConfidencePrediction(
+          group.id,
+          autoEvent.id,
+          null, // No swipe session yet
+          confidenceResult,
+          weights
+        );
+
+        // If no review required, auto-send the event immediately
+        if (!requiresReview) {
+          console.log(`[AutoApproval] Confidence ${confidenceResult.score}% >= threshold, auto-sending event`);
+
+          // Get the itinerary to send
+          const [itinerary] = await db
+            .select()
+            .from(itineraries)
+            .where(eq(itineraries.id, itineraryId))
+            .limit(1);
+
+          if (itinerary) {
+            // Send initial invites to all members
+            await sendInitialInvites(itinerary, group);
+
+            // Mark as auto-sent
+            await db.update(autoScheduledEvents)
+              .set({ status: 'auto_sent' })
+              .where(eq(autoScheduledEvents.id, autoEvent.id));
+
+            console.log(`[AutoApproval] Event auto-sent for group ${group.name}`);
+          }
+        }
+
+        // Update event counter for review sampling
+        if (reason === 'scheduled_review') {
+          await db.update(groups)
+            .set({ eventCountSinceLastReview: 0 })
+            .where(eq(groups.id, group.id));
+        } else {
+          await db.update(groups)
+            .set({ eventCountSinceLastReview: (group.eventCountSinceLastReview || 0) + 1 })
+            .where(eq(groups.id, group.id));
+        }
+
+        console.log(`Created pending auto-event for group ${group.name}, proposed date: ${proposedDate.toISOString()}, auto-send at: ${autoSendAt.toISOString()} (48hr volunteer window), confidence: ${confidenceResult.score}%, review required: ${requiresReview}`);
+
+        // Trigger post-AI swipe session (collect feedback on generated event)
+        try {
+          const { triggerSwipeSession } = await import('./swipe-trigger-manager');
+
+          // Collect activity IDs from the created itinerary
+          const activityIds = venuesForConfidence
+            .filter(v => v.sourceType === 'activity' && v.sourceId)
+            .map(v => v.sourceId);
+
+          if (activityIds.length >= 3) {
+            const triggerResult = await triggerSwipeSession({
+              groupId: group.id,
+              triggerType: 'post_ai',
+              activityIds,
+              reason: `AI created an event with ${activityIds.length} venues - your feedback helps improve future suggestions!`,
+              expiresInHours: 48,
+            });
+
+            if (triggerResult.triggered) {
+              console.log(`[SwipeTrigger] ${triggerResult.reason}`);
+            } else {
+              console.log(`[SwipeTrigger] Skipped: ${triggerResult.skippedReason}`);
+            }
+          }
+        } catch (triggerError) {
+          console.error('[SwipeTrigger] Error triggering post-AI swipe session:', triggerError);
+        }
       }
     }
   } catch (error) {
@@ -523,13 +721,20 @@ export async function processAutoSend(): Promise<void> {
 
     for (const event of readyEvents) {
       console.log(`Auto-sending event ${event.id} for group ${event.groupId}`);
-      
+
       try {
         const group = await storage.getGroup(event.groupId);
         const itinerary = event.itineraryId ? await storage.getItinerary(event.itineraryId) : null;
-        
+
         if (!group || !itinerary) {
           console.error(`Missing group or itinerary for auto-event ${event.id}`);
+          continue;
+        }
+
+        // Check if event requires review (low confidence, paused automation, or scheduled review)
+        if (event.requiresReview) {
+          console.log(`Event ${event.id} requires review (reason: ${event.reviewReason}) - skipping auto-send, organizer must approve`);
+          // Keep pending status, organizer must manually approve
           continue;
         }
 

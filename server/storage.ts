@@ -242,32 +242,71 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
-    // First, delete any existing user with the same email but different ID
-    // This handles the case where test users reuse the same email with different OIDC subs
-    if (userData.email) {
-      await db
-        .delete(users)
-        .where(
-          and(
-            eq(users.email, userData.email),
-            sql`${users.id} != ${userData.id}`
-          )
-        );
+    // CRITICAL FIX: Use email as the stable identifier, NOT the OAuth sub
+    // This prevents data loss when Replit OAuth provides different subject IDs across sessions
+
+    if (!userData.email) {
+      throw new Error("Email is required for upsertUser");
     }
-    
-    // Now insert or update the user based on ID
-    const [user] = await db
-      .insert(users)
-      .values(userData)
-      .onConflictDoUpdate({
-        target: users.id,
-        set: {
-          ...userData,
+
+    // Step 1: Check if user exists by email (stable identifier)
+    const existingUser = await this.getUserByEmail(userData.email);
+
+    if (existingUser) {
+      // User exists - UPDATE existing record instead of deleting
+      console.log(`[Auth] Updating existing user: ${userData.email}`);
+
+      // Check if OAuth sub changed
+      const newOidcSub = (userData as any).oidcSub || userData.id;
+      const oldOidcSub = existingUser.oidcSub;
+
+      let legacyOidcSubs = existingUser.legacyOidcSubs as string[] || [];
+
+      if (oldOidcSub && newOidcSub !== oldOidcSub) {
+        // OAuth sub changed - track the old one
+        console.log(`[Auth] OAuth sub changed for ${userData.email}: ${oldOidcSub} → ${newOidcSub}`);
+
+        if (!legacyOidcSubs.includes(oldOidcSub)) {
+          legacyOidcSubs = [...legacyOidcSubs, oldOidcSub];
+        }
+      }
+
+      // Update the existing user record
+      const [updatedUser] = await db
+        .update(users)
+        .set({
+          firstName: userData.firstName || existingUser.firstName,
+          lastName: userData.lastName || existingUser.lastName,
+          profileImageUrl: userData.profileImageUrl || existingUser.profileImageUrl,
+          oidcSub: newOidcSub,
+          legacyOidcSubs: legacyOidcSubs.length > 0 ? legacyOidcSubs as any : null,
           updatedAt: new Date(),
-        },
-      })
-      .returning();
-    return user;
+        })
+        .where(eq(users.id, existingUser.id))
+        .returning();
+
+      return updatedUser;
+    } else {
+      // New user - create with stable ID
+      console.log(`[Auth] Creating new user: ${userData.email}`);
+
+      const newOidcSub = (userData as any).oidcSub || userData.id;
+
+      const [newUser] = await db
+        .insert(users)
+        .values({
+          id: userData.id, // Keep the stable ID
+          email: userData.email,
+          oidcSub: newOidcSub,
+          firstName: userData.firstName,
+          lastName: userData.lastName,
+          profileImageUrl: userData.profileImageUrl,
+          legacyOidcSubs: null,
+        })
+        .returning();
+
+      return newUser;
+    }
   }
 
   // Group operations
@@ -799,6 +838,7 @@ export class DatabaseStorage implements IStorage {
         complementaryPlaceId2: votingEvents.complementaryPlaceId2,
         complementaryPlacePhotoUrl2: votingEvents.complementaryPlacePhotoUrl2,
         complementaryPlaceRating2: votingEvents.complementaryPlaceRating2,
+        swipeConsensus: votingEvents.swipeConsensus,
         createdBy: votingEvents.createdBy,
         createdAt: votingEvents.createdAt,
         upvotes: sql<number>`COUNT(CASE WHEN ${votes.voteType} = 'upvote' THEN 1 END)`.as('upvotes'),
@@ -846,6 +886,7 @@ export class DatabaseStorage implements IStorage {
         complementaryPlaceId2: votingEvents.complementaryPlaceId2,
         complementaryPlacePhotoUrl2: votingEvents.complementaryPlacePhotoUrl2,
         complementaryPlaceRating2: votingEvents.complementaryPlaceRating2,
+        swipeConsensus: votingEvents.swipeConsensus,
         createdBy: votingEvents.createdBy,
         createdAt: votingEvents.createdAt,
         upvotes: sql<number>`COUNT(CASE WHEN ${votes.voteType} = 'upvote' THEN 1 END)`.as('upvotes'),

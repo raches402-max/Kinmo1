@@ -37,7 +37,12 @@
       "Bash(chmod:*)",
       "Bash(./fix-replit.sh)",
       "WebSearch",
-      "Bash(xargs:*)"
+      "Bash(xargs:*)",
+      "Bash(timeout 2 curl:*)",
+      "Bash(/dev/null)",
+      "Bash(timeout 5 curl:*)",
+      "Bash(git stash:*)",
+      "Bash(killall:*)"
     ],
     "deny": [],
     "ask": []

@@ -518,6 +518,8 @@ export interface PlaceResult {
   location?: { lat: number; lng: number };
   review?: string; // Short positive review (80-100 chars)
   distance?: number; // Distance in miles from search location
+  openingHours?: any; // Google Places opening hours (periods, weekday_text)
+  businessStatus?: string; // OPERATIONAL, CLOSED_TEMPORARILY, CLOSED_PERMANENTLY
 }
 
 // Helper function to extract city from Google Places addressComponents
@@ -975,6 +977,8 @@ async function autoCacheApiResults(
           region: venueRegion,
           source: 'api_auto',
           isActive: true,
+          openingHours: venue.openingHours || null,
+          businessStatus: venue.businessStatus || null,
           lastRefreshed: new Date()
         });
         
@@ -1380,6 +1384,8 @@ export async function searchPlaces(
       'places.photos',
       'places.types',
       'places.location',
+      'places.currentOpeningHours', // +$0.003 per call (Atmosphere fields)
+      'places.businessStatus', // Same SKU as currentOpeningHours
     ].join(',');
 
     const response = await fetch(endpoint, {
@@ -1499,6 +1505,8 @@ export async function searchPlaces(
         photoUrl,
         types: place.types || [],
         location: placeLocation,
+        openingHours: place.currentOpeningHours || undefined,
+        businessStatus: place.businessStatus || undefined,
       });
     }
 
@@ -1735,6 +1743,8 @@ export async function searchNearbyPlaces(
         photoUrl,
         types: place.types || [],
         location: placeLocation,
+        openingHours: place.currentOpeningHours || undefined,
+        businessStatus: place.businessStatus || undefined,
       });
     }
 

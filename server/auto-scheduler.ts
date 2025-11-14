@@ -23,14 +23,114 @@ async function getVenueVisitStats(groupId: string) {
 }
 
 /**
+ * Generate badges explaining why a venue was selected
+ */
+function generateVenueBadges(
+  qualityScore: number,
+  visitCount: number,
+  daysSinceLastVisit: number,
+  feedback?: string | null
+): string[] {
+  const badges: string[] = [];
+
+  // Quality badges
+  if (feedback === 'favorite') {
+    badges.push('🌟 Group Favorite');
+  } else if (qualityScore >= 2.5) {
+    badges.push('⭐ Highly Rated');
+  }
+
+  // Visit frequency badges
+  if (visitCount === 0) {
+    badges.push('✨ Never Visited');
+  } else if (visitCount === 1 && qualityScore >= 2) {
+    badges.push('🔄 Back by Popular Demand');
+  } else if (daysSinceLastVisit >= 60) {
+    badges.push('📅 It\'s Been a While');
+  }
+
+  // Recency badge
+  if (daysSinceLastVisit < 30 && visitCount > 0) {
+    badges.push('🆕 Recent Visit');
+  }
+
+  return badges;
+}
+
+/**
+ * Calculate optimal venue count based on venue categories and time requirements
+ * Returns 1-3 venues depending on the types of venues being suggested
+ */
+function calculateOptimalVenueCount(venues: Array<{
+  category?: string | null;
+  timeCategory?: string | null;
+  venueType?: string | null;
+}>): number {
+  if (venues.length === 0) return 0;
+  if (venues.length === 1) return 1;
+
+  // Analyze venue categories and time requirements
+  const categories = venues.map(v => v.category?.toLowerCase() || '');
+  const timeCategories = venues.map(v => v.timeCategory?.toLowerCase() || '');
+  const venueTypes = venues.map(v => v.venueType?.toLowerCase() || '');
+
+  // Check if any venue is "large" (4+ hours) - if so, limit to 1-2 venues
+  const hasLargeActivity = timeCategories.some(tc => tc === 'large');
+  if (hasLargeActivity) {
+    return Math.min(2, venues.length);
+  }
+
+  // Check if meal-focused (restaurants, dining)
+  const hasMeal = categories.some(c => c === 'meal') ||
+                  venueTypes.some(vt => vt.includes('restaurant') || vt.includes('dining'));
+  if (hasMeal) {
+    // Meals typically need 1-2 venues (dinner, maybe dessert)
+    return Math.min(2, venues.length);
+  }
+
+  // Check if drinks-focused (bars, breweries)
+  const hasDrinks = categories.some(c => c === 'drinks') ||
+                    venueTypes.some(vt => vt.includes('bar') || vt.includes('brewery') || vt.includes('pub'));
+  if (hasDrinks) {
+    // Bar crawls can do 2-3 venues
+    return Math.min(3, venues.length);
+  }
+
+  // Check if cafe/dessert focused
+  const hasCafeOrDessert = categories.some(c => c === 'cafes' || c === 'dessert') ||
+                           venueTypes.some(vt => vt.includes('cafe') || vt.includes('coffee') || vt.includes('dessert'));
+  if (hasCafeOrDessert) {
+    return Math.min(2, venues.length);
+  }
+
+  // Default for experiences or mixed: 1-2 venues
+  return Math.min(2, venues.length);
+}
+
+/**
  * Smart itinerary selection with visit frequency tracking
+ * NOW GENERATES UP TO 3 DISTINCT ITINERARY OPTIONS
  * Scores venues based on: Quality (feedback) × Recency × Frequency
  * Ensures fair rotation through all available venues
+ * Dynamically adjusts venue count per option based on venue categories
  */
 export async function selectBestItineraryForAutoSchedule(
   storage: IStorage,
   group: Group
-): Promise<{ itineraryId?: string; selectedVenues?: Array<{ sourceType: 'activity' | 'voting_event', sourceId: string }> }> {
+): Promise<{
+  itineraryId?: string;
+  selectedVenues?: Array<{ sourceType: 'activity' | 'voting_event', sourceId: string }>;
+  options?: Array<{
+    optionNumber: number;
+    venues: Array<{
+      sourceType: 'activity' | 'voting_event';
+      sourceId: string;
+      venueName: string;
+      badges: string[];
+    }>;
+    description: string;
+  }>;
+}> {
 
   console.log(`[Selection] Starting venue selection for group ${group.name}`);
 
@@ -53,6 +153,10 @@ export async function selectBestItineraryForAutoSchedule(
     visitCount: number;
     daysSinceLastVisit: number;
     qualityScore: number;
+    feedback?: string | null;
+    category?: string | null; // meal, cafes, drinks, dessert, experiences
+    timeCategory?: string | null; // quick, standard, large
+    venueType?: string | null; // restaurant, bar, etc.
   };
 
   const scoredVenues: ScoredVenue[] = [];
@@ -62,6 +166,12 @@ export async function selectBestItineraryForAutoSchedule(
   for (const activity of activities) {
     // Skip downvoted
     if (activity.feedback === 'downvote' || activity.feedback === 'not_this' || activity.feedback === 'pass') {
+      continue;
+    }
+
+    // Skip permanently/temporarily closed venues
+    if (activity.businessStatus === 'CLOSED_PERMANENTLY' || activity.businessStatus === 'CLOSED_TEMPORARILY') {
+      console.log(`[Selection] Skipping ${activity.venueName} - ${activity.businessStatus}`);
       continue;
     }
 
@@ -97,13 +207,41 @@ export async function selectBestItineraryForAutoSchedule(
       visitCount,
       daysSinceLastVisit,
       qualityScore,
+      feedback: activity.feedback,
+      category: activity.category,
+      timeCategory: activity.timeCategory,
+      venueType: activity.venueType,
     });
   }
 
+  // Get votes for all voting events to calculate quality scores
+  const voteCounts = await Promise.all(
+    votingEvents.map(async (ve) => {
+      const votes = await storage.getEventVotes(ve.id);
+      const upvotes = votes.filter(v => v.voteType === 'upvote').length;
+      const downvotes = votes.filter(v => v.voteType === 'downvote').length;
+      return { id: ve.id, upvotes, downvotes, netVotes: upvotes - downvotes };
+    })
+  );
+
   // Score voting events
   for (const votingEvent of votingEvents) {
-    // Quality score (voting events are pre-vetted by group)
-    const qualityScore = 2; // Default good score for voted items
+    const voteCount = voteCounts.find(vc => vc.id === votingEvent.id);
+    const netVotes = voteCount?.netVotes || 0;
+    const upvotes = voteCount?.upvotes || 0;
+
+    // Quality score based on upvotes:
+    // - Base score of 2 (venues in Favorites are already vetted)
+    // - +0.5 for each net upvote (capped at +1.5 for 3+ upvotes)
+    // - This makes highly upvoted favorites score up to 3.5 (better than "favorite" feedback on activities)
+    const upvoteBonus = Math.min(netVotes * 0.5, 1.5);
+    const qualityScore = Math.max(1, 2 + upvoteBonus); // Min 1, typical 2-3.5
+
+    // Skip if downvoted more than upvoted
+    if (netVotes < 0) {
+      console.log(`[Selection] Skipping ${votingEvent.title} - net downvotes: ${netVotes}`);
+      continue;
+    }
 
     // Visit stats
     const stats = visitStats.find(v => v.votingEventId === votingEvent.id);
@@ -131,34 +269,218 @@ export async function selectBestItineraryForAutoSchedule(
       visitCount,
       daysSinceLastVisit,
       qualityScore,
+      feedback: upvotes >= 3 ? 'favorite' : null, // Mark as favorite if 3+ upvotes
+      category: null, // Voting events don't have category/timeCategory
+      timeCategory: null,
+      venueType: votingEvent.venueType,
     });
   }
 
   // Sort by score (highest first)
   scoredVenues.sort((a, b) => b.score - a.score);
 
-  // Log top 5 for debugging
-  console.log(`[Selection] Top 5 scored venues:`);
-  scoredVenues.slice(0, 5).forEach((v, i) => {
+  // Log top 10 for debugging
+  console.log(`[Selection] Top 10 scored venues:`);
+  scoredVenues.slice(0, 10).forEach((v, i) => {
     console.log(`  ${i+1}. ${v.name} (${v.type})`);
     console.log(`     Score: ${v.score.toFixed(2)}, Visits: ${v.visitCount}, Days since: ${v.daysSinceLastVisit.toFixed(0)}, Quality: ${v.qualityScore}`);
   });
 
-  // Select top 2-3 venues
-  if (scoredVenues.length >= 2) {
-    const selected = scoredVenues
-      .slice(0, Math.min(3, scoredVenues.length))
-      .map(v => ({
+  // **NEW: Prioritize Favorites when available**
+  // Separate favorites (voting_events) from other venues
+  const favoriteVenues = scoredVenues.filter(v => v.type === 'voting_event');
+  const suitableFavorites = favoriteVenues.filter(v =>
+    v.daysSinceLastVisit >= 60 || v.visitCount === 0  // Not visited recently
+  );
+
+  console.log(`[Selection] Found ${favoriteVenues.length} total favorites, ${suitableFavorites.length} suitable (not recently visited)`);
+
+  // If we have ≥5 suitable Favorites, use ONLY Favorites (1 smart itinerary, not 3 options)
+  if (suitableFavorites.length >= 5) {
+    console.log(`[Selection] Using Favorites-only mode (${suitableFavorites.length} available)`);
+
+    // Rank favorites by score
+    suitableFavorites.sort((a, b) => b.score - a.score);
+
+    // Determine optimal count based on top favorites
+    const optimalCount = calculateOptimalVenueCount(suitableFavorites.slice(0, 5));
+    const finalCount = Math.min(optimalCount, suitableFavorites.length);
+
+    console.log(`[Selection] Creating 1 itinerary with ${finalCount} venues from Favorites`);
+
+    const selectedFavorites = suitableFavorites.slice(0, finalCount);
+
+    return {
+      selectedVenues: selectedFavorites.map(v => ({
         sourceType: v.type,
         sourceId: v.id,
-      }));
-
-    console.log(`[Selection] Selected ${selected.length} venues for event`);
-    return { selectedVenues: selected };
+      })),
+      options: [{
+        optionNumber: 1,
+        venues: selectedFavorites.map(v => ({
+          sourceType: v.type,
+          sourceId: v.id,
+          venueName: v.name,
+          badges: ['⭐ From Favorites', ...generateVenueBadges(v.qualityScore, v.visitCount, v.daysSinceLastVisit, v.feedback)],
+        })),
+        description: 'Created from your Favorites - venues your group already loves',
+      }],
+    };
   }
 
-  console.log(`[Selection] Not enough viable venues (need 2+, found ${scoredVenues.length})`);
-  return {};
+  // If <5 suitable Favorites, fall back to original 3-option flow mixing all venues
+  console.log(`[Selection] Using standard 3-option mode (only ${suitableFavorites.length} suitable Favorites)`);
+
+  // Need at least 3 venues to create meaningful options
+  if (scoredVenues.length < 3) {
+    console.log(`[Selection] Not enough venues for multiple options (need 3+, found ${scoredVenues.length})`);
+
+    // Fall back: return single set of venues using smart count
+    if (scoredVenues.length >= 1) {
+      const count = calculateOptimalVenueCount(scoredVenues);
+      const selected = scoredVenues
+        .slice(0, count)
+        .map(v => ({
+          sourceType: v.type,
+          sourceId: v.id,
+        }));
+      console.log(`[Selection] Fallback: Using ${count} venue(s) for single option`);
+      return { selectedVenues: selected };
+    }
+
+    return {};
+  }
+
+  // Generate up to 3 distinct itinerary options
+  const options = [];
+
+  // Option 1: Top-scoring venues (safe bet)
+  const option1Count = calculateOptimalVenueCount(scoredVenues.slice(0, 5)); // Check top 5 for category mix
+  const option1Venues = scoredVenues.slice(0, option1Count);
+  console.log(`[Selection] Option 1: Using ${option1Count} venues (smart count)`);
+
+  options.push({
+    optionNumber: 1,
+    venues: option1Venues.map(v => {
+      const sourceBadge = v.type === 'voting_event' ? '⭐ From Favorites' : '✨ AI Suggestion';
+      return {
+        sourceType: v.type,
+        sourceId: v.id,
+        venueName: v.name,
+        badges: [sourceBadge, ...generateVenueBadges(v.qualityScore, v.visitCount, v.daysSinceLastVisit, v.feedback)],
+      };
+    }),
+    description: 'Top Picks - Our highest-rated venues based on your group\'s preferences',
+  });
+
+  // Option 2: Mix of favorites and new experiences (balanced)
+  const favorites = scoredVenues.filter(v => v.feedback === 'favorite' || v.qualityScore >= 2.5);
+  const neverVisited = scoredVenues.filter(v => v.visitCount === 0);
+
+  let option2Venues: ScoredVenue[] = [];
+  if (favorites.length > 0 && neverVisited.length > 0) {
+    // Mix favorites with new venues - take 1-2 of each
+    const mixedCandidates = [
+      favorites[0],
+      neverVisited[0],
+    ];
+
+    // Add one more if optimal count allows
+    const option2Count = calculateOptimalVenueCount(mixedCandidates);
+    if (option2Count >= 2 && (favorites[1] || neverVisited[1])) {
+      mixedCandidates.push(favorites[1] || neverVisited[1]);
+    }
+
+    option2Venues = mixedCandidates.slice(0, Math.min(option2Count + 1, mixedCandidates.length));
+  } else {
+    // Fall back to venues after Option 1
+    const startIdx = option1Count; // Start where Option 1 ended
+    const candidates = scoredVenues.slice(startIdx, startIdx + 5);
+    const option2Count = calculateOptimalVenueCount(candidates);
+    option2Venues = candidates.slice(0, option2Count);
+  }
+
+  console.log(`[Selection] Option 2: Using ${option2Venues.length} venues`);
+
+  options.push({
+    optionNumber: 2,
+    venues: option2Venues.map(v => {
+      const sourceBadge = v.type === 'voting_event' ? '⭐ From Favorites' : '✨ AI Suggestion';
+      return {
+        sourceType: v.type,
+        sourceId: v.id,
+        venueName: v.name,
+        badges: [sourceBadge, ...generateVenueBadges(v.qualityScore, v.visitCount, v.daysSinceLastVisit, v.feedback)],
+      };
+    }),
+    description: 'Balanced Mix - Familiar favorites plus exciting new spots',
+  });
+
+  // Option 3: Adventure option (ensure NO overlap with Option 1)
+  // Track venues already used in Option 1 to prevent duplicates
+  const usedVenueIds = new Set(option1Venues.map(v => v.id));
+
+  const oldFavorites = scoredVenues.filter(v =>
+    v.visitCount > 0 &&
+    v.daysSinceLastVisit >= 60 &&
+    v.qualityScore >= 2 &&
+    !usedVenueIds.has(v.id) // CRITICAL: Skip if already in Option 1
+  );
+
+  // Get never-visited that aren't in Option 1
+  const neverVisitedForOption3 = neverVisited.filter(v => !usedVenueIds.has(v.id));
+
+  let option3Venues: ScoredVenue[] = [];
+  let option3Description = '';
+
+  if (oldFavorites.length >= 1) {
+    // Revisit old favorites
+    const option3Count = calculateOptimalVenueCount(oldFavorites.slice(0, 5));
+    option3Venues = oldFavorites.slice(0, option3Count);
+    option3Description = 'Blast from the Past - Revisit venues you loved but haven\'t been to in a while';
+  } else if (neverVisitedForOption3.length >= 1) {
+    // New venues NOT in Option 1
+    const option3Count = calculateOptimalVenueCount(neverVisitedForOption3.slice(0, 5));
+    option3Venues = neverVisitedForOption3.slice(0, option3Count);
+    option3Description = 'Adventure Mode - Brand new venues to explore';
+  } else {
+    // Fall back to venues way down the list (after Options 1 & 2)
+    const startIdx = Math.max(option1Count + option2Venues.length, 6);
+    const candidates = scoredVenues.filter(v => !usedVenueIds.has(v.id)).slice(0, 5);
+    if (candidates.length >= 1) {
+      const option3Count = calculateOptimalVenueCount(candidates);
+      option3Venues = candidates.slice(0, option3Count);
+      option3Description = 'Alternative Selection - Great options outside the usual rotation';
+    }
+  }
+
+  // Only add Option 3 if we found distinct venues
+  if (option3Venues.length > 0) {
+    console.log(`[Selection] Option 3: Using ${option3Venues.length} venues (${option3Description.split(' - ')[0]})`);
+    options.push({
+      optionNumber: 3,
+      venues: option3Venues.map(v => {
+        const sourceBadge = v.type === 'voting_event' ? '⭐ From Favorites' : '✨ AI Suggestion';
+        return {
+          sourceType: v.type,
+          sourceId: v.id,
+          venueName: v.name,
+          badges: [sourceBadge, ...generateVenueBadges(v.qualityScore, v.visitCount, v.daysSinceLastVisit, v.feedback)],
+        };
+      }),
+      description: option3Description,
+    });
+  } else {
+    console.log(`[Selection] Skipping Option 3 - not enough distinct venues`);
+  }
+
+  console.log(`[Selection] Generated ${options.length} itinerary option(s)`);
+  options.forEach((opt, i) => {
+    console.log(`  Option ${i+1}: ${opt.description}`);
+    opt.venues.forEach(v => console.log(`    - ${v.venueName} ${v.badges.join(' ')}`));
+  });
+
+  return { options };
 }
 
 /**

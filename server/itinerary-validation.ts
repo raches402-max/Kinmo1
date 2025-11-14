@@ -1,5 +1,7 @@
 import OpenAI from "openai";
 import type { Activity, VotingEvent, ItineraryItem } from "@shared/schema";
+import { format } from "date-fns";
+import { toZonedTime } from "date-fns-tz";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -170,4 +172,53 @@ Format your response as JSON with just the optimal order (using venue numbers fr
       issues: proximityIssues.length > 0 ? proximityIssues : undefined,
     };
   }
+}
+
+/**
+ * Check if venues are open at the scheduled event time
+ */
+export function checkVenueHours(
+  items: ItineraryItem[],
+  eventDate: Date,
+  timezone: string = 'America/Los_Angeles'
+): { warnings: string[]; errors: string[] } {
+  const warnings: string[] = [];
+  const errors: string[] = [];
+
+  // Convert event date to the group's timezone
+  const zonedDate = toZonedTime(eventDate, timezone);
+  const dayOfWeek = zonedDate.getDay(); // 0 = Sunday, 6 = Saturday
+  const timeStr = format(zonedDate, 'HH:mm');
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+  for (const item of items) {
+    const venueName = item.venueName || 'Unknown venue';
+
+    // Check business status
+    if (item.businessStatus === 'CLOSED_PERMANENTLY') {
+      errors.push(`${venueName} is permanently closed`);
+      continue;
+    }
+    if (item.businessStatus === 'CLOSED_TEMPORARILY') {
+      warnings.push(`${venueName} is temporarily closed`);
+      continue;
+    }
+
+    // Check opening hours if available
+    if (item.openingHours?.weekdayDescriptions) {
+      const hours = item.openingHours.weekdayDescriptions as string[];
+      const todayHours = hours[dayOfWeek];
+
+      if (todayHours) {
+        // Check if closed
+        if (todayHours.toLowerCase().includes('closed')) {
+          errors.push(`${venueName} is closed on ${dayNames[dayOfWeek]}s`);
+        }
+        // More sophisticated hour checking would require parsing times
+        // For now, we just flag if it says "Closed"
+      }
+    }
+  }
+
+  return { warnings, errors };
 }

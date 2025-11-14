@@ -275,6 +275,8 @@ export function convertAvailabilityToString(availability: any): string {
 interface VenueForScheduling {
   name: string;
   type: string;
+  openingHours?: any; // Google Places opening hours
+  businessStatus?: string; // OPERATIONAL, CLOSED_TEMPORARILY, CLOSED_PERMANENTLY
 }
 
 interface TimeSelectionInput {
@@ -563,7 +565,26 @@ export async function suggestOptimalTime(
       const minDate = new Date(now.getTime() + minDays * 24 * 60 * 60 * 1000);
       const maxDate = new Date(now.getTime() + maxDays * 24 * 60 * 60 * 1000);
 
-      const venueList = input.venues.map(v => `${v.name} (${v.type})`).join(', ');
+      // Helper to format venue hours for AI
+      const formatVenueHours = (venue: VenueForScheduling): string => {
+        let info = `${venue.name} (${venue.type})`;
+
+        // Add business status if not operational
+        if (venue.businessStatus && venue.businessStatus !== 'OPERATIONAL') {
+          info += ` - ${venue.businessStatus}`;
+          return info; // Skip hours if closed
+        }
+
+        // Add opening hours if available
+        if (venue.openingHours?.weekdayDescriptions) {
+          const hours = venue.openingHours.weekdayDescriptions as string[];
+          info += `\n    Hours: ${hours.join('; ')}`;
+        }
+
+        return info;
+      };
+
+      const venueList = input.venues.map(formatVenueHours).join('\n  ');
       const constraints = input.memberConstraints?.join('; ') || 'None';
 
       // Use stored timezone if provided, otherwise infer from location
@@ -651,6 +672,14 @@ Based on the group's availability and the venues, suggest:
    * Ensure it's 3-7 days in the future
    * DOUBLE-CHECK: Is the day you picked in the Step 1 allowed list? If NO, pick a different day!
 
+**STEP 3A: Validate venue hours (MANDATORY)**
+   * Check the venue hours provided above for each venue
+   * If venue shows CLOSED_PERMANENTLY or CLOSED_TEMPORARILY, DO NOT schedule it
+   * Match your selected day of week (Monday, Tuesday, etc.) to the venue's hours
+   * Ensure your selected time falls within the venue's operating hours for that day
+   * If hours show venue is closed on your selected day, pick a different day from Step 1 list
+   * If no hours are provided, proceed with Step 2 time guidelines
+
 **STEP 4: Write reasoning**
    * State the ACTUAL day name you selected (e.g., "Saturday", "Friday")  
    * State the ACTUAL venue type/meal (e.g., "brunch", "ramen dinner", "matcha")
@@ -661,6 +690,8 @@ Based on the group's availability and the venues, suggest:
 ❌ Suggesting 18:30 (dinner time) for a brunch/cafe venue
 ❌ Suggesting "dinner" in reasoning for a ramen restaurant at 12:00 (that's lunch!)
 ❌ Writing "Tuesday at 18:30" in reasoning but returning different date in JSON
+❌ Scheduling a venue when it's closed on that day (check the hours!)
+❌ Scheduling a CLOSED_PERMANENTLY or CLOSED_TEMPORARILY venue
 
 Return ONLY a JSON object with this exact structure:
 {

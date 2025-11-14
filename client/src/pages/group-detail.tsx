@@ -1666,36 +1666,14 @@ export default function GroupDetail() {
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "members"] });
       toast({
         title: variables.openToHosting ? "Hosting enabled" : "Hosting disabled",
-        description: variables.openToHosting
-          ? "Member is now open to hosting events"
+        description: variables.openToHosting 
+          ? "Member is now open to hosting events" 
           : "Member will no longer be asked to host events",
       });
     },
     onError: (error: Error) => {
       toast({
         title: "Error updating member",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Volunteer to host mutation for auto-scheduled events
-  const volunteerToHostMutation = useMutation({
-    mutationFn: async (itineraryId: string) => {
-      return apiRequest("POST", `/api/itineraries/${itineraryId}/volunteer-host`, {});
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "auto-scheduled-events"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "proposed-itineraries"] });
-      toast({
-        title: "You're now hosting!",
-        description: "Your RSVP has been automatically set to 'Going'",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error volunteering to host",
         description: error.message,
         variant: "destructive",
       });
@@ -2949,40 +2927,19 @@ export default function GroupDetail() {
                                         )}
                                       </div>
                                       <div className="flex flex-col gap-2">
-                                        <Button
-                                          variant="default"
+                                        <Button 
+                                          variant="default" 
                                           size="sm"
                                           className="gap-1"
-                                          onClick={() => {
-                                            if (autoEvent.itinerary?.id) {
-                                              volunteerToHostMutation.mutate(autoEvent.itinerary.id);
-                                            }
-                                          }}
-                                          disabled={volunteerToHostMutation.isPending}
                                           data-testid={`button-volunteer-host-${autoEvent.id}`}
                                         >
                                           <UserCheck className="h-4 w-4" />
                                           Volunteer to Host
                                         </Button>
                                         {isOwner && (
-                                          <Button
-                                            variant="outline"
+                                          <Button 
+                                            variant="outline" 
                                             size="sm"
-                                            onClick={() => {
-                                              if (autoEvent.itinerary) {
-                                                // For pending auto-events, use proposedDate from autoEvent as fallback
-                                                const itineraryWithDate = {
-                                                  ...autoEvent.itinerary,
-                                                  eventDate: autoEvent.itinerary.eventDate || autoEvent.proposedDate
-                                                };
-                                                setEditingItinerary(itineraryWithDate);
-                                                setEditItineraryName(autoEvent.itinerary.name || "");
-                                                setEditItineraryItems(autoEvent.itinerary.items || []);
-                                                setEditTimingRecommendations(autoEvent.itinerary.timingRecommendations || "");
-                                                setEditProposedDate(autoEvent.itinerary.eventDate || autoEvent.proposedDate);
-                                                setEditItineraryOpen(true);
-                                              }
-                                            }}
                                             data-testid={`button-edit-auto-event-${autoEvent.id}`}
                                           >
                                             <Edit2 className="h-4 w-4" />
@@ -7150,58 +7107,63 @@ export default function GroupDetail() {
           </TabsContent>
 
           {/* Tab 3: Itinerary */}
-          <TabsContent value="build" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+          <TabsContent value="build" className="space-y-5">
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-8">
               {/* Main Content */}
-              <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold mb-2">Create Your Itinerary</h2>
-                <p className="text-muted-foreground">
+              <div className="space-y-5">
+              <div className="space-y-1">
+                <h2 className="text-xl font-semibold tracking-tight">Create Event</h2>
+                <p className="text-sm text-muted-foreground">
                   {selectedVenues.length > 0
-                    ? "Select 1-5 venues from Activities or Favorites, then click Create Itinerary"
+                    ? "Select 1-5 venues, then create your itinerary"
                     : itineraries.length > 0
-                      ? "Your evening itinerary is ready! Drag to reorder venues."
-                      : "Switch to Activities tab to browse and select venues for your itinerary"
+                      ? "Your itinerary is ready — drag to reorder"
+                      : "Browse Activities to select venues for your event"
                   }
                 </p>
               </div>
 
               {/* Selected Venues Display */}
               {selectedVenues.length > 0 && (
-                <Card>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-base">Selected Venues ({selectedVenues.length}/5)</CardTitle>
-                      <div className="flex gap-2">
+                <Card className="border-muted">
+                  <CardHeader className="pb-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <CardTitle className="text-sm font-medium">Selected Venues</CardTitle>
+                        <p className="text-xs text-muted-foreground mt-0.5">{selectedVenues.length} of 5 venues</p>
+                      </div>
+                      <div className="flex gap-2 flex-wrap justify-end">
                         <Button
                           onClick={() => setShowAddAdHocDialog(true)}
                           disabled={selectedVenues.length >= 5}
                           variant="outline"
                           size="sm"
-                          className="gap-2"
+                          className="gap-1.5 h-8"
                         >
-                          <MapPin className="h-4 w-4" />
-                          Add Custom
+                          <MapPin className="h-3.5 w-3.5" />
+                          Custom
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            setSelectedVenues([]);
+                            setAddedSuggestionPlaceIds(new Set());
+                          }}
+                          variant="ghost"
+                          size="sm"
+                          className="h-8"
+                          data-testid="button-cancel-selection-build"
+                        >
+                          Clear
                         </Button>
                         <Button
                           onClick={() => validateItineraryMutation.mutate(selectedVenues)}
                           disabled={validateItineraryMutation.isPending || selectedVenues.length < 1}
                           variant="default"
                           size="sm"
+                          className="h-8"
                           data-testid="button-validate-itinerary-build"
                         >
-                          {validateItineraryMutation.isPending ? "Validating..." : "Create Itinerary"}
-                        </Button>
-                        <Button
-                          onClick={() => {
-                            setSelectedVenues([]);
-                            setAddedSuggestionPlaceIds(new Set()); // Clear tracking set
-                          }}
-                          variant="outline"
-                          size="sm"
-                          data-testid="button-cancel-selection-build"
-                        >
-                          Clear All
+                          {validateItineraryMutation.isPending ? "Creating..." : "Create Itinerary"}
                         </Button>
                       </div>
                     </div>
@@ -7229,31 +7191,31 @@ export default function GroupDetail() {
                       return (
                         <div
                           key={`${venue.sourceType}-${venue.sourceId}`}
-                          className="flex items-center gap-3 p-2 rounded-md bg-accent/20 border"
+                          className="flex items-center gap-2.5 p-2.5 rounded-lg border border-border/50 bg-background hover:border-border transition-colors"
                           data-testid={`selected-venue-build-${venue.sourceId}`}
                         >
-                          <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary font-bold text-sm">
+                          <div className="flex items-center justify-center w-5 h-5 rounded-full bg-muted text-muted-foreground font-medium text-xs">
                             {index + 1}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5">
                               <p className="text-sm font-medium truncate">{venueName}</p>
                               {isAdHoc && (
-                                <Badge variant="secondary" className="text-xs">Custom</Badge>
+                                <Badge variant="secondary" className="text-[10px] h-4 px-1.5">Custom</Badge>
                               )}
                             </div>
                             {venueType && (
-                              <p className="text-xs text-muted-foreground truncate">{venueType}</p>
+                              <p className="text-xs text-muted-foreground truncate mt-0.5">{venueType}</p>
                             )}
                           </div>
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => toggleVenueSelection(venue.sourceType, venue.sourceId)}
-                            className="h-6 w-6 p-0"
+                            className="h-7 w-7 p-0 hover:bg-destructive/10 hover:text-destructive"
                             data-testid={`button-remove-venue-build-${venue.sourceId}`}
                           >
-                            <X className="h-4 w-4" />
+                            <X className="h-3.5 w-3.5" />
                           </Button>
                         </div>
                       );
@@ -7265,22 +7227,24 @@ export default function GroupDetail() {
 
               {/* Itinerary Display */}
               {itineraries.length > 0 && selectedVenues.length === 0 && (
-                <Card>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="flex items-center gap-2">
-                          <CheckCircle2 className="h-5 w-5 text-primary" />
+                <Card className="border-muted">
+                  <CardHeader className="pb-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="space-y-1">
+                        <CardTitle className="text-sm font-medium flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-primary" />
                           Your Itinerary
                         </CardTitle>
-                        <CardDescription className="mt-1">
-                          AI has organized your selections - drag to reorder
+                        <CardDescription className="text-xs">
+                          Drag to reorder venues
                         </CardDescription>
                       </div>
                       {!showInlineScheduling && (
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 flex-wrap justify-end">
                           <Button
                             variant="outline"
+                            size="sm"
+                            className="h-8"
                             onClick={() => {
                               if (itineraries.length > 0) {
                                 setSavingItineraryId(itineraries[0].id);
@@ -7289,23 +7253,25 @@ export default function GroupDetail() {
                             }}
                             data-testid="button-save-itinerary"
                           >
-                            <Save className="h-4 w-4 mr-2" />
-                            Save Plan
+                            <Save className="h-3.5 w-3.5 mr-1.5" />
+                            Save
                           </Button>
                           <Button
                             variant="outline"
+                            size="sm"
+                            className="h-8"
                             onClick={() => setAddMoreStopsOpen(!addMoreStopsOpen)}
                             data-testid="button-add-more-stops"
                           >
                             {addMoreStopsOpen ? (
                               <>
-                                <ChevronDown className="h-4 w-4 mr-2" />
-                                Hide Search
+                                <ChevronDown className="h-3.5 w-3.5 mr-1.5" />
+                                Hide
                               </>
                             ) : (
                               <>
-                                <Plus className="h-4 w-4 mr-2" />
-                                Add More Stops
+                                <Plus className="h-3.5 w-3.5 mr-1.5" />
+                                Add Stops
                               </>
                             )}
                           </Button>
@@ -8459,94 +8425,125 @@ export default function GroupDetail() {
                   </CardContent>
                 </Card>
               </div>
-            </div>
+              </div>
 
-            {/* Automation Sidebar */}
+              {/* Automation Sidebar */}
             {group?.autoScheduleEnabled && (
               <div className="space-y-4 lg:block hidden">
                 <Collapsible
                   open={!automationSidebarCollapsed}
                   onOpenChange={(open) => setAutomationSidebarCollapsed(!open)}
                 >
-                  <Card className="border-primary/50 bg-primary/5 sticky top-4">
+                  <Card className="border-primary/30 bg-primary/[0.02] sticky top-4 shadow-sm">
                     <CollapsibleTrigger asChild>
-                      <CardHeader className="pb-3 cursor-pointer hover:bg-primary/10 transition-colors">
+                      <CardHeader className="pb-3 cursor-pointer hover:bg-primary/5 transition-colors">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <Bot className="h-5 w-5 text-primary" />
-                            <CardTitle className="text-base">Auto-scheduling</CardTitle>
+                            <div className="flex items-center gap-1.5">
+                              <CardTitle className="text-base">Auto-scheduling</CardTitle>
+                              <span className="text-xs text-muted-foreground">
+                                · Every {editFrequencyNumber} {editFrequencyUnit}{editFrequencyNumber !== 1 ? 's' : ''}
+                              </span>
+                            </div>
                           </div>
-                          {automationSidebarCollapsed ? (
-                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                          )}
+                          <div className="flex items-center gap-2">
+                            <Badge variant="default" className="gap-1">
+                              <CheckCircle2 className="h-3 w-3" />
+                              ON
+                            </Badge>
+                            {automationSidebarCollapsed ? (
+                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </div>
                         </div>
                       </CardHeader>
                     </CollapsibleTrigger>
 
                     <CollapsibleContent>
                       <CardContent className="space-y-4 pt-0">
-                        {/* Section A: Automation Status */}
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="default" className="gap-1">
-                              <CheckCircle2 className="h-3 w-3" />
-                              ON
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              Every {editFrequencyNumber} {editFrequencyUnit}{editFrequencyNumber !== 1 ? 's' : ''}
-                            </span>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 px-2 text-xs w-full justify-start"
-                            onClick={() => setActiveTab('preferences')}
-                          >
-                            Manage automation →
-                          </Button>
-                        </div>
+                        {/* Next Event Section */}
+                        {group?.nextEventDueDate && (() => {
+                          const nextDue = new Date(group.nextEventDueDate);
+                          const now = new Date();
+                          const daysAway = Math.ceil((nextDue.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
-                        <div className="border-t pt-4 space-y-3">
-                          {/* Section B: Next Auto-Event Target */}
-                          {group?.nextEventDueDate && (() => {
-                            const nextDue = new Date(group.nextEventDueDate);
-                            const now = new Date();
-                            const daysAway = Math.ceil((nextDue.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                          const dateStr = nextDue.toLocaleDateString('en-US', {
+                            weekday: 'short',
+                            month: 'short',
+                            day: 'numeric',
+                            year: nextDue.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+                          });
 
-                            return (
-                              <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-xs font-semibold">Next Target</span>
-                                  {daysAway >= 0 && daysAway <= 14 && (
-                                    <Badge variant="secondary" className="text-xs">
-                                      {daysAway === 0 ? 'Today' : `${daysAway}d away`}
-                                    </Badge>
-                                  )}
-                                </div>
-                                <p className="text-xs text-muted-foreground">
-                                  {nextDue.toLocaleDateString('en-US', {
-                                    weekday: 'short',
-                                    month: 'short',
-                                    day: 'numeric',
-                                    year: nextDue.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
-                                  })}
-                                </p>
-                                {itineraries && itineraries.length > 0 && (
-                                  <p className="text-xs text-muted-foreground">
-                                    <strong className="text-foreground">Would use:</strong> {itineraries[0].name}
-                                  </p>
-                                )}
-                                {(!itineraries || itineraries.length === 0) && activities && activities.filter((a: any) => a.feedback === 'love' || a.feedback === 'favorite').length > 0 && (
-                                  <p className="text-xs text-muted-foreground">
-                                    <strong className="text-foreground">Would create from:</strong> Favorited venues
-                                  </p>
+                          const countdownStr = daysAway === 0 ? 'today' :
+                                              daysAway === 1 ? 'tomorrow' :
+                                              daysAway > 0 && daysAway <= 14 ? `${daysAway} days away` : '';
+
+                          // Get favorited venues (all active activities are favorites)
+                          // Sort by feedback: love first, then more, then rest
+                          const favoritedActivities = activities
+                            ?.filter((a: any) => !a.archivedAt)
+                            .sort((a: any, b: any) => {
+                              // Prioritize loved, then more feedback, then rest
+                              const feedbackOrder: Record<string, number> = { love: 0, more: 1, less: 2 };
+                              const aOrder = a.feedback ? (feedbackOrder[a.feedback] ?? 3) : 3;
+                              const bOrder = b.feedback ? (feedbackOrder[b.feedback] ?? 3) : 3;
+                              return aOrder - bOrder;
+                            })
+                            .slice(0, 3) || [];
+
+                          return (
+                            <div className="space-y-3">
+                              {/* Next Event Label */}
+                              <div>
+                                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                                  Next Event
+                                </span>
+                              </div>
+
+                              {/* Date with countdown inline */}
+                              <div className="text-sm font-medium">
+                                {dateStr}
+                                {countdownStr && (
+                                  <span className="text-xs text-muted-foreground font-normal"> · {countdownStr}</span>
                                 )}
                               </div>
-                            );
-                          })()}
-                        </div>
+
+                              {/* Smart "Using" Display */}
+                              <div className="flex items-start gap-2 text-xs">
+                                {itineraries && itineraries.length > 0 ? (
+                                  <>
+                                    <span className="text-base">📋</span>
+                                    <div className="flex-1">
+                                      <span className="text-muted-foreground">Using:</span>
+                                      <span className="ml-1 font-medium">{itineraries[0].name}</span>
+                                    </div>
+                                  </>
+                                ) : favoritedActivities.length > 0 ? (
+                                  <>
+                                    <span className="text-base">🏆</span>
+                                    <div className="flex-1">
+                                      <span className="text-muted-foreground">Top venues:</span>
+                                      <span className="ml-1 font-medium">
+                                        {favoritedActivities[0].name}
+                                        {favoritedActivities.length > 1 && ` +${favoritedActivities.length - 1}`}
+                                      </span>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="text-base">💡</span>
+                                    <div className="flex-1 text-muted-foreground">
+                                      Favorite venues to customize auto-scheduling
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
 
                         {/* Section C: Pending Events */}
                         {pendingAutoEvents && pendingAutoEvents.length > 0 && (
@@ -8631,13 +8628,25 @@ export default function GroupDetail() {
                             </p>
                           </div>
                         )}
+
+                        {/* Manage Automation Button */}
+                        <div className="border-t pt-3">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-3 text-xs w-full justify-center gap-1.5 hover:bg-primary/10"
+                            onClick={() => setActiveTab('preferences')}
+                          >
+                            <span>⚙️</span>
+                            Manage automation
+                          </Button>
+                        </div>
                       </CardContent>
                     </CollapsibleContent>
                   </Card>
                 </Collapsible>
               </div>
             )}
-
             </div>
           </TabsContent>
           {/* Tab 5: Feedback */}

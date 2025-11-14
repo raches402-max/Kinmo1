@@ -2,7 +2,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, updateUserProfileSchema, activities as activitiesTable, groups as groupsTable, members as membersTable, itineraryInvites, guestInvites, rsvps as rsvpsTable, itineraries, itineraryItems, proposedTimeSlots, users, userProfiles, photosCache, geocodingCache, hostAssignments, curatedVenues, votingEvents as votingEventsTable, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
+import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, updateUserProfileSchema, activities as activitiesTable, groups as groupsTable, members as membersTable, itineraryInvites, guestInvites, rsvps as rsvpsTable, itineraries, itineraryItems, proposedTimeSlots, users, userProfiles, photosCache, geocodingCache, hostAssignments, curatedVenues, votingEvents as votingEventsTable, activitySwipes, activities, votingEvents, swipeSessions, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
 import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue, analyzePreferencePatterns, parseSchedulingPrompt, detectCategory } from "./openai";
 import { searchPlaces, searchNearbyPlaces, geocodeLocation, clearPlacesCache, getCacheStats, getPlaceDetails, detectAndParseGoogleMapsUrl } from "./google-places";
 import { setupAuth, isAuthenticated } from "./replitAuth";
@@ -179,12 +179,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user?.claims?.sub;
+
+      if (!userId) {
+        console.error('[Auth] No user ID found in claims:', req.user);
+        return res.status(401).json({ message: "Invalid session - no user ID in claims" });
+      }
+
       const user = await storage.getUser(userId);
+
+      if (!user) {
+        console.error(`[Auth] User not found in database: ${userId}`);
+        return res.status(404).json({ message: "User not found" });
+      }
+
       res.json(user);
     } catch (error) {
-      console.error("Error fetching user:", error);
-      res.status(500).json({ message: "Failed to fetch user" });
+      console.error("[Auth] Error fetching user:", error);
+      res.status(500).json({ message: "Internal server error" });
     }
   });
 
@@ -1281,6 +1293,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'autoActivitiesEnabled': 'autoActivitiesEnabled',
         'autoItineraryEnabled': 'autoItineraryEnabled',
         'autoScheduleEnabled': 'autoScheduleEnabled',
+        'automation_level': 'automationLevel',
+        'automationLevel': 'automationLevel',
+        'review_every_nth_event': 'reviewEveryNthEvent',
+        'reviewEveryNthEvent': 'reviewEveryNthEvent',
       };
       
       // Pattern 1: Single field/value pair (from mutation)
@@ -1300,8 +1316,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const value = validatedData[apiField as keyof typeof validatedData];
           const dbField = fieldMapping[apiField];
 
-          if (dbField && typeof value === 'boolean') {
-            updates[dbField] = value;
+          if (dbField) {
+            // Allow booleans, strings (for automationLevel), and numbers (for reviewEveryNthEvent)
+            if (typeof value === 'boolean' || typeof value === 'string' || typeof value === 'number') {
+              updates[dbField] = value;
+            }
           }
         }
       }
@@ -1321,6 +1340,130 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updatedGroup);
     } catch (error: any) {
       res.status(400).json({ message: error.message });
+    }
+  });
+
+  // Pause automation for a group
+  app.post("/api/groups/:id/pause-automation", isAuthenticated, requireGroupOwnership(), async (req: any, res) => {
+    try {
+      const group = await storage.getGroup(req.params.id);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      const { pauseType, value } = req.body;
+      const updates: any = {
+        automationPaused: true,
+      };
+
+      if (pauseType === 'events' && typeof value === 'number') {
+        // Pause for N events
+        updates.automationPauseEventsRemaining = value;
+        updates.automationPausedUntil = null;
+      } else if (pauseType === 'until' && value) {
+        // Pause until specific date
+        updates.automationPausedUntil = new Date(value);
+        updates.automationPauseEventsRemaining = null;
+      } else {
+        return res.status(400).json({ message: "Invalid pause parameters" });
+      }
+
+      const updatedGroup = await storage.updateGroup(req.params.id, updates);
+      res.json(updatedGroup);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  // Resume automation for a group
+  app.post("/api/groups/:id/resume-automation", isAuthenticated, requireGroupOwnership(), async (req: any, res) => {
+    try {
+      const group = await storage.getGroup(req.params.id);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      const updates: any = {
+        automationPaused: false,
+        automationPausedUntil: null,
+        automationPauseEventsRemaining: null,
+      };
+
+      const updatedGroup = await storage.updateGroup(req.params.id, updates);
+      res.json(updatedGroup);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  // Approve a flagged auto-scheduled event
+  app.post("/api/auto-events/:id/approve", isAuthenticated, async (req: any, res) => {
+    try {
+      const { autoScheduledEvents } = await import('../shared/schema');
+      const [event] = await db.select().from(autoScheduledEvents).where(eq(autoScheduledEvents.id, req.params.id));
+
+      if (!event) {
+        return res.status(404).json({ message: "Auto-scheduled event not found" });
+      }
+
+      const group = await storage.getGroup(event.groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      // Check ownership
+      if (group.userId !== req.user.id) {
+        return res.status(403).json({ message: "Only the group owner can approve events" });
+      }
+
+      if (!event.itineraryId) {
+        return res.status(400).json({ message: "Event has no itinerary" });
+      }
+
+      const itinerary = await storage.getItinerary(event.itineraryId);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      // Update itinerary to proposed status
+      const { addDays } = await import('date-fns');
+      const eventDate = new Date(event.proposedDate);
+      const rsvpDeadline = addDays(eventDate, -3);
+
+      await storage.updateItinerary(itinerary.id, {
+        status: 'proposed',
+        eventDate: event.proposedDate,
+        rsvpDeadline,
+        autoScheduleConfig: {
+          inviteAdvanceDays: 14,
+          rsvpWindowDays: 11,
+          reminders: [
+            { type: 'gentle_nudge', daysBeforeDeadline: 7 },
+            { type: 'final_call', daysBeforeDeadline: 1 },
+            { type: 'day_before', daysBeforeEvent: 1 }
+          ]
+        }
+      });
+
+      // Log venue visits for rotation tracking
+      await storage.logVenueVisits(itinerary.id, new Date(event.proposedDate));
+
+      // Send initial invites
+      const { sendInitialInvites } = await import('./reminder-scheduler');
+      await sendInitialInvites(itinerary, group);
+
+      // Mark auto-event as sent
+      await storage.updateAutoScheduledEventStatus(event.id, 'auto_sent');
+
+      // Reset review sampling counter if this was a scheduled review
+      if (event.reviewReason === 'scheduled_review') {
+        await db.update(groupsTable).set({ eventCountSinceLastReview: 0 }).where(eq(groupsTable.id, group.id));
+      }
+
+      res.json({ message: "Event approved and sent", event, itinerary });
+    } catch (error: any) {
+      console.error('Error approving event:', error);
+      res.status(500).json({ message: error.message });
     }
   });
 
@@ -1349,6 +1492,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      // Check for existing proposed/scheduled itineraries (regular events, not auto-scheduled)
+      const existingItineraries = await storage.getGroupItineraries(req.params.id);
+      const existingProposedOrScheduled = existingItineraries.filter(i =>
+        i.status === 'proposed' || i.status === 'scheduled'
+      );
+
       // Import auto-scheduler functions
       const { shouldTriggerAutoSchedule, selectBestItineraryForAutoSchedule } = await import('./auto-scheduler.js');
       const { suggestOptimalTime } = await import('./ai-time-picker.js');
@@ -1356,12 +1505,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const hasPendingEvent = existingPendingEvents.length > 0;
 
       // Check if we should trigger (within 10-day window)
-      if (!await shouldTriggerAutoSchedule(storage, group, hasPendingEvent)) {
+      // For high-cadence groups with existing events, we'll still generate new options
+      // but return both to the frontend for user to choose
+      const canTrigger = await shouldTriggerAutoSchedule(storage, group, hasPendingEvent);
+
+      if (!canTrigger && existingProposedOrScheduled.length === 0) {
+        // Not within window and no existing events - just return error
         return res.status(400).json({
           message: "Not within 10-day creation window",
           nextEventDueDate: group.nextEventDueDate
         });
       }
+
+      // If there are existing proposed/scheduled events, generate new options anyway
+      // and return both to the frontend
+      const shouldGenerateNewEvent = canTrigger || existingProposedOrScheduled.length > 0;
 
       // Select itinerary or venues
       const selection = await selectBestItineraryForAutoSchedule(storage, group);
@@ -1379,8 +1537,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ message: "Selected itinerary not found" });
         }
 
+        // Clean up any existing draft itineraries before creating a new one
+        await db.delete(itineraries).where(
+          and(
+            eq(itineraries.groupId, group.id),
+            eq(itineraries.status, "draft"),
+            eq(itineraries.isSaved, false)
+          )
+        );
+
         // Manually duplicate by creating new itinerary with same items
-        const originalItems = await storage.getItineraryItems(selection.itineraryId);
+        const originalItems = originalItinerary.items;
         const duplicatedItinerary = await storage.createItinerary(
           {
             groupId: group.id,
@@ -1395,22 +1562,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
         itineraryId = duplicatedItinerary.id;
       } else if ('selectedVenues' in selection && selection.selectedVenues) {
+        // Clean up any existing draft itineraries before creating a new one
+        await db.delete(itineraries).where(
+          and(
+            eq(itineraries.groupId, group.id),
+            eq(itineraries.status, "draft"),
+            eq(itineraries.isSaved, false)
+          )
+        );
+
         // Create new itinerary from selected activities
+        const proposedOrder = selection.selectedVenues.map(v => v.sourceId);
         const newItinerary = await storage.createItinerary(
           {
             groupId: group.id,
             name: "Upcoming Hangout",
             status: "draft",
+            proposedOrder,
           },
           group.userId,
           selection.selectedVenues.map(venue => ({
             sourceType: 'activity' as const,
-            sourceId: venue.id
+            sourceId: venue.sourceId
+          }))
+        );
+        itineraryId = newItinerary.id;
+      } else if ('options' in selection && selection.options && selection.options.length > 0) {
+        // Clean up any existing draft itineraries before creating a new one
+        await db.delete(itineraries).where(
+          and(
+            eq(itineraries.groupId, group.id),
+            eq(itineraries.status, "draft"),
+            eq(itineraries.isSaved, false)
+          )
+        );
+
+        // New format: Create itinerary from first option (Top Picks)
+        const topPicksOption = selection.options[0];
+        const proposedOrder = topPicksOption.venues.map(v => v.sourceId);
+        const newItinerary = await storage.createItinerary(
+          {
+            groupId: group.id,
+            name: "Upcoming Hangout",
+            status: "draft",
+            proposedOrder,
+          },
+          group.userId,
+          topPicksOption.venues.map(venue => ({
+            sourceType: venue.sourceType,
+            sourceId: venue.sourceId
           }))
         );
         itineraryId = newItinerary.id;
       } else {
         return res.status(400).json({ message: "No valid selection" });
+      }
+
+      // Validate and optimize itinerary ordering using AI
+      console.log(`[Manual Trigger] Validating itinerary order with AI...`);
+      try {
+        const { validateItinerary } = await import('./itinerary-validation.js');
+        const itineraryWithItems = await storage.getItinerary(itineraryId);
+        if (!itineraryWithItems) {
+          throw new Error('Itinerary not found for validation');
+        }
+        const itineraryItems = itineraryWithItems.items;
+
+        // Prepare venues for validation
+        const venuesForValidation = itineraryItems.map(item => ({
+          sourceType: item.sourceType,
+          sourceId: item.sourceId,
+          venueName: item.venueName,
+          venueType: item.venueType,
+          venueAddress: item.venueAddress,
+          googlePlaceId: item.googlePlaceId,
+          location: item.latitude && item.longitude ? {
+            lat: parseFloat(item.latitude),
+            lng: parseFloat(item.longitude)
+          } : undefined
+        }));
+
+        // Get AI-validated order
+        const validation = await validateItinerary(venuesForValidation);
+
+        if (validation.proposedOrder && validation.proposedOrder.length > 0) {
+          // Update itinerary with optimized order
+          await db.update(itineraries)
+            .set({
+              proposedOrder: validation.proposedOrder,
+              aiValidationNotes: validation.validationNotes || null
+            })
+            .where(eq(itineraries.id, itineraryId));
+
+          console.log(`[Manual Trigger] ✅ AI validation complete: ${validation.validationNotes || 'Order optimized'}`);
+        }
+      } catch (validationError: any) {
+        // Log but don't fail - validation is optional enhancement
+        console.error('[Manual Trigger] AI validation failed (continuing anyway):', validationError.message);
       }
 
       // AI suggests optimal time
@@ -1459,7 +1707,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         proposedDate = group.nextEventDueDate ? new Date(group.nextEventDueDate) : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
       }
 
-      // Create pending auto-scheduled event
+      // If there are existing proposed/scheduled events, return both options for user to choose
+      if (existingProposedOrScheduled.length > 0) {
+        // Get full details of existing events with their items
+        const existingEventsWithItems = await Promise.all(
+          existingProposedOrScheduled.map(async (event) => {
+            const fullEvent = await storage.getItinerary(event.id);
+            return {
+              ...event,
+              items: fullEvent?.items || []
+            };
+          })
+        );
+
+        // Get details of the new event option
+        const newItinerary = await storage.getItinerary(itineraryId);
+
+        return res.json({
+          hasMultipleOptions: true,
+          existingEvents: existingEventsWithItems,
+          newEventOption: {
+            ...newItinerary,
+            items: newItinerary?.items || [],
+            proposedDate,
+            isNewlyGenerated: true
+          },
+          message: "Multiple event options available"
+        });
+      }
+
+      // No existing events - create auto-scheduled event as normal
       const autoSendAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours from now
 
       const pendingEvent = await storage.createAutoScheduledEvent({
@@ -1471,6 +1748,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       res.json({
+        hasMultipleOptions: false,
         message: "Auto-scheduled event created",
         event: pendingEvent
       });
@@ -1546,6 +1824,492 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(updatedActivity);
     } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ===== SWIPE SESSION MANAGEMENT =====
+
+  // Create a new swipe session for a group
+  app.post("/api/groups/:groupId/swipe-sessions", isAuthenticated, async (req: any, res) => {
+    try {
+      const { groupId } = req.params;
+      const userId = getUserId(req);
+
+      // Verify user is a member or organizer
+      const member = await storage.getGroupMemberByUserId(groupId, userId);
+      if (!member) {
+        return res.status(403).json({ message: "Not a member of this group" });
+      }
+
+      // Validate request body
+      const sessionSchema = z.object({
+        sessionType: z.enum(['itinerary_validation', 'activity_curation', 'favorites_triage', 'discovery', 'weekly_digest']),
+        triggeredBy: z.enum(['auto_scheduler', 'ai_generation', 'manual', 'weekly_job', 'post_event']).default('manual'),
+        isBlocking: z.boolean().optional(),
+        targetSwipeCount: z.number().min(1).max(20).optional(),
+        expiresInHours: z.number().min(1).max(168).optional(), // Max 1 week
+        autoEventId: z.string().optional(),
+      });
+
+      const validatedData = safeParse(sessionSchema, req.body, res);
+      if (!validatedData) return;
+
+      // Create session
+      const { createSwipeSession } = await import('./swipe-session-manager');
+      const sessionId = await createSwipeSession({
+        groupId,
+        ...validatedData,
+      });
+
+      res.json({ sessionId });
+    } catch (error: any) {
+      console.error('Error creating swipe session:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get active swipe sessions for a group
+  app.get("/api/groups/:groupId/swipe-sessions", isAuthenticated, async (req: any, res) => {
+    try {
+      const { groupId } = req.params;
+      const userId = getUserId(req);
+
+      // Verify user is a member
+      const member = await storage.getGroupMemberByUserId(groupId, userId);
+      if (!member) {
+        return res.status(403).json({ message: "Not a member of this group" });
+      }
+
+      // Get active sessions
+      const { getActiveSwipeSessions } = await import('./swipe-session-manager');
+      const sessions = await getActiveSwipeSessions(groupId);
+
+      res.json({ sessions });
+    } catch (error: any) {
+      console.error('Error fetching swipe sessions:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get swipe session result
+  app.get("/api/swipe-sessions/:sessionId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { sessionId } = req.params;
+      const userId = getUserId(req);
+
+      // Get session
+      const { getSwipeSessionResult } = await import('./swipe-session-manager');
+      const session = await getSwipeSessionResult(sessionId);
+
+      if (!session) {
+        return res.status(404).json({ message: "Swipe session not found" });
+      }
+
+      // Verify user is member of this group
+      const sessionData = await db
+        .select()
+        .from(swipeSessions)
+        .where(eq(swipeSessions.id, sessionId))
+        .limit(1);
+
+      if (sessionData.length === 0) {
+        return res.status(404).json({ message: "Session not found" });
+      }
+
+      const member = await storage.getGroupMemberByUserId(sessionData[0].groupId, userId);
+      if (!member) {
+        return res.status(403).json({ message: "Not a member of this group" });
+      }
+
+      res.json(session);
+    } catch (error: any) {
+      console.error('Error fetching swipe session:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Manually complete a swipe session
+  app.post("/api/swipe-sessions/:sessionId/complete", isAuthenticated, async (req: any, res) => {
+    try {
+      const { sessionId } = req.params;
+      const userId = getUserId(req);
+
+      // Get session to verify group membership
+      const sessionData = await db
+        .select()
+        .from(swipeSessions)
+        .where(eq(swipeSessions.id, sessionId))
+        .limit(1);
+
+      if (sessionData.length === 0) {
+        return res.status(404).json({ message: "Session not found" });
+      }
+
+      // Verify user is organizer
+      const group = await storage.getGroup(sessionData[0].groupId);
+      if (!group || group.organizerId !== userId) {
+        return res.status(403).json({ message: "Only organizers can manually complete sessions" });
+      }
+
+      // Complete session
+      const { completeSwipeSession, getSwipeSessionResult } = await import('./swipe-session-manager');
+      await completeSwipeSession(sessionId);
+
+      // Get updated result
+      const result = await getSwipeSessionResult(sessionId);
+
+      res.json(result);
+    } catch (error: any) {
+      console.error('Error completing swipe session:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ===== SWIPE RECORDING =====
+
+  // Swipe on an activity (democratic curation)
+  app.post("/api/groups/:groupId/activities/:activityId/swipe", isAuthenticated, async (req: any, res) => {
+    try {
+      const { groupId, activityId } = req.params;
+      const userId = getUserId(req);
+
+      // Validate request body
+      const swipeSchema = z.object({
+        direction: z.enum(['right', 'left']),
+        sessionId: z.string().optional(),
+      });
+
+      const validatedData = safeParse(swipeSchema, req.body, res);
+      if (!validatedData) return;
+
+      const { direction, sessionId } = validatedData;
+
+      // Verify activity exists and belongs to group
+      const activity = await db
+        .select()
+        .from(activities)
+        .where(and(eq(activities.id, activityId), eq(activities.groupId, groupId)))
+        .limit(1);
+
+      if (!activity || activity.length === 0) {
+        return res.status(404).json({ message: "Activity not found" });
+      }
+
+      // Get member for this user in this group
+      const member = await storage.getGroupMemberByUserId(groupId, userId);
+      if (!member) {
+        return res.status(403).json({ message: "Not a member of this group" });
+      }
+
+      // Check if user already swiped on this activity
+      const { hasUserSwipedActivity } = await import('./swipe-consensus');
+      const alreadySwiped = await hasUserSwipedActivity(userId, activityId);
+
+      if (alreadySwiped) {
+        return res.status(400).json({ message: "You've already swiped on this activity" });
+      }
+
+      // Record the swipe
+      const swipe = await db.insert(activitySwipes).values({
+        groupId,
+        activityId,
+        votingEventId: null,
+        userId,
+        memberId: member.id,
+        swipeDirection: direction,
+        swipeSessionId: sessionId || null,
+      }).returning();
+
+      // Update consensus for this activity
+      const { updateActivityConsensus, getActivitySwipeStats, performActivityAutoActions } = await import('./swipe-consensus');
+      await updateActivityConsensus(activityId);
+
+      // Get updated stats
+      const stats = await getActivitySwipeStats(activityId);
+
+      // Perform auto-actions if consensus thresholds are met
+      const autoAction = await performActivityAutoActions(activityId);
+
+      // Check if favorites overflow trigger should fire (after auto-promotion)
+      if (autoAction?.action === 'promoted') {
+        try {
+          const { triggerSwipeSession } = await import('./swipe-trigger-manager');
+          const triggerResult = await triggerSwipeSession({
+            groupId,
+            triggerType: 'favorites_overflow',
+          });
+
+          if (triggerResult.triggered) {
+            console.log(`[FavoritesOverflow] ${triggerResult.reason}`);
+          }
+        } catch (triggerError) {
+          console.error('[FavoritesOverflow] Error checking trigger:', triggerError);
+        }
+      }
+
+      // If part of a session, update session participation and check auto-complete
+      if (sessionId) {
+        const { recordSwipeInSession, checkAndAutoCompleteSession } = await import('./swipe-session-manager');
+        await recordSwipeInSession(sessionId, member.id, userId);
+        await checkAndAutoCompleteSession(sessionId);
+      }
+
+      res.json({
+        swipe: swipe[0],
+        stats,
+        autoAction, // Include auto-action result in response
+      });
+    } catch (error: any) {
+      console.error('Error recording activity swipe:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Swipe on a voting event (Favorite) - for shortlisting
+  app.post("/api/groups/:groupId/favorites/:votingEventId/swipe", isAuthenticated, async (req: any, res) => {
+    try {
+      const { groupId, votingEventId } = req.params;
+      const userId = getUserId(req);
+
+      // Validate request body
+      const swipeSchema = z.object({
+        direction: z.enum(['right', 'left']),
+        sessionId: z.string().optional(),
+      });
+
+      const validatedData = safeParse(swipeSchema, req.body, res);
+      if (!validatedData) return;
+
+      const { direction, sessionId } = validatedData;
+
+      // Verify voting event exists and belongs to group
+      const votingEvent = await db
+        .select()
+        .from(votingEvents)
+        .where(and(eq(votingEvents.id, votingEventId), eq(votingEvents.groupId, groupId)))
+        .limit(1);
+
+      if (!votingEvent || votingEvent.length === 0) {
+        return res.status(404).json({ message: "Favorite not found" });
+      }
+
+      // Get member for this user in this group
+      const member = await storage.getGroupMemberByUserId(groupId, userId);
+      if (!member) {
+        return res.status(403).json({ message: "Not a member of this group" });
+      }
+
+      // Check if user already swiped on this voting event
+      const { hasUserSwipedVotingEvent } = await import('./swipe-consensus');
+      const alreadySwiped = await hasUserSwipedVotingEvent(userId, votingEventId);
+
+      if (alreadySwiped) {
+        return res.status(400).json({ message: "You've already swiped on this favorite" });
+      }
+
+      // Record the swipe
+      const swipe = await db.insert(activitySwipes).values({
+        groupId,
+        activityId: null,
+        votingEventId,
+        userId,
+        memberId: member.id,
+        swipeDirection: direction,
+        swipeSessionId: sessionId || null,
+      }).returning();
+
+      // Update consensus for this voting event
+      const { updateVotingEventConsensus, getVotingEventSwipeStats, performVotingEventAutoActions } = await import('./swipe-consensus');
+      await updateVotingEventConsensus(votingEventId);
+
+      // Get updated stats
+      const stats = await getVotingEventSwipeStats(votingEventId);
+
+      // Perform auto-actions if consensus thresholds are met
+      const autoAction = await performVotingEventAutoActions(votingEventId);
+
+      // If part of a session, update session participation and check auto-complete
+      if (sessionId) {
+        const { recordSwipeInSession, checkAndAutoCompleteSession } = await import('./swipe-session-manager');
+        await recordSwipeInSession(sessionId, member.id, userId);
+        await checkAndAutoCompleteSession(sessionId);
+      }
+
+      res.json({
+        swipe: swipe[0],
+        stats,
+        autoAction, // Include auto-action result in response
+      });
+    } catch (error: any) {
+      console.error('Error recording favorite swipe:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get swipe progress for a group
+  app.get("/api/groups/:groupId/swipe-progress", isAuthenticated, async (req: any, res) => {
+    try {
+      const { groupId } = req.params;
+      const userId = getUserId(req);
+
+      // Verify user has access to this group
+      const group = await storage.getGroup(groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      const member = await storage.getGroupMemberByUserId(groupId, userId);
+      if (!member && group.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized to view this group" });
+      }
+
+      // Get swipe progress
+      const { getGroupSwipeProgress } = await import('./swipe-consensus');
+      const progress = await getGroupSwipeProgress(groupId);
+
+      res.json(progress);
+    } catch (error: any) {
+      console.error('Error fetching swipe progress:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Check swipe trigger opportunities
+  app.get("/api/groups/:groupId/swipe-triggers/status", isAuthenticated, async (req: any, res) => {
+    try {
+      const { groupId } = req.params;
+      const userId = getUserId(req);
+
+      // Verify user has access to this group
+      const group = await storage.getGroup(groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      const member = await storage.getGroupMemberByUserId(groupId, userId);
+      if (!member && group.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized to view this group" });
+      }
+
+      // Check all trigger opportunities
+      const { checkTriggerOpportunities } = await import('./swipe-trigger-manager');
+      const opportunities = await checkTriggerOpportunities(groupId);
+
+      res.json(opportunities);
+    } catch (error: any) {
+      console.error('Error checking swipe triggers:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Manually trigger a swipe session (organizer only)
+  app.post("/api/groups/:groupId/swipe-triggers/manual", isAuthenticated, async (req: any, res) => {
+    try {
+      const { groupId } = req.params;
+      const userId = getUserId(req);
+
+      // Verify user is organizer
+      const group = await storage.getGroup(groupId);
+      if (!group || group.userId !== userId) {
+        return res.status(403).json({ message: "Only group organizers can manually trigger swipe sessions" });
+      }
+
+      // Validate request body
+      const manualTriggerSchema = z.object({
+        activityIds: z.array(z.string()).min(1),
+        reason: z.string().optional(),
+        expiresInHours: z.number().min(1).max(168).optional(),
+      });
+
+      const validatedData = safeParse(manualTriggerSchema, req.body, res);
+      if (!validatedData) return;
+
+      const { activityIds, reason, expiresInHours } = validatedData;
+
+      // Trigger manual swipe session
+      const { triggerSwipeSession } = await import('./swipe-trigger-manager');
+      const result = await triggerSwipeSession({
+        groupId,
+        triggerType: 'manual',
+        activityIds,
+        reason,
+        expiresInHours,
+      });
+
+      if (result.triggered) {
+        res.json({
+          success: true,
+          sessionId: result.sessionId,
+          message: result.reason,
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          message: result.skippedReason,
+        });
+      }
+    } catch (error: any) {
+      console.error('Error triggering manual swipe session:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Trigger weekly digest (organizer only or cron)
+  app.post("/api/groups/:groupId/swipe-triggers/weekly-digest", isAuthenticated, async (req: any, res) => {
+    try {
+      const { groupId } = req.params;
+      const userId = getUserId(req);
+
+      // Verify user is organizer
+      const group = await storage.getGroup(groupId);
+      if (!group || group.userId !== userId) {
+        return res.status(403).json({ message: "Only group organizers can trigger weekly digests" });
+      }
+
+      // Trigger weekly digest
+      const { triggerSwipeSession } = await import('./swipe-trigger-manager');
+      const result = await triggerSwipeSession({
+        groupId,
+        triggerType: 'weekly_digest',
+      });
+
+      if (result.triggered) {
+        res.json({
+          success: true,
+          sessionId: result.sessionId,
+          message: result.reason,
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          message: result.skippedReason,
+        });
+      }
+    } catch (error: any) {
+      console.error('Error triggering weekly digest:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Process weekly digests for all groups (for cron jobs)
+  app.post("/api/cron/weekly-digest", async (req, res) => {
+    try {
+      // Simple auth: check for CRON_SECRET in headers or query
+      const cronSecret = process.env.CRON_SECRET || 'dev-secret-change-in-production';
+      const providedSecret = req.headers['x-cron-secret'] || req.query.secret;
+
+      if (providedSecret !== cronSecret) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      // Process weekly digests for all groups
+      const { processWeeklyDigests } = await import('./swipe-digest-worker');
+      await processWeeklyDigests();
+
+      res.json({ success: true, message: "Weekly digests processed" });
+    } catch (error: any) {
+      console.error('Error processing weekly digests:', error);
       res.status(500).json({ message: error.message });
     }
   });
@@ -6209,6 +6973,29 @@ Looking forward to planning great activities together!
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
+      // Validate venue hours if we have an event date
+      if (itinerary.eventDate) {
+        const group = await storage.getGroup(itinerary.groupId);
+        const timezone = group?.timezone || 'America/Los_Angeles';
+
+        const { checkVenueHours } = await import('./itinerary-validation');
+        const hoursCheck = checkVenueHours(itinerary.items, new Date(itinerary.eventDate), timezone);
+
+        // Return error if any venue is permanently closed or closed on that day
+        if (hoursCheck.errors.length > 0) {
+          return res.status(400).json({
+            message: "Some venues may be closed at the scheduled time",
+            errors: hoursCheck.errors,
+            warnings: hoursCheck.warnings,
+          });
+        }
+
+        // Log warnings but allow finalization
+        if (hoursCheck.warnings.length > 0) {
+          console.log(`[Finalize] Venue hours warnings for itinerary ${req.params.id}:`, hoursCheck.warnings);
+        }
+      }
+
       const updates: UpdateItinerary = {
         status: 'scheduled',
       };
@@ -6918,7 +7705,7 @@ Looking forward to planning great activities together!
   // Get pending auto-scheduled event for a group
   app.get("/api/groups/:groupId/pending-auto-event", isAuthenticated, async (req, res) => {
     try {
-      const pendingEvent = await storage.getPendingAutoEvent(req.params.groupId);
+      const pendingEvent = await storage.getPendingAutoScheduledEvent(req.params.groupId);
       res.json(pendingEvent || null);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -7098,6 +7885,472 @@ Looking forward to planning great activities together!
       });
     } catch (error: any) {
       console.error('[Learning Insights] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ===== CONFIDENCE CALIBRATION ENDPOINTS =====
+
+  // Get confidence weights and calibration status for a group
+  app.get("/api/groups/:groupId/confidence-weights", isAuthenticated, async (req: any, res) => {
+    try {
+      const { groupId } = req.params;
+      const userId = getUserId(req);
+
+      // Verify user is a member
+      const member = await storage.getGroupMemberByUserId(groupId, userId);
+      if (!member) {
+        return res.status(403).json({ message: "Not a member of this group" });
+      }
+
+      // Get weights
+      const { groupConfidenceWeights, confidencePredictions } = await import('../shared/schema');
+      const { isNotNull } = await import('drizzle-orm');
+
+      const [weights] = await db
+        .select()
+        .from(groupConfidenceWeights)
+        .where(eq(groupConfidenceWeights.groupId, groupId))
+        .limit(1);
+
+      if (!weights) {
+        return res.status(404).json({ message: "No calibration data found for this group" });
+      }
+
+      // Get prediction statistics
+      const [stats] = await db
+        .select({
+          totalPredictions: sql<number>`count(*)::int`,
+          validatedPredictions: sql<number>`count(CASE WHEN ${confidencePredictions.actualConsensus} IS NOT NULL THEN 1 END)::int`,
+          unusedPredictions: sql<number>`count(CASE WHEN ${confidencePredictions.usedForCalibration} = false AND ${confidencePredictions.actualConsensus} IS NOT NULL THEN 1 END)::int`,
+          averageError: sql<number>`avg(${confidencePredictions.predictionError})`,
+        })
+        .from(confidencePredictions)
+        .where(eq(confidencePredictions.groupId, groupId));
+
+      res.json({
+        weights: {
+          venueQuality: weights.venueQualityWeight,
+          timeConsensus: weights.timeConsensusWeight,
+          groupEngagement: weights.groupEngagementWeight,
+          patternMatch: weights.patternMatchWeight,
+          swipeConsensus: weights.swipeConsensusWeight,
+        },
+        calibration: {
+          count: weights.calibrationCount,
+          lastCalibrationAt: weights.lastCalibrationAt,
+          totalPredictions: weights.totalPredictions,
+          meanAbsoluteError: weights.meanAbsoluteError,
+          accuracyRate: weights.accuracyRate,
+          autoCalibrationEnabled: weights.autoCalibrationEnabled,
+        },
+        predictions: {
+          total: stats?.totalPredictions || 0,
+          validated: stats?.validatedPredictions || 0,
+          unused: stats?.unusedPredictions || 0,
+          averageError: stats?.averageError ? Math.round(stats.averageError * 100) / 100 : null,
+        },
+      });
+    } catch (error: any) {
+      console.error('Error fetching confidence weights:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Manually trigger calibration for a group (admin/organizer only)
+  app.post("/api/groups/:groupId/calibrate", isAuthenticated, async (req: any, res) => {
+    try {
+      const { groupId } = req.params;
+      const userId = getUserId(req);
+
+      // Verify user is the group organizer
+      const group = await storage.getGroup(groupId);
+      if (!group || group.organizerId !== userId) {
+        return res.status(403).json({ message: "Only the organizer can trigger calibration" });
+      }
+
+      // Run calibration
+      const { calibrateGroupWeights, shouldTriggerCalibration } = await import('./confidence-calibration');
+
+      // Check if enough data
+      if (!(await shouldTriggerCalibration(groupId))) {
+        return res.status(400).json({
+          message: "Not enough validated predictions for calibration (need 50+)",
+        });
+      }
+
+      const result = await calibrateGroupWeights(groupId);
+
+      if (!result) {
+        return res.status(400).json({ message: "Calibration failed - insufficient data" });
+      }
+
+      res.json(result);
+    } catch (error: any) {
+      console.error('Error running calibration:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Admin endpoint: Calibrate all groups
+  app.post("/api/admin/calibrate-all", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+
+      // For now, any authenticated user can trigger this
+      // In production, you'd want to check for admin role
+
+      const { calibrateAllGroups } = await import('./confidence-calibration');
+      const results = await calibrateAllGroups();
+
+      res.json({
+        totalGroups: results.length,
+        results,
+      });
+    } catch (error: any) {
+      console.error('Error calibrating all groups:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Remove a venue from the blacklist
+  app.delete("/api/groups/:groupId/rejected-venues", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { groupId } = req.params;
+      const { venueName } = req.body;
+
+      if (!venueName) {
+        return res.status(400).json({ message: "Venue name is required" });
+      }
+
+      // Verify user is the group owner
+      const group = await storage.getGroup(groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+      if (group.userId !== userId) {
+        return res.status(403).json({ message: "Only the group owner can remove venues from the blacklist" });
+      }
+
+      // Remove the venue from the rejectedVenues array
+      const currentRejected = group.rejectedVenues || [];
+      const updatedRejected = currentRejected.filter(v => v !== venueName);
+
+      // Update the group
+      await db
+        .update(groupsTable)
+        .set({ rejectedVenues: updatedRejected })
+        .where(eq(groupsTable.id, groupId));
+
+      res.json({
+        message: "Venue removed from blacklist",
+        rejectedVenues: updatedRejected
+      });
+    } catch (error: any) {
+      console.error('[Remove Rejected Venue] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Manually trigger next event scheduling with 3 itinerary options
+  app.post("/api/groups/:groupId/schedule-next-event", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { groupId } = req.params;
+      const { allowMemberVoting = false } = req.body;
+
+      // Verify user is the group owner
+      const group = await storage.getGroup(groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+      if (group.userId !== userId) {
+        return res.status(403).json({ message: "Only the group owner can schedule events" });
+      }
+
+      // Check if there's already a pending auto event
+      const existingEvent = await storage.getPendingAutoScheduledEvent(groupId);
+      if (existingEvent && existingEvent.status === 'pending_approval') {
+        return res.status(400).json({ message: "There's already a pending event. Please approve or reject it first." });
+      }
+
+      // Generate 3 itinerary options
+      const { selectBestItineraryForAutoSchedule } = await import('./auto-scheduler');
+      const result = await selectBestItineraryForAutoSchedule(storage, group);
+
+      if (!result.options || result.options.length === 0) {
+        return res.status(400).json({
+          message: "Unable to generate itinerary options. The group may not have enough venues or activities."
+        });
+      }
+
+      // Create the auto-scheduled event with pending status
+      const { addDays } = await import('date-fns');
+      const proposedDate = group.nextEventDueDate ? new Date(group.nextEventDueDate) : addDays(new Date(), 7);
+      const autoSendAt = addDays(proposedDate, -3); // Auto-send 3 days before proposed date if no action
+
+      const autoEvent = await storage.createAutoScheduledEvent({
+        groupId,
+        proposedDate,
+        autoSendAt,
+        status: 'pending_approval',
+        allowMemberVoting,
+      });
+
+      // Validate each option with AI to ensure logical ordering
+      console.log('[Schedule Next Event] Validating options with AI...');
+      const { validateItinerary } = await import('./itinerary-validation.js');
+
+      for (let i = 0; i < result.options.length; i++) {
+        const option = result.options[i];
+        try {
+          // Validate the venue order for this option
+          const validation = await validateItinerary(option.venues);
+
+          if (validation.proposedOrder && validation.proposedOrder.length > 0) {
+            // Reorder venues based on AI recommendation
+            const reorderedVenues = validation.proposedOrder.map(sourceId =>
+              option.venues.find(v => v.sourceId === sourceId)
+            ).filter(Boolean);
+
+            result.options[i].venues = reorderedVenues;
+            console.log(`[Schedule Next Event] ✅ Validated option ${i + 1}: ${validation.validationNotes || 'Order optimized'}`);
+          }
+        } catch (validationError: any) {
+          // Log but don't fail - validation is optional enhancement
+          console.log(`[Schedule Next Event] ⚠️  AI validation failed for option ${i + 1}, using original order:`, validationError.message);
+        }
+      }
+
+      // Store the 3 options
+      const { itineraryOptions: itineraryOptionsTable } = await import('../shared/schema');
+      const savedOptions = await Promise.all(
+        result.options.map(async (option) => {
+          const [saved] = await db.insert(itineraryOptionsTable).values({
+            autoEventId: autoEvent.id,
+            optionNumber: option.optionNumber,
+            venues: option.venues,
+            description: option.description,
+          }).returning();
+          return saved;
+        })
+      );
+
+      res.json({
+        autoEvent,
+        options: savedOptions,
+      });
+    } catch (error: any) {
+      console.error('[Schedule Next Event] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get itinerary options for an auto-scheduled event
+  app.get("/api/auto-events/:eventId/options", isAuthenticated, async (req: any, res) => {
+    try {
+      const { eventId } = req.params;
+      const userId = req.user.claims.sub;
+
+      // Get the auto event
+      const event = await storage.getAutoScheduledEvent(eventId);
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      // Verify user has access to the group
+      const group = await storage.getGroup(event.groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      const isOwner = group.userId === userId;
+      const members = await storage.getGroupMembers(event.groupId);
+      const isMember = members.some(m => m.userId === userId);
+
+      if (!isOwner && !isMember) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      // Get the options
+      const { itineraryOptions: itineraryOptionsTable, itineraryOptionVotes } = await import('../shared/schema');
+      const options = await db
+        .select()
+        .from(itineraryOptionsTable)
+        .where(eq(itineraryOptionsTable.autoEventId, eventId))
+        .orderBy(itineraryOptionsTable.optionNumber);
+
+      // Get vote counts for each option
+      const optionsWithVotes = await Promise.all(
+        options.map(async (option) => {
+          const votes = await db
+            .select()
+            .from(itineraryOptionVotes)
+            .where(eq(itineraryOptionVotes.optionId, option.id));
+
+          return {
+            ...option,
+            voteCount: votes.length,
+          };
+        })
+      );
+
+      res.json({
+        event,
+        options: optionsWithVotes,
+      });
+    } catch (error: any) {
+      console.error('[Get Itinerary Options] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Vote for an itinerary option (members only if voting is enabled)
+  app.post("/api/auto-events/:eventId/vote", isAuthenticated, async (req: any, res) => {
+    try {
+      const { eventId } = req.params;
+      const { optionId } = req.body;
+      const userId = req.user.claims.sub;
+
+      if (!optionId) {
+        return res.status(400).json({ message: "Option ID is required" });
+      }
+
+      // Get the auto event
+      const event = await storage.getAutoScheduledEvent(eventId);
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      // Check if voting is enabled
+      if (!event.allowMemberVoting) {
+        return res.status(403).json({ message: "Voting is not enabled for this event" });
+      }
+
+      // Verify user is a member
+      const members = await storage.getGroupMembers(event.groupId);
+      const member = members.find(m => m.userId === userId);
+      if (!member) {
+        return res.status(403).json({ message: "Only group members can vote" });
+      }
+
+      // Verify option exists and belongs to this event
+      const { itineraryOptions: itineraryOptionsTable, itineraryOptionVotes } = await import('../shared/schema');
+      const [option] = await db
+        .select()
+        .from(itineraryOptionsTable)
+        .where(eq(itineraryOptionsTable.id, optionId));
+
+      if (!option || option.autoEventId !== eventId) {
+        return res.status(404).json({ message: "Invalid option" });
+      }
+
+      // Remove any existing vote from this member for this event
+      await db
+        .delete(itineraryOptionVotes)
+        .where(
+          and(
+            eq(itineraryOptionVotes.autoEventId, eventId),
+            eq(itineraryOptionVotes.memberId, member.id)
+          )
+        );
+
+      // Add the new vote
+      await db.insert(itineraryOptionVotes).values({
+        optionId,
+        autoEventId: eventId,
+        memberId: member.id,
+        userId,
+      });
+
+      res.json({ success: true, message: "Vote recorded" });
+    } catch (error: any) {
+      console.error('[Vote for Option] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Organizer selects an itinerary option
+  app.post("/api/auto-events/:eventId/select-option", isAuthenticated, async (req: any, res) => {
+    try {
+      const { eventId } = req.params;
+      const { optionId } = req.body;
+      const userId = req.user.claims.sub;
+
+      if (!optionId) {
+        return res.status(400).json({ message: "Option ID is required" });
+      }
+
+      // Get the auto event
+      const event = await storage.getAutoScheduledEvent(eventId);
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      // Verify user is the group owner
+      const group = await storage.getGroup(event.groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+      if (group.userId !== userId) {
+        return res.status(403).json({ message: "Only the group owner can select an option" });
+      }
+
+      // Verify option exists and belongs to this event
+      const { itineraryOptions: itineraryOptionsTable } = await import('../shared/schema');
+      const [option] = await db
+        .select()
+        .from(itineraryOptionsTable)
+        .where(eq(itineraryOptionsTable.id, optionId));
+
+      if (!option || option.autoEventId !== eventId) {
+        return res.status(404).json({ message: "Invalid option" });
+      }
+
+      // Update the auto event with the selected option
+      await storage.updateAutoScheduledEvent(eventId, {
+        selectedOptionId: optionId,
+      });
+
+      // Extract venue information from the selected option
+      const venues = option.venues as Array<{
+        sourceType: 'activity' | 'voting_event';
+        sourceId: string;
+        venueName: string;
+        badges: string[];
+      }>;
+
+      // Create itinerary items for the selected venues
+      const itinerary = await storage.createItinerary({
+        groupId: event.groupId,
+        name: `Auto-scheduled event for ${group.name}`,
+        date: event.scheduledDate,
+      });
+
+      // Add venues to the itinerary
+      for (let i = 0; i < venues.length; i++) {
+        const venue = venues[i];
+        await storage.createItineraryItem({
+          itineraryId: itinerary.id,
+          sourceType: venue.sourceType,
+          sourceId: venue.sourceId,
+          order: i,
+        });
+      }
+
+      // Update the event with the itinerary ID
+      await storage.updateAutoScheduledEvent(eventId, {
+        itineraryId: itinerary.id,
+      });
+
+      res.json({
+        success: true,
+        message: "Option selected",
+        itinerary,
+      });
+    } catch (error: any) {
+      console.error('[Select Option] Error:', error);
       res.status(500).json({ message: error.message });
     }
   });

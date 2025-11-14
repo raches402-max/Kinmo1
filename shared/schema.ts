@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, jsonb, boolean, index, numeric } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, jsonb, boolean, index, numeric, real } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -18,7 +18,9 @@ export const sessions = pgTable(
 // User storage table (required for Replit Auth)
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  email: varchar("email").unique(),
+  email: varchar("email").unique().notNull(), // Email is the stable identifier
+  oidcSub: varchar("oidc_sub").unique(), // Current OAuth subject ID from Replit (can change!)
+  legacyOidcSubs: jsonb("legacy_oidc_subs"), // Array of previous OAuth subject IDs (for migration tracking)
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
@@ -96,7 +98,16 @@ export const groups = pgTable("groups", {
   nextEventDueDate: timestamp("next_event_due_date"), // When next event should happen (calculated from frequency)
   lastActivitiesUpdate: timestamp("last_activities_update"), // When activities were last auto-generated
   lastItineraryUpdate: timestamp("last_itinerary_update"), // When itinerary was last auto-created
-  
+
+  // Automation control fields
+  automationLevel: text("automation_level").default("smart").notNull(), // 'suggest_only', 'smart', 'full_auto'
+  confidenceThreshold: integer("confidence_threshold").default(80).notNull(), // Minimum confidence (0-100) to auto-send (hidden from UI)
+  automationPaused: boolean("automation_paused").default(false).notNull(), // Whether automation is temporarily paused
+  automationPausedUntil: timestamp("automation_paused_until"), // Resume automation after this date
+  automationPauseEventsRemaining: integer("automation_pause_events_remaining"), // Resume after this many events (countdown)
+  reviewEveryNthEvent: integer("review_every_nth_event"), // Require manual review every N events (quality sampling)
+  eventCountSinceLastReview: integer("event_count_since_last_review").default(0).notNull(), // Counter for review sampling
+
   deletedAt: timestamp("deleted_at"), // Soft delete: when group was deleted (null = active)
   isTest: boolean("is_test").default(false).notNull(), // Mark test/development groups to exclude from analytics
   
@@ -207,6 +218,9 @@ export const activities = pgTable("activities", {
   googleReview: text("google_review"), // Short positive review from Google Places (80-100 chars)
   timeCategory: text("time_category"), // quick (<90min), standard (1-3hrs), large (4+ hrs)
   category: text("category"), // AI-categorized: meal, cafes, drinks, dessert, experiences
+  openingHours: jsonb("opening_hours"), // Google Places opening hours (periods, weekday_text)
+  businessStatus: text("business_status"), // OPERATIONAL, CLOSED_TEMPORARILY, CLOSED_PERMANENTLY
+  swipeConsensus: integer("swipe_consensus"), // 0-100% approval rate from group swipes
   archivedAt: timestamp("archived_at"), // Soft-delete for regeneration
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -240,6 +254,7 @@ export const votingEvents = pgTable("voting_events", {
   complementaryPlaceId2: text("complementary_place_id_2"),
   complementaryPlacePhotoUrl2: text("complementary_place_photo_url_2"),
   complementaryPlaceRating2: text("complementary_place_rating_2"),
+  swipeConsensus: integer("swipe_consensus"), // 0-100% approval rate from group swipes
   createdBy: varchar("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -261,6 +276,50 @@ export const preferenceSignals = pgTable("preference_signals", {
   conceptDescription: text("concept_description").notNull(), // e.g., "Karaoke Night at Local Bar"
   feedback: text("feedback").notNull(), // 'like' or 'pass'
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Activity swipes table - democratic curation through group swiping
+export const activitySwipes = pgTable("activity_swipes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  groupId: varchar("group_id").notNull().references(() => groups.id, { onDelete: "cascade" }),
+  activityId: varchar("activity_id").references(() => activities.id, { onDelete: "cascade" }), // null if swiping on voting event
+  votingEventId: varchar("voting_event_id").references(() => votingEvents.id, { onDelete: "cascade" }), // null if swiping on activity
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  memberId: varchar("member_id").notNull().references(() => members.id, { onDelete: "cascade" }),
+  swipeDirection: text("swipe_direction").notNull(), // 'right' (approve) or 'left' (reject)
+  swipeSessionId: varchar("swipe_session_id"), // Group swipes together (e.g., all swipes from one batch)
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Swipe sessions table - tracks group swipe sessions for async preference gathering
+export const swipeSessions = pgTable("swipe_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  groupId: varchar("group_id").notNull().references(() => groups.id, { onDelete: "cascade" }),
+
+  // Session type and purpose
+  sessionType: text("session_type").notNull(), // 'itinerary_validation', 'activity_curation', 'favorites_triage', 'discovery', 'weekly_digest'
+  isBlocking: boolean("is_blocking").default(false).notNull(), // If true, event creation waits for results (default: async)
+
+  // Related entities
+  autoEventId: varchar("auto_event_id").references(() => autoScheduledEvents.id, { onDelete: "cascade" }), // If validating auto-scheduled event
+  triggeredBy: text("triggered_by").notNull(), // 'auto_scheduler', 'ai_generation', 'manual', 'weekly_job', 'post_event'
+
+  // Session state
+  status: text("status").default("active").notNull(), // 'active', 'completed', 'expired'
+  targetSwipeCount: integer("target_swipe_count").default(5).notNull(), // How many items to swipe through
+  expiresAt: timestamp("expires_at").notNull(), // When session expires (typically 48hrs from creation)
+
+  // Participation tracking
+  memberCount: integer("member_count").notNull(), // Total members in group at session creation
+  participantCount: integer("participant_count").default(0).notNull(), // How many members have participated
+  totalSwipes: integer("total_swipes").default(0).notNull(), // Total swipe actions recorded
+
+  // Results metadata (calculated when session completes)
+  consensusResults: jsonb("consensus_results"), // { venueId: { approval: 0.75, totalSwipes: 12 }, ... }
+  averageConsensus: integer("average_consensus"), // 0-100, average approval across all items
+
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"), // When session was marked complete or expired
 });
 
 // Itineraries table - validated combinations of venues for an evening
@@ -386,7 +445,90 @@ export const autoScheduledEvents = pgTable("auto_scheduled_events", {
   proposedDate: timestamp("proposed_date").notNull(), // AI-suggested event date/time
   status: text("status").default("pending").notNull(), // 'pending', 'approved', 'rejected', 'auto_sent'
   autoSendAt: timestamp("auto_send_at").notNull(), // When to auto-send if no organizer action (3 days before target)
+  allowMemberVoting: boolean("allow_member_voting").default(false).notNull(), // Whether members can vote on itinerary options
+  selectedOptionId: varchar("selected_option_id"), // Which itinerary option was selected (references itineraryOptions.id)
+
+  // Confidence and review fields
+  confidenceScore: integer("confidence_score"), // 0-100 confidence score (calculated but not shown to users)
+  confidenceFactors: jsonb("confidence_factors"), // Detailed breakdown for debugging: {venueQuality: 85, timeConsensus: 75, ...}
+  requiresReview: boolean("requires_review").default(false).notNull(), // True if below threshold or sampling triggered
+  reviewReason: text("review_reason"), // 'low_confidence' | 'scheduled_review' | 'new_venue_type' | 'automation_paused'
+
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Itinerary options - multiple itinerary options generated for auto-scheduled events
+export const itineraryOptions = pgTable("itinerary_options", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  autoEventId: varchar("auto_event_id").notNull().references(() => autoScheduledEvents.id, { onDelete: "cascade" }),
+  optionNumber: integer("option_number").notNull(), // 1, 2, or 3
+  venues: jsonb("venues").notNull(), // Array of {sourceType: 'activity'|'voting_event', sourceId: string, venueName: string, badges: string[]}
+  description: text("description"), // Optional AI-generated description of this option
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Itinerary option votes - member votes on itinerary options
+export const itineraryOptionVotes = pgTable("itinerary_option_votes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  optionId: varchar("option_id").notNull().references(() => itineraryOptions.id, { onDelete: "cascade" }),
+  autoEventId: varchar("auto_event_id").notNull().references(() => autoScheduledEvents.id, { onDelete: "cascade" }),
+  memberId: varchar("member_id").references(() => members.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Confidence predictions - track predicted vs actual consensus for calibration
+export const confidencePredictions = pgTable("confidence_predictions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  groupId: varchar("group_id").notNull().references(() => groups.id, { onDelete: "cascade" }),
+  autoEventId: varchar("auto_event_id").references(() => autoScheduledEvents.id, { onDelete: "cascade" }),
+  swipeSessionId: varchar("swipe_session_id").references(() => swipeSessions.id, { onDelete: "cascade" }),
+
+  // Prediction data (made at event/session creation)
+  predictedConfidence: integer("predicted_confidence").notNull(), // 0-100 predicted confidence score
+  predictedFactors: jsonb("predicted_factors").notNull(), // {venueQuality: 85, timeConsensus: 75, groupEngagement: 90, patternMatch: 70, swipeConsensus: null}
+  factorWeights: jsonb("factor_weights").notNull(), // {venueQuality: 0.25, timeConsensus: 0.25, groupEngagement: 0.20, patternMatch: 0.20, swipeConsensus: 0.10}
+
+  // Actual results (filled when swipe session completes or event happens)
+  actualConsensus: integer("actual_consensus"), // 0-100 actual member approval from swipes or RSVPs
+  validationSource: text("validation_source"), // 'swipe_session' | 'rsvp_rate' | 'attendance_rate'
+
+  // Calibration metrics
+  predictionError: integer("prediction_error"), // Absolute difference: |predicted - actual|
+  wasAccurate: boolean("was_accurate"), // True if error <= 15 (within acceptable margin)
+
+  // Metadata
+  predictedAt: timestamp("predicted_at").defaultNow().notNull(),
+  validatedAt: timestamp("validated_at"), // When actual consensus was recorded
+  usedForCalibration: boolean("used_for_calibration").default(false).notNull(), // True if this data point was used in weight optimization
+});
+
+// Group confidence weights - calibrated factor weights per group (for self-adjusting algorithm)
+export const groupConfidenceWeights = pgTable("group_confidence_weights", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  groupId: varchar("group_id").notNull().references(() => groups.id, { onDelete: "cascade" }).unique(),
+
+  // Current factor weights (sum to 1.0)
+  venueQualityWeight: real("venue_quality_weight").default(0.25).notNull(), // Default: 25%
+  timeConsensusWeight: real("time_consensus_weight").default(0.25).notNull(), // Default: 25%
+  groupEngagementWeight: real("group_engagement_weight").default(0.20).notNull(), // Default: 20%
+  patternMatchWeight: real("pattern_match_weight").default(0.20).notNull(), // Default: 20%
+  swipeConsensusWeight: real("swipe_consensus_weight").default(0.10).notNull(), // Default: 10%
+
+  // Calibration metadata
+  calibrationCount: integer("calibration_count").default(0).notNull(), // How many times weights have been optimized
+  lastCalibrationAt: timestamp("last_calibration_at"), // When last calibration ran
+  totalPredictions: integer("total_predictions").default(0).notNull(), // Total predictions made with these weights
+  meanAbsoluteError: real("mean_absolute_error"), // Current MAE across all predictions
+  accuracyRate: real("accuracy_rate"), // % of predictions within 15 points (0.0-1.0)
+
+  // Manual override controls
+  autoCalibrationEnabled: boolean("auto_calibration_enabled").default(true).notNull(), // Allow automatic weight adjustments
+  manualOverrideAt: timestamp("manual_override_at"), // When organizer last manually set weights
+  manualOverrideReason: text("manual_override_reason"), // Why organizer disabled auto-calibration
+
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 // Frequency feedback - track member preferences for meeting frequency
@@ -497,6 +639,8 @@ export const curatedVenues = pgTable("curated_venues", {
   isActive: boolean("is_active").default(true).notNull(), // Soft delete flag
   source: text("source").notNull().default('manual'), // manual, user_suggested, api_scrape
   suggestedBy: varchar("suggested_by").references(() => users.id, { onDelete: "set null" }), // User who suggested this venue (if applicable)
+  openingHours: jsonb("opening_hours"), // Google Places opening hours (periods, weekday_text)
+  businessStatus: text("business_status"), // OPERATIONAL, CLOSED_TEMPORARILY, CLOSED_PERMANENTLY
   createdAt: timestamp("created_at").defaultNow().notNull(),
   lastRefreshed: timestamp("last_refreshed"), // Last time data was refreshed from Google API
 }, (table) => [
@@ -704,7 +848,7 @@ export const reminderLogsRelations = relations(reminderLogs, ({ one }) => ({
   }),
 }));
 
-export const autoScheduledEventsRelations = relations(autoScheduledEvents, ({ one }) => ({
+export const autoScheduledEventsRelations = relations(autoScheduledEvents, ({ one, many }) => ({
   group: one(groups, {
     fields: [autoScheduledEvents.groupId],
     references: [groups.id],
@@ -712,6 +856,35 @@ export const autoScheduledEventsRelations = relations(autoScheduledEvents, ({ on
   itinerary: one(itineraries, {
     fields: [autoScheduledEvents.itineraryId],
     references: [itineraries.id],
+  }),
+  options: many(itineraryOptions),
+  votes: many(itineraryOptionVotes),
+}));
+
+export const itineraryOptionsRelations = relations(itineraryOptions, ({ one, many }) => ({
+  autoEvent: one(autoScheduledEvents, {
+    fields: [itineraryOptions.autoEventId],
+    references: [autoScheduledEvents.id],
+  }),
+  votes: many(itineraryOptionVotes),
+}));
+
+export const itineraryOptionVotesRelations = relations(itineraryOptionVotes, ({ one }) => ({
+  option: one(itineraryOptions, {
+    fields: [itineraryOptionVotes.optionId],
+    references: [itineraryOptions.id],
+  }),
+  autoEvent: one(autoScheduledEvents, {
+    fields: [itineraryOptionVotes.autoEventId],
+    references: [autoScheduledEvents.id],
+  }),
+  member: one(members, {
+    fields: [itineraryOptionVotes.memberId],
+    references: [members.id],
+  }),
+  user: one(users, {
+    fields: [itineraryOptionVotes.userId],
+    references: [users.id],
   }),
 }));
 
