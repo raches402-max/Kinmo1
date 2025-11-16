@@ -21,13 +21,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, ChevronRight, ChevronLeft, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell, Edit2, Edit, Compass, Home, UserCheck, MessageCircle, TrendingUp, AlertCircle, Users, Loader2, Map, Info, MoreVertical } from "lucide-react";
+import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, ChevronRight, ChevronLeft, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell, Edit2, Edit, Compass, Home, UserCheck, MessageCircle, TrendingUp, AlertCircle, Users, Loader2, Map, Info, MoreVertical, Zap } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Group, Activity, Member, VotingEvent, Vote } from "@shared/schema";
 import { AvailabilityGrid, createEmptyAvailability } from "@/components/AvailabilityGrid";
 import { ReadOnlyAvailabilityGrid } from "@/components/ReadOnlyAvailabilityGrid";
+import { AutoScheduleQueue } from "@/components/AutoScheduleQueue";
 import { SwipeSession } from "@/components/SwipeSession";
 import { FavoritesMap } from "@/components/FavoritesMap";
 import { AddAdHocVenueDialog } from "@/components/AddAdHocVenueDialog";
@@ -607,6 +608,7 @@ export default function GroupDetail() {
   const [editBudgetRange, setEditBudgetRange] = useState<number[]>([50, 250]);
   const [showInstructions, setShowInstructions] = useState(true);
   const [activeTab, setActiveTab] = useState("home");
+  const [createEventSubTab, setCreateEventSubTab] = useState("manual"); // manual or auto
   const [editCloseness, setEditCloseness] = useState(3);
   const [editNovelty, setEditNovelty] = useState(3);
   const [editAvailability, setEditAvailability] = useState(createEmptyAvailability());
@@ -2717,8 +2719,8 @@ export default function GroupDetail() {
           {/* Home Tab */}
           <TabsContent value="home" className="space-y-6">
             <div className="max-w-4xl mx-auto space-y-6">
-              {/* Schedule Event Button */}
-              <div className="flex justify-center">
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <Button
                   onClick={() => setSchedulePromptDialogOpen(true)}
                   size="lg"
@@ -2728,7 +2730,66 @@ export default function GroupDetail() {
                   <Sparkles className="h-5 w-5" />
                   Schedule Event with AI
                 </Button>
+                <Button
+                  onClick={() => setShowSwipeSession(true)}
+                  size="lg"
+                  variant="outline"
+                  className="gap-2"
+                  data-testid="button-discover-venues"
+                >
+                  <Compass className="h-5 w-5" />
+                  Discover Venues
+                </Button>
               </div>
+
+              {/* Favorites Status Card */}
+              {(() => {
+                const favoritesWithPositiveVotes = votingEvents.filter(event => event.netVotes >= 0);
+                const favoritesCount = favoritesWithPositiveVotes.length;
+                const autoScheduleReady = favoritesCount >= 5;
+
+                return (
+                  <Card className={autoScheduleReady ? "border-green-200 bg-green-50/50" : "border-blue-200 bg-blue-50/50"} data-testid="card-favorites-status">
+                    <CardContent className="pt-4 pb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-center h-10 w-10 rounded-full bg-background border-2 border-current">
+                          <Heart className={`h-5 w-5 ${autoScheduleReady ? 'text-green-600 fill-green-600' : 'text-blue-600'}`} />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="font-semibold text-sm">
+                              {favoritesCount} Favorite{favoritesCount !== 1 ? 's' : ''}
+                            </p>
+                            {autoScheduleReady && (
+                              <Badge className="bg-green-600 text-white">
+                                <Zap className="h-3 w-3 mr-1" />
+                                Auto-schedule Ready
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {autoScheduleReady
+                              ? "Your favorites power AI auto-scheduling - create new events instantly!"
+                              : `Add ${5 - favoritesCount} more favorite${5 - favoritesCount !== 1 ? 's' : ''} to unlock auto-scheduling`
+                            }
+                          </p>
+                        </div>
+                        {!autoScheduleReady && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowSwipeSession(true)}
+                            className="gap-1 text-xs"
+                          >
+                            <Compass className="h-3 w-3" />
+                            Discover
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })()}
 
               {/* Auto-Scheduling Info Card */}
               {group?.autoScheduleEnabled && group?.nextEventDueDate && (
@@ -6354,13 +6415,22 @@ export default function GroupDetail() {
                         Vote on group favorites and select venues to add to your itinerary
                       </p>
                     </div>
-                    <Dialog open={addEventOpen} onOpenChange={setAddEventOpen}>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" data-testid="button-add-favorite-tab">
-                          <Plus className="h-4 w-4 mr-1" />
-                          Add
-                        </Button>
-                      </DialogTrigger>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="default"
+                        onClick={() => setShowSwipeSession(true)}
+                        data-testid="button-discover-venues"
+                      >
+                        <Search className="h-4 w-4 mr-1" />
+                        Discover Venues
+                      </Button>
+                      <Dialog open={addEventOpen} onOpenChange={setAddEventOpen}>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" data-testid="button-add-favorite-tab">
+                            <Plus className="h-4 w-4 mr-1" />
+                            Add
+                          </Button>
+                        </DialogTrigger>
                       <DialogContent data-testid="dialog-add-favorite-tab">
                         <DialogHeader>
                           <DialogTitle>Add to Favorites</DialogTitle>
@@ -6408,17 +6478,71 @@ export default function GroupDetail() {
                       </DialogContent>
                     </Dialog>
                   </div>
+                </div>
 
               {votingEvents.length === 0 ? (
                 <Card>
                   <CardContent className="p-12 text-center">
-                    <Heart className="h-12 w-12 mx-auto mb-3 text-muted-foreground opacity-50" />
-                    <p className="text-sm text-muted-foreground">No favorites yet</p>
-                    <p className="text-xs text-muted-foreground mt-1">Add venues from the Activities tab</p>
+                    <Heart className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                    <h3 className="text-lg font-semibold mb-2">No favorites yet</h3>
+                    <p className="text-sm text-muted-foreground mb-6">
+                      Swipe through venues to discover what your group will love
+                    </p>
+                    <Button
+                      size="lg"
+                      onClick={() => setShowSwipeSession(true)}
+                      className="gap-2"
+                    >
+                      <Search className="h-4 w-4" />
+                      Discover Venues
+                    </Button>
+                    <p className="text-xs text-muted-foreground mt-4">
+                      Or add venues manually from the Activities tab
+                    </p>
                   </CardContent>
                 </Card>
               ) : (
                 <>
+                  {/* Progress banner for < 5 favorites */}
+                  {votingEvents.length < 5 && (
+                    <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
+                      <CardContent className="p-4">
+                        <div className="flex items-start gap-3">
+                          <div className="flex-shrink-0 mt-0.5">
+                            <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                              <span className="text-lg font-bold text-blue-600">{votingEvents.length}</span>
+                            </div>
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-sm mb-1">
+                              {5 - votingEvents.length} more favorite{5 - votingEvents.length !== 1 ? 's' : ''} to unlock auto-scheduling
+                            </h4>
+                            <p className="text-xs text-muted-foreground mb-3">
+                              With 5+ favorites, we can automatically create personalized itineraries for your group
+                            </p>
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-500"
+                                  style={{ width: `${(votingEvents.length / 5) * 100}%` }}
+                                />
+                              </div>
+                              <span className="text-xs font-medium text-muted-foreground">{votingEvents.length}/5</span>
+                            </div>
+                            <Button
+                              size="sm"
+                              onClick={() => setShowSwipeSession(true)}
+                              className="gap-1.5 h-8 text-xs"
+                            >
+                              <Search className="h-3 w-3" />
+                              Discover More Venues
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
                   <div className="flex flex-col sm:flex-row gap-3">
                     <div className="relative flex-1">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -7102,26 +7226,35 @@ export default function GroupDetail() {
                 </div>
               </div>
             )}
-              </TabsContent>
-            </Tabs>
+          </TabsContent>
+        </Tabs>
           </TabsContent>
 
           {/* Tab 3: Itinerary */}
           <TabsContent value="build" className="space-y-5">
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-8">
-              {/* Main Content */}
-              <div className="space-y-5">
-              <div className="space-y-1">
-                <h2 className="text-xl font-semibold tracking-tight">Create Event</h2>
-                <p className="text-sm text-muted-foreground">
-                  {selectedVenues.length > 0
-                    ? "Select 1-5 venues, then create your itinerary"
-                    : itineraries.length > 0
-                      ? "Your itinerary is ready — drag to reorder"
-                      : "Browse Activities to select venues for your event"
-                  }
-                </p>
-              </div>
+            {/* Sub-tabs for Manual vs Auto Schedule */}
+            <Tabs value={createEventSubTab} onValueChange={setCreateEventSubTab} className="space-y-6">
+              <TabsList className="grid w-full max-w-md mx-auto grid-cols-2">
+                <TabsTrigger value="manual">Manual Event</TabsTrigger>
+                <TabsTrigger value="auto">Auto Schedule</TabsTrigger>
+              </TabsList>
+
+              {/* Manual Event Creation Tab */}
+              <TabsContent value="manual" className="space-y-5">
+                <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-8">
+                  {/* Main Content */}
+                  <div className="space-y-5">
+                  <div className="space-y-1">
+                    <h2 className="text-xl font-semibold tracking-tight">Create Event</h2>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedVenues.length > 0
+                        ? "Select 1-5 venues, then create your itinerary"
+                        : itineraries.length > 0
+                          ? "Your itinerary is ready — drag to reorder"
+                          : "Browse Activities to select venues for your event"
+                      }
+                    </p>
+                  </div>
 
               {/* Selected Venues Display */}
               {selectedVenues.length > 0 && (
@@ -8481,18 +8614,27 @@ export default function GroupDetail() {
                                               daysAway === 1 ? 'tomorrow' :
                                               daysAway > 0 && daysAway <= 14 ? `${daysAway} days away` : '';
 
-                          // Get favorited venues (all active activities are favorites)
-                          // Sort by feedback: love first, then more, then rest
-                          const favoritedActivities = activities
+                          // Get favorited venues (includes both activities and voting events/Favorites)
+                          // Combine activities and voting events, then sort by quality
+                          const activityVenues = activities
                             ?.filter((a: any) => !a.archivedAt)
-                            .sort((a: any, b: any) => {
-                              // Prioritize loved, then more feedback, then rest
-                              const feedbackOrder: Record<string, number> = { love: 0, more: 1, less: 2 };
-                              const aOrder = a.feedback ? (feedbackOrder[a.feedback] ?? 3) : 3;
-                              const bOrder = b.feedback ? (feedbackOrder[b.feedback] ?? 3) : 3;
-                              return aOrder - bOrder;
-                            })
-                            .slice(0, 3) || [];
+                            .map((a: any) => ({
+                              name: a.venueName,
+                              type: 'activity' as const,
+                              score: a.feedback === 'love' || a.feedback === 'favorite' ? 3 : a.feedback === 'more_like_this' ? 2 : 1
+                            })) || [];
+
+                          const votingEventVenues = votingEvents
+                            ?.filter((ve: any) => ve.netVotes >= 0) // Only include non-downvoted favorites
+                            .map((ve: any) => ({
+                              name: ve.title,
+                              type: 'voting_event' as const,
+                              score: 2 + Math.min(ve.netVotes * 0.5, 1.5) // Base score 2, up to 3.5 with upvotes
+                            })) || [];
+
+                          const favoritedActivities = [...activityVenues, ...votingEventVenues]
+                            .sort((a, b) => b.score - a.score) // Sort by score descending
+                            .slice(0, 3);
 
                           return (
                             <div className="space-y-3">
@@ -8648,6 +8790,16 @@ export default function GroupDetail() {
               </div>
             )}
             </div>
+              </TabsContent>
+
+              {/* Auto Schedule Tab */}
+              <TabsContent value="auto" className="space-y-5">
+                <AutoScheduleQueue
+                  groupId={group.id}
+                  isOrganizer={isOwner}
+                />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
           {/* Tab 5: Feedback */}
           <TabsContent value="feedback" className="space-y-6">
@@ -10437,9 +10589,11 @@ export default function GroupDetail() {
           onComplete={() => {
             setShowSwipeSession(false);
             toast({
-              title: "Preferences refined!",
-              description: "Your feedback will improve future suggestions.",
+              title: "Discovery Complete!",
+              description: "Your favorites have been updated. Check the Favorites tab!",
             });
+            // Refresh voting events to show newly added favorites
+            queryClient.invalidateQueries({ queryKey: [`/api/groups/${groupId}/voting-events`] });
           }}
         />
       )}

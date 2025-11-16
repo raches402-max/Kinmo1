@@ -1195,6 +1195,15 @@ export class DatabaseStorage implements IStorage {
         }
       }
 
+      // Generate Google Maps URL
+      let googleMapsUrl = null;
+      if (googlePlaceId) {
+        googleMapsUrl = `https://www.google.com/maps/place/?q=place_id:${googlePlaceId}`;
+      } else if (venueName && venueAddress) {
+        const query = encodeURIComponent(`${venueName}, ${venueAddress}`);
+        googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${query}`;
+      }
+
       itemsToInsert.push({
         itineraryId,
         sourceType: item.sourceType,
@@ -1205,6 +1214,7 @@ export class DatabaseStorage implements IStorage {
         googlePlaceId,
         rating,
         photoUrl,
+        googleMapsUrl,
         orderIndex: maxOrderIndex + 1 + i,
       });
     }

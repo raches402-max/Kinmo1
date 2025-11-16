@@ -1,0 +1,1 @@
+ALTER TABLE "auto_scheduled_events" ALTER COLUMN "status" SET DEFAULT 'pending_approval';

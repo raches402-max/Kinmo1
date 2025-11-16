@@ -300,6 +300,7 @@ interface TimeSelectionInput {
 interface TimeSelectionResult {
   eventDate: Date;
   reasoning: string;
+  suggestedTime?: string; // HH:MM format from AI response
 }
 
 interface TimeOption {
@@ -789,6 +790,7 @@ Return ONLY a JSON object with this exact structure:
       return {
         eventDate,
         reasoning: result.reasoning || 'AI-selected optimal time based on venue type and group availability',
+        suggestedTime: result.time, // Return raw time string from AI
       };
     } catch (error) {
       console.error(`[AI Time Picker] Error on attempt ${attempt}:`, error);

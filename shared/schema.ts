@@ -443,7 +443,7 @@ export const autoScheduledEvents = pgTable("auto_scheduled_events", {
   groupId: varchar("group_id").notNull().references(() => groups.id, { onDelete: "cascade" }),
   itineraryId: varchar("itinerary_id").references(() => itineraries.id, { onDelete: "cascade" }), // Links to proposed itinerary
   proposedDate: timestamp("proposed_date").notNull(), // AI-suggested event date/time
-  status: text("status").default("pending").notNull(), // 'pending', 'approved', 'rejected', 'auto_sent'
+  status: text("status").default("pending_approval").notNull(), // 'pending_approval', 'auto_approved', 'approved', 'rejected', 'auto_sent', 'scheduled'
   autoSendAt: timestamp("auto_send_at").notNull(), // When to auto-send if no organizer action (3 days before target)
   allowMemberVoting: boolean("allow_member_voting").default(false).notNull(), // Whether members can vote on itinerary options
   selectedOptionId: varchar("selected_option_id"), // Which itinerary option was selected (references itineraryOptions.id)

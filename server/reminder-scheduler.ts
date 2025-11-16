@@ -794,11 +794,154 @@ export async function processAutoSend(): Promise<void> {
   }
 }
 
+/**
+ * Check itineraries that need time slot selection and auto-select the best time
+ * Runs daily to select time slots 24-48 hours before events
+ */
+async function checkAndSelectTimeSlots() {
+  try {
+    console.log('[Time Selection] Checking for itineraries needing time slot selection...');
+
+    // Get all itineraries with proposed time slots in the next 24-48 hours
+    const upcomingItineraries = await db
+      .select()
+      .from(itineraries)
+      .where(
+        and(
+          // Has an event date
+          sql`${itineraries.eventDate} IS NOT NULL`,
+          // Event is in the future
+          sql`${itineraries.eventDate} > NOW()`,
+          // Event is within 48 hours
+          sql`${itineraries.eventDate} < NOW() + INTERVAL '48 hours'`
+        )
+      );
+
+    if (upcomingItineraries.length === 0) {
+      console.log('[Time Selection] No upcoming itineraries found');
+      return;
+    }
+
+    console.log(`[Time Selection] Found ${upcomingItineraries.length} upcoming itinerary/itineraries`);
+
+    const { needsTimeSelection, selectBestTimeSlot } = await import('./auto-time-selector');
+
+    for (const itinerary of upcomingItineraries) {
+      try {
+        // Check if this itinerary needs time selection
+        const needs = await needsTimeSelection(itinerary.id);
+
+        if (!needs) {
+          console.log(`[Time Selection] Skipping ${itinerary.id}: no selection needed`);
+          continue;
+        }
+
+        console.log(`[Time Selection] ⏰ Selecting time slot for itinerary ${itinerary.id}`);
+
+        // Select the best time slot
+        const result = await selectBestTimeSlot(itinerary.id);
+
+        if (result.success && result.selectedTimeSlot) {
+          console.log(`[Time Selection] ✅ Selected: ${result.selectedTimeSlot.label || result.selectedTimeSlot.proposedDateTime.toISOString()}`);
+          console.log(`[Time Selection] 📊 Votes: ${result.selectedTimeSlot.yesVotes} yes, ${result.selectedTimeSlot.maybeVotes} maybe, ${result.selectedTimeSlot.noVotes} no`);
+
+          // TODO: Send notification to members about selected time
+        } else {
+          console.error(`[Time Selection] ❌ Failed to select time for ${itinerary.id}: ${result.error}`);
+        }
+      } catch (itineraryError: any) {
+        console.error(`[Time Selection] Error processing itinerary ${itinerary.id}:`, itineraryError);
+        // Continue with next itinerary
+      }
+    }
+
+    console.log('[Time Selection] Finished checking for time selections');
+  } catch (error: any) {
+    console.error('[Time Selection] Error in checkAndSelectTimeSlots:', error);
+  }
+}
+
+/**
+ * Check pending auto-scheduled events and auto-approve those with high confidence
+ * Runs hourly to automatically approve events that meet the confidence threshold
+ */
+async function checkAndAutoApproveEvents() {
+  try {
+    console.log('[Auto-Approval] Checking for high-confidence events to auto-approve...');
+
+    // Get all pending_approval events with confidence scores
+    const pendingEvents = await db
+      .select()
+      .from(autoScheduledEvents)
+      .where(eq(autoScheduledEvents.status, 'pending_approval'));
+
+    if (pendingEvents.length === 0) {
+      console.log('[Auto-Approval] No pending events found');
+      return;
+    }
+
+    console.log(`[Auto-Approval] Found ${pendingEvents.length} pending event(s)`);
+
+    for (const event of pendingEvents) {
+      try {
+        // Check if event has high confidence (≥80%)
+        const confidence = event.confidenceScore || 0;
+        const group = await storage.getGroup(event.groupId);
+
+        if (!group) {
+          console.log(`[Auto-Approval] Skipping event ${event.id}: group not found`);
+          continue;
+        }
+
+        // Get group's confidence threshold (default 80%)
+        const threshold = group.confidenceThreshold || 80;
+
+        if (confidence < threshold) {
+          console.log(`[Auto-Approval] Skipping event ${event.id}: confidence ${confidence}% < threshold ${threshold}%`);
+          continue;
+        }
+
+        // Check if automation is paused for this group
+        if (group.automationPaused) {
+          console.log(`[Auto-Approval] Skipping event ${event.id}: automation paused for group ${group.name}`);
+          continue;
+        }
+
+        console.log(`[Auto-Approval] 🤖 Auto-approving event ${event.id} for group ${group.name} (confidence: ${confidence}%)`);
+
+        // Auto-approve the event using shared logic
+        const { approveAndCreateItinerary } = await import('./auto-approval');
+        const result = await approveAndCreateItinerary(event.id, null, 'auto');
+
+        if (result.success) {
+          console.log(`[Auto-Approval] ✅ Successfully auto-approved event ${event.id}`);
+
+          // Send invites for the auto-approved itinerary
+          if (result.itinerary) {
+            await sendInitialInvites(result.itinerary, group);
+            console.log(`[Auto-Approval] 📧 Invites sent for event ${event.id}`);
+          }
+        } else {
+          console.error(`[Auto-Approval] ❌ Failed to auto-approve event ${event.id}: ${result.error}`);
+        }
+      } catch (eventError: any) {
+        console.error(`[Auto-Approval] Error processing event ${event.id}:`, eventError);
+        // Continue with next event even if this one fails
+      }
+    }
+
+    console.log('[Auto-Approval] Finished checking for auto-approvals');
+  } catch (error: any) {
+    console.error('[Auto-Approval] Error in checkAndAutoApproveEvents:', error);
+  }
+}
+
 // Run every 5 minutes for reminders, once per day for auto-scheduling
 export function startReminderScheduler(): void {
   const REMINDER_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
   const AUTO_SCHEDULE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
   const AUTO_SEND_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+  const AUTO_APPROVAL_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
   console.log('Starting reminder scheduler...');
 
@@ -831,6 +974,49 @@ export function startReminderScheduler(): void {
       console.error('Error in scheduled auto-send:', err);
     });
   }, AUTO_SEND_INTERVAL_MS);
+
+  // Run auto-approval check immediately and every hour (async, non-blocking)
+  checkAndAutoApproveEvents().catch(err => {
+    console.error('Error in initial auto-approval check:', err);
+  });
+  setInterval(() => {
+    checkAndAutoApproveEvents().catch(err => {
+      console.error('Error in scheduled auto-approval check:', err);
+    });
+  }, AUTO_APPROVAL_INTERVAL_MS);
+
+  // Run time slot selection immediately and daily (async, non-blocking)
+  checkAndSelectTimeSlots().catch(err => {
+    console.error('Error in initial time selection check:', err);
+  });
+  setInterval(() => {
+    checkAndSelectTimeSlots().catch(err => {
+      console.error('Error in scheduled time selection check:', err);
+    });
+  }, AUTO_SCHEDULE_INTERVAL_MS); // Run daily, same as auto-scheduling
+
+  // Run weekly swipe digest (checks every day, only runs on Monday)
+  const processWeeklySwipeDigest = async () => {
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
+
+    // Only run on Mondays
+    if (dayOfWeek === 1) {
+      const { processWeeklyDigests } = await import('./swipe-digest-worker');
+      processWeeklyDigests().catch(err => {
+        console.error('Error in weekly swipe digest:', err);
+      });
+    }
+  };
+
+  processWeeklySwipeDigest().catch(err => {
+    console.error('Error in initial weekly digest check:', err);
+  });
+  setInterval(() => {
+    processWeeklySwipeDigest().catch(err => {
+      console.error('Error in scheduled weekly digest:', err);
+    });
+  }, AUTO_SCHEDULE_INTERVAL_MS); // Check daily, runs only on Mondays
 
   console.log('Reminder scheduler started successfully');
 }

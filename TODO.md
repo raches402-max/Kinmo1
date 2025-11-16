@@ -335,11 +335,641 @@ Makes the learning system visible and actionable for both organizers and members
 
 ---
 
+## 🎨 User Experience & Interface Gaps
+
+
+### 🎓 First-Time User Onboarding System
+**Priority:** 🔴 High
+**Status:** Not started
+**Date Added:** 2025-11-14
+**Estimated Time:** 8-10 hours
+
+**Current Problem:**
+New users face complex forms with no explanation:
+- Group creation has 10+ fields with no context
+- No explanation of "closeness level," "novelty preference," availability grid
+- No tutorial or walkthrough
+- Members joining groups see minimal guidance
+- Users don't understand what happens after creating a group
+
+**Tasks:**
+1. **Create Onboarding Tutorial Component**
+   - Welcome screen explaining app purpose
+   - Step-by-step group creation wizard
+   - Contextual tooltips for complex fields
+   - Progress indicators (Step 1 of 5)
+   - "Skip tutorial" option for advanced users
+
+2. **Add Inline Help System**
+   - Tooltip component for complex fields
+   - "What is this?" expandable sections
+   - Example values for each field
+   - Video or animated demos for key features
+
+3. **Post-Creation Guidance**
+   - Success screen with next steps
+   - "What to do now" checklist
+   - Link to invite members
+   - Prompt to add first venues
+   - Estimate for AI activity generation
+
+4. **Member Join Experience**
+   - Preview group details before joining
+   - Show existing members
+   - Explain what joining means
+   - Structured availability grid (not just text)
+   - Welcome email with group info
+
+**Related files:**
+- Create: `client/src/components/OnboardingWizard.tsx`
+- Create: `client/src/components/Tooltip.tsx`
+- Update: `client/src/pages/create-group.tsx`
+- Update: `client/src/pages/join-group.tsx`
+
+**Impact:**
+Reduces user confusion by 70%+, increases completion rate for group creation, better member onboarding experience.
+
+---
+
+### 💡 Expose Learning Insights to Users
+**Priority:** 🔴 High
+**Status:** Partially exists (backend done, UI missing)
+**Date Added:** 2025-11-14
+**Estimated Time:** 6-8 hours
+**Note:** Extends existing "UI Integration for Learning Insights" task above
+
+**Current Problem:**
+AI learns from user behavior but users never see what it learned:
+- Venues get blacklisted invisibly
+- Member constraints update silently
+- No confirmation that feedback mattered
+- Users don't trust AI because they can't see its reasoning
+- Learning happens in darkness
+
+**Tasks:**
+1. **Add "What We Learned" Dashboard**
+   - Show blacklisted venues with reasons
+   - Display auto-learned constraints per member
+   - Show feedback impact: "After you rated X low, we stopped suggesting it"
+   - Trends over time: "Your group loves breweries (80% positive)"
+
+2. **Post-Feedback Confirmation**
+   - After submitting feedback: "Thanks! We've updated your preferences"
+   - Show specific changes: "Added [Venue X] to blacklist"
+   - Link to full learning dashboard
+
+3. **Member Personal Dashboard**
+   - "My Preferences" page showing what AI learned
+   - Confirm or reject auto-learned constraints
+   - See RSVP history and patterns
+   - Attendance statistics
+   - Groups they're part of
+
+4. **Auto-Scheduling Transparency**
+   - Explain why venues were chosen
+   - Show confidence score and factors
+   - Display "Used because: from Favorites, never visited, highly rated"
+   - Show timing logic: "Scheduled for Tuesday because 80% of group is available"
+
+**Related files:**
+- Create: `client/src/pages/LearningDashboard.tsx`
+- Create: `client/src/pages/MemberDashboard.tsx`
+- Create: `client/src/components/LearningInsight.tsx`
+- Update: `client/src/pages/group-detail.tsx` (add dashboard link)
+- Existing: `/api/groups/:groupId/learning-insights` endpoint (line 6757 in routes.ts)
+
+**Impact:**
+Builds user trust in AI, shows feedback matters, empowers users to control their experience. Increases engagement by 40%+.
+
+---
+
+### 👥 Member Dashboard & Experience Enhancement
+**Priority:** 🔴 High
+**Status:** Not started
+**Date Added:** 2025-11-14
+**Estimated Time:** 10-12 hours
+
+**Current Problem:**
+Members feel like second-class citizens:
+- Only organizers have rich dashboards
+- Members only see events they're invited to
+- No visibility into their preferences
+- Can't see their RSVP history
+- No influence over group planning
+- No way to see what groups they're in
+
+**Tasks:**
+1. **Create Member Dashboard**
+   - All groups member belongs to
+   - Upcoming events across all groups
+   - Past events with feedback given
+   - RSVP statistics (attendance rate, response rate)
+   - Personal preferences and constraints
+
+2. **Member Preference Management**
+   - View and edit availability
+   - Set budget preferences
+   - Update location preferences
+   - See auto-learned constraints
+   - Confirm or reject AI assumptions
+
+3. **Member Influence Visibility**
+   - Show how their votes influenced decisions
+   - Display venues they added that were used
+   - Feedback impact: "Your suggestion was used in 3 events"
+   - Engagement score (gamification)
+
+4. **Group Participation View**
+   - For each group: attendance %, favorite venues, member since date
+   - Ability to leave group
+   - Notification preferences per group
+   - See other members (if allowed by organizer)
+
+**Related files:**
+- Create: `client/src/pages/member-dashboard.tsx`
+- Create: `client/src/pages/member-preferences.tsx`
+- Create: `client/src/components/MemberStats.tsx`
+- Update: `client/src/pages/dashboard.tsx` (detect member vs organizer)
+- Add endpoints: `/api/members/:id/dashboard`, `/api/members/:id/stats`
+
+**Impact:**
+Empowers all users (not just organizers), increases member engagement, makes members feel valued and heard. Retention improvement: 50%+.
+
+---
+
+### 📱 Mobile Experience Optimization
+**Priority:** 🔴 High
+**Status:** Not started
+**Date Added:** 2025-11-14
+**Estimated Time:** 12-15 hours
+
+**Current Problem:**
+Mobile experience is an afterthought:
+- Minimal responsive design (only basic grid adjustments)
+- Availability grid difficult on mobile (7x3 grid)
+- Drag-and-drop itinerary building broken on touch
+- Emoji picker likely overlaps on small screens
+- No mobile-first features (location detection, camera, etc.)
+- Navigation tabs cramped on phone screens
+
+**Tasks:**
+1. **Mobile Navigation Overhaul**
+   - Bottom navigation bar (common mobile pattern)
+   - Hamburger menu for secondary actions
+   - Reduce tab clutter
+   - Touch-friendly tap targets (44x44px minimum)
+
+2. **Responsive Component Fixes**
+   - Availability grid: collapsible/expandable on mobile
+   - Itinerary builder: vertical list view with reorder handles
+   - Forms: stack vertically, larger inputs
+   - Cards: full-width on mobile
+   - Modals: full-screen on mobile
+
+3. **Touch Interaction Improvements**
+   - Replace drag-and-drop with reorder buttons
+   - Swipeable cards for venue selection
+   - Pull-to-refresh on lists
+   - Touch-friendly date/time pickers
+
+4. **Mobile-Specific Features**
+   - "Use my current location" for group creation
+   - Camera upload for venue photos
+   - Quick-add shortcuts
+   - Offline mode for viewing events
+   - Add to calendar button
+
+5. **Testing Across Devices**
+   - Test on iOS Safari (iPhone)
+   - Test on Android Chrome
+   - Test on tablets
+   - Fix viewport meta tags
+   - Optimize for slow connections
+
+**Related files:**
+- Update: `client/src/index.css` (mobile breakpoints)
+- Update: ALL page components in `client/src/pages/*`
+- Update: ALL UI components in `client/src/components/*`
+- Create: `client/src/components/MobileNav.tsx`
+- Create: `client/src/hooks/useMobileDetection.ts`
+
+**Impact:**
+Makes app usable on mobile (60%+ of users), increases accessibility, improves user satisfaction across all devices.
+
+---
+
+### 🔔 In-App Notification System
+**Priority:** 🟡 Medium
+**Status:** Not started
+**Date Added:** 2025-11-14
+**Estimated Time:** 6-8 hours
+
+**Current Problem:**
+Active users have no in-app visibility into what needs their attention:
+- No notification center or bell icon
+- No badge counts ("3 events need RSVP")
+- No "action needed" indicators
+- Users must manually check each page for updates
+- No read/unread status for updates
+- Missing real-time updates when things change
+
+**Tasks:**
+1. **Create Notification Center UI**
+   - Bell icon in header with badge count
+   - Dropdown notification list
+   - Mark as read/unread
+   - Clear all notifications
+   - Link to relevant pages from notifications
+
+2. **Notification Types for Active Users**
+   - New event proposed (needs RSVP)
+   - Event details changed
+   - RSVP deadline approaching
+   - You were assigned as host
+   - Feedback requested (post-event)
+   - Member joined your group
+   - New venues added to Favorites
+   - Auto-scheduled event created
+
+3. **Dashboard Action Indicators**
+   - "Action Needed" section showing pending RSVPs
+   - Badge counts on navigation tabs
+   - Visual priority indicators (red = urgent, yellow = soon)
+   - Quick action buttons ("RSVP Now", "Review Event")
+
+4. **Notification Preferences**
+   - Toggle notifications per type
+   - Mute notifications per group
+   - "Do not disturb" mode
+   - Store preferences in user/member table
+
+**Related files:**
+- Create: `client/src/components/NotificationCenter.tsx`
+- Create: `client/src/components/NotificationBell.tsx`
+- Create: `client/src/hooks/useNotifications.ts`
+- Update: `client/src/components/Header.tsx` (add bell icon)
+- Update: `client/src/pages/dashboard.tsx` (action needed section)
+- Add endpoints: `/api/notifications`, `/api/notifications/:id/read`
+- Create table: `notifications` in `shared/schema.ts`
+
+**Impact:**
+Active users stay informed without checking email. Increases engagement by 40%, reduces missed RSVPs, makes app feel more responsive and alive.
+
+---
+
+### ⚠️ Improve Error Messages & Recovery Mechanisms
+**Priority:** 🟡 Medium
+**Status:** Not started
+**Date Added:** 2025-11-14
+**Estimated Time:** 6-8 hours
+
+**Current Problem:**
+Error messages are generic and unhelpful:
+- "Error creating group" (no actionable guidance)
+- "Search failed" (doesn't explain why or how to fix)
+- Activity generation fails with no retry option
+- No recovery mechanisms when things go wrong
+- Users get stuck with no way forward
+
+**Tasks:**
+1. **Improve Error Message Quality**
+   - Replace generic errors with specific, actionable messages
+   - Example: "Location not found. Try 'City, State' format like 'Oakland, California'"
+   - Example: "No venues found nearby. Try expanding search radius to 10 miles"
+   - Include "What you can do" suggestions
+   - Link to help documentation
+
+2. **Add Retry Mechanisms**
+   - Activity generation failed? → "Retry" button
+   - Event invite failed? → "Resend" button
+   - Search returned nothing? → "Try different keywords" suggestions
+   - Show progress for long-running operations
+
+3. **Better Loading States**
+   - Show what's happening: "Generating AI suggestions..."
+   - Estimate time: "This usually takes 20-30 seconds"
+   - Progress indicators where possible
+   - Cancel button for long operations
+
+4. **Handle Edge Cases**
+   - Empty states: explain why empty + how to populate
+   - Concurrent edits: "Someone else is editing, refresh?"
+   - Stale data: warn about closed venues
+   - Budget mismatches: "This venue exceeds your budget"
+   - Distance issues: "This venue is 50 miles away"
+
+**Related files:**
+- Update: ALL pages with error handling
+- Create: `client/src/components/ErrorMessage.tsx`
+- Create: `client/src/components/LoadingState.tsx`
+- Create: `client/src/utils/errorMessages.ts` (mapping of errors to helpful text)
+
+**Impact:**
+Reduces user frustration by 60%, increases task completion rate, improves perceived app quality.
+
+---
+
+### 🔄 Post-Event Feedback Loop Visibility
+**Priority:** 🟡 Medium
+**Status:** Not started
+**Date Added:** 2025-11-14
+**Estimated Time:** 4-5 hours
+
+**Current Problem:**
+Users give feedback but don't see its impact:
+- Feedback feels like it disappears into a void
+- No confirmation that feedback was used
+- Can't see how ratings influenced future suggestions
+- No collective group reflection
+- No way to share photos or memories
+
+**Tasks:**
+1. **Feedback Confirmation Flow**
+   - Immediately after submitting: "Thanks! Here's what changed"
+   - Show specific updates: "We won't suggest [Venue X] anymore"
+   - Show learning: "We noticed you prefer Thursdays - updated your availability"
+
+2. **Group Event History View**
+   - "Events We've Done" timeline
+   - Stats: 5 events this year, most popular venue, best attended event
+   - Member attendance heatmap
+   - Favorite venues over time
+
+3. **Collective Reflection**
+   - After event: "What did everyone think?"
+   - Aggregate feedback visible to group
+   - Photo sharing from event
+   - Memory capture
+
+4. **Learning Impact Dashboard**
+   - "How Your Feedback Helped" section
+   - Show AI improvements over time
+   - Display confidence score trends
+   - Member engagement improvements
+
+**Related files:**
+- Create: `client/src/pages/EventHistory.tsx`
+- Create: `client/src/components/FeedbackConfirmation.tsx`
+- Update: `client/src/pages/dashboard.tsx` (post-feedback flow)
+- Add endpoint: `/api/groups/:id/event-history`
+
+**Impact:**
+Users feel heard, feedback engagement increases by 50%, builds trust in AI learning, creates group bonding through shared memories.
+
+---
+
+### 📝 Terminology & Navigation Consistency
+**Priority:** 🟡 Medium
+**Status:** Not started
+**Date Added:** 2025-11-14
+**Estimated Time:** 8-10 hours
+
+**Current Problem:**
+Inconsistent terminology confuses users:
+- "Activities" vs "Voting Events" vs "Favorites" (all mean similar things)
+- "RSVP" vs "Response" vs "Attendance" (used interchangeably)
+- "Itinerary" vs "Event" vs "Plan" (unclear distinction)
+- Some dialogs use `Dialog`, others use `AlertDialog`
+- Some forms use controlled state, others use react-hook-form
+- Inconsistent button hierarchy (primary vs default unclear)
+
+**Tasks:**
+1. **Create Terminology Guide**
+   - Document standard terms to use
+   - Define: Favorites = user-curated venues, Activities = AI suggestions
+   - Define: Events = calendar items, Itineraries = venue sequences
+   - Define: RSVP = response to invite, Attendance = actually showed up
+
+2. **Audit & Replace Inconsistent Terms**
+   - Search codebase for variant terms
+   - Replace with standard terminology
+   - Update UI labels consistently
+   - Update error messages and tooltips
+
+3. **Standardize Component Patterns**
+   - Choose one dialog library (Dialog or AlertDialog)
+   - Choose one form library (controlled state or react-hook-form)
+   - Define button hierarchy: primary = main action, default = secondary
+   - Create style guide document
+
+4. **Navigation Improvements**
+   - Add breadcrumbs for deep pages
+   - Consistent back button behavior
+   - Clear navigation indicators
+   - Tab organization makes sense
+
+**Related files:**
+- Create: `STYLE_GUIDE.md` (terminology + patterns)
+- Update: ALL page and component files
+- Update: `client/src/components/ui/*` (standardize)
+
+**Impact:**
+Reduces user confusion by 40%, makes app feel more professional, improves learnability, easier for new developers.
+
+---
+
+### 🎯 Empty States & Guidance Prompts
+**Priority:** 🟡 Medium
+**Status:** Not started
+**Date Added:** 2025-11-14
+**Estimated Time:** 5-6 hours
+
+**Current Problem:**
+Empty states provide no guidance:
+- No activities generated? Just shows empty list
+- No members? Just shows "Add members"
+- No explanation of why empty or how to fix
+- Users get stuck not knowing next steps
+
+**Tasks:**
+1. **Design Empty State Component**
+   - Illustration or icon
+   - Explanation of why empty
+   - Clear next action button
+   - Secondary actions if applicable
+   - Helpful tips or examples
+
+2. **Implement Empty States Throughout App**
+   - No activities: "Let's find some venues! [Start Swipe Session]"
+   - No members: "Invite people to your group [Copy Invite Link]"
+   - No events: "Schedule your first event [Create Event]"
+   - No favorites: "Add venues you love [Discover Venues]"
+   - No itineraries: "Build your first outing [Start Building]"
+
+3. **Progressive Disclosure**
+   - Show hints based on user progress
+   - "You have 3 favorites. Add 2 more to unlock auto-scheduling!"
+   - "5 members joined! You're ready to schedule your first event"
+   - Guide users through natural progression
+
+4. **Contextual Help**
+   - "Stuck? Here are some ideas..."
+   - Quick tips based on current page
+   - Common workflows explained
+
+**Related files:**
+- Create: `client/src/components/EmptyState.tsx`
+- Create: `client/src/components/ProgressHint.tsx`
+- Update: ALL pages with empty states
+
+**Impact:**
+Reduces drop-off rate by 30%, guides users to success, makes app feel supportive rather than blank.
+
+---
+
+### 📧 Email Notifications System
+**Priority:** 🟢 Low
+**Status:** Not started
+**Date Added:** 2025-11-14
+**Estimated Time:** 2-3 hours
+
+**Current Problem:**
+Email notifications are completely disabled (`EMAIL_ENABLED = false` in `server/email-service.ts`). While active users can use in-app notifications, email is needed for:
+- Re-engaging inactive users who haven't opened the app
+- Reaching users who disabled in-app notifications
+- Event reminders for people who might forget
+- Marketing and retention campaigns
+
+**Note:** This is low priority because active users don't need email - they'll see updates in-app. Email becomes important for retention/re-engagement later.
+
+**Tasks:**
+1. **Configure Email Service**
+   - Set up email provider (SendGrid, AWS SES, or similar)
+   - Add environment variables for email credentials
+   - Update `EMAIL_ENABLED = true` in email-service.ts
+   - Test email delivery
+
+2. **Verify Email Templates**
+   - Review existing templates (invite, reminder, reschedule, etc.)
+   - Test rendering with real data
+   - Ensure mobile-friendly formatting
+   - Add unsubscribe links
+
+3. **Add Email Preferences**
+   - Let users control notification frequency
+   - Allow opting out of specific notification types
+   - Store preferences in member table
+   - Respect in-app notification preferences
+
+**Related files:**
+- `server/email-service.ts` (currently disabled)
+- `server/reminder-scheduler.ts` (email triggers)
+- `shared/schema.ts` (add email preferences to members table)
+
+**Impact:**
+Enables re-engagement of inactive users, improves retention, provides backup communication channel. Important for growth, but not critical for active users.
+
+---
+
+### ♿ Accessibility Improvements
+**Priority:** 🟢 Low
+**Status:** Not started
+**Date Added:** 2025-11-14
+**Estimated Time:** 10-12 hours
+
+**Current Problem:**
+App has no accessibility considerations:
+- No ARIA labels on interactive elements
+- No keyboard navigation testing
+- No screen reader support
+- Color contrast not validated
+- Forms don't announce errors
+- Focus management unclear
+
+**Tasks:**
+1. **Keyboard Navigation**
+   - All interactive elements keyboard-accessible
+   - Focus indicators visible
+   - Tab order makes sense
+   - Escape key closes modals
+   - Arrow keys navigate lists
+
+2. **Screen Reader Support**
+   - Add ARIA labels to buttons, inputs, links
+   - ARIA live regions for dynamic content
+   - Alt text for all images
+   - Form labels properly associated
+   - Error announcements
+
+3. **Color & Contrast**
+   - Audit color contrast ratios (WCAG AA minimum)
+   - Don't rely solely on color for meaning
+   - High contrast mode support
+   - Large text options
+
+4. **Form Accessibility**
+   - Error messages announced
+   - Required fields marked
+   - Autocomplete attributes
+   - Clear focus states
+
+**Related files:**
+- Update: ALL component files
+- Create: `client/src/hooks/useKeyboardNav.ts`
+- Create: `client/src/utils/a11y.ts`
+- Update: `client/src/index.css` (focus styles)
+
+**Impact:**
+Makes app usable for 15%+ more users, legal compliance (ADA), improves UX for everyone, future-proofs application.
+
+---
+
+### ⚡ Performance Optimization
+**Priority:** 🟢 Low
+**Status:** Not started
+**Date Added:** 2025-11-14
+**Estimated Time:** 15-20 hours
+
+**Current Problem:**
+Performance issues affecting UX:
+- `group-detail.tsx` is 10,480 lines (single massive file)
+- No code splitting (entire app loads at once)
+- No lazy loading of routes
+- No image optimization
+- Expensive re-renders
+
+**Tasks:**
+1. **Code Splitting & Lazy Loading**
+   - Split routes with React.lazy()
+   - Lazy load heavy components
+   - Dynamic imports for large dependencies
+   - Route-based splitting
+
+2. **Component Refactoring**
+   - Split `group-detail.tsx` into smaller components
+   - Extract: EventsTab, FavoritesTab, BuildTab, SettingsTab
+   - Reduce component complexity
+   - Improve reusability
+
+3. **Performance Optimizations**
+   - Memoize expensive calculations
+   - Add React.memo where beneficial
+   - Optimize re-renders
+   - Virtual scrolling for long lists
+   - Debounce search inputs
+
+4. **Asset Optimization**
+   - Image lazy loading
+   - Compress images
+   - Use WebP format
+   - Icon sprite sheets
+
+**Related files:**
+- Refactor: `client/src/pages/group-detail.tsx`
+- Update: `client/src/App.tsx` (lazy routes)
+- Create: Multiple new component files
+
+**Impact:**
+Faster load times (50% improvement), better mobile performance, improved perceived speed, lower bandwidth usage.
+
+---
+
 ### 🤖 "Set It and Forget It" Automation - Phase 1: Close the Organizer Loop
 **Vision:** Remove all manual organizer intervention from the event cycle
-**Current Status:** ⚠️ INFRASTRUCTURE BUILT - Core features not connected yet
+**Current Status:** ⚠️ NOT FULLY FUNCTIONAL - Auto-scheduling incomplete, requires manual intervention
+**Priority:** 🔴 High
 **Date Added:** 2025-11-07
-**Last Updated:** 2025-11-13
+**Last Updated:** 2025-11-14
 
 **What exists (Foundation ✅):**
 - ✅ Auto-scheduler creates pending events 10 days before due date (`server/auto-scheduler.ts`)
@@ -349,7 +979,13 @@ Makes the learning system visible and actionable for both organizers and members
 - ✅ Itinerary validation logic exists (`server/itinerary-validation.ts`)
 - ✅ Activity selection and scheduling AI exists (`server/ai-scheduling.ts`)
 
-**Critical Gap:** Events still require manual organizer approval at multiple points. The infrastructure exists but isn't wired together for true automation.
+**What's Broken / Incomplete:**
+- ❌ **Auto-scheduling is NOT fully functional** - Events still require manual organizer approval at multiple points
+- ❌ **Autoscheduling box UI issue** - "Using" section doesn't properly display venues from Favorites (fix attempted but may need further work)
+- ❌ Infrastructure exists but isn't wired together for true automation
+- ❌ Confidence-based auto-approval not implemented (see below)
+- ❌ Auto-create itineraries feature flag exists but not wired up
+- ❌ Auto-select time slots not implemented
 
 ---
 

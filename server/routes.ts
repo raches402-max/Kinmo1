@@ -7057,6 +7057,115 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Get auto-schedule queue with AI validation
+  app.get("/api/groups/:groupId/auto-schedule-queue", async (req, res) => {
+    try {
+      const { generateAutoScheduleQueue } = await import("./smart-event-pairing");
+      const queue = await generateAutoScheduleQueue(req.params.groupId, storage);
+      res.json(queue);
+    } catch (error: any) {
+      console.error('[Auto-Schedule Queue] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Regenerate a queue event with different Favorites
+  app.post("/api/groups/:groupId/auto-schedule-queue/regenerate", isAuthenticated, requireGroupOwnership(), async (req: any, res) => {
+    try {
+      const { groupId } = req.params;
+      const { eventId } = req.body;
+
+      if (!eventId) {
+        return res.status(400).json({ message: "eventId is required" });
+      }
+
+      console.log('[Regenerate Queue] Regenerating event:', eventId);
+
+      // Get the current queue to extract venues to exclude
+      const { generateAutoScheduleQueue, regenerateQueueEvent } = await import("./smart-event-pairing");
+      const currentQueue = await generateAutoScheduleQueue(groupId, storage);
+
+      // Find the event being regenerated and extract its venue IDs
+      const currentEvent = currentQueue.events.find(e => e.id === eventId);
+      const excludeVenueIds = currentEvent?.venues.map(v => v.sourceId) || [];
+
+      console.log('[Regenerate Queue] Excluding venue IDs:', excludeVenueIds);
+
+      // Regenerate the event
+      const newEvent = await regenerateQueueEvent(groupId, eventId, excludeVenueIds, storage);
+
+      if (!newEvent) {
+        return res.status(500).json({ message: 'Failed to regenerate event' });
+      }
+
+      // Return updated queue with the new event replacing the old one
+      const updatedEvents = currentQueue.events.map(e =>
+        e.id === eventId ? newEvent : e
+      );
+
+      res.json({ events: updatedEvents });
+    } catch (error: any) {
+      console.error('[Regenerate Queue] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Approve a queue event and create an itinerary
+  app.post("/api/groups/:groupId/auto-schedule-queue/approve", isAuthenticated, requireGroupOwnership(), async (req: any, res) => {
+    try {
+      const { groupId } = req.params;
+      const userId = req.user.id;
+      const { queueEvent } = req.body; // Full queue event from frontend
+
+      if (!queueEvent || !queueEvent.venues || queueEvent.venues.length === 0) {
+        return res.status(400).json({ message: "Invalid queue event data" });
+      }
+
+      console.log('[Approve Queue] Creating itinerary from queue event:', queueEvent.id);
+
+      // Generate name for the itinerary
+      const { generateItineraryName } = await import("./ai-itinerary-naming");
+      const group = await storage.getGroup(groupId);
+      const itineraryName = await generateItineraryName(
+        queueEvent.venues.map((v: any) => ({ name: v.venueName, type: v.venueType })),
+        group?.location || 'San Francisco'
+      );
+
+      // Create proposed order (just the order they appear in the queue)
+      const proposedOrder = queueEvent.venues.map((v: any) => v.sourceId);
+
+      // Create the itinerary
+      const itinerary = await storage.createItinerary(
+        {
+          groupId,
+          name: itineraryName,
+          status: 'proposed',
+          eventDate: new Date(queueEvent.scheduledDate),
+          aiValidationNotes: `Auto-generated from queue. AI validation score: ${queueEvent.aiValidationScore}/100. ${queueEvent.aiValidationReasoning}`,
+          proposedOrder,
+        },
+        userId,
+        queueEvent.venues.map((venue: any) => ({
+          sourceType: venue.sourceType,
+          sourceId: venue.sourceId,
+        }))
+      );
+
+      console.log('[Approve Queue] Created itinerary:', itinerary.id);
+
+      // Fetch full itinerary with items
+      const fullItinerary = await storage.getItinerary(itinerary.id);
+
+      res.json({
+        itinerary: fullItinerary,
+        message: 'Event approved and added to proposed itineraries',
+      });
+    } catch (error: any) {
+      console.error('[Approve Queue] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Create an RSVP for an itinerary
   app.post("/api/itineraries/:id/rsvps", async (req, res) => {
     try {
@@ -8297,57 +8406,18 @@ Looking forward to planning great activities together!
         return res.status(403).json({ message: "Only the group owner can select an option" });
       }
 
-      // Verify option exists and belongs to this event
-      const { itineraryOptions: itineraryOptionsTable } = await import('../shared/schema');
-      const [option] = await db
-        .select()
-        .from(itineraryOptionsTable)
-        .where(eq(itineraryOptionsTable.id, optionId));
+      // Use the shared approval logic
+      const { approveAndCreateItinerary } = await import('./auto-approval');
+      const result = await approveAndCreateItinerary(eventId, optionId, 'manual');
 
-      if (!option || option.autoEventId !== eventId) {
-        return res.status(404).json({ message: "Invalid option" });
+      if (!result.success) {
+        return res.status(400).json({ message: result.error || 'Failed to approve option' });
       }
-
-      // Update the auto event with the selected option
-      await storage.updateAutoScheduledEvent(eventId, {
-        selectedOptionId: optionId,
-      });
-
-      // Extract venue information from the selected option
-      const venues = option.venues as Array<{
-        sourceType: 'activity' | 'voting_event';
-        sourceId: string;
-        venueName: string;
-        badges: string[];
-      }>;
-
-      // Create itinerary items for the selected venues
-      const itinerary = await storage.createItinerary({
-        groupId: event.groupId,
-        name: `Auto-scheduled event for ${group.name}`,
-        date: event.scheduledDate,
-      });
-
-      // Add venues to the itinerary
-      for (let i = 0; i < venues.length; i++) {
-        const venue = venues[i];
-        await storage.createItineraryItem({
-          itineraryId: itinerary.id,
-          sourceType: venue.sourceType,
-          sourceId: venue.sourceId,
-          order: i,
-        });
-      }
-
-      // Update the event with the itinerary ID
-      await storage.updateAutoScheduledEvent(eventId, {
-        itineraryId: itinerary.id,
-      });
 
       res.json({
         success: true,
         message: "Option selected",
-        itinerary,
+        itinerary: result.itinerary,
       });
     } catch (error: any) {
       console.error('[Select Option] Error:', error);

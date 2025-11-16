@@ -50,6 +50,13 @@
       "when": 1763094222068,
       "tag": "0006_busy_thundra",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1763229571524,
+      "tag": "0007_natural_living_lightning",
+      "breakpoints": true
     }
   ]
 }

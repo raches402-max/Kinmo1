@@ -58,6 +58,136 @@ function generateVenueBadges(
 }
 
 /**
+ * Generate Google Maps URL from venue data
+ */
+function generateGoogleMapsUrl(googlePlaceId?: string | null, venueName?: string | null, venueAddress?: string | null): string | null {
+  if (googlePlaceId) {
+    return `https://www.google.com/maps/place/?q=place_id:${googlePlaceId}`;
+  } else if (venueName && venueAddress) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${venueName}, ${venueAddress}`)}`;
+  }
+  return null;
+}
+
+/**
+ * Smart venue ordering: arranges venues in logical flow
+ * Priority order: meal → drinks → dessert/cafe
+ * This ensures dinner comes before ice cream, etc.
+ */
+function orderVenuesLogically<T extends {
+  category?: string | null;
+  venueType?: string | null;
+  name?: string;
+}>(venues: T[]): T[] {
+  if (venues.length <= 1) return venues;
+
+  // Assign priority to each venue type (lower = earlier in sequence)
+  const getPriority = (venue: T): number => {
+    const category = venue.category?.toLowerCase() || '';
+    const venueType = venue.venueType?.toLowerCase() || '';
+
+    // Meals/restaurants first (priority 1)
+    if (category === 'meal' ||
+        venueType.includes('restaurant') ||
+        venueType.includes('dining') ||
+        venueType.includes('food')) {
+      return 1;
+    }
+
+    // Drinks/bars second (priority 2)
+    if (category === 'drinks' ||
+        venueType.includes('bar') ||
+        venueType.includes('brewery') ||
+        venueType.includes('pub') ||
+        venueType.includes('wine') ||
+        venueType.includes('cocktail')) {
+      return 2;
+    }
+
+    // Dessert/cafes/ice cream last (priority 3)
+    if (category === 'dessert' ||
+        category === 'cafes' ||
+        venueType.includes('dessert') ||
+        venueType.includes('ice cream') ||
+        venueType.includes('bakery') ||
+        venueType.includes('cafe') ||
+        venueType.includes('coffee')) {
+      return 3;
+    }
+
+    // Experiences/activities in the middle (priority 1.5)
+    return 1.5;
+  };
+
+  // Sort by priority
+  return [...venues].sort((a, b) => getPriority(a) - getPriority(b));
+}
+
+/**
+ * Select diverse venues ensuring no duplicate categories when possible
+ * Prioritizes high-scoring venues while maintaining category diversity
+ * Example: If top 2 are both "meal", takes #1 and skips to first non-meal venue
+ */
+function selectDiverseVenues<T extends {
+  category?: string | null;
+  venueType?: string | null;
+  [key: string]: any;
+}>(venues: T[], desiredCount: number): T[] {
+  if (venues.length === 0) return [];
+  if (venues.length <= 1) return venues.slice(0, 1);
+  if (desiredCount <= 0) return [];
+  if (desiredCount === 1) return [venues[0]];
+
+  const selected: T[] = [];
+  const usedCategories = new Set<string>();
+
+  // Helper to get effective category
+  const getCategory = (venue: T): string => {
+    if (venue.category) return venue.category.toLowerCase();
+
+    // Fallback to venue type analysis
+    const venueType = venue.venueType?.toLowerCase() || '';
+    if (venueType.includes('restaurant') || venueType.includes('dining') || venueType.includes('food')) {
+      return 'meal';
+    }
+    if (venueType.includes('bar') || venueType.includes('brewery') || venueType.includes('pub')) {
+      return 'drinks';
+    }
+    if (venueType.includes('ice cream') || venueType.includes('dessert') || venueType.includes('bakery')) {
+      return 'dessert';
+    }
+    if (venueType.includes('cafe') || venueType.includes('coffee')) {
+      return 'cafes';
+    }
+    return 'experiences';
+  };
+
+  // First pass: select venues with unique categories
+  for (const venue of venues) {
+    if (selected.length >= desiredCount) break;
+
+    const category = getCategory(venue);
+    if (!usedCategories.has(category)) {
+      selected.push(venue);
+      usedCategories.add(category);
+    }
+  }
+
+  // Second pass: if we haven't filled the desired count, allow duplicates
+  // (Better to have 2 restaurants than only 1 venue total)
+  if (selected.length < desiredCount) {
+    for (const venue of venues) {
+      if (selected.length >= desiredCount) break;
+      if (!selected.includes(venue)) {
+        selected.push(venue);
+      }
+    }
+  }
+
+  return selected;
+}
+
+/**
  * Calculate optimal venue count based on venue categories and time requirements
  * Returns 1-3 venues depending on the types of venues being suggested
  */
@@ -157,6 +287,9 @@ export async function selectBestItineraryForAutoSchedule(
     category?: string | null; // meal, cafes, drinks, dessert, experiences
     timeCategory?: string | null; // quick, standard, large
     venueType?: string | null; // restaurant, bar, etc.
+    rating?: string | null;
+    venueAddress?: string | null;
+    googlePlaceId?: string | null;
   };
 
   const scoredVenues: ScoredVenue[] = [];
@@ -211,6 +344,9 @@ export async function selectBestItineraryForAutoSchedule(
       category: activity.category,
       timeCategory: activity.timeCategory,
       venueType: activity.venueType,
+      rating: activity.rating,
+      venueAddress: activity.venueAddress,
+      googlePlaceId: activity.googlePlaceId,
     });
   }
 
@@ -273,6 +409,9 @@ export async function selectBestItineraryForAutoSchedule(
       category: null, // Voting events don't have category/timeCategory
       timeCategory: null,
       venueType: votingEvent.venueType,
+      rating: votingEvent.rating,
+      venueAddress: votingEvent.venueAddress,
+      googlePlaceId: votingEvent.googlePlaceId,
     });
   }
 
@@ -306,22 +445,29 @@ export async function selectBestItineraryForAutoSchedule(
     const optimalCount = calculateOptimalVenueCount(suitableFavorites.slice(0, 5));
     const finalCount = Math.min(optimalCount, suitableFavorites.length);
 
-    console.log(`[Selection] Creating 1 itinerary with ${finalCount} venues from Favorites`);
+    console.log(`[Selection] Creating 1 itinerary with ${finalCount} diverse venues from Favorites`);
 
-    const selectedFavorites = suitableFavorites.slice(0, finalCount);
+    // Select diverse venues (no duplicate categories when possible)
+    const selectedFavorites = selectDiverseVenues(suitableFavorites, finalCount);
+
+    // Apply smart ordering (dinner before dessert, etc.)
+    const orderedFavorites = orderVenuesLogically(selectedFavorites);
 
     return {
-      selectedVenues: selectedFavorites.map(v => ({
+      selectedVenues: orderedFavorites.map(v => ({
         sourceType: v.type,
         sourceId: v.id,
       })),
       options: [{
         optionNumber: 1,
-        venues: selectedFavorites.map(v => ({
+        venues: orderedFavorites.map(v => ({
           sourceType: v.type,
           sourceId: v.id,
           venueName: v.name,
           badges: ['⭐ From Favorites', ...generateVenueBadges(v.qualityScore, v.visitCount, v.daysSinceLastVisit, v.feedback)],
+          rating: v.rating,
+          venueAddress: v.venueAddress,
+          googleMapsUrl: generateGoogleMapsUrl(v.googlePlaceId, v.name, v.venueAddress),
         })),
         description: 'Created from your Favorites - venues your group already loves',
       }],
@@ -354,10 +500,11 @@ export async function selectBestItineraryForAutoSchedule(
   // Generate up to 3 distinct itinerary options
   const options = [];
 
-  // Option 1: Top-scoring venues (safe bet)
+  // Option 1: Top-scoring venues (safe bet) with category diversity
   const option1Count = calculateOptimalVenueCount(scoredVenues.slice(0, 5)); // Check top 5 for category mix
-  const option1Venues = scoredVenues.slice(0, option1Count);
-  console.log(`[Selection] Option 1: Using ${option1Count} venues (smart count)`);
+  const option1VenuesRaw = selectDiverseVenues(scoredVenues, option1Count); // Ensure category diversity
+  const option1Venues = orderVenuesLogically(option1VenuesRaw); // Apply smart ordering
+  console.log(`[Selection] Option 1: Using ${option1Venues.length} diverse venues`);
 
   options.push({
     optionNumber: 1,
@@ -368,6 +515,9 @@ export async function selectBestItineraryForAutoSchedule(
         sourceId: v.id,
         venueName: v.name,
         badges: [sourceBadge, ...generateVenueBadges(v.qualityScore, v.visitCount, v.daysSinceLastVisit, v.feedback)],
+        rating: v.rating,
+        venueAddress: v.venueAddress,
+        googleMapsUrl: generateGoogleMapsUrl(v.googlePlaceId, v.name, v.venueAddress),
       };
     }),
     description: 'Top Picks - Our highest-rated venues based on your group\'s preferences',
@@ -379,38 +529,37 @@ export async function selectBestItineraryForAutoSchedule(
 
   let option2Venues: ScoredVenue[] = [];
   if (favorites.length > 0 && neverVisited.length > 0) {
-    // Mix favorites with new venues - take 1-2 of each
-    const mixedCandidates = [
-      favorites[0],
-      neverVisited[0],
-    ];
+    // Mix favorites with new venues - build candidate pool
+    const mixedCandidates = [...favorites, ...neverVisited];
+    const option2Count = calculateOptimalVenueCount(mixedCandidates.slice(0, 5));
 
-    // Add one more if optimal count allows
-    const option2Count = calculateOptimalVenueCount(mixedCandidates);
-    if (option2Count >= 2 && (favorites[1] || neverVisited[1])) {
-      mixedCandidates.push(favorites[1] || neverVisited[1]);
-    }
-
-    option2Venues = mixedCandidates.slice(0, Math.min(option2Count + 1, mixedCandidates.length));
+    // Select diverse venues from the mixed pool
+    option2Venues = selectDiverseVenues(mixedCandidates, option2Count);
   } else {
     // Fall back to venues after Option 1
-    const startIdx = option1Count; // Start where Option 1 ended
-    const candidates = scoredVenues.slice(startIdx, startIdx + 5);
-    const option2Count = calculateOptimalVenueCount(candidates);
-    option2Venues = candidates.slice(0, option2Count);
+    const startIdx = option1Venues.length; // Start where Option 1 ended
+    const candidates = scoredVenues.slice(startIdx, startIdx + 10);
+    const option2Count = calculateOptimalVenueCount(candidates.slice(0, 5));
+    option2Venues = selectDiverseVenues(candidates, option2Count);
   }
 
-  console.log(`[Selection] Option 2: Using ${option2Venues.length} venues`);
+  // Apply smart ordering to Option 2
+  const option2VenuesOrdered = orderVenuesLogically(option2Venues);
+
+  console.log(`[Selection] Option 2: Using ${option2VenuesOrdered.length} venues`);
 
   options.push({
     optionNumber: 2,
-    venues: option2Venues.map(v => {
+    venues: option2VenuesOrdered.map(v => {
       const sourceBadge = v.type === 'voting_event' ? '⭐ From Favorites' : '✨ AI Suggestion';
       return {
         sourceType: v.type,
         sourceId: v.id,
         venueName: v.name,
         badges: [sourceBadge, ...generateVenueBadges(v.qualityScore, v.visitCount, v.daysSinceLastVisit, v.feedback)],
+        rating: v.rating,
+        venueAddress: v.venueAddress,
+        googleMapsUrl: generateGoogleMapsUrl(v.googlePlaceId, v.name, v.venueAddress),
       };
     }),
     description: 'Balanced Mix - Familiar favorites plus exciting new spots',
@@ -434,38 +583,43 @@ export async function selectBestItineraryForAutoSchedule(
   let option3Description = '';
 
   if (oldFavorites.length >= 1) {
-    // Revisit old favorites
+    // Revisit old favorites with category diversity
     const option3Count = calculateOptimalVenueCount(oldFavorites.slice(0, 5));
-    option3Venues = oldFavorites.slice(0, option3Count);
+    option3Venues = selectDiverseVenues(oldFavorites, option3Count);
     option3Description = 'Blast from the Past - Revisit venues you loved but haven\'t been to in a while';
   } else if (neverVisitedForOption3.length >= 1) {
-    // New venues NOT in Option 1
+    // New venues NOT in Option 1 with category diversity
     const option3Count = calculateOptimalVenueCount(neverVisitedForOption3.slice(0, 5));
-    option3Venues = neverVisitedForOption3.slice(0, option3Count);
+    option3Venues = selectDiverseVenues(neverVisitedForOption3, option3Count);
     option3Description = 'Adventure Mode - Brand new venues to explore';
   } else {
     // Fall back to venues way down the list (after Options 1 & 2)
-    const startIdx = Math.max(option1Count + option2Venues.length, 6);
-    const candidates = scoredVenues.filter(v => !usedVenueIds.has(v.id)).slice(0, 5);
+    const candidates = scoredVenues.filter(v => !usedVenueIds.has(v.id)).slice(0, 10);
     if (candidates.length >= 1) {
-      const option3Count = calculateOptimalVenueCount(candidates);
-      option3Venues = candidates.slice(0, option3Count);
+      const option3Count = calculateOptimalVenueCount(candidates.slice(0, 5));
+      option3Venues = selectDiverseVenues(candidates, option3Count);
       option3Description = 'Alternative Selection - Great options outside the usual rotation';
     }
   }
 
   // Only add Option 3 if we found distinct venues
   if (option3Venues.length > 0) {
-    console.log(`[Selection] Option 3: Using ${option3Venues.length} venues (${option3Description.split(' - ')[0]})`);
+    // Apply smart ordering to Option 3
+    const option3VenuesOrdered = orderVenuesLogically(option3Venues);
+
+    console.log(`[Selection] Option 3: Using ${option3VenuesOrdered.length} venues (${option3Description.split(' - ')[0]})`);
     options.push({
       optionNumber: 3,
-      venues: option3Venues.map(v => {
+      venues: option3VenuesOrdered.map(v => {
         const sourceBadge = v.type === 'voting_event' ? '⭐ From Favorites' : '✨ AI Suggestion';
         return {
           sourceType: v.type,
           sourceId: v.id,
           venueName: v.name,
           badges: [sourceBadge, ...generateVenueBadges(v.qualityScore, v.visitCount, v.daysSinceLastVisit, v.feedback)],
+          rating: v.rating,
+          venueAddress: v.venueAddress,
+          googleMapsUrl: generateGoogleMapsUrl(v.googlePlaceId, v.name, v.venueAddress),
         };
       }),
       description: option3Description,

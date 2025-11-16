@@ -32,6 +32,8 @@ type Itinerary = {
     venueType: string;
     venueAddress: string;
     photoUrl: string | null;
+    rating: string | null;
+    googleMapsUrl: string | null;
   }>;
   proposedTimeSlots?: Array<{
     id: string;
@@ -451,13 +453,29 @@ export default function RsvpItineraryPage() {
                     )}
                   </div>
                   <div className="flex-1 pb-4">
-                    <h4 className="font-semibold">{item.venueName}</h4>
+                    <div className="flex items-start justify-between gap-2">
+                      <h4 className="font-semibold">{item.venueName}</h4>
+                      {item.rating && (
+                        <span className="text-sm text-muted-foreground shrink-0">⭐ {item.rating}</span>
+                      )}
+                    </div>
                     <p className="text-sm text-muted-foreground">{item.venueType}</p>
                     {item.venueAddress && (
                       <div className="flex items-start gap-1 text-sm text-muted-foreground mt-1">
                         <MapPin className="h-3 w-3 mt-0.5 shrink-0" />
                         <span className="text-xs">{item.venueAddress}</span>
                       </div>
+                    )}
+                    {item.googleMapsUrl && (
+                      <a
+                        href={item.googleMapsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-2"
+                      >
+                        <MapPin className="h-3 w-3" />
+                        Open in Google Maps
+                      </a>
                     )}
                   </div>
                 </div>

@@ -42,7 +42,11 @@
       "Bash(/dev/null)",
       "Bash(timeout 5 curl:*)",
       "Bash(git stash:*)",
-      "Bash(killall:*)"
+      "Bash(killall:*)",
+      "Bash(python3:*)",
+      "Bash(node /tmp/test-queue.js:*)",
+      "Bash(time node:*)",
+      "Bash(node /tmp/test-discover-venues.js:*)"
     ],
     "deny": [],
     "ask": []

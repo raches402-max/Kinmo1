@@ -26,6 +26,9 @@ interface Venue {
   sourceId: string;
   venueName: string;
   badges: string[];
+  rating?: string | null;
+  venueAddress?: string | null;
+  googleMapsUrl?: string | null;
 }
 
 interface Option {
