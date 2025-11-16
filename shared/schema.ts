@@ -108,9 +108,12 @@ export const groups = pgTable("groups", {
   reviewEveryNthEvent: integer("review_every_nth_event"), // Require manual review every N events (quality sampling)
   eventCountSinceLastReview: integer("event_count_since_last_review").default(0).notNull(), // Counter for review sampling
 
+  // Visual customization
+  accentColor: varchar("accent_color", { length: 7 }), // Hex color code for group visual identity (e.g., "#60A5FA")
+
   deletedAt: timestamp("deleted_at"), // Soft delete: when group was deleted (null = active)
   isTest: boolean("is_test").default(false).notNull(), // Mark test/development groups to exclude from analytics
-  
+
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

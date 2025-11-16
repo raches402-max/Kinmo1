@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { ChevronDown, ChevronUp, MapPin, ExternalLink } from "lucide-react";
+import { ChevronDown, ChevronUp, MapPin, ExternalLink, Bot } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
 
@@ -19,6 +19,7 @@ type Event = {
   groupId: string;
   groupName: string;
   groupEmoji: string;
+  groupAccentColor: string | null;
   eventDate: string | null;
   isOrganizer: boolean;
   isVirtual?: boolean;
@@ -61,14 +62,40 @@ export default function EventsTable({
   };
 
   const getRoleBadge = (event: Event) => {
+    // Only show role info if user is hosting
+    if (event.hostMemberId === event.currentUserMemberId && event.hostMemberName) {
+      return (
+        <span className="text-xs text-muted-foreground">
+          Host: {event.hostMemberName}
+        </span>
+      );
+    }
+    // Don't show organizer or member badges - reduces clutter
+    return null;
+  };
+
+  const getHostInfo = (event: Event) => {
+    // Don't show host info if current user is the host (already shown in getRoleBadge)
     if (event.hostMemberId === event.currentUserMemberId) {
-      return <Badge variant="default" className="text-xs">Hosting</Badge>;
+      return null;
     }
-    if (event.isOrganizer) {
-      return <Badge variant="outline" className="text-xs">Organizer</Badge>;
+
+    if (event.hostMemberId && event.hostMemberName) {
+      return (
+        <span className="text-xs text-muted-foreground">
+          hosts: {event.hostMemberName}
+        </span>
+      );
     }
-    // Default to Member badge for now (Guest logic to be added later)
-    return <Badge variant="secondary" className="text-xs">Member</Badge>;
+    if (!event.hostMemberId) {
+      return (
+        <span className="text-xs text-muted-foreground flex items-center gap-1">
+          <Bot className="h-3 w-3" />
+          AI scheduling
+        </span>
+      );
+    }
+    return null;
   };
 
   const getRsvpBadge = (event: Event) => {
@@ -108,7 +135,10 @@ export default function EventsTable({
           <div key={eventId} className="border-b last:border-b-0">
             {/* Main Row */}
             <Link href={`/event/${eventId}`}>
-              <div className="grid grid-cols-[180px_1fr_200px_120px_40px] gap-4 px-3 py-3 hover:bg-muted/50 transition-colors cursor-pointer items-center">
+              <div
+                className="grid grid-cols-[180px_1fr_200px_120px_40px] gap-4 px-3 py-3 hover:bg-muted/50 transition-colors cursor-pointer items-center border-l-4"
+                style={{ borderLeftColor: event.groupAccentColor || '#94A3B8' }}
+              >
                 {/* Date/Time Column */}
                 <div className="text-sm">
                   {event.eventDate ? (
@@ -127,16 +157,12 @@ export default function EventsTable({
 
                 {/* Event Column */}
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-base flex-shrink-0">{event.groupEmoji}</span>
+                  <span className="text-2xl flex-shrink-0">{event.groupEmoji}</span>
                   <div className="min-w-0 flex-1">
-                    <div className="font-medium text-sm truncate">{event.groupName}</div>
-                    <div className="flex gap-2 mt-1">
+                    <div className="font-bold text-base truncate">{event.groupName}</div>
+                    <div className="flex gap-2 mt-1 items-center">
                       {getRoleBadge(event)}
-                      {event.isVirtual && (
-                        <Badge variant="outline" className="text-xs bg-purple-500/10 text-purple-700">
-                          AI Scheduling
-                        </Badge>
-                      )}
+                      {getHostInfo(event)}
                     </div>
                   </div>
                 </div>

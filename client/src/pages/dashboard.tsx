@@ -43,6 +43,7 @@ type UserEvent = {
   groupId: string;
   groupName: string;
   groupEmoji: string;
+  groupAccentColor: string | null;
   isOrganizer: boolean;
   isVirtual?: boolean;
   meetingFrequency?: string;
@@ -85,6 +86,54 @@ type UserEvent = {
     numberOfKids: number;
   }>;
 };
+
+// Date grouping utilities
+type TimeCategory = 'Today' | 'Tomorrow' | 'This Week' | 'Next Week' | 'Later';
+
+function getEventTimeCategory(eventDate: string | null): TimeCategory {
+  if (!eventDate) return 'Later';
+
+  const now = new Date();
+  const event = new Date(eventDate);
+
+  // Reset times to midnight for date comparison
+  const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const eventMidnight = new Date(event.getFullYear(), event.getMonth(), event.getDate());
+
+  const diffMs = eventMidnight.getTime() - todayMidnight.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  // Today
+  if (diffDays === 0) return 'Today';
+
+  // Tomorrow
+  if (diffDays === 1) return 'Tomorrow';
+
+  // This week (next 7 days excluding today and tomorrow)
+  if (diffDays >= 2 && diffDays <= 7) return 'This Week';
+
+  // Next week (8-14 days)
+  if (diffDays >= 8 && diffDays <= 14) return 'Next Week';
+
+  // Everything else
+  return 'Later';
+}
+
+function groupEventsByTime(events: UserEvent[]): Map<TimeCategory, UserEvent[]> {
+  const groups = new Map<TimeCategory, UserEvent[]>();
+  const categoryOrder: TimeCategory[] = ['Today', 'Tomorrow', 'This Week', 'Next Week', 'Later'];
+
+  // Initialize all categories
+  categoryOrder.forEach(cat => groups.set(cat, []));
+
+  // Group events
+  events.forEach(event => {
+    const category = getEventTimeCategory(event.eventDate);
+    groups.get(category)?.push(event);
+  });
+
+  return groups;
+}
 
 export default function Dashboard() {
   const { user } = useAuth() as { user: User | undefined };
@@ -1001,147 +1050,152 @@ export default function Dashboard() {
               {!eventsLoading && pendingInvites.length > 0 && (
                 <div>
                   <h3 className="text-xl font-bold mb-4">Pending Invites ({pendingInvites.length})</h3>
-                  <div className="space-y-3">
-                    {pendingInvites.map((event) => {
+                  <div className="border rounded-md">
+                    {pendingInvites.map((event, index) => {
                       const canVolunteerToHost = !event.isOrganizer && event.currentUserOpenToHosting && !event.hostMemberId && event.currentUserMemberId;
-                      
+                      const isExpanded = expandedEvents.has(event.inviteId);
+
                       return (
-                        <Card key={event.inviteId} className="hover-elevate" data-testid={`event-card-${event.itineraryId}`}>
-                          <CardHeader className="pb-3">
-                            <div className="flex items-center justify-between gap-4 flex-wrap">
-                              <div className="flex-1">
-                                <CardTitle className="text-lg flex items-center gap-2">
-                                  <span className="text-xl">{event.groupEmoji}</span>
-                                  {event.itineraryName}
-                                </CardTitle>
-                                <CardDescription className="mt-1">
-                                  {event.groupName}
-                                </CardDescription>
-                              </div>
-                              <div className="flex gap-2 flex-wrap">
-                                <Badge variant="outline" className="bg-yellow-500/10 text-yellow-700 dark:text-yellow-400">
-                                  RSVP Needed
-                                </Badge>
-                                {event.hostMemberId && event.hostMemberName && (
-                                  <Badge variant="default" className="gap-1" data-testid={`badge-host-${event.itineraryId}`}>
-                                    <UserCheck className="h-3 w-3" />
-                                    Hosted by {event.hostMemberName}
+                        <div key={event.inviteId} className={`${index !== 0 ? 'border-t' : ''}`} data-testid={`event-card-${event.itineraryId}`}>
+                          {/* Main Row */}
+                          <Link href={`/rsvp/${event.itineraryId}/${event.inviteToken}`}>
+                            <div
+                              className="px-4 py-3 hover:bg-muted/50 transition-colors border-l-4 cursor-pointer"
+                              style={{ borderLeftColor: event.groupAccentColor || '#94A3B8' }}
+                            >
+                              <div className="flex items-start gap-4">
+                                {/* Event Info */}
+                                <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-2xl">{event.groupEmoji}</span>
+                                  <h4 className="font-bold text-base">{event.groupName}</h4>
+                                  <Badge variant="outline" className="bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 text-xs">
+                                    RSVP Needed
                                   </Badge>
-                                )}
-                                {!event.hostMemberId && (
-                                  <Badge variant="secondary" className="gap-1" data-testid={`badge-ai-hosted-${event.itineraryId}`}>
-                                    <Bot className="h-3 w-3" />
-                                    AI-hosted
-                                  </Badge>
-                                )}
+                                </div>
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                                  <MapPin className="h-3 w-3" />
+                                  <span>{getMeetingAtText(event.items)}</span>
+                                  {event.hostMemberId && event.hostMemberName && (
+                                    <>
+                                      <span>•</span>
+                                      <span>hosts: {event.hostMemberName}</span>
+                                    </>
+                                  )}
+                                  {!event.hostMemberId && (
+                                    <>
+                                      <span>•</span>
+                                      <Bot className="h-3 w-3" />
+                                      <span>AI scheduling</span>
+                                    </>
+                                  )}
+                                </div>
+
+                                {/* Action Buttons */}
+                                <div className="flex gap-1.5 flex-wrap">
+                                  <Button
+                                    variant="default"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      handleRsvpClick(event, 'yes');
+                                    }}
+                                    disabled={rsvpMutation.isPending}
+                                    className="h-7 text-xs"
+                                    data-testid={`button-yes-${event.itineraryId}`}
+                                  >
+                                    <CheckCircle className="h-3 w-3 mr-1" />
+                                    Yes
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      handleRsvpClick(event, 'maybe');
+                                    }}
+                                    disabled={rsvpMutation.isPending}
+                                    className="h-7 text-xs"
+                                    data-testid={`button-maybe-${event.itineraryId}`}
+                                  >
+                                    <HelpCircle className="h-3 w-3 mr-1" />
+                                    Maybe
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      handleRsvpClick(event, 'no');
+                                    }}
+                                    disabled={rsvpMutation.isPending}
+                                    className="h-7 text-xs"
+                                    data-testid={`button-no-${event.itineraryId}`}
+                                  >
+                                    <XCircle className="h-3 w-3 mr-1" />
+                                    No
+                                  </Button>
+                                  {event.items.length > 1 && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        toggleEventExpand(event.inviteId);
+                                      }}
+                                      className="h-7 text-xs"
+                                    >
+                                      {isExpanded ? <ChevronDown className="h-3 w-3 mr-1" /> : <ChevronRight className="h-3 w-3 mr-1" />}
+                                      {isExpanded ? 'Hide' : 'Show'} Details
+                                    </Button>
+                                  )}
+                                </div>
                               </div>
                             </div>
-                          </CardHeader>
-                          <CardContent className="space-y-4">
-                            <div className="space-y-2">
-                              {event.items.map((venue, idx) => (
-                                <div key={venue.id} className="flex items-start gap-2 text-sm">
-                                  <Badge variant="outline" className="h-5 shrink-0">{idx + 1}</Badge>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="font-medium">{venue.venueName}</div>
-                                    {venue.venueAddress && (
-                                      <div className="text-xs text-muted-foreground">{venue.venueAddress}</div>
-                                    )}
-                                    <div className="flex items-center gap-3 mt-1">
-                                      {venue.rating && (
-                                        <span className="text-xs text-muted-foreground">
-                                          ⭐ {venue.rating}
-                                        </span>
+                          </div>
+                          </Link>
+
+                          {/* Expanded Venue Details */}
+                          {isExpanded && event.items.length > 1 && (
+                            <div className="px-4 py-3 bg-muted/30 border-t">
+                              <div className="space-y-2">
+                                {event.items.map((venue, idx) => (
+                                  <div key={venue.id} className="flex items-start gap-2 text-sm">
+                                    <Badge variant="outline" className="h-5 shrink-0 text-xs">{idx + 1}</Badge>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="font-medium">{venue.venueName}</div>
+                                      {venue.venueAddress && (
+                                        <div className="text-xs text-muted-foreground">{venue.venueAddress}</div>
                                       )}
-                                      {venue.googlePlaceId && (
-                                        <a 
-                                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venue.venueName || venue.venueAddress || 'Location')}&query_place_id=${venue.googlePlaceId}`}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="text-xs text-primary hover:underline"
-                                          data-testid={`link-maps-${venue.id}`}
-                                        >
-                                          View on Maps
-                                        </a>
-                                      )}
+                                      <div className="flex items-center gap-3 mt-1">
+                                        {venue.rating && (
+                                          <span className="text-xs text-muted-foreground">
+                                            ⭐ {venue.rating}
+                                          </span>
+                                        )}
+                                        {venue.googlePlaceId && (
+                                          <a
+                                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venue.venueName || venue.venueAddress || 'Location')}&query_place_id=${venue.googlePlaceId}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-xs text-primary hover:underline"
+                                            data-testid={`link-maps-${venue.id}`}
+                                          >
+                                            View on Maps
+                                          </a>
+                                        )}
+                                      </div>
                                     </div>
                                   </div>
-                                </div>
-                              ))}
+                                ))}
+                              </div>
                             </div>
-
-                            {/* <TimeSlotVoting
-                              itineraryId={event.itineraryId}
-                              userId={user?.id}
-                              isOrganizer={false}
-                            /> */}
-
-                            <div className="flex gap-2 flex-wrap">
-                              <Button 
-                                variant="default"
-                                size="sm"
-                                onClick={() => handleRsvpClick(event, 'yes')}
-                                disabled={rsvpMutation.isPending}
-                                className="gap-1"
-                                data-testid={`button-yes-${event.itineraryId}`}
-                              >
-                                <CheckCircle className="h-4 w-4" />
-                                Yes, I'm In
-                              </Button>
-                              <Button 
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleRsvpClick(event, 'maybe')}
-                                disabled={rsvpMutation.isPending}
-                                className="gap-1"
-                                data-testid={`button-maybe-${event.itineraryId}`}
-                              >
-                                <HelpCircle className="h-4 w-4" />
-                                Yes, if...
-                              </Button>
-                              <Button 
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleRsvpClick(event, 'no')}
-                                disabled={rsvpMutation.isPending}
-                                className="gap-1"
-                                data-testid={`button-no-${event.itineraryId}`}
-                              >
-                                <XCircle className="h-4 w-4" />
-                                Can't Make It
-                              </Button>
-                              {canVolunteerToHost && event.itineraryId && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => volunteerToHostMutation.mutate({ itineraryId: event.itineraryId! })}
-                                  disabled={volunteerToHostMutation.isPending}
-                                  className="gap-1"
-                                  data-testid={`button-volunteer-host-${event.itineraryId}`}
-                                >
-                                  <UserPlus className="h-4 w-4" />
-                                  Volunteer to Host
-                                </Button>
-                              )}
-                              <Button 
-                                variant="ghost" 
-                                size="sm"
-                                onClick={() => copyInviteLink(event)}
-                                className="gap-1"
-                                data-testid={`button-copy-link-${event.itineraryId}`}
-                              >
-                                <Copy className="h-4 w-4" />
-                                Copy Link
-                              </Button>
-                              <Link href={`/rsvp/${event.itineraryId}/${event.inviteToken}`}>
-                                <Button variant="ghost" size="sm" className="gap-1">
-                                  <ExternalLink className="h-4 w-4" />
-                                  Details
-                                </Button>
-                              </Link>
-                            </div>
-                          </CardContent>
-                        </Card>
+                          )}
+                        </div>
                       );
                     })}
                   </div>
@@ -1152,101 +1206,93 @@ export default function Dashboard() {
               {!eventsLoading && guestApprovalEvents.length > 0 && (
                 <div data-testid="section-guest-approvals">
                   <h3 className="text-xl font-bold mb-4">Guest Approvals Needed ({guestApprovalEvents.reduce((count, event) => count + event.pendingGuestRsvps.length, 0)})</h3>
-                  <div className="space-y-3">
-                    {guestApprovalEvents.map((event) => (
-                      <Card key={event.inviteId} className="hover-elevate" data-testid={`guest-approval-event-${event.itineraryId}`}>
-                        <CardHeader className="pb-3">
-                          <div className="flex items-center justify-between gap-4 flex-wrap">
-                            <div className="flex-1">
-                              <CardTitle className="text-lg flex items-center gap-2">
-                                <span className="text-xl">{event.groupEmoji}</span>
-                                {event.itineraryName}
-                              </CardTitle>
-                              <CardDescription className="mt-1">
-                                {event.groupName}
-                              </CardDescription>
-                            </div>
-                            <Badge variant="outline" className="bg-blue-500/10 text-blue-700 dark:text-blue-400">
-                              {event.pendingGuestRsvps.length} Guest{event.pendingGuestRsvps.length !== 1 ? 's' : ''} Pending
-                            </Badge>
-                          </div>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                          {event.pendingGuestRsvps.map((guestRsvp) => {
-                            const responseIcon = {
-                              yes: CheckCircle,
-                              maybe: HelpCircle,
-                              no: XCircle,
-                            }[guestRsvp.response.toLowerCase()] || HelpCircle;
-                            const ResponseIcon = responseIcon;
+                  <div className="border rounded-md">
+                    {guestApprovalEvents.flatMap((event, eventIndex) =>
+                      event.pendingGuestRsvps.map((guestRsvp, guestIndex) => {
+                        const isFirstItem = eventIndex === 0 && guestIndex === 0;
+                        const responseIcon = {
+                          yes: CheckCircle,
+                          maybe: HelpCircle,
+                          no: XCircle,
+                        }[guestRsvp.response.toLowerCase()] || HelpCircle;
+                        const ResponseIcon = responseIcon;
 
-                            return (
-                              <div key={guestRsvp.id} className="border rounded-md p-3 space-y-3" data-testid={`guest-rsvp-${guestRsvp.id}`}>
-                                <div className="flex items-start gap-2">
-                                  <UserPlus className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
-                                  <div className="flex-1 min-w-0">
-                                    <div className="font-medium">{guestRsvp.guestName} wants to join</div>
-                                    <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
-                                      <ResponseIcon className="h-3.5 w-3.5" />
-                                      <span>Response: {guestRsvp.response}</span>
-                                    </div>
-                                    
-                                    {guestRsvp.additionalAttendees && guestRsvp.additionalAttendees.length > 0 && (
-                                      <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
-                                        <Users className="h-3.5 w-3.5" />
-                                        <span>
-                                          Bringing: {guestRsvp.additionalAttendees.map((attendee: any) => {
-                                            if (attendee.type === 'member' && attendee.name) {
-                                              return attendee.name;
-                                            } else if (attendee.type === 'guest' && attendee.name) {
-                                              return attendee.name;
-                                            } else {
-                                              return '+1 guest';
-                                            }
-                                          }).join(', ')}
-                                        </span>
-                                      </div>
-                                    )}
-                                    
-                                    {guestRsvp.numberOfKids > 0 && (
-                                      <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
-                                        <Baby className="h-3.5 w-3.5" />
-                                        <span>Kids: {guestRsvp.numberOfKids}</span>
-                                      </div>
-                                    )}
-                                  </div>
+                        return (
+                          <Link key={guestRsvp.id} href={`/event/${event.itineraryId}`}>
+                            <div
+                              className={`${!isFirstItem ? 'border-t' : ''} px-4 py-3 hover:bg-muted/50 transition-colors border-l-4 cursor-pointer`}
+                              style={{ borderLeftColor: event.groupAccentColor || '#94A3B8' }}
+                              data-testid={`guest-rsvp-${guestRsvp.id}`}
+                            >
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-2xl">{event.groupEmoji}</span>
+                                  <h4 className="font-bold text-base">{event.groupName}</h4>
+                                  <Badge variant="outline" className="bg-blue-500/10 text-blue-700 dark:text-blue-400 text-xs">
+                                    Guest Pending
+                                  </Badge>
                                 </div>
-                                
-                                <div className="flex gap-2 flex-wrap">
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                                  <UserPlus className="h-3 w-3" />
+                                  <span className="font-medium">{guestRsvp.guestName}</span>
+                                  <span>•</span>
+                                  <ResponseIcon className="h-3 w-3" />
+                                  <span>{guestRsvp.response}</span>
+                                  {guestRsvp.additionalAttendees && guestRsvp.additionalAttendees.length > 0 && (
+                                    <>
+                                      <span>•</span>
+                                      <Users className="h-3 w-3" />
+                                      <span>+{guestRsvp.additionalAttendees.length}</span>
+                                    </>
+                                  )}
+                                  {guestRsvp.numberOfKids > 0 && (
+                                    <>
+                                      <span>•</span>
+                                      <Baby className="h-3 w-3" />
+                                      <span>{guestRsvp.numberOfKids} kids</span>
+                                    </>
+                                  )}
+                                </div>
+                                <div className="flex gap-1.5">
                                   <Button
                                     variant="default"
                                     size="sm"
-                                    onClick={() => approveGuestRsvpMutation.mutate({ rsvpId: guestRsvp.id, guestName: guestRsvp.guestName })}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      approveGuestRsvpMutation.mutate({ rsvpId: guestRsvp.id, guestName: guestRsvp.guestName });
+                                    }}
                                     disabled={approveGuestRsvpMutation.isPending || denyGuestRsvpMutation.isPending}
-                                    className="gap-1"
+                                    className="h-7 text-xs"
                                     data-testid={`button-approve-${guestRsvp.id}`}
                                   >
-                                    <Check className="h-4 w-4" />
+                                    <Check className="h-3 w-3 mr-1" />
                                     Approve
                                   </Button>
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => denyGuestRsvpMutation.mutate({ rsvpId: guestRsvp.id, guestName: guestRsvp.guestName })}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      denyGuestRsvpMutation.mutate({ rsvpId: guestRsvp.id, guestName: guestRsvp.guestName });
+                                    }}
                                     disabled={approveGuestRsvpMutation.isPending || denyGuestRsvpMutation.isPending}
-                                    className="gap-1"
+                                    className="h-7 text-xs"
                                     data-testid={`button-deny-${guestRsvp.id}`}
                                   >
-                                    <XCircle className="h-4 w-4" />
+                                    <XCircle className="h-3 w-3 mr-1" />
                                     Deny
                                   </Button>
                                 </div>
                               </div>
-                            );
-                          })}
-                        </CardContent>
-                      </Card>
-                    ))}
+                            </div>
+                          </div>
+                          </Link>
+                        );
+                      })
+                    )}
                   </div>
                 </div>
               )}
@@ -1254,12 +1300,29 @@ export default function Dashboard() {
               {/* Upcoming Events Section */}
               {!eventsLoading && upcomingEvents.length > 0 && (
                 <div>
-                  <h3 className="text-xl font-bold mb-4">Upcoming Events ({upcomingEvents.length})</h3>
-                  <EventsTable
-                    events={upcomingEvents}
-                    expandedEvents={expandedEvents}
-                    onToggleExpand={toggleEventExpand}
-                  />
+                  <h3 className="text-xl font-bold mb-6">Upcoming Events ({upcomingEvents.length})</h3>
+                  {(() => {
+                    const groupedEvents = groupEventsByTime(upcomingEvents);
+                    const categoryOrder: TimeCategory[] = ['Today', 'Tomorrow', 'This Week', 'Next Week', 'Later'];
+
+                    return categoryOrder.map(category => {
+                      const categoryEvents = groupedEvents.get(category) || [];
+                      if (categoryEvents.length === 0) return null;
+
+                      return (
+                        <div key={category} className="mb-6 last:mb-0">
+                          <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-3">
+                            {category}
+                          </h4>
+                          <EventsTable
+                            events={categoryEvents}
+                            expandedEvents={expandedEvents}
+                            onToggleExpand={toggleEventExpand}
+                          />
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               )}
 
@@ -1267,94 +1330,64 @@ export default function Dashboard() {
               {!eventsLoading && pastEvents.length > 0 && (
                 <div>
                   <h3 className="text-xl font-bold mb-4">Past Events ({pastEvents.length})</h3>
-                  <div className="space-y-3">
-                    {pastEvents.map((event) => (
-                      <Card key={event.inviteId} className="hover-elevate opacity-75" data-testid={`past-event-${event.itineraryId}`}>
-                        <CardContent className="p-4">
-                          <div className="flex gap-4">
-                            {/* Date/Time Block - Muted for Past Events */}
-                            <div className="flex-shrink-0 w-20">
-                              <div className="bg-muted text-muted-foreground rounded-lg p-2 text-center">
-                                <div className="text-xs font-semibold uppercase">
-                                  {event.eventDate ? format(new Date(event.eventDate), 'MMM') : 'TBD'}
-                                </div>
-                                <div className="text-2xl font-bold leading-none my-1">
-                                  {event.eventDate ? format(new Date(event.eventDate), 'd') : '--'}
-                                </div>
-                                <div className="text-xs">
-                                  {event.eventDate ? format(new Date(event.eventDate), 'h:mm a') : ''}
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Content */}
-                            <div className="flex-1 min-w-0 space-y-2">
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="flex-1 min-w-0">
-                                  <h3 className="font-semibold text-base flex items-center gap-2">
-                                    <span className="text-xl">{event.groupEmoji}</span>
-                                    {event.itineraryName}
-                                  </h3>
-                                  <p className="text-sm text-muted-foreground">
-                                    {event.groupName} • {event.eventDate ? format(new Date(event.eventDate), 'MMM d, yyyy') : 'Date TBD'}
-                                  </p>
-                                </div>
-                                <div className="flex gap-1.5 flex-shrink-0 flex-wrap">
-                                  {event.isOrganizer ? (
-                                    <Badge variant="outline" className="gap-1">
-                                      <Sparkles className="h-3 w-3" />
-                                      Organizer
-                                    </Badge>
-                                  ) : event.rsvp && (
-                                    <Badge variant={event.rsvp.response === 'yes' ? 'default' : 'outline'}>
-                                      {event.rsvp.response === 'yes' ? 'Attended' : (event.rsvp.response === 'maybe' || event.rsvp.response === 'yes_with_constraint') ? 'Maybe' : 'Declined'}
-                                    </Badge>
-                                  )}
-                                  {event.rsvp?.postEventFeedback && (
-                                    <Badge variant="secondary" className="gap-1">
-                                      <Star className="h-3 w-3" />
-                                      Feedback Submitted
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* Simplified Venue Display */}
-                              {event.items.length > 0 && (
-                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                  <MapPin className="h-4 w-4 flex-shrink-0" />
-                                  <span className="truncate">
-                                    {event.items[0].venueName}
-                                    {event.items.length > 1 && ` and ${event.items.length - 1} more`}
-                                  </span>
-                                </div>
+                  <div className="border rounded-md opacity-75">
+                    {pastEvents.map((event, index) => (
+                      <Link key={event.inviteId} href={`/event/${event.itineraryId}`}>
+                        <div
+                          className={`${index !== 0 ? 'border-t' : ''} px-4 py-3 hover:bg-muted/50 transition-colors border-l-4 cursor-pointer`}
+                          style={{ borderLeftColor: event.groupAccentColor || '#94A3B8' }}
+                          data-testid={`past-event-${event.itineraryId}`}
+                        >
+                          <div className="flex items-start gap-4">
+                            <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-2xl">{event.groupEmoji}</span>
+                              <h4 className="font-bold text-base">{event.groupName}</h4>
+                              {event.rsvp && (
+                                <Badge variant={event.rsvp.response === 'yes' ? 'default' : 'secondary'} className="text-xs">
+                                  {event.rsvp.response === 'yes' ? 'Attended' : event.rsvp.response === 'maybe' ? 'Maybe' : 'Declined'}
+                                </Badge>
                               )}
-
-                              {/* Actions */}
-                              <div className="flex gap-2 flex-wrap pt-1">
-                                {(event.rsvp?.response === 'yes' || event.isOrganizer) && !event.rsvp?.postEventFeedback && (
-                                  <Button 
-                                    variant="outline" 
-                                    size="sm" 
-                                    onClick={() => handlePostEventFeedback(event)}
-                                    className="gap-2"
-                                    data-testid={`button-feedback-${event.itineraryId}`}
-                                  >
-                                    <MessageSquare className="h-4 w-4" />
-                                    Leave Feedback
-                                  </Button>
-                                )}
-                                <Link href={`/event/${event.itineraryId}`}>
-                                  <Button variant="ghost" size="sm" className="gap-1" data-testid={`button-view-${event.itineraryId}`}>
-                                    <ExternalLink className="h-4 w-4" />
-                                    View Details
-                                  </Button>
-                                </Link>
-                              </div>
+                              {event.rsvp?.postEventFeedback && (
+                                <Badge variant="secondary" className="gap-1 text-xs">
+                                  <Star className="h-3 w-3" />
+                                  Rated
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                              <Calendar className="h-3 w-3" />
+                              <span>{event.eventDate ? format(new Date(event.eventDate), 'MMM d, yyyy') : 'Date TBD'}</span>
+                              {event.items.length > 0 && (
+                                <>
+                                  <span>•</span>
+                                  <MapPin className="h-3 w-3" />
+                                  <span className="truncate">{getMeetingAtText(event.items)}</span>
+                                </>
+                              )}
+                            </div>
+                            <div className="flex gap-1.5">
+                              {(event.rsvp?.response === 'yes' || event.isOrganizer) && !event.rsvp?.postEventFeedback && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handlePostEventFeedback(event);
+                                  }}
+                                  className="h-7 text-xs"
+                                  data-testid={`button-feedback-${event.itineraryId}`}
+                                >
+                                  <MessageSquare className="h-3 w-3 mr-1" />
+                                  Leave Feedback
+                                </Button>
+                              )}
+                            </div>
                             </div>
                           </div>
-                        </CardContent>
-                      </Card>
+                        </div>
+                      </Link>
                     ))}
                   </div>
                 </div>

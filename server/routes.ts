@@ -172,6 +172,34 @@ async function trackFeedbackAndMaybeAnalyze(groupId: string) {
   }
 }
 
+// Color palette for group visual identity
+const GROUP_COLOR_PALETTE = [
+  '#60A5FA', // Soft Blue
+  '#2DD4BF', // Teal
+  '#34D399', // Green
+  '#A3E635', // Lime
+  '#FBBF24', // Amber
+  '#FB923C', // Orange
+  '#FB7185', // Rose
+  '#F472B6', // Pink
+  '#C084FC', // Purple
+  '#818CF8', // Indigo
+  '#94A3B8', // Slate
+  '#22D3EE', // Cyan
+];
+
+// Auto-assign color to group based on ID (deterministic)
+function assignGroupColor(groupId: string): string {
+  // Use hash of group ID to consistently pick from palette
+  let hash = 0;
+  for (let i = 0; i < groupId.length; i++) {
+    hash = ((hash << 5) - hash) + groupId.charCodeAt(i);
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  const index = Math.abs(hash) % GROUP_COLOR_PALETTE.length;
+  return GROUP_COLOR_PALETTE[index];
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Set up authentication
   await setupAuth(app);
@@ -1059,6 +1087,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           groupId: itineraries.groupId,
           groupName: groupsTable.name,
           groupEmoji: groupsTable.emoji,
+          groupAccentColor: groupsTable.accentColor,
           groupUserId: groupsTable.userId,
         })
         .from(itineraryInvites)
@@ -1455,6 +1484,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create group with members
       const group = await storage.createGroup(validatedGroup, userId, members || []);
+
+      // Auto-assign accent color after group is created (need group ID)
+      if (!validatedGroup.accentColor) {
+        const accentColor = assignGroupColor(group.id);
+        await storage.updateGroup(group.id, { accentColor });
+        group.accentColor = accentColor;
+        console.log(`Auto-assigned color ${accentColor} to group ${group.id}`);
+      }
 
       // Generate AI activity suggestions in background
       generateAndStoreActivities(group.id, validatedGroup);
