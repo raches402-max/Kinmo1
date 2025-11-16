@@ -802,23 +802,34 @@ async function checkAndSelectTimeSlots() {
   try {
     console.log('[Time Selection] Checking for itineraries needing time slot selection...');
 
-    // Get all itineraries with proposed time slots in the next 24-48 hours
+    // Get all itineraries where:
+    // 1. RSVP deadline has passed, OR
+    // 2. No RSVP deadline but event is within 24-48 hours
     const upcomingItineraries = await db
       .select()
       .from(itineraries)
       .where(
         and(
-          // Has an event date
-          sql`${itineraries.eventDate} IS NOT NULL`,
           // Event is in the future
           sql`${itineraries.eventDate} > NOW()`,
-          // Event is within 48 hours
-          sql`${itineraries.eventDate} < NOW() + INTERVAL '48 hours'`
+          // Either RSVP deadline passed OR within 48 hours of event
+          or(
+            // RSVP deadline has passed
+            and(
+              sql`${itineraries.rsvpDeadline} IS NOT NULL`,
+              sql`${itineraries.rsvpDeadline} < NOW()`
+            ),
+            // No RSVP deadline but event is within 48 hours
+            and(
+              sql`${itineraries.rsvpDeadline} IS NULL`,
+              sql`${itineraries.eventDate} < NOW() + INTERVAL '48 hours'`
+            )
+          )
         )
       );
 
     if (upcomingItineraries.length === 0) {
-      console.log('[Time Selection] No upcoming itineraries found');
+      console.log('[Time Selection] No itineraries with expired RSVP deadlines found');
       return;
     }
 

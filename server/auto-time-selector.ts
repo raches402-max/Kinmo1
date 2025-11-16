@@ -184,7 +184,7 @@ async function markTimeSlotAsSelected(
  * Returns true if:
  * - Itinerary has multiple proposed time slots
  * - None are currently selected
- * - Event date is within 24-48 hours
+ * - RSVP deadline has passed
  *
  * @param itineraryId - ID of the itinerary
  * @returns true if time selection is needed
@@ -198,18 +198,32 @@ export async function needsTimeSelection(itineraryId: string): Promise<boolean> 
       .where(eq(itineraries.id, itineraryId))
       .limit(1);
 
-    if (!itinerary || !itinerary.eventDate) {
+    if (!itinerary) {
       return false;
     }
 
-    // Check if event is within 24-48 hours
+    // Check if RSVP deadline has passed
     const now = new Date();
-    const eventDate = new Date(itinerary.eventDate);
-    const hoursUntilEvent = (eventDate.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-    // Only trigger selection 24-48 hours before event
-    if (hoursUntilEvent > 48 || hoursUntilEvent < 0) {
-      return false;
+    if (!itinerary.rsvpDeadline) {
+      // No RSVP deadline set - fall back to old behavior (24-48 hours before event)
+      if (!itinerary.eventDate) return false;
+
+      const eventDate = new Date(itinerary.eventDate);
+      const hoursUntilEvent = (eventDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+      // Only trigger selection 24-48 hours before event
+      if (hoursUntilEvent > 48 || hoursUntilEvent < 0) {
+        return false;
+      }
+    } else {
+      // Use RSVP deadline
+      const rsvpDeadline = new Date(itinerary.rsvpDeadline);
+
+      // RSVP deadline hasn't passed yet
+      if (now < rsvpDeadline) {
+        return false;
+      }
     }
 
     // Get time slots

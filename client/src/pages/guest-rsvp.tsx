@@ -134,7 +134,7 @@ export default function GuestRsvpPage() {
               <h3 className="font-semibold text-sm text-muted-foreground">Event Details</h3>
               {items.map((item, idx) => (
                 <div key={item.id} className="flex gap-3 p-3 rounded-lg bg-muted/50" data-testid={`venue-${item.id}`}>
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold text-primary">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/25 flex items-center justify-center text-sm font-semibold text-primary">
                     {idx + 1}
                   </div>
                   <div className="flex-1 min-w-0">

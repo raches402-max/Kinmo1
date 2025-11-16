@@ -319,7 +319,7 @@ export default function MemberEventsPage() {
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               {hostingRequests.map(request => (
-                <Card key={request.id} className="border-primary/20 bg-primary/5" data-testid={`card-hosting-request-${request.id}`}>
+                <Card key={request.id} className="border-primary/20 bg-primary/15" data-testid={`card-hosting-request-${request.id}`}>
                   <CardHeader className="pb-4">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-2xl" data-testid={`emoji-${request.id}`}>

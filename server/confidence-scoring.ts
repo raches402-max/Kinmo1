@@ -3,7 +3,7 @@
  * Calculates confidence (0-100) based on venue quality, time consensus, engagement, pattern matching, and swipe consensus
  */
 
-import { storage as defaultStorage, type Storage } from "./storage";
+import { storage as defaultStorage, type IStorage as Storage } from "./storage";
 
 export interface ConfidenceFactors {
   venueQuality: number; // 0-100 based on ratings, feedback, visit history

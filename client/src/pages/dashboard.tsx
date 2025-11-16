@@ -23,6 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Group, User, UserProfile, GroupCollection } from "@shared/schema";
 import { useState, useEffect } from "react";
+import EventsTable from "@/components/EventsTable";
 
 type SafeMember = {
   id: string;
@@ -95,7 +96,8 @@ export default function Dashboard() {
   const [renamingCollectionId, setRenamingCollectionId] = useState<string | null>(null);
   const [renameCollectionName, setRenameCollectionName] = useState("");
   const [openCollections, setOpenCollections] = useState<Set<string>>(new Set());
-  
+  const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
+
   // Create event dialog state
   const [showCreateEventDialog, setShowCreateEventDialog] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
@@ -660,10 +662,38 @@ export default function Dashboard() {
     });
   };
 
+  const toggleEventExpand = (eventId: string) => {
+    setExpandedEvents(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(eventId)) {
+        newSet.delete(eventId);
+      } else {
+        newSet.add(eventId);
+      }
+      return newSet;
+    });
+  };
+
   const getFirstInitial = (name?: string | null) => {
     if (!name) return "U";
     const firstWord = name.trim().split(" ")[0];
     return firstWord[0]?.toUpperCase() || "U";
+  };
+
+  const getMeetingAtText = (items: Array<{venueName: string}>) => {
+    if (!items || items.length === 0) return "TBD";
+    if (items.length === 1) return items[0].venueName;
+    return `${items[0].venueName} + ${items.length - 1}`;
+  };
+
+  const getGoogleMapsUrl = (venue: {venueAddress?: string | null, googlePlaceId?: string | null}) => {
+    if (venue.googlePlaceId) {
+      return `https://www.google.com/maps/search/?api=1&query=&query_place_id=${venue.googlePlaceId}`;
+    }
+    if (venue.venueAddress) {
+      return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venue.venueAddress)}`;
+    }
+    return null;
   };
 
   const displayName = profile?.displayName || user?.firstName || "User";
@@ -847,6 +877,18 @@ export default function Dashboard() {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
+                  <Link href="/my-dashboard">
+                    <DropdownMenuItem data-testid="menu-dashboard">
+                      <Users className="mr-2 h-4 w-4" />
+                      My Dashboard
+                    </DropdownMenuItem>
+                  </Link>
+                  <Link href="/preferences">
+                    <DropdownMenuItem data-testid="menu-preferences">
+                      <Settings className="mr-2 h-4 w-4" />
+                      Preferences
+                    </DropdownMenuItem>
+                  </Link>
                   <Link href="/profile">
                     <DropdownMenuItem data-testid="menu-profile">
                       <Settings className="mr-2 h-4 w-4" />
@@ -920,10 +962,10 @@ export default function Dashboard() {
             <div className="space-y-8">
               {/* Feedback Banner */}
               {!eventsLoading && pastEventsNeedingFeedback.length > 0 && (
-                <Card className="bg-primary/5 border-primary/20" data-testid="banner-pending-feedback">
+                <Card className="bg-primary/15 border-primary/20" data-testid="banner-pending-feedback">
                   <CardContent className="py-4">
                     <div className="flex items-start gap-4">
-                      <div className="flex-shrink-0 p-2 rounded-lg bg-primary/10">
+                      <div className="flex-shrink-0 p-2 rounded-lg bg-primary/25">
                         <MessageSquare className="h-5 w-5 text-primary" />
                       </div>
                       <div className="flex-1">
@@ -1213,14 +1255,20 @@ export default function Dashboard() {
               {!eventsLoading && upcomingEvents.length > 0 && (
                 <div>
                   <h3 className="text-xl font-bold mb-4">Upcoming Events ({upcomingEvents.length})</h3>
-                  <div className="space-y-3">
+                  <EventsTable
+                    events={upcomingEvents}
+                    expandedEvents={expandedEvents}
+                    onToggleExpand={toggleEventExpand}
+                  />
+                  {/* OLD CODE BELOW - TO BE REMOVED
+                  <div className="space-y-2">
                     {upcomingEvents.map((event) => {
                       // Virtual events (future recurring placeholders)
                       if (event.isVirtual) {
                         return (
                           <Link key={event.inviteId} href={`/group/${event.groupId}`}>
                             <Card className="hover-elevate cursor-pointer border-dashed border-2" data-testid={`virtual-event-${event.groupId}`}>
-                              <CardContent className="p-4">
+                              <CardContent className="px-3 py-2">
                                 <div className="flex gap-4">
                                   {/* Date/Time Block */}
                                   <div className="flex-shrink-0 w-20">
@@ -1277,7 +1325,7 @@ export default function Dashboard() {
 
                         return (
                           <Card key={event.inviteId} className={`hover-elevate ${rsvpResponse === 'yes' ? 'border-primary/50' : ''}`} data-testid={`upcoming-event-${event.itineraryId}`}>
-                            <CardContent className="p-4">
+                            <CardContent className="px-3 py-2">
                               <div className="flex gap-4">
                                 {/* Date/Time Block */}
                                 <div className="flex-shrink-0 w-20">
@@ -1397,7 +1445,7 @@ export default function Dashboard() {
 
                       return (
                         <Card key={event.inviteId} className={`hover-elevate ${rsvpResponse === 'yes' ? 'border-primary/50' : ''}`} data-testid={`upcoming-event-${event.itineraryId}`}>
-                          <CardContent className="p-4">
+                          <CardContent className="px-3 py-2">
                             <div className="flex gap-4">
                               {/* Date/Time Block */}
                               <div className="flex-shrink-0 w-20">
@@ -1481,6 +1529,7 @@ export default function Dashboard() {
                       );
                     })}
                   </div>
+                  END OLD CODE */}
                 </div>
               )}
 
@@ -1613,10 +1662,10 @@ export default function Dashboard() {
               {!isLoading && groups.length > 0 && groups.some(g => 
                 g.members.some(m => m.profileCompleted === false)
               ) && (
-                <Card className="bg-primary/5 border-primary/20" data-testid="banner-complete-profile">
+                <Card className="bg-primary/15 border-primary/20" data-testid="banner-complete-profile">
                   <CardContent className="py-4">
                     <div className="flex items-start gap-4">
-                      <div className="flex-shrink-0 p-2 rounded-lg bg-primary/10">
+                      <div className="flex-shrink-0 p-2 rounded-lg bg-primary/25">
                         <Sparkles className="h-5 w-5 text-primary" />
                       </div>
                       <div className="flex-1">
@@ -2170,7 +2219,7 @@ export default function Dashboard() {
                         onClick={() => setSelectedGroupId(group.id)}
                         className={`w-full text-left p-3 rounded-md border transition-colors hover-elevate ${
                           selectedGroupId === group.id 
-                            ? 'border-primary bg-primary/10' 
+                            ? 'border-primary bg-primary/25' 
                             : 'border-border'
                         }`}
                         data-testid={`button-select-group-${group.id}`}

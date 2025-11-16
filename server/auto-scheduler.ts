@@ -35,23 +35,23 @@ function generateVenueBadges(
 
   // Quality badges
   if (feedback === 'favorite') {
-    badges.push('🌟 Group Favorite');
+    badges.push('🌟 Group favorite');
   } else if (qualityScore >= 2.5) {
-    badges.push('⭐ Highly Rated');
+    badges.push('⭐ Highly rated');
   }
 
   // Visit frequency badges
   if (visitCount === 0) {
-    badges.push('✨ Never Visited');
+    badges.push('✨ New spot');
   } else if (visitCount === 1 && qualityScore >= 2) {
-    badges.push('🔄 Back by Popular Demand');
+    badges.push('🔄 Worth going back');
   } else if (daysSinceLastVisit >= 60) {
-    badges.push('📅 It\'s Been a While');
+    badges.push('📅 Been a while');
   }
 
   // Recency badge
   if (daysSinceLastVisit < 30 && visitCount > 0) {
-    badges.push('🆕 Recent Visit');
+    badges.push('🆕 Recent visit');
   }
 
   return badges;
@@ -464,12 +464,12 @@ export async function selectBestItineraryForAutoSchedule(
           sourceType: v.type,
           sourceId: v.id,
           venueName: v.name,
-          badges: ['⭐ From Favorites', ...generateVenueBadges(v.qualityScore, v.visitCount, v.daysSinceLastVisit, v.feedback)],
+          badges: ['⭐ Favorite', ...generateVenueBadges(v.qualityScore, v.visitCount, v.daysSinceLastVisit, v.feedback)],
           rating: v.rating,
           venueAddress: v.venueAddress,
           googleMapsUrl: generateGoogleMapsUrl(v.googlePlaceId, v.name, v.venueAddress),
         })),
-        description: 'Created from your Favorites - venues your group already loves',
+        description: 'From your Favorites list',
       }],
     };
   }
@@ -509,7 +509,7 @@ export async function selectBestItineraryForAutoSchedule(
   options.push({
     optionNumber: 1,
     venues: option1Venues.map(v => {
-      const sourceBadge = v.type === 'voting_event' ? '⭐ From Favorites' : '✨ AI Suggestion';
+      const sourceBadge = v.type === 'voting_event' ? '⭐ Favorite' : '✨ Suggested';
       return {
         sourceType: v.type,
         sourceId: v.id,
@@ -520,7 +520,7 @@ export async function selectBestItineraryForAutoSchedule(
         googleMapsUrl: generateGoogleMapsUrl(v.googlePlaceId, v.name, v.venueAddress),
       };
     }),
-    description: 'Top Picks - Our highest-rated venues based on your group\'s preferences',
+    description: 'The usual spots - places you go to pretty often',
   });
 
   // Option 2: Mix of favorites and new experiences (balanced)
@@ -551,7 +551,7 @@ export async function selectBestItineraryForAutoSchedule(
   options.push({
     optionNumber: 2,
     venues: option2VenuesOrdered.map(v => {
-      const sourceBadge = v.type === 'voting_event' ? '⭐ From Favorites' : '✨ AI Suggestion';
+      const sourceBadge = v.type === 'voting_event' ? '⭐ Favorite' : '✨ Suggested';
       return {
         sourceType: v.type,
         sourceId: v.id,
@@ -562,7 +562,7 @@ export async function selectBestItineraryForAutoSchedule(
         googleMapsUrl: generateGoogleMapsUrl(v.googlePlaceId, v.name, v.venueAddress),
       };
     }),
-    description: 'Balanced Mix - Familiar favorites plus exciting new spots',
+    description: 'Some favorites mixed with a few new places',
   });
 
   // Option 3: Adventure option (ensure NO overlap with Option 1)
@@ -586,19 +586,19 @@ export async function selectBestItineraryForAutoSchedule(
     // Revisit old favorites with category diversity
     const option3Count = calculateOptimalVenueCount(oldFavorites.slice(0, 5));
     option3Venues = selectDiverseVenues(oldFavorites, option3Count);
-    option3Description = 'Blast from the Past - Revisit venues you loved but haven\'t been to in a while';
+    option3Description = 'Places you haven\'t been to in a while';
   } else if (neverVisitedForOption3.length >= 1) {
     // New venues NOT in Option 1 with category diversity
     const option3Count = calculateOptimalVenueCount(neverVisitedForOption3.slice(0, 5));
     option3Venues = selectDiverseVenues(neverVisitedForOption3, option3Count);
-    option3Description = 'Adventure Mode - Brand new venues to explore';
+    option3Description = 'All new places - haven\'t tried any of these yet';
   } else {
     // Fall back to venues way down the list (after Options 1 & 2)
     const candidates = scoredVenues.filter(v => !usedVenueIds.has(v.id)).slice(0, 10);
     if (candidates.length >= 1) {
       const option3Count = calculateOptimalVenueCount(candidates.slice(0, 5));
       option3Venues = selectDiverseVenues(candidates, option3Count);
-      option3Description = 'Alternative Selection - Great options outside the usual rotation';
+      option3Description = 'A different mix of places';
     }
   }
 
@@ -611,7 +611,7 @@ export async function selectBestItineraryForAutoSchedule(
     options.push({
       optionNumber: 3,
       venues: option3VenuesOrdered.map(v => {
-        const sourceBadge = v.type === 'voting_event' ? '⭐ From Favorites' : '✨ AI Suggestion';
+        const sourceBadge = v.type === 'voting_event' ? '⭐ Favorite' : '✨ Suggested';
         return {
           sourceType: v.type,
           sourceId: v.id,

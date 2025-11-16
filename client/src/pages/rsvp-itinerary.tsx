@@ -298,11 +298,11 @@ export default function RsvpItineraryPage() {
   if (!identityClaimed) {
     return (
       <div className="min-h-screen bg-background">
-        <div className="max-w-2xl mx-auto p-4 py-8 space-y-6">
+        <div className="max-w-2xl mx-auto p-4 py-10 space-y-8">
           {/* Event Header */}
           <div className="text-center space-y-2">
             <div className="text-4xl mb-2">{group.emoji}</div>
-            <h1 className="text-3xl font-bold">{itinerary.name}</h1>
+            <h1 className="text-3xl font-black">{itinerary.name}</h1>
             <p className="text-muted-foreground">from {group.name}</p>
           </div>
 
@@ -388,11 +388,11 @@ export default function RsvpItineraryPage() {
   // Step 2+: Show full event details and RSVP
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-3xl mx-auto p-4 py-8 space-y-6">
+      <div className="max-w-3xl mx-auto p-4 py-10 space-y-8">
         {/* Event Header with claimed identity */}
         <div className="text-center space-y-2">
           <div className="text-4xl mb-2">{group.emoji}</div>
-          <h1 className="text-3xl font-bold">{itinerary.name}</h1>
+          <h1 className="text-3xl font-black">{itinerary.name}</h1>
           <p className="text-muted-foreground">from {group.name}</p>
           <p className="text-sm text-muted-foreground" data-testid="text-claimed-identity">
             {claimedIdentity === 'guest' ? `RSVP as guest: ${guestName}` : `RSVP for ${getDisplayName()}`}
@@ -445,7 +445,7 @@ export default function RsvpItineraryPage() {
               {itinerary.items.map((item, idx) => (
                 <div key={item.id} className="flex gap-4">
                   <div className="flex flex-col items-center">
-                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold">
+                    <div className="h-8 w-8 rounded-full bg-primary/25 flex items-center justify-center text-sm font-semibold">
                       {idx + 1}
                     </div>
                     {idx < itinerary.items.length - 1 && (
@@ -631,7 +631,7 @@ export default function RsvpItineraryPage() {
                 </div>
 
                 {selectedResponse && (
-                  <div className="mt-4 p-3 bg-primary/5 rounded-lg text-sm">
+                  <div className="mt-4 p-3 bg-primary/15 rounded-lg text-sm">
                     <p className="font-medium text-primary">Your response: {
                       selectedResponse === "yes" ? "Going" :
                       selectedResponse === "maybe" ? "Maybe" :

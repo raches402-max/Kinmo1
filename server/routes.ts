@@ -552,6 +552,115 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get user's global preferences (from userProfiles)
+  app.get("/api/user/preferences", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const profile = await storage.getUserProfile(userId);
+
+      // Return preferences-specific fields
+      res.json({
+        budget: profile?.budget || null,
+        activityPreferences: profile?.activityPreferences || [],
+        personalAvailability: profile?.personalAvailability || null,
+        emailNotifications: profile?.emailNotifications ?? true,
+      });
+    } catch (error: any) {
+      console.error("Error fetching user preferences:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Update user's global preferences
+  app.patch("/api/user/preferences", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+
+      // Only allow updating preference fields
+      const { budget, activityPreferences, personalAvailability, emailNotifications } = req.body;
+      const updateData: any = {};
+
+      if (budget !== undefined) updateData.budget = budget;
+      if (activityPreferences !== undefined) updateData.activityPreferences = activityPreferences;
+      if (personalAvailability !== undefined) updateData.personalAvailability = personalAvailability;
+      if (emailNotifications !== undefined) updateData.emailNotifications = emailNotifications;
+
+      const profile = await storage.upsertUserProfile(userId, updateData);
+
+      // Return preferences-specific fields
+      res.json({
+        budget: profile.budget,
+        activityPreferences: profile.activityPreferences,
+        personalAvailability: profile.personalAvailability,
+        emailNotifications: profile.emailNotifications,
+      });
+    } catch (error: any) {
+      console.error("Error updating user preferences:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get group-specific preference overrides
+  app.get("/api/user/preferences/groups/:groupId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { groupId } = req.params;
+
+      // Verify user has access to this group
+      await requireGroupAccess(userId, groupId);
+
+      const preferences = await storage.getMemberGroupPreferences(userId, groupId);
+      res.json(preferences || {
+        budgetOverrideMin: null,
+        budgetOverrideMax: null,
+        categoryPreferencesOverride: null,
+        availabilityOverride: null,
+        meetingFrequencyOverride: null,
+      });
+    } catch (error: any) {
+      console.error("Error fetching group preferences:", error);
+      if (error.message === "Unauthorized") {
+        return res.status(403).json({ message: "You don't have access to this group" });
+      }
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Update group-specific preference overrides
+  app.patch("/api/user/preferences/groups/:groupId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { groupId } = req.params;
+
+      // Verify user has access to this group
+      await requireGroupAccess(userId, groupId);
+
+      const {
+        budgetOverrideMin,
+        budgetOverrideMax,
+        categoryPreferencesOverride,
+        availabilityOverride,
+        meetingFrequencyOverride,
+      } = req.body;
+
+      const updateData: any = {};
+      if (budgetOverrideMin !== undefined) updateData.budgetOverrideMin = budgetOverrideMin;
+      if (budgetOverrideMax !== undefined) updateData.budgetOverrideMax = budgetOverrideMax;
+      if (categoryPreferencesOverride !== undefined) updateData.categoryPreferencesOverride = categoryPreferencesOverride;
+      if (availabilityOverride !== undefined) updateData.availabilityOverride = availabilityOverride;
+      if (meetingFrequencyOverride !== undefined) updateData.meetingFrequencyOverride = meetingFrequencyOverride;
+
+      const preferences = await storage.upsertMemberGroupPreferences(userId, groupId, updateData);
+      res.json(preferences);
+    } catch (error: any) {
+      console.error("Error updating group preferences:", error);
+      if (error.message === "Unauthorized") {
+        return res.status(403).json({ message: "You don't have access to this group" });
+      }
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Get user's groups
   app.get("/api/user/groups", isAuthenticated, async (req: any, res) => {
     try {
@@ -594,6 +703,214 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(collections);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get member dashboard data (all groups, events, stats)
+  app.get("/api/user/dashboard", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+
+      // Get user info
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, userId));
+
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Get all groups where user is a member
+      const memberGroups = await db
+        .select({
+          groupId: membersTable.groupId,
+          memberId: membersTable.id,
+          memberSince: membersTable.createdAt,
+          isOrganizer: membersTable.isOrganizer,
+        })
+        .from(membersTable)
+        .where(eq(membersTable.userId, userId));
+
+      // Get groups where user is the organizer (owner)
+      const ownedGroups = await db
+        .select({
+          id: groupsTable.id,
+          name: groupsTable.name,
+          emoji: groupsTable.emoji,
+          locationBase: groupsTable.locationBase,
+          createdAt: groupsTable.createdAt,
+        })
+        .from(groupsTable)
+        .where(eq(groupsTable.userId, userId));
+
+      // Combine member groups and owned groups
+      const allGroupIds = new Set([
+        ...memberGroups.map(m => m.groupId),
+        ...ownedGroups.map(g => g.id)
+      ]);
+
+      // Get full group details for all groups
+      const groups = await Promise.all(
+        Array.from(allGroupIds).map(async (groupId) => {
+          const [group] = await db
+            .select()
+            .from(groupsTable)
+            .where(eq(groupsTable.id, groupId));
+
+          if (!group) return null;
+
+          // Find member record if exists
+          const memberRecord = memberGroups.find(m => m.groupId === groupId);
+          const isOwner = group.userId === userId;
+
+          // Get member count
+          const memberCount = await db
+            .select({ count: sql<number>`cast(count(*) as int)` })
+            .from(membersTable)
+            .where(eq(membersTable.groupId, groupId));
+
+          // Get upcoming events count
+          const upcomingEventsCount = await db
+            .select({ count: sql<number>`cast(count(*) as int)` })
+            .from(itineraries)
+            .where(
+              and(
+                eq(itineraries.groupId, groupId),
+                or(
+                  eq(itineraries.status, 'proposed'),
+                  eq(itineraries.status, 'scheduled')
+                ),
+                gte(itineraries.eventDate, new Date())
+              )
+            );
+
+          return {
+            id: group.id,
+            name: group.name,
+            emoji: group.emoji,
+            locationBase: group.locationBase,
+            memberSince: memberRecord?.memberSince || group.createdAt,
+            isOrganizer: isOwner || (memberRecord?.isOrganizer || false),
+            isOwner,
+            memberCount: memberCount[0]?.count || 0,
+            upcomingEvents: upcomingEventsCount[0]?.count || 0,
+          };
+        })
+      );
+
+      // Filter out nulls
+      const validGroups = groups.filter(g => g !== null);
+
+      // Get all itineraries for these groups
+      const allItineraries = await db
+        .select({
+          id: itineraries.id,
+          groupId: itineraries.groupId,
+          name: itineraries.name,
+          status: itineraries.status,
+          eventDate: itineraries.eventDate,
+          createdAt: itineraries.createdAt,
+        })
+        .from(itineraries)
+        .where(
+          and(
+            sql`group_id IN (${sql.join(Array.from(allGroupIds), sql`, `)})`,
+            or(
+              eq(itineraries.status, 'proposed'),
+              eq(itineraries.status, 'scheduled'),
+              eq(itineraries.status, 'completed')
+            )
+          )
+        )
+        .orderBy(desc(itineraries.eventDate));
+
+      // Get RSVPs for all itineraries
+      const allRsvps = await db
+        .select()
+        .from(rsvpsTable)
+        .where(
+          or(
+            eq(rsvpsTable.userId, userId),
+            sql`member_id IN (SELECT id FROM members WHERE user_id = ${userId})`
+          )
+        );
+
+      // Categorize events
+      const now = new Date();
+      const upcomingEvents = [];
+      const pastEvents = [];
+      let totalInvited = 0;
+      let totalAttended = 0;
+      let totalResponded = 0;
+
+      for (const itinerary of allItineraries) {
+        const group = validGroups.find(g => g.id === itinerary.groupId);
+        if (!group) continue;
+
+        const rsvp = allRsvps.find(r => r.itineraryId === itinerary.id);
+        const isPast = itinerary.eventDate && itinerary.eventDate < now;
+
+        // Get itinerary items for preview
+        const items = await db
+          .select()
+          .from(itineraryItems)
+          .where(eq(itineraryItems.itineraryId, itinerary.id))
+          .orderBy(itineraryItems.orderIndex)
+          .limit(3);
+
+        const eventData = {
+          id: itinerary.id,
+          name: itinerary.name,
+          groupId: itinerary.groupId,
+          groupName: group.name,
+          groupEmoji: group.emoji,
+          status: itinerary.status,
+          eventDate: itinerary.eventDate,
+          rsvpStatus: rsvp?.response || null,
+          attended: rsvp?.attended || false,
+          venues: items.map(item => ({
+            name: item.venueName,
+            type: item.venueType,
+          })),
+        };
+
+        totalInvited++;
+        if (rsvp?.response) totalResponded++;
+        if (rsvp?.attended) totalAttended++;
+
+        if (isPast) {
+          pastEvents.push(eventData);
+        } else {
+          upcomingEvents.push(eventData);
+        }
+      }
+
+      // Calculate stats
+      const stats = {
+        totalGroups: validGroups.length,
+        totalEventsInvited: totalInvited,
+        totalEventsAttended: totalAttended,
+        attendanceRate: totalInvited > 0 ? Math.round((totalAttended / totalInvited) * 100) : 0,
+        rsvpResponseRate: totalInvited > 0 ? Math.round((totalResponded / totalInvited) * 100) : 0,
+      };
+
+      res.json({
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          profileImageUrl: user.profileImageUrl,
+        },
+        groups: validGroups,
+        upcomingEvents: upcomingEvents.slice(0, 10), // Limit to 10 most recent
+        pastEvents: pastEvents.slice(0, 10), // Limit to 10 most recent
+        stats,
+      });
+    } catch (error) {
+      console.error("Error fetching member dashboard:", error);
+      res.status(500).json({ message: "Failed to fetch dashboard data" });
     }
   });
 
@@ -1029,7 +1346,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             inviteId: `virtual-${group.id}-${dateStr}`,
             inviteToken: null,
             itineraryId: null,
-            itineraryName: `${group.name} meetup`,
+            itineraryName: `${group.name}`,
             eventDate: date.toISOString(),
             status: 'virtual' as any, // Special status to indicate this is a placeholder
             groupId: group.id,
@@ -1521,14 +1838,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // and return both to the frontend
       const shouldGenerateNewEvent = canTrigger || existingProposedOrScheduled.length > 0;
 
-      // Select itinerary or venues
-      const selection = await selectBestItineraryForAutoSchedule(storage, group);
+      // Check if auto-itinerary creation is enabled
+      // If not, we can only use existing saved itineraries
+      let selection;
+
+      if (group.autoItineraryEnabled) {
+        // Auto-create itinerary combinations from activities/favorites
+        console.log('[Auto-Schedule] Auto-itinerary enabled - creating combinations from activities');
+        selection = await selectBestItineraryForAutoSchedule(storage, group);
+      } else {
+        // Auto-itinerary disabled - only use existing saved itineraries
+        console.log('[Auto-Schedule] Auto-itinerary disabled - checking for saved itineraries');
+        const savedItineraries = existingItineraries.filter(i => i.isSaved && i.status === 'saved');
+
+        if (savedItineraries.length === 0) {
+          return res.status(400).json({
+            message: "Auto-itinerary creation is disabled. Please create and save an itinerary first, or enable auto-itinerary creation in group settings.",
+            suggestion: "Enable 'Auto-create itineraries' in group settings to let AI combine your activities automatically."
+          });
+        }
+
+        // Use the most recently saved itinerary
+        const mostRecent = savedItineraries.sort((a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        )[0];
+
+        selection = { itineraryId: mostRecent.id };
+      }
 
       if (!selection) {
         return res.status(400).json({ message: "No viable itineraries or activities to schedule" });
       }
 
-      let itineraryId: string;
+      let itineraryId: string | null;
 
       // If we selected an existing itinerary, duplicate it manually
       if ('itineraryId' in selection && selection.itineraryId) {
@@ -1588,92 +1930,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
         itineraryId = newItinerary.id;
       } else if ('options' in selection && selection.options && selection.options.length > 0) {
-        // Clean up any existing draft itineraries before creating a new one
-        await db.delete(itineraries).where(
-          and(
-            eq(itineraries.groupId, group.id),
-            eq(itineraries.status, "draft"),
-            eq(itineraries.isSaved, false)
-          )
-        );
+        // NEW FLOW: Store options and use auto-approval flow
+        // Don't create itinerary yet - that happens after approval/confidence check
 
-        // New format: Create itinerary from first option (Top Picks)
-        const topPicksOption = selection.options[0];
-        const proposedOrder = topPicksOption.venues.map(v => v.sourceId);
-        const newItinerary = await storage.createItinerary(
-          {
-            groupId: group.id,
-            name: "Upcoming Hangout",
-            status: "draft",
-            proposedOrder,
-          },
-          group.userId,
-          topPicksOption.venues.map(venue => ({
-            sourceType: venue.sourceType,
-            sourceId: venue.sourceId
-          }))
-        );
-        itineraryId = newItinerary.id;
+        // Skip to AI time suggestion and auto-event creation
+        // The options will be stored with the auto-event and itinerary created upon approval
+        itineraryId = null; // Will be created later in auto-approval flow
       } else {
         return res.status(400).json({ message: "No valid selection" });
       }
 
-      // Validate and optimize itinerary ordering using AI
-      console.log(`[Manual Trigger] Validating itinerary order with AI...`);
-      try {
-        const { validateItinerary } = await import('./itinerary-validation.js');
-        const itineraryWithItems = await storage.getItinerary(itineraryId);
-        if (!itineraryWithItems) {
-          throw new Error('Itinerary not found for validation');
+      // Validate and optimize itinerary ordering using AI (only if itinerary was created)
+      if (itineraryId) {
+        console.log(`[Manual Trigger] Validating itinerary order with AI...`);
+        try {
+          const { validateItinerary } = await import('./itinerary-validation.js');
+          const itineraryWithItems = await storage.getItinerary(itineraryId);
+          if (!itineraryWithItems) {
+            throw new Error('Itinerary not found for validation');
+          }
+          const itineraryItems = itineraryWithItems.items;
+
+          // Prepare venues for validation
+          const venuesForValidation = itineraryItems.map(item => ({
+            sourceType: item.sourceType,
+            sourceId: item.sourceId,
+            venueName: item.venueName,
+            venueType: item.venueType,
+            venueAddress: item.venueAddress,
+            googlePlaceId: item.googlePlaceId,
+            location: item.latitude && item.longitude ? {
+              lat: parseFloat(item.latitude),
+              lng: parseFloat(item.longitude)
+            } : undefined
+          }));
+
+          // Get AI-validated order
+          const validation = await validateItinerary(venuesForValidation);
+
+          if (validation.proposedOrder && validation.proposedOrder.length > 0) {
+            // Update itinerary with optimized order
+            await db.update(itineraries)
+              .set({
+                proposedOrder: validation.proposedOrder,
+                aiValidationNotes: validation.validationNotes || null
+              })
+              .where(eq(itineraries.id, itineraryId));
+
+            console.log(`[Manual Trigger] ✅ AI validation complete: ${validation.validationNotes || 'Order optimized'}`);
+          }
+        } catch (validationError: any) {
+          // Log but don't fail - validation is optional enhancement
+          console.error('[Manual Trigger] AI validation failed (continuing anyway):', validationError.message);
         }
-        const itineraryItems = itineraryWithItems.items;
-
-        // Prepare venues for validation
-        const venuesForValidation = itineraryItems.map(item => ({
-          sourceType: item.sourceType,
-          sourceId: item.sourceId,
-          venueName: item.venueName,
-          venueType: item.venueType,
-          venueAddress: item.venueAddress,
-          googlePlaceId: item.googlePlaceId,
-          location: item.latitude && item.longitude ? {
-            lat: parseFloat(item.latitude),
-            lng: parseFloat(item.longitude)
-          } : undefined
-        }));
-
-        // Get AI-validated order
-        const validation = await validateItinerary(venuesForValidation);
-
-        if (validation.proposedOrder && validation.proposedOrder.length > 0) {
-          // Update itinerary with optimized order
-          await db.update(itineraries)
-            .set({
-              proposedOrder: validation.proposedOrder,
-              aiValidationNotes: validation.validationNotes || null
-            })
-            .where(eq(itineraries.id, itineraryId));
-
-          console.log(`[Manual Trigger] ✅ AI validation complete: ${validation.validationNotes || 'Order optimized'}`);
-        }
-      } catch (validationError: any) {
-        // Log but don't fail - validation is optional enhancement
-        console.error('[Manual Trigger] AI validation failed (continuing anyway):', validationError.message);
       }
 
       // AI suggests optimal time
-      const itinerary = await storage.getItinerary(itineraryId);
-      if (!itinerary) {
-        return res.status(404).json({ message: "Created itinerary not found" });
-      }
-
       let proposedDate: Date;
-      try {
-        // Get venue information
-        const venues = itinerary.items.map((item: any) => ({
+      let venues: Array<{ name: string; type: string }> = [];
+
+      // Get venue information (either from itinerary or from options)
+      if (itineraryId) {
+        const itinerary = await storage.getItinerary(itineraryId);
+        if (!itinerary) {
+          return res.status(404).json({ message: "Created itinerary not found" });
+        }
+        venues = itinerary.items.map((item: any) => ({
           name: item.venueName,
           type: item.venueType,
         }));
+      } else if ('options' in selection && selection.options && selection.options.length > 0) {
+        // Use venues from the top option for time suggestion
+        const topOption = selection.options[0];
+        venues = topOption.venues.map((v: any) => ({
+          name: v.venueName,
+          type: v.venueType || 'restaurant',
+        }));
+      } else {
+        return res.status(400).json({ message: "No venues available for scheduling" });
+      }
+
+      try {
 
         // Aggregate member availability
         const { aggregateMemberAvailability, convertAvailabilityToText } = await import('./availability-utils');
@@ -1739,18 +2076,126 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // No existing events - create auto-scheduled event as normal
       const autoSendAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours from now
 
+      // Calculate confidence score for the event
+      console.log('[Auto-Schedule] Calculating confidence score...');
+      const { calculateEventConfidence } = await import('./confidence-scoring.js');
+
+      // Get venue data for confidence calculation
+      let venuesForConfidence: Array<{ sourceType: string; sourceId: string; venueName: string }> = [];
+
+      if (itineraryId) {
+        const fullItinerary = await storage.getItinerary(itineraryId);
+        venuesForConfidence = fullItinerary?.items.map(item => ({
+          sourceType: item.sourceType,
+          sourceId: item.sourceId || '',
+          venueName: item.venueName,
+        })) || [];
+      } else if ('options' in selection && selection.options && selection.options.length > 0) {
+        // Use venues from top option for confidence calculation
+        const topOption = selection.options[0];
+        venuesForConfidence = topOption.venues.map((v: any) => ({
+          sourceType: v.sourceType,
+          sourceId: v.sourceId,
+          venueName: v.venueName,
+        }));
+      }
+
+      // Calculate member availability for this time
+      const { aggregateMemberAvailability } = await import('./availability-utils');
+      const availability = await aggregateMemberAvailability(group.id, storage);
+
+      const dayOfWeek = proposedDate.getDay();
+      const hour = proposedDate.getHours();
+      const timePeriod = hour < 12 ? 'morning' : (hour < 17 ? 'afternoon' : 'evening');
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const slotKey = `${dayNames[dayOfWeek]}-${timePeriod}`;
+      const membersAvailable = availability.grid[slotKey] || 0;
+      const totalMembers = availability.memberCount;
+
+      const confidenceResult = await calculateEventConfidence(
+        storage,
+        group.id,
+        venuesForConfidence,
+        proposedDate,
+        membersAvailable,
+        totalMembers
+      );
+
+      console.log('[Auto-Schedule] Confidence calculated:', {
+        score: confidenceResult.score,
+        factors: confidenceResult.factors,
+        summary: confidenceResult.plainLanguageSummary,
+      });
+
+      // Determine initial status based on confidence
+      // ≥80: auto-approve immediately
+      // <80: pending (requires organizer review or will auto-send after 48hrs)
+      const shouldAutoApprove = confidenceResult.score >= 80;
+      const initialStatus = shouldAutoApprove ? 'auto_approved' : 'pending';
+      const requiresReview = confidenceResult.score < 60;
+
       const pendingEvent = await storage.createAutoScheduledEvent({
         groupId: group.id,
         itineraryId,
         proposedDate,
         autoSendAt,
-        status: 'pending'
+        status: initialStatus,
+        confidenceScore: confidenceResult.score,
+        confidenceFactors: confidenceResult.factors,
+        requiresReview,
+        reviewReason: requiresReview ? 'low_confidence' : null,
       });
+
+      // Create itineraryOptions if we have options (for member voting and auto-approval)
+      if ('options' in selection && selection.options && selection.options.length > 0) {
+        console.log(`[Auto-Schedule] Creating ${selection.options.length} itinerary options`);
+        const { itineraryOptions } = await import('@shared/schema');
+
+        for (const option of selection.options) {
+          await db.insert(itineraryOptions).values({
+            autoEventId: pendingEvent.id,
+            optionNumber: option.optionNumber,
+            venues: option.venues, // Already in correct format from selectBestItineraryForAutoSchedule
+            description: option.description,
+          });
+        }
+        console.log('[Auto-Schedule] ✅ Itinerary options created');
+      }
+
+      // If auto-approved (≥80% confidence), immediately create the itinerary
+      if (shouldAutoApprove) {
+        console.log('[Auto-Schedule] High confidence (≥80%) - auto-approving event');
+        const { approveAndCreateItinerary } = await import('./auto-approval.js');
+        const approvalResult = await approveAndCreateItinerary(
+          pendingEvent.id,
+          null, // Let it determine best option
+          'auto'
+        );
+
+        if (approvalResult.success) {
+          console.log('[Auto-Schedule] ✅ Event auto-approved and itinerary created');
+        } else {
+          console.error('[Auto-Schedule] ❌ Auto-approval failed:', approvalResult.error);
+        }
+      } else if (requiresReview) {
+        console.log('[Auto-Schedule] ⚠️  Low confidence (<60%) - flagged for organizer review');
+      } else {
+        console.log('[Auto-Schedule] ⏳ Medium confidence (60-79%) - pending organizer approval');
+      }
 
       res.json({
         hasMultipleOptions: false,
-        message: "Auto-scheduled event created",
-        event: pendingEvent
+        message: shouldAutoApprove
+          ? "Event auto-approved! High confidence match for your group."
+          : requiresReview
+            ? "Event created but needs your review (low confidence)"
+            : "Auto-scheduled event created - awaiting approval",
+        event: pendingEvent,
+        confidence: {
+          score: confidenceResult.score,
+          summary: confidenceResult.plainLanguageSummary,
+          reasons: confidenceResult.plainLanguageReasons,
+        },
       });
     } catch (error: any) {
       console.error('Error triggering auto-schedule:', error);

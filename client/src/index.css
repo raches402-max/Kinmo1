@@ -10,84 +10,112 @@
   /* Automatic computation of border around primary / danger buttons */
   --opaque-button-border-intensity: -8; /* In terms of percentages */
 
-  /* Backgrounds applied on top of other backgrounds when hovered/active */
-  --elevate-1: rgba(0,0,0, .03);
-  --elevate-2: rgba(0,0,0, .08);
+  /* Base Colors - Warm Off-White & Black */
+  --background: 40 10% 99%; /* Warm off-white with yellow tint */
+  --foreground: 0 0% 0%; /* Pure black for maximum contrast */
 
-  --background: 0 0% 100%;
+  /* Grays - Warm tinted for friendly feel */
+  --gray-light: 40 8% 96%; /* Warm light gray */
+  --gray-medium: 40 4% 45%; /* Warm medium gray */
+  --gray-dark: 40 2% 20%; /* Warm dark gray */
 
-  --foreground: 240 10% 4%;
+  --border: 40 6% 90%; /* Warm border */
+  --card: 40 15% 99%; /* Warm white for cards */
+  --card-foreground: 0 0% 0%; /* Pure black text on cards */
+  --card-border: 40 8% 85%; /* Warm card borders */
 
-  --border: 240 6% 90%;
+  --sidebar: 40 8% 96%; /* Warm sidebar background */
+  --sidebar-foreground: 0 0% 0%; /* Pure black sidebar text */
+  --sidebar-border: 40 8% 85%; /* Warm sidebar borders */
+  --sidebar-primary: 48 96% 53%;
+  --sidebar-primary-foreground: 0 0% 0%; /* Pure black on yellow */
+  --sidebar-accent: 40 8% 96%; /* Warm sidebar accent */
+  --sidebar-accent-foreground: 0 0% 0%; /* Pure black sidebar accent text */
+  --sidebar-ring: 48 96% 53%;
 
-  --card: 240 5% 96%;
+  --popover: 40 15% 99%; /* Warm popover background */
+  --popover-foreground: 0 0% 0%; /* Pure black popover text */
+  --popover-border: 40 8% 85%; /* Warm popover borders */
 
-  --card-foreground: 240 10% 4%;
+  /* Primary - Sunflower Yellow (accent only) */
+  --primary: 48 96% 53%;
+  --primary-foreground: 0 0% 0%; /* Pure black on yellow */
 
-  --card-border: 240 6% 88%;
+  /* Secondary - Black */
+  --secondary: 0 0% 0%; /* Pure black for maximum contrast */
+  --secondary-foreground: 40 10% 99%; /* Warm white on black */
 
-  --sidebar: 240 5% 94%;
+  /* Muted - Warm Light Gray */
+  --muted: 40 8% 96%; /* Warm muted background */
+  --muted-foreground: 40 4% 45%; /* Warm muted text */
 
-  --sidebar-foreground: 240 10% 4%;
+  /* Accent - Yellow */
+  --accent: 48 96% 53%;
+  --accent-foreground: 0 0% 0%; /* Pure black on yellow accent */
 
-  --sidebar-border: 240 6% 86%;
+  /* Activity Colors - Vibrant & Bold */
+  --activity-meals: 15 85% 55%;
+  --activity-cafes: 30 85% 45%;
+  --activity-drinks: 280 75% 60%;
+  --activity-dessert: 340 85% 60%;
+  --activity-experiences: 200 80% 50%;
 
-  --sidebar-primary: 262 80% 50%;
+  /* Semantic Colors */
+  --destructive: 0 80% 55%;
+  --destructive-foreground: 40 10% 99%; /* Warm white on red */
+  --success: 145 70% 45%;
+  --success-foreground: 40 10% 99%; /* Warm white on green */
+  --warning: 38 92% 50%;
+  --warning-foreground: 0 0% 0%; /* Pure black on warning yellow */
 
-  --sidebar-primary-foreground: 0 0% 98%;
-
-  --sidebar-accent: 240 8% 88%;
-
-  --sidebar-accent-foreground: 240 10% 4%;
-
-  --sidebar-ring: 262 80% 50%;
-
-  --popover: 240 6% 92%;
-
-  --popover-foreground: 240 10% 4%;
-
-  --popover-border: 240 6% 84%;
-
-  --primary: 262 80% 50%;
-
-  --primary-foreground: 0 0% 98%;
-
-  --secondary: 240 6% 86%;
-
-  --secondary-foreground: 240 10% 4%;
-
-  --muted: 240 8% 88%;
-
-  --muted-foreground: 240 5% 45%;
-
-  --accent: 240 8% 88%;
-
-  --accent-foreground: 240 10% 4%;
-
-  --destructive: 0 84% 60%;
-
-  --destructive-foreground: 0 0% 98%;
-
-  --input: 240 8% 75%;
-  --ring: 262 80% 50%;
-  --chart-1: 262 80% 50%;
-  --chart-2: 220 90% 56%;
-  --chart-3: 142 76% 36%;
-  --chart-4: 38 92% 50%;
-  --chart-5: 280 65% 60%;
+  --input: 40 8% 85%; /* Warm input borders */
+  --ring: 48 96% 53%;
+  --chart-1: 48 96% 53%;
+  --chart-2: 15 85% 55%;
+  --chart-3: 200 80% 50%;
+  --chart-4: 280 75% 60%;
+  --chart-5: 340 85% 60%;
 
   --font-sans: Inter, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: Menlo, monospace;
+
+  /* Typography Scale */
+  --text-display: 2.5rem; /* 40px */
+  --text-h1: 2rem; /* 32px */
+  --text-h2: 1.5rem; /* 24px */
+  --text-h3: 1.125rem; /* 18px */
+  --text-base: 1rem; /* 16px */
+  --text-sm: 0.875rem; /* 14px */
+  --text-xs: 0.75rem; /* 12px */
+
+  /* Line Heights */
+  --leading-tight: 1.1; /* For large headings */
+  --leading-normal: 1.5; /* For body text */
+  --leading-relaxed: 1.7; /* For long-form content */
+
+  /* Font Weights - Use these for consistency */
+  /* font-normal: 400 (body text) */
+  /* font-medium: 500 (labels, secondary emphasis) */
+  /* font-semibold: 600 (card titles, subheadings) */
+  /* font-bold: 700 (page headings, stats) */
+  /* font-black: 900 (hero headings, display text) */
+
   --radius: .5rem; /* 8px */
-  --shadow-2xs: 0px 1px 2px 0px hsl(240 10% 4% / 0.05);
-  --shadow-xs: 0px 1px 3px 0px hsl(240 10% 4% / 0.08);
-  --shadow-sm: 0px 2px 4px -1px hsl(240 10% 4% / 0.06), 0px 1px 2px -1px hsl(240 10% 4% / 0.04);
-  --shadow: 0px 4px 6px -1px hsl(240 10% 4% / 0.08), 0px 2px 4px -1px hsl(240 10% 4% / 0.05);
-  --shadow-md: 0px 6px 12px -2px hsl(240 10% 4% / 0.10), 0px 3px 6px -2px hsl(240 10% 4% / 0.06);
-  --shadow-lg: 0px 10px 20px -4px hsl(240 10% 4% / 0.12), 0px 4px 8px -2px hsl(240 10% 4% / 0.08);
-  --shadow-xl: 0px 20px 30px -6px hsl(240 10% 4% / 0.15), 0px 8px 12px -4px hsl(240 10% 4% / 0.10);
-  --shadow-2xl: 0px 25px 50px -12px hsl(240 10% 4% / 0.20);
+
+  /* Simplified Shadow System - Only 2 levels */
+  --shadow-subtle: 0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.12);
+
+  /* Legacy shadow aliases for compatibility */
+  --shadow-2xs: var(--shadow-subtle);
+  --shadow-xs: var(--shadow-subtle);
+  --shadow-sm: var(--shadow-subtle);
+  --shadow: var(--shadow-subtle);
+  --shadow-md: var(--shadow-elevated);
+  --shadow-lg: var(--shadow-elevated);
+  --shadow-xl: var(--shadow-elevated);
+  --shadow-2xl: var(--shadow-elevated);
   --tracking-normal: 0em;
   --spacing: 0.25rem;
 
@@ -128,80 +156,85 @@
 
   --opaque-button-border-intensity: 9;  /* In terms of percentages */
 
-  /* Backgrounds applied on top of other backgrounds when hovered/active */
-  --elevate-1: rgba(255,255,255, .04);
-  --elevate-2: rgba(255,255,255, .09);
-
-  --background: 240 10% 4%;
-
+  /* Base Colors - Black & White (Inverted) */
+  --background: 0 0% 8%;
   --foreground: 0 0% 98%;
 
-  --border: 240 4% 16%;
+  /* Grays - Simplified */
+  --gray-light: 0 0% 20%;
+  --gray-medium: 0 0% 60%;
+  --gray-dark: 0 0% 85%;
 
-  --card: 240 6% 10%;
-
+  --border: 0 0% 20%;
+  --card: 0 0% 10%;
   --card-foreground: 0 0% 98%;
+  --card-border: 0 0% 16%;
 
-  --card-border: 240 5% 14%;
-
-  --sidebar: 240 6% 8%;
-
+  --sidebar: 0 0% 10%;
   --sidebar-foreground: 0 0% 98%;
-
-  --sidebar-border: 240 5% 12%;
-
-  --sidebar-primary: 262 85% 60%;
-
-  --sidebar-primary-foreground: 0 0% 98%;
-
-  --sidebar-accent: 240 8% 14%;
-
+  --sidebar-border: 0 0% 16%;
+  --sidebar-primary: 48 96% 53%;
+  --sidebar-primary-foreground: 0 0% 10%;
+  --sidebar-accent: 0 0% 20%;
   --sidebar-accent-foreground: 0 0% 98%;
+  --sidebar-ring: 48 96% 53%;
 
-  --sidebar-ring: 262 85% 60%;
-
-  --popover: 240 6% 12%;
-
+  --popover: 0 0% 10%;
   --popover-foreground: 0 0% 98%;
+  --popover-border: 0 0% 16%;
 
-  --popover-border: 240 5% 16%;
+  /* Primary - Sunflower Yellow (same in dark mode) */
+  --primary: 48 96% 53%;
+  --primary-foreground: 0 0% 10%;
 
-  --primary: 262 85% 60%;
+  /* Secondary - White */
+  --secondary: 0 0% 98%;
+  --secondary-foreground: 0 0% 10%;
 
-  --primary-foreground: 0 0% 98%;
+  /* Muted - Dark Gray */
+  --muted: 0 0% 20%;
+  --muted-foreground: 0 0% 60%;
 
-  --secondary: 240 6% 16%;
+  /* Accent - Yellow */
+  --accent: 48 96% 53%;
+  --accent-foreground: 0 0% 10%;
 
-  --secondary-foreground: 0 0% 98%;
+  /* Activity Colors - Same as light mode */
+  --activity-meals: 15 85% 55%;
+  --activity-cafes: 30 85% 45%;
+  --activity-drinks: 280 75% 60%;
+  --activity-dessert: 340 85% 60%;
+  --activity-experiences: 200 80% 50%;
 
-  --muted: 240 8% 14%;
-
-  --muted-foreground: 240 5% 65%;
-
-  --accent: 240 8% 14%;
-
-  --accent-foreground: 0 0% 98%;
-
-  --destructive: 0 84% 60%;
-
+  /* Semantic Colors */
+  --destructive: 0 80% 55%;
   --destructive-foreground: 0 0% 98%;
+  --success: 145 70% 45%;
+  --success-foreground: 0 0% 98%;
+  --warning: 38 92% 50%;
+  --warning-foreground: 0 0% 10%;
 
-  --input: 240 6% 24%;
-  --ring: 262 85% 60%;
-  --chart-1: 262 85% 65%;
-  --chart-2: 220 90% 65%;
-  --chart-3: 142 70% 45%;
-  --chart-4: 38 92% 60%;
-  --chart-5: 280 70% 70%;
+  --input: 0 0% 20%;
+  --ring: 48 96% 53%;
+  --chart-1: 48 96% 53%;
+  --chart-2: 15 85% 55%;
+  --chart-3: 200 80% 50%;
+  --chart-4: 280 75% 60%;
+  --chart-5: 340 85% 60%;
 
-  --shadow-2xs: 0px 1px 2px 0px hsl(0 0% 0% / 0.20);
-  --shadow-xs: 0px 1px 3px 0px hsl(0 0% 0% / 0.25);
-  --shadow-sm: 0px 2px 4px -1px hsl(0 0% 0% / 0.22), 0px 1px 2px -1px hsl(0 0% 0% / 0.18);
-  --shadow: 0px 4px 6px -1px hsl(0 0% 0% / 0.28), 0px 2px 4px -1px hsl(0 0% 0% / 0.20);
-  --shadow-md: 0px 6px 12px -2px hsl(0 0% 0% / 0.32), 0px 3px 6px -2px hsl(0 0% 0% / 0.24);
-  --shadow-lg: 0px 10px 20px -4px hsl(0 0% 0% / 0.38), 0px 4px 8px -2px hsl(0 0% 0% / 0.28);
-  --shadow-xl: 0px 20px 30px -6px hsl(0 0% 0% / 0.45), 0px 8px 12px -4px hsl(0 0% 0% / 0.35);
-  --shadow-2xl: 0px 25px 50px -12px hsl(0 0% 0% / 0.55);
+  /* Simplified Shadow System - Same as light mode */
+  --shadow-subtle: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.3);
+
+  /* Legacy shadow aliases for compatibility */
+  --shadow-2xs: var(--shadow-subtle);
+  --shadow-xs: var(--shadow-subtle);
+  --shadow-sm: var(--shadow-subtle);
+  --shadow: var(--shadow-subtle);
+  --shadow-md: var(--shadow-elevated);
+  --shadow-lg: var(--shadow-elevated);
+  --shadow-xl: var(--shadow-elevated);
+  --shadow-2xl: var(--shadow-elevated);
 
   /* Automatically computed borders - intensity can be controlled by the user by the --opaque-button-border-intensity setting */
   --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
@@ -224,27 +257,9 @@
 }
 
 /**
- * Using the elevate system.
- * Automatic contrast adjustment.
- *
- * <element className="hover-elevate" />
- * <element className="active-elevate-2" />
- *
- * // Using the tailwind utility when a data attribute is "on"
- * <element className="toggle-elevate data-[state=on]:toggle-elevated" />
- * // Or manually controlling the toggle state
- * <element className="toggle-elevate toggle-elevated" />
- *
- * Elevation systems have to handle many states.
- * - not-hovered, vs. hovered vs. active  (three mutually exclusive states)
- * - toggled or not
- * - focused or not (this is not handled with these utilities)
- *
- * Even without handling focused or not, this is six possible combinations that
- * need to be distinguished from eachother visually.
+ * Simplified utility classes for better UX
  */
 @layer utilities {
-
   /* Hide ugly search cancel button in Chrome until we can style it properly */
   input[type="search"]::-webkit-search-cancel-button {
     @apply hidden;
@@ -255,82 +270,5 @@
     content: attr(data-placeholder);
     color: hsl(var(--muted-foreground));
     pointer-events: none;
-  }
-
-  /* .no-default-hover-elevate/no-default-active-elevate is an escape hatch so consumers of
-   * buttons/badges can remove the automatic brightness adjustment on interactions
-   * and program their own. */
-  .no-default-hover-elevate {}
-
-  .no-default-active-elevate {}
-
-
-  /**
-   * Toggleable backgrounds go behind the content. Hoverable/active goes on top.
-   * This way they can stack/compound. Both will overlap the parent's borders!
-   * So borders will be automatically adjusted both on toggle, and hover/active,
-   * and they will be compounded.
-   */
-  .toggle-elevate::before,
-  .toggle-elevate-2::before {
-    content: "";
-    pointer-events: none;
-    position: absolute;
-    inset: 0px;
-    /*border-radius: inherit;   match rounded corners */
-    border-radius: inherit;
-    z-index: -1;
-    /* sits behind content but above backdrop */
-  }
-
-  .toggle-elevate.toggle-elevated::before {
-    background-color: var(--elevate-2);
-  }
-
-  /* If there's a 1px border, adjust the inset so that it covers that parent's border */
-  .border.toggle-elevate::before {
-    inset: -1px;
-  }
-
-  /* Does not work on elements with overflow:hidden! */
-  .hover-elevate:not(.no-default-hover-elevate),
-  .active-elevate:not(.no-default-active-elevate),
-  .hover-elevate-2:not(.no-default-hover-elevate),
-  .active-elevate-2:not(.no-default-active-elevate) {
-    position: relative;
-    z-index: 0;
-  }
-
-  .hover-elevate:not(.no-default-hover-elevate)::after,
-  .active-elevate:not(.no-default-active-elevate)::after,
-  .hover-elevate-2:not(.no-default-hover-elevate)::after,
-  .active-elevate-2:not(.no-default-active-elevate)::after {
-    content: "";
-    pointer-events: none;
-    position: absolute;
-    inset: 0px;
-    /*border-radius: inherit;   match rounded corners */
-    border-radius: inherit;
-    z-index: 999;
-    /* sits in front of content */
-  }
-
-  .hover-elevate:hover:not(.no-default-hover-elevate)::after,
-  .active-elevate:active:not(.no-default-active-elevate)::after {
-    background-color: var(--elevate-1);
-  }
-
-  .hover-elevate-2:hover:not(.no-default-hover-elevate)::after,
-  .active-elevate-2:active:not(.no-default-active-elevate)::after {
-    background-color: var(--elevate-2);
-  }
-
-  /* If there's a 1px border, adjust the inset so that it covers that parent's border */
-  .border.hover-elevate:not(.no-hover-interaction-elevate)::after,
-  .border.active-elevate:not(.no-active-interaction-elevate)::after,
-  .border.hover-elevate-2:not(.no-hover-interaction-elevate)::after,
-  .border.active-elevate-2:not(.no-active-interaction-elevate)::after,
-  .border.hover-elevate:not(.no-hover-interaction-elevate)::after {
-    inset: -1px;
   }
 }

@@ -6,9 +6,9 @@ export default {
   theme: {
     extend: {
       borderRadius: {
-        lg: ".5625rem", /* 9px */
-        md: ".375rem", /* 6px */
-        sm: ".1875rem", /* 3px */
+        lg: "0.75rem", /* 12px - for cards, modals */
+        md: "0.5rem", /* 8px - for buttons, inputs */
+        sm: "0.375rem", /* 6px - for badges, small elements */
       },
       colors: {
         // Flat / base colors (regular buttons)
@@ -59,6 +59,15 @@ export default {
           "4": "hsl(var(--chart-4) / <alpha-value>)",
           "5": "hsl(var(--chart-5) / <alpha-value>)",
         },
+        activity: {
+          meals: "hsl(var(--activity-meals) / <alpha-value>)",
+          cafes: "hsl(var(--activity-cafes) / <alpha-value>)",
+          drinks: "hsl(var(--activity-drinks) / <alpha-value>)",
+          dessert: "hsl(var(--activity-dessert) / <alpha-value>)",
+          experiences: "hsl(var(--activity-experiences) / <alpha-value>)",
+        },
+        success: "hsl(var(--success) / <alpha-value>)",
+        warning: "hsl(var(--warning) / <alpha-value>)",
         sidebar: {
           ring: "hsl(var(--sidebar-ring) / <alpha-value>)",
           DEFAULT: "hsl(var(--sidebar) / <alpha-value>)",

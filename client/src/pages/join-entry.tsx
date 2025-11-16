@@ -36,7 +36,7 @@ export default function JoinEntry() {
       <Card className="w-full max-w-md">
         <CardHeader>
           <div className="flex items-center gap-3 mb-2">
-            <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
+            <div className="h-12 w-12 rounded-lg bg-primary/25 flex items-center justify-center">
               <Link className="h-6 w-6 text-primary" />
             </div>
             <div>

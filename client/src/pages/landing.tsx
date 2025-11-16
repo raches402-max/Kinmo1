@@ -5,15 +5,15 @@ import { Sparkles, Users, Calendar, MapPin } from "lucide-react";
 
 export default function Landing() {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <header className="border-b bg-background">
+        <div className="max-w-7xl mx-auto px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Sparkles className="h-6 w-6 text-primary" />
             <h1 className="text-xl font-bold">Kinmo.ai</h1>
           </div>
-          <Button 
+          <Button
             onClick={() => window.location.href = "/api/login"}
             data-testid="button-login"
           >
@@ -23,19 +23,19 @@ export default function Landing() {
       </header>
 
       {/* Hero Section */}
-      <div className="max-w-7xl mx-auto px-6 py-20">
-        <div className="text-center space-y-6 mb-16">
-          <h1 className="text-4xl md:text-6xl font-bold tracking-tight">
+      <div className="max-w-7xl mx-auto px-8 py-24">
+        <div className="text-center space-y-8 mb-20">
+          <h1 className="text-4xl md:text-5xl font-black tracking-tight leading-tight">
             Using AI to take the friction out of seeing your kin, more
           </h1>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Never struggle to plan group activities again. Get personalized AI suggestions 
+          <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+            Never struggle to plan group activities again. Get personalized AI suggestions
             based on your group's preferences, budget, and availability.
           </p>
-          <Button 
-            size="lg" 
+          <Button
+            size="lg"
             onClick={() => window.location.href = "/api/login"}
-            className="mt-4"
+            className="mt-6"
             data-testid="button-get-started"
           >
             Get Started Free
@@ -43,7 +43,7 @@ export default function Landing() {
         </div>
 
         {/* Features Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mt-20">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 mt-24">
           <Card>
             <CardHeader>
               <Sparkles className="h-8 w-8 text-primary mb-2" />

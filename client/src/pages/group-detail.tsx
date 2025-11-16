@@ -21,7 +21,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, ChevronRight, ChevronLeft, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell, Edit2, Edit, Compass, Home, UserCheck, MessageCircle, TrendingUp, AlertCircle, Users, Loader2, Map, Info, MoreVertical, Zap } from "lucide-react";
+import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, ChevronRight, ChevronLeft, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell, Edit2, Edit, Compass, Home, UserCheck, MessageCircle, TrendingUp, AlertCircle, Users, Loader2, Map, Info, MoreVertical, Zap, Brain } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -303,13 +303,13 @@ function SortableItineraryItem({ item, index, onRemove }: { item: any; index: nu
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-center gap-3 p-3 rounded-md bg-card border hover-elevate"
+      className="flex items-center gap-3 p-3 rounded-md bg-card border"
       data-testid={`itinerary-item-${item.id}`}
     >
       <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
         <GripVertical className="h-5 w-5 text-muted-foreground" />
       </div>
-      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-bold">
+      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/25 text-primary font-bold">
         {index + 1}
       </div>
       <div className="flex-1 min-w-0">
@@ -475,13 +475,13 @@ function SortableCartVenue({ id, index, venueName, venueType, photoUrl, onRemove
       <div
         ref={setNodeRef}
         style={style}
-        className="flex items-center gap-3 p-2 rounded-md bg-accent/20 border hover-elevate"
+        className="flex items-center gap-3 p-2 rounded-md bg-accent/20 border"
         data-testid={`cart-venue-${id}`}
       >
         <div
           {...attributes}
           {...listeners}
-          className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary font-bold text-xs flex-shrink-0 cursor-grab active:cursor-grabbing"
+          className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/25 text-primary font-bold text-xs flex-shrink-0 cursor-grab active:cursor-grabbing"
         >
           <GripVertical className="h-3 w-3" />
         </div>
@@ -528,7 +528,7 @@ function SortableCartVenue({ id, index, venueName, venueType, photoUrl, onRemove
               <div
                 key={suggestion.placeId}
                 className={`flex gap-2 p-2 rounded-md border transition-all ${
-                  alreadyAdded || addVenueLoading ? 'opacity-50' : 'hover-elevate'
+                  alreadyAdded || addVenueLoading ? 'opacity-50' : ''
                 }`}
                 data-testid={`nearby-suggestion-${suggestion.placeId}`}
               >
@@ -606,7 +606,6 @@ export default function GroupDetail() {
   const [tempInstructions, setTempInstructions] = useState("");
   const [editGroupOpen, setEditGroupOpen] = useState(false);
   const [editBudgetRange, setEditBudgetRange] = useState<number[]>([50, 250]);
-  const [showInstructions, setShowInstructions] = useState(true);
   const [activeTab, setActiveTab] = useState("home");
   const [createEventSubTab, setCreateEventSubTab] = useState("manual"); // manual or auto
   const [editCloseness, setEditCloseness] = useState(3);
@@ -2656,56 +2655,6 @@ export default function GroupDetail() {
           <div className="w-20"></div>
         </div>
       </header>
-      {/* How It Works Banner */}
-      {activities.length > 0 && showInstructions && (
-        <div className="border-b bg-primary/5 border-primary/20">
-          <div className="max-w-7xl mx-auto px-6 py-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3 flex-1">
-                <div className={`flex items-center justify-center w-7 h-7 rounded-full font-bold text-sm flex-shrink-0 ${
-                  itineraries.length > 0 ? 'bg-primary text-primary-foreground' : 'bg-primary text-primary-foreground'
-                }`}>
-                  {itineraries.length > 0 ? '2' : '1'}
-                </div>
-                <div className="flex-1">
-                  <p className="font-semibold text-sm mb-1">
-                    {itineraries.length > 0 ? 'Step 2: Create Your Itinerary' : 'Step 1: Discover Activities'}
-                  </p>
-                  <p className="text-xs text-muted-foreground mb-2">
-                    {itineraries.length > 0 
-                      ? 'Select 1-5 venues to create your perfect evening. AI validates proximity and timing.'
-                      : 'Browse AI-generated suggestions below. Use "Generate New Ideas" to explore more options.'}
-                  </p>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span className={itineraries.length > 0 ? 'line-through opacity-50' : 'font-medium text-primary'}>
-                      1. Discover
-                    </span>
-                    <span>→</span>
-                    <span className={itineraries.length > 0 ? 'font-medium text-primary' : ''}>
-                      2. Itinerary
-                    </span>
-                    <span>→</span>
-                    <span className="opacity-50">3. Schedule</span>
-                    <span>→</span>
-                    <span className="opacity-50">4. Invite</span>
-                    <span>→</span>
-                    <span className="opacity-50">5. Learn</span>
-                  </div>
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowInstructions(false)}
-                className="h-6 w-6 p-0 flex-shrink-0"
-                data-testid="button-hide-instructions"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
       <div className="max-w-7xl mx-auto px-6 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full max-w-3xl mx-auto grid-cols-5">
@@ -2761,18 +2710,17 @@ export default function GroupDetail() {
                               {favoritesCount} Favorite{favoritesCount !== 1 ? 's' : ''}
                             </p>
                             {autoScheduleReady && (
-                              <Badge className="bg-green-600 text-white">
-                                <Zap className="h-3 w-3 mr-1" />
-                                Auto-schedule Ready
+                              <Badge className="bg-green-600 text-white gap-1">
+                                <Zap className="h-3 w-3" />
+                                Ready
                               </Badge>
                             )}
+                            {!autoScheduleReady && (
+                              <span className="text-xs text-muted-foreground">
+                                {5 - favoritesCount} more needed
+                              </span>
+                            )}
                           </div>
-                          <p className="text-xs text-muted-foreground">
-                            {autoScheduleReady
-                              ? "Your favorites power AI auto-scheduling - create new events instantly!"
-                              : `Add ${5 - favoritesCount} more favorite${5 - favoritesCount !== 1 ? 's' : ''} to unlock auto-scheduling`
-                            }
-                          </p>
                         </div>
                         {!autoScheduleReady && (
                           <Button
@@ -2793,73 +2741,50 @@ export default function GroupDetail() {
 
               {/* Auto-Scheduling Info Card */}
               {group?.autoScheduleEnabled && group?.nextEventDueDate && (
-                <Card className="border-primary/50 bg-primary/5" data-testid="card-next-auto-event">
+                <Card className="border-primary/50 bg-primary/15" data-testid="card-next-auto-event">
                   <CardHeader className="pb-3">
                     <div className="flex items-center gap-2">
                       <Bot className="h-5 w-5 text-primary" />
-                      <CardTitle className="text-base">Next Auto-Scheduled Event</CardTitle>
+                      <CardTitle className="text-base">Next Event</CardTitle>
                     </div>
                   </CardHeader>
-                  <CardContent className="space-y-3">
+                  <CardContent>
                     {(() => {
                       const nextDue = new Date(group.nextEventDueDate);
                       const now = new Date();
                       const msUntil = nextDue.getTime() - now.getTime();
                       const hoursUntil = Math.floor(msUntil / (1000 * 60 * 60));
                       const daysUntil = Math.floor(msUntil / (1000 * 60 * 60 * 24));
-                      const willTriggerSoon = daysUntil <= 10 && daysUntil >= 0;
-                      
+
                       // Format time remaining
                       let timeRemainingText = '';
                       if (msUntil < 0) {
                         timeRemainingText = 'Overdue';
                       } else if (hoursUntil < 24) {
                         const minutesRemaining = Math.floor((msUntil % (1000 * 60 * 60)) / (1000 * 60));
-                        timeRemainingText = hoursUntil === 0 
-                          ? `${minutesRemaining}m away` 
-                          : `${hoursUntil}h ${minutesRemaining}m away`;
+                        timeRemainingText = hoursUntil === 0
+                          ? `${minutesRemaining}m`
+                          : `${hoursUntil}h ${minutesRemaining}m`;
                       } else {
-                        timeRemainingText = `${daysUntil} day${daysUntil !== 1 ? 's' : ''} away`;
+                        timeRemainingText = `${daysUntil} day${daysUntil !== 1 ? 's' : ''}`;
                       }
-                      
+
                       return (
-                        <>
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1 space-y-1">
-                              <p className="text-sm font-medium">
-                                Target: {nextDue.toLocaleDateString('en-US', { 
-                                  weekday: 'long', 
-                                  month: 'long', 
-                                  day: 'numeric' 
-                                })}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                {timeRemainingText}
-                              </p>
-                            </div>
-                            {willTriggerSoon && (
-                              <Badge variant="default" className="gap-1">
-                                <Clock className="h-3 w-3" />
-                                Creating soon
-                              </Badge>
-                            )}
-                          </div>
-                          
-                          {willTriggerSoon ? (
-                            <div className="text-xs text-muted-foreground bg-background/50 rounded-md p-3 space-y-1">
-                              <p className="font-medium">Auto-scheduling activates 10 days before target:</p>
-                              <ol className="list-decimal list-inside space-y-1 ml-2">
-                                <li>Event created from saved plans or favorites</li>
-                                <li>48-hour window for members to volunteer as host</li>
-                                <li>If no volunteers, event automatically sends</li>
-                              </ol>
-                            </div>
-                          ) : (
-                            <p className="text-xs text-muted-foreground">
-                              Auto-scheduling activates 10 days before the target date
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-1">
+                            <p className="text-sm font-medium">
+                              {nextDue.toLocaleDateString('en-US', {
+                                weekday: 'long',
+                                month: 'long',
+                                day: 'numeric'
+                              })}
                             </p>
-                          )}
-                        </>
+                            <p className="text-xs text-muted-foreground">
+                              {timeRemainingText}
+                            </p>
+                          </div>
+                          <Clock className="h-5 w-5 text-muted-foreground" />
+                        </div>
                       );
                     })()}
                   </CardContent>
@@ -2920,7 +2845,7 @@ export default function GroupDetail() {
                         <div className="flex items-center justify-between">
                           <h2 className="text-xl font-bold flex items-center gap-2">
                             <Bot className="h-5 w-5 text-primary" />
-                            Pending Auto-Events
+                            Pending
                           </h2>
                         </div>
                         <div className="grid gap-4">
@@ -2934,24 +2859,24 @@ export default function GroupDetail() {
                             let countdownText = '';
                             let countdownBadge = '';
                             if (msUntilAutoSend <= 0) {
-                              countdownText = 'Auto-sending now';
+                              countdownText = 'Sending now';
                               countdownBadge = 'Sending';
                             } else if (hoursUntilAutoSend < 1) {
-                              countdownText = `Auto-send in ${minutesUntilAutoSend}m unless someone volunteers`;
-                              countdownBadge = `${minutesUntilAutoSend}m left`;
+                              countdownText = `${minutesUntilAutoSend}m`;
+                              countdownBadge = `${minutesUntilAutoSend}m`;
                             } else if (hoursUntilAutoSend < 24) {
-                              countdownText = `Auto-send in ${hoursUntilAutoSend}h ${minutesUntilAutoSend}m unless someone volunteers`;
-                              countdownBadge = `${hoursUntilAutoSend}h left`;
+                              countdownText = `${hoursUntilAutoSend}h ${minutesUntilAutoSend}m`;
+                              countdownBadge = `${hoursUntilAutoSend}h`;
                             } else {
                               const daysLeft = Math.floor(hoursUntilAutoSend / 24);
-                              countdownText = `Auto-send in ${daysLeft} day${daysLeft !== 1 ? 's' : ''} unless someone volunteers`;
-                              countdownBadge = `${daysLeft}d left`;
+                              countdownText = `${daysLeft} day${daysLeft !== 1 ? 's' : ''}`;
+                              countdownBadge = `${daysLeft}d`;
                             }
                             
                             const itinerary = autoEvent.itinerary;
                             
                             return (
-                              <Card key={autoEvent.id} data-testid={`card-pending-auto-event-${autoEvent.id}`} className="border-primary/50 bg-primary/5">
+                              <Card key={autoEvent.id} data-testid={`card-pending-auto-event-${autoEvent.id}`} className="border-primary/50 bg-primary/15">
                                 <CardContent className="p-4">
                                   <div className="space-y-3">
                                     <div className="flex items-start justify-between gap-4">
@@ -3011,7 +2936,7 @@ export default function GroupDetail() {
                                     
                                     <div className="text-xs bg-background/50 rounded-md p-2 border-l-2 border-primary">
                                       <p className="text-muted-foreground">
-                                        <strong>48-hour volunteer window:</strong> {countdownText}
+                                        Auto-send: {countdownText}
                                       </p>
                                     </div>
                                   </div>
@@ -3127,7 +3052,7 @@ export default function GroupDetail() {
                       const googlePlaceId = firstVenue?.googlePlaceId;
                       
                       return (
-                        <Card className="border-primary/20 bg-primary/5">
+                        <Card className="border-primary/20 bg-primary/15">
                           <CardHeader>
                             <div className="flex items-center justify-between gap-4">
                               <div className="flex-1 min-w-0">
@@ -3470,9 +3395,9 @@ export default function GroupDetail() {
                 <div className="max-w-3xl mx-auto space-y-6">
                   {/* Group Details Section */}
                   <Card className="border-primary/20">
-                    <CardHeader className="bg-primary/5">
+                    <CardHeader className="bg-primary/15">
                       <div className="flex items-center gap-3">
-                        <div className="p-2 bg-primary/10 rounded-md">
+                        <div className="p-2 bg-primary/25 rounded-md">
                           <Settings className="h-5 w-5 text-primary" />
                         </div>
                         <div>
@@ -3667,7 +3592,7 @@ export default function GroupDetail() {
 
               {/* Automation Section */}
               {isOwner && (
-                <Card className="bg-primary/5 border-primary/20">
+                <Card className="bg-primary/15 border-primary/20">
                   <CardHeader>
                     <div className="flex items-center gap-2">
                       <Bot className="h-5 w-5 text-primary" />
@@ -3715,9 +3640,6 @@ export default function GroupDetail() {
                               </PopoverContent>
                             </Popover>
                           </div>
-                          <p className="text-xs text-muted-foreground">
-                            AI suggests new venues weekly based on preferences
-                          </p>
                         </div>
                       </div>
 
@@ -3757,9 +3679,6 @@ export default function GroupDetail() {
                               </PopoverContent>
                             </Popover>
                           </div>
-                          <p className="text-xs text-muted-foreground">
-                            Builds ready-to-schedule plans from your favorites
-                          </p>
                         </div>
                       </div>
 
@@ -4159,7 +4078,7 @@ export default function GroupDetail() {
                               // Display mode
                               (<div className="flex items-center gap-2 p-2 bg-muted/50 rounded-md">
                                 <Avatar className="h-7 w-7">
-                                  <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                                  <AvatarFallback className="bg-primary/25 text-primary text-xs">
                                     {member.name?.[0]?.toUpperCase() || member.email?.[0]?.toUpperCase() || "?"}
                                   </AvatarFallback>
                                 </Avatar>
@@ -5064,7 +4983,7 @@ export default function GroupDetail() {
                       <div className="max-w-2xl mx-auto mt-6">
                         <h4 className="text-sm font-semibold mb-4">How Kinmo Works</h4>
                         <div className="space-y-3 text-left">
-                          <div className="flex items-start gap-3 p-3 rounded-md bg-primary/10 border-l-4 border-primary">
+                          <div className="flex items-start gap-3 p-3 rounded-md bg-primary/25 border-l-4 border-primary">
                             <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground font-bold text-sm flex-shrink-0">
                               1
                             </div>
@@ -5209,7 +5128,7 @@ export default function GroupDetail() {
                             return (
                               <Card 
                                 key={tempActivity.id} 
-                                className={`relative overflow-hidden hover-elevate transition-all flex flex-col ${isSelected ? 'ring-2 ring-primary' : ''}`} 
+                                className={`relative overflow-hidden transition-all flex flex-col ${isSelected ? 'ring-2 ring-primary' : ''}`} 
                                 data-testid={`search-result-${tempActivity.id}`}
                               >
                                 {tempActivity.photoUrl && (
@@ -5411,7 +5330,7 @@ export default function GroupDetail() {
                                         return (
                                           <Card 
                                             key={tempActivity.id} 
-                                            className={`relative overflow-hidden hover-elevate transition-all flex flex-col ${isSelected ? 'ring-2 ring-primary' : ''}`} 
+                                            className={`relative overflow-hidden transition-all flex flex-col ${isSelected ? 'ring-2 ring-primary' : ''}`} 
                                             data-testid={`search-result-${tempActivity.id}`}
                                           >
                                             {tempActivity.photoUrl && (
@@ -5673,7 +5592,7 @@ export default function GroupDetail() {
                   return (
                     <Card 
                       key={activity.id} 
-                      className={`relative overflow-hidden hover-elevate transition-all flex flex-col ${isSelected ? 'ring-2 ring-primary' : ''}`} 
+                      className={`relative overflow-hidden transition-all flex flex-col ${isSelected ? 'ring-2 ring-primary' : ''}`} 
                       data-testid={`activity-${activity.id}`}
                     >
                       {activity.photoUrl && (
@@ -5976,7 +5895,7 @@ export default function GroupDetail() {
                     <Button
                       variant="default"
                       size="lg"
-                      className="shadow-lg h-14 px-4 gap-3"
+                      className="shadow-elevated h-14 px-4 gap-3"
                       data-testid="button-cart-trigger"
                     >
                       <div className="relative">
@@ -6688,7 +6607,7 @@ export default function GroupDetail() {
                                   <HoverCard key={event.id}>
                                     <HoverCardTrigger asChild>
                                       <div 
-                                        className={`flex items-center gap-3 p-3 rounded-md border hover-elevate transition-colors cursor-pointer ${hoveredFavoriteId === event.id ? 'ring-2 ring-primary' : ''}`}
+                                        className={`flex items-center gap-3 p-3 rounded-md border transition-colors cursor-pointer ${hoveredFavoriteId === event.id ? 'ring-2 ring-primary' : ''}`}
                                         data-testid={`favorites-row-${event.id}`}
                                         onMouseEnter={() => setHoveredFavoriteId(event.id)}
                                         onMouseLeave={() => setHoveredFavoriteId(null)}
@@ -7208,7 +7127,7 @@ export default function GroupDetail() {
                               className="flex items-center gap-3 p-2 rounded-md bg-accent/20 border"
                               data-testid={`saved-itinerary-item-${item.id}`}
                             >
-                              <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary font-bold text-sm">
+                              <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/25 text-primary font-bold text-sm">
                                 {index + 1}
                               </div>
                               <div className="flex-1 min-w-0">
@@ -7487,6 +7406,7 @@ export default function GroupDetail() {
                               <Input
                                 id="event-date-inline"
                                 type="date"
+                                min={new Date().toISOString().split('T')[0]}
                                 value={eventDate}
                                 onChange={(e) => setEventDate(e.target.value)}
                                 className="h-9"
@@ -7552,8 +7472,8 @@ export default function GroupDetail() {
                                       }}
                                       className={`w-full p-3 rounded-lg border-2 cursor-pointer text-left transition-colors ${
                                         selectedTimeOptionIds.includes(option.id)
-                                          ? 'border-primary bg-primary/5'
-                                          : 'border-border hover-elevate'
+                                          ? 'border-primary bg-primary/15'
+                                          : 'border-border'
                                       }`}
                                       data-testid={`time-option-inline-${option.id}`}
                                     >
@@ -7776,7 +7696,7 @@ export default function GroupDetail() {
                                     });
                                   }}
                                   disabled={disabled}
-                                  className={`flex gap-3 p-3 rounded-md border text-left transition-all hover-elevate active-elevate-2 ${
+                                  className={`flex gap-3 p-3 rounded-md border text-left transition-all ${
                                     disabled ? 'opacity-50 cursor-not-allowed' : ''
                                   }`}
                                   data-testid={`search-result-add-more-${result.placeId}`}
@@ -7923,7 +7843,7 @@ export default function GroupDetail() {
                                     });
                                   }}
                                   disabled={alreadyAdded || addVotingEventMutation.isPending}
-                                  className={`flex gap-3 p-3 rounded-md border text-left transition-all hover-elevate active-elevate-2 ${
+                                  className={`flex gap-3 p-3 rounded-md border text-left transition-all ${
                                     alreadyAdded || addVotingEventMutation.isPending ? 'opacity-50 cursor-not-allowed' : ''
                                   }`}
                                   data-testid={`search-result-build-${result.placeId}`}
@@ -8025,10 +7945,10 @@ export default function GroupDetail() {
                 }
 
                 return (
-                  <Card className="mt-8 border-2 border-primary/20 bg-primary/5" data-testid="enhanced-nearby-suggestions">
+                  <Card className="mt-8 border-2 border-primary/20 bg-primary/15" data-testid="enhanced-nearby-suggestions">
                     <CardHeader className="pb-4">
                       <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <div className="h-10 w-10 rounded-full bg-primary/25 flex items-center justify-center flex-shrink-0">
                           <Compass className="h-5 w-5 text-primary" />
                         </div>
                         <div className="flex-1">
@@ -8068,7 +7988,7 @@ export default function GroupDetail() {
                               });
                             }}
                             disabled={alreadySelected || addVotingEventMutation.isPending}
-                            className={`flex gap-3 p-3 rounded-md border text-left transition-all hover-elevate active-elevate-2 ${
+                            className={`flex gap-3 p-3 rounded-md border text-left transition-all ${
                               alreadySelected || addVotingEventMutation.isPending ? 'opacity-50 cursor-not-allowed' : ''
                             }`}
                             data-testid={`suggestion-${suggestion.placeId}`}
@@ -8237,6 +8157,7 @@ export default function GroupDetail() {
                                   <Input
                                     id="event-date"
                                     type="date"
+                                    min={new Date().toISOString().split('T')[0]}
                                     value={eventDate}
                                     onChange={(e) => setEventDate(e.target.value)}
                                     className="h-9"
@@ -8297,7 +8218,7 @@ export default function GroupDetail() {
                                               return (
                                               <div key={option.id} className="relative">
                                                 {editingOptionId === option.id ? (
-                                                  <div className="p-3 rounded-lg border-2 border-primary bg-primary/5 space-y-2">
+                                                  <div className="p-3 rounded-lg border-2 border-primary bg-primary/15 space-y-2">
                                                     <div className="text-xs text-muted-foreground mb-1">
                                                       Times shown in {tzName}
                                                     </div>
@@ -8397,8 +8318,8 @@ export default function GroupDetail() {
                                                     }}
                                                     className={`w-full p-3 rounded-lg border-2 cursor-pointer text-left transition-colors ${
                                                       selectedTimeOptionIds.includes(option.id)
-                                                        ? 'border-primary bg-primary/5'
-                                                        : 'border-border hover-elevate'
+                                                        ? 'border-primary bg-primary/15'
+                                                        : 'border-border'
                                                     }`}
                                                     data-testid={`time-option-${option.id}`}
                                                   >
@@ -8567,9 +8488,9 @@ export default function GroupDetail() {
                   open={!automationSidebarCollapsed}
                   onOpenChange={(open) => setAutomationSidebarCollapsed(!open)}
                 >
-                  <Card className="border-primary/30 bg-primary/[0.02] sticky top-4 shadow-sm">
+                  <Card className="border-primary/30 bg-primary/[0.02] sticky top-4 shadow-subtle">
                     <CollapsibleTrigger asChild>
-                      <CardHeader className="pb-3 cursor-pointer hover:bg-primary/5 transition-colors">
+                      <CardHeader className="pb-3 cursor-pointer hover:bg-primary/15 transition-colors">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <Bot className="h-5 w-5 text-primary" />
@@ -8776,7 +8697,7 @@ export default function GroupDetail() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-8 px-3 text-xs w-full justify-center gap-1.5 hover:bg-primary/10"
+                            className="h-8 px-3 text-xs w-full justify-center gap-1.5 hover:bg-primary/25"
                             onClick={() => setActiveTab('preferences')}
                           >
                             <span>⚙️</span>
@@ -8803,6 +8724,32 @@ export default function GroupDetail() {
           </TabsContent>
           {/* Tab 5: Feedback */}
           <TabsContent value="feedback" className="space-y-6">
+            {/* Learning Insights Card */}
+            {groupId && (
+              <Card className="bg-gradient-to-r from-primary/10 to-purple-500/10 border-primary/50">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Brain className="h-6 w-6 text-primary" />
+                        <h3 className="text-lg font-bold">What We've Learned</h3>
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        See how the AI learns from your group's feedback to improve future suggestions.
+                        View blacklisted venues, member preferences, and engagement patterns.
+                      </p>
+                      <Link href={`/groups/${groupId}/learning`}>
+                        <Button className="gap-2">
+                          <Brain className="h-4 w-4" />
+                          View Learning Insights
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Automated Group Insights */}
             {groupId && <GroupInsights groupId={groupId} />}
 
@@ -9325,7 +9272,7 @@ export default function GroupDetail() {
                     {members.map((member) => (
                       <div key={member.id} className="flex items-center gap-2 p-2 bg-muted/50 rounded-md">
                         <Avatar className="h-7 w-7">
-                          <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                          <AvatarFallback className="bg-primary/25 text-primary text-xs">
                             {member.name?.[0]?.toUpperCase() || member.email?.[0]?.toUpperCase() || "?"}
                           </AvatarFallback>
                         </Avatar>
@@ -9609,8 +9556,8 @@ export default function GroupDetail() {
                     <button
                       key={itinerary.id}
                       onClick={() => setSelectedBackupId(itinerary.id)}
-                      className={`w-full text-left p-3 rounded-md border transition-all hover-elevate active-elevate-2 ${
-                        selectedBackupId === itinerary.id ? 'border-primary bg-primary/10' : ''
+                      className={`w-full text-left p-3 rounded-md border transition-all ${
+                        selectedBackupId === itinerary.id ? 'border-primary bg-primary/25' : ''
                       }`}
                       data-testid={`backup-option-${itinerary.id}`}
                     >
@@ -9974,7 +9921,7 @@ export default function GroupDetail() {
                             }}
                             disabled={isAlreadyInPlan || addVotingEventMutation.isPending}
                             className={`flex gap-3 p-3 rounded-md border text-left transition-all w-full ${
-                              isAlreadyInPlan || addVotingEventMutation.isPending ? 'opacity-50 cursor-not-allowed' : 'hover-elevate active-elevate-2 cursor-pointer'
+                              isAlreadyInPlan || addVotingEventMutation.isPending ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
                             }`}
                             data-testid={`dialog-search-result-${result.placeId}`}
                           >
@@ -10027,7 +9974,7 @@ export default function GroupDetail() {
                         key={activity.id}
                         className={`flex items-center gap-3 p-3 rounded-md border transition-all ${
                           isAlreadyInPlan ? 'opacity-50 cursor-not-allowed' :
-                          isSelected ? 'border-primary bg-primary/10 hover-elevate' : 'hover-elevate active-elevate-2 cursor-pointer'
+                          isSelected ? 'border-primary bg-primary/25' : 'cursor-pointer'
                         }`}
                         onClick={() => {
                           if (isAlreadyInPlan) return;
@@ -10072,7 +10019,7 @@ export default function GroupDetail() {
                         key={event.id}
                         className={`flex items-center gap-3 p-3 rounded-md border transition-all ${
                           isAlreadyInPlan ? 'opacity-50 cursor-not-allowed' :
-                          isSelected ? 'border-primary bg-primary/10 hover-elevate' : 'hover-elevate active-elevate-2 cursor-pointer'
+                          isSelected ? 'border-primary bg-primary/25' : 'cursor-pointer'
                         }`}
                         onClick={() => {
                           if (isAlreadyInPlan) return;
@@ -10406,7 +10353,7 @@ export default function GroupDetail() {
                       </div>
 
                       {withinTriggerWindow ? (
-                        <div className="flex items-start gap-2 mt-2 p-2 bg-primary/10 rounded-md">
+                        <div className="flex items-start gap-2 mt-2 p-2 bg-primary/25 rounded-md">
                           <Sparkles className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                           <div className="text-xs">
                             <strong className="text-primary">Event will be created immediately</strong>
