@@ -1645,13 +1645,20 @@ export class DatabaseStorage implements IStorage {
         }
       }
 
-      // Get pending auto-scheduled events
+      // Get auto-scheduled events (all relevant statuses)
       const autoEvents = await db
         .select()
         .from(autoScheduledEvents)
         .where(and(
           eq(autoScheduledEvents.groupId, group.id),
-          eq(autoScheduledEvents.status, 'pending'),
+          or(
+            eq(autoScheduledEvents.status, 'pending'),
+            eq(autoScheduledEvents.status, 'pending_approval'),
+            eq(autoScheduledEvents.status, 'approved'),
+            eq(autoScheduledEvents.status, 'auto_approved'),
+            eq(autoScheduledEvents.status, 'auto_sent'),
+            eq(autoScheduledEvents.status, 'sent')
+          ),
           sql`${autoScheduledEvents.proposedDate} IS NOT NULL`,
           sql`${autoScheduledEvents.proposedDate} >= ${now}`,
           sql`${autoScheduledEvents.proposedDate} <= ${futureLimit}`

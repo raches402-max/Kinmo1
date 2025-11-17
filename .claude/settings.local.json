@@ -46,7 +46,8 @@
       "Bash(python3:*)",
       "Bash(node /tmp/test-queue.js:*)",
       "Bash(time node:*)",
-      "Bash(node /tmp/test-discover-venues.js:*)"
+      "Bash(node /tmp/test-discover-venues.js:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

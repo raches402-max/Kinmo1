@@ -74,6 +74,7 @@ export const groups = pgTable("groups", {
   activityCategories: text("activity_categories").array(), // Selected activity types (e.g., ["wine-bars", "karaoke", "concerts"])
   pastPreferences: text("past_preferences"), // comma-separated or text description
   additionalInstructions: text("additional_instructions"), // Custom AI instructions from user
+  schedulingPreferences: text("scheduling_preferences"), // Custom AI instructions for event timing (e.g., "Always start dinner at 6pm")
   searchRadius: integer("search_radius").default(2).notNull(), // Search radius in miles (2, 10, 30, 50)
   
   // High-level category filters (control which types of suggestions AI generates)

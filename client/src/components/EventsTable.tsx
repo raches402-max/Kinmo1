@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { format, differenceInHours, differenceInDays } from "date-fns";
 import { ChevronDown, ChevronUp, MapPin, ExternalLink, Bot } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
@@ -30,6 +30,12 @@ type Event = {
   rsvp: {
     response: string;
   } | null;
+  // Auto-schedule properties
+  isAutoScheduled?: boolean;
+  status?: string;
+  autoSendAt?: string;
+  confidenceScore?: number;
+  requiresReview?: boolean;
 };
 
 type EventsTableProps = {
@@ -45,7 +51,74 @@ export default function EventsTable({
   onToggleExpand
 }: EventsTableProps) {
 
-  const getMeetingAtText = (items: EventItem[]) => {
+  // Determine border style based on event status
+  const getEventBorderStyle = (event: Event): { borderColor: string; borderWidth: string; backgroundColor?: string } => {
+    if (!event.isAutoScheduled) {
+      // Regular event - thin border with group accent color
+      return {
+        borderColor: event.groupAccentColor || '#94A3B8',
+        borderWidth: '2px'
+      };
+    }
+
+    // Auto-scheduled event - determine status
+    const status = event.status;
+    const confidenceScore = event.confidenceScore || 0;
+    const requiresReview = event.requiresReview;
+
+    // Red: Blocked (low confidence, requires review, or other blocking issue)
+    if (requiresReview || confidenceScore < 60 || status === 'blocked') {
+      return {
+        borderColor: '#ef4444', // red-500
+        borderWidth: '4px',
+        backgroundColor: 'rgba(254, 242, 242, 0.3)' // red-50/30
+      };
+    }
+
+    // Green: Approved or auto-approved
+    if (status === 'approved' || status === 'auto_approved' || status === 'scheduled') {
+      return {
+        borderColor: '#22c55e', // green-500
+        borderWidth: '2px'
+      };
+    }
+
+    // Yellow: Pending approval (will auto-send)
+    return {
+      borderColor: '#f59e0b', // amber-500
+      borderWidth: '4px',
+      backgroundColor: 'rgba(254, 243, 199, 0.3)' // amber-50/30
+    };
+  };
+
+  // Get countdown text for auto-send deadline
+  const getAutoSendCountdown = (event: Event): string | null => {
+    if (!event.isAutoScheduled || !event.autoSendAt) return null;
+
+    const now = new Date();
+    const autoSendDate = new Date(event.autoSendAt);
+    const hoursUntil = differenceInHours(autoSendDate, now);
+    const daysUntil = differenceInDays(autoSendDate, now);
+
+    if (hoursUntil < 0) return null; // Already auto-sent
+
+    if (hoursUntil < 24) {
+      return `Auto-sends in ${hoursUntil}h`;
+    } else {
+      return `Auto-sends in ${daysUntil}d`;
+    }
+  };
+
+  const getMeetingAtText = (items: EventItem[], isVirtual?: boolean, eventDate?: string | null) => {
+    if (isVirtual) {
+      // For virtual events, show when it will be planned
+      if (eventDate) {
+        const planDate = new Date(eventDate);
+        planDate.setDate(planDate.getDate() - 3); // Plan 3 days before event
+        return `Will be decided on ${format(planDate, "MMM d")}`;
+      }
+      return "Planning in progress";
+    }
     if (!items || items.length === 0) return "TBD";
     if (items.length === 1) return items[0].venueName;
     return `${items[0].venueName} + ${items.length - 1}`;
@@ -130,15 +203,17 @@ export default function EventsTable({
         const eventId = event.itineraryId || event.inviteId;
         const isExpanded = expandedEvents.has(eventId);
         const hasMultipleVenues = event.items && event.items.length > 1;
+        const borderStyle = getEventBorderStyle(event);
+        const countdown = getAutoSendCountdown(event);
 
-        return (
-          <div key={eventId} className="border-b last:border-b-0">
-            {/* Main Row */}
-            <Link href={`/event/${eventId}`}>
-              <div
-                className="grid grid-cols-[180px_1fr_200px_120px_40px] gap-4 px-3 py-3 hover:bg-muted/50 transition-colors cursor-pointer items-center border-l-4"
-                style={{ borderLeftColor: event.groupAccentColor || '#94A3B8' }}
-              >
+        const rowContent = (
+          <div
+            className="grid grid-cols-[180px_1fr_200px_120px_40px] gap-4 px-3 py-3 hover:bg-muted/50 transition-colors items-center cursor-pointer"
+            style={{
+              borderLeft: `${borderStyle.borderWidth} solid ${borderStyle.borderColor}`,
+              backgroundColor: borderStyle.backgroundColor
+            }}
+          >
                 {/* Date/Time Column */}
                 <div className="text-sm">
                   {event.eventDate ? (
@@ -157,19 +232,26 @@ export default function EventsTable({
 
                 {/* Event Column */}
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-2xl flex-shrink-0">{event.groupEmoji}</span>
+                  <span className="text-2xl flex-shrink-0">
+                    {event.isAutoScheduled ? '🤖' : event.groupEmoji}
+                  </span>
                   <div className="min-w-0 flex-1">
                     <div className="font-bold text-base truncate">{event.groupName}</div>
-                    <div className="flex gap-2 mt-1 items-center">
+                    <div className="flex gap-2 mt-1 items-center flex-wrap">
                       {getRoleBadge(event)}
                       {getHostInfo(event)}
+                      {countdown && (
+                        <span className="text-xs text-amber-600 font-medium">
+                          ⏰ {countdown}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
 
                 {/* Meeting At Column */}
                 <div className="text-sm truncate">
-                  {getMeetingAtText(event.items)}
+                  {getMeetingAtText(event.items, event.isVirtual, event.eventDate)}
                 </div>
 
                 {/* RSVP Column */}
@@ -199,6 +281,13 @@ export default function EventsTable({
                   )}
                 </div>
               </div>
+        );
+
+        return (
+          <div key={eventId} className="border-b last:border-b-0">
+            {/* Main Row */}
+            <Link href={event.itineraryId ? `/event/${event.itineraryId}` : `/group/${event.groupId}`}>
+              {rowContent}
             </Link>
 
             {/* Expanded Venue List */}

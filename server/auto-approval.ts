@@ -6,7 +6,8 @@
 import { storage } from './storage';
 import { db } from './db';
 import { eq } from 'drizzle-orm';
-import { autoScheduledEvents } from '../shared/schema';
+import { autoScheduledEvents, itineraryInvites, itineraries } from '../shared/schema';
+import crypto from 'crypto';
 
 export interface ApprovalResult {
   success: boolean;
@@ -78,35 +79,72 @@ export async function approveAndCreateItinerary(
       badges: string[];
     }>;
 
-    // Prepare venues for itinerary creation
-    const venueItems = venues.map(v => ({
-      sourceType: v.sourceType,
-      sourceId: v.sourceId,
-    }));
+    let itinerary: any;
 
-    // Create itinerary with venues
-    const itinerary = await storage.createItinerary(
-      {
-        groupId: event.groupId,
-        name: `Auto-scheduled event for ${group.name}`,
-        eventDate: event.proposedDate,
-        status: 'proposed',
-        proposedOrder: [],
-      },
-      group.userId!,
-      venueItems
-    );
+    // Check if itinerary already exists (new flow creates it upfront)
+    if (event.itineraryId) {
+      console.log(`[Auto-Approval] Itinerary already exists (${event.itineraryId}), updating status to approved`);
 
-    // Update the event with the itinerary ID
-    await db
-      .update(autoScheduledEvents)
-      .set({ itineraryId: itinerary.id })
-      .where(eq(autoScheduledEvents.id, eventId));
+      // Update existing itinerary status to approved
+      await db
+        .update(itineraries)
+        .set({
+          status: source === 'auto' ? 'auto_approved' : 'approved',
+        })
+        .where(eq(itineraries.id, event.itineraryId));
+
+      // Fetch the updated itinerary
+      itinerary = await storage.getItinerary(event.itineraryId);
+
+      // Invites already exist from initial creation, no need to recreate
+      console.log(`[Auto-Approval] Using existing itinerary and invites`);
+    } else {
+      // Old flow: Create itinerary if it doesn't exist (backward compatibility)
+      console.log(`[Auto-Approval] Creating new itinerary (legacy flow)`);
+
+      const venueItems = venues.map(v => ({
+        sourceType: v.sourceType,
+        sourceId: v.sourceId,
+      }));
+
+      itinerary = await storage.createItinerary(
+        {
+          groupId: event.groupId,
+          name: `Auto-scheduled event for ${group.name}`,
+          eventDate: event.proposedDate,
+          status: 'proposed',
+          proposedOrder: [],
+        },
+        group.userId!,
+        venueItems
+      );
+
+      // Update the event with the itinerary ID
+      await db
+        .update(autoScheduledEvents)
+        .set({ itineraryId: itinerary.id })
+        .where(eq(autoScheduledEvents.id, eventId));
+
+      // Create invites for all group members
+      const members = await storage.getGroupMembers(event.groupId);
+      console.log(`[Auto-Approval] Creating invites for ${members.length} members in group ${group.name}`);
+
+      for (const member of members) {
+        const inviteToken = crypto.randomUUID();
+
+        await db.insert(itineraryInvites).values({
+          itineraryId: itinerary.id,
+          memberId: member.id,
+          inviteToken,
+        });
+      }
+    }
 
     console.log(`[Auto-Approval] ${source === 'auto' ? '🤖 AUTO' : '👤 MANUAL'} approval for event ${eventId}:`, {
       optionNumber: option.optionNumber,
       venues: venues.map(v => v.venueName).join(' → '),
       confidence: event.confidenceScore,
+      invitesCreated: members.length,
     });
 
     return {

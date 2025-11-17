@@ -567,6 +567,7 @@ export async function processAutoScheduling(): Promise<void> {
             densityScores, // Pass density for smart spacing
             existingEvents, // Pass existing events to avoid conflicts
             currentGroupId: group.id, // Pass current group to exclude from conflict check
+            schedulingPreferences: group.schedulingPreferences || undefined, // Pass custom scheduling instructions
           });
 
           proposedDate = timeResult.eventDate;
@@ -707,6 +708,136 @@ export async function processAutoScheduling(): Promise<void> {
     }
   } catch (error) {
     console.error('Error processing auto-scheduling:', error);
+  }
+}
+
+/**
+ * Auto-Draft Itinerary Worker: Creates draft itineraries for upcoming virtual events
+ * Runs daily to check for events 14-21 days away and auto-populates with favorites
+ */
+export async function processAutoDraftItineraries(): Promise<void> {
+  const DRAFT_CREATION_WINDOW_DAYS = 14; // Create drafts 14 days before event
+
+  try {
+    console.log('[Auto-Draft] Checking for virtual events needing draft itineraries...');
+
+    // Get all groups with auto-scheduling enabled
+    const autoEnabledGroups = await db
+      .select()
+      .from(groups)
+      .where(eq(groups.autoScheduleEnabled, true));
+
+    for (const group of autoEnabledGroups) {
+      // Skip groups without a valid userId
+      if (!group.userId) {
+        continue;
+      }
+
+      // Skip if group doesn't have auto-itinerary enabled
+      if (!group.autoItineraryEnabled) {
+        console.log(`[Auto-Draft] Skipping ${group.name} - autoItineraryEnabled is false`);
+        continue;
+      }
+
+      // Check if there's a nextEventDueDate
+      if (!group.nextEventDueDate) {
+        continue;
+      }
+
+      const eventDate = new Date(group.nextEventDueDate);
+      const now = new Date();
+      const daysUntilEvent = Math.ceil((eventDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+      // Only process events that are exactly 14 days away (within a 24-hour window)
+      if (daysUntilEvent < DRAFT_CREATION_WINDOW_DAYS || daysUntilEvent > DRAFT_CREATION_WINDOW_DAYS + 1) {
+        continue;
+      }
+
+      console.log(`[Auto-Draft] Group ${group.name} has event in ${daysUntilEvent} days - checking for draft`);
+
+      // Check if a draft itinerary already exists for this date
+      const existingDrafts = await db
+        .select()
+        .from(itineraries)
+        .where(
+          and(
+            eq(itineraries.groupId, group.id),
+            eq(itineraries.status, 'draft'),
+            eq(itineraries.isSaved, false)
+          )
+        );
+
+      if (existingDrafts.length > 0) {
+        console.log(`[Auto-Draft] Draft already exists for ${group.name}`);
+        continue;
+      }
+
+      // Check if there's already a scheduled or proposed itinerary for this date
+      const existingItineraries = await db
+        .select()
+        .from(itineraries)
+        .where(
+          and(
+            eq(itineraries.groupId, group.id),
+            or(
+              eq(itineraries.status, 'scheduled'),
+              eq(itineraries.status, 'proposed')
+            )
+          )
+        );
+
+      if (existingItineraries.length > 0) {
+        console.log(`[Auto-Draft] Scheduled/proposed itinerary already exists for ${group.name}`);
+        continue;
+      }
+
+      console.log(`[Auto-Draft] Creating draft itinerary for ${group.name} (event date: ${eventDate.toISOString()})`);
+
+      // Select best venues using existing favorites logic
+      const selection = await selectBestItineraryForAutoSchedule(storage, group);
+
+      // Use the favorites-only option if available, otherwise use top option
+      let venueSelection = [];
+      if (selection.options && selection.options.length > 0) {
+        // Get the first option (which is either favorites-only or top-scoring venues)
+        const topOption = selection.options[0];
+        venueSelection = topOption.venues.map(v => ({
+          sourceType: v.sourceType as 'activity' | 'voting_event',
+          sourceId: v.sourceId
+        }));
+        console.log(`[Auto-Draft] Selected ${venueSelection.length} venues for draft`);
+      } else if (selection.selectedVenues && selection.selectedVenues.length > 0) {
+        venueSelection = selection.selectedVenues;
+        console.log(`[Auto-Draft] Using fallback selection with ${venueSelection.length} venues`);
+      } else {
+        console.log(`[Auto-Draft] No venues available for ${group.name} - skipping draft creation`);
+        continue;
+      }
+
+      // Create draft itinerary
+      try {
+        const draftItinerary = await storage.createItinerary(
+          {
+            groupId: group.id,
+            name: `${group.name} - ${eventDate.toLocaleDateString()}`,
+            status: 'draft',
+            isSaved: false,
+            eventDate: eventDate,
+            proposedOrder: {},
+          },
+          group.userId,
+          venueSelection
+        );
+
+        console.log(`[Auto-Draft] ✅ Created draft itinerary ${draftItinerary.id} for ${group.name}`);
+      } catch (error) {
+        console.error(`[Auto-Draft] Error creating draft for ${group.name}:`, error);
+      }
+    }
+
+    console.log('[Auto-Draft] Finished processing auto-draft itineraries');
+  } catch (error) {
+    console.error('[Auto-Draft] Error in processAutoDraftItineraries:', error);
   }
 }
 
@@ -1003,6 +1134,16 @@ export function startReminderScheduler(): void {
   setInterval(() => {
     checkAndSelectTimeSlots().catch(err => {
       console.error('Error in scheduled time selection check:', err);
+    });
+  }, AUTO_SCHEDULE_INTERVAL_MS); // Run daily, same as auto-scheduling
+
+  // Run auto-draft itinerary creation immediately and daily (async, non-blocking)
+  processAutoDraftItineraries().catch(err => {
+    console.error('Error in initial auto-draft processing:', err);
+  });
+  setInterval(() => {
+    processAutoDraftItineraries().catch(err => {
+      console.error('Error in scheduled auto-draft processing:', err);
     });
   }, AUTO_SCHEDULE_INTERVAL_MS); // Run daily, same as auto-scheduling
 

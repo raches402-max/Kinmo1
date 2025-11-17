@@ -1217,10 +1217,9 @@ export default function Dashboard() {
                         }[guestRsvp.response.toLowerCase()] || HelpCircle;
                         const ResponseIcon = responseIcon;
 
-                        return (
-                          <Link key={guestRsvp.id} href={`/event/${event.itineraryId}`}>
+                        const guestRowContent = (
                             <div
-                              className={`${!isFirstItem ? 'border-t' : ''} px-4 py-3 hover:bg-muted/50 transition-colors border-l-4 cursor-pointer`}
+                              className={`${!isFirstItem ? 'border-t' : ''} px-4 py-3 hover:bg-muted/50 transition-colors border-l-4 ${event.itineraryId ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}
                               style={{ borderLeftColor: event.groupAccentColor || '#94A3B8' }}
                               data-testid={`guest-rsvp-${guestRsvp.id}`}
                             >
@@ -1289,7 +1288,16 @@ export default function Dashboard() {
                               </div>
                             </div>
                           </div>
+                        );
+
+                        return event.itineraryId ? (
+                          <Link key={guestRsvp.id} href={`/event/${event.itineraryId}`}>
+                            {guestRowContent}
                           </Link>
+                        ) : (
+                          <div key={guestRsvp.id}>
+                            {guestRowContent}
+                          </div>
                         );
                       })
                     )}
@@ -1331,10 +1339,10 @@ export default function Dashboard() {
                 <div>
                   <h3 className="text-xl font-bold mb-4">Past Events ({pastEvents.length})</h3>
                   <div className="border rounded-md opacity-75">
-                    {pastEvents.map((event, index) => (
-                      <Link key={event.inviteId} href={`/event/${event.itineraryId}`}>
+                    {pastEvents.map((event, index) => {
+                      const pastRowContent = (
                         <div
-                          className={`${index !== 0 ? 'border-t' : ''} px-4 py-3 hover:bg-muted/50 transition-colors border-l-4 cursor-pointer`}
+                          className={`${index !== 0 ? 'border-t' : ''} px-4 py-3 hover:bg-muted/50 transition-colors border-l-4 ${event.itineraryId ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}
                           style={{ borderLeftColor: event.groupAccentColor || '#94A3B8' }}
                           data-testid={`past-event-${event.itineraryId}`}
                         >
@@ -1387,8 +1395,18 @@ export default function Dashboard() {
                             </div>
                           </div>
                         </div>
-                      </Link>
-                    ))}
+                      );
+
+                      return event.itineraryId ? (
+                        <Link key={event.inviteId} href={`/event/${event.itineraryId}`}>
+                          {pastRowContent}
+                        </Link>
+                      ) : (
+                        <div key={event.inviteId}>
+                          {pastRowContent}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}

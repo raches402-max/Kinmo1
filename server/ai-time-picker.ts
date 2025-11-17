@@ -295,6 +295,7 @@ interface TimeSelectionInput {
     timePeriod: 'morning' | 'afternoon' | 'evening';
   }>; // Existing events to avoid conflicts
   currentGroupId?: string; // Current group ID to exclude from conflict checking
+  schedulingPreferences?: string; // Custom scheduling instructions (e.g., "Always start dinner at 6pm")
 }
 
 interface TimeSelectionResult {
@@ -624,10 +625,23 @@ export async function suggestOptimalTime(
               return `${dayName}, ${dateStr} (${e.timePeriod}) - ${e.groupName}`;
             })
             .join('\n  ');
-          existingEventsContext = `\n\nExisting scheduled events:\n  ${eventList}
+          existingEventsContext = `\n\nExisting scheduled events (from organizer's OTHER groups):\n  ${eventList}
 
-IMPORTANT: Try to avoid scheduling on the same day/time as existing events when possible. If a day has multiple available slots (2-3), you can use different time periods (morning/afternoon/evening). If a day only has 1 available slot, prefer a different day to spread events out.`;
+**CRITICAL**: The organizer manages multiple groups. These are already-scheduled events they must attend.
+- STRONGLY PREFER different days to avoid overwhelming the organizer
+- If you MUST use the same day, use a DIFFERENT time period (morning/afternoon/evening)
+- Spreading events across the week helps prevent organizer burnout
+- Example: If Monday evening is taken, prefer Tuesday, Wednesday, or Thursday for better distribution`;
         }
+      }
+
+      // Build scheduling preferences context
+      let schedulingPreferencesContext = '';
+      if (input.schedulingPreferences && input.schedulingPreferences.trim()) {
+        schedulingPreferencesContext = `\n\n🎯 **SCHEDULING PREFERENCES** (highest priority - MUST follow these):
+${input.schedulingPreferences}
+
+These are the organizer's explicit scheduling instructions. Treat these as HARD CONSTRAINTS that override general guidelines.`;
       }
 
       const prompt = `You are scheduling a group outing. Pick ONE specific date and time.
@@ -637,7 +651,7 @@ Group general availability: ${input.generalAvailability || 'Not specified'}${den
 Member constraints: ${constraints}
 ${input.rescheduleReason ? `Previous attempt failed: ${input.rescheduleReason}` : ''}
 Timezone: ${tzName} (all times should be in this timezone)
-${input.meetingFrequency ? `Meeting frequency: ${input.meetingFrequency} (pick an appropriate date based on this cadence)` : ''}${existingEventsContext}
+${input.meetingFrequency ? `Meeting frequency: ${input.meetingFrequency} (pick an appropriate date based on this cadence)` : ''}${existingEventsContext}${schedulingPreferencesContext}
 
 Current date: ${now.toISOString().split('T')[0]}
 Date range: ${minDate.toISOString().split('T')[0]} to ${maxDate.toISOString().split('T')[0]}
@@ -693,6 +707,8 @@ Based on the group's availability and the venues, suggest:
 ❌ Writing "Tuesday at 18:30" in reasoning but returning different date in JSON
 ❌ Scheduling a venue when it's closed on that day (check the hours!)
 ❌ Scheduling a CLOSED_PERMANENTLY or CLOSED_TEMPORARILY venue
+❌ Scheduling on the same day/time as the organizer's other group events (check existing events list!)
+❌ Ignoring that the organizer needs to attend ALL their group events
 
 Return ONLY a JSON object with this exact structure:
 {

@@ -1333,6 +1333,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       }));
 
+      // Add draft itineraries (auto-created for scheduled groups)
+      const draftItineraries = await db
+        .select({
+          itineraryId: itineraries.id,
+          itineraryName: itineraries.name,
+          eventDate: itineraries.eventDate,
+          status: itineraries.status,
+          groupId: itineraries.groupId,
+          groupName: groupsTable.name,
+          groupEmoji: groupsTable.emoji,
+          groupAccentColor: groupsTable.accentColor,
+        })
+        .from(itineraries)
+        .leftJoin(groupsTable, eq(itineraries.groupId, groupsTable.id))
+        .where(
+          and(
+            eq(itineraries.status, 'draft'),
+            eq(itineraries.isSaved, false),
+            sql`${itineraries.groupId} IN (SELECT id FROM groups WHERE user_id = ${userId})`
+          )
+        );
+
+      // Convert draft itineraries to event format
+      const draftEvents = await Promise.all(draftItineraries.map(async (draft) => {
+        // Get itinerary items
+        const items = await db
+          .select()
+          .from(itineraryItems)
+          .where(eq(itineraryItems.itineraryId, draft.itineraryId))
+          .orderBy(itineraryItems.orderIndex);
+
+        return {
+          inviteId: `draft-${draft.itineraryId}`,
+          inviteToken: null,
+          itineraryId: draft.itineraryId,
+          itineraryName: draft.itineraryName,
+          eventDate: draft.eventDate,
+          status: draft.status,
+          groupId: draft.groupId,
+          groupName: draft.groupName,
+          groupEmoji: draft.groupEmoji || '🎉',
+          groupAccentColor: draft.groupAccentColor,
+          isOrganizer: true,
+          hostMemberId: null,
+          hostMemberName: null,
+          currentUserMemberId: null,
+          currentUserOpenToHosting: false,
+          members: [],
+          rsvp: null,
+          rsvpSummary: { yes: [], maybe: [], no: [] },
+          detailedRsvps: [],
+          pendingGuestRsvps: [],
+          items: items.map(item => ({
+            id: item.id,
+            venueName: item.venueName,
+            venueType: item.venueType,
+            venueAddress: item.venueAddress,
+            photoUrl: item.photoUrl,
+            rating: item.rating,
+            googlePlaceId: item.googlePlaceId,
+            orderIndex: item.orderIndex,
+            arrivalTime: item.arrivalTime,
+            departureTime: item.departureTime,
+            travelNotes: item.travelNotes,
+          })),
+          isVirtual: false, // Draft itineraries are real, not virtual
+          meetingFrequency: null,
+        };
+      }));
+
       // Add virtual future events for recurring groups with auto-schedule enabled
       const userGroups = await db
         .select()
@@ -1364,11 +1434,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
             .map(e => new Date(e.eventDate!).toISOString().split('T')[0])
         );
 
+        // Also check for draft itineraries
+        const draftItineraries = await db
+          .select()
+          .from(itineraries)
+          .where(
+            and(
+              eq(itineraries.groupId, group.id),
+              eq(itineraries.status, 'draft'),
+              eq(itineraries.isSaved, false)
+            )
+          );
+
+        const draftEventDates = new Set(
+          draftItineraries
+            .filter(d => d.eventDate)
+            .map(d => new Date(d.eventDate!).toISOString().split('T')[0])
+        );
+
         for (const date of futureDates) {
           const dateStr = date.toISOString().split('T')[0];
 
-          // Skip if a real event already exists for this date
-          if (existingEventDates.has(dateStr)) continue;
+          // Skip if a real event or draft itinerary already exists for this date
+          if (existingEventDates.has(dateStr) || draftEventDates.has(dateStr)) continue;
 
           // Create virtual event object
           virtualEvents.push({
@@ -1398,8 +1486,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Merge real and virtual events
-      const allEvents = [...events, ...virtualEvents];
+      // Merge real events, draft itineraries, and virtual events
+      const allEvents = [...events, ...draftEvents, ...virtualEvents];
 
       // Sort by event date (upcoming first, then past)
       allEvents.sort((a, b) => {
@@ -1967,12 +2055,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
         itineraryId = newItinerary.id;
       } else if ('options' in selection && selection.options && selection.options.length > 0) {
-        // NEW FLOW: Store options and use auto-approval flow
-        // Don't create itinerary yet - that happens after approval/confidence check
+        // NEW FLOW: Store options and create itinerary immediately for top option
+        // This allows users to view/edit the event before approval
 
-        // Skip to AI time suggestion and auto-event creation
-        // The options will be stored with the auto-event and itinerary created upon approval
-        itineraryId = null; // Will be created later in auto-approval flow
+        const topOption = selection.options[0];
+        const venueItems = topOption.venues.map((v: any) => ({
+          sourceType: v.sourceType as 'activity' | 'voting_event',
+          sourceId: v.sourceId,
+        }));
+
+        // Create itinerary immediately with "proposed" status
+        const newItinerary = await storage.createItinerary(
+          {
+            groupId: group.id,
+            name: `Auto-scheduled event for ${group.name}`,
+            eventDate: null, // Will be set after AI time suggestion
+            status: 'proposed',
+            proposedOrder: [],
+          },
+          group.userId!,
+          venueItems
+        );
+        itineraryId = newItinerary.id;
+
+        // Create invites for all group members so event is visible
+        const members = await storage.getGroupMembers(group.id);
+        const { itineraryInvites } = await import('@shared/schema');
+        const crypto = await import('crypto');
+
+        for (const member of members) {
+          const inviteToken = crypto.randomUUID();
+          await db.insert(itineraryInvites).values({
+            itineraryId: newItinerary.id,
+            memberId: member.id,
+            inviteToken,
+          });
+        }
+
+        console.log(`[Auto-Schedule] Created itinerary ${itineraryId} with ${members.length} invites for options flow`);
       } else {
         return res.status(400).json({ message: "No valid selection" });
       }
@@ -2182,6 +2302,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         requiresReview,
         reviewReason: requiresReview ? 'low_confidence' : null,
       });
+
+      // Update itinerary's eventDate with the proposed date
+      if (itineraryId) {
+        await db.update(itineraries)
+          .set({ eventDate: proposedDate })
+          .where(eq(itineraries.id, itineraryId));
+        console.log(`[Auto-Schedule] Updated itinerary ${itineraryId} with eventDate: ${proposedDate.toISOString()}`);
+      }
 
       // Create itineraryOptions if we have options (for member voting and auto-approval)
       if ('options' in selection && selection.options && selection.options.length > 0) {
@@ -4180,6 +4308,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: "RSVP denied and removed" });
     } catch (error: any) {
       console.error('[Deny RSVP] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Update RSVP (for organizer to set member RSVP)
+  app.patch("/api/rsvps/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+      const { response } = req.body;
+
+      // Get the RSVP
+      const [existingRsvp] = await db
+        .select()
+        .from(rsvpsTable)
+        .where(eq(rsvpsTable.id, id));
+
+      if (!existingRsvp) {
+        return res.status(404).json({ message: "RSVP not found" });
+      }
+
+      // Get the itinerary and verify the user is the organizer
+      const itinerary = await storage.getItinerary(existingRsvp.itineraryId);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      const group = await storage.getGroup(itinerary.groupId);
+      if (!group || group.userId !== userId) {
+        return res.status(403).json({ message: "Only the organizer can update RSVPs" });
+      }
+
+      // Update the RSVP
+      const updated = await storage.updateRsvp(id, { response });
+      res.json(updated);
+    } catch (error: any) {
+      console.error('[Update RSVP] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Delete itinerary invite (for organizer to remove members)
+  app.delete("/api/itinerary-invites/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+
+      // Get the invite
+      const [invite] = await db
+        .select()
+        .from(itineraryInvites)
+        .where(eq(itineraryInvites.id, id));
+
+      if (!invite) {
+        return res.status(404).json({ message: "Invite not found" });
+      }
+
+      // Get the itinerary and verify the user is the organizer
+      const itinerary = await storage.getItinerary(invite.itineraryId);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      const group = await storage.getGroup(itinerary.groupId);
+      if (!group || group.userId !== userId) {
+        return res.status(403).json({ message: "Only the organizer can remove invites" });
+      }
+
+      // Delete the invite
+      await db
+        .delete(itineraryInvites)
+        .where(eq(itineraryInvites.id, id));
+
+      res.json({ message: "Invite removed" });
+    } catch (error: any) {
+      console.error('[Delete Invite] Error:', error);
       res.status(500).json({ message: error.message });
     }
   });
@@ -6549,13 +6753,33 @@ Looking forward to planning great activities together!
   app.patch("/api/itineraries/:id/order", isAuthenticated, async (req, res) => {
     try {
       const { proposedOrder } = req.body; // New array of sourceIds
+      const itineraryId = req.params.id;
 
-      const itinerary = await storage.updateItinerary(req.params.id, {
+      // Get the current itinerary to map sourceIds to item IDs
+      const currentItinerary = await storage.getItinerary(itineraryId);
+      if (!currentItinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      // Map sourceIds to item IDs for ordering
+      const sourceIdToItemId = new Map(
+        currentItinerary.items.map((item: ItineraryItem) => [item.sourceId, item.id])
+      );
+      const orderedItemIds = proposedOrder
+        .map((sourceId: string) => sourceIdToItemId.get(sourceId))
+        .filter((id: string | undefined) => id !== undefined);
+
+      // Update the order indices in the database
+      await storage.updateItineraryItemOrder(itineraryId, orderedItemIds);
+
+      // Also update the itinerary's proposedOrder field
+      const itinerary = await storage.updateItinerary(itineraryId, {
         proposedOrder,
       });
 
       res.json(itinerary);
     } catch (error: any) {
+      console.error("[Update Order] Error:", error);
       res.status(500).json({ message: error.message });
     }
   });

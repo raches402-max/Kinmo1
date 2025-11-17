@@ -21,7 +21,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, ChevronRight, ChevronLeft, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell, Edit2, Edit, Compass, Home, UserCheck, MessageCircle, TrendingUp, AlertCircle, Users, Loader2, Map, Info, MoreVertical, Zap, Brain } from "lucide-react";
+import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, ChevronRight, ChevronLeft, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell, Edit2, Edit, Compass, Home, UserCheck, MessageCircle, TrendingUp, AlertCircle, Users, Loader2, Map as MapIcon, Info, MoreVertical, Zap, Brain } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -33,6 +33,10 @@ import { SwipeSession } from "@/components/SwipeSession";
 import { FavoritesMap } from "@/components/FavoritesMap";
 import { AddAdHocVenueDialog } from "@/components/AddAdHocVenueDialog";
 import { GroupInsights } from "@/components/GroupInsights";
+import { ScheduleEventModal } from "@/components/ScheduleEventModal";
+import { DiscoverVenuesModal } from "@/components/DiscoverVenuesModal";
+import { AIAssistantModal } from "@/components/AIAssistantModal";
+import EventsTable from "@/components/EventsTable";
 import { calculateDistance, getDistanceCategory, formatDistance } from "@/lib/distance";
 import { format } from 'date-fns';
 import { toZonedTime, fromZonedTime, formatInTimeZone } from 'date-fns-tz';
@@ -54,6 +58,69 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import EmojiPicker from 'emoji-picker-react';
+
+// Type definition for user events
+type SafeMember = {
+  id: string;
+  name: string | null;
+  email: string | null;
+  openToHosting?: boolean;
+  profileCompleted?: boolean;
+};
+
+type UserEvent = {
+  inviteId: string;
+  inviteToken: string;
+  itineraryId: string | null;
+  itineraryName: string;
+  eventDate: string | null;
+  status: string;
+  groupId: string;
+  groupName: string;
+  groupEmoji: string;
+  groupAccentColor: string | null;
+  isOrganizer: boolean;
+  isVirtual?: boolean;
+  meetingFrequency?: string;
+  hostMemberId: string | null;
+  hostMemberName: string | null;
+  currentUserMemberId: string | null;
+  currentUserOpenToHosting: boolean;
+  members: SafeMember[];
+  rsvp: {
+    response: string;
+    rsvpFeedback: any;
+    postEventFeedback: any;
+  } | null;
+  rsvpSummary: {
+    yes: string[];
+    maybe: string[];
+    no: string[];
+  };
+  detailedRsvps: Array<{
+    name: string;
+    response: string;
+    additionalAttendees: any[];
+    numberOfKids: number;
+    isGuest: boolean;
+  }>;
+  items: Array<{
+    id: string;
+    venueName: string;
+    venueType: string;
+    venueAddress: string;
+    photoUrl: string | null;
+    rating: string | null;
+    googlePlaceId: string | null;
+  }>;
+  pendingGuestRsvps: Array<{
+    id: string;
+    guestName: string;
+    response: string;
+    additionalAttendees: any;
+    numberOfKids: number;
+  }>;
+};
 
 // Timezone helper functions
 function getTimezoneIdentifier(location: string): string {
@@ -593,6 +660,54 @@ function SortableCartVenue({ id, index, venueName, venueType, photoUrl, onRemove
   );
 }
 
+// Time-based event grouping utilities
+type TimeCategory = 'Today' | 'Tomorrow' | 'This Week' | 'Next Week' | 'Later';
+
+function getEventTimeCategory(eventDate: string | null): TimeCategory {
+  if (!eventDate) return 'Later';
+
+  const now = new Date();
+  const event = new Date(eventDate);
+
+  // Reset times to midnight for date comparison
+  const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const eventMidnight = new Date(event.getFullYear(), event.getMonth(), event.getDate());
+
+  const diffMs = eventMidnight.getTime() - todayMidnight.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  // Today
+  if (diffDays === 0) return 'Today';
+
+  // Tomorrow
+  if (diffDays === 1) return 'Tomorrow';
+
+  // This week (next 7 days excluding today and tomorrow)
+  if (diffDays >= 2 && diffDays <= 7) return 'This Week';
+
+  // Next week (8-14 days)
+  if (diffDays >= 8 && diffDays <= 14) return 'Next Week';
+
+  // Everything else
+  return 'Later';
+}
+
+function groupEventsByTime<T extends { eventDate: string | null }>(events: T[]): Map<TimeCategory, T[]> {
+  const groups = new Map<TimeCategory, T[]>();
+  const categoryOrder: TimeCategory[] = ['Today', 'Tomorrow', 'This Week', 'Next Week', 'Later'];
+
+  // Initialize all categories
+  categoryOrder.forEach(cat => groups.set(cat, []));
+
+  // Group events
+  events.forEach(event => {
+    const category = getEventTimeCategory(event.eventDate);
+    groups.get(category)?.push(event);
+  });
+
+  return groups;
+}
+
 export default function GroupDetail() {
   const [, params] = useRoute("/group/:id");
   const [, navigate] = useLocation();
@@ -733,10 +848,14 @@ export default function GroupDetail() {
   const [categoryResults, setCategoryResults] = useState<any[]>([]);
   const [multiVenueMode, setMultiVenueMode] = useState(false);
   
-  // Natural language scheduling state
-  const [schedulePromptDialogOpen, setSchedulePromptDialogOpen] = useState(false);
-  const [schedulePrompt, setSchedulePrompt] = useState("");
-  const [schedulePromptLoading, setSchedulePromptLoading] = useState(false);
+  // Schedule event modal state
+  const [scheduleEventModalOpen, setScheduleEventModalOpen] = useState(false);
+
+  // Discover venues modal state
+  const [discoverVenuesModalOpen, setDiscoverVenuesModalOpen] = useState(false);
+
+  // AI Assistant modal state
+  const [aiAssistantModalOpen, setAiAssistantModalOpen] = useState(false);
 
   // Auto-schedule preview dialog state
   const [autoSchedulePreviewOpen, setAutoSchedulePreviewOpen] = useState(false);
@@ -859,6 +978,81 @@ export default function GroupDetail() {
     queryKey: ["/api/groups", groupId, "post-event-feedback-summary"],
     enabled: !!groupId && !!user,
   });
+
+  // Fetch all user events and filter by group
+  const { data: allUserEvents = [], isLoading: eventsLoading } = useQuery<UserEvent[]>({
+    queryKey: ["/api/user/events"],
+    enabled: !!user,
+  });
+
+  // Filter events for this specific group
+  const groupEvents = allUserEvents.filter(event => event.groupId === groupId);
+
+  // Transform pending auto-events into UserEvent format and merge with regular events
+  const autoEventsAsUserEvents: UserEvent[] = pendingAutoEvents.map((autoEvent: any) => ({
+    inviteId: autoEvent.id,
+    inviteToken: '',
+    itineraryId: autoEvent.itineraryId,
+    itineraryName: autoEvent.itinerary?.name || 'Auto-Generated Event',
+    eventDate: autoEvent.proposedDate,
+    status: autoEvent.status,
+    groupId: groupId || '',
+    groupName: group?.name || '',
+    groupEmoji: group?.emoji || '🎉',
+    groupAccentColor: group?.accentColor || null,
+    isOrganizer: true, // Auto-events are always for organizers
+    isAutoScheduled: true, // Custom flag to identify auto-events
+    autoSendAt: autoEvent.autoSendAt, // Deadline for auto-send
+    confidenceScore: autoEvent.confidenceScore,
+    requiresReview: autoEvent.requiresReview,
+    hostMemberId: null,
+    hostMemberName: null,
+    currentUserMemberId: members.find(m => m.userId === user?.id)?.id || null,
+    currentUserOpenToHosting: false,
+    members: [],
+    rsvp: null,
+    rsvpSummary: { yes: [], maybe: [], no: [] },
+    detailedRsvps: [],
+    items: autoEvent.itinerary?.items?.map((item: any) => ({
+      id: item.id,
+      venueName: item.venueName,
+      venueType: item.venueType,
+      venueAddress: item.venueAddress || '',
+      photoUrl: item.photoUrl || null,
+      rating: item.rating || null,
+      googlePlaceId: item.googlePlaceId || null,
+    })) || [],
+    pendingGuestRsvps: [],
+  } as UserEvent & { isAutoScheduled?: boolean; autoSendAt?: string; confidenceScore?: number; requiresReview?: boolean }));
+
+  // Merge auto-events with regular events
+  const allGroupEvents = [...groupEvents, ...autoEventsAsUserEvents];
+
+  // Categorize group events (including auto-events)
+  const now = new Date();
+  const pendingInvites = allGroupEvents.filter(e => !e.isOrganizer && !e.rsvp && (!e.eventDate || new Date(e.eventDate) > now));
+  const guestApprovalEvents = allGroupEvents.filter(e => e.isOrganizer && e.pendingGuestRsvps && e.pendingGuestRsvps.length > 0 && (!e.eventDate || new Date(e.eventDate) > now));
+  const upcomingEvents = allGroupEvents.filter(e => {
+    const isFutureOrTBD = !e.eventDate || new Date(e.eventDate) > now;
+    if (e.isOrganizer) return isFutureOrTBD;
+    return e.rsvp && e.rsvp.response !== 'no' && isFutureOrTBD;
+  });
+  const pastEvents = allGroupEvents.filter(e => e.eventDate && new Date(e.eventDate) <= now);
+
+  // State for expanded events in the table
+  const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
+
+  const toggleEventExpand = (eventId: string) => {
+    setExpandedEvents(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(eventId)) {
+        newSet.delete(eventId);
+      } else {
+        newSet.add(eventId);
+      }
+      return newSet;
+    });
+  };
 
   // Check if user is group owner
   const isOwner = user?.id === group?.userId;
@@ -2671,16 +2865,16 @@ export default function GroupDetail() {
               {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <Button
-                  onClick={() => setSchedulePromptDialogOpen(true)}
+                  onClick={() => setScheduleEventModalOpen(true)}
                   size="lg"
                   className="gap-2"
                   data-testid="button-schedule-event"
                 >
-                  <Sparkles className="h-5 w-5" />
-                  Schedule Event with AI
+                  <Calendar className="h-5 w-5" />
+                  Schedule Event
                 </Button>
                 <Button
-                  onClick={() => setShowSwipeSession(true)}
+                  onClick={() => setDiscoverVenuesModalOpen(true)}
                   size="lg"
                   variant="outline"
                   className="gap-2"
@@ -2691,688 +2885,92 @@ export default function GroupDetail() {
                 </Button>
               </div>
 
-              {/* Favorites Status Card */}
-              {(() => {
-                const favoritesWithPositiveVotes = votingEvents.filter(event => event.netVotes >= 0);
-                const favoritesCount = favoritesWithPositiveVotes.length;
-                const autoScheduleReady = favoritesCount >= 5;
-
-                return (
-                  <Card className={autoScheduleReady ? "border-green-200 bg-green-50/50" : "border-blue-200 bg-blue-50/50"} data-testid="card-favorites-status">
-                    <CardContent className="pt-4 pb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center justify-center h-10 w-10 rounded-full bg-background border-2 border-current">
-                          <Heart className={`h-5 w-5 ${autoScheduleReady ? 'text-green-600 fill-green-600' : 'text-blue-600'}`} />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <p className="font-semibold text-sm">
-                              {favoritesCount} Favorite{favoritesCount !== 1 ? 's' : ''}
-                            </p>
-                            {autoScheduleReady && (
-                              <Badge className="bg-green-600 text-white gap-1">
-                                <Zap className="h-3 w-3" />
-                                Ready
-                              </Badge>
-                            )}
-                            {!autoScheduleReady && (
-                              <span className="text-xs text-muted-foreground">
-                                {5 - favoritesCount} more needed
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        {!autoScheduleReady && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setShowSwipeSession(true)}
-                            className="gap-1 text-xs"
-                          >
-                            <Compass className="h-3 w-3" />
-                            Discover
-                          </Button>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })()}
-
-              {/* Auto-Scheduling Info Card */}
-              {group?.autoScheduleEnabled && group?.nextEventDueDate && (
-                <Card className="border-primary/50 bg-primary/15" data-testid="card-next-auto-event">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center gap-2">
-                      <Bot className="h-5 w-5 text-primary" />
-                      <CardTitle className="text-base">Next Event</CardTitle>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    {(() => {
-                      const nextDue = new Date(group.nextEventDueDate);
-                      const now = new Date();
-                      const msUntil = nextDue.getTime() - now.getTime();
-                      const hoursUntil = Math.floor(msUntil / (1000 * 60 * 60));
-                      const daysUntil = Math.floor(msUntil / (1000 * 60 * 60 * 24));
-
-                      // Format time remaining
-                      let timeRemainingText = '';
-                      if (msUntil < 0) {
-                        timeRemainingText = 'Overdue';
-                      } else if (hoursUntil < 24) {
-                        const minutesRemaining = Math.floor((msUntil % (1000 * 60 * 60)) / (1000 * 60));
-                        timeRemainingText = hoursUntil === 0
-                          ? `${minutesRemaining}m`
-                          : `${hoursUntil}h ${minutesRemaining}m`;
-                      } else {
-                        timeRemainingText = `${daysUntil} day${daysUntil !== 1 ? 's' : ''}`;
-                      }
-
-                      return (
-                        <div className="flex items-center justify-between">
-                          <div className="space-y-1">
-                            <p className="text-sm font-medium">
-                              {nextDue.toLocaleDateString('en-US', {
-                                weekday: 'long',
-                                month: 'long',
-                                day: 'numeric'
-                              })}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {timeRemainingText}
-                            </p>
-                          </div>
-                          <Clock className="h-5 w-5 text-muted-foreground" />
-                        </div>
-                      );
-                    })()}
+              {/* Events Overview */}
+              {!eventsLoading && allGroupEvents.length === 0 && (
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                    <h3 className="text-lg font-semibold mb-2">No Events Yet</h3>
+                    <p className="text-muted-foreground mb-4">
+                      Get started by creating your first event for this group
+                    </p>
+                    <Button
+                      onClick={() => setSchedulePromptDialogOpen(true)}
+                      data-testid="button-create-first-event"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create Event
+                    </Button>
                   </CardContent>
                 </Card>
               )}
 
-              {(() => {
-                const now = new Date();
-                
-                // Combine saved and proposed itineraries for the Home tab
-                const allItineraries = [...savedItineraries, ...proposedItineraries];
-                
-                // Active plans (saved but not scheduled yet)
-                const activePlans = savedItineraries
-                  .filter(i => i.status === 'saved')
-                  .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-                
-                // Upcoming events (scheduled in the future)
-                const upcomingEvents = proposedItineraries
-                  .filter(i => i.status === 'proposed' && i.eventDate && new Date(i.eventDate) > now)
-                  .sort((a, b) => new Date(a.eventDate!).getTime() - new Date(b.eventDate!).getTime());
-                
-                // Past events (scheduled in the past)
-                const pastEvents = proposedItineraries
-                  .filter(i => i.status === 'proposed' && i.eventDate && new Date(i.eventDate) <= now)
-                  .sort((a, b) => new Date(b.eventDate!).getTime() - new Date(a.eventDate!).getTime())
-                  .slice(0, 5); // Show last 5 past events
-                
-                const nextEvent = upcomingEvents[0];
-                const hasAnyContent = activePlans.length > 0 || upcomingEvents.length > 0 || pastEvents.length > 0;
+              {/* Pending Invites Section */}
+              {!eventsLoading && pendingInvites.length > 0 && (
+                <div>
+                  <h3 className="text-xl font-bold mb-4">Pending Invites ({pendingInvites.length})</h3>
+                  <EventsTable
+                    events={pendingInvites}
+                    expandedEvents={expandedEvents}
+                    onToggleExpand={toggleEventExpand}
+                  />
+                </div>
+              )}
 
-                if (!hasAnyContent) {
-                  return (
-                    <Card>
-                      <CardContent className="py-12 text-center">
-                        <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                        <h3 className="text-lg font-semibold mb-2">No Events Yet</h3>
-                        <p className="text-muted-foreground mb-4">
-                          Get started by creating your first event for this group
-                        </p>
-                        <Button 
-                          onClick={() => setActiveTab('build')}
-                          data-testid="button-create-first-event"
-                        >
-                          <Plus className="h-4 w-4 mr-2" />
-                          Create Event
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  );
-                }
+              {/* Guest Approval Section */}
+              {!eventsLoading && guestApprovalEvents.length > 0 && (
+                <div>
+                  <h3 className="text-xl font-bold mb-4">Guest Approvals Needed ({guestApprovalEvents.length})</h3>
+                  <EventsTable
+                    events={guestApprovalEvents}
+                    expandedEvents={expandedEvents}
+                    onToggleExpand={toggleEventExpand}
+                  />
+                </div>
+              )}
 
-                return (
-                  <>
-                    {/* Pending Auto-Scheduled Events */}
-                    {pendingAutoEvents.length > 0 && (
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <h2 className="text-xl font-bold flex items-center gap-2">
-                            <Bot className="h-5 w-5 text-primary" />
-                            Pending
-                          </h2>
-                        </div>
-                        <div className="grid gap-4">
-                          {pendingAutoEvents.map((autoEvent: any) => {
-                            const autoSendTime = new Date(autoEvent.autoSendAt);
-                            const msUntilAutoSend = autoSendTime.getTime() - now.getTime();
-                            const hoursUntilAutoSend = Math.max(0, Math.floor(msUntilAutoSend / (1000 * 60 * 60)));
-                            const minutesUntilAutoSend = Math.max(0, Math.floor((msUntilAutoSend % (1000 * 60 * 60)) / (1000 * 60)));
-                            
-                            // Format countdown text
-                            let countdownText = '';
-                            let countdownBadge = '';
-                            if (msUntilAutoSend <= 0) {
-                              countdownText = 'Sending now';
-                              countdownBadge = 'Sending';
-                            } else if (hoursUntilAutoSend < 1) {
-                              countdownText = `${minutesUntilAutoSend}m`;
-                              countdownBadge = `${minutesUntilAutoSend}m`;
-                            } else if (hoursUntilAutoSend < 24) {
-                              countdownText = `${hoursUntilAutoSend}h ${minutesUntilAutoSend}m`;
-                              countdownBadge = `${hoursUntilAutoSend}h`;
-                            } else {
-                              const daysLeft = Math.floor(hoursUntilAutoSend / 24);
-                              countdownText = `${daysLeft} day${daysLeft !== 1 ? 's' : ''}`;
-                              countdownBadge = `${daysLeft}d`;
-                            }
-                            
-                            const itinerary = autoEvent.itinerary;
-                            
-                            return (
-                              <Card key={autoEvent.id} data-testid={`card-pending-auto-event-${autoEvent.id}`} className="border-primary/50 bg-primary/15">
-                                <CardContent className="p-4">
-                                  <div className="space-y-3">
-                                    <div className="flex items-start justify-between gap-4">
-                                      <div className="flex-1">
-                                        <div className="flex items-center gap-2 mb-1">
-                                          <h3 className="font-semibold">{itinerary?.name || 'Auto-Generated Event'}</h3>
-                                          <Badge variant="secondary" className="gap-1 text-xs">
-                                            <Clock className="h-3 w-3" />
-                                            {countdownBadge}
-                                          </Badge>
-                                        </div>
-                                        <p className="text-xs text-muted-foreground mb-2">
-                                          Proposed: {new Date(autoEvent.proposedDate).toLocaleDateString('en-US', { 
-                                            weekday: 'short',
-                                            month: 'short', 
-                                            day: 'numeric',
-                                            hour: 'numeric',
-                                            minute: '2-digit'
-                                          })}
-                                        </p>
-                                        {itinerary?.items && itinerary.items.length > 0 && (
-                                          <div className="space-y-1">
-                                            {itinerary.items.slice(0, 2).map((item: any, idx: number) => (
-                                              <p key={item.id} className="text-xs text-muted-foreground">
-                                                {idx + 1}. {item.venueName}
-                                              </p>
-                                            ))}
-                                            {itinerary.items.length > 2 && (
-                                              <p className="text-xs text-muted-foreground">
-                                                +{itinerary.items.length - 2} more
-                                              </p>
-                                            )}
-                                          </div>
-                                        )}
-                                      </div>
-                                      <div className="flex flex-col gap-2">
-                                        <Button 
-                                          variant="default" 
-                                          size="sm"
-                                          className="gap-1"
-                                          data-testid={`button-volunteer-host-${autoEvent.id}`}
-                                        >
-                                          <UserCheck className="h-4 w-4" />
-                                          Volunteer to Host
-                                        </Button>
-                                        {isOwner && (
-                                          <Button 
-                                            variant="outline" 
-                                            size="sm"
-                                            data-testid={`button-edit-auto-event-${autoEvent.id}`}
-                                          >
-                                            <Edit2 className="h-4 w-4" />
-                                          </Button>
-                                        )}
-                                      </div>
-                                    </div>
-                                    
-                                    <div className="text-xs bg-background/50 rounded-md p-2 border-l-2 border-primary">
-                                      <p className="text-muted-foreground">
-                                        Auto-send: {countdownText}
-                                      </p>
-                                    </div>
-                                  </div>
-                                </CardContent>
-                              </Card>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
+              {/* Upcoming Events Section */}
+              {!eventsLoading && upcomingEvents.length > 0 && (
+                <div>
+                  <h3 className="text-xl font-bold mb-6">Upcoming Events ({upcomingEvents.length})</h3>
+                  {(() => {
+                    const groupedEvents = groupEventsByTime(upcomingEvents);
+                    const categoryOrder: TimeCategory[] = ['Today', 'Tomorrow', 'This Week', 'Next Week', 'Later'];
 
-                    {/* Active Plans (Not Scheduled Yet) */}
-                    {activePlans.length > 0 && (
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <h2 className="text-xl font-bold">Active Plans</h2>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => setActiveTab('build')}
-                            data-testid="button-view-all-plans"
-                          >
-                            View All Plans
-                          </Button>
-                        </div>
-                        <div className="grid gap-4">
-                          {activePlans.map((plan) => (
-                            <Card key={plan.id} data-testid={`card-active-plan-${plan.id}`} className="border-primary/30">
-                              <CardContent className="p-4">
-                                <div className="flex items-start justify-between gap-4">
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <h3 className="font-semibold">{plan.name}</h3>
-                                      <Badge variant="secondary" className="gap-1 text-xs">
-                                        <Clock className="h-3 w-3" />
-                                        Ready to Schedule
-                                      </Badge>
-                                    </div>
-                                    <p className="text-sm mb-2">
-                                      {plan.items.length} venue{plan.items.length !== 1 ? 's' : ''}
-                                    </p>
-                                    {plan.items.slice(0, 2).map((item: any, idx: number) => {
-                                      const venue = item.sourceType === 'activity' 
-                                        ? activities.find(a => a.id === item.sourceId)
-                                        : votingEvents.find(v => v.id === item.sourceId);
-                                      
-                                      if (!venue) return null;
-                                      
-                                      const venueName = 'venueName' in venue ? venue.venueName : venue.title;
-                                      
-                                      return (
-                                        <p key={item.id} className="text-xs text-muted-foreground">
-                                          {idx + 1}. {venueName}
-                                        </p>
-                                      );
-                                    })}
-                                    {plan.items.length > 2 && (
-                                      <p className="text-xs text-muted-foreground">
-                                        +{plan.items.length - 2} more
-                                      </p>
-                                    )}
-                                  </div>
-                                  <Button
-                                    variant="default"
-                                    size="sm"
-                                    onClick={() => {
-                                      setSelectedItineraryForScheduling(plan);
-                                      setShowInlineScheduling(true);
-                                      setActiveTab('build');
-                                      requestAnimationFrame(() => {
-                                        setTimeout(() => {
-                                          document.getElementById('inline-schedule-section')?.scrollIntoView({ behavior: 'smooth' });
-                                        }, 150);
-                                      });
-                                    }}
-                                    data-testid={`button-schedule-plan-${plan.id}`}
-                                  >
-                                    <Calendar className="h-4 w-4 mr-2" />
-                                    Schedule
-                                  </Button>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {/* Next Event Hero */}
-                    {nextEvent && (() => {
-                      // Calculate RSVP counts - separate members from guests
-                      const memberRsvps = nextEvent.rsvps?.filter((r: any) => !r.isGuest) || [];
-                      const guestRsvps = nextEvent.rsvps?.filter((r: any) => r.isGuest) || [];
-                      
-                      const memberYes = memberRsvps.filter((r: any) => r.response === 'yes').length;
-                      // Handle both 'maybe' and legacy 'yes_with_constraint'
-                      const memberConditional = memberRsvps.filter((r: any) => r.response === 'maybe' || r.response === 'yes_with_constraint').length;
-                      const totalMemberAttending = memberYes + memberConditional;
-                      
-                      const guestYes = guestRsvps.filter((r: any) => r.response === 'yes').length;
-                      const guestConditional = guestRsvps.filter((r: any) => r.response === 'maybe' || r.response === 'yes_with_constraint').length;
-                      const totalGuestAttending = guestYes + guestConditional;
-                      
-                      const totalAttending = totalMemberAttending + totalGuestAttending;
-                      
-                      // Get first venue for primary location
-                      const firstItem = nextEvent.items?.[0];
-                      const firstVenue = firstItem ? (
-                        firstItem.sourceType === 'activity' 
-                          ? activities.find(a => a.id === firstItem.sourceId)
-                          : votingEvents.find(v => v.id === firstItem.sourceId)
-                      ) : null;
-                      const firstVenueName = firstVenue ? ('venueName' in firstVenue ? firstVenue.venueName : firstVenue.title) : null;
-                      const googlePlaceId = firstVenue?.googlePlaceId;
-                      
+                    return categoryOrder.map(category => {
+                      const categoryEvents = groupedEvents.get(category) || [];
+                      if (categoryEvents.length === 0) return null;
+
                       return (
-                        <Card className="border-primary/20 bg-primary/15">
-                          <CardHeader>
-                            <div className="flex items-center justify-between gap-4">
-                              <div className="flex-1 min-w-0">
-                                <CardTitle className="flex items-center gap-2">
-                                  <Calendar className="h-5 w-5" />
-                                  Next Event
-                                </CardTitle>
-                                <CardDescription className="space-y-1 mt-1">
-                                  <div className="font-medium text-base">
-                                    {formatInTimeZone(
-                                      new Date(nextEvent.eventDate!), 
-                                      group.timezone || 'America/Los_Angeles',
-                                      "EEEE, MMMM d 'at' h:mm a"
-                                    )}
-                                  </div>
-                                  {firstVenueName && (
-                                    <div className="flex items-start gap-1.5 text-sm">
-                                      <MapPin className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                                      <div className="flex-1 min-w-0">
-                                        <span className="font-medium">{firstVenueName}</span>
-                                        {firstVenue?.venueAddress && (
-                                          <span className="text-muted-foreground block truncate">{firstVenue.venueAddress}</span>
-                                        )}
-                                      </div>
-                                    </div>
-                                  )}
-                                  {totalAttending > 0 && (
-                                    <div className="flex items-center gap-1.5 text-sm">
-                                      <Users className="h-4 w-4" />
-                                      {totalGuestAttending > 0 ? (
-                                        <span>
-                                          {totalMemberAttending} {totalMemberAttending === 1 ? 'member' : 'members'} + {totalGuestAttending} {totalGuestAttending === 1 ? 'guest' : 'guests'} attending
-                                          {(memberConditional + guestConditional) > 0 && (
-                                            <span className="text-muted-foreground"> ({memberConditional + guestConditional} conditional)</span>
-                                          )}
-                                        </span>
-                                      ) : (
-                                        <span>
-                                          {totalMemberAttending} {totalMemberAttending === 1 ? 'person' : 'people'} attending
-                                          {memberConditional > 0 && (
-                                            <span className="text-muted-foreground"> ({memberConditional} conditional)</span>
-                                          )}
-                                        </span>
-                                      )}
-                                    </div>
-                                  )}
-                                </CardDescription>
-                              </div>
-                              <div className="flex flex-col gap-2 items-end">
-                                {nextEvent.hostMemberId && (
-                                  <Badge variant="outline" className="gap-1">
-                                    <UserCheck className="h-3 w-3" />
-                                    Hosted by {members.find(m => m.id === nextEvent.hostMemberId)?.name || 'Member'}
-                                  </Badge>
-                                )}
-                                {googlePlaceId && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => {
-                                      window.open(`https://www.google.com/maps/search/?api=1&query=Google&query_place_id=${googlePlaceId}`, '_blank');
-                                    }}
-                                    className="gap-1.5"
-                                    data-testid="button-open-google-maps"
-                                  >
-                                    <MapPin className="h-3.5 w-3.5" />
-                                    Open in Maps
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                          </CardHeader>
-                        <CardContent className="space-y-4">
-                          <h3 className="font-semibold text-lg">{nextEvent.name}</h3>
-                          
-                          {/* Venues */}
-                          <div className="space-y-2">
-                            {nextEvent.items.slice(0, 3).map((item: any, idx: number) => {
-                              const venue = item.sourceType === 'activity' 
-                                ? activities.find(a => a.id === item.sourceId)
-                                : votingEvents.find(v => v.id === item.sourceId);
-                              
-                              if (!venue) return null;
-                              
-                              const venueName = 'venueName' in venue ? venue.venueName : venue.title;
-                              
-                              return (
-                                <div key={item.id} className="flex items-start gap-3 p-3 bg-background rounded-lg">
-                                  <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-sm font-medium flex-shrink-0">
-                                    {idx + 1}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="font-medium">{venueName}</p>
-                                    {venue.venueAddress && (
-                                      <p className="text-sm text-muted-foreground truncate">{venue.venueAddress}</p>
-                                    )}
-                                  </div>
-                                  {venue.rating && (
-                                    <Badge variant="secondary" className="gap-1 flex-shrink-0">
-                                      <Star className="h-3 w-3 fill-current" />
-                                      {venue.rating}
-                                    </Badge>
-                                  )}
-                                </div>
-                              );
-                            })}
-                            {nextEvent.items.length > 3 && (
-                              <p className="text-sm text-muted-foreground text-center">
-                                +{nextEvent.items.length - 3} more venue{nextEvent.items.length - 3 !== 1 ? 's' : ''}
-                              </p>
-                            )}
-                          </div>
-
-                          <div className="flex items-center gap-2 pt-2">
-                            <Button
-                              size="sm"
-                              onClick={() => {
-                                navigate(`/event/${nextEvent.id}`);
-                              }}
-                              data-testid="button-view-event-details"
-                            >
-                              View Details
-                            </Button>
-                            <Button 
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                const inviteUrl = `${window.location.origin}/rsvp/${nextEvent.id}`;
-                                navigator.clipboard.writeText(inviteUrl);
-                                toast({ title: "Invite link copied!" });
-                              }}
-                              data-testid="button-copy-invite-link"
-                            >
-                              <Share2 className="h-4 w-4 mr-2" />
-                              Share
-                            </Button>
-                            <Button 
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setInviteGuestItineraryId(nextEvent.id);
-                                setInviteGuestDialogOpen(true);
-                              }}
-                              data-testid="button-invite-guests"
-                            >
-                              <UserPlus className="h-4 w-4 mr-2" />
-                              Invite Guests
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                    })()}
-
-                    {/* Upcoming Events */}
-                    {upcomingEvents.length > 0 && (
-                      <div className="space-y-4">
-                        <h2 className="text-xl font-bold">Upcoming Events</h2>
-                        <div className="grid gap-4">
-                          {upcomingEvents.map((event) => {
-                            // Extract first venue details
-                            const firstItem = event.items[0];
-                            const firstVenue = firstItem?.sourceType === 'activity' 
-                              ? activities.find(a => a.id === firstItem.sourceId)
-                              : votingEvents.find(v => v.id === firstItem.sourceId);
-                            const firstVenueName = firstVenue ? ('venueName' in firstVenue ? firstVenue.venueName : firstVenue.title) : '';
-                            const googlePlaceId = firstVenue?.googlePlaceId;
-                            
-                            // Calculate RSVP counts - separate members from guests
-                            const memberRsvps = event.rsvps?.filter((r: any) => !r.isGuest) || [];
-                            const guestRsvps = event.rsvps?.filter((r: any) => r.isGuest) || [];
-                            
-                            const memberYes = memberRsvps.filter((r: any) => r.response === 'yes').length;
-                            // Handle both 'maybe' and legacy 'yes_with_constraint'
-                            const memberConditional = memberRsvps.filter((r: any) => r.response === 'maybe' || r.response === 'yes_with_constraint').length;
-                            const totalMemberAttending = memberYes + memberConditional;
-                            
-                            const guestYes = guestRsvps.filter((r: any) => r.response === 'yes').length;
-                            const guestConditional = guestRsvps.filter((r: any) => r.response === 'maybe' || r.response === 'yes_with_constraint').length;
-                            const totalGuestAttending = guestYes + guestConditional;
-                            
-                            const totalAttending = totalMemberAttending + totalGuestAttending;
-
-                            return (
-                              <Card key={event.id} data-testid={`card-upcoming-event-${event.id}`}>
-                                <CardHeader className="pb-3">
-                                  <div className="flex items-start justify-between gap-4">
-                                    <div className="flex-1 min-w-0 space-y-2">
-                                      <div className="flex items-center gap-2">
-                                        <CardTitle className="text-lg">{event.name}</CardTitle>
-                                        {event.hostMemberId && (
-                                          <Badge variant="outline" className="gap-1 text-xs">
-                                            <UserCheck className="h-3 w-3" />
-                                            {members.find(m => m.id === event.hostMemberId)?.name || 'Hosted'}
-                                          </Badge>
-                                        )}
-                                      </div>
-                                      <CardDescription className="space-y-2">
-                                        <div className="font-medium text-base">
-                                          {formatInTimeZone(
-                                            new Date(event.eventDate!), 
-                                            group.timezone || 'America/Los_Angeles',
-                                            "EEE, MMM d 'at' h:mm a"
-                                          )}
-                                        </div>
-                                        {firstVenueName && (
-                                          <div className="flex items-start gap-1.5 text-sm">
-                                            <MapPin className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                                            <div className="flex-1 min-w-0">
-                                              <span className="font-medium">{firstVenueName}</span>
-                                              {firstVenue?.venueAddress && (
-                                                <span className="text-muted-foreground block truncate">{firstVenue.venueAddress}</span>
-                                              )}
-                                            </div>
-                                          </div>
-                                        )}
-                                        {totalAttending > 0 && (
-                                          <div className="flex items-center gap-1.5 text-sm">
-                                            <Users className="h-4 w-4" />
-                                            {totalGuestAttending > 0 ? (
-                                              <span>
-                                                {totalMemberAttending} {totalMemberAttending === 1 ? 'member' : 'members'} + {totalGuestAttending} {totalGuestAttending === 1 ? 'guest' : 'guests'} attending
-                                                {(memberConditional + guestConditional) > 0 && (
-                                                  <span className="text-muted-foreground"> ({memberConditional + guestConditional} conditional)</span>
-                                                )}
-                                              </span>
-                                            ) : (
-                                              <span>
-                                                {totalMemberAttending} {totalMemberAttending === 1 ? 'person' : 'people'} attending
-                                                {memberConditional > 0 && (
-                                                  <span className="text-muted-foreground"> ({memberConditional} conditional)</span>
-                                                )}
-                                              </span>
-                                            )}
-                                          </div>
-                                        )}
-                                      </CardDescription>
-                                    </div>
-                                    <div className="flex flex-col gap-2 items-end">
-                                      {googlePlaceId && (
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          onClick={() => {
-                                            window.open(`https://www.google.com/maps/search/?api=1&query=Google&query_place_id=${googlePlaceId}`, '_blank');
-                                          }}
-                                          className="gap-1.5"
-                                          data-testid={`button-open-google-maps-${event.id}`}
-                                        >
-                                          <MapPin className="h-3.5 w-3.5" />
-                                          Open in Maps
-                                        </Button>
-                                      )}
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => navigate(`/event/${event.id}`)}
-                                        data-testid={`button-view-upcoming-${event.id}`}
-                                      >
-                                        View Details
-                                      </Button>
-                                    </div>
-                                  </div>
-                                </CardHeader>
-                              </Card>
-                            );
-                          })}
+                        <div key={category} className="mb-6 last:mb-0">
+                          <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-3">
+                            {category}
+                          </h4>
+                          <EventsTable
+                            events={categoryEvents}
+                            expandedEvents={expandedEvents}
+                            onToggleExpand={toggleEventExpand}
+                          />
                         </div>
-                      </div>
-                    )}
+                      );
+                    });
+                  })()}
+                </div>
+              )}
 
-                    {/* Past Events */}
-                    {pastEvents.length > 0 && (
-                      <div className="space-y-4">
-                        <h2 className="text-xl font-bold">Recent Past Events</h2>
-                        <div className="grid gap-4">
-                          {pastEvents.map((event) => (
-                            <Card key={event.id} className="opacity-75" data-testid={`card-past-event-${event.id}`}>
-                              <CardContent className="p-4">
-                                <div className="flex items-start justify-between gap-4">
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <h3 className="font-semibold">{event.name}</h3>
-                                      {event.hostMemberId && (
-                                        <Badge variant="outline" className="gap-1 text-xs">
-                                          <UserCheck className="h-3 w-3" />
-                                          {members.find(m => m.id === event.hostMemberId)?.name || 'Hosted'}
-                                        </Badge>
-                                      )}
-                                    </div>
-                                    <p className="text-sm text-muted-foreground mb-2">
-                                      {formatInTimeZone(
-                                        new Date(event.eventDate!), 
-                                        group.timezone || 'America/Los_Angeles',
-                                        "EEE, MMM d, yyyy 'at' h:mm a"
-                                      )}
-                                    </p>
-                                    <p className="text-sm">
-                                      {event.items.length} venue{event.items.length !== 1 ? 's' : ''}
-                                    </p>
-                                  </div>
-                                  <Button 
-                                    variant="outline" 
-                                    size="sm"
-                                    onClick={() => setActiveTab('feedback')}
-                                    data-testid={`button-feedback-past-${event.id}`}
-                                  >
-                                    <MessageCircle className="h-4 w-4 mr-2" />
-                                    Feedback
-                                  </Button>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </>
-                );
-              })()}
+              {/* Past Events Section */}
+              {!eventsLoading && pastEvents.length > 0 && (
+                <div>
+                  <h3 className="text-xl font-bold mb-4">Past Events ({pastEvents.length})</h3>
+                  <div className="opacity-75">
+                    <EventsTable
+                      events={pastEvents}
+                      expandedEvents={expandedEvents}
+                      onToggleExpand={toggleEventExpand}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </TabsContent>
 
@@ -3620,6 +3218,7 @@ export default function GroupDetail() {
                         />
                         <div className="flex-1 space-y-1">
                           <div className="flex items-center gap-1.5">
+                            <Sparkles className="h-4 w-4 text-primary" />
                             <Label htmlFor="auto-activities" className="cursor-pointer font-medium">
                               Auto-generate Activities
                             </Label>
@@ -3659,6 +3258,7 @@ export default function GroupDetail() {
                         />
                         <div className="flex-1 space-y-1">
                           <div className="flex items-center gap-1.5">
+                            <Sparkles className="h-4 w-4 text-primary" />
                             <Label htmlFor="auto-itinerary" className="cursor-pointer font-medium">
                               Auto-create Itinerary Drafts
                             </Label>
@@ -3704,6 +3304,7 @@ export default function GroupDetail() {
                         />
                         <div className="flex-1 space-y-1">
                           <div className="flex items-center gap-1.5">
+                            <Sparkles className="h-4 w-4 text-primary" />
                             <Label htmlFor="auto-schedule" className="cursor-pointer font-medium">
                               Auto-schedule Events
                             </Label>
@@ -4279,7 +3880,10 @@ export default function GroupDetail() {
               {/* AI Preference Actions */}
               <Card>
                 <CardHeader>
-                  <CardTitle>AI Preference Learning</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-primary" />
+                    AI Preference Learning
+                  </CardTitle>
                   <CardDescription>Refine AI understanding of your group's preferences</CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -6337,7 +5941,7 @@ export default function GroupDetail() {
                     <div className="flex gap-2">
                       <Button
                         variant="default"
-                        onClick={() => setShowSwipeSession(true)}
+                        onClick={() => setDiscoverVenuesModalOpen(true)}
                         data-testid="button-discover-venues"
                       >
                         <Search className="h-4 w-4 mr-1" />
@@ -6409,7 +6013,7 @@ export default function GroupDetail() {
                     </p>
                     <Button
                       size="lg"
-                      onClick={() => setShowSwipeSession(true)}
+                      onClick={() => setDiscoverVenuesModalOpen(true)}
                       className="gap-2"
                     >
                       <Search className="h-4 w-4" />
@@ -10433,100 +10037,35 @@ export default function GroupDetail() {
         </DialogContent>
       </Dialog>
 
-      {/* Schedule Event with AI Dialog */}
-      <Dialog open={schedulePromptDialogOpen} onOpenChange={setSchedulePromptDialogOpen}>
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
-              Schedule Event with AI
-            </DialogTitle>
-            <DialogDescription>
-              Describe what you want to do in natural language. For example: "tacos next week at night on weekday in the mission"
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="schedule-prompt">What do you want to do?</Label>
-              <Textarea
-                id="schedule-prompt"
-                value={schedulePrompt}
-                onChange={(e) => setSchedulePrompt(e.target.value)}
-                placeholder='e.g., "tacos next week with haas mission friends at night on weekday in mission"'
-                className="min-h-24"
-                data-testid="input-schedule-prompt"
-              />
-              <p className="text-xs text-muted-foreground">
-                Include activity type, time preferences, location, and any other details
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setSchedulePromptDialogOpen(false);
-                setSchedulePrompt("");
-              }}
-              data-testid="button-cancel-schedule-prompt"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={async () => {
-                if (!schedulePrompt.trim()) {
-                  toast({
-                    title: "Prompt required",
-                    description: "Please describe what you want to do",
-                    variant: "destructive",
-                  });
-                  return;
-                }
-                
-                setSchedulePromptLoading(true);
-                try {
-                  const response = await apiRequest("POST", `/api/groups/${groupId}/schedule-from-prompt`, {
-                    prompt: schedulePrompt.trim(),
-                  });
-                  
-                  toast({
-                    title: "Event created!",
-                    description: "Your event has been scheduled with AI-generated time options",
-                  });
-                  
-                  // Refresh itineraries
-                  await queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "proposed-itineraries"] });
-                  
-                  setSchedulePromptDialogOpen(false);
-                  setSchedulePrompt("");
-                } catch (error: any) {
-                  toast({
-                    title: "Error scheduling event",
-                    description: error.message,
-                    variant: "destructive",
-                  });
-                } finally {
-                  setSchedulePromptLoading(false);
-                }
-              }}
-              disabled={schedulePromptLoading || !schedulePrompt.trim()}
-              data-testid="button-submit-schedule-prompt"
-            >
-              {schedulePromptLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Generate Event
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Schedule Event Modal */}
+      {groupId && (
+        <ScheduleEventModal
+          open={scheduleEventModalOpen}
+          onOpenChange={setScheduleEventModalOpen}
+          groupId={groupId}
+          onNavigateToTab={(tab) => setActiveTab(tab)}
+        />
+      )}
+
+      {/* Discover Venues Modal */}
+      {groupId && (
+        <DiscoverVenuesModal
+          open={discoverVenuesModalOpen}
+          onOpenChange={setDiscoverVenuesModalOpen}
+          groupId={groupId}
+          onStartSwipeSession={() => setShowSwipeSession(true)}
+          onNavigateToTab={(tab) => setActiveTab(tab)}
+        />
+      )}
+
+      {/* AI Assistant Modal */}
+      <AIAssistantModal
+        open={aiAssistantModalOpen}
+        onOpenChange={setAiAssistantModalOpen}
+        onOpenScheduleModal={() => setScheduleEventModalOpen(true)}
+        onOpenDiscoverModal={() => setDiscoverVenuesModalOpen(true)}
+      />
+
       {/* Swipe Session Dialog */}
       {groupId && (
         <SwipeSession
@@ -10567,6 +10106,16 @@ export default function GroupDetail() {
           }
         }}
       />
+
+      {/* Floating AI Assistant Button */}
+      <Button
+        onClick={() => setAiAssistantModalOpen(true)}
+        size="lg"
+        className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-shadow z-50"
+        data-testid="button-ai-assistant"
+      >
+        <Sparkles className="h-6 w-6" />
+      </Button>
     </div>
   );
 }
