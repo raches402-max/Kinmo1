@@ -36,7 +36,8 @@ export const userProfiles = pgTable("user_profiles", {
   bio: text("bio"), // Short bio or description
   emailNotifications: boolean("email_notifications").default(true).notNull(), // Whether to receive email notifications
   // Global preferences (used as fallback when member_group_preferences not set)
-  budget: integer("budget"), // Preferred budget per person
+  budgetMin: integer("budget_min"), // Preferred minimum budget per person
+  budgetMax: integer("budget_max"), // Preferred maximum budget per person
   activityPreferences: text("activity_preferences").array(), // Preferred activity categories (e.g., ["meal", "cafes"])
   personalAvailability: jsonb("personal_availability"), // Personal availability grid
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -685,6 +686,19 @@ export const photosCache = pgTable("photos_cache", {
   expiresAt: timestamp("expires_at").notNull(), // 30 days from createdAt
 });
 
+// AI Categorization cache - cache venue categorizations to reduce OpenAI API calls
+// Stores results from categorizeVenue() function to avoid re-categorizing the same venues
+export const aiCategorizationCache = pgTable("ai_categorization_cache", {
+  cacheKey: text("cache_key").primaryKey(), // "{venueName}::{venueType}" (lowercase)
+  category: text("category").notNull(), // 'meal', 'cafes', 'drinks', 'dessert', 'experiences'
+  venueName: text("venue_name").notNull(), // Original venue name (for reference)
+  venueType: text("venue_type").notNull(), // Original venue type (for reference)
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(), // 7 days from createdAt (shorter than Places cache since categorizations may change)
+}, (table) => [
+  index("idx_ai_categorization_expires").on(table.expiresAt),
+]);
+
 // API Call Logs - track all external API calls for monitoring and cost analysis
 export const apiCallLogs = pgTable("api_call_logs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -1060,6 +1074,10 @@ export const insertSearchCacheSchema = createInsertSchema(searchCache).omit({
   createdAt: true,
 });
 
+export const insertAiCategorizationCacheSchema = createInsertSchema(aiCategorizationCache).omit({
+  createdAt: true,
+});
+
 export const insertHostAssignmentSchema = createInsertSchema(hostAssignments).omit({
   id: true,
   createdAt: true,
@@ -1174,6 +1192,9 @@ export type PlacesCache = typeof placesCache.$inferSelect;
 
 export type InsertSearchCache = z.infer<typeof insertSearchCacheSchema>;
 export type SearchCache = typeof searchCache.$inferSelect;
+
+export type InsertAiCategorizationCache = z.infer<typeof insertAiCategorizationCacheSchema>;
+export type AiCategorizationCache = typeof aiCategorizationCache.$inferSelect;
 
 export type InsertHostAssignment = z.infer<typeof insertHostAssignmentSchema>;
 export type HostAssignment = typeof hostAssignments.$inferSelect;

@@ -21,7 +21,8 @@ const envSchema = z.object({
   ISSUER_URL: z.string().url().optional().default('https://replit.com/oidc'),
 
   // Server Configuration
-  PORT: z.string().optional().default('5000'),
+  // IMPORTANT: Do NOT use port 5000 - that's reserved for Replit's preview
+  PORT: z.string().optional().default('3000'),
   NODE_ENV: z.enum(['development', 'production', 'test']).optional().default('development'),
 
   // CORS and Frontend URLs

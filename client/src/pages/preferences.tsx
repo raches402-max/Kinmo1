@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import {
@@ -51,7 +52,7 @@ export default function Preferences() {
   });
 
   // Local state for form
-  const [budget, setBudget] = useState<number | null>(null);
+  const [budgetRange, setBudgetRange] = useState<[number, number]>([0, 60]);
   const [selectedCategories, setSelectedCategories] = useState<ActivityCategory[]>([]);
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [availability, setAvailability] = useState<Record<string, Record<TimeSlot, boolean>>>({});
@@ -59,7 +60,9 @@ export default function Preferences() {
   // Initialize form when data loads
   useEffect(() => {
     if (preferences) {
-      setBudget(preferences.budget || null);
+      const min = preferences.budgetMin ?? 0;
+      const max = preferences.budgetMax ?? 60;
+      setBudgetRange([min, max]);
       setSelectedCategories(preferences.activityPreferences || []);
       setEmailNotifications(preferences.emailNotifications ?? true);
 
@@ -117,7 +120,8 @@ export default function Preferences() {
 
   const handleSave = () => {
     updateMutation.mutate({
-      budget: budget || null,
+      budgetMin: budgetRange[0],
+      budgetMax: budgetRange[1],
       activityPreferences: selectedCategories,
       emailNotifications,
       personalAvailability: availability,
@@ -194,25 +198,33 @@ export default function Preferences() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <DollarSign className="h-5 w-5" />
-              Budget Preference
+              Budget Range
             </CardTitle>
+            <CardDescription>
+              Set your preferred budget range per person
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              <Label htmlFor="budget">Budget per person ($)</Label>
-              <Input
-                id="budget"
-                type="number"
-                min="0"
-                step="5"
-                value={budget || ""}
-                onChange={(e) => {
-                  const value = e.target.value ? parseInt(e.target.value) : null;
-                  setBudget(value);
+            <div className="space-y-4">
+              <Slider
+                min={0}
+                max={250}
+                step={10}
+                value={budgetRange}
+                onValueChange={(value) => {
+                  setBudgetRange(value as [number, number]);
                   setHasChanges(true);
                 }}
-                placeholder="e.g., 50"
+                className="w-full"
               />
+              <div className="flex justify-between text-sm">
+                <span className="font-medium">
+                  {budgetRange[0] >= 200 ? "$200+" : `$${budgetRange[0]}`}
+                </span>
+                <span className="font-medium">
+                  {budgetRange[1] >= 200 ? "$200+" : `$${budgetRange[1]}`}
+                </span>
+              </div>
             </div>
           </CardContent>
         </Card>

@@ -3,7 +3,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, updateUserProfileSchema, activities as activitiesTable, groups as groupsTable, members as membersTable, itineraryInvites, guestInvites, rsvps as rsvpsTable, itineraries, itineraryItems, proposedTimeSlots, users, userProfiles, photosCache, geocodingCache, hostAssignments, curatedVenues, votingEvents as votingEventsTable, activitySwipes, activities, votingEvents, swipeSessions, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
-import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue, analyzePreferencePatterns, parseSchedulingPrompt, detectCategory } from "./openai";
+import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue, categorizeVenuesBatch, analyzePreferencePatterns, parseSchedulingPrompt, detectCategory } from "./openai";
 import { searchPlaces, searchNearbyPlaces, geocodeLocation, clearPlacesCache, getCacheStats, getPlaceDetails, detectAndParseGoogleMapsUrl } from "./google-places";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import {
@@ -588,7 +588,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Return preferences-specific fields
       res.json({
-        budget: profile?.budget || null,
+        budgetMin: profile?.budgetMin || null,
+        budgetMax: profile?.budgetMax || null,
         activityPreferences: profile?.activityPreferences || [],
         personalAvailability: profile?.personalAvailability || null,
         emailNotifications: profile?.emailNotifications ?? true,
@@ -605,10 +606,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
 
       // Only allow updating preference fields
-      const { budget, activityPreferences, personalAvailability, emailNotifications } = req.body;
+      const { budgetMin, budgetMax, activityPreferences, personalAvailability, emailNotifications } = req.body;
       const updateData: any = {};
 
-      if (budget !== undefined) updateData.budget = budget;
+      if (budgetMin !== undefined) updateData.budgetMin = budgetMin;
+      if (budgetMax !== undefined) updateData.budgetMax = budgetMax;
       if (activityPreferences !== undefined) updateData.activityPreferences = activityPreferences;
       if (personalAvailability !== undefined) updateData.personalAvailability = personalAvailability;
       if (emailNotifications !== undefined) updateData.emailNotifications = emailNotifications;
@@ -617,7 +619,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Return preferences-specific fields
       res.json({
-        budget: profile.budget,
+        budgetMin: profile.budgetMin,
+        budgetMax: profile.budgetMax,
         activityPreferences: profile.activityPreferences,
         personalAvailability: profile.personalAvailability,
         emailNotifications: profile.emailNotifications,
@@ -1097,22 +1100,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Filter to only invites relevant to this user
       const verifiedInvites = [];
       const seenItineraryIds = new Set<string>();
-      
+
       for (const invite of invitesQuery) {
         // Check if user is the group organizer
         const isGroupOrganizer = invite.groupUserId === userId;
-        
+
+        // Skip if we've already added this itinerary for this user
+        if (seenItineraryIds.has(invite.itineraryId)) {
+          continue;
+        }
+
         if (isGroupOrganizer) {
-          // User owns the group - only add once per itinerary (deduplicate)
-          if (!seenItineraryIds.has(invite.itineraryId)) {
-            verifiedInvites.push({ ...invite, isOrganizer: true });
-            seenItineraryIds.add(invite.itineraryId);
-          }
+          // User owns the group - add as organizer
+          verifiedInvites.push({ ...invite, isOrganizer: true });
+          seenItineraryIds.add(invite.itineraryId);
         } else if (invite.memberId) {
           // Not the organizer - check if they're a claimed member
           const member = await storage.getMember(invite.memberId);
           if (member && member.userId === userId) {
             verifiedInvites.push({ ...invite, isOrganizer: false });
+            seenItineraryIds.add(invite.itineraryId);
           }
         }
       }
@@ -5851,6 +5858,276 @@ Looking forward to planning great activities together!
   });
 
   // Save swipe feedback (like or pass)
+  // Discover Venues - Start a discovery swipe session with cache-first strategy
+  app.post("/api/groups/:groupId/discover-venues", isAuthenticated, async (req: any, res) => {
+    try {
+      const { groupId } = req.params;
+      const userId = getUserId(req);
+
+      // Verify user has access to this group
+      const group = await storage.getGroup(groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      const member = await storage.getGroupMemberByUserId(groupId, userId);
+      if (!member) {
+        return res.status(403).json({ message: "Not a member of this group" });
+      }
+
+      // Parse request body (optional category filter)
+      const discoverSchema = z.object({
+        category: z.enum(['meal', 'cafe', 'drinks', 'dessert', 'experiences']).optional(),
+        count: z.number().min(5).max(30).optional().default(15),  // Reduced from 20 to 15
+      });
+
+      const validatedData = safeParse(discoverSchema, req.body, res);
+      if (!validatedData) return;
+
+      const { category, count } = validatedData;
+
+      console.log(`[Discover Venues] Creating cache-first discovery session for group ${groupId}, category: ${category || 'all'}, count: ${count}`);
+
+      // Create a discovery swipe session
+      const { createSwipeSession } = await import('./swipe-session-manager');
+      const sessionId = await createSwipeSession({
+        groupId,
+        sessionType: 'discovery',
+        triggeredBy: 'manual',
+        isBlocking: false,
+        targetSwipeCount: count,
+        expiresInHours: 48,
+      });
+
+      const COOLDOWN_DAYS = 30;
+      const deck: any[] = [];
+
+      // TIER 1: Popular cached venues (group favorites with cooldown)
+      console.log(`[Discover Venues] Tier 1: Fetching popular cached venues with ${COOLDOWN_DAYS}-day cooldown...`);
+      const popularVenuesQuery = await db.execute<{
+        id: string;
+        title: string;
+        description: string;
+        venue_address: string;
+        venue_type: string;
+        google_place_id: string;
+        rating: string;
+        price_level: string;
+        photo_url: string;
+        upvote_count: number;
+      }>(
+        `
+        SELECT DISTINCT
+          ve.id,
+          ve.title,
+          ve.description,
+          ve.venue_address,
+          ve.venue_type,
+          ve.google_place_id,
+          ve.rating,
+          ve.price_level,
+          ve.photo_url,
+          COUNT(DISTINCT v.id) FILTER (WHERE v.vote_type = 'upvote') as upvote_count
+        FROM voting_events ve
+        LEFT JOIN votes v ON ve.id = v.event_id
+        LEFT JOIN activity_swipes swipe ON ve.id = swipe.voting_event_id AND swipe.user_id = $1
+        WHERE ve.group_id = $2
+          AND (
+            swipe.id IS NULL
+            OR swipe.created_at < NOW() - INTERVAL '${COOLDOWN_DAYS} days'
+          )
+          ${category ? `AND LOWER(ve.venue_type) LIKE LOWER('%${category}%')` : ''}
+        GROUP BY ve.id
+        HAVING COUNT(DISTINCT v.id) FILTER (WHERE v.vote_type = 'upvote') > 0
+        ORDER BY upvote_count DESC
+        LIMIT $3
+        `,
+        [userId, groupId, count]
+      );
+
+      const popularVenues = popularVenuesQuery.rows || [];
+      deck.push(...popularVenues.map(v => ({
+        id: v.id,
+        title: v.title,
+        description: v.description || `Popular venue in ${group.locationBase}`,
+        venueAddress: v.venue_address,
+        venueType: v.venue_type,
+        googlePlaceId: v.google_place_id,
+        rating: v.rating,
+        priceLevel: v.price_level,
+        photoUrl: v.photo_url,
+        sourceType: 'voting_event' as const,
+        isNew: false,
+        likedByCount: Number(v.upvote_count),
+        groupId,
+      })));
+
+      console.log(`[Discover Venues] Tier 1: Found ${popularVenues.length} popular cached venues`);
+
+      // TIER 2: Unvoted activities from cache (if we need more)
+      const remaining = count - deck.length;
+      if (remaining > 0) {
+        console.log(`[Discover Venues] Tier 2: Fetching ${remaining} unvoted activities...`);
+        const activitiesQuery = await db.execute<{
+          id: string;
+          venue_name: string;
+          description: string;
+          venue_address: string;
+          venue_type: string;
+          google_place_id: string;
+          rating: string;
+          price_level: string;
+          photo_url: string;
+        }>(
+          `
+          SELECT DISTINCT
+            a.id,
+            a.venue_name,
+            a.description,
+            a.venue_address,
+            a.venue_type,
+            a.google_place_id,
+            a.rating,
+            a.price_level,
+            a.photo_url
+          FROM activities a
+          LEFT JOIN activity_swipes swipe ON a.id = swipe.activity_id AND swipe.user_id = $1
+          WHERE a.group_id = $2
+            AND a.archived_at IS NULL
+            AND swipe.id IS NULL
+            ${category ? `AND a.category = '${category}'` : ''}
+          LIMIT $3
+          `,
+          [userId, groupId, remaining]
+        );
+
+        const activities = activitiesQuery.rows || [];
+        deck.push(...activities.map(a => ({
+          id: a.id,
+          title: a.venue_name,
+          description: a.description || `${a.venue_type || 'Activity'} in ${group.locationBase}`,
+          venueAddress: a.venue_address,
+          venueType: a.venue_type,
+          googlePlaceId: a.google_place_id,
+          rating: a.rating,
+          priceLevel: a.price_level,
+          photoUrl: a.photo_url,
+          sourceType: 'ai_suggestion' as const,
+          isNew: true,
+          groupId,
+        })));
+
+        console.log(`[Discover Venues] Tier 2: Found ${activities.length} unvoted activities`);
+      }
+
+      // TIER 3: Google Places API (only if still need more)
+      const stillNeeded = count - deck.length;
+      if (stillNeeded > 0) {
+        console.log(`[Discover Venues] Tier 3: Fetching ${stillNeeded} new venues from Google Places API...`);
+
+        const { generateSwipeConcepts } = await import('./openai');
+        const categoryFilters = {
+          mealEnabled: category === 'meal' || (!category && (group.mealEnabled ?? true)),
+          cafeEnabled: category === 'cafe' || (!category && (group.cafeEnabled ?? true)),
+          drinksEnabled: category === 'drinks' || (!category && (group.drinksEnabled ?? true)),
+          dessertEnabled: category === 'dessert' || (!category && (group.dessertEnabled ?? true)),
+          experiencesEnabled: category === 'experiences' || (!category && (group.experiencesEnabled ?? true)),
+        };
+
+        const previousSignals = await storage.getGroupPreferenceSignals(groupId);
+        const previouslySeenConcepts = previousSignals.map(s => s.conceptDescription);
+
+        // Generate fewer concepts (3-5 instead of 10)
+        const concepts = await generateSwipeConcepts({
+          locationBase: group.locationBase,
+          budgetMin: group.budgetMin,
+          budgetMax: group.budgetMax,
+          activityCategories: group.activityCategories || [],
+          pastPreferences: group.pastPreferences || '',
+          previouslySeenConcepts,
+          ...categoryFilters,
+        });
+
+        if (concepts && concepts.length > 0) {
+          const { searchPlaces } = await import('./google-places');
+
+          // Limit concepts to reduce API calls
+          const limitedConcepts = concepts.slice(0, Math.min(3, concepts.length));
+
+          const venuePromises = limitedConcepts.map(async (concept) => {
+            try {
+              const venues = await searchPlaces({
+                query: concept.searchQuery,
+                location: `${group.latitude},${group.longitude}`,
+                radius: (group.searchRadius || 5) * 1609,
+                budgetMin: group.budgetMin,
+                budgetMax: group.budgetMax,
+                forceComprehensiveSearch: false,
+              });
+
+              return venues.slice(0, Math.ceil(stillNeeded / limitedConcepts.length));
+            } catch (error) {
+              console.error(`[Discover Venues] Error searching for "${concept.searchQuery}":`, error);
+              return [];
+            }
+          });
+
+          const venueArrays = await Promise.all(venuePromises);
+          const newVenues = venueArrays.flat();
+
+          // Filter out duplicates
+          const existingIds = new Set(deck.map(v => v.googlePlaceId).filter(Boolean));
+          const rejectedIds = new Set(group.rejectedVenues || []);
+
+          const filteredNewVenues = newVenues.filter(venue =>
+            !existingIds.has(venue.googlePlaceId) &&
+            !rejectedIds.has(venue.googlePlaceId || venue.venueName)
+          );
+
+          deck.push(...filteredNewVenues.slice(0, stillNeeded).map(venue => ({
+            id: venue.id,
+            title: venue.venueName,
+            description: venue.description || `${venue.venueType || 'Venue'} in ${group.locationBase}`,
+            venueAddress: venue.venueAddress,
+            venueType: venue.venueType,
+            googlePlaceId: venue.googlePlaceId,
+            rating: venue.rating,
+            reviewCount: venue.reviewCount,
+            priceLevel: venue.priceLevel,
+            photoUrl: venue.photoUrl,
+            sourceType: 'ai_suggestion' as const,
+            isNew: true,
+            groupId,
+          })));
+
+          console.log(`[Discover Venues] Tier 3: Generated ${filteredNewVenues.length} new venues from API`);
+        }
+      }
+
+      // Shuffle the final deck for variety
+      const shuffledDeck = deck.sort(() => Math.random() - 0.5);
+
+      console.log(`[Discover Venues] Created session ${sessionId} with ${shuffledDeck.length} venues (Tier 1: ${popularVenues.length}, Tier 2: ${deck.filter(d => d.sourceType === 'ai_suggestion' && d.isNew && !d.likedByCount).length}, Tier 3: ${deck.filter(d => d.sourceType === 'ai_suggestion' && d.isNew).length})`);
+
+      res.json({
+        sessionId,
+        deck: shuffledDeck,
+        totalVenues: shuffledDeck.length,
+        category: category || 'all',
+        cacheStats: {
+          popularVenues: popularVenues.length,
+          cachedActivities: deck.filter(d => d.sourceType === 'ai_suggestion' && !d.likedByCount).length,
+          newFromAPI: deck.filter(d => d.isNew && !popularVenues.some(p => p.id === d.id)).length,
+        }
+      });
+    } catch (error: any) {
+      console.error('[Discover Venues] Error:', error);
+      res.status(500).json({
+        message: error.message || "Failed to create discovery session"
+      });
+    }
+  });
+
   app.post("/api/groups/:id/swipe-feedback", isAuthenticated, requireGroupOwnership(), async (req: any, res) => {
     try {
       const { conceptType, conceptDescription, feedback } = req.body;
@@ -8309,6 +8586,19 @@ Looking forward to planning great activities together!
         console.error(`[Post Event Feedback] Insight update failed:`, err);
       });
 
+      // 🔄 FREQUENCY LEARNING: Analyze frequency feedback and auto-adjust if needed
+      // Import the frequency adjuster at the top of the file
+      const { analyzeAndAdjustFrequency } = await import('./frequency-adjuster');
+      analyzeAndAdjustFrequency(itinerary.groupId).then(result => {
+        if (result && result.applied) {
+          console.log(`[Frequency Adjuster] ✅ ${result.reason}`);
+        } else if (result) {
+          console.log(`[Frequency Adjuster] ℹ️  ${result.reason}`);
+        }
+      }).catch(err => {
+        console.error(`[Frequency Adjuster] Error:`, err);
+      });
+
       res.json(updated[0]);
     } catch (error: any) {
       console.error('[Post Event Feedback] Error:', error);
@@ -9298,7 +9588,7 @@ Looking forward to planning great activities together!
       const user = await storage.getUser(userId);
       
       // For now, only allow specific admin email
-      // TODO: Add admin role to user profile for better scalability
+      // See TODO.md: "Admin Role Management" for planned database-driven role system
       const adminEmails = getAdminEmails();
       if (!user || !adminEmails.includes(user.email || '')) {
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
@@ -10813,7 +11103,8 @@ Looking forward to planning great activities together!
 }
 
 // Helper function to generate and store activities
-async function generateAndStoreActivities(groupId: string, groupData: any) {
+// Exported so it can be used by background workers (auto-refresh, etc.)
+export async function generateAndStoreActivities(groupId: string, groupData: any) {
   try {
     // Update status to generating
     await storage.updateGroupStatus(groupId, "generating");
@@ -10894,6 +11185,10 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
     const seenVenuesFromDB = await storage.getSeenVenues(groupId);
     const seenVenueNames = seenVenuesFromDB.map(v => v.venueName);
     console.log(`[AI Generation] Found ${seenVenueNames.length} seen venues to exclude from suggestions`);
+
+    // Fetch highly-rated venues ready to revisit (proven winners from post-event feedback)
+    const provenWinners = await storage.getHighlyRatedVenues(groupId);
+    console.log(`[AI Generation] Found ${provenWinners.length} proven winners (highly-rated venues ready to revisit)`);
 
     console.log(`[AI Generation] Found ${previousFeedback.length} activities with feedback`);
     console.log(`[AI Generation] Found ${votingFeedback.length} favorites with voting data`);
@@ -10983,6 +11278,7 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
           searchRadius: groupData.searchRadius, // Pass search radius to AI
           previousFeedback: previousFeedback.length > 0 ? previousFeedback : undefined,
           votingFeedback: votingFeedback.length > 0 ? votingFeedback : undefined,
+          provenWinners: provenWinners.length > 0 ? provenWinners : undefined, // Pass highly-rated venues ready to revisit
           likedConcepts: likedConcepts.length > 0 ? likedConcepts : undefined,
           passedConcepts: passedConcepts.length > 0 ? passedConcepts : undefined,
           previouslySuggestedVenues: [...(previouslySuggestedVenues.length > 0 ? previouslySuggestedVenues : []), ...seenVenueNames],
@@ -11459,19 +11755,35 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
       const validActivities = activitiesData.filter((a: any) => a !== null);
       console.log(`[AI Generation] After filtering nulls: ${validActivities.length} valid activities`);
 
-      // First, categorize all new activities in batches
+      // First, categorize all new activities using batch categorization (MUCH faster!)
       const categorizationStart = Date.now();
       const uncategorized = validActivities.filter((a: any) => !a.category);
-      for (let i = 0; i < uncategorized.length; i += batchSize) {
-        const batch = uncategorized.slice(i, i + batchSize);
-        await Promise.all(
-          batch.map(async (activity: any) => {
-            activity.category = await categorizeVenue(activity.venueName, activity.venueType);
-          })
-        );
+
+      if (uncategorized.length > 0) {
+        // Batch categorize all venues in a single API call (or very few calls)
+        const venuesToCategorize = uncategorized.map((a: any) => ({
+          venueName: a.venueName,
+          venueType: a.venueType,
+          googleTypes: a.tags || [] // Use Google types if available
+        }));
+
+        const categorizations = await categorizeVenuesBatch(venuesToCategorize);
+
+        // Apply categorizations to activities
+        uncategorized.forEach((activity: any) => {
+          const cacheKey = `${activity.venueName.toLowerCase()}::${activity.venueType.toLowerCase()}`;
+          const category = categorizations.get(cacheKey);
+          if (category) {
+            activity.category = category;
+          } else {
+            console.warn(`[AI Generation] No category found for ${activity.venueName}, defaulting to 'meal'`);
+            activity.category = 'meal'; // Safe default
+          }
+        });
       }
+
       const categorizationEnd = Date.now();
-      console.log(`[AI Generation] Attempt ${attempt}: AI categorization took ${((categorizationEnd - categorizationStart) / 1000).toFixed(1)}s for ${uncategorized.length} venues`);
+      console.log(`[AI Generation] Attempt ${attempt}: Batch AI categorization took ${((categorizationEnd - categorizationStart) / 1000).toFixed(1)}s for ${uncategorized.length} venues`);
 
       // CRITICAL: Filter out disabled categories AFTER AI categorization
       // The AI may categorize venues differently than our keyword detector, so we need to filter again
@@ -11583,14 +11895,29 @@ async function generateAndStoreActivities(groupId: string, groupData: any) {
     if (allUniqueActivities.length > 0) {
       console.log(`[AI Generation] Categorizing ${allUniqueActivities.length} activities with AI...`);
 
-      // Add AI categorization to each activity in parallel (for any not yet categorized)
-      await Promise.all(
-        allUniqueActivities.map(async (activity: any) => {
-          if (!activity.category) {
-            activity.category = await categorizeVenue(activity.venueName, activity.venueType);
+      // Batch categorize any activities without categories
+      const uncategorizedFinal = allUniqueActivities.filter((a: any) => !a.category);
+
+      if (uncategorizedFinal.length > 0) {
+        const venuesToCategorize = uncategorizedFinal.map((a: any) => ({
+          venueName: a.venueName,
+          venueType: a.venueType,
+          googleTypes: a.tags || []
+        }));
+
+        const categorizations = await categorizeVenuesBatch(venuesToCategorize);
+
+        uncategorizedFinal.forEach((activity: any) => {
+          const cacheKey = `${activity.venueName.toLowerCase()}::${activity.venueType.toLowerCase()}`;
+          const category = categorizations.get(cacheKey);
+          if (category) {
+            activity.category = category;
+          } else {
+            console.warn(`[AI Generation] No category found for ${activity.venueName}, defaulting to 'meal'`);
+            activity.category = 'meal';
           }
-        })
-      );
+        });
+      }
 
       // Final category distribution logging
       const finalCategoryCounts: Record<string, number> = {

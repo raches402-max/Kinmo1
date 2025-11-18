@@ -1351,6 +1351,113 @@ export class DatabaseStorage implements IStorage {
     return visits;
   }
 
+  async getHighlyRatedVenues(groupId: string): Promise<Array<{
+    venueName: string;
+    venueType: string;
+    avgRating: number;
+    visitCount: number;
+    lastVisit: Date;
+    daysSinceLastVisit: number;
+  }>> {
+    // Get all visits for this group with associated post-event feedback
+    const visitsWithRatings = await db
+      .select({
+        venueName: venueVisitHistory.venueName,
+        venueType: venueVisitHistory.venueType,
+        visitedAt: venueVisitHistory.visitedAt,
+        itineraryId: venueVisitHistory.itineraryId,
+      })
+      .from(venueVisitHistory)
+      .where(eq(venueVisitHistory.groupId, groupId))
+      .orderBy(desc(venueVisitHistory.visitedAt));
+
+    // Get all RSVPs with ratings for these visits
+    const itineraryIds = visitsWithRatings.map(v => v.itineraryId);
+    if (itineraryIds.length === 0) {
+      return [];
+    }
+
+    const rsvpsWithFeedback = await db
+      .select({
+        itineraryId: rsvps.itineraryId,
+        postEventFeedback: rsvps.postEventFeedback,
+      })
+      .from(rsvps)
+      .where(
+        and(
+          inArray(rsvps.itineraryId, itineraryIds),
+          isNotNull(rsvps.postEventFeedback)
+        )
+      );
+
+    // Build a map of itineraryId -> ratings
+    const itineraryRatings = new Map<string, number[]>();
+    for (const rsvp of rsvpsWithFeedback) {
+      const feedback = rsvp.postEventFeedback as any;
+      if (feedback && typeof feedback.venueRating === 'number' && feedback.venueRating >= 4) {
+        if (!itineraryRatings.has(rsvp.itineraryId)) {
+          itineraryRatings.set(rsvp.itineraryId, []);
+        }
+        itineraryRatings.get(rsvp.itineraryId)!.push(feedback.venueRating);
+      }
+    }
+
+    // Group visits by venue and calculate averages
+    const venueStats = new Map<string, {
+      venueName: string;
+      venueType: string;
+      ratings: number[];
+      visits: Date[];
+    }>();
+
+    for (const visit of visitsWithRatings) {
+      const ratings = itineraryRatings.get(visit.itineraryId);
+      if (ratings && ratings.length > 0) {
+        const key = `${visit.venueName}|||${visit.venueType}`;
+        if (!venueStats.has(key)) {
+          venueStats.set(key, {
+            venueName: visit.venueName,
+            venueType: visit.venueType,
+            ratings: [],
+            visits: [],
+          });
+        }
+        const stats = venueStats.get(key)!;
+        stats.ratings.push(...ratings);
+        stats.visits.push(new Date(visit.visitedAt));
+      }
+    }
+
+    // Calculate final results with averages and time since last visit
+    const now = new Date();
+    const results = Array.from(venueStats.values())
+      .map(stats => {
+        const avgRating = stats.ratings.reduce((a, b) => a + b, 0) / stats.ratings.length;
+        const lastVisit = new Date(Math.max(...stats.visits.map(d => d.getTime())));
+        const daysSinceLastVisit = Math.floor((now.getTime() - lastVisit.getTime()) / (1000 * 60 * 60 * 24));
+
+        return {
+          venueName: stats.venueName,
+          venueType: stats.venueType,
+          avgRating: Math.round(avgRating * 10) / 10, // Round to 1 decimal
+          visitCount: stats.visits.length,
+          lastVisit,
+          daysSinceLastVisit,
+        };
+      })
+      // Filter for venues ready to revisit (60+ days)
+      .filter(v => v.daysSinceLastVisit >= 60)
+      // Sort by rating (highest first), then by days since last visit
+      .sort((a, b) => {
+        if (Math.abs(a.avgRating - b.avgRating) < 0.1) {
+          return b.daysSinceLastVisit - a.daysSinceLastVisit;
+        }
+        return b.avgRating - a.avgRating;
+      });
+
+    return results;
+  }
+
   async getSavedItineraries(groupId: string): Promise<Array<Itinerary & { items: ItineraryItem[] }>> {
     const foundItineraries = await db
       .select()

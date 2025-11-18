@@ -1,6 +1,6 @@
 import { Client } from "@googlemaps/google-maps-services-js";
 import { db } from "./db";
-import { placesCache, searchCache, geocodingCache, curatedVenues } from "@shared/schema";
+import { placesCache, searchCache, geocodingCache, curatedVenues, apiCallLogs } from "@shared/schema";
 import { eq, and, or, sql as drizzleSql, like, desc, ilike, inArray } from "drizzle-orm";
 
 // Legacy client for Geocoding and Timezone (still using old API)
@@ -65,6 +65,56 @@ export function getApiKeyStats() {
     totalCalls: apiKeyUsageStats.key1Calls + apiKeyUsageStats.key2Calls,
     key2Configured: !!process.env.GOOGLE_PLACES_API_KEY_2,
   };
+}
+
+/**
+ * Log API call for cost tracking and monitoring
+ * Cost estimates based on Google Maps Platform pricing (as of 2024)
+ */
+async function logApiCall(params: {
+  service: string;
+  method: string;
+  cacheStatus: 'hit' | 'miss' | 'write';
+  status: 'success' | 'error';
+  responseTimeMs?: number;
+  costEstimate?: number;
+  parameters?: any;
+  errorMessage?: string;
+  metadata?: any;
+}) {
+  try {
+    await db.insert(apiCallLogs).values({
+      service: params.service,
+      method: params.method,
+      cacheStatus: params.cacheStatus,
+      status: params.status,
+      responseTimeMs: params.responseTimeMs,
+      costEstimate: params.costEstimate ? params.costEstimate.toString() : null,
+      parameters: params.parameters || null,
+      errorMessage: params.errorMessage,
+      metadata: params.metadata || null,
+      createdAt: new Date(),
+    });
+  } catch (error) {
+    // Don't let logging failures break the main flow
+    console.error('[API Logging] Failed to log API call:', error);
+  }
+}
+
+/**
+ * Calculate cost estimate for Google Places API calls
+ * Pricing: https://mapsplatform.google.com/pricing/
+ */
+function calculateGooglePlacesCost(method: string, resultCount?: number): number {
+  const costs: Record<string, number> = {
+    'textSearch': 0.032,        // Text Search (New): $32 per 1000 requests
+    'nearbySearch': 0.032,      // Nearby Search (New): $32 per 1000 requests
+    'placeDetails': 0.017,      // Place Details (Basic): $17 per 1000 requests
+    'geocoding': 0.005,         // Geocoding: $5 per 1000 requests
+    'timezone': 0.005,          // Timezone: $5 per 1000 requests
+  };
+
+  return costs[method] || 0;
 }
 
 /**
@@ -1263,6 +1313,17 @@ export async function searchPlaces(
     if (sessionCache.searchResults.has(cacheKey)) {
       sessionCache.stats.searchHits++;
       console.log(`[Session Cache] HIT - searchPlaces for "${query}"`);
+      // Log cache hit (no API cost)
+      await logApiCall({
+        service: 'google_places',
+        method: 'textSearch',
+        cacheStatus: 'hit',
+        status: 'success',
+        responseTimeMs: 0,
+        costEstimate: 0,
+        parameters: { query, location, radiusMiles },
+        metadata: { cacheType: 'session' },
+      });
       const cached = sessionCache.searchResults.get(cacheKey)!;
       
       // Merge with curated results if any
@@ -1298,7 +1359,18 @@ export async function searchPlaces(
     const dbCachedResults = await getSearchResultsFromDB(query, location, radiusMiles);
     if (dbCachedResults && dbCachedResults.length > 0) {
       console.log(`[DB Cache] HIT - full search results for "${query}" (${dbCachedResults.length} cached results)`);
-      
+      // Log cache hit (no API cost)
+      await logApiCall({
+        service: 'google_places',
+        method: 'textSearch',
+        cacheStatus: 'hit',
+        status: 'success',
+        responseTimeMs: 0,
+        costEstimate: 0,
+        parameters: { query, location, radiusMiles },
+        metadata: { cacheType: 'database', resultCount: dbCachedResults.length },
+      });
+
       // Parse cached results as PlaceResult array
       const results: PlaceResult[] = dbCachedResults.map((cachedId: any) => {
         if (typeof cachedId === 'string') {
@@ -1388,6 +1460,7 @@ export async function searchPlaces(
       'places.businessStatus', // Same SKU as currentOpeningHours
     ].join(',');
 
+    const startTime = Date.now();
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
@@ -1397,6 +1470,7 @@ export async function searchPlaces(
       },
       body: JSON.stringify(requestBody),
     });
+    const responseTimeMs = Date.now() - startTime;
 
     if (!response.ok) {
       let errorDetails = `Status ${response.status}`;
@@ -1411,6 +1485,17 @@ export async function searchPlaces(
         errorDetails = `${response.status}: ${errorText}`;
       }
       console.error(`[Google Places API] Text Search Error:`, errorDetails);
+      // Log API call failure
+      await logApiCall({
+        service: 'google_places',
+        method: 'textSearch',
+        cacheStatus: 'miss',
+        status: 'error',
+        responseTimeMs,
+        costEstimate: calculateGooglePlacesCost('textSearch'),
+        parameters: { query, location, radiusMiles },
+        errorMessage: errorDetails,
+      });
       // Don't cache empty results for user-directed searches (allow retry)
       if (!userDirected) {
         sessionCache.searchResults.set(cacheKey, []);
@@ -1429,6 +1514,18 @@ export async function searchPlaces(
     }
 
     console.log(`[Google Places] Got ${data.places.length} results from NEW API`);
+
+    // Log successful API call
+    await logApiCall({
+      service: 'google_places',
+      method: 'textSearch',
+      cacheStatus: 'miss',
+      status: 'success',
+      responseTimeMs,
+      costEstimate: calculateGooglePlacesCost('textSearch'),
+      parameters: { query, location, radiusMiles },
+      metadata: { resultCount: data.places.length },
+    });
 
     // Process ALL results (up to 20 from Google), not just the first one
     // OPTIMIZATION: Use Text Search data directly instead of calling getPlaceDetails for each result
@@ -1880,6 +1977,17 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceResult | nu
   if (sessionCache.placeDetails.has(placeId)) {
     sessionCache.stats.placeDetailsHits++;
     console.log(`[Session Cache] HIT - placeDetails for ${placeId}`);
+    // Log cache hit
+    await logApiCall({
+      service: 'google_places',
+      method: 'placeDetails',
+      cacheStatus: 'hit',
+      status: 'success',
+      responseTimeMs: 0,
+      costEstimate: 0,
+      parameters: { placeId },
+      metadata: { cacheType: 'session' },
+    });
     const cached = sessionCache.placeDetails.get(placeId);
     // Return deep copy to prevent mutation
     return cached ? clonePlaceResult(cached) : null;
@@ -1888,6 +1996,17 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceResult | nu
   // Check database cache (persistent, 30-day TTL)
   const dbCached = await getPlaceDetailsFromDB(placeId);
   if (dbCached) {
+    // Log cache hit
+    await logApiCall({
+      service: 'google_places',
+      method: 'placeDetails',
+      cacheStatus: 'hit',
+      status: 'success',
+      responseTimeMs: 0,
+      costEstimate: 0,
+      parameters: { placeId },
+      metadata: { cacheType: 'database', placeName: dbCached.name },
+    });
     // Add to session cache for faster future lookups
     sessionCache.placeDetails.set(placeId, clonePlaceResult(dbCached));
     sessionCache.stats.placeDetailsHits++;
@@ -1918,6 +2037,7 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceResult | nu
       'location',
     ].join(',');
 
+    const startTime = Date.now();
     const response = await fetch(endpoint, {
       method: 'GET',
       headers: {
@@ -1925,6 +2045,7 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceResult | nu
         'X-Goog-FieldMask': fieldMask,
       },
     });
+    const responseTimeMs = Date.now() - startTime;
 
     if (!response.ok) {
       let errorDetails = `Status ${response.status}`;
@@ -1939,6 +2060,17 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceResult | nu
         errorDetails = `${response.status}: ${errorText}`;
       }
       console.error(`[Google Places API] Place Details Error:`, errorDetails);
+      // Log API call failure
+      await logApiCall({
+        service: 'google_places',
+        method: 'placeDetails',
+        cacheStatus: 'miss',
+        status: 'error',
+        responseTimeMs,
+        costEstimate: calculateGooglePlacesCost('placeDetails'),
+        parameters: { placeId },
+        errorMessage: errorDetails,
+      });
       sessionCache.placeDetails.set(placeId, null);
       return null;
     }
@@ -1991,6 +2123,18 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceResult | nu
       types: place.types || [],
       location: placeLocation,
     };
+
+    // Log successful API call
+    await logApiCall({
+      service: 'google_places',
+      method: 'placeDetails',
+      cacheStatus: 'miss',
+      status: 'success',
+      responseTimeMs,
+      costEstimate: calculateGooglePlacesCost('placeDetails'),
+      parameters: { placeId },
+      metadata: { placeName: result.name },
+    });
 
     // Cache in session for immediate reuse
     sessionCache.placeDetails.set(placeId, clonePlaceResult(result));

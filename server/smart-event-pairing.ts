@@ -395,7 +395,7 @@ export async function generateAutoScheduleQueue(
 
         // Convert itinerary items to queue venues
         const venues: QueueVenue[] = (itinerary.items || []).map((item: any) => ({
-          sourceType: 'voting_event' as const, // TODO: Could be activity too
+          sourceType: 'voting_event' as const, // See TODO.md: "Flexible Source Types in Smart Event Pairing"
           sourceId: item.id || `custom-${item.venueName}`,
           venueName: item.venueName,
           venueType: item.venueType || 'restaurant',

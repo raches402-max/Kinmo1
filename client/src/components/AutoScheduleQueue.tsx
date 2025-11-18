@@ -23,6 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 interface AutoScheduleQueueProps {
   groupId: string;
   isOrganizer: boolean;
+  onNavigateToTab?: (tab: string) => void;
 }
 
 interface QueueVenue {
@@ -50,7 +51,7 @@ interface QueueData {
   events: QueueEvent[];
 }
 
-export function AutoScheduleQueue({ groupId, isOrganizer }: AutoScheduleQueueProps) {
+export function AutoScheduleQueue({ groupId, isOrganizer, onNavigateToTab }: AutoScheduleQueueProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -138,12 +139,20 @@ export function AutoScheduleQueue({ groupId, isOrganizer }: AutoScheduleQueuePro
     regenerateMutation.mutate(eventId);
   };
 
-  const handleEdit = (eventId: string) => {
-    // TODO: Navigate to Build tab with venues pre-populated
-    toast({
-      title: "Edit Feature",
-      description: "Edit functionality coming soon. For now, you can skip this event and create a custom itinerary in the Build tab.",
-    });
+  const handleEdit = (event: QueueEvent) => {
+    // Navigate to Build tab
+    if (onNavigateToTab) {
+      onNavigateToTab('build');
+      toast({
+        title: "Opening Build tab",
+        description: "You can now create a custom itinerary in the Build tab.",
+      });
+    } else {
+      toast({
+        title: "Edit Feature",
+        description: "Edit functionality coming soon. For now, you can skip this event and create a custom itinerary in the Build tab.",
+      });
+    }
   };
 
   const handleSkip = (eventId: string) => {
@@ -193,10 +202,10 @@ export function AutoScheduleQueue({ groupId, isOrganizer }: AutoScheduleQueuePro
             Add 5+ favorites or save an itinerary to enable smart auto-scheduling
           </p>
           <div className="flex gap-3 justify-center">
-            <Button variant="outline" onClick={() => {/* TODO: Navigate to Favorites */}}>
+            <Button variant="outline" onClick={() => onNavigateToTab?.('favorites')}>
               Add to Favorites
             </Button>
-            <Button variant="outline" onClick={() => {/* TODO: Navigate to Build */}}>
+            <Button variant="outline" onClick={() => onNavigateToTab?.('build')}>
               Save an Itinerary
             </Button>
           </div>

@@ -155,18 +155,17 @@ app.use((req, res, next) => {
   }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
+  // Other ports are firewalled. Default to 3000 if not specified.
+  // IMPORTANT: Port 5000 is reserved for Replit's preview - do NOT use it for the backend!
   // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const preferredPort = parseInt(process.env.PORT || '5000', 10);
+  const preferredPort = parseInt(process.env.PORT || '3000', 10);
 
   // Check if preferred port is available
   const port = await getAvailablePort(preferredPort);
 
   if (port !== preferredPort) {
     console.log(`📌 Using port ${port} instead of ${preferredPort} (original port was occupied)`);
-    console.log(`💡 Tip: Use 'npm run dev:claude' to run on port 3000 (for Claude Code)`);
-    console.log(`💡 Tip: Use 'npm run dev' to run on port 5000 (for Replit Agent)`);
+    console.log(`💡 Tip: Port 5000 is reserved for Replit preview - backend uses 3000`);
   } else {
     console.log(`✅ Port ${port} is available`);
   }

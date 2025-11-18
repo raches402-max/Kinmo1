@@ -47,7 +47,17 @@
       "Bash(node /tmp/test-queue.js:*)",
       "Bash(time node:*)",
       "Bash(node /tmp/test-discover-venues.js:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(/home/runner/workspace/client/src/pages/group-detail.tsx.backup )",
+      "Bash(/home/runner/workspace/client/src/components/ui/breadcrumb.tsx )",
+      "Bash(/home/runner/workspace/client/src/components/ui/pagination.tsx )",
+      "Bash(/home/runner/workspace/client/src/components/ui/carousel.tsx )",
+      "Bash(/home/runner/workspace/client/src/components/ui/input-otp.tsx )",
+      "Bash(/home/runner/workspace/client/src/lib/authUtils.ts )",
+      "Bash(/home/runner/workspace/client/src/lib/distance.ts)",
+      "Bash(npm install:*)",
+      "Bash(printf:*)",
+      "Bash(git restore:*)"
     ],
     "deny": [],
     "ask": []

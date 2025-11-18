@@ -987,7 +987,7 @@ async function checkAndSelectTimeSlots() {
           console.log(`[Time Selection] ✅ Selected: ${result.selectedTimeSlot.label || result.selectedTimeSlot.proposedDateTime.toISOString()}`);
           console.log(`[Time Selection] 📊 Votes: ${result.selectedTimeSlot.yesVotes} yes, ${result.selectedTimeSlot.maybeVotes} maybe, ${result.selectedTimeSlot.noVotes} no`);
 
-          // TODO: Send notification to members about selected time
+          // See TODO.md: "Time Selection Notifications" for planned notification system
         } else {
           console.error(`[Time Selection] ❌ Failed to select time for ${itinerary.id}: ${result.error}`);
         }
@@ -1169,6 +1169,25 @@ export function startReminderScheduler(): void {
       console.error('Error in scheduled weekly digest:', err);
     });
   }, AUTO_SCHEDULE_INTERVAL_MS); // Check daily, runs only on Mondays
+
+  // Auto-Refresh Stale Activities - runs daily
+  const ACTIVITY_REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+  const processActivityRefresh = async () => {
+    const { refreshStaleActivityPools } = await import('./activity-refresh-worker');
+    refreshStaleActivityPools().catch(err => {
+      console.error('Error in activity refresh:', err);
+    });
+  };
+
+  processActivityRefresh().catch(err => {
+    console.error('Error in initial activity refresh:', err);
+  });
+  setInterval(() => {
+    processActivityRefresh().catch(err => {
+      console.error('Error in scheduled activity refresh:', err);
+    });
+  }, ACTIVITY_REFRESH_INTERVAL_MS);
 
   console.log('Reminder scheduler started successfully');
 }

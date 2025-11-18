@@ -61,6 +61,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { TimeSlotVoting } from "@/components/TimeSlotVoting";
 import { AddAdHocVenueDialog } from "@/components/AddAdHocVenueDialog";
 import { Calendar as DatePicker } from "@/components/ui/calendar";
@@ -249,6 +259,7 @@ export default function EventDetailsPage() {
   const [guestName, setGuestName] = useState("");
   const [showAddVenueDialog, setShowAddVenueDialog] = useState(false);
   const [schedulingPreferences, setSchedulingPreferences] = useState("");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Drag-and-drop sensors
   const sensors = useSensors(
@@ -342,7 +353,41 @@ export default function EventDetailsPage() {
         proposedOrder,
       });
     },
+    onMutate: async (proposedOrder) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["/api/user/events", eventId] });
+
+      // Snapshot the previous value
+      const previousEvent = queryClient.getQueryData(["/api/user/events", eventId]);
+
+      // Optimistically update to the new value
+      if (previousEvent) {
+        const currentEvent = previousEvent as any;
+        const sourceIdToItem = new Map(currentEvent.items.map((item: any) => [item.sourceId, item]));
+        const newItems = proposedOrder.map(sourceId => sourceIdToItem.get(sourceId)).filter(Boolean);
+
+        queryClient.setQueryData(["/api/user/events", eventId], {
+          ...currentEvent,
+          items: newItems,
+        });
+      }
+
+      // Return context with the snapshot
+      return { previousEvent };
+    },
+    onError: (err, proposedOrder, context) => {
+      // Rollback to the previous value on error
+      if (context?.previousEvent) {
+        queryClient.setQueryData(["/api/user/events", eventId], context.previousEvent);
+      }
+      toast({
+        title: "Error updating order",
+        description: "Could not update venue order. Please try again.",
+        variant: "destructive",
+      });
+    },
     onSuccess: () => {
+      // Refetch to ensure we have the latest data
       queryClient.invalidateQueries({ queryKey: ["/api/user/events", eventId] });
       toast({
         title: "Order updated",
@@ -428,6 +473,26 @@ export default function EventDetailsPage() {
     },
   });
 
+  const deleteEventMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("DELETE", `/api/itineraries/${eventId}`);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Event deleted",
+        description: "The event has been deleted successfully",
+      });
+      setLocation("/");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error deleting event",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const copyInviteLink = () => {
     if (!event) return;
     const link = `${window.location.origin}/rsvp/${event.itineraryId}/${event.inviteToken}`;
@@ -462,14 +527,9 @@ export default function EventDetailsPage() {
 
     if (oldIndex === -1 || newIndex === -1) return;
 
-    // Optimistically update UI
+    // Calculate the new order and send to server
+    // The optimistic update will be handled by the mutation's onMutate
     const newItems = arrayMove(event.items, oldIndex, newIndex);
-    queryClient.setQueryData(["/api/user/events", eventId], {
-      ...event,
-      items: newItems,
-    });
-
-    // Send the new order to the server using sourceIds
     const proposedOrder = newItems.map((item: any) => item.sourceId);
     reorderVenuesMutation.mutate(proposedOrder);
   };
@@ -644,7 +704,7 @@ export default function EventDetailsPage() {
                   </div>
                 )}
               </div>
-              <div className="flex gap-2 flex-wrap">
+              <div className="flex gap-2 flex-wrap items-start">
                 {isOrganizer && (
                   <Badge variant="default" className="gap-1">
                     <Sparkles className="h-3 w-3" />
@@ -662,6 +722,16 @@ export default function EventDetailsPage() {
                     <Bot className="h-3 w-3" />
                     AI-hosted
                   </Badge>
+                )}
+                {isOrganizer && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 )}
               </div>
             </div>
@@ -1131,6 +1201,32 @@ export default function EventDetailsPage() {
           }}
         />
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Event</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this event? This action cannot be undone.
+              All invites and RSVPs will be permanently removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteEventMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                deleteEventMutation.mutate();
+              }}
+              disabled={deleteEventMutation.isPending}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {deleteEventMutation.isPending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

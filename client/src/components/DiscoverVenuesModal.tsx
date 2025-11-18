@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Compass, Sparkles, Grid3x3, MapPin, Loader2, ArrowRight, TrendingUp } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { SwipeSessionWithDeck } from "@/components/SwipeSessionWithDeck";
 
 interface DiscoverVenuesModalProps {
   open: boolean;
@@ -35,6 +36,9 @@ export function DiscoverVenuesModal({
   const { toast } = useToast();
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [swipeSessionOpen, setSwipeSessionOpen] = useState(false);
+  const [swipeDeck, setSwipeDeck] = useState<any[]>([]);
+  const [swipeSessionId, setSwipeSessionId] = useState<string>("");
 
   const handleGenerateCategory = async () => {
     if (!selectedCategory) {
@@ -73,9 +77,35 @@ export function DiscoverVenuesModal({
     }
   };
 
-  const handleStartSwipe = () => {
-    onOpenChange(false);
-    onStartSwipeSession?.();
+  const handleStartSwipe = async () => {
+    setIsGenerating(true);
+    try {
+      // Call the discover-venues endpoint (cache-first strategy)
+      const response = await apiRequest("POST", `/api/groups/${groupId}/discover-venues`, {
+        count: 15,  // Reduced count - cache-first strategy fills efficiently
+      });
+
+      // Set the deck and session ID
+      setSwipeDeck(response.deck || []);
+      setSwipeSessionId(response.sessionId);
+
+      // Close discovery modal and open swipe session
+      onOpenChange(false);
+      setSwipeSessionOpen(true);
+
+      toast({
+        title: "Ready to swipe!",
+        description: `Found ${response.totalVenues} venues for you to discover`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error starting swipe session",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleGoToActivities = () => {
@@ -200,9 +230,22 @@ export function DiscoverVenuesModal({
                   </p>
                 </div>
                 <div className="flex justify-end">
-                  <Button onClick={handleStartSwipe} className="gap-2">
-                    <Sparkles className="h-4 w-4" />
-                    Start Swipe Session
+                  <Button
+                    onClick={handleStartSwipe}
+                    className="gap-2"
+                    disabled={isGenerating}
+                  >
+                    {isGenerating ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Loading Venues...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4" />
+                        Start Swipe Session
+                      </>
+                    )}
                   </Button>
                 </div>
               </CardContent>
@@ -245,6 +288,24 @@ export function DiscoverVenuesModal({
           </TabsContent>
         </Tabs>
       </DialogContent>
+
+      {/* Swipe Session Modal */}
+      <SwipeSessionWithDeck
+        groupId={groupId}
+        open={swipeSessionOpen}
+        onOpenChange={setSwipeSessionOpen}
+        initialDeck={swipeDeck}
+        sessionId={swipeSessionId}
+        onComplete={() => {
+          setSwipeSessionOpen(false);
+          queryClient.invalidateQueries({ queryKey: [`/api/groups/${groupId}/voting-events`] });
+          toast({
+            title: "Discovery complete!",
+            description: "Check your Favorites tab to see what you added",
+          });
+          onNavigateToTab?.("favorites");
+        }}
+      />
     </Dialog>
   );
 }

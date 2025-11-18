@@ -926,12 +926,6 @@ export default function Dashboard() {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <Link href="/my-dashboard">
-                    <DropdownMenuItem data-testid="menu-dashboard">
-                      <Users className="mr-2 h-4 w-4" />
-                      My Dashboard
-                    </DropdownMenuItem>
-                  </Link>
                   <Link href="/preferences">
                     <DropdownMenuItem data-testid="menu-preferences">
                       <Settings className="mr-2 h-4 w-4" />

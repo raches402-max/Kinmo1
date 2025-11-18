@@ -25,7 +25,6 @@ import MemberProfileSetup from "@/pages/member-profile-setup";
 import EventDetailsPage from "@/pages/event-details";
 import Admin from "@/pages/admin";
 import LearningInsights from "@/pages/learning-insights";
-// import MemberDashboard from "@/pages/member-dashboard"; // DEPRECATED - merged into main Dashboard
 import Preferences from "@/pages/preferences";
 import NotFound from "@/pages/not-found";
 
@@ -85,7 +84,6 @@ function Router() {
       ) : (
         <>
           <Route path="/" component={Dashboard} />
-          {/* <Route path="/my-dashboard" component={MemberDashboard} /> */} {/* DEPRECATED - use / instead */}
           <Route path="/preferences" component={Preferences} />
           <Route path="/create-group" component={CreateGroup} />
           <Route path="/group/:id" component={GroupDetail} />

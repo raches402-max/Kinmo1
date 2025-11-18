@@ -27,31 +27,36 @@
   --sidebar: 40 8% 96%; /* Warm sidebar background */
   --sidebar-foreground: 0 0% 0%; /* Pure black sidebar text */
   --sidebar-border: 40 8% 85%; /* Warm sidebar borders */
-  --sidebar-primary: 48 96% 53%;
-  --sidebar-primary-foreground: 0 0% 0%; /* Pure black on yellow */
+  --sidebar-primary: 44 87% 63%; /* Gold */
+  --sidebar-primary-foreground: 0 0% 0%; /* Pure black on gold */
   --sidebar-accent: 40 8% 96%; /* Warm sidebar accent */
   --sidebar-accent-foreground: 0 0% 0%; /* Pure black sidebar accent text */
-  --sidebar-ring: 48 96% 53%;
+  --sidebar-ring: 168 74% 36%; /* Teal ring for focus states */
 
   --popover: 40 15% 99%; /* Warm popover background */
   --popover-foreground: 0 0% 0%; /* Pure black popover text */
   --popover-border: 40 8% 85%; /* Warm popover borders */
 
-  /* Primary - Sunflower Yellow (accent only) */
-  --primary: 48 96% 53%;
-  --primary-foreground: 0 0% 0%; /* Pure black on yellow */
+  /* Primary - Gold (Main CTAs) */
+  --primary: 44 87% 63%; /* Gold #F2C94C */
+  --primary-foreground: 0 0% 0%; /* Pure black on gold */
+  --primary-hover: 46 88% 67%; /* Gold hover #F5D563 */
 
-  /* Secondary - Black */
-  --secondary: 0 0% 0%; /* Pure black for maximum contrast */
-  --secondary-foreground: 40 10% 99%; /* Warm white on black */
+  /* Secondary - Coral (Secondary actions, highlights) */
+  --secondary: 0 100% 71%; /* Coral #FF6B6B */
+  --secondary-foreground: 40 10% 99%; /* White on coral */
+  --secondary-hover: 349 79% 65%; /* Coral dark #EE5A6F */
 
   /* Muted - Warm Light Gray */
   --muted: 40 8% 96%; /* Warm muted background */
   --muted-foreground: 40 4% 45%; /* Warm muted text */
 
-  /* Accent - Yellow */
-  --accent: 48 96% 53%;
-  --accent-foreground: 0 0% 0%; /* Pure black on yellow accent */
+  /* Accent - Teal (USE SPARINGLY: borders, status, indicators) */
+  --accent: 168 74% 36%; /* Teal #16A085 */
+  --accent-foreground: 0 0% 100%; /* White on teal */
+  --accent-light: 168 76% 42%; /* Teal light #1ABC9C */
+  --accent-dark: 168 75% 32%; /* Teal dark #138F75 */
+  --accent-subtle: 168 50% 95%; /* Very light teal for backgrounds */
 
   /* Activity Colors - Vibrant & Bold */
   --activity-meals: 15 85% 55%;
@@ -69,12 +74,12 @@
   --warning-foreground: 0 0% 0%; /* Pure black on warning yellow */
 
   --input: 40 8% 85%; /* Warm input borders */
-  --ring: 48 96% 53%;
-  --chart-1: 48 96% 53%;
-  --chart-2: 15 85% 55%;
-  --chart-3: 200 80% 50%;
-  --chart-4: 280 75% 60%;
-  --chart-5: 340 85% 60%;
+  --ring: 168 74% 36%; /* Teal ring for focus states */
+  --chart-1: 44 87% 63%; /* Gold */
+  --chart-2: 0 100% 71%; /* Coral */
+  --chart-3: 168 74% 36%; /* Teal */
+  --chart-4: 280 75% 60%; /* Purple (kept) */
+  --chart-5: 340 85% 60%; /* Pink (kept) */
 
   --font-sans: Inter, sans-serif;
   --font-serif: Georgia, serif;
@@ -173,31 +178,36 @@
   --sidebar: 0 0% 10%;
   --sidebar-foreground: 0 0% 98%;
   --sidebar-border: 0 0% 16%;
-  --sidebar-primary: 48 96% 53%;
+  --sidebar-primary: 44 87% 63%; /* Gold */
   --sidebar-primary-foreground: 0 0% 10%;
   --sidebar-accent: 0 0% 20%;
   --sidebar-accent-foreground: 0 0% 98%;
-  --sidebar-ring: 48 96% 53%;
+  --sidebar-ring: 168 74% 36%; /* Teal ring for focus states */
 
   --popover: 0 0% 10%;
   --popover-foreground: 0 0% 98%;
   --popover-border: 0 0% 16%;
 
-  /* Primary - Sunflower Yellow (same in dark mode) */
-  --primary: 48 96% 53%;
+  /* Primary - Gold (Main CTAs) */
+  --primary: 44 87% 63%; /* Gold (same in dark mode) */
   --primary-foreground: 0 0% 10%;
+  --primary-hover: 46 88% 67%; /* Gold hover */
 
-  /* Secondary - White */
-  --secondary: 0 0% 98%;
-  --secondary-foreground: 0 0% 10%;
+  /* Secondary - Coral (Secondary actions) */
+  --secondary: 0 100% 71%; /* Coral */
+  --secondary-foreground: 0 0% 98%; /* White on coral */
+  --secondary-hover: 349 79% 65%; /* Coral dark */
 
   /* Muted - Dark Gray */
   --muted: 0 0% 20%;
   --muted-foreground: 0 0% 60%;
 
-  /* Accent - Yellow */
-  --accent: 48 96% 53%;
-  --accent-foreground: 0 0% 10%;
+  /* Accent - Teal (USE SPARINGLY) */
+  --accent: 168 74% 36%; /* Teal */
+  --accent-foreground: 0 0% 98%; /* White on teal */
+  --accent-light: 168 76% 42%; /* Teal light */
+  --accent-dark: 168 75% 32%; /* Teal dark */
+  --accent-subtle: 168 30% 15%; /* Dark teal for backgrounds */
 
   /* Activity Colors - Same as light mode */
   --activity-meals: 15 85% 55%;
@@ -215,12 +225,12 @@
   --warning-foreground: 0 0% 10%;
 
   --input: 0 0% 20%;
-  --ring: 48 96% 53%;
-  --chart-1: 48 96% 53%;
-  --chart-2: 15 85% 55%;
-  --chart-3: 200 80% 50%;
-  --chart-4: 280 75% 60%;
-  --chart-5: 340 85% 60%;
+  --ring: 168 74% 36%; /* Teal ring */
+  --chart-1: 44 87% 63%; /* Gold */
+  --chart-2: 0 100% 71%; /* Coral */
+  --chart-3: 168 74% 36%; /* Teal */
+  --chart-4: 280 75% 60%; /* Purple (kept) */
+  --chart-5: 340 85% 60%; /* Pink (kept) */
 
   /* Simplified Shadow System - Same as light mode */
   --shadow-subtle: 0 2px 8px rgba(0, 0, 0, 0.2);

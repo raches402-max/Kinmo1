@@ -102,7 +102,7 @@ export async function generateBudgetInsights(groupId: string): Promise<BudgetIns
 
   let recentAverage: number | null = null;
 
-  // TODO: Price estimation logic
+  // See TODO.md: "Price Estimation in Group Insights" for planned venue price tracking
   // For now, we'll use the group's budget range as a proxy
   // In future: parse venue data from Google Places or post-event feedback
 
@@ -187,7 +187,7 @@ export async function generateAvailabilityInsights(groupId: string): Promise<Ava
     .filter(d => d.attendanceRate < 50 && d.totalEvents >= 2)
     .map(d => ({
       day: d.day,
-      consecutiveCount: d.totalEvents, // TODO: Calculate actual consecutive streak
+      consecutiveCount: d.totalEvents, // See TODO.md: "Consecutive Streak Calculation" for planned improvement
       averageAttendance: d.attendanceRate,
       totalEvents: d.totalEvents,
     }));

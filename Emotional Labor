@@ -1,0 +1,665 @@
+
+● This is incredibly insightful - you've identified something profound about the social dynamics layer that most scheduling/planning tools completely miss.
+  You're describing the tool as a social buffer that helps groups navigate uncomfortable truths without awkward conversations.
+
+  Let me think through how to address your core pain point: maintaining group momentum while managing unspoken constraints.
+
+  🎯 The Core Challenge: "Unspoken Group Dynamics"
+
+  You're absolutely right that there's a massive gap between:
+  - What people say: "Sounds great!"
+  - What they actually feel: "This is too expensive" / "I'm getting burned out" / "I don't want to travel that far"
+
+  And organizers are stuck being the emotional middleman, trying to read between the lines of RSVPs and no-shows.
+
+  ---
+  💡 Strategic Framework: AI as the "Social Buffer"
+
+  Phase 1: Build Anonymous Feedback Channels (Quick Win)
+
+  Problem: People won't tell the group "this is too expensive" but they'll ghost
+  Solution: Private, AI-mediated feedback that feels safe
+
+  Implementation Ideas:
+
+  1. Private "Preferences Check-in" (Low Complexity)
+  - After 2-3 events, AI privately messages each member:
+    - "Just between us: How's the budget feeling? (Too high / Just right / Could go higher)"
+    - "How's the meeting frequency? (Too often / Perfect / Would like more)"
+    - "Travel time to venues? (Too far / Fine / Prefer closer)"
+  - AI aggregates anonymously and tells organizer:
+    - "3/6 members feel budget is slightly high - consider $15-25 range"
+    - "Group is happy with frequency"
+    - "2 members prefer venues within 20min travel"
+
+  Why this works:
+  - Private = honest feedback
+  - AI aggregates = maintains anonymity
+  - Actionable = organizer can adjust without confrontation
+
+  2. "Soft No" Detection (Medium Complexity)
+  - When someone RSVPs "maybe" or "no", AI asks privately:
+    - "What would have made this work for you?" (Multiple choice + free text)
+    - Budget / Time / Location / Activity type / Schedule conflict / Just not feeling it
+  - AI learns patterns:
+    - "Sarah has said no to 3 bars in a row - might not like bar scene"
+    - "Mike always says no to weeknights - weekend-only member"
+  - Tells organizer: "3 members seem to prefer restaurants over bars lately"
+
+  3. Engagement Score Dashboard (Low Complexity)
+  - Organizer sees anonymous metrics:
+    - "Overall group engagement: 8/10 (High)"
+    - "2 members showing fatigue signals (declining RSVPs)"
+    - "Budget satisfaction: 7/10 (Slight concern)"
+    - "Travel tolerance: 6/10 (Consider closer venues)"
+  - No names, just aggregate health metrics
+  - Flags issues before they become problems
+
+  ---
+  Phase 2: Proactive Momentum Maintenance (Medium Complexity)
+
+  Problem: Organizers don't know when momentum is slipping until it's too late
+  Solution: AI monitors group health and intervenes early
+
+  4. "Group Health Monitor" (Medium Complexity)
+  - AI tracks leading indicators of declining momentum:
+    - RSVP response time increasing (used to respond in 1 day, now 3+)
+    - "Maybe" rate increasing (30% → 50%)
+    - Post-event feedback declining
+    - Time between events exceeding target frequency
+  - Alerts organizer privately: "⚠️ Group momentum slipping - here's what I'm seeing"
+  - Suggests specific interventions:
+    - "Try a simpler event this time (single venue vs multi-stop)"
+    - "Lower budget next time ($20-30 vs $30-40)"
+    - "Give group a break - last 3 events were close together"
+
+  5. "Momentum Recovery Playbook" (Medium Complexity)
+  - When AI detects low engagement, it suggests proven recovery tactics:
+    - Low RSVP Rate: "Try a poll - let members vote on 3 options"
+    - Long Gap: "It's been 8 weeks - send a 're-spark' message?"
+    - Budget Fatigue: "Suggest a low-key coffee meetup to reset expectations"
+    - Travel Complaints: "Next event in central location everyone can reach"
+  - Learns which tactics work for your specific group
+
+  6. "Auto-Cadence Adjustment" (Medium Complexity)
+  - AI learns optimal spacing from actual attendance:
+    - "Your group has 90% turnout when events are 2-3 weeks apart"
+    - "When you schedule < 10 days apart, turnout drops to 60%"
+    - "After a big event (3+ venues), give 4 weeks before next"
+  - Automatically adjusts scheduling suggestions
+  - Tells organizer: "Based on recent attendance, suggesting 3-week gap"
+
+  ---
+  Phase 3: Constraint Discovery & Preference Elicitation (High Value)
+
+  Problem: Organizers don't know hidden constraints until they cause conflicts
+  Solution: AI continuously learns unspoken preferences
+
+  7. "Personal Preference Profile" (High Complexity)
+  - AI builds invisible profiles from behavior:
+    - Budget sensitivity: Sarah always RSVPs "no" when event > $40
+    - Time constraints: Mike never attends weeknight events after 8pm
+    - Distance tolerance: Alex declines events > 25min away
+    - Activity preferences: Jordan has loved 5/5 outdoor activities, 1/5 bars
+    - Social energy: Emma attends 3-hour events but declines 5-hour marathons
+  - Uses RSVP patterns, feedback, attendance, not explicit questions
+  - Organizer never sees individual details, just aggregate recommendations:
+    - "Your group prefers 2-3 hour events over longer outings"
+    - "Budget sweet spot: $20-35 (maximum engagement)"
+    - "Weekends at 6pm get highest turnout"
+
+  8. "Conflict Prediction" (High Complexity)
+  - Before sending invites, AI predicts issues:
+    - "⚠️ This timing conflicts with 3 members' usual availability"
+    - "💰 Budget is higher than group average - expect some no's"
+    - "🚗 Venue is far from 2 members - consider central backup"
+    - "📅 This is your 3rd event in 4 weeks - group may be fatigued"
+  - Suggests alternatives proactively
+  - Confidence score: "78% likely to succeed (timing concern)"
+
+  9. "Invisible Optimization" (High Complexity)
+  - AI silently adjusts recommendations based on learned constraints:
+    - Never suggests venues > 30min from any member
+    - Avoids budget ranges that caused past conflicts
+    - Filters out activity types that get consistent "maybe/no" responses
+    - Prefers time slots with historical 80%+ RSVP rates
+  - Organizer doesn't see the filtering, just better suggestions
+  - "Why did we get fewer suggestions this time?" → "I'm focusing on your group's sweet spot"
+
+  ---
+  Phase 4: Building Infrastructure for Full Automation
+
+  Problem: Need confidence before going full autopilot
+  Solution: Gradual automation with human oversight checkpoints
+
+  10. "Confidence-Based Automation Ladder" (High Complexity)
+
+  Level 1: Suggestions Only (Current state)
+  - AI suggests, organizer reviews everything
+  - Builds trust, gathers data
+
+  Level 2: Pre-Approved Actions (Next step)
+  - Organizer sets rules: "Auto-schedule if confidence > 85%"
+  - "Auto-send reminders 48hrs before events"
+  - "Auto-suggest reschedule if RSVP rate < 50% by deadline"
+  - Human approves major decisions, AI handles routine tasks
+
+  Level 3: Supervised Autopilot (Medium-term)
+  - AI schedules events automatically for high-confidence scenarios
+  - Notifies organizer: "I scheduled Saturday brunch - review before invites sent"
+  - 24-hour review window before invites go out
+  - Organizer can override or confirm
+
+  Level 4: Full Autopilot (Long-term goal)
+  - AI runs entire group cadence
+  - Organizer gets weekly summaries: "Scheduled 1 event, tracking RSVPs, no issues"
+  - Only alerts on exceptions: "Low RSVP rate - need your input"
+  - Organizer becomes "exception handler" not "planner"
+
+  Infrastructure Requirements:
+  - ✅ Confidence scoring system (you have this!)
+  - ✅ Preference learning (behavioral + explicit)
+  - ✅ Constraint tracking (budget, time, location per member)
+  - ❌ Approval workflows (need to build)
+  - ❌ Rollback mechanisms (if AI makes mistake)
+  - ❌ Escalation rules (when to ask human)
+
+  ---
+  🎯 Recommended Roadmap
+
+  Q1: Build the Social Buffer (Months 1-2)
+
+  Must-Have:
+  1. Private Preference Check-ins - Survey after 2-3 events
+  2. "Soft No" Detection - Learn from RSVP feedback
+  3. Engagement Dashboard - Show organizer group health
+
+  Why start here:
+  - Low complexity, high impact
+  - Builds trust in AI's ability to gather honest feedback
+  - Creates data foundation for later features
+
+  Q2: Proactive Momentum Maintenance (Months 3-4)
+
+  Must-Have:
+  4. Group Health Monitor - Alert on declining momentum
+  5. Auto-Cadence Adjustment - Learn optimal spacing
+  6. Conflict Prediction - Warn before sending invites
+
+  Why next:
+  - Uses data from Q1
+  - Shifts from reactive to proactive
+  - Prevents momentum loss before it happens
+
+  Q3: Invisible Constraint Learning (Months 5-6)
+
+  Must-Have:
+  7. Personal Preference Profiles - Build member models
+  8. Invisible Optimization - Filter recommendations silently
+  9. Budget/Distance Calibration - Adjust suggestions automatically
+
+  Why then:
+  - Requires significant behavioral data
+  - Most complex learning system
+  - Enables high-confidence automation
+
+  Q4: Automation Infrastructure (Months 7-8)
+
+  Must-Have:
+  10. Confidence-Based Automation - Level 2 (Pre-Approved Actions)
+  11. Approval Workflows - Review before send
+  12. Exception Handling - When to escalate to human
+
+  Why last:
+  - Need all previous systems working well
+  - Highest risk if done wrong
+  - Gradual rollout essential
+
+  ---
+  🚀 Starting Point: The "Social Buffer MVP"
+
+  If I were building this next, I'd start with Private Preference Check-ins because:
+
+  1. Immediate value: Solves the "unspoken constraints" problem now
+  2. Data generation: Creates training data for future AI systems
+  3. Low risk: Private surveys feel safe, not intrusive
+  4. Quick win: Can ship in 1-2 weeks
+
+  Example Implementation:
+
+  Trigger: After member's 3rd event attendance
+  Survey (sent privately via email):
+  Hey Sarah! 👋
+
+  Quick check-in about the Eric + Rachel group (just between us):
+
+  🎯 How's the vibe?
+  ○ Loving it  ○ Pretty good  ○ It's okay  ○ Not my thing
+
+  💰 Budget comfort level?
+  ○ Too pricey  ○ Just right  ○ Could spend more
+
+  📅 Meeting frequency?
+  ○ Too often  ○ Perfect  ○ Would like more
+
+  🚗 Travel to venues?
+  ○ Too far  ○ Fine  ○ Prefer closer
+
+  💬 Anything else? (Optional)
+  [Free text box]
+
+  Your feedback helps Rachel plan better events (she won't see individual responses, just overall trends)
+
+  AI Processing:
+  - Aggregates responses
+  - Identifies trends (e.g., "3/6 say budget too high")
+  - Suggests adjustments to organizer
+
+  Organizer View:
+  📊 Group Feedback Summary (5 responses)
+
+  Budget: 😟 3 members feel it's slightly high
+  Suggested range: $15-30 (vs current $25-40)
+
+  Frequency: ✅ Everyone happy with 2x/month
+
+  Travel: 😐 2 members prefer closer venues
+  Suggested radius: 20min (vs current 30min)
+
+  ---
+  💭 Final Thoughts
+
+  Your insight about being the "buffer for harder conversations" is the killer feature. Most planning tools focus on logistics (calendars, venues, payments)
+  but miss the emotional labor of group coordination.
+
+  The path to full automation isn't just about better algorithms - it's about building trust through transparency of constraints. When AI knows everyone's
+  real preferences (not stated preferences), it can make decisions that feel magically right because they account for unspoken needs.
+
+  Does this framework resonate? Should I create a detailed implementation plan for the "Social Buffer MVP" as the starting point?
+
+> Can you take that entire response and put it into my list for to-dos? I think that this is a key part of this product that is worth thinking about a lot. 
+Also, yes, I would love to see an implementation plan that also gets added to the to-do list. 
+
+● I'll add all of this strategic AI work to your todo list, organized by phase and priority. Let me also create a detailed implementation plan for the Social
+  Buffer MVP as the starting point.
+
+● Perfect! I've added everything to your todo list. Here's what I've organized:
+
+  ✅ Added to Todo List:
+
+  Completed (Phase I Cleanup):
+
+  - 4 completed cleanup tasks
+
+  Pending (Phase II Cleanup):
+
+  - 4 optional cleanup tasks
+
+  AI Strategy Roadmap (Q1-Q4):
+
+  - Q1 (Months 1-2): 3 Social Buffer tasks
+  - Q2 (Months 3-4): 3 Momentum Maintenance tasks
+  - Q3 (Months 5-6): 3 Constraint Learning tasks
+  - Q4 (Months 7-8): 3 Automation Infrastructure tasks
+
+  Social Buffer MVP Implementation:
+
+  - 7 detailed implementation tasks breaking down the first feature
+
+  Total: 28 tasks organized by priority and phase
+
+  ---
+  Now let me create the detailed implementation plan for the Social Buffer MVP. Since we're in plan mode, I'll present this as a comprehensive plan for your
+  review.
+  ⎿  User rejected Claude's plan:
+     ╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+     │ Social Buffer MVP: Private Preference Check-ins                                                                                                           │
+     │                                                                                                                                                           │
+     │ Overview                                                                                                                                                  │
+     │                                                                                                                                                           │
+     │ Build a system for privately collecting honest member feedback about budget, frequency, and travel preferences, then aggregating insights for organizers  │
+     │ without revealing individual responses.                                                                                                                   │
+     │                                                                                                                                                           │
+     │ Database Schema Changes                                                                                                                                   │
+     │                                                                                                                                                           │
+     │ New Table: preference_surveys                                                                                                                             │
+     │                                                                                                                                                           │
+     │ CREATE TABLE preference_surveys (                                                                                                                         │
+     │   id UUID PRIMARY KEY,                                                                                                                                    │
+     │   member_id UUID REFERENCES members(id),                                                                                                                  │
+     │   group_id UUID REFERENCES groups(id),                                                                                                                    │
+     │   survey_type VARCHAR(50), -- 'periodic_checkin', 'post_rsvp', etc.                                                                                       │
+     │   sent_at TIMESTAMP,                                                                                                                                      │
+     │   completed_at TIMESTAMP,                                                                                                                                 │
+     │                                                                                                                                                           │
+     │   -- Survey responses (nullable until completed)                                                                                                          │
+     │   overall_vibe VARCHAR(20), -- 'loving_it', 'pretty_good', 'okay', 'not_my_thing'                                                                         │
+     │   budget_comfort VARCHAR(20), -- 'too_pricey', 'just_right', 'could_spend_more'                                                                           │
+     │   frequency_feeling VARCHAR(20), -- 'too_often', 'perfect', 'would_like_more'                                                                             │
+     │   travel_tolerance VARCHAR(20), -- 'too_far', 'fine', 'prefer_closer'                                                                                     │
+     │   additional_feedback TEXT,                                                                                                                               │
+     │                                                                                                                                                           │
+     │   -- Metadata                                                                                                                                             │
+     │   response_token VARCHAR(255) UNIQUE, -- For anonymous survey links                                                                                       │
+     │   anonymized BOOLEAN DEFAULT true                                                                                                                         │
+     │ );                                                                                                                                                        │
+     │                                                                                                                                                           │
+     │ New Table: group_insights                                                                                                                                 │
+     │                                                                                                                                                           │
+     │ CREATE TABLE group_insights (                                                                                                                             │
+     │   id UUID PRIMARY KEY,                                                                                                                                    │
+     │   group_id UUID REFERENCES groups(id),                                                                                                                    │
+     │   insight_type VARCHAR(50), -- 'budget_feedback', 'frequency_feedback', etc.                                                                              │
+     │   calculated_at TIMESTAMP,                                                                                                                                │
+     │                                                                                                                                                           │
+     │   -- Aggregated insights                                                                                                                                  │
+     │   insight_summary JSONB, -- {avg_budget_comfort: 'slightly_high', confidence: 0.8}                                                                        │
+     │   recommendation TEXT, -- AI-generated recommendation for organizer                                                                                       │
+     │   member_count INTEGER, -- How many responses contributed                                                                                                 │
+     │                                                                                                                                                           │
+     │   -- Display metadata                                                                                                                                     │
+     │   severity VARCHAR(20), -- 'info', 'warning', 'critical'                                                                                                  │
+     │   acknowledged BOOLEAN DEFAULT false                                                                                                                      │
+     │ );                                                                                                                                                        │
+     │                                                                                                                                                           │
+     │ API Endpoints                                                                                                                                             │
+     │                                                                                                                                                           │
+     │ 1. POST /api/surveys/trigger (Internal, cron job)                                                                                                         │
+     │                                                                                                                                                           │
+     │ - Identifies members eligible for surveys (attended 3+ events, no survey in last 60 days)                                                                 │
+     │ - Creates survey records with unique tokens                                                                                                               │
+     │ - Queues email sends                                                                                                                                      │
+     │                                                                                                                                                           │
+     │ 2. GET /api/surveys/:responseToken (Public, no auth)                                                                                                      │
+     │                                                                                                                                                           │
+     │ - Loads survey for member (anonymous link from email)                                                                                                     │
+     │ - Returns pre-filled context (group name, past events, no identifying info)                                                                               │
+     │                                                                                                                                                           │
+     │ 3. POST /api/surveys/:responseToken/submit (Public, no auth)                                                                                              │
+     │                                                                                                                                                           │
+     │ - Saves survey responses                                                                                                                                  │
+     │ - Marks as completed                                                                                                                                      │
+     │ - Triggers insight aggregation job                                                                                                                        │
+     │                                                                                                                                                           │
+     │ 4. GET /api/groups/:groupId/insights (Auth: organizer only)                                                                                               │
+     │                                                                                                                                                           │
+     │ - Returns aggregated insights for group                                                                                                                   │
+     │ - Never exposes individual responses                                                                                                                      │
+     │ - Shows trends, recommendations, severity levels                                                                                                          │
+     │                                                                                                                                                           │
+     │ 5. POST /api/groups/:groupId/insights/:insightId/acknowledge (Auth: organizer)                                                                            │
+     │                                                                                                                                                           │
+     │ - Marks insight as seen/acknowledged                                                                                                                      │
+     │ - Used for tracking which recommendations organizer acted on                                                                                              │
+     │                                                                                                                                                           │
+     │ Email Service Integration                                                                                                                                 │
+     │                                                                                                                                                           │
+     │ Survey Email Template                                                                                                                                     │
+     │                                                                                                                                                           │
+     │ // server/email-templates/preference-survey.ts                                                                                                            │
+     │ export function generateSurveyEmail(data: {                                                                                                               │
+     │   memberName: string,                                                                                                                                     │
+     │   groupName: string,                                                                                                                                      │
+     │   surveyLink: string,                                                                                                                                     │
+     │   recentEvents: string[] // Last 3 events attended                                                                                                        │
+     │ }) {                                                                                                                                                      │
+     │   return {                                                                                                                                                │
+     │     subject: `Quick check-in about ${data.groupName} 👋`,                                                                                                 │
+     │     html: `                                                                                                                                               │
+     │       <h2>Hey ${data.memberName}!</h2>                                                                                                                    │
+     │       <p>Quick private check-in about the <strong>${data.groupName}</strong> group...</p>                                                                 │
+     │                                                                                                                                                           │
+     │       <p style="color: #666; font-size: 14px;">                                                                                                           │
+     │         You've been to: ${data.recentEvents.join(', ')}                                                                                                   │
+     │       </p>                                                                                                                                                │
+     │                                                                                                                                                           │
+     │       <div style="margin: 30px 0;">                                                                                                                       │
+     │         <a href="${data.surveyLink}" style="...">                                                                                                         │
+     │           Share Your Thoughts (2 minutes)                                                                                                                 │
+     │         </a>                                                                                                                                              │
+     │       </div>                                                                                                                                              │
+     │                                                                                                                                                           │
+     │       <p style="font-size: 12px; color: #999;">                                                                                                           │
+     │         🔒 Your responses are private and anonymized.                                                                                                     │
+     │         The organizer only sees overall trends, never individual answers.                                                                                 │
+     │       </p>                                                                                                                                                │
+     │     `                                                                                                                                                     │
+     │   };                                                                                                                                                      │
+     │ }                                                                                                                                                         │
+     │                                                                                                                                                           │
+     │ AI Aggregation Service                                                                                                                                    │
+     │                                                                                                                                                           │
+     │ Insight Generation Function                                                                                                                               │
+     │                                                                                                                                                           │
+     │ // server/ai-survey-insights.ts                                                                                                                           │
+     │ export async function aggregateSurveyInsights(groupId: string) {                                                                                          │
+     │   // 1. Fetch all completed surveys for group (last 90 days)                                                                                              │
+     │   const surveys = await db.select()                                                                                                                       │
+     │     .from(preferenceSurveys)                                                                                                                              │
+     │     .where(eq(preferenceSurveys.groupId, groupId))                                                                                                        │
+     │     .where(isNotNull(preferenceSurveys.completedAt));                                                                                                     │
+     │                                                                                                                                                           │
+     │   if (surveys.length < 3) return null; // Need minimum responses                                                                                          │
+     │                                                                                                                                                           │
+     │   // 2. Calculate distributions                                                                                                                           │
+     │   const budgetDistribution = calculateDistribution(surveys, 'budget_comfort');                                                                            │
+     │   const frequencyDistribution = calculateDistribution(surveys, 'frequency_feeling');                                                                      │
+     │   const travelDistribution = calculateDistribution(surveys, 'travel_tolerance');                                                                          │
+     │                                                                                                                                                           │
+     │   // 3. Use AI to generate insights                                                                                                                       │
+     │   const prompt = `                                                                                                                                        │
+     │     Analyze this group feedback and provide actionable recommendations:                                                                                   │
+     │                                                                                                                                                           │
+     │     Budget comfort (${surveys.length} responses):                                                                                                         │
+     │     - Too pricey: ${budgetDistribution.too_pricey}                                                                                                        │
+     │     - Just right: ${budgetDistribution.just_right}                                                                                                        │
+     │     - Could spend more: ${budgetDistribution.could_spend_more}                                                                                            │
+     │                                                                                                                                                           │
+     │     Meeting frequency (${surveys.length} responses):                                                                                                      │
+     │     - Too often: ${frequencyDistribution.too_often}                                                                                                       │
+     │     - Perfect: ${frequencyDistribution.perfect}                                                                                                           │
+     │     - Would like more: ${frequencyDistribution.would_like_more}                                                                                           │
+     │                                                                                                                                                           │
+     │     Travel tolerance (${surveys.length} responses):                                                                                                       │
+     │     - Too far: ${travelDistribution.too_far}                                                                                                              │
+     │     - Fine: ${travelDistribution.fine}                                                                                                                    │
+     │     - Prefer closer: ${travelDistribution.prefer_closer}                                                                                                  │
+     │                                                                                                                                                           │
+     │     Generate:                                                                                                                                             │
+     │     1. Summary of each dimension (budget, frequency, travel)                                                                                              │
+     │     2. Specific recommendations for the organizer                                                                                                         │
+     │     3. Severity level (info, warning, critical)                                                                                                           │
+     │   `;                                                                                                                                                      │
+     │                                                                                                                                                           │
+     │   const insights = await openai.chat.completions.create({                                                                                                 │
+     │     model: 'gpt-4o-mini',                                                                                                                                 │
+     │     messages: [{ role: 'user', content: prompt }],                                                                                                        │
+     │     response_format: { type: 'json_object' }                                                                                                              │
+     │   });                                                                                                                                                     │
+     │                                                                                                                                                           │
+     │   // 4. Save insights to database                                                                                                                         │
+     │   await db.insert(groupInsights).values({                                                                                                                 │
+     │     groupId,                                                                                                                                              │
+     │     insightType: 'periodic_checkin',                                                                                                                      │
+     │     calculatedAt: new Date(),                                                                                                                             │
+     │     insightSummary: insights,                                                                                                                             │
+     │     memberCount: surveys.length                                                                                                                           │
+     │   });                                                                                                                                                     │
+     │ }                                                                                                                                                         │
+     │                                                                                                                                                           │
+     │ UI Components                                                                                                                                             │
+     │                                                                                                                                                           │
+     │ Organizer Dashboard: Insights Panel                                                                                                                       │
+     │                                                                                                                                                           │
+     │ // client/src/components/GroupInsightsPanel.tsx                                                                                                           │
+     │ export function GroupInsightsPanel({ groupId }: { groupId: string }) {                                                                                    │
+     │   const { data: insights } = useQuery({                                                                                                                   │
+     │     queryKey: [`/api/groups/${groupId}/insights`]                                                                                                         │
+     │   });                                                                                                                                                     │
+     │                                                                                                                                                           │
+     │   return (                                                                                                                                                │
+     │     <Card>                                                                                                                                                │
+     │       <CardHeader>                                                                                                                                        │
+     │         <CardTitle>Group Feedback</CardTitle>                                                                                                             │
+     │         <CardDescription>                                                                                                                                 │
+     │           Anonymous insights from {insights?.memberCount} members                                                                                         │
+     │         </CardDescription>                                                                                                                                │
+     │       </CardHeader>                                                                                                                                       │
+     │       <CardContent className="space-y-4">                                                                                                                 │
+     │         {insights?.budget && (                                                                                                                            │
+     │           <InsightRow                                                                                                                                     │
+     │             icon="💰"                                                                                                                                     │
+     │             title="Budget"                                                                                                                                │
+     │             status={insights.budget.status} // 'slightly_high', 'just_right'                                                                              │
+     │             recommendation={insights.budget.recommendation}                                                                                               │
+     │             severity={insights.budget.severity}                                                                                                           │
+     │           />                                                                                                                                              │
+     │         )}                                                                                                                                                │
+     │                                                                                                                                                           │
+     │         {insights?.frequency && (                                                                                                                         │
+     │           <InsightRow                                                                                                                                     │
+     │             icon="📅"                                                                                                                                     │
+     │             title="Frequency"                                                                                                                             │
+     │             status={insights.frequency.status}                                                                                                            │
+     │             recommendation={insights.frequency.recommendation}                                                                                            │
+     │             severity={insights.frequency.severity}                                                                                                        │
+     │           />                                                                                                                                              │
+     │         )}                                                                                                                                                │
+     │                                                                                                                                                           │
+     │         {insights?.travel && (                                                                                                                            │
+     │           <InsightRow                                                                                                                                     │
+     │             icon="🚗"                                                                                                                                     │
+     │             title="Travel"                                                                                                                                │
+     │             status={insights.travel.status}                                                                                                               │
+     │             recommendation={insights.travel.recommendation}                                                                                               │
+     │             severity={insights.travel.severity}                                                                                                           │
+     │           />                                                                                                                                              │
+     │         )}                                                                                                                                                │
+     │       </CardContent>                                                                                                                                      │
+     │     </Card>                                                                                                                                               │
+     │   );                                                                                                                                                      │
+     │ }                                                                                                                                                         │
+     │                                                                                                                                                           │
+     │ Survey Page (Public, No Auth)                                                                                                                             │
+     │                                                                                                                                                           │
+     │ // client/src/pages/preference-survey.tsx                                                                                                                 │
+     │ export default function PreferenceSurvey() {                                                                                                              │
+     │   const { token } = useParams();                                                                                                                          │
+     │   const { data: survey } = useQuery({                                                                                                                     │
+     │     queryKey: [`/api/surveys/${token}`]                                                                                                                   │
+     │   });                                                                                                                                                     │
+     │                                                                                                                                                           │
+     │   return (                                                                                                                                                │
+     │     <div className="max-w-2xl mx-auto p-6">                                                                                                               │
+     │       <h1>Quick check-in about {survey.groupName}</h1>                                                                                                    │
+     │                                                                                                                                                           │
+     │       <form onSubmit={handleSubmit}>                                                                                                                      │
+     │         <RadioGroup name="overall_vibe" label="How's the vibe?">                                                                                          │
+     │           <Radio value="loving_it">Loving it 🎉</Radio>                                                                                                   │
+     │           <Radio value="pretty_good">Pretty good 👍</Radio>                                                                                               │
+     │           <Radio value="okay">It's okay 😐</Radio>                                                                                                        │
+     │           <Radio value="not_my_thing">Not my thing 😕</Radio>                                                                                             │
+     │         </RadioGroup>                                                                                                                                     │
+     │                                                                                                                                                           │
+     │         <RadioGroup name="budget_comfort" label="Budget comfort level?">                                                                                  │
+     │           <Radio value="too_pricey">Too pricey 💸</Radio>                                                                                                 │
+     │           <Radio value="just_right">Just right ✅</Radio>                                                                                                 │
+     │           <Radio value="could_spend_more">Could spend more 💰</Radio>                                                                                     │
+     │         </RadioGroup>                                                                                                                                     │
+     │                                                                                                                                                           │
+     │         {/* ... frequency and travel ... */}                                                                                                              │
+     │                                                                                                                                                           │
+     │         <Textarea                                                                                                                                         │
+     │           name="additional_feedback"                                                                                                                      │
+     │           label="Anything else? (Optional)"                                                                                                               │
+     │           placeholder="Any other thoughts..."                                                                                                             │
+     │         />                                                                                                                                                │
+     │                                                                                                                                                           │
+     │         <Button type="submit">Submit Feedback</Button>                                                                                                    │
+     │       </form>                                                                                                                                             │
+     │                                                                                                                                                           │
+     │       <p className="text-sm text-muted-foreground mt-4">                                                                                                  │
+     │         🔒 Your responses are private. The organizer sees trends, not individual answers.                                                                 │
+     │       </p>                                                                                                                                                │
+     │     </div>                                                                                                                                                │
+     │   );                                                                                                                                                      │
+     │ }                                                                                                                                                         │
+     │                                                                                                                                                           │
+     │ Cron Job / Scheduler                                                                                                                                      │
+     │                                                                                                                                                           │
+     │ Survey Trigger Logic                                                                                                                                      │
+     │                                                                                                                                                           │
+     │ // server/cron/survey-trigger.ts                                                                                                                          │
+     │ export async function triggerPeriodicSurveys() {                                                                                                          │
+     │   // Find members who:                                                                                                                                    │
+     │   // 1. Have attended 3+ events                                                                                                                           │
+     │   // 2. Haven't been surveyed in last 60 days                                                                                                             │
+     │   // 3. Are in active groups (event in last 30 days)                                                                                                      │
+     │                                                                                                                                                           │
+     │   const eligibleMembers = await db                                                                                                                        │
+     │     .select({                                                                                                                                             │
+     │       memberId: members.id,                                                                                                                               │
+     │       groupId: members.groupId,                                                                                                                           │
+     │       memberEmail: members.email,                                                                                                                         │
+     │       memberName: members.name,                                                                                                                           │
+     │       eventCount: sql`COUNT(DISTINCT rsvps.itinerary_id)`                                                                                                 │
+     │     })                                                                                                                                                    │
+     │     .from(members)                                                                                                                                        │
+     │     .leftJoin(rsvps, eq(rsvps.memberId, members.id))                                                                                                      │
+     │     .leftJoin(preferenceSurveys, and(                                                                                                                     │
+     │       eq(preferenceSurveys.memberId, members.id),                                                                                                         │
+     │       sql`preference_surveys.sent_at > NOW() - INTERVAL '60 days'`                                                                                        │
+     │     ))                                                                                                                                                    │
+     │     .where(isNull(preferenceSurveys.id)) // No recent survey                                                                                              │
+     │     .groupBy(members.id)                                                                                                                                  │
+     │     .having(sql`COUNT(DISTINCT rsvps.itinerary_id) >= 3`);                                                                                                │
+     │                                                                                                                                                           │
+     │   // Create survey records and send emails                                                                                                                │
+     │   for (const member of eligibleMembers) {                                                                                                                 │
+     │     const survey = await createSurvey(member);                                                                                                            │
+     │     await sendSurveyEmail(survey);                                                                                                                        │
+     │   }                                                                                                                                                       │
+     │ }                                                                                                                                                         │
+     │                                                                                                                                                           │
+     │ // Run daily at 10am                                                                                                                                      │
+     │ schedule.scheduleJob('0 10 * * *', triggerPeriodicSurveys);                                                                                               │
+     │                                                                                                                                                           │
+     │ Testing & Validation                                                                                                                                      │
+     │                                                                                                                                                           │
+     │ Anonymity Guarantees                                                                                                                                      │
+     │                                                                                                                                                           │
+     │ 1. Survey responses stored with anonymized: true flag                                                                                                     │
+     │ 2. API endpoint checks: organizers CANNOT query individual responses                                                                                      │
+     │ 3. Insights only shown when >= 3 responses (prevents identification)                                                                                      │
+     │ 4. Response tokens are one-time use, expire after 30 days                                                                                                 │
+     │                                                                                                                                                           │
+     │ Success Metrics                                                                                                                                           │
+     │                                                                                                                                                           │
+     │ - Survey completion rate (target: >60%)                                                                                                                   │
+     │ - Time to complete (target: <3 minutes)                                                                                                                   │
+     │ - Insight actionability (organizers act on recommendations)                                                                                               │
+     │ - Member trust (qualitative feedback about privacy)                                                                                                       │
+     │                                                                                                                                                           │
+     │ Implementation Phases                                                                                                                                     │
+     │                                                                                                                                                           │
+     │ Week 1: Database & API                                                                                                                                    │
+     │ - Create schema migrations                                                                                                                                │
+     │ - Build API endpoints                                                                                                                                     │
+     │ - Write tests for anonymity guarantees                                                                                                                    │
+     │                                                                                                                                                           │
+     │ Week 2: Email & Survey Page                                                                                                                               │
+     │ - Design email template                                                                                                                                   │
+     │ - Build public survey page                                                                                                                                │
+     │ - Test end-to-end flow                                                                                                                                    │
+     │                                                                                                                                                           │
+     │ Week 3: AI Aggregation                                                                                                                                    │
+     │ - Implement insight generation                                                                                                                            │
+     │ - Build organizer dashboard view                                                                                                                          │
+     │ - Test with sample data                                                                                                                                   │
+     │                                                                                                                                                           │
+     │ Week 4: Cron & Polish                                                                                                                                     │
+     │ - Set up survey trigger logic                                                                                                                             │
+     │ - Add analytics/logging                                                                                                                                   │
+     │ - Beta test with 2-3 groups                                                                                                                               │
+     │                                                                                                                                                           │
+     │ Ready to implement when you give the go-ahead!                                                                                   

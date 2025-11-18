@@ -1,7 +1,60 @@
 // Reference: javascript_openai blueprint
 import OpenAI from "openai";
+import { db } from "./db";
+import { apiCallLogs, aiCategorizationCache } from "@shared/schema";
+import { eq, gt, sql } from "drizzle-orm";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+/**
+ * Log OpenAI API call for cost tracking and monitoring
+ * Cost estimates based on OpenAI pricing (as of 2024)
+ * GPT-4o: $2.50/1M input tokens, $10.00/1M output tokens
+ * GPT-4o-mini: $0.15/1M input tokens, $0.60/1M output tokens
+ */
+async function logApiCall(params: {
+  service: string;
+  method: string;
+  cacheStatus: 'hit' | 'miss' | 'write';
+  status: 'success' | 'error';
+  responseTimeMs?: number;
+  costEstimate?: number;
+  parameters?: any;
+  errorMessage?: string;
+  metadata?: any;
+}) {
+  try {
+    await db.insert(apiCallLogs).values({
+      service: params.service,
+      method: params.method,
+      cacheStatus: params.cacheStatus,
+      status: params.status,
+      responseTimeMs: params.responseTimeMs,
+      costEstimate: params.costEstimate ? params.costEstimate.toString() : null,
+      parameters: params.parameters || null,
+      errorMessage: params.errorMessage,
+      metadata: params.metadata || null,
+      createdAt: new Date(),
+    });
+  } catch (error) {
+    // Don't let logging failures break the main flow
+    console.error('[API Logging] Failed to log API call:', error);
+  }
+}
+
+/**
+ * Calculate cost estimate for OpenAI API calls
+ * Based on token counts and model pricing
+ */
+function calculateOpenAICost(model: string, inputTokens: number, outputTokens: number): number {
+  const pricing: Record<string, { input: number; output: number }> = {
+    'gpt-4o': { input: 2.50 / 1_000_000, output: 10.00 / 1_000_000 },
+    'gpt-4o-mini': { input: 0.15 / 1_000_000, output: 0.60 / 1_000_000 },
+  };
+
+  const modelPricing = pricing[model] || pricing['gpt-4o-mini'];
+  return (inputTokens * modelPricing.input) + (outputTokens * modelPricing.output);
+}
 
 // Time category mapping based on venue type
 export function categorizeByTime(venueType: string): 'quick' | 'standard' | 'large' {
@@ -167,6 +220,7 @@ export async function generateActivitySuggestions(groupData: {
   searchRadius?: number; // Search radius in miles (2, 10, 30, 50)
   previousFeedback?: { venueName: string; venueType: string; feedback: string; description: string }[];
   votingFeedback?: { venueName: string; venueType: string; upvotes: number; downvotes: number; netVotes: number; description: string }[];
+  provenWinners?: { venueName: string; venueType: string; avgRating: number; lastVisit: Date; daysSinceLastVisit: number }[]; // Highly-rated venues ready to revisit
   likedConcepts?: string[];
   passedConcepts?: string[];
   previouslySuggestedVenues?: string[];
@@ -263,7 +317,7 @@ export async function generateActivitySuggestions(groupData: {
 
     // Format swipe session feedback
     let swipeContext = '';
-    if ((groupData.likedConcepts && groupData.likedConcepts.length > 0) || 
+    if ((groupData.likedConcepts && groupData.likedConcepts.length > 0) ||
         (groupData.passedConcepts && groupData.passedConcepts.length > 0)) {
       swipeContext = '\nSwipe Session Preferences:';
       if (groupData.likedConcepts && groupData.likedConcepts.length > 0) {
@@ -272,6 +326,18 @@ export async function generateActivitySuggestions(groupData: {
       if (groupData.passedConcepts && groupData.passedConcepts.length > 0) {
         swipeContext += `\n- PASSED concepts (avoid these types): ${groupData.passedConcepts.join(', ')}`;
       }
+    }
+
+    // Format proven winners from post-event feedback
+    let provenWinnersContext = '';
+    if (groupData.provenWinners && groupData.provenWinners.length > 0) {
+      const winnersFormatted = groupData.provenWinners.map(w =>
+        `${w.venueName} (${w.venueType}) [${w.avgRating}/5 ⭐, last visit ${Math.floor(w.daysSinceLastVisit / 30)} months ago]`
+      );
+      provenWinnersContext = '\n\n⭐ PROVEN WINNERS - Highly-Rated Venues Ready to Revisit:';
+      provenWinnersContext += `\n- The group LOVED these venues (rated 4-5 stars) and it\'s been 60+ days since visiting`;
+      provenWinnersContext += `\n- PRIORITIZE including some of these in your suggestions: ${winnersFormatted.join(', ')}`;
+      provenWinnersContext += `\n- These are guaranteed crowd-pleasers based on actual group feedback`;
     }
 
     // Format member constraints from RSVP feedback
@@ -478,35 +544,30 @@ export async function generateActivitySuggestions(groupData: {
       const targetCategory = groupData.targetCategories![0];
       const categoryName = categoryDescriptions[targetCategory] || targetCategory;
 
-      const simplifiedPrompt = `Generate ${suggestionCount} ${categoryName} suggestions for quick category addition.
+      const simplifiedPrompt = `Generate ${suggestionCount} ${categoryName} suggestions.
 
-Location: ${groupData.locationBase}
-Search Radius: ${radiusTier}
-Budget: $${groupData.budgetMin}-${groupData.budgetMax} per person
+Location: ${groupData.locationBase} (${radiusTier})
+Budget: $${groupData.budgetMin}-${groupData.budgetMax}/person
 Category: ${categoryName}${avoidVenuesContext}${seenVenuesContext}${rejectedVenuesContext}
 
 Requirements:
-1. Generate ONLY ${categoryName} - no other categories
-2. venueName: ACTUAL SPECIFIC VENUE NAME (e.g., "Foreign Cinema", "Pizzeria Delfina", "Smuggler's Cove" - NOT generic "restaurant" or "bar")
-3. venueType: BE SPECIFIC (e.g., "cocktail bar", "sushi restaurant", "Korean BBQ" - NOT just "bar" or "Asian food")
-4. Each suggestion should fit the budget range
-5. searchQuery: Include venue name + type + location (e.g., "Foreign Cinema restaurant San Francisco")
-6. Description: 1-4 words max, nouns only (e.g., "Cocktails", "Craft beer")
-7. Reasoning: 2-5 words max (e.g., "Popular local bar", "Craft cocktail spot")
+1. ONLY ${categoryName}
+2. venueName: Real venue (e.g. "Foreign Cinema", "Tartine Bakery" - NOT "restaurant")
+3. venueType: Specific (e.g. "cocktail bar", "sushi restaurant")
+4. Fits budget
+5. searchQuery: venue + type + city
+6. Description: 1-4 words
+7. Reasoning: 2-5 words
 
-🚨 CRITICAL: venueName MUST be a real, specific venue name you know exists in ${groupData.locationBase}, NOT a generic type.
-Examples of GOOD venue names: "Tartine Bakery", "Blue Bottle Coffee", "Foreign Cinema"
-Examples of BAD venue names: "bakery", "coffee shop", "outdoor dining"
-
-Return JSON with this structure:
+Return JSON:
 {
   "suggestions": [
     {
-      "venueName": "SPECIFIC REAL VENUE NAME (e.g., 'Foreign Cinema', 'Pizzeria Delfina')",
-      "venueType": "specific type (e.g., 'cocktail bar', 'sushi restaurant')",
-      "description": "1-4 words max",
-      "reasoning": "2-5 words max",
-      "searchQuery": "venue name + type + location for Google Places"
+      "venueName": "Real venue name",
+      "venueType": "specific type",
+      "description": "1-4 words",
+      "reasoning": "2-5 words",
+      "searchQuery": "venue type city"
     }
   ]
 }`;
@@ -571,61 +632,47 @@ Return JSON with this structure:
       ? `\n\n🚨 DISABLED CATEGORIES (DO NOT SUGGEST):\n${disabledBuckets.map(cat => `- ${cat}: FORBIDDEN - Any suggestion from this category will be REJECTED`).join('\n')}\n\nIf you suggest ANY venue from disabled categories (${disabledBuckets.join(', ')}), those suggestions will be immediately deleted.`
       : '';
     
-    const prompt = `Generate ${suggestionCount} activity suggestions for a group.
+    const prompt = `Generate ${suggestionCount} activity suggestions.
 
 ${exactDistribution}
 ${locationEnforcement}${disabledWarning}
 
-Group Details:
-- Location: ${groupData.locationBase} (${radiusTier})
-- Budget: $${groupData.budgetMin}-${groupData.budgetMax}/person
-- Availability: ${availabilityText}
-${groupData.additionalInstructions ? `\n🚨 USER INSTRUCTIONS: ${groupData.additionalInstructions}` : `${categoriesContext}
-${groupData.pastPreferences ? `Past: ${groupData.pastPreferences}` : ''}${feedbackContext}${votingContext}${swipeContext}`}${constraintsContext}${insightsContext}${avoidVenuesContext}${seenVenuesContext}${rejectedVenuesContext}${targetCategoriesContext}${categoryFilterContext}
+Location: ${groupData.locationBase} (${radiusTier})
+Budget: $${groupData.budgetMin}-${groupData.budgetMax}/person
+Availability: ${availabilityText}
+${groupData.additionalInstructions ? `\nUSER REQUEST: ${groupData.additionalInstructions}` : `${categoriesContext}
+${groupData.pastPreferences ? `Past: ${groupData.pastPreferences}` : ''}${feedbackContext}${votingContext}${swipeContext}${provenWinnersContext}`}${constraintsContext}${insightsContext}${avoidVenuesContext}${seenVenuesContext}${rejectedVenuesContext}${targetCategoriesContext}${categoryFilterContext}
 
-${groupData.additionalInstructions ? `🚨 FOLLOW USER INSTRUCTIONS ONLY - ignore other context. If they specify venue type (Boba/Sushi), generate ALL ${suggestionCount} of that type.` : `Use preferences/feedback to guide suggestions. ${familiarCount > 0 ? `${familiarCount} familiar + ${newCount} NEW (mark "NEW:" in reasoning).` : ''}`}
+${groupData.additionalInstructions ? `Follow user request. Ignore other context if conflicts.` : `Use feedback to guide. ${familiarCount > 0 ? `${familiarCount} familiar + ${newCount} new (mark "NEW:" in reasoning).` : ''}`}
 
-CRITICAL RULES:
+Rules:
 1. ${locationEnforcement}
 2. ${exactDistribution.replace('EXACT DISTRIBUTION REQUIRED:\n', '')}
-3. venueName: MUST be ACTUAL SPECIFIC VENUE NAME (e.g., "Foreign Cinema", "Tartine Bakery", "Smuggler's Cove" - NOT "restaurant", "bakery", or "bar")
-4. venueType: BE SPECIFIC (e.g., "sushi restaurant" NOT "Asian food"; "cocktail bar" NOT "bar")
-5. NO duplicates${groupData.previouslySuggestedVenues && groupData.previouslySuggestedVenues.length > 0 ? ` (already: ${groupData.previouslySuggestedVenues.slice(0, 8).join(', ')}${groupData.previouslySuggestedVenues.length > 8 ? '...' : ''})` : ''}${groupData.rejectedVenues && groupData.rejectedVenues.length > 0 ? `; BANNED: ${groupData.rejectedVenues.join(', ')}` : ''}
-6. Match availability: ${availabilityText}
-7. Description: 1-4 words (e.g. "Korean BBQ", "Cocktails")
-8. Reasoning: 2-5 words (e.g. "Popular sushi", "NEW: Filipino")
-9. searchQuery: Include venue name + type + city (e.g., "Foreign Cinema restaurant San Francisco")
+3. venueName: Real venue (e.g. "Foreign Cinema", "Tartine Bakery" - NOT "restaurant", "bakery")
+4. venueType: Specific (e.g. "sushi restaurant" NOT "Asian food")
+5. No duplicates${groupData.previouslySuggestedVenues && groupData.previouslySuggestedVenues.length > 0 ? ` (avoid: ${groupData.previouslySuggestedVenues.slice(0, 6).join(', ')}${groupData.previouslySuggestedVenues.length > 6 ? '...' : ''})` : ''}${groupData.rejectedVenues && groupData.rejectedVenues.length > 0 ? ` (banned: ${groupData.rejectedVenues.join(', ')})` : ''}
+6. Description: 1-4 words
+7. Reasoning: 2-5 words
+8. searchQuery: venue + type + city
 
-🚨 CRITICAL - venueName EXAMPLES:
-✅ GOOD: "Foreign Cinema", "Pizzeria Delfina", "Blue Bottle Coffee", "Smuggler's Cove"
-❌ BAD: "outdoor dining", "pizza place", "coffee shop", "cocktail bar"
-
-BEFORE RESPONDING - VERIFY:
-✓ Suggestion count = ${suggestionCount}?
-✓ ${enabledCategoryNames.map((cat, i) => `${cat} count = ${suggestionsPerCategory}`).join('? ✓ ')}?
-✓ All venues in ${cityName} (${radiusTier})?
-✓ No disabled categories (${disabledBuckets.join(', ') || 'none'})?
-✓ Every venueName is a SPECIFIC REAL VENUE NAME (not a type)?
-
-Return JSON with EXACTLY 20 suggestions:
+Return JSON:
 {
   "suggestions": [
     {
-      "venueName": "SPECIFIC REAL VENUE NAME (e.g., 'Foreign Cinema', 'Tartine Bakery')",
-      "venueType": "specific category (e.g., 'sushi restaurant', 'cocktail bar')",
-      "description": "1-4 words max",
-      "reasoning": "2-5 words max",
-      "searchQuery": "venue name + type + city for Google Places",
-      "priceEstimate": "optional - events only",
-      "timeConstraints": "optional - events only"
+      "venueName": "Real venue name",
+      "venueType": "specific type",
+      "description": "1-4 words",
+      "reasoning": "2-5 words",
+      "searchQuery": "venue type city"
     }
   ]
 }`;
 
     console.log(`[OpenAI] Sending prompt with availability: ${availabilityText}`);
-    
+
     // Use GPT-4o for activity suggestions - better at understanding complex preferences and constraints
     // All other AI features use gpt-4o-mini for cost efficiency
+    const startTime = Date.now();
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
@@ -641,13 +688,34 @@ Return JSON with EXACTLY 20 suggestions:
       response_format: { type: "json_object" },
       max_completion_tokens: 4000, // Supports 20 suggestions (~200 tokens each = ~4000 total)
     });
+    const responseTimeMs = Date.now() - startTime;
 
     const result = JSON.parse(response.choices[0].message.content || '{}');
     const suggestionsCount = result.suggestions?.length || 0;
     console.log(`[OpenAI] ✅ Received response with ${suggestionsCount} suggestions (target: 20)`);
-    
+
     // Log token usage for debugging
     console.log(`[OpenAI] Token usage: ${response.usage?.completion_tokens || 0} completion tokens (max: 4000)`);
+
+    // Log API call
+    const inputTokens = response.usage?.prompt_tokens || 0;
+    const outputTokens = response.usage?.completion_tokens || 0;
+    await logApiCall({
+      service: 'openai',
+      method: 'generateActivitySuggestions',
+      cacheStatus: 'miss',
+      status: 'success',
+      responseTimeMs,
+      costEstimate: calculateOpenAICost('gpt-4o', inputTokens, outputTokens),
+      parameters: { location: groupData.locationBase, budget: `$${groupData.budgetMin}-${groupData.budgetMax}` },
+      metadata: {
+        model: 'gpt-4o',
+        inputTokens,
+        outputTokens,
+        totalTokens: inputTokens + outputTokens,
+        suggestionCount: suggestionsCount
+      },
+    });
     
     if (!result.suggestions || result.suggestions.length === 0) {
       throw new Error("OpenAI returned no activity suggestions. The response may be empty or malformed.");
@@ -664,6 +732,15 @@ Return JSON with EXACTLY 20 suggestions:
     return result.suggestions;
   } catch (error) {
     console.error("Error generating activity suggestions:", error);
+    // Log API call failure
+    await logApiCall({
+      service: 'openai',
+      method: 'generateActivitySuggestions',
+      cacheStatus: 'miss',
+      status: 'error',
+      parameters: { location: groupData.locationBase },
+      errorMessage: (error as Error).message,
+    });
     throw new Error("Failed to generate activity suggestions: " + (error as Error).message);
   }
 }
@@ -743,49 +820,35 @@ export async function generateSwipeConcepts(groupData: {
 - If you suggest ANY venue from a disabled category, that suggestion will be REJECTED`;
     }
 
-    const prompt = `You are an expert at finding great local venues. Generate 20 diverse venue type suggestions for a group to explore.
+    const prompt = `Generate 20 diverse venue types for exploration.
 
 Location: ${groupData.locationBase}
-Budget Range: $${groupData.budgetMin}-${groupData.budgetMax} per person${categoriesContext}
-${groupData.pastPreferences ? `Past Preferences: ${groupData.pastPreferences}` : ''}${avoidContext}${categoryFilterContext}
+Budget: $${groupData.budgetMin}-${groupData.budgetMax}/person${categoriesContext}
+${groupData.pastPreferences ? `Past: ${groupData.pastPreferences}` : ''}${avoidContext}${categoryFilterContext}
 
 Requirements:
-1. Generate 20 specific VENUE TYPES (not specific venue names, just types of places to explore)
-2. Focus on types of venues that fit the budget range
-3. ${groupData.activityCategories && groupData.activityCategories.length > 0 ? `PRIORITIZE the Activity Interests listed above` : 'Suggest a diverse mix of venue types'}
-4. ${disabledBuckets.length > 0 ? `ONLY suggest venues from enabled categories: ${enabledBuckets.join(', ')}` : 'Include a mix of food/drink venues, entertainment venues, and activity venues'}
-5. Each venue type should be something you can search for on Google Maps
+1. 20 venue TYPES (not specific venues)
+2. Fit budget range
+3. ${groupData.activityCategories && groupData.activityCategories.length > 0 ? `Prioritize listed interests` : 'Mix of food/drink/entertainment/activities'}
+4. ${disabledBuckets.length > 0 ? `Only enabled: ${enabledBuckets.join(', ')}` : 'Diverse mix'}
+5. Searchable on Google Maps
 
-GOOD examples:
-- conceptDescription: "Try a Cozy Coffee Shop", searchQuery: "coffee shop"
-- conceptDescription: "Explore Cocktail Bars", searchQuery: "cocktail bar"
-- conceptDescription: "Visit an Italian Restaurant", searchQuery: "Italian restaurant"
-- conceptDescription: "Find a Yoga Studio", searchQuery: "yoga studio"
-- conceptDescription: "Check Out Bowling Alleys", searchQuery: "bowling alley"
-- conceptDescription: "Discover Wine Bars", searchQuery: "wine bar"
-- conceptDescription: "Try Ramen Restaurants", searchQuery: "ramen restaurant"
+Examples:
+- Good: "Try Coffee Shop" / "coffee shop", "Explore Cocktail Bars" / "cocktail bar"
+- Bad: "Pottery Workshop" (too specific), "Sunset Hike" (not venue), "Bar Hopping" (vague)
 
-BAD examples (too specific or not searchable):
-- "Pottery Painting Workshop" (too specific, not a venue type)
-- "Sunset Hike" (not a venue)
-- "Bar Hopping" (too vague, not a searchable type)
-
-For each concept, provide:
-- conceptType: a short slug (e.g., "coffee-shop", "cocktail-bar", "italian-restaurant")
-- conceptDescription: user-friendly description (e.g., "Try a Cozy Coffee Shop", "Explore Cocktail Bars")
-- searchQuery: Google Places search term (e.g., "coffee shop", "cocktail bar", "Italian restaurant")
-
-Return as JSON:
+Return JSON:
 {
   "concepts": [
     {
-      "conceptType": "category-slug",
-      "conceptDescription": "User-friendly description",
-      "searchQuery": "google places search term"
+      "conceptType": "slug",
+      "conceptDescription": "Description",
+      "searchQuery": "search term"
     }
   ]
 }`;
 
+    const startTime = Date.now();
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -801,16 +864,48 @@ Return as JSON:
       response_format: { type: "json_object" },
       max_completion_tokens: 1500,
     });
+    const responseTimeMs = Date.now() - startTime;
 
     const result = JSON.parse(response.choices[0].message.content || '{}');
-    
+
     if (!result.concepts || result.concepts.length === 0) {
       throw new Error("OpenAI returned no swipe concepts. The response may be empty or malformed.");
     }
-    
+
+    // Log successful API call
+    const inputTokens = response.usage?.prompt_tokens || 0;
+    const outputTokens = response.usage?.completion_tokens || 0;
+    await logApiCall({
+      service: 'openai',
+      method: 'generateSwipeConcepts',
+      cacheStatus: 'miss',
+      status: 'success',
+      responseTimeMs,
+      costEstimate: calculateOpenAICost('gpt-4o-mini', inputTokens, outputTokens),
+      parameters: { location: groupData.locationBase, budget: `$${groupData.budgetMin}-${groupData.budgetMax}` },
+      metadata: {
+        model: 'gpt-4o-mini',
+        inputTokens,
+        outputTokens,
+        totalTokens: inputTokens + outputTokens,
+        conceptCount: result.concepts.length,
+      },
+    });
+
     return result.concepts;
   } catch (error) {
     console.error("Error generating swipe concepts:", error);
+
+    // Log API call failure
+    await logApiCall({
+      service: 'openai',
+      method: 'generateSwipeConcepts',
+      cacheStatus: 'miss',
+      status: 'error',
+      parameters: { location: groupData.locationBase },
+      errorMessage: (error as Error).message,
+    });
+
     throw new Error("Failed to generate swipe concepts: " + (error as Error).message);
   }
 }
@@ -857,15 +952,69 @@ function keywordCategorize(venueType: string): 'meal' | 'cafes' | 'drinks' | 'de
 }
 
 export async function categorizeVenue(
-  venueName: string, 
-  venueType: string, 
+  venueName: string,
+  venueType: string,
   googleTypes?: string[]
 ): Promise<'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences'> {
   // Create cache key from venue name + type for more accurate caching
   const cacheKey = `${venueName.toLowerCase()}::${venueType.toLowerCase()}`;
-  const cached = categorizationCache.get(cacheKey);
-  if (cached) {
-    return cached as 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences';
+
+  // Check in-memory cache first (fastest)
+  const memCached = categorizationCache.get(cacheKey);
+  if (memCached) {
+    // Log cache hit
+    await logApiCall({
+      service: 'openai',
+      method: 'categorizeVenue',
+      cacheStatus: 'hit',
+      status: 'success',
+      responseTimeMs: 0,
+      costEstimate: 0,
+      parameters: { venueName, venueType },
+      metadata: { cacheType: 'in-memory', category: memCached },
+    });
+    return memCached as 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences';
+  }
+
+  // Check database cache (persistent across restarts)
+  try {
+    const dbCached = await db
+      .select()
+      .from(aiCategorizationCache)
+      .where(eq(aiCategorizationCache.cacheKey, cacheKey))
+      .limit(1);
+
+    if (dbCached.length > 0) {
+      const cached = dbCached[0];
+      // Check if cache entry is still valid (not expired)
+      const now = new Date();
+      if (cached.expiresAt > now) {
+        // Cache hit! Store in memory cache and return
+        const category = cached.category as 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences';
+        categorizationCache.set(cacheKey, category);
+
+        await logApiCall({
+          service: 'openai',
+          method: 'categorizeVenue',
+          cacheStatus: 'hit',
+          status: 'success',
+          responseTimeMs: 0,
+          costEstimate: 0,
+          parameters: { venueName, venueType },
+          metadata: { cacheType: 'database', category },
+        });
+
+        return category;
+      } else {
+        // Cache expired, delete it
+        await db
+          .delete(aiCategorizationCache)
+          .where(eq(aiCategorizationCache.cacheKey, cacheKey));
+      }
+    }
+  } catch (error) {
+    console.error('[AI Categorization] Database cache lookup failed:', error);
+    // Continue to API call on cache error
   }
 
   // PRIORITY 1: Use Google Place types as strong hints (most reliable)
@@ -931,49 +1080,34 @@ export async function categorizeVenue(
       context += `\nGoogle types: ${googleTypes.join(', ')}`;
     }
 
-    const prompt = `Categorize this venue into ONE category based on its PRIMARY purpose.
+    const prompt = `Categorize venue by PRIMARY purpose.
 
 ${context}
 
 Categories:
-- meal: Full meal venues (restaurants, food halls, dining establishments where people eat lunch/dinner)
-- cafes: Coffee shops, cafes (primarily coffee/tea with light snacks)
-- drinks: Bars, breweries, wine bars, cocktail lounges (alcoholic beverages)
-- dessert: Ice cream, gelato, chocolate shops, bakeries, boba/bubble tea, frozen yogurt, donuts, cupcakes, pastries, sweet treats
-- experiences: Entertainment, museums, parks, sports, events, activities, shows, performances
+- meal: Restaurants, food halls, dining (lunch/dinner)
+- cafes: Coffee shops (coffee/tea + light snacks)
+- drinks: Bars, breweries, wine bars, cocktail lounges
+- dessert: Ice cream, gelato, bakeries, boba, sweets
+- experiences: Museums, parks, sports, events, shows
 
-CRITICAL RULES - PRIMARY PURPOSE:
-1. If the venue's PRIMARY purpose is entertainment/experience (shows, performances, museums, activities), it's "experiences" - EVEN IF food is served
-   Examples:
-   - "Murder Mystery Dinner Show" → experiences (it's a SHOW that serves dinner)
-   - "Concert Hall with Bar" → experiences (it's a CONCERT venue)
-   - "Museum Cafe" → experiences (it's a MUSEUM)
-   - "Sports Bar with Games" → drinks (it's primarily a BAR)
-   
-2. If the PRIMARY purpose is dining/eating MEALS (lunch/dinner):
-   - Restaurants, bistros, food halls, izakaya = meal
-   - Brunch spots, diners, eateries = meal
-   
-3. If the PRIMARY purpose is drinks:
-   - Bars, breweries, wine bars, cocktail lounges = drinks
-   
-4. If the PRIMARY purpose is DESSERT/SWEETS (NOT meals):
-   - Ice cream shop → dessert (NOT meal)
-   - Gelato shop → dessert (NOT meal)
-   - Chocolate shop → dessert (NOT meal)
-   - Bakery (cupcakes, pastries, donuts) → dessert (NOT meal)
-   - Boba/bubble tea shop → dessert (NOT meal)
-   - Frozen yogurt → dessert (NOT meal)
-   
-   IMPORTANT: Even though people "eat" desserts, these are NOT meal venues. Dessert is a separate category.
+Rules:
+1. Entertainment venues = experiences (even if food served)
+   - "Murder Mystery Dinner" → experiences
+   - "Concert Hall" → experiences
+2. Dining = meal
+3. Drinks = drinks
+4. Desserts/sweets = dessert (NOT meal)
+   - Ice cream, bakeries, boba → dessert
 
-Return a JSON object with this exact structure:
+Return JSON:
 {
   "category": "meal"
 }
 
-The category value MUST be one of: meal, cafes, drinks, dessert, or experiences`;
+Category must be: meal, cafes, drinks, dessert, or experiences`;
 
+    const startTime = Date.now();
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -989,6 +1123,7 @@ The category value MUST be one of: meal, cafes, drinks, dessert, or experiences`
       response_format: { type: "json_object" },
       max_completion_tokens: 50,
     });
+    const responseTimeMs = Date.now() - startTime;
 
     const result = JSON.parse(response.choices[0].message.content || '{}');
     
@@ -1012,14 +1147,72 @@ The category value MUST be one of: meal, cafes, drinks, dessert, or experiences`
       return fallbackCategory;
     }
     
-    // Cache the result
+    // Cache the result in memory
     categorizationCache.set(cacheKey, category);
-    
+
+    // Cache the result in database (persistent across restarts)
+    try {
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiration
+
+      await db.insert(aiCategorizationCache).values({
+        cacheKey,
+        category,
+        venueName,
+        venueType,
+        expiresAt,
+      }).onConflictDoUpdate({
+        target: aiCategorizationCache.cacheKey,
+        set: {
+          category,
+          venueName,
+          venueType,
+          expiresAt,
+        },
+      });
+    } catch (error) {
+      console.error('[AI Categorization] Failed to write to database cache:', error);
+      // Continue even if cache write fails
+    }
+
     console.log(`[AI Categorization] "${venueName}" → ${category}`);
+
+    // Log successful API call
+    const inputTokens = response.usage?.prompt_tokens || 0;
+    const outputTokens = response.usage?.completion_tokens || 0;
+    await logApiCall({
+      service: 'openai',
+      method: 'categorizeVenue',
+      cacheStatus: 'miss',
+      status: 'success',
+      responseTimeMs,
+      costEstimate: calculateOpenAICost('gpt-4o-mini', inputTokens, outputTokens),
+      parameters: { venueName, venueType },
+      metadata: {
+        model: 'gpt-4o-mini',
+        inputTokens,
+        outputTokens,
+        totalTokens: inputTokens + outputTokens,
+        category,
+        hasGoogleTypes: !!googleTypes && googleTypes.length > 0,
+      },
+    });
+
     return category as 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences';
   } catch (error) {
     console.error("Error categorizing venue:", error);
     console.log(`[AI Categorization] Exception occurred, falling back to keyword categorization`);
+
+    // Log API call failure
+    await logApiCall({
+      service: 'openai',
+      method: 'categorizeVenue',
+      cacheStatus: 'miss',
+      status: 'error',
+      parameters: { venueName, venueType },
+      errorMessage: (error as Error).message,
+    });
+
     const fallbackCategory = keywordCategorize(venueType);
     return fallbackCategory;
   }
@@ -1096,35 +1289,35 @@ export async function analyzePreferencePatterns(data: {
       });
     }
 
-    const prompt = `Analyze this group's activity preferences and identify 3-5 clear patterns or trends.
+    const prompt = `Analyze group preferences. Identify 3-5 clear patterns.
 
 ${feedbackContext}
 
-Based on this feedback data (${totalActions} total actions), identify the clearest patterns in what this group likes or dislikes.
+Total actions: ${totalActions}
 
 Rules:
-1. Only identify patterns if there are at least 2-3 examples supporting it
-2. Be specific and actionable (e.g., "Avoiding loud venues" not "likes quiet places")
-3. Focus on the strongest signals
-4. Keep descriptions concise and casual (10-15 words max)
-5. Choose appropriate emoji icons that match the pattern
-6. Return 3-5 patterns maximum (fewer if data is limited)
+1. 2-3 examples minimum per pattern
+2. Specific & actionable (e.g. "Avoiding loud venues" not "likes quiet")
+3. Strongest signals only
+4. 10-15 words max
+5. Appropriate emoji
+6. 3-5 patterns max
 
-Example patterns:
-- Avoiding loud venues: 🎵 "You've passed on 4 nightclubs and live music spots"
-- Loves unique experiences: ✨ "Museums and art galleries get the most upvotes"
-- Budget-conscious: 💰 "Expensive venues frequently marked 'not this'"
-- Prefers authentic cuisine: 🌮 "Local ethnic restaurants highly favored over chains"
+Examples:
+- 🎵 "Passed on 4 nightclubs and live music"
+- ✨ "Museums and galleries get most upvotes"
+- 💰 "Expensive venues marked 'not this'"
 
-Return JSON array of patterns:
+Return JSON:
 [
   {
-    "pattern": "Short descriptive title",
-    "icon": "single emoji",
-    "description": "Brief casual explanation (10-15 words)"
+    "pattern": "Title",
+    "icon": "emoji",
+    "description": "10-15 words"
   }
 ]`;
 
+    const startTime = Date.now();
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -1140,14 +1333,46 @@ Return JSON array of patterns:
       response_format: { type: "json_object" },
       max_completion_tokens: 500,
     });
+    const responseTimeMs = Date.now() - startTime;
 
     const result = JSON.parse(response.choices[0].message.content || '{"patterns": []}');
     const patterns = result.patterns || [];
-    
+
     console.log(`[AI Insights] Generated ${patterns.length} preference patterns from ${totalActions} feedback actions`);
+
+    // Log successful API call
+    const inputTokens = response.usage?.prompt_tokens || 0;
+    const outputTokens = response.usage?.completion_tokens || 0;
+    await logApiCall({
+      service: 'openai',
+      method: 'analyzePreferencePatterns',
+      cacheStatus: 'miss',
+      status: 'success',
+      responseTimeMs,
+      costEstimate: calculateOpenAICost('gpt-4o-mini', inputTokens, outputTokens),
+      parameters: { totalActions },
+      metadata: {
+        model: 'gpt-4o-mini',
+        inputTokens,
+        outputTokens,
+        totalTokens: inputTokens + outputTokens,
+        patternCount: patterns.length,
+      },
+    });
+
     return patterns;
   } catch (error) {
     console.error("Error analyzing preference patterns:", error);
+
+    // Log API call failure
+    await logApiCall({
+      service: 'openai',
+      method: 'analyzePreferencePatterns',
+      cacheStatus: 'miss',
+      status: 'error',
+      errorMessage: (error as Error).message,
+    });
+
     return [];
   }
 }
@@ -1184,9 +1409,10 @@ Examples:
 
 "drinks this friday" →
   activityType: "drinks", category: "drinks", location: null, timePreference: null, dayConstraints: "any", timeframe: "this friday"
-  
+
 Return your response as a JSON object with these fields.`;
 
+    const startTime = Date.now();
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -1202,11 +1428,31 @@ Return your response as a JSON object with these fields.`;
       response_format: { type: "json_object" },
       max_completion_tokens: 300,
     });
+    const responseTimeMs = Date.now() - startTime;
 
     const result = JSON.parse(response.choices[0].message.content || '{}');
-    
+
     console.log(`[AI Scheduling] Parsed params:`, result);
-    
+
+    // Log successful API call
+    const inputTokens = response.usage?.prompt_tokens || 0;
+    const outputTokens = response.usage?.completion_tokens || 0;
+    await logApiCall({
+      service: 'openai',
+      method: 'parseSchedulingPrompt',
+      cacheStatus: 'miss',
+      status: 'success',
+      responseTimeMs,
+      costEstimate: calculateOpenAICost('gpt-4o-mini', inputTokens, outputTokens),
+      parameters: { prompt, groupLocation },
+      metadata: {
+        model: 'gpt-4o-mini',
+        inputTokens,
+        outputTokens,
+        totalTokens: inputTokens + outputTokens,
+      },
+    });
+
     return {
       activityType: result.activityType || 'activity',
       category: result.category || 'meal',
@@ -1218,6 +1464,17 @@ Return your response as a JSON object with these fields.`;
     };
   } catch (error) {
     console.error("Error parsing scheduling prompt:", error);
+
+    // Log API call failure
+    await logApiCall({
+      service: 'openai',
+      method: 'parseSchedulingPrompt',
+      cacheStatus: 'miss',
+      status: 'error',
+      parameters: { prompt, groupLocation },
+      errorMessage: (error as Error).message,
+    });
+
     // Return sensible defaults
     return {
       activityType: 'activity',
@@ -1329,10 +1586,11 @@ You MUST respond with a JSON array where each object has:
   "reasoning": "Brief explanation"
 }`;
 
-    const venueList = venues.map(v => 
+    const venueList = venues.map(v =>
       `ID: ${v.id}\nName: ${v.name}\nAddress: ${v.address}\nTypes: ${v.googleTypes.join(', ')}`
     ).join('\n\n');
 
+    const startTime = Date.now();
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -1345,6 +1603,7 @@ You MUST respond with a JSON array where each object has:
       response_format: { type: "json_object" },
       max_completion_tokens: 5000,
     });
+    const responseTimeMs = Date.now() - startTime;
 
     const rawContent = response.choices[0].message.content || '{}';
     let result: any;
@@ -1391,9 +1650,41 @@ You MUST respond with a JSON array where each object has:
       }
     }
 
+    // Log successful API call
+    const inputTokens = response.usage?.prompt_tokens || 0;
+    const outputTokens = response.usage?.completion_tokens || 0;
+    await logApiCall({
+      service: 'openai',
+      method: 'validateVenuesBatch',
+      cacheStatus: 'miss',
+      status: 'success',
+      responseTimeMs,
+      costEstimate: calculateOpenAICost('gpt-4o-mini', inputTokens, outputTokens),
+      parameters: { batchSize: venues.length },
+      metadata: {
+        model: 'gpt-4o-mini',
+        inputTokens,
+        outputTokens,
+        totalTokens: inputTokens + outputTokens,
+        venueCount: venues.length,
+        validCount: Array.from(results.values()).filter(r => r.isValid).length,
+      },
+    });
+
     return results;
   } catch (error) {
     console.error("Error in batched venue validation:", error);
+
+    // Log API call failure
+    await logApiCall({
+      service: 'openai',
+      method: 'validateVenuesBatch',
+      cacheStatus: 'miss',
+      status: 'error',
+      parameters: { batchSize: venues.length },
+      errorMessage: (error as Error).message,
+    });
+
     // On error, mark all as invalid for safety
     for (const venue of venues) {
       results.set(venue.id, {
@@ -1401,6 +1692,217 @@ You MUST respond with a JSON array where each object has:
         reasoning: 'Batch validation error - treating as invalid for safety'
       });
     }
+    return results;
+  }
+}
+
+/**
+ * Batch categorize multiple venues in a single API call
+ * Much more efficient than calling categorizeVenue() individually
+ * Returns a map of cacheKey -> category
+ */
+export async function categorizeVenuesBatch(
+  venues: Array<{ venueName: string; venueType: string; googleTypes?: string[] }>
+): Promise<Map<string, 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences'>> {
+  const results = new Map<string, 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences'>();
+  const uncachedVenues: Array<{ venueName: string; venueType: string; googleTypes?: string[]; cacheKey: string }> = [];
+
+  // Check caches for all venues first
+  for (const venue of venues) {
+    const cacheKey = `${venue.venueName.toLowerCase()}::${venue.venueType.toLowerCase()}`;
+
+    // Check in-memory cache
+    const memCached = categorizationCache.get(cacheKey);
+    if (memCached) {
+      results.set(cacheKey, memCached as 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences');
+      continue;
+    }
+
+    // Check database cache
+    try {
+      const dbCached = await db
+        .select()
+        .from(aiCategorizationCache)
+        .where(eq(aiCategorizationCache.cacheKey, cacheKey))
+        .limit(1);
+
+      if (dbCached.length > 0) {
+        const cached = dbCached[0];
+        const now = new Date();
+        if (cached.expiresAt > now) {
+          const category = cached.category as 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences';
+          categorizationCache.set(cacheKey, category);
+          results.set(cacheKey, category);
+          continue;
+        } else {
+          // Cache expired, delete it
+          await db
+            .delete(aiCategorizationCache)
+            .where(eq(aiCategorizationCache.cacheKey, cacheKey));
+        }
+      }
+    } catch (error) {
+      console.error('[Batch Categorization] Database cache lookup failed:', error);
+    }
+
+    // Not in cache, needs API call
+    uncachedVenues.push({ ...venue, cacheKey });
+  }
+
+  console.log(`[Batch Categorization] ${results.size} cached, ${uncachedVenues.length} need API call`);
+
+  // If all venues were cached, return early
+  if (uncachedVenues.length === 0) {
+    await logApiCall({
+      service: 'openai',
+      method: 'categorizeVenuesBatch',
+      cacheStatus: 'hit',
+      status: 'success',
+      responseTimeMs: 0,
+      costEstimate: 0,
+      parameters: { totalVenues: venues.length },
+      metadata: { allCached: true },
+    });
+    return results;
+  }
+
+  // Batch categorize uncached venues
+  try {
+    const venueList = uncachedVenues.map((v, i) =>
+      `${i + 1}. Name: "${v.venueName}"\n   Type: "${v.venueType}"${v.googleTypes && v.googleTypes.length > 0 ? `\n   Google Types: ${v.googleTypes.join(', ')}` : ''}`
+    ).join('\n\n');
+
+    const prompt = `Categorize ${uncachedVenues.length} venues by PRIMARY purpose.
+
+${venueList}
+
+Categories: meal, cafes, drinks, dessert, experiences
+
+Rules:
+1. One category per venue
+2. Based on PRIMARY purpose
+3. Entertainment = experiences (even if serves food)
+4. Ice cream/boba/bakeries = dessert (NOT meal)
+
+Return JSON:
+{
+  "venues": [
+    {"index": 1, "category": "meal"},
+    {"index": 2, "category": "cafes"}
+  ]
+}`;
+
+    const startTime = Date.now();
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: "You categorize venues by their PRIMARY purpose. Always respond with valid JSON."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      response_format: { type: "json_object" },
+      max_completion_tokens: uncachedVenues.length * 20, // ~20 tokens per venue
+    });
+    const responseTimeMs = Date.now() - startTime;
+
+    const result = JSON.parse(response.choices[0].message.content || '{}');
+    const categorizations = result.venues || [];
+
+    // Process results and update caches
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiration
+
+    for (const cat of categorizations) {
+      if (cat.index && cat.category) {
+        const venueIndex = cat.index - 1; // Convert to 0-based
+        if (venueIndex >= 0 && venueIndex < uncachedVenues.length) {
+          const venue = uncachedVenues[venueIndex];
+          const category = cat.category as 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences';
+
+          // Store in results
+          results.set(venue.cacheKey, category);
+
+          // Update in-memory cache
+          categorizationCache.set(venue.cacheKey, category);
+
+          // Update database cache
+          try {
+            await db.insert(aiCategorizationCache).values({
+              cacheKey: venue.cacheKey,
+              category,
+              venueName: venue.venueName,
+              venueType: venue.venueType,
+              expiresAt,
+            }).onConflictDoUpdate({
+              target: aiCategorizationCache.cacheKey,
+              set: {
+                category,
+                venueName: venue.venueName,
+                venueType: venue.venueType,
+                expiresAt,
+              },
+            });
+          } catch (error) {
+            console.error('[Batch Categorization] Failed to write to database cache:', error);
+          }
+        }
+      }
+    }
+
+    console.log(`[Batch Categorization] Categorized ${categorizations.length}/${uncachedVenues.length} venues`);
+
+    // Log successful API call
+    const inputTokens = response.usage?.prompt_tokens || 0;
+    const outputTokens = response.usage?.completion_tokens || 0;
+    await logApiCall({
+      service: 'openai',
+      method: 'categorizeVenuesBatch',
+      cacheStatus: 'miss',
+      status: 'success',
+      responseTimeMs,
+      costEstimate: calculateOpenAICost('gpt-4o-mini', inputTokens, outputTokens),
+      parameters: { totalVenues: venues.length, uncachedVenues: uncachedVenues.length },
+      metadata: {
+        model: 'gpt-4o-mini',
+        inputTokens,
+        outputTokens,
+        totalTokens: inputTokens + outputTokens,
+        categorizedCount: categorizations.length,
+      },
+    });
+
+    return results;
+  } catch (error) {
+    console.error("Error in batch categorization:", error);
+
+    // Log API call failure
+    await logApiCall({
+      service: 'openai',
+      method: 'categorizeVenuesBatch',
+      cacheStatus: 'miss',
+      status: 'error',
+      parameters: { totalVenues: venues.length, uncachedVenues: uncachedVenues.length },
+      errorMessage: (error as Error).message,
+    });
+
+    // On error, fall back to individual categorization for uncached venues
+    console.log('[Batch Categorization] Falling back to individual categorization');
+    for (const venue of uncachedVenues) {
+      try {
+        const category = await categorizeVenue(venue.venueName, venue.venueType, venue.googleTypes);
+        results.set(venue.cacheKey, category);
+      } catch (venueError) {
+        console.error(`[Batch Categorization] Failed to categorize ${venue.venueName}:`, venueError);
+        // Default to 'meal' on error
+        results.set(venue.cacheKey, 'meal');
+      }
+    }
+
     return results;
   }
 }
@@ -1448,6 +1950,7 @@ You MUST respond with a JSON object in this exact format:
   "reasoning": "Brief explanation of why this venue is or isn't suitable for social gatherings"
 }`;
 
+    const startTime = Date.now();
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -1464,6 +1967,7 @@ Is this a valid venue for social gatherings? Respond with JSON containing "isVal
       response_format: { type: "json_object" },
       max_completion_tokens: 150,
     });
+    const responseTimeMs = Date.now() - startTime;
 
     const result = JSON.parse(response.choices[0].message.content || '{}');
     
@@ -1477,13 +1981,44 @@ Is this a valid venue for social gatherings? Respond with JSON containing "isVal
         reasoning: `Invalid AI response format - treating as non-social venue for safety`
       };
     }
-    
+
+    // Log successful API call
+    const inputTokens = response.usage?.prompt_tokens || 0;
+    const outputTokens = response.usage?.completion_tokens || 0;
+    await logApiCall({
+      service: 'openai',
+      method: 'isValidSocialVenue',
+      cacheStatus: 'miss',
+      status: 'success',
+      responseTimeMs,
+      costEstimate: calculateOpenAICost('gpt-4o-mini', inputTokens, outputTokens),
+      parameters: { venueName },
+      metadata: {
+        model: 'gpt-4o-mini',
+        inputTokens,
+        outputTokens,
+        totalTokens: inputTokens + outputTokens,
+        isValid: result.isValid,
+      },
+    });
+
     return {
       isValid: result.isValid,
       reasoning: result.reasoning || "No reasoning provided"
     };
   } catch (error) {
     console.error("Error validating social venue:", error);
+
+    // Log API call failure
+    await logApiCall({
+      service: 'openai',
+      method: 'isValidSocialVenue',
+      cacheStatus: 'miss',
+      status: 'error',
+      parameters: { venueName },
+      errorMessage: (error as Error).message,
+    });
+
     // On error, default to INVALID to prevent bad venues from slipping through
     return {
       isValid: false,
