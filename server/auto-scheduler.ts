@@ -774,6 +774,36 @@ export function calculateCadenceInDays(meetingFrequency: string): number {
 }
 
 /**
+ * Calculate the target number of future events to maintain for a group
+ * based on their meeting cadence
+ *
+ * @param meetingFrequency - The meeting frequency string (e.g., "1x week", "2x month")
+ * @returns Number of events to maintain in the pipeline (2-4)
+ *
+ * Strategy:
+ * - High frequency (≤7 days): 2 events ahead (prevents overwhelm)
+ * - Medium frequency (8-20 days): 3 events ahead (sweet spot for planning)
+ * - Low frequency (21+ days): 4 events ahead (longer visibility needed)
+ */
+export function calculateTargetEventCount(meetingFrequency: string): number {
+  const cadenceInDays = calculateCadenceInDays(meetingFrequency);
+
+  if (cadenceInDays <= 7) {
+    // High frequency: 3x week, 2x week, 1x week
+    // Planning horizon: 4-14 days
+    return 2;
+  } else if (cadenceInDays <= 20) {
+    // Medium frequency: 2x month (every 15 days)
+    // Planning horizon: 24-60 days
+    return 3;
+  } else {
+    // Low frequency: 1x month, 1x quarter
+    // Planning horizon: 60-360 days
+    return 4;
+  }
+}
+
+/**
  * Check if a group needs auto-scheduling
  * Returns true if:
  * - Auto-schedule is enabled
@@ -818,4 +848,145 @@ export async function shouldTriggerAutoSchedule(
   }
 
   return true;
+}
+
+/**
+ * Maintain the event pipeline for a group by ensuring it has the target
+ * number of future events queued up
+ *
+ * @param groupId - The group to maintain events for
+ * @param storage - Storage instance for database operations
+ * @returns The number of events created
+ *
+ * This function:
+ * 1. Gets the target event count (from group setting or calculated from cadence)
+ * 2. Counts existing future events
+ * 3. Creates additional events to reach the target count
+ * 4. Spaces events according to the group's meeting frequency
+ */
+export async function maintainEventPipeline(
+  groupId: string,
+  storage: IStorage
+): Promise<number> {
+  console.log(`[Event Pipeline] Maintaining pipeline for group ${groupId}`);
+
+  // Get the group
+  const group = await storage.getGroup(groupId);
+  if (!group) {
+    console.log(`[Event Pipeline] Group ${groupId} not found`);
+    return 0;
+  }
+
+  // Skip if auto-scheduling is not enabled
+  if (!group.autoScheduleEnabled) {
+    console.log(`[Event Pipeline] Auto-scheduling not enabled for group ${group.name}`);
+    return 0;
+  }
+
+  // Skip if automation is paused
+  if (group.automationPaused) {
+    console.log(`[Event Pipeline] Automation is paused for group ${group.name}`);
+    return 0;
+  }
+
+  // Determine target event count
+  const targetCount = group.targetFutureEvents ?? calculateTargetEventCount(group.meetingFrequency);
+  console.log(`[Event Pipeline] Target event count for ${group.name}: ${targetCount} (cadence: ${group.meetingFrequency})`);
+
+  // Count existing future events
+  const existingCount = await storage.countFutureEvents(groupId);
+  console.log(`[Event Pipeline] Existing future events for ${group.name}: ${existingCount}`);
+
+  // Calculate how many more events we need
+  const eventsNeeded = targetCount - existingCount;
+  if (eventsNeeded <= 0) {
+    console.log(`[Event Pipeline] Pipeline is full for ${group.name} (${existingCount}/${targetCount})`);
+    return 0;
+  }
+
+  console.log(`[Event Pipeline] Need to create ${eventsNeeded} more event(s) for ${group.name}`);
+
+  // Get the starting date for new events
+  // This should be the next due date after all existing events
+  let startDate: Date;
+  if (!group.nextEventDueDate) {
+    // If no next event date, calculate from last event or use now
+    if (group.lastEventDate) {
+      startDate = calculateNextEventDueDate(new Date(group.lastEventDate), group.meetingFrequency);
+    } else {
+      // First event for this group
+      startDate = new Date();
+      startDate.setDate(startDate.getDate() + 7); // Start 1 week from now
+    }
+  } else {
+    // Start from the next due date, but skip ahead by existing events
+    startDate = new Date(group.nextEventDueDate);
+    for (let i = 0; i < existingCount; i++) {
+      startDate = calculateNextEventDueDate(startDate, group.meetingFrequency);
+    }
+  }
+
+  console.log(`[Event Pipeline] Creating ${eventsNeeded} events starting from ${startDate.toISOString()}`);
+
+  // Generate future event dates
+  const futureDates = calculateFutureEventDates(startDate, group.meetingFrequency, eventsNeeded);
+
+  // Create a full auto-scheduled event for each date
+  const { itineraryOptions: itineraryOptionsTable } = await import('../shared/schema');
+
+  let createdCount = 0;
+  for (const eventDate of futureDates) {
+    try {
+      console.log(`[Event Pipeline] Generating full event for ${group.name} on ${eventDate.toISOString()}`);
+
+      // Generate itinerary options for this event
+      // Note: This is expensive but gives users real events with full details
+      const selection = await selectBestItineraryForAutoSchedule(storage, group);
+
+      if (selection.options && selection.options.length > 0) {
+        console.log(`[Event Pipeline] Generated ${selection.options.length} itinerary options`);
+
+        // Create auto-scheduled event with pending_approval status
+        // Set autoSendAt to 3 days before the event (or now if event is within 3 days)
+        const autoSendDate = new Date(eventDate);
+        autoSendDate.setDate(autoSendDate.getDate() - 3);
+        const now = new Date();
+        if (autoSendDate < now) {
+          autoSendDate.setTime(now.getTime());
+        }
+
+        const autoEvent = await storage.createAutoScheduledEvent({
+          groupId: groupId,
+          proposedDate: eventDate,
+          status: 'pending_approval',
+          confidenceScore: null,
+          requiresReview: false,
+          reviewReason: null,
+          autoSendAt: autoSendDate,
+        });
+
+        // Store the itinerary options
+        await Promise.all(
+          selection.options.map(async (option) => {
+            await db.insert(itineraryOptionsTable).values({
+              autoEventId: autoEvent.id,
+              optionNumber: option.optionNumber,
+              venues: option.venues,
+              description: option.description,
+            });
+          })
+        );
+
+        createdCount++;
+        console.log(`[Event Pipeline] Created full event for ${group.name} on ${eventDate.toISOString()}`);
+      } else {
+        console.log(`[Event Pipeline] No itinerary options generated for ${eventDate.toISOString()}, skipping`);
+      }
+    } catch (error) {
+      console.error(`[Event Pipeline] Failed to create event for ${group.name} on ${eventDate.toISOString()}:`, error);
+    }
+  }
+
+  console.log(`[Event Pipeline] Successfully created ${createdCount}/${eventsNeeded} events for ${group.name}`);
+  return createdCount;
 }

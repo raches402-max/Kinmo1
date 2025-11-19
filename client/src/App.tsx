@@ -14,7 +14,6 @@ import CreateGroup from "@/pages/create-group";
 import GroupDetail from "@/pages/group-detail";
 import JoinEntry from "@/pages/join-entry";
 import JoinGroup from "@/pages/join-group";
-import YasThis from "@/pages/yas-this";
 import InvitePage from "@/pages/invite";
 import RsvpItineraryPage from "@/pages/rsvp-itinerary";
 import GuestRsvpPage from "@/pages/guest-rsvp";
@@ -88,7 +87,6 @@ function Router() {
           <Route path="/create-group" component={CreateGroup} />
           <Route path="/group/:id" component={GroupDetail} />
           <Route path="/groups/:id/learning" component={LearningInsights} />
-          <Route path="/yas-this" component={YasThis} />
           <Route path="/join-entry" component={JoinEntry} />
           <Route path="/join/:shareableLink" component={JoinGroup} />
           <Route path="/invite/:token" component={InvitePage} />

@@ -425,10 +425,11 @@ export default function RsvpItineraryPage() {
         {itinerary.proposedTimeSlots && itinerary.proposedTimeSlots.length > 0 && claimedMemberId && (
           <Card>
             <CardContent className="pt-6">
-              <TimeSlotVoting 
+              <TimeSlotVoting
                 itineraryId={itinerary.id}
                 memberId={claimedMemberId}
                 isOrganizer={false}
+                timezone={itinerary.group?.timezone}
               />
             </CardContent>
           </Card>

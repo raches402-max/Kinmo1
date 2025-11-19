@@ -57,8 +57,7 @@ export function DiscoverVenuesModal({
       });
 
       toast({
-        title: "Venues generated!",
-        description: `AI has generated ${selectedCategory} suggestions. Check the Activities tab!`,
+        title: "Venues generated",
       });
 
       // Refresh activities
@@ -121,9 +120,6 @@ export function DiscoverVenuesModal({
             <Compass className="h-5 w-5 text-primary" />
             Discover Venues
           </DialogTitle>
-          <DialogDescription>
-            Find great places for your group to visit
-          </DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue="category" className="w-full">
@@ -148,10 +144,10 @@ export function DiscoverVenuesModal({
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-primary" />
-                  Generate AI Suggestions
+                  Generate Suggestions
                 </CardTitle>
                 <CardDescription>
-                  Let AI find venues based on category, location, and your preferences
+                  Find venues by category
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -172,9 +168,6 @@ export function DiscoverVenuesModal({
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground">
-                    AI will generate 5-10 personalized suggestions based on your group's preferences
-                  </p>
                 </div>
                 <div className="flex gap-2 justify-end">
                   <Button
@@ -213,22 +206,10 @@ export function DiscoverVenuesModal({
                   Swipe-Based Discovery
                 </CardTitle>
                 <CardDescription>
-                  Swipe through AI-curated venues to build your Favorites
+                  Swipe through venues
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="text-sm text-muted-foreground space-y-2">
-                  <p>In a swipe session, you'll:</p>
-                  <ul className="list-disc list-inside space-y-1 ml-2">
-                    <li>See a mix of AI suggestions and existing favorites</li>
-                    <li>Swipe right (👍) to add to Favorites</li>
-                    <li>Swipe left (👎) to pass</li>
-                    <li>Help AI learn your group's preferences</li>
-                  </ul>
-                  <p className="pt-2 font-medium">
-                    Great for quickly building a collection of venues!
-                  </p>
-                </div>
                 <div className="flex justify-end">
                   <Button
                     onClick={handleStartSwipe}
@@ -258,25 +239,13 @@ export function DiscoverVenuesModal({
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
                   <TrendingUp className="h-4 w-4 text-primary" />
-                  Browse AI Suggestions
+                  Browse Suggestions
                 </CardTitle>
                 <CardDescription>
-                  View all AI-generated venues in the Activities tab
+                  View all suggestions in the Activities tab
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="text-sm text-muted-foreground space-y-2">
-                  <p>In the Activities tab, you can:</p>
-                  <ul className="list-disc list-inside space-y-1 ml-2">
-                    <li>Browse AI-suggested venues by category</li>
-                    <li>See venues on a map</li>
-                    <li>Add favorites with a single click</li>
-                    <li>Regenerate suggestions if you want different options</li>
-                  </ul>
-                  <p className="pt-2 font-medium">
-                    Perfect for exploring all your options at once!
-                  </p>
-                </div>
                 <div className="flex justify-end">
                   <Button onClick={handleGoToActivities} className="gap-2">
                     Go to Activities Tab

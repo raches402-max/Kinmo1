@@ -8,6 +8,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { Calendar, Users, Check, Circle, CheckCircle2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { formatDateTimeWithTimezone } from "@/lib/utils";
 
 interface TimeSlot {
   id: string;
@@ -29,9 +30,10 @@ interface TimeSlotVotingProps {
   userId?: string;
   memberId?: string;
   isOrganizer?: boolean;
+  timezone?: string;
 }
 
-export function TimeSlotVoting({ itineraryId, userId, memberId, isOrganizer = false }: TimeSlotVotingProps) {
+export function TimeSlotVoting({ itineraryId, userId, memberId, isOrganizer = false, timezone = 'America/Los_Angeles' }: TimeSlotVotingProps) {
   const { toast } = useToast();
 
   const { data: timeSlots = [], isLoading } = useQuery<TimeSlot[]>({
@@ -108,14 +110,8 @@ export function TimeSlotVoting({ itineraryId, userId, memberId, isOrganizer = fa
           <div className="flex items-center justify-between">
             <div>
               <div className="font-semibold">
-                {format(new Date(selectedSlot.proposedDateTime), "EEE, MMM d")}
+                {formatDateTimeWithTimezone(selectedSlot.proposedDateTime, timezone)}
               </div>
-              <div className="text-sm text-muted-foreground">
-                {format(new Date(selectedSlot.proposedDateTime), "h:mm a")}
-              </div>
-              {selectedSlot.label && (
-                <div className="text-xs text-muted-foreground mt-1">{selectedSlot.label}</div>
-              )}
             </div>
             <Badge variant="default" className="gap-1">
               <Check className="h-3 w-3" />
@@ -149,14 +145,9 @@ export function TimeSlotVoting({ itineraryId, userId, memberId, isOrganizer = fa
                 {/* Date/Time */}
                 <div className="flex-1">
                   <div className="font-semibold">
-                    {format(new Date(slot.proposedDateTime), "EEE, MMM d • h:mm a")}
+                    {formatDateTimeWithTimezone(slot.proposedDateTime, timezone)}
                   </div>
-                  {slot.label && (
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      {slot.label}
-                    </div>
-                  )}
-                  
+
                   {/* Vote counts with hover cards */}
                   <div className="flex items-center gap-3 mt-2 text-xs">
                     {/* Can attend */}

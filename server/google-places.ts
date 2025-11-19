@@ -1531,8 +1531,12 @@ export async function searchPlaces(
     // OPTIMIZATION: Use Text Search data directly instead of calling getPlaceDetails for each result
     // This saves 20x API calls per search (was calling Place Details for every result)
     const results: PlaceResult[] = [];
-    const MIN_REVIEWS = 50;
-    
+
+    // REMOVED MIN_REVIEWS = 50 filter - was too aggressive and conflicted with downstream filters
+    // Quality filtering now handled consistently in routes.ts with context-aware thresholds (10-15 reviews)
+    // This filter was causing high-quality venues with 15-49 reviews to be filtered out,
+    // then fallback logic would accept venues with only 5 reviews (creating worse results)
+
     for (const place of data.places) {
       // NEW API: Extract location from place object
       const placeLocation = place.location ? {
@@ -1556,12 +1560,12 @@ export async function searchPlaces(
         }
       }
       
-      // Filter out places with fewer than 50 reviews (skip filter for user-directed searches)
-      // NEW API: userRatingCount instead of user_ratings_total
-      if (!userDirected && (!place.userRatingCount || place.userRatingCount < MIN_REVIEWS)) {
-        console.log(`[Google Places] Filtering out "${place.displayName?.text || 'Unknown'}" - only ${place.userRatingCount || 0} reviews (minimum: ${MIN_REVIEWS})`);
-        continue;
-      }
+      // REMOVED: Aggressive 50-review filter - now handled by downstream context-aware filters
+      // This allows venues with 15-49 reviews to pass through, improving quality
+      // if (!userDirected && (!place.userRatingCount || place.userRatingCount < MIN_REVIEWS)) {
+      //   console.log(`[Google Places] Filtering out "${place.displayName?.text || 'Unknown'}" - only ${place.userRatingCount || 0} reviews (minimum: ${MIN_REVIEWS})`);
+      //   continue;
+      // }
       
       // Build result from Text Search data (no additional API call needed!)
       let photoUrl: string | undefined;

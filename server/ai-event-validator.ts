@@ -175,7 +175,7 @@ Important:
 - Keep reasoning concise (under 100 characters)`;
 
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4o', // Upgraded from mini for better auto-schedule validation (timing, venue type matching, budget appropriateness)
       messages: [
         {
           role: 'system',
@@ -187,7 +187,7 @@ Important:
         },
       ],
       response_format: { type: 'json_object' },
-      temperature: 0.7,
+      temperature: 0.3, // Lowered from 0.7 for more consistent scoring
       max_tokens: 500,
     });
 

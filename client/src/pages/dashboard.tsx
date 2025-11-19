@@ -14,7 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from "@/components/ui/dropdown-menu";
-import { Plus, Sparkles, Users, MapPin, Calendar, CheckCircle, XCircle, HelpCircle, ExternalLink, Settings, LogOut, MoreVertical, ChevronDown, ChevronRight, Pencil, Trash2, FolderOpen, UserCheck, Bot, UserPlus, Star, MessageSquare, Copy, Check, Baby } from "lucide-react";
+import { Plus, Sparkles, Users, MapPin, Calendar, CheckCircle, XCircle, HelpCircle, ExternalLink, Settings, LogOut, MoreVertical, ChevronDown, ChevronUp, ChevronRight, Pencil, Trash2, FolderOpen, UserCheck, Bot, UserPlus, Star, MessageSquare, Copy, Check, Baby } from "lucide-react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
@@ -24,11 +24,41 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Group, User, UserProfile, GroupCollection } from "@shared/schema";
 import { useState, useEffect } from "react";
 import EventsTable from "@/components/EventsTable";
+import { GroupCard } from "@/components/GroupCard";
+import { DraggableGroupCard } from "@/components/DraggableGroupCard";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  DragStartEvent,
+  DragOverlay,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+
+// Helper function to convert hex color to rgba
+function hexToRgba(hex: string, alpha: number): string {
+  const cleanHex = hex.replace('#', '');
+  const r = parseInt(cleanHex.substring(0, 2), 16);
+  const g = parseInt(cleanHex.substring(2, 4), 16);
+  const b = parseInt(cleanHex.substring(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
 
 type SafeMember = {
   id: string;
   name: string | null;
   email: string | null;
+  userId?: string | null;
+  isOrganizer?: boolean;
   openToHosting?: boolean;
   profileCompleted?: boolean;
 };
@@ -146,6 +176,24 @@ export default function Dashboard() {
   const [renameCollectionName, setRenameCollectionName] = useState("");
   const [openCollections, setOpenCollections] = useState<Set<string>>(new Set());
   const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
+  const [isPastEventsExpanded, setIsPastEventsExpanded] = useState(true);
+  const [showArchivedEvents, setShowArchivedEvents] = useState(false);
+
+  // Drag-and-drop state
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set());
+
+  // Drag-and-drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // 8px movement required to start drag
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   // Create event dialog state
   const [showCreateEventDialog, setShowCreateEventDialog] = useState(false);
@@ -312,9 +360,18 @@ export default function Dashboard() {
     },
   });
 
+  const reorderGroupsMutation = useMutation({
+    mutationFn: async (groupOrders: Array<{ id: string; orderIndex: number }>) => {
+      return await apiRequest("PATCH", `/api/groups/reorder`, { groupOrders });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/groups"] });
+    },
+  });
+
   const moveGroupToCollectionMutation = useMutation({
     mutationFn: async ({ groupId, collectionId }: { groupId: string; collectionId: string | null }) => {
-      const targetGroups = collectionId 
+      const targetGroups = collectionId
         ? groups.filter(g => g.collectionId === collectionId)
         : groups.filter(g => !g.collectionId);
       const orderIndex = targetGroups.length;
@@ -331,6 +388,46 @@ export default function Dashboard() {
       toast({
         title: "Error",
         description: error.message || "Failed to move group",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteGroupMutation = useMutation({
+    mutationFn: async (groupId: string) => {
+      return await apiRequest("DELETE", `/api/groups/${groupId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/groups"] });
+      toast({
+        title: "Group deleted",
+        description: "The group has been deleted successfully",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete group",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const leaveGroupMutation = useMutation({
+    mutationFn: async ({ groupId, memberId }: { groupId: string; memberId: string }) => {
+      return await apiRequest("DELETE", `/api/groups/${groupId}/members/${memberId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/groups"] });
+      toast({
+        title: "Left group",
+        description: "You have left the group successfully",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to leave group",
         variant: "destructive",
       });
     },
@@ -451,24 +548,35 @@ export default function Dashboard() {
       wouldDoAgain: string;
       improvementNotes: string;
     }) => {
-      return await apiRequest("POST", `/api/itineraries/${itineraryId}/post-event-feedback`, {
+      console.log('[Post Event Feedback] Starting mutation:', { itineraryId, actuallyAttended, venueRating, frequencyPreference, wouldDoAgain, improvementNotes });
+
+      // Build request body with only defined optional fields
+      const requestBody: any = {
         actuallyAttended: actuallyAttended === "yes",
-        venueRating,
-        frequencyPreference,
-        wouldDoAgain,
-        improvementNotes
-      });
+      };
+
+      // Only include optional fields if they have valid values
+      if (venueRating > 0) requestBody.venueRating = venueRating;
+      if (frequencyPreference) requestBody.frequencyPreference = frequencyPreference;
+      if (wouldDoAgain) requestBody.wouldDoAgain = wouldDoAgain;
+      if (improvementNotes) requestBody.improvementNotes = improvementNotes;
+
+      console.log('[Post Event Feedback] Request body:', requestBody);
+      const result = await apiRequest("POST", `/api/itineraries/${itineraryId}/post-event-feedback`, requestBody);
+      console.log('[Post Event Feedback] API response:', result);
+      return result;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log('[Post Event Feedback] Mutation success:', data);
       queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
       setShowPostEventFeedback(false);
       resetPostEventForm();
       toast({
-        title: "Thank you for your feedback!",
-        description: "Your insights help us plan better events",
+        title: "Feedback submitted",
       });
     },
     onError: (error: any) => {
+      console.error('[Post Event Feedback] Mutation error:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to submit feedback",
@@ -545,8 +653,13 @@ export default function Dashboard() {
   };
 
   const handleSubmitPostEventFeedback = () => {
-    if (!postEventData || !postEventData.itineraryId) return;
+    console.log('[Post Event Feedback] handleSubmit called', { postEventData, actuallyAttended });
+    if (!postEventData || !postEventData.itineraryId) {
+      console.error('[Post Event Feedback] Missing data:', { postEventData, itineraryId: postEventData?.itineraryId });
+      return;
+    }
 
+    console.log('[Post Event Feedback] Calling mutation...');
     postEventFeedbackMutation.mutate({
       itineraryId: postEventData.itineraryId,
       actuallyAttended,
@@ -690,7 +803,58 @@ export default function Dashboard() {
     if (e.isOrganizer) return isFutureOrTBD;
     return e.rsvp && e.rsvp.response !== 'no' && isFutureOrTBD;
   });
+
+  // Limit events per group to avoid overwhelming the dashboard
+  const MAX_EVENTS_PER_GROUP = 3;
+  const limitEventsPerGroup = (events: typeof upcomingEvents) => {
+    const eventsByGroup = new Map<string, typeof upcomingEvents>();
+    const limitedEvents: typeof upcomingEvents = [];
+    let hiddenCount = 0;
+
+    // Group events by groupId
+    events.forEach(event => {
+      if (!eventsByGroup.has(event.groupId)) {
+        eventsByGroup.set(event.groupId, []);
+      }
+      eventsByGroup.get(event.groupId)!.push(event);
+    });
+
+    // For each group, take only the first MAX_EVENTS_PER_GROUP events
+    eventsByGroup.forEach((groupEvents) => {
+      const sortedEvents = groupEvents.sort((a, b) => {
+        const dateA = a.eventDate ? new Date(a.eventDate).getTime() : Infinity;
+        const dateB = b.eventDate ? new Date(b.eventDate).getTime() : Infinity;
+        return dateA - dateB;
+      });
+
+      limitedEvents.push(...sortedEvents.slice(0, MAX_EVENTS_PER_GROUP));
+      hiddenCount += Math.max(0, sortedEvents.length - MAX_EVENTS_PER_GROUP);
+    });
+
+    // Sort all limited events by date
+    return {
+      events: limitedEvents.sort((a, b) => {
+        const dateA = a.eventDate ? new Date(a.eventDate).getTime() : Infinity;
+        const dateB = b.eventDate ? new Date(b.eventDate).getTime() : Infinity;
+        return dateA - dateB;
+      }),
+      hiddenCount
+    };
+  };
+
+  const { events: displayedUpcomingEvents, hiddenCount: hiddenEventsCount } = limitEventsPerGroup(upcomingEvents);
   const pastEvents = events.filter(e => e.eventDate && new Date(e.eventDate) <= now);
+
+  // Split past events into recent (last 90 days) and archived (older)
+  const ninetyDaysAgo = new Date();
+  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+  const recentPastEvents = pastEvents.filter(event =>
+    event.eventDate && new Date(event.eventDate) >= ninetyDaysAgo
+  );
+  const archivedPastEvents = pastEvents.filter(event =>
+    event.eventDate && new Date(event.eventDate) < ninetyDaysAgo
+  );
+  const displayedPastEvents = showArchivedEvents ? pastEvents : recentPastEvents;
 
   // Organize groups by collection
   const uncategorizedGroups = groups.filter(g => !g.collectionId);
@@ -721,6 +885,70 @@ export default function Dashboard() {
       }
       return newSet;
     });
+  };
+
+  // Drag-and-drop handlers
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveDragId(event.active.id as string);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveDragId(null);
+
+    if (!over || active.id === over.id) return;
+
+    // Find which collection this drag happened in
+    const activeGroup = groups.find(g => g.id === active.id);
+    if (!activeGroup) return;
+
+    // Get all groups in the same collection
+    const sameCollectionGroups = groups
+      .filter(g => g.collectionId === activeGroup.collectionId)
+      .sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
+
+    const oldIndex = sameCollectionGroups.findIndex(g => g.id === active.id);
+    const newIndex = sameCollectionGroups.findIndex(g => g.id === over.id);
+
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    // Reorder the groups
+    const reorderedGroups = arrayMove(sameCollectionGroups, oldIndex, newIndex);
+
+    // Create the update payload
+    const groupOrders = reorderedGroups.map((g, index) => ({
+      id: g.id,
+      orderIndex: index,
+    }));
+
+    // Optimistically update the UI
+    queryClient.setQueryData(["/api/user/groups"], (old: any) => {
+      if (!old) return old;
+      return old.map((g: Group) => {
+        const newOrder = groupOrders.find(order => order.id === g.id);
+        return newOrder ? { ...g, orderIndex: newOrder.orderIndex } : g;
+      });
+    });
+
+    // Persist to server
+    reorderGroupsMutation.mutate(groupOrders);
+  };
+
+  const handleGroupSelect = (groupId: string, isMultiSelect: boolean) => {
+    if (isMultiSelect) {
+      setSelectedGroupIds(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(groupId)) {
+          newSet.delete(groupId);
+        } else {
+          newSet.add(groupId);
+        }
+        return newSet;
+      });
+    } else {
+      // Single select (clear others)
+      setSelectedGroupIds(new Set([groupId]));
+    }
   };
 
   const getFirstInitial = (name?: string | null) => {
@@ -771,111 +999,22 @@ export default function Dashboard() {
     return `${rsvp.name}${suffix}`;
   };
 
-  const GroupCard = ({ group, showMenu = true }: { group: Group & { members: SafeMember[] }; showMenu?: boolean }) => (
-    <Card className="hover-elevate active-elevate-2 transition-all h-full relative group" data-testid={`card-group-${group.id}`}>
-      <Link href={`/group/${group.id}`} className="block">
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-start justify-between gap-2 text-base">
-            <div className="flex items-center gap-2">
-              <span className="text-2xl" data-testid={`emoji-group-${group.id}`}>{group.emoji || "🎉"}</span>
-              <span>{group.name}</span>
-            </div>
-            {group.activityGenerationStatus === "completed" && (
-              <Sparkles className="h-3.5 w-3.5 text-primary flex-shrink-0" />
-            )}
-          </CardTitle>
-          <CardDescription className="flex items-center gap-1.5 text-sm">
-            <MapPin className="h-3 w-3" />
-            {group.locationBase} • {group.meetingFrequency.charAt(0).toUpperCase() + group.meetingFrequency.slice(1)}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2 pb-3">
-          <div className="text-sm text-muted-foreground">
-            Budget: ${group.budgetMin}-${group.budgetMax}
-          </div>
-          {group.activityGenerationStatus === "generating" && (
-            <div className="text-sm text-primary">
-              Generating suggestions...
-            </div>
-          )}
-          {group.activityGenerationStatus === "failed" && (
-            <div className="text-sm text-destructive">
-              Generation failed
-            </div>
-          )}
-          {group.members && group.members.length > 0 && (
-            <div className="flex items-center gap-1.5 pt-1">
-              <div className="flex -space-x-2" data-testid={`members-preview-${group.id}`}>
-                {group.members.slice(0, 3).map((member, idx) => (
-                  <Avatar key={member.id} className="h-6 w-6 border-2 border-background" data-testid={`avatar-member-${idx}`}>
-                    <AvatarFallback className="text-xs bg-muted">
-                      {getFirstInitial(member.name)}
-                    </AvatarFallback>
-                  </Avatar>
-                ))}
-                {group.members.length > 3 && (
-                  <div className="h-6 w-6 rounded-full border-2 border-background bg-muted flex items-center justify-center" data-testid="members-overflow">
-                    <span className="text-xs text-muted-foreground">+{group.members.length - 3}</span>
-                  </div>
-                )}
-              </div>
-              <span className="text-xs text-muted-foreground">
-                {group.members.length} {group.members.length === 1 ? 'member' : 'members'}
-              </span>
-            </div>
-          )}
-        </CardContent>
-      </Link>
-      {showMenu && (
-        <div className="absolute top-2 right-2" onClick={(e) => e.stopPropagation()}>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                data-testid={`button-group-menu-${group.id}`}
-              >
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Group Actions</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger data-testid={`menu-move-to-collection-${group.id}`}>
-                  <FolderOpen className="mr-2 h-4 w-4" />
-                  Move to Collection
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  <DropdownMenuItem 
-                    onClick={() => moveGroupToCollectionMutation.mutate({ groupId: group.id, collectionId: null })}
-                    data-testid={`menu-move-none-${group.id}`}
-                  >
-                    None (All Groups)
-                  </DropdownMenuItem>
-                  {collections.map(collection => (
-                    <DropdownMenuItem
-                      key={collection.id}
-                      onClick={() => moveGroupToCollectionMutation.mutate({ groupId: group.id, collectionId: collection.id })}
-                      data-testid={`menu-move-${collection.id}-${group.id}`}
-                    >
-                      {collection.name}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-              <DropdownMenuItem asChild>
-                <Link href={`/group/${group.id}`}>
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Edit Group
-                </Link>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      )}
-    </Card>
+  // Wrapper for the new GroupCard component with drag-and-drop
+  const GroupCardWrapper = ({ group, showMenu = true }: { group: Group & { members: SafeMember[] }; showMenu?: boolean }) => (
+    <DraggableGroupCard
+      group={group}
+      showMenu={showMenu}
+      collections={collections}
+      currentUserMemberId={group.members.find(m => m.userId === user?.id)?.id}
+      onMoveToCollection={(groupId, collectionId) =>
+        moveGroupToCollectionMutation.mutate({ groupId, collectionId })
+      }
+      onDeleteGroup={(groupId) => deleteGroupMutation.mutate(groupId)}
+      onLeaveGroup={(groupId, memberId) => leaveGroupMutation.mutate({ groupId, memberId })}
+      isSelected={selectedGroupIds.has(group.id)}
+      onSelect={handleGroupSelect}
+      isDragging={activeDragId === group.id}
+    />
   );
 
   return (
@@ -975,24 +1114,9 @@ export default function Dashboard() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-8">
         <div className="mb-8">
-          <h2 className="text-3xl font-bold mb-2">
+          <h2 className="text-3xl font-bold">
             Welcome back, {displayName.split(" ")[0]}!
           </h2>
-          <p className="text-muted-foreground">
-            Manage your group activities and get AI-powered suggestions
-          </p>
-          {user && (
-            <div className="mt-3 flex items-center gap-2">
-              <Badge variant="outline" className="text-xs font-mono" data-testid="badge-current-user">
-                {user.email || user.id}
-              </Badge>
-              {user.email && user.email.endsWith('@example.com') && (
-                <Badge variant="secondary" className="text-xs" data-testid="badge-test-account">
-                  Test Account
-                </Badge>
-              )}
-            </div>
-          )}
         </div>
 
         <Tabs defaultValue="my-events" className="w-full">
@@ -1014,7 +1138,7 @@ export default function Dashboard() {
                       <div className="flex-1">
                         <h3 className="font-semibold mb-1">Share Your Feedback</h3>
                         <p className="text-sm text-muted-foreground mb-3">
-                          {pastEventsNeedingFeedback.length} past {pastEventsNeedingFeedback.length === 1 ? 'event needs' : 'events need'} your feedback. Help us plan better future activities!
+                          {pastEventsNeedingFeedback.length} past {pastEventsNeedingFeedback.length === 1 ? 'event needs' : 'events need'} your feedback
                         </p>
                         <Button 
                           size="sm" 
@@ -1062,9 +1186,20 @@ export default function Dashboard() {
                                 <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-1">
                                   <span className="text-2xl">{event.groupEmoji}</span>
-                                  <h4 className="font-bold text-base">{event.groupName}</h4>
-                                  <Badge variant="outline" className="bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 text-xs">
-                                    RSVP Needed
+                                  <Badge
+                                    variant="secondary"
+                                    className="font-semibold text-sm"
+                                    style={{
+                                      backgroundColor: event.groupAccentColor
+                                        ? hexToRgba(event.groupAccentColor, 0.15)
+                                        : 'rgba(148, 163, 184, 0.15)',
+                                      borderColor: event.groupAccentColor || '#94A3B8',
+                                      borderWidth: '1px',
+                                      borderStyle: 'solid',
+                                      color: event.groupAccentColor || 'inherit'
+                                    }}
+                                  >
+                                    {event.groupName}
                                   </Badge>
                                 </div>
                                 <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
@@ -1080,7 +1215,7 @@ export default function Dashboard() {
                                     <>
                                       <span>•</span>
                                       <Bot className="h-3 w-3" />
-                                      <span>AI scheduling</span>
+                                      <span>Auto-scheduled</span>
                                     </>
                                   )}
                                 </div>
@@ -1221,9 +1356,20 @@ export default function Dashboard() {
                                 <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-1">
                                   <span className="text-2xl">{event.groupEmoji}</span>
-                                  <h4 className="font-bold text-base">{event.groupName}</h4>
-                                  <Badge variant="outline" className="bg-blue-500/10 text-blue-700 dark:text-blue-400 text-xs">
-                                    Guest Pending
+                                  <Badge
+                                    variant="secondary"
+                                    className="font-semibold text-sm"
+                                    style={{
+                                      backgroundColor: event.groupAccentColor
+                                        ? hexToRgba(event.groupAccentColor, 0.15)
+                                        : 'rgba(148, 163, 184, 0.15)',
+                                      borderColor: event.groupAccentColor || '#94A3B8',
+                                      borderWidth: '1px',
+                                      borderStyle: 'solid',
+                                      color: event.groupAccentColor || 'inherit'
+                                    }}
+                                  >
+                                    {event.groupName}
                                   </Badge>
                                 </div>
                                 <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
@@ -1302,9 +1448,16 @@ export default function Dashboard() {
               {/* Upcoming Events Section */}
               {!eventsLoading && upcomingEvents.length > 0 && (
                 <div>
-                  <h3 className="text-xl font-bold mb-6">Upcoming Events ({upcomingEvents.length})</h3>
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-xl font-bold">Upcoming Events ({displayedUpcomingEvents.length})</h3>
+                    {hiddenEventsCount > 0 && (
+                      <span className="text-sm text-muted-foreground">
+                        +{hiddenEventsCount} more in groups • <Link to="/groups" className="text-primary hover:underline">See all</Link>
+                      </span>
+                    )}
+                  </div>
                   {(() => {
-                    const groupedEvents = groupEventsByTime(upcomingEvents);
+                    const groupedEvents = groupEventsByTime(displayedUpcomingEvents);
                     const categoryOrder: TimeCategory[] = ['Today', 'Tomorrow', 'This Week', 'Next Week', 'Later'];
 
                     return categoryOrder.map(category => {
@@ -1331,77 +1484,52 @@ export default function Dashboard() {
               {/* Past Events Section */}
               {!eventsLoading && pastEvents.length > 0 && (
                 <div>
-                  <h3 className="text-xl font-bold mb-4">Past Events ({pastEvents.length})</h3>
-                  <div className="border rounded-md opacity-75">
-                    {pastEvents.map((event, index) => {
-                      const pastRowContent = (
-                        <div
-                          className={`${index !== 0 ? 'border-t' : ''} px-4 py-3 hover:bg-muted/50 transition-colors border-l-4 ${event.itineraryId ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}
-                          style={{ borderLeftColor: event.groupAccentColor || '#94A3B8' }}
-                          data-testid={`past-event-${event.itineraryId}`}
-                        >
-                          <div className="flex items-start gap-4">
-                            <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-2xl">{event.groupEmoji}</span>
-                              <h4 className="font-bold text-base">{event.groupName}</h4>
-                              {event.rsvp && (
-                                <Badge variant={event.rsvp.response === 'yes' ? 'default' : 'secondary'} className="text-xs">
-                                  {event.rsvp.response === 'yes' ? 'Attended' : event.rsvp.response === 'maybe' ? 'Maybe' : 'Declined'}
-                                </Badge>
-                              )}
-                              {event.rsvp?.postEventFeedback && (
-                                <Badge variant="secondary" className="gap-1 text-xs">
-                                  <Star className="h-3 w-3" />
-                                  Rated
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-                              <Calendar className="h-3 w-3" />
-                              <span>{event.eventDate ? format(new Date(event.eventDate), 'MMM d, yyyy') : 'Date TBD'}</span>
-                              {event.items.length > 0 && (
-                                <>
-                                  <span>•</span>
-                                  <MapPin className="h-3 w-3" />
-                                  <span className="truncate">{getMeetingAtText(event.items)}</span>
-                                </>
-                              )}
-                            </div>
-                            <div className="flex gap-1.5">
-                              {(event.rsvp?.response === 'yes' || event.isOrganizer) && !event.rsvp?.postEventFeedback && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    handlePostEventFeedback(event);
-                                  }}
-                                  className="h-7 text-xs"
-                                  data-testid={`button-feedback-${event.itineraryId}`}
-                                >
-                                  <MessageSquare className="h-3 w-3 mr-1" />
-                                  Leave Feedback
-                                </Button>
-                              )}
-                            </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-
-                      return event.itineraryId ? (
-                        <Link key={event.inviteId} href={`/event/${event.itineraryId}`}>
-                          {pastRowContent}
-                        </Link>
+                  <div className="flex items-center justify-between mb-4">
+                    <button
+                      onClick={() => setIsPastEventsExpanded(!isPastEventsExpanded)}
+                      className="flex items-center gap-2 hover:opacity-70 transition-opacity"
+                    >
+                      <h3 className="text-xl font-bold">Past Events ({pastEvents.length})</h3>
+                      {isPastEventsExpanded ? (
+                        <ChevronUp className="h-5 w-5" />
                       ) : (
-                        <div key={event.inviteId}>
-                          {pastRowContent}
-                        </div>
-                      );
-                    })}
+                        <ChevronDown className="h-5 w-5" />
+                      )}
+                    </button>
+                    {isPastEventsExpanded && archivedPastEvents.length > 0 && (
+                      <span className="text-sm text-muted-foreground">
+                        {showArchivedEvents
+                          ? `Showing all ${pastEvents.length} events`
+                          : `Showing ${recentPastEvents.length} recent • ${archivedPastEvents.length} archived`
+                        }
+                      </span>
+                    )}
                   </div>
+                  {isPastEventsExpanded && (
+                    <>
+                      <div className="opacity-75">
+                        <EventsTable
+                          events={displayedPastEvents as any}
+                          expandedEvents={expandedEvents}
+                          onToggleExpand={toggleEventExpand}
+                          isPastEvents={true}
+                          onLeaveFeedback={handlePostEventFeedback as any}
+                        />
+                      </div>
+                      {!showArchivedEvents && archivedPastEvents.length > 0 && (
+                        <div className="mt-4 text-center">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowArchivedEvents(true)}
+                            className="text-sm text-muted-foreground hover:text-foreground"
+                          >
+                            View all past events ({archivedPastEvents.length} older) →
+                          </Button>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               )}
 
@@ -1411,9 +1539,6 @@ export default function Dashboard() {
                   <CardContent>
                     <Calendar className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
                     <h3 className="text-lg font-semibold mb-2">No Events Yet</h3>
-                    <p className="text-muted-foreground">
-                      When you're invited to events or create plans for your groups, they'll appear here
-                    </p>
                   </CardContent>
                 </Card>
               )}
@@ -1422,17 +1547,6 @@ export default function Dashboard() {
 
           <TabsContent value="my-groups" data-testid="content-my-groups">
             <div className="space-y-6">
-              {/* New Collection Button */}
-              <div className="flex justify-end">
-                <Button 
-                  onClick={() => setCreateCollectionOpen(true)}
-                  data-testid="button-new-collection"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  New Collection
-                </Button>
-              </div>
-
               {/* Incomplete Profile Banner */}
               {!isLoading && groups.length > 0 && groups.some(g => 
                 g.members.some(m => m.profileCompleted === false)
@@ -1446,7 +1560,7 @@ export default function Dashboard() {
                       <div className="flex-1">
                         <h3 className="font-semibold mb-1">Complete Your Profile</h3>
                         <p className="text-sm text-muted-foreground mb-3">
-                          Help us personalize your experience by sharing your location, activity preferences, and availability. This helps AI suggest better activities for your groups.
+                          Complete your profile to get personalized activity suggestions
                         </p>
                         <Link href={`/member-profile-setup/${groups.find(g => g.members.find(m => m.profileCompleted === false))?.members.find(m => m.profileCompleted === false)?.id}`}>
                           <Button size="sm" data-testid="button-banner-complete-profile">
@@ -1462,7 +1576,7 @@ export default function Dashboard() {
               {isLoading || collectionsLoading ? (
                 <div className="space-y-4">
                   <Skeleton className="h-12 w-full" />
-                  <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {[...Array(3)].map((_, i) => (
                       <Card key={i}>
                         <CardHeader className="pb-3">
@@ -1483,7 +1597,7 @@ export default function Dashboard() {
                     <div>
                       <h3 className="text-lg font-semibold mb-2">No groups yet</h3>
                       <p className="text-muted-foreground mb-4">
-                        Create your first group to get AI-powered activity suggestions
+                        Create your first group
                       </p>
                       <Link href="/create-group">
                         <Button data-testid="button-create-first-group">
@@ -1495,9 +1609,29 @@ export default function Dashboard() {
                   </CardContent>
                 </Card>
               ) : (
-                <div className="space-y-4">
-                  {/* Collection Sections */}
-                  {collectionGroups.map(({ collection, groups: collectionGroupsList }) => (
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragStart={handleDragStart}
+                  onDragEnd={handleDragEnd}
+                >
+                  <div className="space-y-4">
+                    {/* Collections Header */}
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-semibold">Collections</h2>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-6 w-6 border-muted-foreground/30 text-muted-foreground hover:text-foreground"
+                        onClick={() => setCreateCollectionOpen(true)}
+                        data-testid="button-new-collection"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    {/* Collection Sections */}
+                    {collectionGroups.map(({ collection, groups: collectionGroupsList }) => (
                     <Collapsible
                       key={collection.id}
                       open={!openCollections.has(collection.id)}
@@ -1543,9 +1677,9 @@ export default function Dashboard() {
                                 collection.name
                               )}
                             </h3>
-                            <Badge variant="secondary" className="ml-2">
-                              {collectionGroupsList.length}
-                            </Badge>
+                            <span className="text-sm text-muted-foreground ml-1">
+                              ({collectionGroupsList.length})
+                            </span>
                           </CollapsibleTrigger>
                           <div className="flex items-center gap-1">
                             <Button
@@ -1583,11 +1717,16 @@ export default function Dashboard() {
                               No groups in this collection yet
                             </p>
                           ) : (
-                            <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-3">
-                              {collectionGroupsList.map((group) => (
-                                <GroupCard key={group.id} group={group} />
-                              ))}
-                            </div>
+                            <SortableContext
+                              items={collectionGroupsList.map(g => g.id)}
+                              strategy={verticalListSortingStrategy}
+                            >
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {collectionGroupsList.map((group) => (
+                                  <GroupCardWrapper key={group.id} group={group} />
+                                ))}
+                              </div>
+                            </SortableContext>
                           )}
                         </CollapsibleContent>
                       </div>
@@ -1610,22 +1749,28 @@ export default function Dashboard() {
                               <ChevronDown className="h-4 w-4" />
                             )}
                             <h3 className="text-lg font-semibold">All Groups</h3>
-                            <Badge variant="secondary" className="ml-2">
-                              {uncategorizedGroups.length}
-                            </Badge>
+                            <span className="text-sm text-muted-foreground ml-1">
+                              ({uncategorizedGroups.length})
+                            </span>
                           </CollapsibleTrigger>
                         </div>
                         <CollapsibleContent>
-                          <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-3">
-                            {uncategorizedGroups.map((group) => (
-                              <GroupCard key={group.id} group={group} />
-                            ))}
-                          </div>
+                          <SortableContext
+                            items={uncategorizedGroups.map(g => g.id)}
+                            strategy={verticalListSortingStrategy}
+                          >
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                              {uncategorizedGroups.map((group) => (
+                                <GroupCardWrapper key={group.id} group={group} />
+                              ))}
+                            </div>
+                          </SortableContext>
                         </CollapsibleContent>
                       </div>
                     </Collapsible>
                   )}
-                </div>
+                  </div>
+                </DndContext>
               )}
             </div>
           </TabsContent>
@@ -1637,9 +1782,6 @@ export default function Dashboard() {
         <DialogContent data-testid="dialog-create-collection">
           <DialogHeader>
             <DialogTitle>Create New Collection</DialogTitle>
-            <DialogDescription>
-              Organize your groups into collections for better management.
-            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -1694,14 +1836,8 @@ export default function Dashboard() {
         <DialogContent data-testid="dialog-rsvp-feedback">
           <DialogHeader>
             <DialogTitle>
-              {(feedbackEvent?.response === 'maybe' || feedbackEvent?.response === 'yes_with_constraint') ? 'What concerns do you have?' : 'Help us understand why'}
+              {(feedbackEvent?.response === 'maybe' || feedbackEvent?.response === 'yes_with_constraint') ? 'What concerns do you have?' : 'Why not?'}
             </DialogTitle>
-            <DialogDescription>
-              {(feedbackEvent?.response === 'maybe' || feedbackEvent?.response === 'yes_with_constraint')
-                ? 'Your feedback helps us plan better events for the group'
-                : 'Your feedback helps us understand what to adjust for future events'
-              }
-            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-3">
@@ -1804,9 +1940,6 @@ export default function Dashboard() {
         <DialogContent data-testid="dialog-post-event-feedback">
           <DialogHeader>
             <DialogTitle>How was the event?</DialogTitle>
-            <DialogDescription>
-              Your feedback helps us plan better future events
-            </DialogDescription>
           </DialogHeader>
 
           {/* Event Details */}
@@ -1964,7 +2097,7 @@ export default function Dashboard() {
             </Button>
             <Button
               onClick={handleSubmitPostEventFeedback}
-              disabled={postEventFeedbackMutation.isPending}
+              disabled={postEventFeedbackMutation.isPending || !actuallyAttended}
               data-testid="button-submit-post-feedback"
             >
               Submit Feedback
@@ -1978,9 +2111,6 @@ export default function Dashboard() {
         <DialogContent className="sm:max-w-md" data-testid="dialog-create-event">
           <DialogHeader>
             <DialogTitle>Create an Event</DialogTitle>
-            <DialogDescription>
-              Select a group to create an event for, or create a new group first.
-            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             {groups.length > 0 ? (
@@ -2071,9 +2201,6 @@ export default function Dashboard() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Switch to Test Account</DialogTitle>
-            <DialogDescription>
-              Select a test account to switch to for testing purposes
-            </DialogDescription>
           </DialogHeader>
           <div className="space-y-2 max-h-96 overflow-y-auto">
             {testAccounts.map((account) => (

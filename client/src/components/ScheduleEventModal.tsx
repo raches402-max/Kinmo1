@@ -9,6 +9,7 @@ import { Sparkles, Calendar, Zap, Loader2, ArrowRight } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
+import { useLocation } from "wouter";
 
 interface ScheduleEventModalProps {
   open: boolean;
@@ -19,6 +20,7 @@ interface ScheduleEventModalProps {
 
 export function ScheduleEventModal({ open, onOpenChange, groupId, onNavigateToTab }: ScheduleEventModalProps) {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [schedulePrompt, setSchedulePrompt] = useState("");
   const [schedulePromptLoading, setSchedulePromptLoading] = useState(false);
 
@@ -34,13 +36,18 @@ export function ScheduleEventModal({ open, onOpenChange, groupId, onNavigateToTa
 
     setSchedulePromptLoading(true);
     try {
-      await apiRequest("POST", `/api/groups/${groupId}/schedule-from-prompt`, {
+      const response = await apiRequest("POST", `/api/groups/${groupId}/schedule-from-prompt`, {
         prompt: schedulePrompt.trim(),
       });
 
+      // Show which AI model was used
+      const modelInfo = response.aiMetadata?.model ?
+        ` (using ${response.aiMetadata.model}${response.aiMetadata.cached ? ', cached' : ''})` :
+        '';
+
       toast({
-        title: "Event created!",
-        description: "Your event has been scheduled with AI-generated time options",
+        title: "Event proposal created",
+        description: `Review and choose your preferred time${modelInfo}`,
       });
 
       // Refresh itineraries
@@ -48,6 +55,11 @@ export function ScheduleEventModal({ open, onOpenChange, groupId, onNavigateToTa
 
       onOpenChange(false);
       setSchedulePrompt("");
+
+      // Navigate to event details page to review proposal
+      if (response.itinerary?.id) {
+        setLocation(`/event/${response.itinerary.id}`);
+      }
     } catch (error: any) {
       toast({
         title: "Error scheduling event",
@@ -77,9 +89,6 @@ export function ScheduleEventModal({ open, onOpenChange, groupId, onNavigateToTa
             <Calendar className="h-5 w-5 text-primary" />
             Schedule Event
           </DialogTitle>
-          <DialogDescription>
-            Choose how you'd like to create your event
-          </DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue="ai-prompt" className="w-full">
@@ -107,7 +116,7 @@ export function ScheduleEventModal({ open, onOpenChange, groupId, onNavigateToTa
                   Describe Your Event
                 </CardTitle>
                 <CardDescription>
-                  Use natural language to tell AI what you want to do
+                  Describe what you want to do
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -117,12 +126,16 @@ export function ScheduleEventModal({ open, onOpenChange, groupId, onNavigateToTa
                     id="schedule-prompt"
                     value={schedulePrompt}
                     onChange={(e) => setSchedulePrompt(e.target.value)}
-                    placeholder='e.g., "tacos next week with friends at night on weekday in mission"'
-                    className="min-h-24"
+                    placeholder='Examples:
+• "bottomless brunch this Saturday in Mission"
+• "date night somewhere romantic this weekend"
+• "family lunch with outdoor seating"
+• "happy hour next Friday after work"'
+                    className="min-h-32"
                     data-testid="input-schedule-prompt"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Include activity type, time preferences, location, and any other details
+                    AI understands: activity types, times, neighborhoods, contexts (romantic, family, etc.), and venue features (outdoor, vegetarian, etc.)
                   </p>
                 </div>
                 <div className="flex gap-2 justify-end">
@@ -165,20 +178,8 @@ export function ScheduleEventModal({ open, onOpenChange, groupId, onNavigateToTa
                   <Calendar className="h-4 w-4" />
                   Build Your Own Event
                 </CardTitle>
-                <CardDescription>
-                  Manually select venues and set the time yourself
-                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="text-sm text-muted-foreground space-y-2">
-                  <p>With manual building, you can:</p>
-                  <ul className="list-disc list-inside space-y-1 ml-2">
-                    <li>Pick specific venues from your Favorites</li>
-                    <li>Arrange them in your preferred order</li>
-                    <li>Set exact times for the event</li>
-                    <li>Add custom notes and details</li>
-                  </ul>
-                </div>
                 <div className="flex justify-end">
                   <Button onClick={handleManualBuild} className="gap-2">
                     Go to Build Tab
@@ -198,22 +199,10 @@ export function ScheduleEventModal({ open, onOpenChange, groupId, onNavigateToTa
                   Enable Auto-scheduling
                 </CardTitle>
                 <CardDescription>
-                  Let AI automatically create events for your group
+                  Automatic event creation
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="text-sm text-muted-foreground space-y-2">
-                  <p>Auto-scheduling will:</p>
-                  <ul className="list-disc list-inside space-y-1 ml-2">
-                    <li>Automatically create event proposals based on your meeting frequency</li>
-                    <li>Use your Favorites and past preferences</li>
-                    <li>Generate 3 itinerary options for you to choose from</li>
-                    <li>Send events 10 days before the target date</li>
-                  </ul>
-                  <p className="pt-2 font-medium">
-                    Perfect for recurring groups that meet regularly!
-                  </p>
-                </div>
                 <div className="flex justify-end">
                   <Button onClick={handleAutoSchedule} className="gap-2">
                     Configure Auto-schedule

@@ -57,7 +57,9 @@
       "Bash(/home/runner/workspace/client/src/lib/distance.ts)",
       "Bash(npm install:*)",
       "Bash(printf:*)",
-      "Bash(git restore:*)"
+      "Bash(git restore:*)",
+      "Bash(timeout 3 curl:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

@@ -3,7 +3,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, updateUserProfileSchema, activities as activitiesTable, groups as groupsTable, members as membersTable, itineraryInvites, guestInvites, rsvps as rsvpsTable, itineraries, itineraryItems, proposedTimeSlots, users, userProfiles, photosCache, geocodingCache, hostAssignments, curatedVenues, votingEvents as votingEventsTable, activitySwipes, activities, votingEvents, swipeSessions, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
-import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue, categorizeVenuesBatch, analyzePreferencePatterns, parseSchedulingPrompt, detectCategory } from "./openai";
+import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue, categorizeVenuesBatch, analyzePreferencePatterns, parseSchedulingPrompt, parseSchedulingPromptWithHistory, detectCategory, getPromptCacheStats } from "./openai";
 import { searchPlaces, searchNearbyPlaces, geocodeLocation, clearPlacesCache, getCacheStats, getPlaceDetails, detectAndParseGoogleMapsUrl } from "./google-places";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import {
@@ -46,6 +46,46 @@ import {
   addAdHocVenueSchema,
   updateItineraryItemSchema,
 } from './validation-schemas';
+
+// San Francisco neighborhood coordinate boundaries for accurate geographic filtering
+// Each boundary defines a rectangular region with min/max latitude and longitude
+const SF_NEIGHBORHOOD_BOUNDS: Record<string, { minLat: number; maxLat: number; minLng: number; maxLng: number }> = {
+  'mission': { minLat: 37.747, maxLat: 37.766, minLng: -122.427, maxLng: -122.409 },
+  'castro': { minLat: 37.755, maxLat: 37.765, minLng: -122.441, maxLng: -122.428 },
+  'haight': { minLat: 37.767, maxLat: 37.775, minLng: -122.454, maxLng: -122.430 },
+  'soma': { minLat: 37.770, maxLat: 37.785, minLng: -122.408, maxLng: -122.390 },
+  'nob hill': { minLat: 37.790, maxLat: 37.797, minLng: -122.419, maxLng: -122.407 },
+  'russian hill': { minLat: 37.798, maxLat: 37.806, minLng: -122.424, maxLng: -122.410 },
+  'marina': { minLat: 37.797, maxLat: 37.808, minLng: -122.448, maxLng: -122.428 },
+  'pacific heights': { minLat: 37.788, maxLat: 37.798, minLng: -122.443, maxLng: -122.420 },
+  'richmond': { minLat: 37.775, maxLat: 37.783, minLng: -122.500, maxLng: -122.450 },
+  'sunset': { minLat: 37.750, maxLat: 37.770, minLng: -122.510, maxLng: -122.470 },
+  'north beach': { minLat: 37.798, maxLat: 37.808, minLng: -122.413, maxLng: -122.404 },
+  'chinatown': { minLat: 37.793, maxLat: 37.798, minLng: -122.411, maxLng: -122.403 },
+  'financial district': { minLat: 37.790, maxLat: 37.797, minLng: -122.404, maxLng: -122.395 },
+  'potrero hill': { minLat: 37.755, maxLat: 37.765, minLng: -122.404, maxLng: -122.390 },
+  'dogpatch': { minLat: 37.755, maxLat: 37.762, minLng: -122.395, maxLng: -122.385 },
+  'hayes valley': { minLat: 37.773, maxLat: 37.778, minLng: -122.426, maxLng: -122.419 },
+  'lower haight': { minLat: 37.770, maxLat: 37.774, minLng: -122.434, maxLng: -122.426 },
+  'fillmore': { minLat: 37.783, maxLat: 37.792, minLng: -122.437, maxLng: -122.428 },
+  'presidio': { minLat: 37.793, maxLat: 37.808, minLng: -122.475, maxLng: -122.438 },
+  'embarcadero': { minLat: 37.791, maxLat: 37.810, minLng: -122.398, maxLng: -122.387 },
+};
+
+/**
+ * Check if a coordinate is within neighborhood boundaries
+ * @param lat Latitude
+ * @param lng Longitude
+ * @param neighborhood Neighborhood name (must match keys in SF_NEIGHBORHOOD_BOUNDS)
+ * @returns true if coordinate is within the neighborhood boundary
+ */
+function isInNeighborhood(lat: number, lng: number, neighborhood: string): boolean {
+  const bounds = SF_NEIGHBORHOOD_BOUNDS[neighborhood];
+  if (!bounds) return false;
+
+  return lat >= bounds.minLat && lat <= bounds.maxLat &&
+         lng >= bounds.minLng && lng <= bounds.maxLng;
+}
 
 /**
  * Get list of admin emails based on environment
@@ -92,6 +132,49 @@ function calculateNameSimilarity(str1: string, str2: string): number {
   
   // Combined score
   return (jaccardScore * 0.7) + (lengthPenalty * 0.3);
+}
+
+/**
+ * Get consistent quality thresholds based on search radius
+ * Consolidates all rating/review filtering logic into one authoritative source
+ */
+function getQualityThresholds(searchRadius: number): { minRating: number; minReviews: number } {
+  if (searchRadius <= 2) {
+    // Very local (2-mile radius) - moderate standards
+    return { minRating: 3.5, minReviews: 10 };
+  } else if (searchRadius <= 10) {
+    // Citywide (10-mile radius) - slightly stricter
+    return { minRating: 3.5, minReviews: 15 };
+  } else {
+    // Regional (30-50 mile radius) - more lenient for wider search
+    return { minRating: 3.3, minReviews: 15 };
+  }
+}
+
+/**
+ * Parse Google Places price level (handles both enum strings and legacy numbers)
+ * Google's new API returns: "PRICE_LEVEL_FREE", "PRICE_LEVEL_INEXPENSIVE", "PRICE_LEVEL_MODERATE", etc.
+ * Legacy API returned: 0, 1, 2, 3, 4
+ * @returns number 0-4, or null if unavailable
+ */
+function parsePriceLevel(priceLevel: string | number | null | undefined): number | null {
+  if (!priceLevel) return null;
+
+  // If it's already a number, return it
+  if (typeof priceLevel === 'number') return priceLevel;
+
+  // Parse Google's enum strings
+  const priceLevelStr = priceLevel.toString().toUpperCase();
+
+  if (priceLevelStr.includes('FREE')) return 0;
+  if (priceLevelStr.includes('INEXPENSIVE')) return 1;
+  if (priceLevelStr.includes('MODERATE')) return 2;
+  if (priceLevelStr.includes('EXPENSIVE')) return 3;
+  if (priceLevelStr.includes('VERY_EXPENSIVE')) return 4;
+
+  // Try parsing as number for legacy data
+  const parsed = parseInt(priceLevelStr);
+  return isNaN(parsed) ? null : parsed;
 }
 
 async function trackFeedbackAndMaybeAnalyze(groupId: string) {
@@ -1091,6 +1174,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           groupName: groupsTable.name,
           groupEmoji: groupsTable.emoji,
           groupAccentColor: groupsTable.accentColor,
+          groupTimezone: groupsTable.timezone,
           groupUserId: groupsTable.userId,
         })
         .from(itineraryInvites)
@@ -1297,6 +1381,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           groupId: invite.groupId,
           groupName: invite.groupName,
           groupEmoji: invite.groupEmoji,
+          groupAccentColor: invite.groupAccentColor,
+          groupTimezone: invite.groupTimezone,
           isOrganizer: invite.isOrganizer,
           hostMemberId: itinerary?.hostMemberId || null,
           hostMemberName,
@@ -1459,11 +1545,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
             .map(d => new Date(d.eventDate!).toISOString().split('T')[0])
         );
 
+        // Also check for proposed itineraries
+        const proposedItineraries = await db
+          .select()
+          .from(itineraries)
+          .where(
+            and(
+              eq(itineraries.groupId, group.id),
+              eq(itineraries.status, 'proposed'),
+              isNotNull(itineraries.eventDate)
+            )
+          );
+
+        const proposedEventDates = new Set(
+          proposedItineraries
+            .filter(p => p.eventDate)
+            .map(p => new Date(p.eventDate!).toISOString().split('T')[0])
+        );
+
         for (const date of futureDates) {
           const dateStr = date.toISOString().split('T')[0];
 
-          // Skip if a real event or draft itinerary already exists for this date
-          if (existingEventDates.has(dateStr) || draftEventDates.has(dateStr)) continue;
+          // Skip if a real event, draft, or proposed itinerary already exists for this date
+          if (existingEventDates.has(dateStr) || draftEventDates.has(dateStr) || proposedEventDates.has(dateStr)) continue;
 
           // Create virtual event object
           virtualEvents.push({
@@ -1712,6 +1816,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updatedGroup);
     } catch (error: any) {
       res.status(400).json({ message: error.message });
+    }
+  });
+
+  // Delete group (organizer only)
+  app.delete("/api/groups/:id", isAuthenticated, requireGroupOwnership(), async (req: any, res) => {
+    try {
+      await storage.softDeleteGroup(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Leave group (remove member)
+  app.delete("/api/groups/:groupId/members/:memberId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { groupId, memberId } = req.params;
+
+      // Get the member to verify it belongs to the requesting user
+      const member = await storage.getMember(memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+
+      // Verify the member belongs to the user and group
+      if (member.userId !== userId || member.groupId !== groupId) {
+        return res.status(403).json({ message: "Not authorized to remove this member" });
+      }
+
+      // Cannot leave if you're an organizer
+      if (member.isOrganizer) {
+        return res.status(400).json({ message: "Organizers cannot leave the group. Delete the group instead." });
+      }
+
+      await storage.deleteMember(memberId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
     }
   });
 
@@ -2371,6 +2514,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error('Error triggering auto-schedule:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Maintain event pipeline for a group (create future events based on cadence)
+  app.post("/api/groups/:id/maintain-event-pipeline", isAuthenticated, requireGroupOwnership(), async (req: any, res) => {
+    try {
+      const group = await storage.getGroup(req.params.id);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      if (!group.autoScheduleEnabled) {
+        return res.status(400).json({ message: "Auto-scheduling is not enabled for this group" });
+      }
+
+      console.log(`[Event Pipeline] Manually triggered pipeline maintenance for ${group.name}`);
+
+      // Import and call the pipeline maintenance function
+      const { maintainEventPipeline } = await import('./auto-scheduler.js');
+      const eventsCreated = await maintainEventPipeline(req.params.id, storage);
+
+      return res.status(200).json({
+        message: `Pipeline maintenance complete`,
+        eventsCreated,
+        group: {
+          id: group.id,
+          name: group.name,
+          targetFutureEvents: group.targetFutureEvents,
+        }
+      });
+    } catch (error: any) {
+      console.error('Error maintaining event pipeline:', error);
       res.status(500).json({ message: error.message });
     }
   });
@@ -3320,6 +3496,208 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updatedMember);
     } catch (error: any) {
       console.error('[Update Member Profile] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Member Favorite Venues Routes
+
+  // Get member's favorite venues
+  app.get("/api/members/:memberId/favorites", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { memberId } = req.params;
+
+      // Get the member
+      const member = await storage.getMember(memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+
+      // Authorization: must be the linked user
+      if (member.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized to view this member's favorites" });
+      }
+
+      const favorites = await storage.getMemberFavoriteVenues(memberId);
+      res.json(favorites);
+    } catch (error: any) {
+      console.error('[Get Member Favorites] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Add a favorite venue
+  app.post("/api/members/:memberId/favorites", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { memberId } = req.params;
+      const { venuePlaceId, venueName, venueAddress, venuePhotoUrl, category } = req.body;
+
+      if (!venuePlaceId || !venueName) {
+        return res.status(400).json({ message: "venuePlaceId and venueName are required" });
+      }
+
+      // Get the member
+      const member = await storage.getMember(memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+
+      // Authorization: must be the linked user
+      if (member.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized to modify this member's favorites" });
+      }
+
+      // Check if already favorited
+      const alreadyFavorited = await storage.isFavoriteVenue(memberId, venuePlaceId);
+      if (alreadyFavorited) {
+        return res.status(400).json({ message: "Venue already in favorites" });
+      }
+
+      // Add to favorites
+      const favorite = await storage.addMemberFavoriteVenue(memberId, {
+        venuePlaceId,
+        venueName,
+        venueAddress,
+        venuePhotoUrl,
+        category,
+      });
+
+      // Auto-cache to curatedVenues if not already cached (with source='user_suggested')
+      try {
+        // Check if venue already exists in curatedVenues
+        const [existingVenue] = await db
+          .select()
+          .from(curatedVenues)
+          .where(eq(curatedVenues.googlePlaceId, venuePlaceId))
+          .limit(1);
+
+        if (!existingVenue) {
+          console.log(`[Auto-Cache] Venue ${venueName} not in curatedVenues, fetching details...`);
+
+          // Fetch full venue details from Google Places
+          const placeDetails = await getPlaceDetails(venuePlaceId);
+
+          if (placeDetails) {
+            // Map category to curated venue categories
+            const categoryMap: Record<string, string> = {
+              'restaurant': 'meal',
+              'cafe': 'cafes',
+              'coffee': 'cafes',
+              'bar': 'drinks',
+              'dessert': 'dessert',
+              'bakery': 'dessert',
+              'ice_cream': 'dessert',
+            };
+            const mappedCategory = categoryMap[category?.toLowerCase() || ''] || 'experiences';
+
+            // Insert into curatedVenues
+            await db.insert(curatedVenues).values({
+              name: placeDetails.name,
+              address: placeDetails.address,
+              latitude: placeDetails.location.lat.toString(),
+              longitude: placeDetails.location.lng.toString(),
+              category: mappedCategory,
+              rating: placeDetails.rating || null,
+              reviewCount: placeDetails.reviewCount || null,
+              priceLevel: placeDetails.priceLevel || null,
+              photoUrl: placeDetails.photoUrl || null,
+              googlePlaceId: venuePlaceId,
+              description: null, // Could add AI-generated description later
+              tags: placeDetails.types || [],
+              region: 'bay_area', // Default to bay area, could improve with geocoding
+              isActive: true,
+              source: 'user_suggested',
+              suggestedBy: userId,
+              openingHours: placeDetails.openingHours || null,
+              businessStatus: placeDetails.businessStatus || null,
+            });
+
+            console.log(`[Auto-Cache] Successfully cached ${venueName} to curatedVenues`);
+          } else {
+            console.log(`[Auto-Cache] Could not fetch details for ${venueName}, skipping cache`);
+          }
+        } else {
+          console.log(`[Auto-Cache] Venue ${venueName} already exists in curatedVenues`);
+        }
+      } catch (cacheError: any) {
+        // Don't fail the request if caching fails
+        console.error('[Auto-Cache] Error caching venue to curatedVenues:', cacheError);
+      }
+
+      res.json(favorite);
+    } catch (error: any) {
+      console.error('[Add Member Favorite] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Remove a favorite venue
+  app.delete("/api/members/:memberId/favorites/:placeId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { memberId, placeId } = req.params;
+
+      // Get the member
+      const member = await storage.getMember(memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+
+      // Authorization: must be the linked user
+      if (member.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized to modify this member's favorites" });
+      }
+
+      await storage.removeMemberFavoriteVenue(memberId, placeId);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('[Remove Member Favorite] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Venue search/autocomplete for adding favorites
+  app.get("/api/venues/search", isAuthenticated, async (req: any, res) => {
+    try {
+      const { query, location } = req.query;
+
+      if (!query || typeof query !== 'string') {
+        return res.status(400).json({ message: "Query parameter required" });
+      }
+
+      // Use searchPlaces to find venues matching the query
+      // Default to San Francisco if no location provided
+      const searchLocation = location && typeof location === 'string' ? location : "San Francisco, CA";
+
+      // searchPlaces expects positional parameters: query, location, radiusMiles
+      const results = await searchPlaces(
+        query,
+        searchLocation,
+        6.2, // 10km radius (~6.2 miles)
+        undefined, // coordinates
+        false, // skipCurated
+        undefined, // venueType
+        undefined, // budgetMax
+        undefined, // seenVenues
+        false, // forceComprehensiveSearch
+        true // userDirected - this is a user-initiated search
+      );
+
+      // Return simplified results for autocomplete
+      const suggestions = results.map((place: any) => ({
+        placeId: place.googlePlaceId,
+        name: place.name,
+        address: place.address,
+        category: place.types?.[0] || 'other',
+        photoUrl: place.photoUrl,
+        rating: place.rating,
+      }));
+
+      res.json(suggestions);
+    } catch (error: any) {
+      console.error('[Venue Search] Error:', error);
       res.status(500).json({ message: error.message });
     }
   });
@@ -4372,15 +4750,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Invite not found" });
       }
 
-      // Get the itinerary and verify the user is the organizer
-      const itinerary = await storage.getItinerary(invite.itineraryId);
-      if (!itinerary) {
-        return res.status(404).json({ message: "Itinerary not found" });
+      // Get the member to verify it belongs to the current user
+      const [member] = await db
+        .select()
+        .from(membersTable)
+        .where(eq(membersTable.id, invite.memberId));
+
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
       }
 
-      const group = await storage.getGroup(itinerary.groupId);
-      if (!group || group.userId !== userId) {
-        return res.status(403).json({ message: "Only the organizer can remove invites" });
+      // Check if user is either the invite owner OR the group organizer
+      const isInviteOwner = member.userId === userId;
+      let isOrganizer = false;
+
+      if (invite.itineraryId) {
+        const itinerary = await storage.getItinerary(invite.itineraryId);
+        if (itinerary) {
+          const group = await storage.getGroup(itinerary.groupId);
+          isOrganizer = group && group.userId === userId;
+        }
+      }
+
+      if (!isInviteOwner && !isOrganizer) {
+        return res.status(403).json({ message: "Not authorized to remove this invite" });
       }
 
       // Delete the invite
@@ -4896,20 +5289,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
 
           const searchRadius = refreshedGroup.searchRadius || 2;
+          const { minRating, minReviews } = getQualityThresholds(searchRadius);
+
           const qualityFiltered = places.filter(place => {
             const rating = parseFloat(place.rating || '0');
             const reviewCount = place.reviewCount || 0;
-
-            // Stricter quality requirements to ensure legitimacy
-            if (searchRadius <= 2) {
-              return rating >= 3.5 && reviewCount >= 20;
-            } else if (searchRadius <= 10) {
-              return rating >= 3.8 && reviewCount >= 50;
-            } else if (searchRadius <= 30) {
-              return rating >= 4.0 && reviewCount >= 100;
-            } else {
-              return rating >= 4.2 && reviewCount >= 150;
-            }
+            return rating >= minRating && reviewCount >= minReviews;
           });
 
           // Budget filtering now handled by searchPlaces itself
@@ -5391,6 +5776,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Helper function to intelligently infer time preferences and day constraints from activity type
+  function inferTimeFromActivity(params: SchedulingParams): {
+    timePreference: 'morning' | 'afternoon' | 'evening' | 'night',
+    dayConstraints: 'weekday' | 'weekend' | 'any',
+    appliedInferences: string[]
+  } {
+    const activityLower = params.activityType.toLowerCase();
+    const appliedInferences: string[] = [];
+
+    // Start with provided values or defaults
+    let timePreference = params.timePreference || 'evening';
+    let dayConstraints = params.dayConstraints || 'any';
+
+    // Activity-specific time and day inference
+    if (activityLower.includes('brunch')) {
+      if (!params.timePreference) {
+        timePreference = 'morning';
+        appliedInferences.push('Set to morning for brunch');
+      }
+      if (!params.dayConstraints) {
+        dayConstraints = 'weekend';
+        appliedInferences.push('Set to weekend for brunch');
+      }
+    } else if (activityLower.includes('breakfast')) {
+      if (!params.timePreference) {
+        timePreference = 'morning';
+        appliedInferences.push('Set to morning for breakfast');
+      }
+    } else if (activityLower.includes('lunch')) {
+      if (!params.timePreference) {
+        timePreference = 'afternoon';
+        appliedInferences.push('Set to afternoon for lunch');
+      }
+    } else if (activityLower.includes('happy hour')) {
+      if (!params.timePreference) {
+        timePreference = 'afternoon';
+        appliedInferences.push('Set to afternoon for happy hour (4-7 PM)');
+      }
+      if (!params.dayConstraints) {
+        dayConstraints = 'weekday';
+        appliedInferences.push('Set to weekday for happy hour');
+      }
+    } else if (activityLower.includes('coffee') || activityLower.includes('cafe')) {
+      if (!params.timePreference) {
+        timePreference = 'morning';
+        appliedInferences.push('Set to morning for coffee');
+      }
+    } else if (activityLower.includes('dessert') || activityLower.includes('ice cream')) {
+      if (!params.timePreference) {
+        timePreference = 'night';
+        appliedInferences.push('Set to evening for dessert');
+      }
+    } else if (activityLower.includes('drinks') || activityLower.includes('bar')) {
+      if (!params.timePreference) {
+        timePreference = 'evening';
+        appliedInferences.push('Set to evening for drinks');
+      }
+    } else if (activityLower.includes('dinner')) {
+      if (!params.timePreference) {
+        timePreference = 'evening';
+        appliedInferences.push('Set to evening for dinner');
+      }
+    }
+
+    // Parse weeknight constraint (overrides default dayConstraints)
+    if (activityLower.includes('weeknight') || activityLower.includes('week night')) {
+      dayConstraints = 'weekday'; // Monday-Friday
+      appliedInferences.push('Set to weekday for weeknight activity');
+      console.log('[Infer Time] Detected weeknight constraint - setting to weekday');
+    }
+
+    return { timePreference, dayConstraints, appliedInferences };
+  }
+
   // Helper function to generate time options based on natural language timeframe
   function generateTimeOptions(
     timeframe: string,
@@ -5507,10 +5966,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`[AI Scheduling] Processing prompt for group ${req.params.id}: "${prompt}"`);
 
-      // Parse the natural language prompt
-      const schedulingParams = await parseSchedulingPrompt(prompt, group.locationBase);
-      
+      // Parse the natural language prompt with group history for smarter understanding
+      // Uses GPT-4o (not mini) for intelligent history application
+      // Cost: ~5-7x more than mini, but provides significantly better context understanding
+      // Trade-off: Worth it for personalized, history-aware event creation
+      const groupHistory = {
+        preferenceInsights: group.preferenceInsights,
+        schedulingPreferences: group.schedulingPreferences,
+        closenessLevel: group.closenessLevel
+      };
+      const schedulingParams = await parseSchedulingPromptWithHistory(prompt, group.locationBase, groupHistory);
+
       console.log(`[AI Scheduling] Parsed params:`, schedulingParams);
+      if (schedulingParams.historyApplied && schedulingParams.historyApplied.length > 0) {
+        console.log(`[AI Scheduling] History enhancements:`, schedulingParams.historyApplied);
+      }
 
       // Use category search to find venues based on parsed params
       const searchLocation = schedulingParams.location || group.locationBase;
@@ -5531,8 +6001,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'experiences': 'museums parks attractions activities'
       };
 
-      const searchQuery = `${schedulingParams.activityType} ${categorySearchQueries[schedulingParams.category] || ''}`;
-      console.log(`[AI Scheduling] Searching: "${searchQuery} in ${searchLocation}"`);
+      // Build context-aware search query
+      let searchQuery = `${schedulingParams.activityType} ${categorySearchQueries[schedulingParams.category] || ''}`;
+
+      // Add context keywords for smarter search (e.g., "romantic", "family-friendly")
+      if (schedulingParams.contextKeywords && schedulingParams.contextKeywords.length > 0) {
+        searchQuery += ' ' + schedulingParams.contextKeywords.join(' ');
+        console.log(`[AI Scheduling] Added context keywords:`, schedulingParams.contextKeywords);
+      }
+
+      // Add venue attributes (e.g., "outdoor seating", "live music")
+      if (schedulingParams.venueAttributes && schedulingParams.venueAttributes.length > 0) {
+        searchQuery += ' ' + schedulingParams.venueAttributes.join(' ');
+        console.log(`[AI Scheduling] Added venue attributes:`, schedulingParams.venueAttributes);
+      }
+
+      console.log(`[AI Scheduling] Enhanced search query: "${searchQuery} in ${searchLocation}"`);
 
       // Search Google Places with budget filtering
       const places = await searchPlaces(
@@ -5555,6 +6039,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const existingActivities = await storage.getGroupActivities(req.params.id);
       const existingVenueNames = existingActivities.map(a => a.venueName);
 
+      // Neighborhood filtering: if a specific SF neighborhood is mentioned, filter to only that area
+      const sfNeighborhoods = ['mission', 'castro', 'haight', 'soma', 'nob hill', 'russian hill',
+        'marina', 'pacific heights', 'richmond', 'sunset', 'north beach', 'chinatown', 'financial district',
+        'potrero hill', 'dogpatch', 'hayes valley', 'lower haight', 'fillmore', 'presidio', 'embarcadero'];
+
+      let neighborhoodFilter: string | null = null;
+      if (schedulingParams.location) {
+        const locationLower = schedulingParams.location.toLowerCase();
+        // Check if location matches a SF neighborhood
+        const matchedNeighborhood = sfNeighborhoods.find(n => locationLower.includes(n));
+        if (matchedNeighborhood) {
+          neighborhoodFilter = matchedNeighborhood;
+          console.log(`[AI Scheduling] Filtering to ${matchedNeighborhood} neighborhood only`);
+        }
+      }
+
       // Process and filter places (take top 3-5 venues)
       const topVenues = places
         .filter(place => !existingVenueNames.includes(place.name))
@@ -5562,6 +6062,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const rating = parseFloat(place.rating || '0');
           const reviewCount = place.reviewCount || 0;
           return rating >= 3.5 && reviewCount >= 10 && place.address && place.photoUrl;
+        })
+        .filter(place => {
+          // If neighborhood filter is active, only include venues in that neighborhood
+          if (neighborhoodFilter && place.location) {
+            const inNeighborhood = isInNeighborhood(place.location.lat, place.location.lng, neighborhoodFilter);
+            if (!inNeighborhood) {
+              console.log(`[AI Scheduling] Filtering out ${place.name} - not in ${neighborhoodFilter} (coords: ${place.location.lat}, ${place.location.lng})`);
+            }
+            return inNeighborhood;
+          }
+          return true;
         })
         .sort((a, b) => parseFloat(b.rating || '0') - parseFloat(a.rating || '0'))
         .slice(0, 3);
@@ -5572,11 +6083,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`[AI Scheduling] Selected ${topVenues.length} venues for event`);
 
+      // Apply smart time and day inference based on activity type
+      const inferredTiming = inferTimeFromActivity(schedulingParams);
+      console.log(`[AI Scheduling] Applied inferences:`, inferredTiming.appliedInferences);
+
       // Generate 2-3 date/time options based on timeframe and constraints
       const timeOptions = generateTimeOptions(
         schedulingParams.timeframe || 'next week',
-        schedulingParams.dayConstraints || 'any',
-        schedulingParams.timePreference,
+        inferredTiming.dayConstraints,
+        inferredTiming.timePreference,
         group.timezone || 'America/Los_Angeles'
       );
 
@@ -5643,16 +6158,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await storage.createProposedTimeSlot({
           itineraryId: itinerary.id,
           proposedDateTime: new Date(option.eventDate), // Use proposedDateTime, not eventDate
-          label: `${option.dayLabel} ${option.timeLabel}`,
+          // Note: label removed - frontend will format datetime with timezone
         });
       }
 
       console.log(`[AI Scheduling] Created ${timeOptions.length} time slots for voting`);
 
+      // Collect all applied enhancements for transparency
+      const appliedEnhancements: {
+        timeInferences?: string[];
+        contextKeywords?: string[];
+        venueAttributes?: string[];
+        historyApplied?: string[];
+      } = {};
+
+      if (inferredTiming.appliedInferences.length > 0) {
+        appliedEnhancements.timeInferences = inferredTiming.appliedInferences;
+      }
+
+      if (schedulingParams.contextKeywords && schedulingParams.contextKeywords.length > 0) {
+        appliedEnhancements.contextKeywords = schedulingParams.contextKeywords;
+      }
+
+      if (schedulingParams.venueAttributes && schedulingParams.venueAttributes.length > 0) {
+        appliedEnhancements.venueAttributes = schedulingParams.venueAttributes;
+      }
+
+      if (schedulingParams.historyApplied && schedulingParams.historyApplied.length > 0) {
+        appliedEnhancements.historyApplied = schedulingParams.historyApplied;
+      }
+
       res.json({
         itinerary,
         venues: createdActivities,
         timeOptions,
+        appliedEnhancements: Object.keys(appliedEnhancements).length > 0 ? appliedEnhancements : undefined,
+        // A/B test info - so you can see which model was used!
+        aiMetadata: {
+          model: schedulingParams.aiModel,
+          cached: schedulingParams.cached,
+          responseTimeMs: schedulingParams.responseTimeMs,
+        },
       });
     } catch (error: any) {
       console.error("[AI Scheduling] Error:", error);
@@ -5722,6 +6268,160 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ patterns });
     } catch (error: any) {
       console.error("[AI Insights] Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Compare GPT-4o vs mini side-by-side for a prompt
+  app.post("/api/groups/:id/compare-models", isAuthenticated, async (req: any, res) => {
+    try {
+      const group = await storage.getGroup(req.params.id);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      const { prompt } = req.body;
+      if (!prompt || typeof prompt !== 'string') {
+        return res.status(400).json({ message: "Prompt is required" });
+      }
+
+      console.log(`[Model Comparison] Running both models for: "${prompt}"`);
+
+      const groupHistory = {
+        preferenceInsights: group.preferenceInsights,
+        schedulingPreferences: group.schedulingPreferences,
+        closenessLevel: group.closenessLevel
+      };
+
+      // Force each model to run once for comparison
+      console.log(`[Model Comparison] Running GPT-4o...`);
+      const gpt4oStartTime = Date.now();
+      const gpt4oResult = await parseSchedulingPromptWithHistory(
+        prompt,
+        group.locationBase,
+        groupHistory,
+        'gpt-4o' // Force GPT-4o
+      );
+      const gpt4oTime = Date.now() - gpt4oStartTime;
+
+      console.log(`[Model Comparison] Running GPT-4o-mini...`);
+      const miniStartTime = Date.now();
+      const miniResult = await parseSchedulingPromptWithHistory(
+        prompt,
+        group.locationBase,
+        groupHistory,
+        'gpt-4o-mini' // Force mini
+      );
+      const miniTime = Date.now() - miniStartTime;
+
+      // Compare the results
+      const comparison = {
+        prompt,
+        gpt4o: {
+          ...gpt4oResult,
+          model: 'gpt-4o',
+          responseTimeMs: gpt4oTime,
+        },
+        mini: {
+          ...miniResult,
+          model: 'gpt-4o-mini',
+          responseTimeMs: miniTime,
+        },
+        differences: {
+          contextKeywords: {
+            gpt4oOnly: (gpt4oResult.contextKeywords || []).filter(k => !(miniResult.contextKeywords || []).includes(k)),
+            miniOnly: (miniResult.contextKeywords || []).filter(k => !(gpt4oResult.contextKeywords || []).includes(k)),
+            same: (gpt4oResult.contextKeywords || []).filter(k => (miniResult.contextKeywords || []).includes(k)),
+          },
+          venueAttributes: {
+            gpt4oOnly: (gpt4oResult.venueAttributes || []).filter(k => !(miniResult.venueAttributes || []).includes(k)),
+            miniOnly: (miniResult.venueAttributes || []).filter(k => !(gpt4oResult.venueAttributes || []).includes(k)),
+            same: (gpt4oResult.venueAttributes || []).filter(k => (miniResult.venueAttributes || []).includes(k)),
+          },
+          historyApplied: {
+            gpt4oOnly: (gpt4oResult.historyApplied || []).filter(h => !(miniResult.historyApplied || []).includes(h)),
+            miniOnly: (miniResult.historyApplied || []).filter(h => !(gpt4oResult.historyApplied || []).includes(h)),
+            same: (gpt4oResult.historyApplied || []).filter(h => (miniResult.historyApplied || []).includes(h)),
+          },
+          activityType: gpt4oResult.activityType !== miniResult.activityType ? {
+            gpt4o: gpt4oResult.activityType,
+            mini: miniResult.activityType,
+          } : null,
+          timePreference: gpt4oResult.timePreference !== miniResult.timePreference ? {
+            gpt4o: gpt4oResult.timePreference,
+            mini: miniResult.timePreference,
+          } : null,
+          dayConstraints: gpt4oResult.dayConstraints !== miniResult.dayConstraints ? {
+            gpt4o: gpt4oResult.dayConstraints,
+            mini: miniResult.dayConstraints,
+          } : null,
+          performance: {
+            gpt4oTimeMs: gpt4oTime,
+            miniTimeMs: miniTime,
+            speedupFactor: (gpt4oTime / miniTime).toFixed(2) + 'x',
+          },
+        },
+        costDifference: "GPT-4o costs ~5-7x more than mini per request",
+      };
+
+      console.log(`[Model Comparison] Comparison complete!`);
+
+      res.json(comparison);
+    } catch (error: any) {
+      console.error("[Model Comparison] Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get A/B testing and cache statistics
+  app.get("/api/admin/ai-stats", async (req, res) => {
+    try {
+      // Get prompt cache stats
+      const cacheStats = getPromptCacheStats();
+
+      // Get Google Places cache stats for comparison
+      const placesStats = getCacheStats();
+
+      // Get API call logs (last 100) for A/B test analysis
+      const recentCalls = await db
+        .select()
+        .from(storage.apiCallLogs || [] as any) // Access storage layer for logs if available
+        .orderBy(sql`created_at DESC`)
+        .limit(100);
+
+      // Analyze A/B test results
+      const abTestMetrics = {
+        totalCalls: 0,
+        gpt4oCalls: 0,
+        miniCalls: 0,
+        cacheHits: 0,
+        averageCost: {
+          gpt4o: 0,
+          mini: 0,
+        },
+        averageResponseTime: {
+          gpt4o: 0,
+          mini: 0,
+        },
+        currentABTestPercentage: AB_TEST_GPT4O_PERCENTAGE,
+      };
+
+      // This would analyze the recent API calls if we have access to them
+      // For now, just return cache stats
+
+      res.json({
+        promptCache: cacheStats,
+        placesCache: {
+          searchHits: placesStats.searchHits,
+          searchMisses: placesStats.searchMisses,
+          placeDetailsHits: placesStats.placeDetailsHits,
+          placeDetailsMisses: placesStats.placeDetailsMisses,
+        },
+        abTest: abTestMetrics,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error("[AI Stats] Error:", error);
       res.status(500).json({ message: error.message });
     }
   });
@@ -6767,6 +7467,9 @@ Looking forward to planning great activities together!
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
+      // Get group information
+      const group = await storage.getGroup(itinerary.groupId);
+
       // Get proposed time slots if any
       const timeSlots = await storage.getItineraryTimeSlots(req.params.id);
 
@@ -6789,6 +7492,7 @@ Looking forward to planning great activities together!
 
       res.json({
         ...itinerary,
+        group: group,
         proposedTimeSlots: timeSlotsWithVotes,
       });
     } catch (error: any) {
@@ -8011,6 +8715,11 @@ Looking forward to planning great activities together!
             lastEventDate: eventDate,
             nextEventDueDate: nextDue,
           });
+
+          // Maintain event pipeline after finalizing this event
+          console.log(`[Finalize] Triggering pipeline maintenance after event finalization`);
+          const { maintainEventPipeline } = await import('./auto-scheduler.js');
+          await maintainEventPipeline(itinerary.groupId, storage);
         }
       }
 
@@ -8488,13 +9197,20 @@ Looking forward to planning great activities together!
   // Submit post-event feedback
   app.post("/api/itineraries/:id/post-event-feedback", isAuthenticated, async (req: any, res) => {
     try {
+      console.log('[Post Event Feedback] Received request:', { itineraryId: req.params.id, body: req.body });
+
       // Validate request body
       const validatedData = safeParse(postEventFeedbackSchema, req.body, res);
-      if (!validatedData) return;
+      if (!validatedData) {
+        console.log('[Post Event Feedback] Validation failed');
+        return;
+      }
 
       const userId = req.user.claims.sub;
       const { itineraryId } = { itineraryId: req.params.id };
       const { actuallyAttended, venueRating, frequencyPreference, wouldDoAgain, improvementNotes } = validatedData;
+
+      console.log('[Post Event Feedback] Validated data:', { itineraryId, userId, actuallyAttended, venueRating, frequencyPreference, wouldDoAgain });
 
       // Get the itinerary to check group ownership
       const [itinerary] = await db
@@ -8545,6 +9261,7 @@ Looking forward to planning great activities together!
       }
 
       // Update the RSVP with post-event feedback
+      console.log('[Post Event Feedback] Updating RSVP:', rsvp[0].id);
       const updated = await db
         .update(rsvpsTable)
         .set({
@@ -8560,6 +9277,8 @@ Looking forward to planning great activities together!
         })
         .where(eq(rsvpsTable.id, rsvp[0].id))
         .returning();
+
+      console.log('[Post Event Feedback] Successfully updated RSVP');
 
       // 🤖 LEARNING LOOP #1: Auto-blacklist low-rated venues
       // If venue rated ≤2 stars OR "would not do again", add to rejected list
@@ -8599,6 +9318,7 @@ Looking forward to planning great activities together!
         console.error(`[Frequency Adjuster] Error:`, err);
       });
 
+      console.log('[Post Event Feedback] Sending response');
       res.json(updated[0]);
     } catch (error: any) {
       console.error('[Post Event Feedback] Error:', error);
@@ -11375,27 +12095,13 @@ export async function generateAndStoreActivities(groupId: string, groupData: any
           }
 
           // Apply quality filtering based on search radius
-          // Farther venues must have higher ratings and review counts
           const searchRadius = groupData.searchRadius || 2;
+          const { minRating, minReviews } = getQualityThresholds(searchRadius);
+
           const qualityFiltered = places.filter(place => {
             const rating = parseFloat(place.rating || '0');
             const reviewCount = place.reviewCount || 0;
-
-            // Relaxed quality requirements for better activity variety:
-            // < 2 miles (Nearby): 3.5+ stars, 10+ reviews
-            // < 10 miles (Citywide): 3.5+ stars, 15+ reviews
-            // < 30 miles (Special Trip): 3.7+ stars, 25+ reviews
-            // < 50 miles (Road Trip): 3.9+ stars, 40+ reviews
-
-            if (searchRadius <= 2) {
-              return rating >= 3.5 && reviewCount >= 10;
-            } else if (searchRadius <= 10) {
-              return rating >= 3.5 && reviewCount >= 15;
-            } else if (searchRadius <= 30) {
-              return rating >= 3.7 && reviewCount >= 25;
-            } else {
-              return rating >= 3.9 && reviewCount >= 40;
-            }
+            return rating >= minRating && reviewCount >= minReviews;
           });
 
           // Budget filtering now handled by searchPlaces itself
@@ -11602,48 +12308,35 @@ export async function generateAndStoreActivities(groupId: string, groupData: any
             });
             console.log(`[API Fallback] After relevance filter: ${relevantPlaces.length}/${apiPlaces.length} places passed`);
             
-            // Apply quality filters (RELAXED thresholds for better results)
-            console.log(`[API Fallback] Applying quality filter (searchRadius: ${searchRadius})`);
+            // Apply quality filters using consolidated thresholds
+            const { minRating, minReviews } = getQualityThresholds(searchRadius);
+            console.log(`[API Fallback] Applying quality filter (searchRadius: ${searchRadius}, minRating: ${minRating}, minReviews: ${minReviews})`);
+
             const apiQualityFiltered = relevantPlaces.filter(place => {
               const rating = parseFloat(place.rating || '0');
               const reviewCount = place.reviewCount || 0;
-              
-              let passed = false;
-              let minRating = 0;
-              let minReviews = 0;
-              
-              // VERY RELAXED fallback thresholds - prioritize variety
-              if (searchRadius <= 2) {
-                minRating = 3.3;
-                minReviews = 5; // Very relaxed for nearby venues
-                passed = rating >= minRating && reviewCount >= minReviews;
-              } else if (searchRadius <= 10) {
-                minRating = 3.5;
-                minReviews = 10; // Relaxed for citywide
-                passed = rating >= minRating && reviewCount >= minReviews;
-              } else if (searchRadius <= 30) {
-                minRating = 3.7;
-                minReviews = 20; // Relaxed for special trips
-                passed = rating >= minRating && reviewCount >= minReviews;
-              } else {
-                minRating = 3.8;
-                minReviews = 30; // Relaxed for road trips
-                passed = rating >= minRating && reviewCount >= minReviews;
-              }
-              
+              const passed = rating >= minRating && reviewCount >= minReviews;
+
               if (!passed) {
                 console.log(`[Quality Filter] ❌ REJECTED "${place.name}" - rating: ${rating} (min: ${minRating}), reviews: ${reviewCount} (min: ${minReviews})`);
               }
-              
+
               return passed;
             });
             console.log(`[API Fallback] After quality filter: ${apiQualityFiltered.length}/${relevantPlaces.length} places passed`);
             
             const apiBudgetFiltered = apiQualityFiltered.filter(place => {
-              const priceLevelRaw = parseInt(place.priceLevel || '0');
-              // If NaN (missing price data), treat as 0 (cheapest) for budgets >= $100, otherwise reject
-              const priceLevel = isNaN(priceLevelRaw) ? (groupData.budgetMax >= 100 ? 0 : 999) : priceLevelRaw;
+              const priceLevel = parsePriceLevel(place.priceLevel);
               const budgetMax = groupData.budgetMax;
+
+              // If price data unavailable, accept for high budgets ($100+), reject for low budgets
+              if (priceLevel === null) {
+                const passed = budgetMax >= 100;
+                if (!passed) {
+                  console.log(`[Budget Filter] ❌ REJECTED "${place.name}" - missing price data (budget: $${budgetMax} requires price info)`);
+                }
+                return passed;
+              }
               
               let maxPrice = 4;
               if (budgetMax < 50) {
@@ -11696,10 +12389,25 @@ export async function generateAndStoreActivities(groupId: string, groupData: any
               console.log(`[API Fallback] All API results also filtered out for "${suggestion.venueName}" - no suitable venues found`);
               return null;
             }
-            
-            // Use the first result from API (they're already sorted by relevance)
-            const apiPlace = apiDrinksFiltered[0];
-            console.log(`[API Fallback] ✅ Using "${apiPlace.name}" from Google Places API for suggestion "${suggestion.venueName}"`);
+
+            // NEW: Rank API results by name similarity to ensure we get the venue AI intended
+            // Prevents accepting generic venues like "Olive Garden" when AI suggested "Pasta House"
+            const rankedByName = apiDrinksFiltered.map(place => ({
+              place,
+              similarity: calculateNameSimilarity(suggestion.venueName, place.name)
+            })).sort((a, b) => b.similarity - a.similarity);
+
+            const bestMatch = rankedByName[0];
+            const SIMILARITY_THRESHOLD = 0.6;
+
+            // Reject if best match doesn't meet similarity threshold
+            if (bestMatch.similarity < SIMILARITY_THRESHOLD) {
+              console.log(`[API Fallback] Low similarity (${bestMatch.similarity.toFixed(2)}) between "${suggestion.venueName}" and "${bestMatch.place.name}" - rejecting`);
+              return null;
+            }
+
+            const apiPlace = bestMatch.place;
+            console.log(`[API Fallback] ✅ Using "${apiPlace.name}" (similarity: ${bestMatch.similarity.toFixed(2)}) from Google Places API for suggestion "${suggestion.venueName}"`);
             
             // CRITICAL: Only include venues with verified Google Places data
             // Note: photoUrl is optional - we can fetch it later on-demand

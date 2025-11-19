@@ -1,8 +1,10 @@
 import { format, differenceInHours, differenceInDays } from "date-fns";
-import { ChevronDown, ChevronUp, MapPin, ExternalLink, Bot, Check, X, HelpCircle, Loader2, Trash2 } from "lucide-react";
+import { formatInTimeZone } from "date-fns-tz";
+import { ChevronDown, ChevronUp, MapPin, ExternalLink, Bot, Check, X, HelpCircle, Loader2, Trash2, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
@@ -19,6 +21,70 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+
+// Helper function to convert hex color to rgba
+function hexToRgba(hex: string, alpha: number): string {
+  const cleanHex = hex.replace('#', '');
+  const r = parseInt(cleanHex.substring(0, 2), 16);
+  const g = parseInt(cleanHex.substring(2, 4), 16);
+  const b = parseInt(cleanHex.substring(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+// Helper function to format name with last initial
+function formatNameWithLastInitial(fullName: string): string {
+  const parts = fullName.trim().split(' ');
+  if (parts.length < 2) return fullName; // Single name, return as-is
+
+  const firstName = parts[0];
+  const lastInitial = parts[parts.length - 1][0];
+  return `${firstName} ${lastInitial}.`;
+}
+
+// Helper function to get pill color classes based on response
+function getResponsePillColor(response: 'yes' | 'maybe' | 'no' | 'pending'): string {
+  switch (response) {
+    case 'yes':
+      return 'bg-green-100 text-green-700 border-green-300';
+    case 'maybe':
+      return 'bg-yellow-100 text-yellow-700 border-yellow-300';
+    case 'no':
+      return 'bg-gray-100 text-gray-600 border-gray-300';
+    case 'pending':
+      return 'bg-gray-50 text-gray-900 border-gray-300';
+    default:
+      return 'bg-gray-100 text-gray-600 border-gray-300';
+  }
+}
+
+// Helper function to get RSVP counts
+function getRsvpCounts(event: Event): { yes: number; maybe: number; no: number; pending: number } {
+  const yesCount = event.rsvpSummary?.yes?.length || 0;
+  const maybeCount = event.rsvpSummary?.maybe?.length || 0;
+  const noCount = event.rsvpSummary?.no?.length || 0;
+
+  // Calculate pending: total members minus those who responded
+  const totalMembers = event.members?.length || 0;
+  const respondedCount = yesCount + maybeCount + noCount;
+  const pendingCount = Math.max(0, totalMembers - respondedCount);
+
+  return { yes: yesCount, maybe: maybeCount, no: noCount, pending: pendingCount };
+}
+
+// Helper function to get members who haven't responded
+function getMembersWithoutRsvp(event: Event): string[] {
+  if (!event.members || !event.rsvpSummary) return [];
+
+  const allRespondents = new Set([
+    ...(event.rsvpSummary.yes || []),
+    ...(event.rsvpSummary.maybe || []),
+    ...(event.rsvpSummary.no || [])
+  ]);
+
+  return event.members
+    .map(m => m.name || m.email || 'Unknown')
+    .filter(name => !allRespondents.has(name));
+}
 
 type EventItem = {
   id: string;
@@ -37,6 +103,7 @@ type Event = {
   groupName: string;
   groupEmoji: string;
   groupAccentColor: string | null;
+  groupTimezone: string | null;
   eventDate: string | null;
   isOrganizer: boolean;
   isVirtual?: boolean;
@@ -53,6 +120,24 @@ type Event = {
   autoSendAt?: string;
   confidenceScore?: number;
   requiresReview?: boolean;
+  // RSVP attendance data
+  rsvpSummary?: {
+    yes: string[];
+    maybe: string[];
+    no: string[];
+  };
+  detailedRsvps?: Array<{
+    name: string;
+    response: string;
+    additionalAttendees: any[];
+    numberOfKids: number;
+    isGuest: boolean;
+  }>;
+  members?: Array<{
+    id: string;
+    name: string | null;
+    email: string | null;
+  }>;
 };
 
 type EventsTableProps = {
@@ -60,12 +145,16 @@ type EventsTableProps = {
   expandedEvents: Set<string>;
   onToggleExpand: (eventId: string) => void;
   currentUserId?: string;
+  isPastEvents?: boolean;
+  onLeaveFeedback?: (event: Event) => void;
 };
 
 export default function EventsTable({
   events,
   expandedEvents,
-  onToggleExpand
+  onToggleExpand,
+  isPastEvents = false,
+  onLeaveFeedback
 }: EventsTableProps) {
   const { toast } = useToast();
   const [rsvpDropdownOpen, setRsvpDropdownOpen] = useState<string | null>(null);
@@ -73,6 +162,21 @@ export default function EventsTable({
   const [pendingResponse, setPendingResponse] = useState<string>("");
   const [feedbackNote, setFeedbackNote] = useState("");
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState<string | null>(null);
+  const [expandedAttendance, setExpandedAttendance] = useState<Set<string>>(new Set());
+  const [selectedEvents, setSelectedEvents] = useState<Set<string>>(new Set());
+
+  // Toggle attendance expansion for a specific event
+  const toggleAttendanceExpand = (eventId: string) => {
+    setExpandedAttendance(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(eventId)) {
+        newSet.delete(eventId);
+      } else {
+        newSet.add(eventId);
+      }
+      return newSet;
+    });
+  };
 
   // RSVP mutation
   const rsvpMutation = useMutation({
@@ -106,18 +210,73 @@ export default function EventsTable({
 
   // Delete event mutation
   const deleteEventMutation = useMutation({
-    mutationFn: async (itineraryId: string) => {
-      return await apiRequest("DELETE", `/api/itineraries/${itineraryId}`);
+    mutationFn: async (eventIdOrBulk: string | string[]) => {
+      const eventIds = Array.isArray(eventIdOrBulk) ? eventIdOrBulk : [eventIdOrBulk];
+
+      // Separate virtual from real events
+      const virtualEventIds = eventIds.filter(id => id.startsWith('virtual-'));
+      const realEventIds = eventIds.filter(id => !id.startsWith('virtual-'));
+
+      // Process real event deletions
+      if (realEventIds.length > 0) {
+        await Promise.all(
+          realEventIds.map(async (eventId) => {
+            // Determine if this is an itinerary or an invite
+            const event = events.find(e => e.itineraryId === eventId || e.inviteId === eventId);
+            if (!event) throw new Error("Event not found");
+
+            // Use the appropriate endpoint based on whether it's an itinerary or invite
+            const endpoint = event.itineraryId
+              ? `/api/itineraries/${event.itineraryId}`
+              : `/api/itinerary-invites/${event.inviteId}`;
+
+            await apiRequest("DELETE", endpoint);
+          })
+        );
+      }
+
+      return { virtualEventIds, realEventIds };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
+    onMutate: async (eventIdOrBulk) => {
+      const eventIds = Array.isArray(eventIdOrBulk) ? eventIdOrBulk : [eventIdOrBulk];
+      const virtualEventIds = eventIds.filter(id => id.startsWith('virtual-'));
+      const realEventIds = eventIds.filter(id => !id.startsWith('virtual-'));
+
+      // For any events being deleted, optimistically remove from UI
+      if (eventIds.length > 0) {
+        await queryClient.cancelQueries({ queryKey: ["/api/user/events"] });
+        const previousEvents = queryClient.getQueryData(["/api/user/events"]);
+
+        queryClient.setQueryData(["/api/user/events"], (old: any) => {
+          if (!old) return old;
+          return old.filter((e: any) => {
+            const id = e.itineraryId || e.inviteId;
+            return !eventIds.includes(id);
+          });
+        });
+
+        return { previousEvents, virtualEventIds, realEventIds };
+      }
+    },
+    onSuccess: (data, variables, context: any) => {
+      // Only invalidate queries if we deleted real events
+      // Virtual events are already removed optimistically and shouldn't refetch
+      if (context?.realEventIds && context.realEventIds.length > 0) {
+        queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
+      }
+
       toast({
         title: "Event deleted",
         description: "The event has been deleted successfully"
       });
       setDeleteConfirmOpen(null);
+      setSelectedEvents(new Set());
     },
-    onError: (error: any) => {
+    onError: (error: any, eventIdOrBulk, context: any) => {
+      // Rollback optimistic update
+      if (context?.previousEvents) {
+        queryClient.setQueryData(["/api/user/events"], context.previousEvents);
+      }
       toast({
         title: "Error deleting event",
         description: error.message,
@@ -224,7 +383,7 @@ export default function EventsTable({
       return (
         <span className="text-xs text-muted-foreground flex items-center gap-1">
           <Bot className="h-3 w-3" />
-          AI scheduling
+          Auto-scheduled
         </span>
       );
     }
@@ -273,17 +432,27 @@ export default function EventsTable({
 
       switch (currentResponse) {
         case "going":
-          return { text: "Going ✓", className: "text-xs text-green-600 font-medium" };
+        case "yes":
+          return { text: "Attended", className: "text-xs text-green-600 font-medium" };
         case "maybe":
           return { text: "Maybe", className: "text-xs text-yellow-600 font-medium" };
         case "no":
-          return { text: "Can't go", className: "text-xs text-gray-500 font-medium" };
+          return { text: "Declined", className: "text-xs text-gray-500 font-medium" };
         default:
           return { text: currentResponse, className: "text-xs text-muted-foreground" };
       }
     };
 
     const displayInfo = getDisplayInfo();
+
+    // For past events, show static text only
+    if (isPastEvents) {
+      return (
+        <span className={displayInfo.className}>
+          {displayInfo.text}
+        </span>
+      );
+    }
 
     // Don't render dropdown for events without itineraryId
     if (!itineraryId) {
@@ -313,9 +482,14 @@ export default function EventsTable({
           >
             <span className={displayInfo.className}>
               {isLoading ? (
-                <><Loader2 className="h-3 w-3 inline mr-1 animate-spin" />{displayInfo.text}</>
+                <><Loader2 className="h-3 w-3 inline mr-1 animate-spin" />Updating...</>
               ) : (
-                displayInfo.text
+                <>
+                  {currentResponse === "going" || currentResponse === "yes" ? "Going ✓" :
+                   currentResponse === "maybe" ? "Maybe" :
+                   currentResponse === "no" ? "Can't go" :
+                   "RSVP"}
+                </>
               )}
             </span>
             {!isLoading && <span className="text-xs text-muted-foreground ml-2">▼</span>}
@@ -375,13 +549,48 @@ export default function EventsTable({
   };
 
   return (
-    <div className="space-y-1">
-      {/* Table Header */}
-      <div className="grid grid-cols-[180px_1fr_200px_120px_80px] gap-4 px-3 py-2 text-xs font-semibold text-muted-foreground border-b">
+    <div className="overflow-x-auto">
+      {/* Delete button bar */}
+      {!isPastEvents && selectedEvents.size > 0 && (
+        <div className="px-3 py-2 bg-muted/50 border-b flex items-center justify-between">
+          <span className="text-sm text-muted-foreground">
+            {selectedEvents.size} event{selectedEvents.size > 1 ? 's' : ''} selected
+          </span>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => {
+              setDeleteConfirmOpen('bulk-delete');
+            }}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete Selected
+          </Button>
+        </div>
+      )}
+
+      <div className="space-y-1 min-w-[1100px]">
+        {/* Table Header */}
+      <div className="grid grid-cols-[40px_180px_minmax(200px,1fr)_250px_120px_280px_80px] gap-4 px-3 py-2 text-xs font-semibold text-muted-foreground border-b">
+        <div className="flex items-center justify-center">
+          {!isPastEvents && (
+            <Checkbox
+              checked={selectedEvents.size === events.length && events.length > 0}
+              onCheckedChange={(checked) => {
+                if (checked) {
+                  setSelectedEvents(new Set(events.map(e => e.itineraryId || e.inviteId)));
+                } else {
+                  setSelectedEvents(new Set());
+                }
+              }}
+            />
+          )}
+        </div>
         <div>DATE/TIME</div>
         <div>EVENT</div>
         <div>MEETING AT</div>
         <div>RSVP</div>
+        <div>ATTENDANCE</div>
         <div></div>
       </div>
 
@@ -395,22 +604,57 @@ export default function EventsTable({
 
         const rowContent = (
           <div
-            className="grid grid-cols-[180px_1fr_200px_120px_80px] gap-4 px-3 py-3 hover:bg-muted/50 transition-colors items-center cursor-pointer"
+            className="grid grid-cols-[40px_180px_minmax(200px,1fr)_250px_120px_280px_80px] gap-4 px-3 py-3 hover:bg-muted/50 transition-colors items-center cursor-pointer"
             style={{
               borderLeft: `${borderStyle.borderWidth} solid ${borderStyle.borderColor}`,
               backgroundColor: borderStyle.backgroundColor
             }}
           >
+                {/* Checkbox Column */}
+                <div
+                  className="flex items-center justify-center"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                >
+                  {!isPastEvents && (
+                    <Checkbox
+                      checked={selectedEvents.has(eventId)}
+                      onCheckedChange={(checked) => {
+                        setSelectedEvents(prev => {
+                          const newSet = new Set(prev);
+                          if (checked) {
+                            newSet.add(eventId);
+                          } else {
+                            newSet.delete(eventId);
+                          }
+                          return newSet;
+                        });
+                      }}
+                    />
+                  )}
+                </div>
+
                 {/* Date/Time Column */}
                 <div className="text-sm">
                   {event.eventDate ? (
                     <>
                       <div className="font-medium">
-                        {format(new Date(event.eventDate), "MMM d, h:mm a")}
+                        {event.groupTimezone
+                          ? formatInTimeZone(new Date(event.eventDate), event.groupTimezone, "MMM d, h:mm a")
+                          : format(new Date(event.eventDate), "MMM d, h:mm a")}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {format(new Date(event.eventDate), "EEEE")}
+                        {event.groupTimezone
+                          ? formatInTimeZone(new Date(event.eventDate), event.groupTimezone, "EEEE")
+                          : format(new Date(event.eventDate), "EEEE")}
                       </div>
+                      {event.groupTimezone && (
+                        <div className="text-[10px] text-muted-foreground/70 mt-0.5">
+                          {formatInTimeZone(new Date(event.eventDate), event.groupTimezone, "zzz")}
+                        </div>
+                      )}
                     </>
                   ) : (
                     <div className="text-muted-foreground">TBD</div>
@@ -423,7 +667,21 @@ export default function EventsTable({
                     {event.isAutoScheduled ? '🤖' : event.groupEmoji}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <div className="font-bold text-base truncate">{event.groupName}</div>
+                    <Badge
+                      variant="secondary"
+                      className="font-semibold text-sm mb-1"
+                      style={{
+                        backgroundColor: event.groupAccentColor
+                          ? hexToRgba(event.groupAccentColor, 0.15)
+                          : 'rgba(148, 163, 184, 0.15)',
+                        borderColor: event.groupAccentColor || '#94A3B8',
+                        borderWidth: '1px',
+                        borderStyle: 'solid',
+                        color: event.groupAccentColor || 'inherit'
+                      }}
+                    >
+                      {event.groupName}
+                    </Badge>
                     <div className="flex gap-2 mt-1 items-center flex-wrap">
                       {getRoleBadge(event)}
                       {getHostInfo(event)}
@@ -437,22 +695,70 @@ export default function EventsTable({
                 </div>
 
                 {/* Meeting At Column */}
-                <div className="text-sm">
+                <div className="text-sm" onClick={(e) => e.stopPropagation()}>
                   {event.isVirtual ? (
-                    <div className="text-muted-foreground">
-                      {event.eventDate ? (() => {
-                        const planDate = new Date(event.eventDate);
-                        planDate.setDate(planDate.getDate() - 3);
-                        return `Will be decided on ${format(planDate, "MMM d")}`;
-                      })() : "Planning in progress"}
-                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          className="h-auto p-1 text-muted-foreground hover:text-foreground text-sm font-normal justify-start"
+                        >
+                          {event.eventDate ? (() => {
+                            const planDate = new Date(event.eventDate);
+                            planDate.setDate(planDate.getDate() - 3);
+                            return `Will be decided on ${format(planDate, "MMM d")} ▼`;
+                          })() : "Planning in progress ▼"}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        <Link href={`/group/${event.groupId}?action=schedule`}>
+                          <DropdownMenuItem>
+                            <Sparkles className="h-4 w-4 mr-2" />
+                            Decide Now
+                          </DropdownMenuItem>
+                        </Link>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   ) : !event.items || event.items.length === 0 ? (
-                    <div className="text-muted-foreground">TBD</div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          className="h-auto p-1 text-muted-foreground hover:text-foreground text-sm font-normal justify-start"
+                        >
+                          TBD ▼
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        <Link href={`/group/${event.groupId}?action=schedule`}>
+                          <DropdownMenuItem>
+                            <Sparkles className="h-4 w-4 mr-2" />
+                            Decide Now
+                          </DropdownMenuItem>
+                        </Link>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   ) : (
                     <div>
-                      <div className="font-medium truncate">
-                        {event.items.length === 1 ? event.items[0].venueName : `${event.items[0].venueName} + ${event.items.length - 1}`}
-                      </div>
+                      {(() => {
+                        const mapsUrl = getGoogleMapsUrl(event.items[0]);
+                        const venueName = event.items.length === 1 ? event.items[0].venueName : `${event.items[0].venueName} + ${event.items.length - 1}`;
+
+                        return mapsUrl ? (
+                          <a
+                            href={mapsUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-medium truncate hover:underline hover:text-primary flex items-center gap-1"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {venueName}
+                            <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                          </a>
+                        ) : (
+                          <div className="font-medium truncate">{venueName}</div>
+                        );
+                      })()}
                       {event.items[0].venueAddress && (
                         <div className="text-xs text-muted-foreground truncate mt-0.5">
                           {event.items[0].venueAddress}
@@ -467,20 +773,131 @@ export default function EventsTable({
                   {getRsvpDropdown(event)}
                 </div>
 
+                {/* Attendance Column */}
+                <div className="text-sm" onClick={(e) => e.stopPropagation()}>
+                  {(() => {
+                    const counts = getRsvpCounts(event);
+                    const isAttendanceExpanded = expandedAttendance.has(eventId);
+                    const hasRsvpData = event.rsvpSummary || event.members;
+
+                    if (!hasRsvpData) {
+                      return <span className="text-muted-foreground">—</span>;
+                    }
+
+                    // Collapsed view: Show pills
+                    if (!isAttendanceExpanded) {
+                      return (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleAttendanceExpand(eventId);
+                          }}
+                          className="flex flex-wrap gap-1.5 items-center hover:opacity-80 transition-opacity"
+                        >
+                          {counts.yes > 0 && (
+                            <Badge variant="outline" className={`text-xs px-2 py-0.5 ${getResponsePillColor('yes')}`}>
+                              ✅ {counts.yes} yes
+                            </Badge>
+                          )}
+                          {counts.maybe > 0 && (
+                            <Badge variant="outline" className={`text-xs px-2 py-0.5 ${getResponsePillColor('maybe')}`}>
+                              ❓ {counts.maybe} maybe
+                            </Badge>
+                          )}
+                          {counts.no > 0 && (
+                            <Badge variant="outline" className={`text-xs px-2 py-0.5 ${getResponsePillColor('no')}`}>
+                              ❌ {counts.no} no
+                            </Badge>
+                          )}
+                          {counts.pending > 0 && (
+                            <Badge variant="outline" className={`text-xs px-2 py-0.5 ${getResponsePillColor('pending')}`}>
+                              ⏳ {counts.pending} pending
+                            </Badge>
+                          )}
+                          <ChevronDown className="h-3 w-3 text-muted-foreground ml-0.5" />
+                        </button>
+                      );
+                    }
+
+                    // Expanded view: Show detailed list
+                    const pendingMembers = getMembersWithoutRsvp(event);
+
+                    return (
+                      <div className="space-y-2 py-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleAttendanceExpand(eventId);
+                          }}
+                          className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors mb-1"
+                        >
+                          <ChevronUp className="h-3 w-3" />
+                          <span className="text-xs font-medium">Hide details</span>
+                        </button>
+
+                        {counts.yes > 0 && (
+                          <div>
+                            <div className="text-xs font-medium text-green-700 mb-1">
+                              ✅ Yes ({counts.yes})
+                            </div>
+                            <div className="text-xs text-green-600">
+                              {event.rsvpSummary?.yes?.map(name => formatNameWithLastInitial(name)).join(', ')}
+                            </div>
+                          </div>
+                        )}
+
+                        {counts.maybe > 0 && (
+                          <div>
+                            <div className="text-xs font-medium text-yellow-700 mb-1">
+                              ❓ Maybe ({counts.maybe})
+                            </div>
+                            <div className="text-xs text-yellow-600">
+                              {event.rsvpSummary?.maybe?.map(name => formatNameWithLastInitial(name)).join(', ')}
+                            </div>
+                          </div>
+                        )}
+
+                        {counts.no > 0 && (
+                          <div>
+                            <div className="text-xs font-medium text-gray-600 mb-1">
+                              ❌ No ({counts.no})
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {event.rsvpSummary?.no?.map(name => formatNameWithLastInitial(name)).join(', ')}
+                            </div>
+                          </div>
+                        )}
+
+                        {counts.pending > 0 && (
+                          <div>
+                            <div className="text-xs font-medium text-gray-900 mb-1">
+                              ⏳ No Response ({counts.pending})
+                            </div>
+                            <div className="text-xs text-gray-700">
+                              {pendingMembers.map(name => formatNameWithLastInitial(name)).join(', ')}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+
                 {/* Actions Column - Expand Arrow & Delete */}
                 <div className="flex items-center gap-1 justify-end">
-                  {event.isOrganizer && event.itineraryId && (
-                    <button
-                      className="p-1 hover:bg-destructive/10 rounded text-destructive"
+                  {isPastEvents && onLeaveFeedback && (event.rsvp?.response === 'yes' || event.isOrganizer) && !(event.rsvp as any)?.postEventFeedback && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        setDeleteConfirmOpen(event.itineraryId);
+                        onLeaveFeedback(event);
                       }}
-                      title="Delete event"
+                      className="h-7 text-xs"
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                      Feedback
+                    </Button>
                   )}
                   <div
                     onClick={(e) => {
@@ -545,14 +962,31 @@ export default function EventsTable({
         );
       })}
 
-      {/* Delete Confirmation Dialog */}
+      {/* Delete/Skip Confirmation Dialog */}
       <AlertDialog open={!!deleteConfirmOpen} onOpenChange={(open) => !open && setDeleteConfirmOpen(null)}>
         <AlertDialogContent onClick={(e) => e.stopPropagation()}>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Event</AlertDialogTitle>
+            <AlertDialogTitle>
+              {deleteConfirmOpen === 'bulk-delete'
+                ? `Delete ${selectedEvents.size} Event${selectedEvents.size > 1 ? 's' : ''}`
+                : (() => {
+                    const event = events.find(e => e.itineraryId === deleteConfirmOpen || e.inviteId === deleteConfirmOpen);
+                    return event?.isOrganizer ? "Delete Event" : "Skip This Event";
+                  })()
+              }
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this event? This action cannot be undone.
-              All invites and RSVPs will be permanently removed.
+              {deleteConfirmOpen === 'bulk-delete'
+                ? `Are you sure you want to delete ${selectedEvents.size} event${selectedEvents.size > 1 ? 's' : ''}? This action cannot be undone.`
+                : (() => {
+                    const event = events.find(e => e.itineraryId === deleteConfirmOpen || e.inviteId === deleteConfirmOpen);
+                    if (event?.isOrganizer) {
+                      return "Are you sure you want to delete this event? This action cannot be undone. All invites and RSVPs will be permanently removed.";
+                    } else {
+                      return "Are you sure you want to skip this event? This will remove it from your events list.";
+                    }
+                  })()
+              }
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -560,14 +994,22 @@ export default function EventsTable({
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault();
-                if (deleteConfirmOpen) {
+                if (deleteConfirmOpen === 'bulk-delete') {
+                  deleteEventMutation.mutate(Array.from(selectedEvents));
+                } else if (deleteConfirmOpen) {
                   deleteEventMutation.mutate(deleteConfirmOpen);
                 }
               }}
               disabled={deleteEventMutation.isPending}
               className="bg-destructive hover:bg-destructive/90"
             >
-              {deleteEventMutation.isPending ? "Deleting..." : "Delete"}
+              {deleteEventMutation.isPending ? "Deleting..." :
+                deleteConfirmOpen === 'bulk-delete' ? "Delete All" :
+                (() => {
+                  const event = events.find(e => e.itineraryId === deleteConfirmOpen || e.inviteId === deleteConfirmOpen);
+                  return event?.isOrganizer ? "Delete" : "Skip";
+                })()
+              }
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -632,5 +1074,6 @@ export default function EventsTable({
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  </div>
   );
 }

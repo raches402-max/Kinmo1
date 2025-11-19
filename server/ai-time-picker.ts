@@ -415,18 +415,22 @@ ${allowedDays.length > 0
   ? `1. First, identify which days between ${minDate.toISOString().split('T')[0]} and ${maxDate.toISOString().split('T')[0]} are ${allowedDays.join(', ')}
 2. From those valid days, pick 3-5 DIFFERENT dates
 3. For each date, choose an appropriate time for the venue type:
-   - Brunch/Breakfast/Cafe → 10:00-13:00 (weekend mornings preferred)
+   - Bottomless Brunch → 10:00-14:00 (MUST be Saturday or Sunday only)
+   - Brunch → 10:00-13:00 (STRONGLY prefer Saturday or Sunday)
+   - Breakfast/Cafe → 08:00-11:00
    - Lunch → 11:30-14:00
    - Dinner/Restaurant → 18:00-20:30
-   - Bars/Drinks → 19:00-22:00
+   - Bars/Drinks → 19:00-22:00 (prefer Thursday-Saturday)
    - Matcha/Tea/Coffee → 10:00-16:00
 
 VERIFY: Before returning, double-check that ALL suggested dates fall on ${allowedDays.join(' OR ')}.`
   : `Suggest 3-5 DIFFERENT dates with appropriate times for the venue type:
-   - Brunch/Breakfast/Cafe → 10:00-13:00 (weekend mornings preferred)
+   - Bottomless Brunch → 10:00-14:00 (MUST be Saturday or Sunday only)
+   - Brunch → 10:00-13:00 (STRONGLY prefer Saturday or Sunday)
+   - Breakfast/Cafe → 08:00-11:00
    - Lunch → 11:30-14:00
    - Dinner/Restaurant → 18:00-20:30
-   - Bars/Drinks → 19:00-22:00
+   - Bars/Drinks → 19:00-22:00 (prefer Thursday-Saturday)
    - Matcha/Tea/Coffee → 10:00-16:00`}
 
 Return ONLY a JSON object with this exact structure:
@@ -439,13 +443,19 @@ Return ONLY a JSON object with this exact structure:
   ]
 }`;
 
+    console.log('[AI Time Picker] Using GPT-4o for multiple time options with better constraint handling');
+    const startTime = Date.now();
+
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4o', // Upgraded from mini for better day-of-week constraint adherence
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.7, // Higher temp for variety
       max_tokens: 300,
       response_format: { type: "json_object" },
     });
+
+    const responseTime = Date.now() - startTime;
+    console.log(`[AI Time Picker] GPT-4o multiple options response time: ${responseTime}ms`);
 
     const result = JSON.parse(response.choices[0]?.message?.content || '{}');
     console.log('[AI Time Picker] Multiple options response:', JSON.stringify(result));
@@ -547,8 +557,51 @@ function generateFallbackOptions(
       })
     });
   }
-  
+
   return { options };
+}
+
+// Helper to validate that suggested time matches activity type
+function validateTimeForActivity(activityType: string, suggestedHour: number): {
+  isValid: boolean;
+  correctedHour?: number;
+  reason?: string;
+} {
+  const activityLower = activityType.toLowerCase();
+
+  // Define valid time ranges for different activity types (24-hour format)
+  const timeRules: { [key: string]: { min: number; max: number; name: string } } = {
+    'breakfast': { min: 7, max: 11, name: 'breakfast' },
+    'brunch': { min: 10, max: 14, name: 'brunch' },
+    'lunch': { min: 11, max: 14, name: 'lunch' },
+    'coffee': { min: 7, max: 12, name: 'coffee' },
+    'happy hour': { min: 16, max: 19, name: 'happy hour' },
+    'dinner': { min: 17, max: 21, name: 'dinner' },
+    'drinks': { min: 17, max: 23, name: 'drinks' },
+    'bar': { min: 17, max: 23, name: 'bar' },
+    'dessert': { min: 19, max: 23, name: 'dessert' },
+    'ice cream': { min: 19, max: 23, name: 'dessert' },
+  };
+
+  // Check if activity matches any rule
+  for (const [keyword, rule] of Object.entries(timeRules)) {
+    if (activityLower.includes(keyword)) {
+      if (suggestedHour < rule.min || suggestedHour > rule.max) {
+        // Time is invalid - suggest the closest valid hour
+        const correctedHour = suggestedHour < rule.min ? rule.min : rule.max;
+        return {
+          isValid: false,
+          correctedHour,
+          reason: `${rule.name} should be between ${rule.min}:00-${rule.max}:00, but got ${suggestedHour}:00`
+        };
+      }
+      // Time is valid for this activity type
+      return { isValid: true };
+    }
+  }
+
+  // No specific rule for this activity - accept any time
+  return { isValid: true };
 }
 
 export async function suggestOptimalTime(
@@ -670,14 +723,18 @@ Based on the group's availability and the venues, suggest:
    * Example: "Saturday, and Sunday afternoons and Thursday, Friday, Saturday, and Sunday evenings only" → Valid days: [Thursday, Friday, Saturday, Sunday]
    * These are the ONLY valid days - all other days are FORBIDDEN
    * If availability says "Weekends" → Valid days: [Saturday, Sunday]
-   * If availability says "Weekday evenings" → Valid days: [Monday, Tuesday, Wednesday, Thursday, Friday]
+   * If availability says "Weekday evenings" or "Weeknight" or "Week night" → Valid days: [Monday, Tuesday, Wednesday, Thursday, Friday]
+   * **IMPORTANT**: "Weeknight" ALWAYS means Monday through Friday (NOT weekends)
 
 **STEP 2: Identify venue type and appropriate time**
-   * Brunch/Breakfast/Cafe → 10:00-13:00 (morning to early afternoon), prefer weekend from Step 1
+   * Bottomless Brunch → 10:00-14:00 (late morning to early afternoon), MUST be Saturday or Sunday only
+   * Brunch → 10:00-13:00 (late morning to early afternoon), STRONGLY prefer Saturday or Sunday from Step 1
+   * Breakfast/Cafe → 08:00-11:00 (early to mid morning)
    * Lunch → 11:30-14:00 (midday)
-   * Dinner/Restaurant → 18:00-20:30 (evening)
+   * Dinner/Restaurant → 18:00-20:30 (evening), NEVER schedule dinner before 17:00 or after 21:00
+   * **WEEKNIGHT DINNER**: 18:00-20:30 on Monday-Friday (typical dinner hours for work nights)
    * Ramen/Asian restaurant → can be lunch (12:00) or dinner (18:30)
-   * Bars/Drinks → 19:00-22:00 (evening)
+   * Bars/Drinks → 19:00-22:00 (evening), prefer Thursday-Saturday
    * Matcha/Tea/Coffee → 10:00-16:00 (morning to afternoon)
    * Ice Cream/Dessert/Bakery/Creamery → 14:00-20:00 (afternoon to evening), prefer 15:00-19:00
 
@@ -702,8 +759,10 @@ Based on the group's availability and the venues, suggest:
 
 **COMMON MISTAKES TO AVOID:**
 ❌ Suggesting Tuesday when only Thursday/Friday/Saturday/Sunday are allowed
-❌ Suggesting 18:30 (dinner time) for a brunch/cafe venue
+❌ Suggesting 18:30 (dinner time) for a brunch/cafe venue - brunch is 10:00-13:00!
+❌ Suggesting bottomless brunch on a weekday - it MUST be Saturday or Sunday
 ❌ Suggesting "dinner" in reasoning for a ramen restaurant at 12:00 (that's lunch!)
+❌ Suggesting regular brunch on weekdays when Saturday/Sunday are available
 ❌ Writing "Tuesday at 18:30" in reasoning but returning different date in JSON
 ❌ Scheduling a venue when it's closed on that day (check the hours!)
 ❌ Scheduling a CLOSED_PERMANENTLY or CLOSED_TEMPORARILY venue
@@ -717,13 +776,19 @@ Return ONLY a JSON object with this exact structure:
   "reasoning": "[Actual day] at [time] works well for [actual meal type] at [venue name]"
 }`;
 
+    console.log('[AI Time Picker] Using GPT-4o for enhanced multi-constraint reasoning');
+    const startTime = Date.now();
+
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4o', // Upgraded from mini for better constraint handling and fewer retries
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.3,
       max_tokens: 200,
       response_format: { type: "json_object" },
     });
+
+    const responseTime = Date.now() - startTime;
+    console.log(`[AI Time Picker] GPT-4o response time: ${responseTime}ms (attempt ${attempt}/${maxRetries})`);
 
     const result = JSON.parse(response.choices[0]?.message?.content || '{}');
     console.log('[AI Time Picker] Raw AI response:', JSON.stringify(result));
@@ -740,13 +805,25 @@ Return ONLY a JSON object with this exact structure:
     const [hours, minutes] = result.time.split(':').map(Number);
     const naiveDate = new Date(Date.UTC(year, month - 1, day, hours, minutes));
     // fromZonedTime treats this as local time in the target timezone and converts to UTC
-    const eventDate = fromZonedTime(naiveDate, tzIdentifier);
+    let eventDate = fromZonedTime(naiveDate, tzIdentifier);
 
     // Validate it's within our range
     if (eventDate < minDate || eventDate > maxDate) {
       console.log('[AI Time Picker] Date out of range, using fallback');
       return generateFallbackTime(input, minDate, maxDate, tzIdentifier);
     }
+
+      // Validate time-of-day matches activity type
+      const timeValidation = validateTimeForActivity(input.activityType, hours);
+      if (!timeValidation.isValid && timeValidation.correctedHour !== undefined) {
+        console.log(`[AI Time Picker] INVALID TIME: ${timeValidation.reason}`);
+        console.log(`[AI Time Picker] Correcting ${hours}:00 to ${timeValidation.correctedHour}:00`);
+
+        // Adjust the time to the corrected hour while keeping the same date and minutes
+        const correctedNaiveDate = new Date(Date.UTC(year, month - 1, day, timeValidation.correctedHour, minutes));
+        eventDate = fromZonedTime(correctedNaiveDate, tzIdentifier);
+        console.log('[AI Time Picker] Using corrected time:', eventDate.toISOString());
+      }
 
       // Validate day-of-week matches availability constraint
       const dayOfWeek = eventDate.getDay(); // 0 = Sunday, 1 = Monday, etc.

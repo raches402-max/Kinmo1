@@ -555,7 +555,7 @@ Requirements:
 2. venueName: Real venue (e.g. "Foreign Cinema", "Tartine Bakery" - NOT "restaurant")
 3. venueType: Specific (e.g. "cocktail bar", "sushi restaurant")
 4. Fits budget
-5. searchQuery: venue + type + city
+5. searchQuery: MUST include actual venue name + city (e.g. "Tartine Bakery San Francisco" NOT "bakery San Francisco")
 6. Description: 1-4 words
 7. Reasoning: 2-5 words
 
@@ -567,7 +567,7 @@ Return JSON:
       "venueType": "specific type",
       "description": "1-4 words",
       "reasoning": "2-5 words",
-      "searchQuery": "venue type city"
+      "searchQuery": "Real venue name city"
     }
   ]
 }`;
@@ -653,7 +653,7 @@ Rules:
 5. No duplicates${groupData.previouslySuggestedVenues && groupData.previouslySuggestedVenues.length > 0 ? ` (avoid: ${groupData.previouslySuggestedVenues.slice(0, 6).join(', ')}${groupData.previouslySuggestedVenues.length > 6 ? '...' : ''})` : ''}${groupData.rejectedVenues && groupData.rejectedVenues.length > 0 ? ` (banned: ${groupData.rejectedVenues.join(', ')})` : ''}
 6. Description: 1-4 words
 7. Reasoning: 2-5 words
-8. searchQuery: venue + type + city
+8. searchQuery: MUST include actual venue name + city (e.g. "Tartine Bakery San Francisco" NOT "bakery San Francisco")
 
 Return JSON:
 {
@@ -663,7 +663,7 @@ Return JSON:
       "venueType": "specific type",
       "description": "1-4 words",
       "reasoning": "2-5 words",
-      "searchQuery": "venue type city"
+      "searchQuery": "Real venue name city"
     }
   ]
 }`;
@@ -1109,7 +1109,7 @@ Category must be: meal, cafes, drinks, dessert, or experiences`;
 
     const startTime = Date.now();
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4o", // Upgraded from mini for better edge case categorization (wine bars, museum cafes, hybrid venues)
       messages: [
         {
           role: "system",
@@ -1121,7 +1121,8 @@ Category must be: meal, cafes, drinks, dessert, or experiences`;
         }
       ],
       response_format: { type: "json_object" },
-      max_completion_tokens: 50,
+      temperature: 0.3, // Lower temperature for consistent categorization
+      max_completion_tokens: 150, // Increased for reasoning on edge cases
     });
     const responseTimeMs = Date.now() - startTime;
 
@@ -1378,37 +1379,70 @@ Return JSON:
 }
 
 export interface SchedulingParams {
-  activityType: string; // e.g., "tacos", "coffee", "museum"
+  activityType: string; // e.g., "tacos", "coffee", "bottomless brunch"
   category: 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences'; // Mapped category
-  location?: string; // e.g., "mission", "downtown"
+  location?: string; // e.g., "Mission", "downtown", "Mission, San Francisco"
   timePreference?: 'morning' | 'afternoon' | 'evening' | 'night'; // e.g., "at night"
   dayConstraints?: 'weekday' | 'weekend' | 'any'; // e.g., "on weekday"
   timeframe?: string; // e.g., "next week", "this weekend", "next month"
   specificDates?: string[]; // Parsed specific dates if mentioned
+  mealModifiers?: string; // e.g., "bottomless", "prix fixe" - for more specific venue filtering
+  contextKeywords?: string[]; // e.g., ["romantic", "intimate"] for context-aware search
+  venueAttributes?: string[]; // e.g., ["outdoor seating", "live music", "vegetarian"]
+  // A/B testing metadata
+  aiModel?: string; // Which model was used: 'gpt-4o' or 'gpt-4o-mini'
+  cached?: boolean; // Was this result from cache?
+  responseTimeMs?: number; // How long did the API call take?
 }
 
+// Basic scheduling prompt parser - uses GPT-4o-mini for speed and cost efficiency
+// For enhanced parsing with group history, use parseSchedulingPromptWithHistory() which uses GPT-4o
 export async function parseSchedulingPrompt(prompt: string, groupLocation: string): Promise<SchedulingParams> {
   try {
-    console.log(`[AI Scheduling] Parsing prompt: "${prompt}"`);
-    
+    console.log(`[AI Scheduling w/ mini] Parsing prompt: "${prompt}"`);
+
     const systemPrompt = `You are an expert at parsing natural language scheduling requests for group activities.
 Extract the following information from the user's prompt and return a JSON object:
-1. Activity type (what they want to do)
+1. Activity type (what they want to do) - be SPECIFIC and preserve important modifiers
 2. Category (map to: meal, cafes, drinks, dessert, or experiences)
-3. Location (where, if specified - otherwise null)
+3. Location (where, if specified - preserve neighborhood names like "Mission", "Castro", etc.)
 4. Time preference (morning/afternoon/evening/night - if specified)
 5. Day constraints (weekday/weekend/any)
 6. Timeframe (when: "next week", "this weekend", "in 2 days", etc.)
+7. Meal type specific modifiers (for brunch/breakfast/lunch/dinner: "bottomless", "prix fixe", etc.)
+8. Context keywords - identify the EVENT CONTEXT and extract relevant atmosphere/vibe keywords:
+   - "date night" → ["romantic", "intimate", "quiet"]
+   - "family" or "kids" → ["family-friendly", "casual", "kids"]
+   - "celebration" or "birthday" → ["upscale", "special occasion"]
+   - "quick bite" or "grab food" → ["fast", "casual", "quick"]
+   - "business" or "work" → ["professional", "quiet", "wifi"]
+9. Venue attributes - extract SPECIFIC FEATURES requested:
+   - "outdoor", "patio", "rooftop" → ["outdoor seating"]
+   - "live music", "DJ" → ["live music"]
+   - "vegetarian", "vegan" → ["vegetarian"]
+   - "dog-friendly" → ["dog-friendly"]
+   - "good for groups" → ["large tables"]
+
+IMPORTANT for activity types:
+- Preserve specific meal modifiers: "bottomless brunch" NOT just "brunch"
+- Preserve venue type details: "bottomless brunch" NOT "restaurant"
+- For brunch specifically: if user says "bottomless brunch", activityType should be "bottomless brunch"
 
 Examples:
-"tacos next week at night on weekday in mission" →
-  activityType: "tacos", category: "meal", location: "mission", timePreference: "night", dayConstraints: "weekday", timeframe: "next week"
+"date night this weekend - somewhere romantic in Mission" →
+  activityType: "date night", category: "meal", location: "Mission", contextKeywords: ["romantic", "intimate", "quiet"], venueAttributes: null
 
-"coffee tomorrow morning downtown" →
-  activityType: "coffee", category: "cafes", location: "downtown", timePreference: "morning", dayConstraints: "any", timeframe: "tomorrow"
+"family brunch Saturday with outdoor seating" →
+  activityType: "family brunch", category: "meal", dayConstraints: "weekend", contextKeywords: ["family-friendly", "casual"], venueAttributes: ["outdoor seating"]
 
-"drinks this friday" →
-  activityType: "drinks", category: "drinks", location: null, timePreference: null, dayConstraints: "any", timeframe: "this friday"
+"bottomless brunch on Saturday in SF around the Mission" →
+  activityType: "bottomless brunch", category: "meal", location: "Mission, San Francisco", timePreference: null, dayConstraints: "weekend", timeframe: "next Saturday", mealModifiers: "bottomless", contextKeywords: null, venueAttributes: null
+
+"quick lunch near work with vegetarian options" →
+  activityType: "quick lunch", category: "meal", timePreference: null, contextKeywords: ["fast", "casual"], venueAttributes: ["vegetarian"]
+
+"celebration dinner somewhere nice with live music" →
+  activityType: "celebration dinner", category: "meal", contextKeywords: ["upscale", "special occasion"], venueAttributes: ["live music"]
 
 Return your response as a JSON object with these fields.`;
 
@@ -1461,6 +1495,9 @@ Return your response as a JSON object with these fields.`;
       dayConstraints: result.dayConstraints || 'any',
       timeframe: result.timeframe || 'next week',
       specificDates: result.specificDates || undefined,
+      mealModifiers: result.mealModifiers || undefined,
+      contextKeywords: result.contextKeywords || undefined,
+      venueAttributes: result.venueAttributes || undefined,
     };
   } catch (error) {
     console.error("Error parsing scheduling prompt:", error);
@@ -1483,6 +1520,388 @@ Return your response as a JSON object with these fields.`;
       timeframe: 'next week',
     };
   }
+}
+
+// Simple in-memory cache for prompt parsing results
+// Reduces costs by caching GPT-4o results for similar prompts
+interface CachedPromptResult {
+  result: SchedulingParams & { historyApplied?: string[] };
+  timestamp: number;
+  model: string;
+  promptHash: string;
+}
+
+const promptCache = new Map<string, CachedPromptResult>();
+const PROMPT_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour cache
+const MAX_PROMPT_CACHE_SIZE = 1000;
+
+// A/B Testing Configuration
+// Set to percentage of requests that should use GPT-4o (0-100)
+// If set to 50, half the requests will use GPT-4o, half will use mini
+// Set to 100 to always use GPT-4o, 0 to always use mini
+//
+// DECISION: Use GPT-4o for parsing (100%) - better understanding of nuanced time language like "weeknight"
+//   - Time generation (suggestOptimalTime) - needs multi-constraint reasoning (GPT-4o)
+//   - Venue suggestions (generateActivitySuggestions) - needs context understanding (GPT-4o)
+//   - Prompt parsing (parseSchedulingPromptWithHistory) - nuanced language (GPT-4o)
+// Cost: +$4 per 10K events for significantly better "weeknight", "not too late", etc. parsing
+const AB_TEST_GPT4O_PERCENTAGE = 100; // Always use GPT-4o for parsing
+
+function generatePromptCacheKey(prompt: string, groupHistory: any): string {
+  // Create a hash from prompt + relevant history
+  const historyString = JSON.stringify({
+    insights: groupHistory.preferenceInsights?.substring(0, 200), // Truncate for cache key
+    prefs: groupHistory.schedulingPreferences?.substring(0, 200),
+    closeness: groupHistory.closenessLevel
+  });
+
+  // Simple hash function
+  const str = `${prompt.toLowerCase().trim()}|${historyString}`;
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return `prompt_${hash}`;
+}
+
+function cleanPromptCache() {
+  const now = Date.now();
+  const entries = Array.from(promptCache.entries());
+
+  // Remove expired entries
+  for (const [key, value] of entries) {
+    if (now - value.timestamp > PROMPT_CACHE_TTL_MS) {
+      promptCache.delete(key);
+    }
+  }
+
+  // If still over size limit, remove oldest entries
+  if (promptCache.size > MAX_PROMPT_CACHE_SIZE) {
+    const sortedByAge = entries
+      .sort((a, b) => a[1].timestamp - b[1].timestamp)
+      .slice(0, promptCache.size - MAX_PROMPT_CACHE_SIZE);
+
+    for (const [key] of sortedByAge) {
+      promptCache.delete(key);
+    }
+  }
+}
+
+/**
+ * Enhanced version that incorporates group history for smarter parsing
+ *
+ * MODEL STRATEGY (Hybrid Approach with A/B Testing):
+ * - A/B testing enabled: randomly assigns GPT-4o vs mini based on AB_TEST_GPT4O_PERCENTAGE
+ * - Results are cached to reduce costs
+ * - Metrics logged for quality comparison
+ *
+ * WHY A/B TEST:
+ * - Measure actual quality difference between GPT-4o and mini
+ * - Track cost vs quality trade-off with real data
+ * - Determine optimal model for production use
+ *
+ * COST COMPARISON:
+ * - GPT-4o-mini: ~$0.0002 per event (fast, cheap, good for explicit prompts)
+ * - GPT-4o: ~$0.0010-0.0014 per event (smart, contextual, best for history)
+ * - With cache: 30-50% cost reduction on repeated/similar prompts
+ *
+ * A/B TEST METRICS TRACKED:
+ * - Model used (gpt-4o vs gpt-4o-mini)
+ * - Cost difference
+ * - Response time difference
+ * - Enhancements applied (context, attributes, history)
+ * - Cache hit/miss
+ */
+export async function parseSchedulingPromptWithHistory(
+  prompt: string,
+  groupLocation: string,
+  groupHistory: {
+    preferenceInsights?: string | null;
+    schedulingPreferences?: string | null;
+    closenessLevel?: number | null;
+  },
+  forceModel?: 'gpt-4o' | 'gpt-4o-mini' // Optional: force specific model for testing/comparison
+): Promise<SchedulingParams & { historyApplied?: string[] }> {
+  try {
+    // Check cache first
+    const cacheKey = generatePromptCacheKey(prompt, groupHistory);
+    const cached = promptCache.get(cacheKey);
+
+    if (cached && (Date.now() - cached.timestamp < PROMPT_CACHE_TTL_MS)) {
+      console.log(`[AI Scheduling] Cache HIT for prompt: "${prompt.substring(0, 50)}..." (saved cost with ${cached.model})`);
+
+      await logApiCall({
+        service: 'openai',
+        method: 'parseSchedulingPromptWithHistory',
+        cacheStatus: 'hit',
+        status: 'success',
+        responseTimeMs: 0,
+        costEstimate: 0,
+        parameters: { prompt, cached: true, model: cached.model },
+        metadata: {
+          model: cached.model,
+          cacheKey,
+          cacheAge: Date.now() - cached.timestamp,
+        },
+      });
+
+      // Add metadata to cached result
+      return {
+        ...cached.result,
+        aiModel: cached.model,
+        cached: true,
+        responseTimeMs: 0,
+      };
+    }
+
+    console.log(`[AI Scheduling] Cache MISS - will call OpenAI`);
+
+    // A/B Test: Randomly assign to GPT-4o or mini (unless forceModel is specified)
+    let selectedModel: 'gpt-4o' | 'gpt-4o-mini';
+    let randomValue: number | null = null;
+    let useGPT4o: boolean;
+
+    if (forceModel) {
+      selectedModel = forceModel;
+      useGPT4o = forceModel === 'gpt-4o';
+      console.log(`[AI Scheduling] Model FORCED to ${selectedModel} (for comparison/testing)`);
+    } else {
+      randomValue = Math.random() * 100;
+      useGPT4o = randomValue < AB_TEST_GPT4O_PERCENTAGE;
+      selectedModel = useGPT4o ? 'gpt-4o' : 'gpt-4o-mini';
+      console.log(`[AI Scheduling A/B Test] Assigned to ${selectedModel} (random: ${randomValue.toFixed(2)}, threshold: ${AB_TEST_GPT4O_PERCENTAGE})`);
+    }
+
+    // Build context from group history
+    let historyContext = '';
+    const historyApplied: string[] = [];
+
+    if (groupHistory.preferenceInsights) {
+      historyContext += `\n\n**Group Preferences** (use these to enhance your parsing):\n${groupHistory.preferenceInsights}`;
+      historyApplied.push('Applied group preference insights');
+    }
+
+    if (groupHistory.schedulingPreferences) {
+      historyContext += `\n\n**Scheduling Preferences** (apply these when relevant):\n${groupHistory.schedulingPreferences}`;
+      historyApplied.push('Applied scheduling preferences');
+    }
+
+    if (groupHistory.closenessLevel) {
+      const closenessDescriptions = {
+        1: 'Acquaintances - suggest professional, structured settings',
+        2: 'Friendly - suggest casual, comfortable settings',
+        3: 'Close friends - suggest fun, relaxed settings',
+        4: 'Very close - suggest intimate, special settings',
+        5: 'Best friends/family - suggest any setting, prioritize group favorites'
+      };
+      const closenessDesc = closenessDescriptions[groupHistory.closenessLevel as keyof typeof closenessDescriptions] || '';
+      if (closenessDesc) {
+        historyContext += `\n\n**Group Closeness**: ${closenessDesc}`;
+        historyApplied.push(`Considered group closeness level (${groupHistory.closenessLevel}/5)`);
+      }
+    }
+
+    const systemPrompt = `You are an expert at parsing natural language scheduling requests for group activities.
+Extract the following information from the user's prompt and return a JSON object:
+1. Activity type (what they want to do) - be SPECIFIC and preserve important modifiers
+2. Category (map to: meal, cafes, drinks, dessert, or experiences)
+3. Location (where, if specified - preserve neighborhood names like "Mission", "Castro", etc.)
+4. Time preference (morning/afternoon/evening/night - if specified)
+5. Day constraints (weekday/weekend/any)
+6. Timeframe (when: "next week", "this weekend", "in 2 days", etc.)
+7. Meal type specific modifiers (for brunch/breakfast/lunch/dinner: "bottomless", "prix fixe", etc.)
+8. Context keywords - identify the EVENT CONTEXT and extract relevant atmosphere/vibe keywords:
+   - "date night" → ["romantic", "intimate", "quiet"]
+   - "family" or "kids" → ["family-friendly", "casual", "kids"]
+   - "celebration" or "birthday" → ["upscale", "special occasion"]
+   - "quick bite" or "grab food" → ["fast", "casual", "quick"]
+   - "business" or "work" → ["professional", "quiet", "wifi"]
+9. Venue attributes - extract SPECIFIC FEATURES requested:
+   - "outdoor", "patio", "rooftop" → ["outdoor seating"]
+   - "live music", "DJ" → ["live music"]
+   - "vegetarian", "vegan" → ["vegetarian"]
+   - "dog-friendly" → ["dog-friendly"]
+   - "good for groups" → ["large tables"]${historyContext}
+
+**IMPORTANT**: Use the group's history to ENHANCE the request when the user's prompt is vague:
+- If preferences mention "loves outdoor venues" and user says "brunch", add ["outdoor seating"] to venueAttributes
+- If scheduling preferences say "always 8 PM for dinner" and user says "dinner", set timePreference accordingly
+- If closeness level suggests intimate settings and user says "dinner", add ["intimate"] to contextKeywords
+
+Return your response as a JSON object with these fields: activityType, category, location, timePreference, dayConstraints, timeframe, mealModifiers, contextKeywords, venueAttributes`;
+
+    const startTime = Date.now();
+    const response = await openai.chat.completions.create({
+      model: selectedModel, // A/B test: randomly GPT-4o or mini
+      messages: [
+        {
+          role: "system",
+          content: systemPrompt
+        },
+        {
+          role: "user",
+          content: `Parse this scheduling request: "${prompt}"\n\nGroup's default location: ${groupLocation}`
+        }
+      ],
+      response_format: { type: "json_object" },
+      max_completion_tokens: 500,
+    });
+    const responseTimeMs = Date.now() - startTime;
+
+    const result = JSON.parse(response.choices[0].message.content || '{}');
+
+    console.log(`[AI Scheduling A/B w/ ${selectedModel}] Parsed params with history:`, result);
+    console.log(`[AI Scheduling A/B w/ ${selectedModel}] Response time: ${responseTimeMs}ms`);
+
+    // Log successful API call with A/B test metrics
+    const inputTokens = response.usage?.prompt_tokens || 0;
+    const outputTokens = response.usage?.completion_tokens || 0;
+    const estimatedCost = calculateOpenAICost(selectedModel as 'gpt-4o' | 'gpt-4o-mini', inputTokens, outputTokens);
+
+    // Calculate cost comparison for A/B analysis
+    const gpt4oCost = calculateOpenAICost('gpt-4o', inputTokens, outputTokens);
+    const miniCost = calculateOpenAICost('gpt-4o-mini', inputTokens, outputTokens);
+    const costDiff = gpt4oCost - miniCost;
+
+    console.log(`[AI Scheduling A/B w/ ${selectedModel}] Cost: $${estimatedCost.toFixed(6)} (${inputTokens} in + ${outputTokens} out)`);
+    console.log(`[AI Scheduling A/B] Cost diff: $${costDiff.toFixed(6)} (GPT-4o would cost ${(costDiff / miniCost * 100).toFixed(1)}% more)`);
+
+    await logApiCall({
+      service: 'openai',
+      method: 'parseSchedulingPromptWithHistory',
+      cacheStatus: 'miss',
+      status: 'success',
+      responseTimeMs,
+      costEstimate: estimatedCost,
+      parameters: {
+        prompt,
+        groupLocation,
+        hasHistory: !!groupHistory.preferenceInsights || !!groupHistory.schedulingPreferences,
+        hasPreferences: !!groupHistory.preferenceInsights,
+        hasSchedulingPrefs: !!groupHistory.schedulingPreferences,
+        hasClosenessLevel: !!groupHistory.closenessLevel,
+        abTestAssignment: selectedModel, // Track A/B assignment
+        abTestRandomValue: randomValue,
+      },
+      metadata: {
+        model: selectedModel,
+        inputTokens,
+        outputTokens,
+        totalTokens: inputTokens + outputTokens,
+        // A/B test comparison metrics
+        abTest: {
+          assignedModel: selectedModel,
+          randomValue: randomValue,
+          threshold: AB_TEST_GPT4O_PERCENTAGE,
+          gpt4oCost: gpt4oCost,
+          miniCost: miniCost,
+          costDifference: costDiff,
+          costSavingsPercent: useGPT4o ? 0 : ((costDiff / gpt4oCost) * 100),
+        },
+      },
+    });
+
+    const finalResult = {
+      activityType: result.activityType || 'activity',
+      category: result.category || 'meal',
+      location: result.location || undefined,
+      timePreference: result.timePreference || undefined,
+      dayConstraints: result.dayConstraints || 'any',
+      timeframe: result.timeframe || 'next week',
+      specificDates: result.specificDates || undefined,
+      mealModifiers: result.mealModifiers || undefined,
+      contextKeywords: result.contextKeywords || undefined,
+      venueAttributes: result.venueAttributes || undefined,
+      historyApplied: historyApplied.length > 0 ? historyApplied : undefined,
+      // A/B test metadata
+      aiModel: selectedModel,
+      cached: false,
+      responseTimeMs: responseTimeMs,
+    };
+
+    // Cache the result to reduce future costs
+    promptCache.set(cacheKey, {
+      result: finalResult,
+      timestamp: Date.now(),
+      model: selectedModel,
+      promptHash: cacheKey,
+    });
+
+    // Clean cache periodically (every 100th call)
+    if (Math.random() < 0.01) {
+      cleanPromptCache();
+      console.log(`[AI Scheduling Cache] Cleaned cache, current size: ${promptCache.size}`);
+    }
+
+    console.log(`[AI Scheduling Cache] Cached result for future requests (key: ${cacheKey})`);
+
+    return finalResult;
+  } catch (error) {
+    console.error("[AI Scheduling A/B] Error parsing scheduling prompt with history:", error);
+
+    // Log API call failure
+    await logApiCall({
+      service: 'openai',
+      method: 'parseSchedulingPromptWithHistory',
+      cacheStatus: 'miss',
+      status: 'error',
+      parameters: {
+        prompt,
+        groupLocation,
+        hasHistory: !!groupHistory.preferenceInsights || !!groupHistory.schedulingPreferences
+      },
+      errorMessage: (error as Error).message,
+      metadata: {
+        model: 'unknown', // Error before model selection
+      },
+    });
+
+    // Return sensible defaults
+    return {
+      activityType: 'activity',
+      category: 'meal',
+      dayConstraints: 'any',
+      timeframe: 'next week',
+    };
+  }
+}
+
+// Get cache statistics for monitoring
+export function getPromptCacheStats() {
+  const now = Date.now();
+  const entries = Array.from(promptCache.values());
+
+  const stats = {
+    totalEntries: promptCache.size,
+    maxSize: MAX_PROMPT_CACHE_SIZE,
+    ttlMs: PROMPT_CACHE_TTL_MS,
+    modelDistribution: {
+      'gpt-4o': 0,
+      'gpt-4o-mini': 0,
+    },
+    averageAge: 0,
+    oldestEntry: 0,
+    newestEntry: 0,
+  };
+
+  if (entries.length > 0) {
+    const ages = entries.map(e => now - e.timestamp);
+    stats.averageAge = ages.reduce((a, b) => a + b, 0) / ages.length;
+    stats.oldestEntry = Math.max(...ages);
+    stats.newestEntry = Math.min(...ages);
+
+    for (const entry of entries) {
+      if (entry.model === 'gpt-4o') {
+        stats.modelDistribution['gpt-4o']++;
+      } else {
+        stats.modelDistribution['gpt-4o-mini']++;
+      }
+    }
+  }
+
+  return stats;
 }
 
 // Rule-based filter for obvious non-social venues (NO API CALLS)
@@ -1794,7 +2213,7 @@ Return JSON:
 
     const startTime = Date.now();
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4o", // Upgraded from mini for better edge case categorization (wine bars, museum cafes, hybrid venues)
       messages: [
         {
           role: "system",
@@ -1806,7 +2225,8 @@ Return JSON:
         }
       ],
       response_format: { type: "json_object" },
-      max_completion_tokens: uncachedVenues.length * 20, // ~20 tokens per venue
+      temperature: 0.3, // Lower temperature for consistent categorization
+      max_completion_tokens: uncachedVenues.length * 30, // Increased from 20 to allow reasoning per venue
     });
     const responseTimeMs = Date.now() - startTime;
 

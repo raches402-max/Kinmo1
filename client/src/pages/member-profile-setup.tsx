@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
@@ -6,31 +6,23 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { MapPin, Heart, Calendar, CheckCircle } from "lucide-react";
+import { MapPin, Calendar, Sparkles, Heart, X, Search, Plus } from "lucide-react";
 import { AvailabilityGrid } from "@/components/AvailabilityGrid";
 
 type AvailabilityGridType = Record<string, { morning: boolean; afternoon: boolean; evening: boolean }>;
 
-const ACTIVITY_CATEGORIES = [
-  { id: "restaurants", label: "Restaurants", emoji: "🍽️" },
-  { id: "brunch", label: "Brunch", emoji: "🥞" },
-  { id: "cafes", label: "Cafes & Coffee", emoji: "☕" },
-  { id: "wine-bars", label: "Wine Bars", emoji: "🍷" },
-  { id: "breweries", label: "Breweries", emoji: "🍺" },
-  { id: "dessert", label: "Dessert", emoji: "🍰" },
-  { id: "concerts", label: "Concerts", emoji: "🎵" },
-  { id: "karaoke", label: "Karaoke", emoji: "🎤" },
-  { id: "dancing", label: "Dancing", emoji: "💃" },
-  { id: "comedy", label: "Comedy Shows", emoji: "😂" },
-  { id: "movies", label: "Movies", emoji: "🎬" },
-  { id: "museums", label: "Museums & Art", emoji: "🎨" },
-  { id: "sports", label: "Sports Events", emoji: "⚽" },
-  { id: "outdoor", label: "Outdoor Activities", emoji: "🌲" },
-  { id: "games", label: "Games & Arcades", emoji: "🎮" },
-  { id: "trivia", label: "Trivia Nights", emoji: "🧠" },
+// Activity type cards with icons (not real venues)
+const ACTIVITY_TYPE_CARDS = [
+  { id: "movies", label: "Movie Nights", emoji: "🎬", description: "Cinema and film screenings" },
+  { id: "concerts", label: "Live Concerts", emoji: "🎵", description: "Music venues and live shows" },
+  { id: "outdoor", label: "Outdoor Adventures", emoji: "🌲", description: "Hiking, parks, and nature" },
+  { id: "trivia", label: "Trivia Nights", emoji: "🧠", description: "Pub quizzes and trivia" },
+  { id: "sports", label: "Sports Events", emoji: "⚽", description: "Games and sporting events" },
+  { id: "karaoke", label: "Karaoke", emoji: "🎤", description: "Karaoke bars and singing" },
+  { id: "dancing", label: "Dancing/Nightlife", emoji: "💃", description: "Dance clubs and nightlife" },
+  { id: "games", label: "Games & Arcades", emoji: "🎮", description: "Arcades and game venues" },
 ];
 
 export default function MemberProfileSetup() {
@@ -40,18 +32,12 @@ export default function MemberProfileSetup() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
-  const [step, setStep] = useState(1);
-  const hasAutoAdvanced = useRef(false);
-
-  // Step 1: Home base location
+  // Location state
   const [homeLocation, setHomeLocation] = useState("");
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [geocodedData, setGeocodedData] = useState<{ lat: number; lng: number } | null>(null);
 
-  // Step 2: Activity preferences
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-
-  // Step 3: Personal availability
+  // Availability state
   const [availability, setAvailability] = useState<AvailabilityGridType>({
     Monday: { morning: false, afternoon: false, evening: false },
     Tuesday: { morning: false, afternoon: false, evening: false },
@@ -61,6 +47,19 @@ export default function MemberProfileSetup() {
     Saturday: { morning: false, afternoon: false, evening: false },
     Sunday: { morning: false, afternoon: false, evening: false },
   });
+
+  // Swipe deck state
+  const [showSwipeDeck, setShowSwipeDeck] = useState(false);
+  const [swipeDeck, setSwipeDeck] = useState<any[]>([]);
+  const [currentSwipeIndex, setCurrentSwipeIndex] = useState(0);
+  const [likedItems, setLikedItems] = useState<any[]>([]);
+  const [isLoadingDeck, setIsLoadingDeck] = useState(false);
+
+  // Favorite venues state
+  const [venueSearchQuery, setVenueSearchQuery] = useState("");
+  const [venueSearchResults, setVenueSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [favoriteVenues, setFavoriteVenues] = useState<any[]>([]);
 
   // Fetch member data to verify ownership
   const { data: member, isLoading: memberLoading } = useQuery<{
@@ -77,7 +76,20 @@ export default function MemberProfileSetup() {
     queryKey: ["/api/members", memberId],
     enabled: !!memberId && !!user,
   });
-  
+
+  // Fetch existing favorite venues
+  const { data: existingFavorites, isLoading: favoritesLoading } = useQuery<Array<{
+    id: string;
+    venuePlaceId: string;
+    venueName: string;
+    venueAddress: string | null;
+    venuePhotoUrl: string | null;
+    category: string | null;
+  }>>({
+    queryKey: ["/api/members", memberId, "favorites"],
+    enabled: !!memberId && !!user,
+  });
+
   // Preload existing profile data
   useEffect(() => {
     if (member) {
@@ -89,20 +101,27 @@ export default function MemberProfileSetup() {
           lat: parseFloat(member.homeBaseLatitude),
           lng: parseFloat(member.homeBaseLongitude)
         });
-        // If coordinates exist and we haven't auto-advanced yet, start on step 2 (skip location entry)
-        if (!hasAutoAdvanced.current) {
-          setStep(2);
-          hasAutoAdvanced.current = true;
-        }
-      }
-      if (member.activityPreferences) {
-        setSelectedCategories(member.activityPreferences);
       }
       if (member.personalAvailability) {
         setAvailability(member.personalAvailability);
       }
     }
   }, [member]);
+
+  // Load existing favorite venues
+  useEffect(() => {
+    if (existingFavorites && existingFavorites.length > 0) {
+      // Transform API response to match UI format
+      const transformedFavorites = existingFavorites.map(fav => ({
+        placeId: fav.venuePlaceId,
+        name: fav.venueName,
+        address: fav.venueAddress || "",
+        photoUrl: fav.venuePhotoUrl,
+        category: fav.category || "other",
+      }));
+      setFavoriteVenues(transformedFavorites);
+    }
+  }, [existingFavorites]);
 
   // Geocode location
   const handleGeocodeLocation = async () => {
@@ -128,7 +147,6 @@ export default function MemberProfileSetup() {
           title: "Location found!",
           description: `${data.formattedAddress || homeLocation}`,
         });
-        setStep(2);
       } else {
         toast({
           title: "Location not found",
@@ -147,20 +165,131 @@ export default function MemberProfileSetup() {
     }
   };
 
+  // Load swipe deck
+  const loadSwipeDeck = async () => {
+    setIsLoadingDeck(true);
+    try {
+      // Fetch popular venues from curated cache
+      // For now, we'll create a simple mix of activity type cards
+      // TODO: Fetch real venues from API based on location
+
+      // Start with activity type cards
+      const activityCards = ACTIVITY_TYPE_CARDS.map(activity => ({
+        id: activity.id,
+        type: 'activity',
+        title: activity.label,
+        description: activity.description,
+        emoji: activity.emoji,
+        category: activity.id,
+      }));
+
+      // Shuffle and take first 20 (for now just activity cards, will add venues next)
+      const deck = activityCards.slice(0, 8);
+
+      setSwipeDeck(deck);
+      setCurrentSwipeIndex(0);
+      setShowSwipeDeck(true);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load discovery deck",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingDeck(false);
+    }
+  };
+
+  // Handle swipe
+  const handleSwipe = (direction: 'like' | 'pass') => {
+    if (direction === 'like' && swipeDeck[currentSwipeIndex]) {
+      setLikedItems(prev => [...prev, swipeDeck[currentSwipeIndex]]);
+    }
+    setCurrentSwipeIndex(prev => prev + 1);
+  };
+
+  // Search for venues
+  const handleVenueSearch = async (query: string) => {
+    if (!query.trim()) {
+      setVenueSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const results = await apiRequest("GET", `/api/venues/search?query=${encodeURIComponent(query)}&location=${encodeURIComponent(homeLocation || "San Francisco, CA")}`);
+      setVenueSearchResults(results);
+    } catch (error) {
+      console.error("Venue search error:", error);
+      setVenueSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Debounced venue search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      handleVenueSearch(venueSearchQuery);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [venueSearchQuery, homeLocation]);
+
+  // Add venue to favorites
+  const handleAddFavorite = (venue: any) => {
+    if (!favoriteVenues.find(v => v.placeId === venue.placeId)) {
+      setFavoriteVenues(prev => [...prev, venue]);
+      setVenueSearchQuery("");
+      setVenueSearchResults([]);
+    }
+  };
+
+  // Remove venue from favorites
+  const handleRemoveFavorite = (placeId: string) => {
+    setFavoriteVenues(prev => prev.filter(v => v.placeId !== placeId));
+  };
+
   // Update profile mutation
   const updateProfileMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest("PATCH", `/api/members/${memberId}/profile`, {
+      // Extract activity preferences from liked items
+      const activityPreferences = likedItems
+        .filter(item => item.type === 'activity')
+        .map(item => item.category);
+
+      // Update profile first
+      await apiRequest("PATCH", `/api/members/${memberId}/profile`, {
         homeBaseLocation: homeLocation,
         homeBaseLatitude: geocodedData?.lat,
         homeBaseLongitude: geocodedData?.lng,
-        activityPreferences: selectedCategories,
+        activityPreferences: activityPreferences,
         personalAvailability: availability,
         profileCompleted: true,
       });
+
+      // Save only NEW favorite venues (not already saved)
+      const existingPlaceIds = new Set(existingFavorites?.map(f => f.venuePlaceId) || []);
+      const newFavorites = favoriteVenues.filter(v => !existingPlaceIds.has(v.placeId));
+
+      for (const venue of newFavorites) {
+        try {
+          await apiRequest("POST", `/api/members/${memberId}/favorites`, {
+            venuePlaceId: venue.placeId,
+            venueName: venue.name,
+            venueAddress: venue.address,
+            venuePhotoUrl: venue.photoUrl,
+            category: venue.category,
+          });
+        } catch (error) {
+          console.error("Error saving favorite:", error);
+          // Continue saving other favorites even if one fails
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/members", memberId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/members", memberId, "favorites"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user/groups"] });
       toast({
         title: "Profile completed!",
@@ -176,14 +305,6 @@ export default function MemberProfileSetup() {
       });
     },
   });
-
-  const handleCategoryToggle = (categoryId: string) => {
-    setSelectedCategories((prev) =>
-      prev.includes(categoryId)
-        ? prev.filter((id) => id !== categoryId)
-        : [...prev, categoryId]
-    );
-  };
 
   const handleComplete = () => {
     updateProfileMutation.mutate();
@@ -231,36 +352,27 @@ export default function MemberProfileSetup() {
     );
   }
 
+  const swipesRemaining = swipeDeck.length - currentSwipeIndex;
+  const hasSwipedEnough = likedItems.length >= 8;
+
   return (
     <div className="min-h-screen bg-background p-4">
-      <div className="max-w-2xl mx-auto py-8">
-        {/* Progress indicator */}
-        <div className="flex items-center justify-center gap-2 mb-8">
-          {[1, 2, 3].map((s) => (
-            <div
-              key={s}
-              className={`h-2 w-16 rounded-full transition-colors ${
-                s === step ? "bg-primary" : s < step ? "bg-primary/50" : "bg-muted"
-              }`}
-            />
-          ))}
-        </div>
-
-        {/* Step 1: Home Base Location */}
-        {step === 1 && (
-          <Card data-testid="card-step-1">
-            <CardHeader>
-              <div className="flex items-center gap-2 mb-2">
-                <MapPin className="h-6 w-6 text-primary" />
-                <CardTitle>Where are you based?</CardTitle>
-              </div>
-              <CardDescription>
-                This helps us suggest activities near you
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="location">Home Base Location</Label>
+      <div className="max-w-2xl mx-auto py-8 space-y-6">
+        {/* Location Section */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <MapPin className="h-5 w-5 text-primary" />
+              <CardTitle>Where are you based?</CardTitle>
+            </div>
+            <CardDescription>
+              This helps us suggest activities near you
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="location">Home Base Location</Label>
+              <div className="flex gap-2">
                 <Input
                   id="location"
                   placeholder="e.g., San Francisco, CA"
@@ -271,114 +383,239 @@ export default function MemberProfileSetup() {
                       handleGeocodeLocation();
                     }
                   }}
-                  data-testid="input-location"
+                  className="flex-1"
                 />
-              </div>
-              <div className="flex gap-2">
                 <Button
                   onClick={handleGeocodeLocation}
                   disabled={isGeocoding || !homeLocation.trim()}
-                  className="flex-1"
-                  data-testid="button-next-step-1"
+                  variant={geocodedData ? "outline" : "default"}
                 >
-                  {isGeocoding ? "Finding..." : "Next"}
-                </Button>
-                <Button variant="outline" onClick={handleSkip} data-testid="button-skip">
-                  Skip
+                  {isGeocoding ? "Finding..." : geocodedData ? "Update" : "Find"}
                 </Button>
               </div>
-            </CardContent>
-          </Card>
-        )}
+              {geocodedData && (
+                <p className="text-sm text-muted-foreground">
+                  ✓ Location saved
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* Step 2: Activity Preferences */}
-        {step === 2 && (
-          <Card data-testid="card-step-2">
-            <CardHeader>
-              <div className="flex items-center gap-2 mb-2">
-                <Heart className="h-6 w-6 text-primary" />
-                <CardTitle>What do you enjoy doing?</CardTitle>
+        {/* Availability Section */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-primary" />
+              <CardTitle>When are you typically free?</CardTitle>
+            </div>
+            <CardDescription>
+              This helps the group plan events at times that work for you
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AvailabilityGrid value={availability} onChange={setAvailability} />
+          </CardContent>
+        </Card>
+
+        {/* Interest Discovery Section */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Heart className="h-5 w-5 text-primary" />
+              <CardTitle>Help us understand what you like</CardTitle>
+            </div>
+            <CardDescription>
+              Swipe through activities and venues to build your profile (optional)
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {!showSwipeDeck ? (
+              <div className="text-center py-8">
+                <Sparkles className="h-12 w-12 mx-auto text-primary mb-4" />
+                <p className="text-sm text-muted-foreground mb-4">
+                  Discover activities and venues you'll love
+                </p>
+                <Button
+                  onClick={loadSwipeDeck}
+                  disabled={isLoadingDeck}
+                >
+                  {isLoadingDeck ? "Loading..." : "Start Discovering"}
+                </Button>
               </div>
-              <CardDescription>
-                Select all activities you're interested in with this group
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                {ACTIVITY_CATEGORIES.map((category) => (
-                  <div
-                    key={category.id}
-                    className="flex items-center space-x-2"
-                  >
-                    <Checkbox
-                      id={category.id}
-                      checked={selectedCategories.includes(category.id)}
-                      onCheckedChange={() => handleCategoryToggle(category.id)}
-                      data-testid={`checkbox-category-${category.id}`}
-                    />
-                    <Label
-                      htmlFor={category.id}
-                      className="cursor-pointer flex items-center gap-2"
-                    >
-                      <span>{category.emoji}</span>
-                      <span className="text-sm">{category.label}</span>
-                    </Label>
+            ) : (
+              <div className="space-y-4">
+                {currentSwipeIndex < swipeDeck.length ? (
+                  <div>
+                    <div className="mb-2 flex items-center justify-between text-sm text-muted-foreground">
+                      <span>{likedItems.length} liked</span>
+                      <span>{swipesRemaining} remaining</span>
+                    </div>
+
+                    {/* Simple swipe card */}
+                    <Card className="relative overflow-hidden">
+                      <CardContent className="p-8 text-center">
+                        <div className="text-6xl mb-4">{swipeDeck[currentSwipeIndex].emoji}</div>
+                        <h3 className="text-xl font-semibold mb-2">{swipeDeck[currentSwipeIndex].title}</h3>
+                        <p className="text-sm text-muted-foreground mb-6">{swipeDeck[currentSwipeIndex].description}</p>
+
+                        <div className="flex gap-4 justify-center">
+                          <Button
+                            size="lg"
+                            variant="outline"
+                            onClick={() => handleSwipe('pass')}
+                            className="gap-2"
+                          >
+                            <X className="h-5 w-5" />
+                            Pass
+                          </Button>
+                          <Button
+                            size="lg"
+                            onClick={() => handleSwipe('like')}
+                            className="gap-2"
+                          >
+                            <Heart className="h-5 w-5" />
+                            Like
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Suggestion to stop after 8 */}
+                    {hasSwipedEnough && (
+                      <div className="text-center py-4">
+                        <p className="text-sm text-muted-foreground mb-2">
+                          Great! You've liked {likedItems.length} activities. That's enough to get started!
+                        </p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCurrentSwipeIndex(swipeDeck.length)}
+                        >
+                          Finish Swiping
+                        </Button>
+                      </div>
+                    )}
                   </div>
-                ))}
+                ) : (
+                  <div className="text-center py-8">
+                    <Heart className="h-12 w-12 mx-auto text-primary mb-4" />
+                    <p className="text-lg font-semibold mb-2">
+                      All done!
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      You liked {likedItems.length} activities
+                    </p>
+                  </div>
+                )}
               </div>
-              <div className="flex gap-2 pt-4">
-                <Button variant="outline" onClick={() => setStep(1)} data-testid="button-back-step-2">
-                  Back
-                </Button>
-                <Button
-                  onClick={() => setStep(3)}
-                  className="flex-1"
-                  data-testid="button-next-step-2"
-                >
-                  Next
-                </Button>
-                <Button variant="outline" onClick={handleSkip} data-testid="button-skip-step-2">
-                  Skip
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+            )}
+          </CardContent>
+        </Card>
 
-        {/* Step 3: Personal Availability */}
-        {step === 3 && (
-          <Card data-testid="card-step-3">
-            <CardHeader>
-              <div className="flex items-center gap-2 mb-2">
-                <Calendar className="h-6 w-6 text-primary" />
-                <CardTitle>When are you typically free?</CardTitle>
+        {/* Favorite Venues Section */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Search className="h-5 w-5 text-primary" />
+              <CardTitle>Add your favorite places (optional)</CardTitle>
+            </div>
+            <CardDescription>
+              Search for specific venues or restaurants you love
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Search input */}
+            <div className="relative">
+              <Label htmlFor="venue-search">Search for a venue</Label>
+              <div className="relative mt-2">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="venue-search"
+                  placeholder="e.g., Blue Bottle Coffee, Golden Gate Park..."
+                  value={venueSearchQuery}
+                  onChange={(e) => setVenueSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
               </div>
-              <CardDescription>
-                This helps the group plan events at times that work for you
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <AvailabilityGrid value={availability} onChange={setAvailability} />
-              <div className="flex gap-2 pt-4">
-                <Button variant="outline" onClick={() => setStep(2)} data-testid="button-back-step-3">
-                  Back
-                </Button>
-                <Button
-                  onClick={handleComplete}
-                  disabled={updateProfileMutation.isPending}
-                  className="flex-1 gap-2"
-                  data-testid="button-complete"
-                >
-                  <CheckCircle className="h-4 w-4" />
-                  {updateProfileMutation.isPending ? "Saving..." : "Complete Profile"}
-                </Button>
-                <Button variant="outline" onClick={handleSkip} data-testid="button-skip-step-3">
-                  Skip
-                </Button>
+
+              {/* Search results dropdown */}
+              {venueSearchResults.length > 0 && (
+                <div className="absolute z-10 w-full mt-1 bg-background border border-border rounded-md shadow-lg max-h-60 overflow-auto">
+                  {venueSearchResults.map((venue) => (
+                    <button
+                      key={venue.placeId}
+                      onClick={() => handleAddFavorite(venue)}
+                      className="w-full px-4 py-3 text-left hover:bg-muted flex items-start gap-3 border-b last:border-b-0"
+                    >
+                      <Plus className="h-4 w-4 text-primary mt-1 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm">{venue.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{venue.address}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {isSearching && (
+                <p className="text-xs text-muted-foreground mt-2">Searching...</p>
+              )}
+            </div>
+
+            {/* Display selected favorites */}
+            {favoriteVenues.length > 0 && (
+              <div className="space-y-2">
+                <Label>Your favorite places ({favoriteVenues.length})</Label>
+                <div className="space-y-2">
+                  {favoriteVenues.map((venue) => (
+                    <div
+                      key={venue.placeId}
+                      className="flex items-center gap-2 p-3 bg-muted rounded-md"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm">{venue.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{venue.address}</p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleRemoveFavorite(venue.placeId)}
+                        className="shrink-0"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </CardContent>
-          </Card>
-        )}
+            )}
+
+            {favoriteVenues.length === 0 && !venueSearchQuery && (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No favorite places added yet. Search to add some!
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Action Buttons */}
+        <div className="flex gap-4">
+          <Button
+            variant="outline"
+            onClick={handleSkip}
+            className="flex-1"
+          >
+            View My Groups
+          </Button>
+          <Button
+            onClick={handleComplete}
+            disabled={updateProfileMutation.isPending}
+            className="flex-1"
+          >
+            {updateProfileMutation.isPending ? "Saving..." : "Save Profile"}
+          </Button>
+        </div>
       </div>
     </div>
   );

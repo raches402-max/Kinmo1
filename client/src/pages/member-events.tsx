@@ -29,6 +29,7 @@ type UserEvent = {
   groupId: string;
   groupName: string;
   groupEmoji: string;
+  groupTimezone?: string;
   isOrganizer: boolean;
   hostMemberId: string | null;
   hostMemberName: string | null;
@@ -265,10 +266,11 @@ export default function MemberEventsPage() {
             </div>
           )}
 
-          <TimeSlotVoting 
+          <TimeSlotVoting
             itineraryId={event.itineraryId}
             userId={user?.id}
             isOrganizer={event.isOrganizer}
+            timezone={event.groupTimezone}
           />
 
           <div className="flex gap-2 pt-2">

@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
+import { FavoriteVenuesManager } from "@/components/FavoriteVenuesManager";
 import {
   Settings,
   ChevronLeft,
@@ -50,6 +51,20 @@ export default function Preferences() {
   const { data: preferences, isLoading } = useQuery({
     queryKey: ["/api/user/preferences"],
   });
+
+  // Fetch user's groups to get member ID for favorites
+  const { data: userGroups } = useQuery<Array<{
+    id: string;
+    name: string;
+    members: Array<{ id: string; userId: string | null; homeBaseLocation: string | null }>;
+  }>>({
+    queryKey: ["/api/user/groups"],
+  });
+
+  // Get the first member ID (user's primary member profile)
+  const primaryMember = userGroups?.flatMap(g => g.members).find(m => m.userId);
+  const memberId = primaryMember?.id;
+  const memberHomeLocation = primaryMember?.homeBaseLocation || "San Francisco, CA";
 
   // Local state for form
   const [budgetRange, setBudgetRange] = useState<[number, number]>([0, 60]);
@@ -106,7 +121,6 @@ export default function Preferences() {
       setHasChanges(false);
       toast({
         title: "Preferences saved",
-        description: "Your preferences have been updated successfully.",
       });
     },
     onError: (error: Error) => {
@@ -200,9 +214,6 @@ export default function Preferences() {
               <DollarSign className="h-5 w-5" />
               Budget Range
             </CardTitle>
-            <CardDescription>
-              Set your preferred budget range per person
-            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -343,7 +354,7 @@ export default function Preferences() {
                   Email notifications
                 </Label>
                 <p className="text-sm text-muted-foreground">
-                  Receive email updates for event invites and reminders
+                  Event invites and reminders
                 </p>
               </div>
               <Switch
@@ -357,6 +368,16 @@ export default function Preferences() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Favorite Venues */}
+        {memberId && (
+          <FavoriteVenuesManager
+            memberId={memberId}
+            homeLocation={memberHomeLocation}
+            showTitle={true}
+            showDescription={true}
+          />
+        )}
 
         {/* Save Button (mobile) */}
         {hasChanges && (

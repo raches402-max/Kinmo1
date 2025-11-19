@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
 import { useState, useMemo } from "react";
 import {
   DndContext,
@@ -52,6 +53,8 @@ import {
   CheckCircle2,
   MinusCircle,
   GripVertical,
+  Send,
+  Loader2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -75,7 +78,7 @@ import { TimeSlotVoting } from "@/components/TimeSlotVoting";
 import { AddAdHocVenueDialog } from "@/components/AddAdHocVenueDialog";
 import { Calendar as DatePicker } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
+import { cn, formatDateTimeWithTimezone } from "@/lib/utils";
 
 interface SortableVenueCardProps {
   venue: any;
@@ -260,6 +263,7 @@ export default function EventDetailsPage() {
   const [showAddVenueDialog, setShowAddVenueDialog] = useState(false);
   const [schedulingPreferences, setSchedulingPreferences] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [selectedTimeSlotId, setSelectedTimeSlotId] = useState<string | null>(null);
 
   // Drag-and-drop sensors
   const sensors = useSensors(
@@ -273,8 +277,46 @@ export default function EventDetailsPage() {
     queryKey: ["/api/user/events", eventId],
     enabled: !!eventId,
     queryFn: async () => {
+      // First try to find in user events
       const events = await fetch(`/api/user/events`).then(r => r.json());
-      return events.find((e: any) => e.itineraryId === eventId);
+      const foundEvent = events.find((e: any) => e.itineraryId === eventId);
+
+      // If not found (e.g., proposed itinerary without invites), fetch directly from itinerary endpoint
+      if (!foundEvent) {
+        const itinerary = await fetch(`/api/itineraries/${eventId}`).then(r => {
+          if (!r.ok) return null;
+          return r.json();
+        });
+
+        if (itinerary) {
+          // Transform itinerary to match event structure
+          return {
+            itineraryId: itinerary.id,
+            itineraryName: itinerary.name,
+            eventDate: itinerary.eventDate,
+            groupId: itinerary.groupId,
+            groupName: itinerary.group?.name,
+            groupEmoji: itinerary.group?.emoji,
+            groupTimezone: itinerary.group?.timezone,
+            items: itinerary.items || [],
+            isOrganizer: true, // Assume organizer for proposed itineraries
+            members: [],
+          };
+        }
+      }
+
+      return foundEvent;
+    },
+  });
+
+  // Fetch full itinerary details including time slots for proposed itineraries
+  const { data: itineraryDetails } = useQuery<any>({
+    queryKey: ["/api/itineraries/:id", eventId],
+    enabled: !!eventId,
+    queryFn: async () => {
+      const response = await fetch(`/api/itineraries/${eventId}`);
+      if (!response.ok) throw new Error('Failed to fetch itinerary');
+      return response.json();
     },
   });
 
@@ -347,6 +389,35 @@ export default function EventDetailsPage() {
     },
   });
 
+  const finalizeItineraryMutation = useMutation({
+    mutationFn: async (timeSlotId: string) => {
+      const selectedSlot = itineraryDetails?.proposedTimeSlots?.find((s: any) => s.id === timeSlotId);
+      if (!selectedSlot) throw new Error("Time slot not found");
+
+      return apiRequest("PUT", `/api/itineraries/${eventId}`, {
+        eventDate: selectedSlot.proposedDateTime,
+        sendInvites: true,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/itineraries/:id", eventId] });
+      toast({
+        title: "Event finalized!",
+        description: "Invites have been sent to all members",
+      });
+      // Navigate to event details page (will now show as confirmed event)
+      setLocation(`/event/${eventId}`);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error finalizing event",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const reorderVenuesMutation = useMutation({
     mutationFn: async (proposedOrder: string[]) => {
       return apiRequest("PATCH", `/api/itineraries/${eventId}/order`, {
@@ -401,6 +472,27 @@ export default function EventDetailsPage() {
       return apiRequest("PATCH", `/api/itineraries/${eventId}`, {
         eventDate: eventDate.toISOString(),
       });
+    },
+    onMutate: async (newDate: Date) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["/api/user/events", eventId] });
+
+      // Snapshot previous value
+      const previousEvent = queryClient.getQueryData(["/api/user/events", eventId]);
+
+      // Optimistically update to the new value
+      queryClient.setQueryData(["/api/user/events", eventId], (old: any) => {
+        if (!old) return old;
+        return { ...old, eventDate: newDate.toISOString() };
+      });
+
+      return { previousEvent };
+    },
+    onError: (err, newDate, context: any) => {
+      // Rollback on error
+      if (context?.previousEvent) {
+        queryClient.setQueryData(["/api/user/events", eventId], context.previousEvent);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/user/events", eventId] });
@@ -617,32 +709,113 @@ export default function EventDetailsPage() {
                             )}
                           >
                             <Calendar className="h-4 w-4 mr-2" />
-                            {format(new Date(event.eventDate), "EEEE, MMMM d, yyyy • h:mm a")}
+                            <div className="flex flex-col">
+                              <span>
+                                {event.groupTimezone
+                                  ? formatInTimeZone(new Date(event.eventDate), event.groupTimezone, "EEEE, MMMM d, yyyy • h:mm a")
+                                  : format(new Date(event.eventDate), "EEEE, MMMM d, yyyy • h:mm a")}
+                              </span>
+                              {event.groupTimezone && (
+                                <span className="text-[10px] text-muted-foreground/70">
+                                  {formatInTimeZone(new Date(event.eventDate), event.groupTimezone, "zzz")}
+                                </span>
+                              )}
+                            </div>
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0" align="start">
-                          <DatePicker
-                            mode="single"
-                            selected={event.eventDate ? new Date(event.eventDate) : undefined}
-                            onSelect={(date) => {
-                              if (date) {
-                                // Preserve the time from the original date
-                                const originalDate = new Date(event.eventDate);
-                                date.setHours(originalDate.getHours());
-                                date.setMinutes(originalDate.getMinutes());
-                                updateEventDateMutation.mutate(date);
-                              }
-                            }}
-                            initialFocus
-                          />
+                          <div className="p-2">
+                            <DatePicker
+                              mode="single"
+                              selected={event.eventDate ? new Date(event.eventDate) : undefined}
+                              onSelect={(date) => {
+                                if (date) {
+                                  // Preserve the time from the original date
+                                  const originalDate = new Date(event.eventDate);
+                                  date.setHours(originalDate.getHours());
+                                  date.setMinutes(originalDate.getMinutes());
+                                  updateEventDateMutation.mutate(date);
+                                }
+                              }}
+                              initialFocus
+                              className="text-sm"
+                            />
+                          </div>
+                          <div className="px-3 py-2 border-t">
+                            <div className="text-sm font-medium mb-2">Time</div>
+                            <div className="flex items-center gap-2">
+                              <select
+                                value={event.eventDate ? (new Date(event.eventDate).getHours() % 12 || 12).toString() : ""}
+                                onChange={(e) => {
+                                  const newDate = new Date(event.eventDate);
+                                  const currentHour = newDate.getHours();
+                                  const isPM = currentHour >= 12;
+                                  let hour = parseInt(e.target.value);
+                                  if (isPM && hour !== 12) hour += 12;
+                                  if (!isPM && hour === 12) hour = 0;
+                                  newDate.setHours(hour);
+                                  updateEventDateMutation.mutate(newDate);
+                                }}
+                                className="px-2 py-1.5 border rounded-md text-sm"
+                              >
+                                {Array.from({ length: 12 }, (_, i) => i + 1).map(h => (
+                                  <option key={h} value={h.toString()}>{h}</option>
+                                ))}
+                              </select>
+                              <span className="text-sm">:</span>
+                              <select
+                                value={event.eventDate ? (() => {
+                                  const minutes = new Date(event.eventDate).getMinutes();
+                                  const rounded = Math.round(minutes / 15) * 15;
+                                  return (rounded === 60 ? 0 : rounded).toString().padStart(2, '0');
+                                })() : ""}
+                                onChange={(e) => {
+                                  const newDate = new Date(event.eventDate);
+                                  newDate.setMinutes(parseInt(e.target.value));
+                                  updateEventDateMutation.mutate(newDate);
+                                }}
+                                className="px-2 py-1.5 border rounded-md text-sm"
+                              >
+                                {["00", "15", "30", "45"].map(m => (
+                                  <option key={m} value={m}>{m}</option>
+                                ))}
+                              </select>
+                              <select
+                                value={event.eventDate ? (new Date(event.eventDate).getHours() >= 12 ? "PM" : "AM") : ""}
+                                onChange={(e) => {
+                                  const newDate = new Date(event.eventDate);
+                                  const currentHour = newDate.getHours();
+                                  if (e.target.value === "AM" && currentHour >= 12) {
+                                    newDate.setHours(currentHour - 12);
+                                  } else if (e.target.value === "PM" && currentHour < 12) {
+                                    newDate.setHours(currentHour + 12);
+                                  }
+                                  updateEventDateMutation.mutate(newDate);
+                                }}
+                                className="px-2 py-1.5 border rounded-md text-sm"
+                              >
+                                <option value="AM">AM</option>
+                                <option value="PM">PM</option>
+                              </select>
+                            </div>
+                          </div>
                         </PopoverContent>
                       </Popover>
                     ) : (
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <Calendar className="h-4 w-4" />
-                        <span className="font-medium">
-                          {format(new Date(event.eventDate), "EEEE, MMMM d, yyyy • h:mm a")}
-                        </span>
+                        <div className="flex flex-col">
+                          <span className="font-medium">
+                            {event.groupTimezone
+                              ? formatInTimeZone(new Date(event.eventDate), event.groupTimezone, "EEEE, MMMM d, yyyy • h:mm a")
+                              : format(new Date(event.eventDate), "EEEE, MMMM d, yyyy • h:mm a")}
+                          </span>
+                          {event.groupTimezone && (
+                            <span className="text-[10px] text-muted-foreground/70">
+                              {formatInTimeZone(new Date(event.eventDate), event.groupTimezone, "zzz")}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -738,6 +911,75 @@ export default function EventDetailsPage() {
           </CardHeader>
 
           <CardContent className="space-y-6">
+            {/* Time Slot Selection for Proposed Itineraries */}
+            {itineraryDetails?.status === 'proposed' && itineraryDetails?.proposedTimeSlots?.length > 0 && (
+              <Card className="bg-amber-50 border-amber-200">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Clock className="h-5 w-5 text-amber-600" />
+                    Choose Your Preferred Time
+                  </CardTitle>
+                  <CardDescription>
+                    Select a time slot and click "Finalize & Send Invites" to confirm this event
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    {itineraryDetails.proposedTimeSlots.map((slot: any) => (
+                      <label
+                        key={slot.id}
+                        className={cn(
+                          "flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors",
+                          selectedTimeSlotId === slot.id
+                            ? "bg-amber-100 border-amber-400"
+                            : "bg-white hover:bg-amber-50 border-gray-200"
+                        )}
+                      >
+                        <input
+                          type="radio"
+                          name="timeSlot"
+                          value={slot.id}
+                          checked={selectedTimeSlotId === slot.id}
+                          onChange={() => setSelectedTimeSlotId(slot.id)}
+                          className="h-4 w-4 text-amber-600"
+                        />
+                        <div className="flex-1">
+                          <div className="font-medium">
+                            {formatDateTimeWithTimezone(
+                              slot.proposedDateTime,
+                              itineraryDetails.group?.timezone || 'America/Los_Angeles'
+                            )}
+                          </div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                  <Button
+                    onClick={() => {
+                      if (!selectedTimeSlotId && itineraryDetails.proposedTimeSlots[0]) {
+                        setSelectedTimeSlotId(itineraryDetails.proposedTimeSlots[0].id);
+                      }
+                      finalizeItineraryMutation.mutate(selectedTimeSlotId || itineraryDetails.proposedTimeSlots[0].id);
+                    }}
+                    disabled={finalizeItineraryMutation.isPending}
+                    className="w-full bg-amber-600 hover:bg-amber-700"
+                  >
+                    {finalizeItineraryMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Sending Invites...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4 mr-2" />
+                        Finalize & Send Invites
+                      </>
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Venues */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">

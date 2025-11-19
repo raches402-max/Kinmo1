@@ -17,6 +17,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
@@ -733,6 +734,7 @@ export default function GroupDetail() {
   const [editGroupData, setEditGroupData] = useState({
     name: "",
     emoji: "🎉",
+    accentColor: "#60A5FA",
     locationBase: "",
     pastPreferences: "",
     additionalInstructions: "",
@@ -850,6 +852,20 @@ export default function GroupDetail() {
   
   // Schedule event modal state
   const [scheduleEventModalOpen, setScheduleEventModalOpen] = useState(false);
+
+  // Auto-open Schedule Event Modal if ?action=schedule in URL
+  const [location, setLocation] = useLocation();
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('action') === 'schedule') {
+      // Open modal first
+      setScheduleEventModalOpen(true);
+      // Clean up URL after a brief delay to ensure modal opens
+      setTimeout(() => {
+        window.history.replaceState({}, '', `/group/${groupId}`);
+      }, 100);
+    }
+  }, [groupId]);
 
   // Discover venues modal state
   const [discoverVenuesModalOpen, setDiscoverVenuesModalOpen] = useState(false);
@@ -1342,6 +1358,7 @@ export default function GroupDetail() {
       setEditGroupData({
         name: group.name,
         emoji: group.emoji || "🎉",
+        accentColor: group.accentColor || "#60A5FA",
         locationBase: group.locationBase,
         pastPreferences: group.pastPreferences || "",
         additionalInstructions: group.additionalInstructions || "",
@@ -2701,6 +2718,7 @@ export default function GroupDetail() {
     const updates = {
       name: editGroupData.name,
       emoji: editGroupData.emoji,
+      accentColor: editGroupData.accentColor,
       locationBase: editGroupData.locationBase,
       budgetMin: editBudgetRange[0],
       budgetMax: editBudgetRange[1],
@@ -2861,7 +2879,7 @@ export default function GroupDetail() {
 
           {/* Home Tab */}
           <TabsContent value="home" className="space-y-6">
-            <div className="max-w-4xl mx-auto space-y-6">
+            <div className="max-w-6xl mx-auto space-y-6">
               {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <Button
@@ -2991,25 +3009,32 @@ export default function GroupDetail() {
               {/* Subtab 1: Group Details */}
               <TabsContent value="details" className="space-y-6">
                 <div className="max-w-3xl mx-auto space-y-6">
-                  {/* Group Details Section */}
-                  <Card className="border-primary/20">
-                    <CardHeader className="bg-primary/15">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-primary/25 rounded-md">
-                          <Settings className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                          <CardTitle className="flex items-center gap-2">
-                            Group Settings
-                            <Badge variant="outline" className="text-xs font-normal">
-                              For Everyone
-                            </Badge>
-                          </CardTitle>
-                          <CardDescription>Configure settings that apply to all members</CardDescription>
-                        </div>
-                      </div>
-                    </CardHeader>
-                <CardContent className="space-y-4">
+                  {/* Accordion-based Group Settings */}
+                  <Accordion type="multiple" defaultValue={["basic-info", "automation"]} className="space-y-6">
+
+                    {/* Section 1: Basic Info (Always visible by default) */}
+                    <AccordionItem value="basic-info" className="border rounded-lg">
+                      <Card className="border-0">
+                        <AccordionTrigger className="px-6 pt-6 pb-2 hover:no-underline">
+                          <div className="flex items-center gap-3 text-left">
+                            <div className="p-2 bg-primary/25 rounded-md">
+                              <Settings className="h-5 w-5 text-primary" />
+                            </div>
+                            <div className="flex-1">
+                              <CardTitle className="flex items-center gap-2 text-base">
+                                Basic Info
+                                <Badge variant="outline" className="text-xs font-normal">
+                                  For Everyone
+                                </Badge>
+                              </CardTitle>
+                              <CardDescription className="text-xs">
+                                {editGroupData.name} • ${editBudgetRange[0]}-${editBudgetRange[1]} • {formatMeetingFrequency(`${editFrequencyNumber}x ${editFrequencyUnit}`)}
+                              </CardDescription>
+                            </div>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <CardContent className="space-y-4 pt-2">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="edit-group-name">Group Name</Label>
@@ -3059,6 +3084,34 @@ export default function GroupDetail() {
                           </div>
                         </PopoverContent>
                       </Popover>
+                    </div>
+                  </div>
+
+                  {/* Group Color Picker */}
+                  <div className="space-y-2">
+                    <Label htmlFor="group-color">Group Color</Label>
+                    <div className="flex items-center gap-3">
+                      <Input
+                        id="group-color"
+                        type="color"
+                        value={editGroupData.accentColor || group?.accentColor || "#60A5FA"}
+                        onChange={(e) => setEditGroupData({ ...editGroupData, accentColor: e.target.value })}
+                        className="w-20 h-10 cursor-pointer"
+                        data-testid="input-group-color"
+                      />
+                      <span className="text-sm text-muted-foreground font-mono">
+                        {editGroupData.accentColor || group?.accentColor || "#60A5FA"}
+                      </span>
+                      <div
+                        className="ml-auto px-3 py-1 rounded-md text-sm font-medium"
+                        style={{
+                          backgroundColor: `${editGroupData.accentColor || group?.accentColor || "#60A5FA"}20`,
+                          border: `1px solid ${editGroupData.accentColor || group?.accentColor || "#60A5FA"}`,
+                          color: editGroupData.accentColor || group?.accentColor || "#60A5FA"
+                        }}
+                      >
+                        Preview
+                      </div>
                     </div>
                   </div>
 
@@ -3180,28 +3233,44 @@ export default function GroupDetail() {
                   </div>
                   <div className="space-y-3">
                     <Label>Group Availability</Label>
-                    <AvailabilityGrid 
-                      value={editAvailability as Record<string, {morning: boolean; afternoon: boolean; evening: boolean}>} 
+                    <AvailabilityGrid
+                      value={editAvailability as Record<string, {morning: boolean; afternoon: boolean; evening: boolean}>}
                       onChange={setEditAvailability}
                     />
                   </div>
-                </CardContent>
-              </Card>
+                          </CardContent>
+                        </AccordionContent>
+                      </Card>
+                    </AccordionItem>
 
-              {/* Automation Section */}
+              {/* Section 2: Automation & Smart Features (Promoted to top, owner-only) */}
               {isOwner && (
-                <Card className="bg-primary/15 border-primary/20">
-                  <CardHeader>
-                    <div className="flex items-center gap-2">
-                      <Bot className="h-5 w-5 text-primary" />
-                      <CardTitle>Automation</CardTitle>
-                    </div>
-                    <CardDescription>
-                      Let Kinmo handle the planning for you
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-4">
+                <AccordionItem value="automation" className="border rounded-lg">
+                  <Card className="border-0 bg-primary/5">
+                    <AccordionTrigger className="px-6 pt-6 pb-2 hover:no-underline">
+                      <div className="flex items-center gap-3 text-left">
+                        <div className="p-2 bg-primary/25 rounded-md">
+                          <Bot className="h-5 w-5 text-primary" />
+                        </div>
+                        <div className="flex-1">
+                          <CardTitle className="flex items-center gap-2 text-base">
+                            <span>Automation & Smart Features</span>
+                            <Badge className="bg-primary/20 text-primary border-primary/30 text-xs">
+                              ✨ AI-Powered
+                            </Badge>
+                          </CardTitle>
+                          <CardDescription className="text-xs">
+                            {[
+                              group?.autoActivitiesEnabled && "Auto-activities",
+                              group?.autoItineraryEnabled && "Auto-itineraries",
+                              group?.autoScheduleEnabled && "Auto-schedule"
+                            ].filter(Boolean).join(" • ") || "Let AI handle planning"}
+                          </CardDescription>
+                        </div>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <CardContent className="space-y-4 pt-2">
                       {/* Auto-generate Activities */}
                       <div className="flex items-start gap-3 p-3 bg-background rounded-md">
                         <Switch
@@ -3361,18 +3430,36 @@ export default function GroupDetail() {
                           )}
                         </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                      </CardContent>
+                    </AccordionContent>
+                  </Card>
+                </AccordionItem>
               )}
 
-              {/* Preferences Section */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Group Preferences</CardTitle>
-                  <CardDescription>Help AI understand what your group enjoys</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
+              {/* Section 3: Activity Preferences (Collapsed by default) */}
+              <AccordionItem value="preferences" className="border rounded-lg">
+                <Card className="border-0">
+                  <AccordionTrigger className="px-6 pt-6 pb-2 hover:no-underline">
+                    <div className="flex items-center gap-3 text-left">
+                      <div className="p-2 bg-muted rounded-md">
+                        <Target className="h-5 w-5" />
+                      </div>
+                      <div className="flex-1">
+                        <CardTitle className="text-base">Activity Preferences</CardTitle>
+                        <CardDescription className="text-xs">
+                          {noveltyLabels[editNovelty - 1]} • {[
+                            editGroupData.mealEnabled !== false && "Meals",
+                            editGroupData.cafeEnabled !== false && "Cafes",
+                            editGroupData.drinksEnabled !== false && "Drinks",
+                            editGroupData.dessertEnabled !== false && "Dessert",
+                            editGroupData.experiencesEnabled !== false && "Experiences"
+                          ].filter(Boolean).join(", ")}
+                        </CardDescription>
+                      </div>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <CardContent className="space-y-6 pt-2">
                   <div className="space-y-4">
                     <Label className="text-base">How willing is your group to try new things?</Label>
                     <div className="space-y-3">
@@ -3482,27 +3569,6 @@ export default function GroupDetail() {
                         </Button>
                       </div>
                     </div>
-
-                    <p className="text-sm text-muted-foreground">Then select specific experience types to further refine suggestions (optional)</p>
-                    <div className="flex flex-wrap gap-2">
-                      {activityCategories.map((category) => {
-                        const Icon = category.icon;
-                        return (
-                          <Button
-                            key={category.id}
-                            type="button"
-                            variant={editCategories.includes(category.id) ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => toggleEditCategory(category.id)}
-                            className="gap-1.5"
-                            data-testid={`button-edit-category-${category.id}`}
-                          >
-                            <Icon className="h-4 w-4" />
-                            <span>{category.label}</span>
-                          </Button>
-                        );
-                      })}
-                    </div>
                   </div>
 
                   <div className="space-y-2">
@@ -3528,10 +3594,14 @@ export default function GroupDetail() {
                       data-testid="textarea-edit-additional-instructions"
                     />
                   </div>
-                </CardContent>
-              </Card>
+                    </CardContent>
+                  </AccordionContent>
+                </Card>
+              </AccordionItem>
 
-              {/* Members Section */}
+            </Accordion>
+
+              {/* Members Section (Always visible, outside accordion) */}
               <Card>
                 <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
                   <div className="space-y-1">
@@ -3951,15 +4021,26 @@ export default function GroupDetail() {
                 </Card>
               )}
 
-                  {/* Save Button for Group Settings */}
-                  <div className="flex justify-end">
-                    <Button 
-                      onClick={handleUpdateGroup} 
+                  {/* Save Button for Group Settings - Primary CTA */}
+                  <div className="flex justify-end pt-2">
+                    <Button
+                      onClick={handleUpdateGroup}
                       disabled={updateGroupMutation.isPending}
                       size="lg"
+                      className="min-w-[200px]"
                       data-testid="button-save-group"
                     >
-                      {updateGroupMutation.isPending ? "Saving..." : "Save Group Settings"}
+                      {updateGroupMutation.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="mr-2 h-4 w-4" />
+                          Save Group Settings
+                        </>
+                      )}
                     </Button>
                   </div>
                 </div>
@@ -7797,69 +7878,76 @@ export default function GroupDetail() {
                           );
                         })()}
 
-                        {/* Section C: Pending Events */}
+                        {/* Section C: Upcoming Events Pipeline */}
                         {pendingAutoEvents && pendingAutoEvents.length > 0 && (
                           <div className="border-t pt-4 space-y-3">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-semibold">Pending Events</span>
-                              <Badge variant="outline" className="text-xs">
-                                {pendingAutoEvents.length}
-                              </Badge>
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-semibold">Upcoming Events</span>
+                                <Badge variant="outline" className="text-xs">
+                                  {pendingAutoEvents.length} scheduled
+                                </Badge>
+                              </div>
+                              {pendingAutoEvents.length > 0 && pendingAutoEvents[pendingAutoEvents.length - 1]?.proposedDate && (
+                                <p className="text-xs text-muted-foreground">
+                                  Events through {new Date(pendingAutoEvents[pendingAutoEvents.length - 1].proposedDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                                </p>
+                              )}
                             </div>
 
-                            {pendingAutoEvents.slice(0, 2).map((event: any) => {
-                              const autoSendTime = new Date(event.autoSendAt);
-                              const now = new Date();
-                              const diffMs = autoSendTime.getTime() - now.getTime();
-                              const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-                              const diffDays = Math.floor(diffHours / 24);
+                            <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                              {pendingAutoEvents.map((event: any, index: number) => {
+                                const proposedDate = event.proposedDate ? new Date(event.proposedDate) : null;
+                                const now = new Date();
+                                const isNext = index === 0;
 
-                              let countdownText = '';
-                              if (diffMs < 0) {
-                                countdownText = 'Sending soon';
-                              } else if (diffDays > 0) {
-                                countdownText = `${diffDays}d`;
-                              } else if (diffHours > 0) {
-                                countdownText = `${diffHours}h`;
-                              } else {
-                                countdownText = 'Soon';
-                              }
+                                // Calculate days until event
+                                let daysUntil = 0;
+                                if (proposedDate) {
+                                  const diffMs = proposedDate.getTime() - now.getTime();
+                                  daysUntil = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+                                }
 
-                              return (
-                                <div key={event.id} className="bg-background rounded-md p-2 space-y-1">
-                                  <div className="flex items-start justify-between gap-2">
-                                    <p className="text-xs font-medium line-clamp-1 flex-1">
-                                      {event.itinerary?.name || 'Upcoming Event'}
-                                    </p>
-                                    <Badge variant="secondary" className="text-xs shrink-0">
-                                      {countdownText}
-                                    </Badge>
+                                return (
+                                  <div
+                                    key={event.id}
+                                    className={`bg-background rounded-md p-3 space-y-2 border ${isNext ? 'border-primary/50 bg-primary/5' : 'border-transparent'}`}
+                                  >
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="flex-1 space-y-1">
+                                        {proposedDate && (
+                                          <p className="text-sm font-medium">
+                                            {proposedDate.toLocaleDateString('en-US', {
+                                              weekday: 'short',
+                                              month: 'short',
+                                              day: 'numeric',
+                                              year: proposedDate.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+                                            })}
+                                          </p>
+                                        )}
+                                        <p className="text-xs text-muted-foreground">
+                                          {daysUntil <= 0 ? 'Today' : daysUntil === 1 ? 'Tomorrow' : `In ${daysUntil} days`}
+                                        </p>
+                                      </div>
+                                      {isNext && (
+                                        <Badge variant="secondary" className="text-xs">
+                                          Next
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    {event.itinerary?.items && event.itinerary.items.length > 0 && (
+                                      <p className="text-xs text-muted-foreground">
+                                        {event.itinerary.items[0].venueName}
+                                        {event.itinerary.items.length > 1 && ` +${event.itinerary.items.length - 1} more`}
+                                      </p>
+                                    )}
+                                    <div className="text-xs text-muted-foreground">
+                                      Status: {event.status === 'pending_approval' ? 'Awaiting approval' : event.status.replace('_', ' ')}
+                                    </div>
                                   </div>
-                                  {event.proposedDate && (
-                                    <p className="text-xs text-muted-foreground">
-                                      {new Date(event.proposedDate).toLocaleDateString('en-US', {
-                                        month: 'short',
-                                        day: 'numeric',
-                                        hour: 'numeric',
-                                        minute: '2-digit'
-                                      })}
-                                    </p>
-                                  )}
-                                  {event.itinerary?.items && event.itinerary.items.length > 0 && (
-                                    <p className="text-xs text-muted-foreground">
-                                      {event.itinerary.items[0].venueName}
-                                      {event.itinerary.items.length > 1 && ` +${event.itinerary.items.length - 1}`}
-                                    </p>
-                                  )}
-                                </div>
-                              );
-                            })}
-
-                            {pendingAutoEvents.length > 2 && (
-                              <p className="text-xs text-muted-foreground text-center">
-                                +{pendingAutoEvents.length - 2} more
-                              </p>
-                            )}
+                                );
+                              })}
+                            </div>
 
                             <Button
                               variant="outline"

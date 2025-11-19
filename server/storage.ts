@@ -1,7 +1,7 @@
 // Reference: javascript_database blueprint
 // Reference: javascript_log_in_with_replit blueprint
 import {
-  users, groups, members, memberGroupPreferences, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, itineraryInvites, reminderLogs, autoScheduledEvents, frequencyFeedback, venueVisitHistory, userProfiles, proposedTimeSlots, timeSlotVotes, groupCollections, categorySearchHistory, hostAssignments, groupBackups, databaseBackups, scrapedVenuesImport, curatedVenues, seenActivities,
+  users, groups, members, memberGroupPreferences, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, itineraryInvites, reminderLogs, autoScheduledEvents, frequencyFeedback, venueVisitHistory, userProfiles, proposedTimeSlots, timeSlotVotes, groupCollections, categorySearchHistory, hostAssignments, groupBackups, databaseBackups, scrapedVenuesImport, curatedVenues, seenActivities, memberFavoriteVenues,
   type User, type UpsertUser,
   type Group, type InsertGroup, type UpdateGroup,
   type Member, type InsertMember, type UpdateMember,
@@ -24,10 +24,11 @@ import {
   type HostAssignment, type InsertHostAssignment,
   type GroupBackup, type InsertGroupBackup,
   type DatabaseBackup, type InsertDatabaseBackup,
-  type MemberGroupPreferences, type InsertMemberGroupPreferences
+  type MemberGroupPreferences, type InsertMemberGroupPreferences,
+  type MemberFavoriteVenue, type InsertMemberFavoriteVenue
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql, and, or, inArray, isNull, isNotNull } from "drizzle-orm";
+import { eq, desc, sql, and, or, inArray, isNull, isNotNull, gte } from "drizzle-orm";
 import { randomBytes } from "crypto";
 
 export interface IStorage {
@@ -124,6 +125,7 @@ export interface IStorage {
   updateAutoScheduledEventStatus(id: string, status: string): Promise<AutoScheduledEvent>;
   getAutoScheduledEventsReadyForAutoSend(): Promise<AutoScheduledEvent[]>;
   hasExistingProposedEvents(groupId: string): Promise<boolean>;
+  countFutureEvents(groupId: string): Promise<number>;
   getUserUpcomingEventsWithTimeSlots(userId: string, startDate?: Date, endDate?: Date): Promise<Array<{
     groupId: string;
     groupName: string;
@@ -414,6 +416,8 @@ export class DatabaseStorage implements IStorage {
           id: member.id,
           name: member.name,
           email: member.email,
+          userId: member.userId,
+          isOrganizer: member.isOrganizer,
           profileCompleted: member.userId === userId ? member.profileCompleted : undefined
         }));
         return {
@@ -1696,6 +1700,28 @@ export class DatabaseStorage implements IStorage {
     return proposedItineraries.length > 0;
   }
 
+  async countFutureEvents(groupId: string): Promise<number> {
+    const now = new Date();
+
+    // Count auto-scheduled events that are in active states (not rejected or completed)
+    const autoEvents = await db
+      .select()
+      .from(autoScheduledEvents)
+      .where(and(
+        eq(autoScheduledEvents.groupId, groupId),
+        inArray(autoScheduledEvents.status, [
+          'pending_approval',
+          'auto_approved',
+          'approved',
+          'auto_sent',
+          'scheduled'
+        ]),
+        gte(autoScheduledEvents.proposedDate, now)
+      ));
+
+    return autoEvents.length;
+  }
+
   async getUserUpcomingEventsWithTimeSlots(
     userId: string,
     startDate?: Date,
@@ -2898,6 +2924,68 @@ export class DatabaseStorage implements IStorage {
       .update(curatedVenues)
       .set({ category })
       .where(eq(curatedVenues.id, id));
+  }
+
+  // Member Favorite Venues
+  async getMemberFavoriteVenues(memberId: string): Promise<MemberFavoriteVenue[]> {
+    const favorites = await db
+      .select()
+      .from(memberFavoriteVenues)
+      .where(eq(memberFavoriteVenues.memberId, memberId))
+      .orderBy(desc(memberFavoriteVenues.addedAt));
+
+    return favorites;
+  }
+
+  async addMemberFavoriteVenue(
+    memberId: string,
+    venue: {
+      venuePlaceId: string;
+      venueName: string;
+      venueAddress?: string;
+      venuePhotoUrl?: string;
+      category?: string;
+    }
+  ): Promise<MemberFavoriteVenue> {
+    const [favorite] = await db
+      .insert(memberFavoriteVenues)
+      .values({
+        memberId,
+        venuePlaceId: venue.venuePlaceId,
+        venueName: venue.venueName,
+        venueAddress: venue.venueAddress || null,
+        venuePhotoUrl: venue.venuePhotoUrl || null,
+        category: venue.category || null,
+      })
+      .returning();
+
+    return favorite;
+  }
+
+  async removeMemberFavoriteVenue(memberId: string, venuePlaceId: string): Promise<void> {
+    await db
+      .delete(memberFavoriteVenues)
+      .where(
+        and(
+          eq(memberFavoriteVenues.memberId, memberId),
+          eq(memberFavoriteVenues.venuePlaceId, venuePlaceId)
+        )
+      );
+  }
+
+  async isFavoriteVenue(memberId: string, venuePlaceId: string): Promise<boolean> {
+    const [favorite] = await db
+      .select()
+      .from(memberFavoriteVenues)
+      .where(
+        and(
+          eq(memberFavoriteVenues.memberId, memberId),
+          eq(memberFavoriteVenues.venuePlaceId, venuePlaceId)
+        )
+      )
+      .limit(1);
+
+    return !!favorite;
   }
 }
 

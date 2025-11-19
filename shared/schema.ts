@@ -110,6 +110,10 @@ export const groups = pgTable("groups", {
   reviewEveryNthEvent: integer("review_every_nth_event"), // Require manual review every N events (quality sampling)
   eventCountSinceLastReview: integer("event_count_since_last_review").default(0).notNull(), // Counter for review sampling
 
+  // Future event pipeline configuration
+  targetFutureEvents: integer("target_future_events"), // Number of future events to maintain in pipeline (null = use smart default based on cadence)
+  allowEarlyRsvp: boolean("allow_early_rsvp").default(true).notNull(), // Whether members can RSVP to approved events before they are fully scheduled
+
   // Visual customization
   accentColor: varchar("accent_color", { length: 7 }), // Hex color code for group visual identity (e.g., "#60A5FA")
 
@@ -168,6 +172,18 @@ export const members = pgTable("members", {
   
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Member favorite venues table (venues members have marked as favorites)
+export const memberFavoriteVenues = pgTable("member_favorite_venues", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  memberId: varchar("member_id").notNull().references(() => members.id, { onDelete: "cascade" }),
+  venuePlaceId: text("venue_place_id").notNull(), // Google Place ID
+  venueName: text("venue_name").notNull(),
+  venueAddress: text("venue_address"),
+  venuePhotoUrl: text("venue_photo_url"),
+  category: text("category"), // meal, cafes, drinks, dessert, experiences
+  addedAt: timestamp("added_at").defaultNow().notNull(),
 });
 
 // Member group preferences table (per-group preference overrides)
@@ -230,7 +246,7 @@ export const activities = pgTable("activities", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-// YAS THIS voting events table
+// Voting events table (for favorites/activity swipes)
 export const votingEvents = pgTable("voting_events", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   groupId: varchar("group_id").notNull().references(() => groups.id, { onDelete: "cascade" }),
