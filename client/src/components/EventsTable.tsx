@@ -21,6 +21,7 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { getRsvpColor } from "@/lib/tokens";
 
 // Helper function to convert hex color to rgba
 function hexToRgba(hex: string, alpha: number): string {
@@ -42,20 +43,8 @@ function formatNameWithLastInitial(fullName: string): string {
 }
 
 // Helper function to get pill color classes based on response
-function getResponsePillColor(response: 'yes' | 'maybe' | 'no' | 'pending'): string {
-  switch (response) {
-    case 'yes':
-      return 'bg-green-100 text-green-700 border-green-300';
-    case 'maybe':
-      return 'bg-yellow-100 text-yellow-700 border-yellow-300';
-    case 'no':
-      return 'bg-gray-100 text-gray-600 border-gray-300';
-    case 'pending':
-      return 'bg-gray-50 text-gray-900 border-gray-300';
-    default:
-      return 'bg-gray-100 text-gray-600 border-gray-300';
-  }
-}
+// Now uses centralized tokens from @/lib/tokens
+const getResponsePillColor = getRsvpColor;
 
 // Helper function to get RSVP counts
 function getRsvpCounts(event: Event): { yes: number; maybe: number; no: number; pending: number } {
@@ -345,7 +334,7 @@ export default function EventsTable({
 
   const getGoogleMapsUrl = (venue: EventItem) => {
     if (venue.googlePlaceId) {
-      return `https://www.google.com/maps/search/?api=1&query_place_id=${venue.googlePlaceId}`;
+      return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venue.venueName || venue.venueAddress || 'Location')}&query_place_id=${venue.googlePlaceId}`;
     }
     if (venue.venueAddress) {
       return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venue.venueAddress)}`;
@@ -535,12 +524,12 @@ export default function EventsTable({
           {itineraryId && (
             <>
               <DropdownMenuSeparator />
-              <Link href={`/event/${itineraryId}`} onClick={(e) => e.stopPropagation()}>
-                <DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href={`/event/${itineraryId}`} className="flex items-center" onClick={(e) => e.stopPropagation()}>
                   <ExternalLink className="h-4 w-4 mr-2" />
                   <span>View Details</span>
-                </DropdownMenuItem>
-              </Link>
+                </Link>
+              </DropdownMenuItem>
             </>
           )}
         </DropdownMenuContent>
@@ -569,10 +558,10 @@ export default function EventsTable({
         </div>
       )}
 
-      <div className="space-y-1 min-w-[1100px]">
-        {/* Table Header */}
-      <div className="grid grid-cols-[40px_180px_minmax(200px,1fr)_250px_120px_280px_80px] gap-4 px-3 py-2 text-xs font-semibold text-muted-foreground border-b">
-        <div className="flex items-center justify-center">
+      <div className="space-y-3 sm:space-y-1">
+        {/* Table Header - hidden on mobile, shown on sm+ */}
+      <div className="hidden sm:grid grid-cols-[120px_minmax(150px,1fr)_150px_80px_60px] md:grid-cols-[150px_minmax(180px,1fr)_180px_100px_80px] lg:grid-cols-[40px_180px_minmax(200px,1fr)_250px_120px_280px_80px] gap-2 lg:gap-4 px-3 py-2 text-xs font-semibold text-muted-foreground border-b">
+        <div className="hidden lg:flex items-center justify-center">
           {!isPastEvents && (
             <Checkbox
               checked={selectedEvents.size === events.length && events.length > 0}
@@ -590,7 +579,7 @@ export default function EventsTable({
         <div>EVENT</div>
         <div>MEETING AT</div>
         <div>RSVP</div>
-        <div>ATTENDANCE</div>
+        <div className="hidden lg:block">ATTENDANCE</div>
         <div></div>
       </div>
 
@@ -602,17 +591,118 @@ export default function EventsTable({
         const borderStyle = getEventBorderStyle(event);
         const countdown = getAutoSendCountdown(event);
 
+        // Get relative date label for mobile cards
+        const getRelativeDateLabel = (eventDate: string | null, timezone: string | null): string => {
+          if (!eventDate) return 'TBD';
+          const date = new Date(eventDate);
+          const now = new Date();
+          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const eventDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+          const diffDays = Math.floor((eventDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+          if (diffDays === 0) return 'Today';
+          if (diffDays === 1) return 'Tomorrow';
+          return timezone
+            ? formatInTimeZone(date, timezone, "EEE, MMM d")
+            : format(date, "EEE, MMM d");
+        };
+
+        // Get RSVP pill styling
+        const getRsvpPillStyle = () => {
+          const response = event.rsvp?.response;
+          if (!response) return { bg: 'bg-muted', text: 'text-muted-foreground', label: 'RSVP' };
+          switch (response) {
+            case 'going':
+            case 'yes':
+              return { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-700 dark:text-green-300', label: 'Going' };
+            case 'maybe':
+              return { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-700 dark:text-amber-300', label: 'Maybe' };
+            case 'no':
+              return { bg: 'bg-gray-100 dark:bg-gray-800', text: 'text-gray-500 dark:text-gray-400', label: 'Declined' };
+            default:
+              return { bg: 'bg-muted', text: 'text-muted-foreground', label: response };
+          }
+        };
+
+        const rsvpStyle = getRsvpPillStyle();
+
+        // Mobile card view (shown on xs screens only) - Warm & Friendly redesign
+        const mobileCardContent = (
+          <div
+            className="sm:hidden p-4 bg-card rounded-soft shadow-warm hover:shadow-warm-hover transition-all cursor-pointer"
+            style={{
+              borderLeft: `4px solid ${borderStyle.borderColor}`,
+              backgroundColor: borderStyle.backgroundColor || 'hsl(var(--card))'
+            }}
+          >
+            {/* Top row: Group emoji/name + RSVP status */}
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <span className="text-3xl flex-shrink-0">
+                  {event.isAutoScheduled ? '🤖' : event.groupEmoji}
+                </span>
+                <div className="min-w-0">
+                  <div className="font-semibold text-foreground truncate">
+                    {event.groupName}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {getRelativeDateLabel(event.eventDate, event.groupTimezone)}
+                    {event.eventDate && (
+                      <span className="ml-1">
+                        · {event.groupTimezone
+                          ? formatInTimeZone(new Date(event.eventDate), event.groupTimezone, "h:mm a")
+                          : format(new Date(event.eventDate), "h:mm a")}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <Badge
+                variant="secondary"
+                className={`rounded-pill px-3 py-1 text-xs font-medium ${rsvpStyle.bg} ${rsvpStyle.text} border-0`}
+              >
+                {rsvpStyle.label}
+              </Badge>
+            </div>
+
+            {/* Venue info */}
+            {event.items && event.items.length > 0 && !event.isVirtual && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                <MapPin className="h-4 w-4 flex-shrink-0" />
+                <span className="truncate">
+                  {event.items.length === 1
+                    ? event.items[0].venueName
+                    : `${event.items[0].venueName} + ${event.items.length - 1} more`}
+                </span>
+              </div>
+            )}
+
+            {/* Bottom row: host info + countdown */}
+            {(getHostInfo(event) || countdown) && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t border-border/50">
+                {getHostInfo(event)}
+                {countdown && (
+                  <span className="text-amber-600 dark:text-amber-400 font-medium ml-auto">
+                    {countdown}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        );
+
+        // Desktop/tablet grid view (hidden on xs screens)
         const rowContent = (
           <div
-            className="grid grid-cols-[40px_180px_minmax(200px,1fr)_250px_120px_280px_80px] gap-4 px-3 py-3 hover:bg-muted/50 transition-colors items-center cursor-pointer"
+            className="hidden sm:grid grid-cols-[120px_minmax(150px,1fr)_150px_80px_60px] md:grid-cols-[150px_minmax(180px,1fr)_180px_100px_80px] lg:grid-cols-[40px_180px_minmax(200px,1fr)_250px_120px_280px_80px] gap-2 lg:gap-4 px-3 py-3 hover:bg-muted/50 transition-colors items-center cursor-pointer"
             style={{
               borderLeft: `${borderStyle.borderWidth} solid ${borderStyle.borderColor}`,
               backgroundColor: borderStyle.backgroundColor
             }}
           >
-                {/* Checkbox Column */}
+                {/* Checkbox Column - Hidden on tablet/mobile */}
                 <div
-                  className="flex items-center justify-center"
+                  className="hidden lg:flex items-center justify-center"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -703,20 +793,26 @@ export default function EventsTable({
                           variant="ghost"
                           className="h-auto p-1 text-muted-foreground hover:text-foreground text-sm font-normal justify-start"
                         >
-                          {event.eventDate ? (() => {
-                            const planDate = new Date(event.eventDate);
-                            planDate.setDate(planDate.getDate() - 3);
-                            return `Will be decided on ${format(planDate, "MMM d")} ▼`;
-                          })() : "Planning in progress ▼"}
+                          {(() => {
+                            // Use autoSendAt if available, otherwise calculate 7 days before event
+                            if (event.autoSendAt) {
+                              return `Will be decided on ${format(new Date(event.autoSendAt), "MMM d")} ▼`;
+                            } else if (event.eventDate) {
+                              const planDate = new Date(event.eventDate);
+                              planDate.setDate(planDate.getDate() - 7); // Changed from 3 to 7 days
+                              return `Will be decided on ${format(planDate, "MMM d")} ▼`;
+                            }
+                            return "Planning in progress ▼";
+                          })()}
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start">
-                        <Link href={`/group/${event.groupId}?action=schedule`}>
-                          <DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href={`/group/${event.groupId}?action=schedule`} className="flex items-center">
                             <Sparkles className="h-4 w-4 mr-2" />
                             Decide Now
-                          </DropdownMenuItem>
-                        </Link>
+                          </Link>
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   ) : !event.items || event.items.length === 0 ? (
@@ -730,12 +826,12 @@ export default function EventsTable({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start">
-                        <Link href={`/group/${event.groupId}?action=schedule`}>
-                          <DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href={`/group/${event.groupId}?action=schedule`} className="flex items-center">
                             <Sparkles className="h-4 w-4 mr-2" />
                             Decide Now
-                          </DropdownMenuItem>
-                        </Link>
+                          </Link>
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   ) : (
@@ -773,8 +869,8 @@ export default function EventsTable({
                   {getRsvpDropdown(event)}
                 </div>
 
-                {/* Attendance Column */}
-                <div className="text-sm" onClick={(e) => e.stopPropagation()}>
+                {/* Attendance Column - Hidden on tablet/mobile */}
+                <div className="hidden lg:block text-sm" onClick={(e) => e.stopPropagation()}>
                   {(() => {
                     const counts = getRsvpCounts(event);
                     const isAttendanceExpanded = expandedAttendance.has(eventId);
@@ -924,8 +1020,9 @@ export default function EventsTable({
 
         return (
           <div key={eventId} className="border-b last:border-b-0">
-            {/* Main Row */}
+            {/* Main Row - Mobile card + Desktop grid */}
             <Link href={event.itineraryId ? `/event/${event.itineraryId}` : `/group/${event.groupId}`}>
+              {mobileCardContent}
               {rowContent}
             </Link>
 
@@ -935,22 +1032,22 @@ export default function EventsTable({
                 {event.items.map((venue, idx) => {
                   const mapsUrl = getGoogleMapsUrl(venue);
                   return (
-                    <div key={idx} className="flex items-center gap-3 text-sm pl-[180px]">
+                    <div key={idx} className="flex items-center gap-3 text-sm sm:pl-[120px] md:pl-[150px] lg:pl-[220px]">
                       <MapPin className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                      <div className="text-xs text-muted-foreground min-w-[150px]">
+                      <div className="text-xs text-muted-foreground min-w-0 sm:min-w-[100px] md:min-w-[150px] truncate">
                         {venue.venueAddress || "Address not available"}
                       </div>
-                      <div className="font-medium">→ {venue.venueName}</div>
+                      <div className="font-medium truncate">→ {venue.venueName}</div>
                       {mapsUrl && (
                         <a
                           href={mapsUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-primary hover:underline flex items-center gap-1 ml-auto"
+                          className="text-primary hover:underline flex items-center gap-1 ml-auto flex-shrink-0"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <ExternalLink className="h-3 w-3" />
-                          Maps
+                          <span className="hidden sm:inline">Maps</span>
                         </a>
                       )}
                     </div>

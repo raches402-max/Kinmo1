@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { getErrorToast } from "@/components/ErrorDisplay";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -153,7 +154,7 @@ export default function RsvpItineraryPage() {
     }
   }, [existingRsvp]);
 
-  // RSVP mutation
+  // RSVP mutation with optimistic updates
   const rsvpMutation = useMutation({
     mutationFn: async ({ response, feedback }: { response: string; feedback?: any }) => {
       // Build additional attendees array
@@ -185,8 +186,17 @@ export default function RsvpItineraryPage() {
         numberOfKids,
       });
     },
-    onSuccess: (_, variables) => {
+    onMutate: async (variables) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["/api/rsvps/itinerary", itineraryId] });
+
+      // Optimistically update the UI immediately
       setSelectedResponse(variables.response);
+
+      // Return context for rollback
+      return { previousResponse: selectedResponse };
+    },
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/rsvps/itinerary", itineraryId] });
       toast({
         title: "RSVP recorded",
@@ -194,12 +204,12 @@ export default function RsvpItineraryPage() {
       });
       setShowFeedbackForm(false);
     },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+    onError: (error: Error, _, context) => {
+      // Rollback optimistic update on error
+      if (context?.previousResponse) {
+        setSelectedResponse(context.previousResponse);
+      }
+      toast(getErrorToast(error));
     },
   });
 
@@ -429,7 +439,7 @@ export default function RsvpItineraryPage() {
                 itineraryId={itinerary.id}
                 memberId={claimedMemberId}
                 isOrganizer={false}
-                timezone={itinerary.group?.timezone}
+                isHost={false}
               />
             </CardContent>
           </Card>

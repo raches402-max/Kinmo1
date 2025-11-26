@@ -8,6 +8,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { Calendar, Users, Check, Circle, CheckCircle2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { getErrorToast } from "@/components/ErrorDisplay";
 import { formatDateTimeWithTimezone } from "@/lib/utils";
 
 interface TimeSlot {
@@ -30,10 +31,11 @@ interface TimeSlotVotingProps {
   userId?: string;
   memberId?: string;
   isOrganizer?: boolean;
+  isHost?: boolean;
   timezone?: string;
 }
 
-export function TimeSlotVoting({ itineraryId, userId, memberId, isOrganizer = false, timezone = 'America/Los_Angeles' }: TimeSlotVotingProps) {
+export function TimeSlotVoting({ itineraryId, userId, memberId, isOrganizer = false, isHost = false, timezone = 'America/Los_Angeles' }: TimeSlotVotingProps) {
   const { toast } = useToast();
 
   const { data: timeSlots = [], isLoading } = useQuery<TimeSlot[]>({
@@ -55,11 +57,7 @@ export function TimeSlotVoting({ itineraryId, userId, memberId, isOrganizer = fa
       });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Vote failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -76,11 +74,7 @@ export function TimeSlotVoting({ itineraryId, userId, memberId, isOrganizer = fa
       });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Selection failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -233,9 +227,9 @@ export function TimeSlotVoting({ itineraryId, userId, memberId, isOrganizer = fa
                     Maybe
                   </Button>
                   
-                  {isOrganizer && (
-                    <Button 
-                      size="sm" 
+                  {(isOrganizer || isHost) && (
+                    <Button
+                      size="sm"
                       variant="ghost"
                       className="gap-1 text-xs h-8"
                       onClick={() => selectMutation.mutate(slot.id)}
@@ -252,9 +246,9 @@ export function TimeSlotVoting({ itineraryId, userId, memberId, isOrganizer = fa
           );
         })}
       </Card>
-      
+
       <p className="text-xs text-muted-foreground text-center">
-        {isOrganizer 
+        {(isOrganizer || isHost)
           ? "Vote on each time, then finalize your choice when everyone has responded"
           : "Select all times that work for you"
         }

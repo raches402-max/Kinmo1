@@ -5,7 +5,7 @@
 
 import { storage } from './storage';
 import { db } from './db';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { autoScheduledEvents, itineraryInvites, itineraries } from '../shared/schema';
 import crypto from 'crypto';
 
@@ -42,46 +42,13 @@ export async function approveAndCreateItinerary(
       return { success: false, error: 'Group not found' };
     }
 
-    // If no optionId provided, determine the best option
-    let selectedOptionId = optionId;
-    if (!selectedOptionId) {
-      selectedOptionId = await determineTopOption(eventId);
-      if (!selectedOptionId) {
-        return { success: false, error: 'No options available' };
-      }
-    }
-
-    // Verify option exists and belongs to this event
-    const { itineraryOptions: itineraryOptionsTable } = await import('../shared/schema');
-    const [option] = await db
-      .select()
-      .from(itineraryOptionsTable)
-      .where(eq(itineraryOptionsTable.id, selectedOptionId));
-
-    if (!option || option.autoEventId !== eventId) {
-      return { success: false, error: 'Invalid option' };
-    }
-
-    // Update the auto event with the selected option
-    await db
-      .update(autoScheduledEvents)
-      .set({
-        selectedOptionId,
-        status: source === 'auto' ? 'auto_approved' : 'approved',
-      })
-      .where(eq(autoScheduledEvents.id, eventId));
-
-    // Extract venue information from the selected option
-    const venues = option.venues as Array<{
-      sourceType: 'activity' | 'voting_event';
-      sourceId: string;
-      venueName: string;
-      badges: string[];
-    }>;
+    // Fetch members for logging
+    const members = await storage.getGroupMembers(event.groupId);
 
     let itinerary: any;
 
     // Check if itinerary already exists (new flow creates it upfront)
+    // If it does, we can skip the options logic entirely
     if (event.itineraryId) {
       console.log(`[Auto-Approval] Itinerary already exists (${event.itineraryId}), updating status to approved`);
 
@@ -93,31 +60,94 @@ export async function approveAndCreateItinerary(
         })
         .where(eq(itineraries.id, event.itineraryId));
 
+      // Update the auto event status
+      await db
+        .update(autoScheduledEvents)
+        .set({
+          status: source === 'auto' ? 'auto_approved' : 'approved',
+        })
+        .where(eq(autoScheduledEvents.id, eventId));
+
       // Fetch the updated itinerary
       itinerary = await storage.getItinerary(event.itineraryId);
 
       // Invites already exist from initial creation, no need to recreate
       console.log(`[Auto-Approval] Using existing itinerary and invites`);
     } else {
-      // Old flow: Create itinerary if it doesn't exist (backward compatibility)
-      console.log(`[Auto-Approval] Creating new itinerary (legacy flow)`);
+      // Old flow: Need to use options to create itinerary
+      console.log(`[Auto-Approval] Creating new itinerary from options (legacy flow)`);
 
-      const venueItems = venues.map(v => ({
-        sourceType: v.sourceType,
-        sourceId: v.sourceId,
-      }));
+      // If no optionId provided, determine the best option
+      let selectedOptionId = optionId;
+      if (!selectedOptionId) {
+        selectedOptionId = await determineTopOption(eventId);
+        if (!selectedOptionId) {
+          return { success: false, error: 'No options available' };
+        }
+      }
 
-      itinerary = await storage.createItinerary(
-        {
-          groupId: event.groupId,
-          name: `Auto-scheduled event for ${group.name}`,
-          eventDate: event.proposedDate,
-          status: 'proposed',
-          proposedOrder: [],
-        },
-        group.userId!,
-        venueItems
-      );
+      // Verify option exists and belongs to this event
+      const { itineraryOptions: itineraryOptionsTable } = await import('../shared/schema');
+      const [option] = await db
+        .select()
+        .from(itineraryOptionsTable)
+        .where(eq(itineraryOptionsTable.id, selectedOptionId));
+
+      if (!option || option.autoEventId !== eventId) {
+        return { success: false, error: 'Invalid option' };
+      }
+
+      // Update the auto event with the selected option
+      await db
+        .update(autoScheduledEvents)
+        .set({
+          selectedOptionId,
+          status: source === 'auto' ? 'auto_approved' : 'approved',
+        })
+        .where(eq(autoScheduledEvents.id, eventId));
+
+      // Extract venue information from the selected option
+      const venues = option.venues as Array<{
+        sourceType: 'activity' | 'voting_event';
+        sourceId: string;
+        venueName: string;
+        badges: string[];
+      }>;
+
+      // Check if an itinerary already exists for this group/date (prevent duplicates)
+      const eventDateStr = new Date(event.proposedDate).toISOString().split('T')[0];
+      const { sql } = await import('drizzle-orm');
+      const existingItineraries = await db
+        .select()
+        .from(itineraries)
+        .where(and(
+          eq(itineraries.groupId, event.groupId),
+          sql`DATE(${itineraries.eventDate}) = ${eventDateStr}`
+        ));
+
+      if (existingItineraries.length > 0) {
+        // Itinerary already exists for this date - reuse it
+        itinerary = existingItineraries[0];
+        console.log(`[Auto-Approval] Itinerary already exists for ${group.name} on ${eventDateStr}, reusing ${itinerary.id}`);
+      } else {
+        // Create new itinerary
+        const venueItems = venues.map(v => ({
+          sourceType: v.sourceType,
+          sourceId: v.sourceId,
+        }));
+
+        itinerary = await storage.createItinerary(
+          {
+            groupId: event.groupId,
+            name: `Auto-scheduled event for ${group.name}`,
+            eventDate: event.proposedDate,
+            status: 'proposed',
+            proposedOrder: [],
+          },
+          group.userId!,
+          venueItems
+        );
+      }
 
       // Update the event with the itinerary ID
       await db
@@ -126,7 +156,6 @@ export async function approveAndCreateItinerary(
         .where(eq(autoScheduledEvents.id, eventId));
 
       // Create invites for all group members
-      const members = await storage.getGroupMembers(event.groupId);
       console.log(`[Auto-Approval] Creating invites for ${members.length} members in group ${group.name}`);
 
       for (const member of members) {
@@ -141,10 +170,10 @@ export async function approveAndCreateItinerary(
     }
 
     console.log(`[Auto-Approval] ${source === 'auto' ? '🤖 AUTO' : '👤 MANUAL'} approval for event ${eventId}:`, {
-      optionNumber: option.optionNumber,
-      venues: venues.map(v => v.venueName).join(' → '),
+      itineraryId: itinerary?.id,
+      itineraryName: itinerary?.name,
       confidence: event.confidenceScore,
-      invitesCreated: members.length,
+      memberCount: members.length,
     });
 
     return {

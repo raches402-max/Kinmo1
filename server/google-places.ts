@@ -119,17 +119,27 @@ function calculateGooglePlacesCost(method: string, resultCount?: number): number
 
 /**
  * Map budgetMax to maximum allowed price level
- * Price Rules:
- * $ (≤$30) = 1
- * $$ (≤$60) = 2
- * $$$ (<$100) = 3
- * $$$$ ($100+) = 4
+ * Budget-to-Price-Level Mapping:
+ * $0-30   → Level 1 ($) only
+ * $31-60  → Levels 1-2 ($, $$)
+ * $61-99  → Levels 1-3 ($, $$, $$$)
+ * $100+   → All levels ($, $$, $$$, $$$$)
  */
 export function getMaxPriceLevelForBudget(budgetMax: number): number {
-  if (budgetMax <= 30) return 1;
-  if (budgetMax <= 60) return 2;
-  if (budgetMax < 100) return 3;
-  return 4; // $100+
+  if (budgetMax <= 30) {
+    console.log(`[Budget Mapping] $${budgetMax} → Max price level: 1 ($)`);
+    return 1;
+  }
+  if (budgetMax <= 60) {
+    console.log(`[Budget Mapping] $${budgetMax} → Max price level: 2 ($, $$)`);
+    return 2;
+  }
+  if (budgetMax < 100) {
+    console.log(`[Budget Mapping] $${budgetMax} → Max price level: 3 ($, $$, $$$)`);
+    return 3;
+  }
+  console.log(`[Budget Mapping] $${budgetMax} → Max price level: 4 ($, $$, $$$, $$$$)`);
+  return 4;
 }
 
 /**
@@ -155,32 +165,171 @@ function priceLevelToNumber(priceLevel: string | undefined): number | null {
 /**
  * Filter venues by budget
  * Venues with missing price data:
- * - Allowed for budgets >= $100 (benefit of doubt for high-end groups)
- * - Rejected for budgets < $100 (safer default for budget-conscious groups)
+ * - For budgets >= $40: Allow (benefit of doubt - most venues without data are moderate)
+ * - For budgets < $40: Reject (safer for strict budget constraints)
+ *
+ * This is more permissive than the old $100 threshold, which was filtering out
+ * too many good venues for moderate budgets like $60.
  */
 export function filterByBudget(venues: PlaceResult[], budgetMax: number): PlaceResult[] {
   const maxPriceLevel = getMaxPriceLevelForBudget(budgetMax);
-  
+
   return venues.filter(venue => {
     const priceNum = priceLevelToNumber(venue.priceLevel);
-    
-    // Handle missing price data
+
+    // Handle missing price data - be more permissive for moderate+ budgets
     if (priceNum === null) {
-      const allowed = budgetMax >= 100;
+      const allowed = budgetMax >= 40;
       if (!allowed) {
-        console.log(`[Budget Filter] Filtering out "${venue.name}" - no price data (budget: $${budgetMax})`);
+        console.log(`[Budget Filter] ❌ Filtering out "${venue.name}" - no price data (budget: $${budgetMax} < $40)`);
+      } else {
+        console.log(`[Budget Filter] ✓ Allowing "${venue.name}" - no price data but budget $${budgetMax} >= $40`);
       }
       return allowed;
     }
-    
+
     // Filter by price level
     if (priceNum > maxPriceLevel) {
-      console.log(`[Budget Filter] Filtering out "${venue.name}" - ${venue.priceLevel} exceeds budget $${budgetMax} (max: ${maxPriceLevel === 1 ? '$' : maxPriceLevel === 2 ? '$$' : maxPriceLevel === 3 ? '$$$' : '$$$$'})`);
+      const priceDisplay = '$'.repeat(priceNum);
+      const maxDisplay = '$'.repeat(maxPriceLevel);
+      console.log(`[Budget Filter] ❌ Filtering out "${venue.name}" - ${priceDisplay} exceeds budget $${budgetMax} (max: ${maxDisplay})`);
       return false;
     }
-    
+
+    // Venue passes filter
+    const priceDisplay = '$'.repeat(priceNum);
+    console.log(`[Budget Filter] ✓ Allowing "${venue.name}" - ${priceDisplay} within budget $${budgetMax}`);
     return true;
   });
+}
+
+/**
+ * Calculate similarity between two venue names
+ * Returns a score between 0 (no match) and 1 (exact match)
+ * Uses Levenshtein distance for fuzzy matching
+ */
+export function calculateNameSimilarity(name1: string, name2: string): number {
+  if (!name1 || !name2) return 0;
+
+  // Normalize names: lowercase, remove special chars, trim
+  const normalize = (str: string) => str
+    .toLowerCase()
+    .replace(/[^\w\s]/g, '')
+    .trim();
+
+  const n1 = normalize(name1);
+  const n2 = normalize(name2);
+
+  if (n1 === n2) return 1.0;
+
+  // Levenshtein distance
+  const distance = (s1: string, s2: string): number => {
+    const len1 = s1.length;
+    const len2 = s2.length;
+    const matrix: number[][] = [];
+
+    for (let i = 0; i <= len1; i++) {
+      matrix[i] = [i];
+    }
+    for (let j = 0; j <= len2; j++) {
+      matrix[0][j] = j;
+    }
+
+    for (let i = 1; i <= len1; i++) {
+      for (let j = 1; j <= len2; j++) {
+        const cost = s1[i - 1] === s2[j - 1] ? 0 : 1;
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j] + 1,      // deletion
+          matrix[i][j - 1] + 1,      // insertion
+          matrix[i - 1][j - 1] + cost // substitution
+        );
+      }
+    }
+
+    return matrix[len1][len2];
+  };
+
+  const dist = distance(n1, n2);
+  const maxLen = Math.max(n1.length, n2.length);
+
+  // Convert distance to similarity (0-1)
+  return maxLen === 0 ? 0 : 1 - (dist / maxLen);
+}
+
+/**
+ * Validate that a Place ID's data matches the expected venue name
+ * Returns validation result with warnings if there's a mismatch
+ */
+export interface VenueValidationResult {
+  isValid: boolean;
+  confidence: 'high' | 'medium' | 'low';
+  warnings: string[];
+  placeDetails: PlaceResult | null;
+}
+
+export async function validateVenuePlaceId(
+  expectedName: string,
+  placeId: string
+): Promise<VenueValidationResult> {
+  const warnings: string[] = [];
+
+  try {
+    const placeDetails = await getPlaceDetails(placeId);
+
+    if (!placeDetails) {
+      return {
+        isValid: false,
+        confidence: 'low',
+        warnings: ['Failed to fetch place details from Google Places API'],
+        placeDetails: null
+      };
+    }
+
+    const similarity = calculateNameSimilarity(expectedName, placeDetails.name);
+
+    // Determine confidence level based on name similarity
+    let confidence: 'high' | 'medium' | 'low';
+    let isValid = true;
+
+    if (similarity >= 0.8) {
+      confidence = 'high';
+    } else if (similarity >= 0.5) {
+      confidence = 'medium';
+      warnings.push(
+        `Venue name mismatch: Expected "${expectedName}" but Place ID points to "${placeDetails.name}" (${Math.round(similarity * 100)}% match)`
+      );
+    } else {
+      confidence = 'low';
+      isValid = false;
+      warnings.push(
+        `Significant venue mismatch: Expected "${expectedName}" but Place ID points to "${placeDetails.name}" (${Math.round(similarity * 100)}% match)`
+      );
+    }
+
+    // Additional validation: Check for tour operators in types
+    const suspiciousTypes = ['travel_agency', 'tour_operator', 'tourist_attraction'];
+    const hasSuspiciousType = placeDetails.types?.some(type => suspiciousTypes.includes(type));
+
+    if (hasSuspiciousType && confidence !== 'high') {
+      warnings.push(
+        `Warning: Place ID points to a ${placeDetails.types?.find(t => suspiciousTypes.includes(t))}, which may not be the intended venue`
+      );
+    }
+
+    return {
+      isValid,
+      confidence,
+      warnings,
+      placeDetails
+    };
+  } catch (error) {
+    return {
+      isValid: false,
+      confidence: 'low',
+      warnings: [`Error validating Place ID: ${error}`],
+      placeDetails: null
+    };
+  }
 }
 
 // Session-level cache for Google Places API results
@@ -1107,6 +1256,7 @@ export async function detectAndParseGoogleMapsUrl(query: string): Promise<Google
     }
 
     if (dataParam) {
+      // Try to find ChIJ format Place ID first (most reliable)
       const placeIdMatch = dataParam.match(/!1s([^!&]+)/);
       if (placeIdMatch && placeIdMatch[1]) {
         const potentialPlaceId = placeIdMatch[1];
@@ -1114,13 +1264,24 @@ export async function detectAndParseGoogleMapsUrl(query: string): Promise<Google
         // Only accept ChIJ format for direct place ID lookup
         // (0x format is deprecated and not supported by new Places API)
         if (potentialPlaceId.length > 10 && potentialPlaceId.startsWith('ChIJ')) {
-          console.log(`[URL Parser] Detected Place ID: ${potentialPlaceId}`);
+          console.log(`[URL Parser] Detected Place ID (ChIJ format): ${potentialPlaceId}`);
           return {
             type: 'place_id',
             placeId: potentialPlaceId,
             rawUrl: query,
           };
         }
+      }
+
+      // Try to extract shortcode Place IDs (format: !16s/g/SHORTCODE or !16s%2Fg%2FSHORTCODE)
+      // These are newer format Place IDs that need to be prefixed with ChIJ
+      const shortcodeMatch = dataParam.match(/!16s(?:%2F|\/)[gG](?:%2F|\/)([A-Za-z0-9_-]+)/);
+      if (shortcodeMatch && shortcodeMatch[1]) {
+        const shortcode = shortcodeMatch[1];
+        // Convert shortcode to Place ID by searching with coordinates + name
+        console.log(`[URL Parser] Detected shortcode Place ID format: ${shortcode}`);
+        // We'll need to use coordinates + text search for this
+        // Return null here to fall through to coordinate extraction
       }
     }
 

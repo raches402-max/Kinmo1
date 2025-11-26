@@ -2,9 +2,10 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, updateUserProfileSchema, activities as activitiesTable, groups as groupsTable, members as membersTable, itineraryInvites, guestInvites, rsvps as rsvpsTable, itineraries, itineraryItems, proposedTimeSlots, users, userProfiles, photosCache, geocodingCache, hostAssignments, curatedVenues, votingEvents as votingEventsTable, activitySwipes, activities, votingEvents, swipeSessions, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
-import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue, categorizeVenuesBatch, analyzePreferencePatterns, parseSchedulingPrompt, parseSchedulingPromptWithHistory, detectCategory, getPromptCacheStats } from "./openai";
+import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, updateUserProfileSchema, activities as activitiesTable, groups as groupsTable, members as membersTable, itineraryInvites, guestInvites, rsvps as rsvpsTable, itineraries, itineraryItems, proposedTimeSlots, users, userProfiles, photosCache, geocodingCache, hostAssignments, curatedVenues, votingEvents as votingEventsTable, activitySwipes, activities, votingEvents, swipeSessions, venueVisitHistory, autoScheduledEvents, rejectedEventDates, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
+import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue, categorizeVenuesBatch, analyzePreferencePatterns, parseSchedulingPrompt, parseSchedulingPromptWithHistory, detectCategory, getPromptCacheStats, validateVenueForCategory } from "./openai";
 import { searchPlaces, searchNearbyPlaces, geocodeLocation, clearPlacesCache, getCacheStats, getPlaceDetails, detectAndParseGoogleMapsUrl } from "./google-places";
+import { planEventWithAgent, type VenueForAgent } from "./ai-event-agent";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import {
   requireGroupOwnership,
@@ -18,13 +19,23 @@ import {
 } from "./authorization";
 import { validateItinerary } from "./itinerary-validation";
 import { sendMemberWelcome, type EmailRecipient, type MemberWelcomeData } from "./email-service";
-import { autoUpdateMemberConstraints, calculateEngagement } from "./member-learning";
+import {
+  getUserNotifications,
+  getUnreadCount,
+  markAsRead,
+  markAllAsRead,
+  deleteNotification,
+  notifyEventInvite,
+} from "./notifications";
+import { autoUpdateMemberConstraints, calculateEngagement, analyzeRSVPPatterns } from "./member-learning";
 import { generateGroupInsights, saveGroupInsights, dismissInsight, editInsightSuggestion } from "./group-insights";
 import { triggerInsightUpdate, triggerInsightUpdateDebounced } from "./insight-triggers";
 import { db } from "./db";
-import { eq, sql, and, or, gte, desc, isNotNull } from "drizzle-orm";
+import { eq, sql, and, or, gte, desc, isNotNull, isNull } from "drizzle-orm";
 import { format } from 'date-fns';
+import pLimit from 'p-limit';
 import { validate, safeParse } from './validation-middleware';
+import rateLimit from 'express-rate-limit';
 import {
   createGroupSchema,
   createRsvpSchema,
@@ -45,6 +56,15 @@ import {
   createItineraryRsvpSchema,
   addAdHocVenueSchema,
   updateItineraryItemSchema,
+  updateUserPreferencesSchema,
+  updateMemberConstraintsActionSchema,
+  updateMemberGroupPreferencesSchema,
+  pauseAutomationSchema,
+  updateRsvpResponseSchema,
+  createCollectionSchema,
+  updateCollectionSchema,
+  reorderCollectionsSchema,
+  suggestAlternativesSchema,
 } from './validation-schemas';
 
 // San Francisco neighborhood coordinate boundaries for accurate geographic filtering
@@ -287,10 +307,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Set up authentication
   await setupAuth(app);
 
+  // Health check endpoint (for monitoring and load balancers)
+  app.get('/api/health', async (req, res) => {
+    try {
+      // Check database connectivity
+      await db.select().from(users).limit(1);
+
+      res.status(200).json({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        environment: process.env.NODE_ENV || 'development'
+      });
+    } catch (error) {
+      console.error('[Health Check] Database connection failed:', error);
+      res.status(503).json({
+        status: 'unhealthy',
+        error: 'Database connection failed',
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+
+  // Rate limiting for public endpoints to prevent scraping and abuse
+  const publicEndpointLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 requests per window
+    message: 'Too many requests from this IP, please try again later.',
+    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  });
+
   // Auth routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = await getUserId(req);
 
       if (!userId) {
         console.error('[Auth] No user ID found in claims:', req.user);
@@ -639,7 +690,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // User profile routes
   app.get("/api/user/profile", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const profile = await storage.getUserProfile(userId);
       res.json(profile || { displayName: '', bio: '', emailNotifications: true });
     } catch (error: any) {
@@ -650,7 +701,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/user/profile", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const validatedData = updateUserProfileSchema.parse(req.body);
       const profile = await storage.upsertUserProfile(userId, validatedData);
       res.json(profile);
@@ -666,7 +717,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get user's global preferences (from userProfiles)
   app.get("/api/user/preferences", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const profile = await storage.getUserProfile(userId);
 
       // Return preferences-specific fields
@@ -686,10 +737,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update user's global preferences
   app.patch("/api/user/preferences", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
 
-      // Only allow updating preference fields
-      const { budgetMin, budgetMax, activityPreferences, personalAvailability, emailNotifications } = req.body;
+      // Validate request body
+      const parseResult = safeParse(updateUserPreferencesSchema, req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: parseResult.error.errors[0]?.message || "Invalid request" });
+      }
+      const { budgetMin, budgetMax, activityPreferences, personalAvailability, emailNotifications } = parseResult.data;
       const updateData: any = {};
 
       if (budgetMin !== undefined) updateData.budgetMin = budgetMin;
@@ -717,7 +772,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get group-specific preference overrides
   app.get("/api/user/preferences/groups/:groupId", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const { groupId } = req.params;
 
       // Verify user has access to this group
@@ -743,19 +798,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update group-specific preference overrides
   app.patch("/api/user/preferences/groups/:groupId", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const { groupId } = req.params;
 
       // Verify user has access to this group
       await requireGroupAccess(userId, groupId);
 
+      // Validate request body
+      const parseResult = safeParse(updateMemberGroupPreferencesSchema, req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: parseResult.error.errors[0]?.message || "Invalid request" });
+      }
       const {
         budgetOverrideMin,
         budgetOverrideMax,
         categoryPreferencesOverride,
         availabilityOverride,
         meetingFrequencyOverride,
-      } = req.body;
+      } = parseResult.data;
 
       const updateData: any = {};
       if (budgetOverrideMin !== undefined) updateData.budgetOverrideMin = budgetOverrideMin;
@@ -775,10 +835,183 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get AI-learned constraint analysis for a member
+  app.get("/api/members/:memberId/constraint-analysis", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = await getUserId(req);
+      const { memberId } = req.params;
+
+      // Verify user has access to this member profile
+      await requireMemberAccess(userId, memberId);
+
+      // Get member's current constraints
+      const member = await db.select()
+        .from(membersTable)
+        .where(eq(membersTable.id, memberId))
+        .limit(1);
+
+      if (member.length === 0) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+
+      const currentConstraints = member[0].memberConstraints as any || {};
+      const groupId = member[0].groupId;
+
+      // Analyze RSVP patterns to get current patterns
+      const patterns = await analyzeRSVPPatterns(memberId, groupId);
+
+      // Calculate confidence percentages
+      const budgetConfidence = patterns.totalRSVPs > 0
+        ? Math.round((patterns.budgetConcernCount / patterns.totalRSVPs) * 100)
+        : 0;
+      const locationConfidence = patterns.totalRSVPs > 0
+        ? Math.round((patterns.locationConcernCount / patterns.totalRSVPs) * 100)
+        : 0;
+      const timeConfidence = patterns.totalRSVPs > 0
+        ? Math.round((patterns.timeConcernCount / patterns.totalRSVPs) * 100)
+        : 0;
+
+      // Build suggestions based on patterns
+      const suggestions = [];
+
+      if (patterns.budgetConcernCount >= 3 && !currentConstraints.budgetConcern) {
+        suggestions.push({
+          type: 'budgetConcern',
+          title: 'Budget is a frequent concern',
+          description: `Mentioned in ${patterns.budgetConcernCount} of ${patterns.totalRSVPs} recent RSVPs`,
+          confidence: budgetConfidence,
+          action: 'accept',
+        });
+      }
+
+      if (patterns.locationConcernCount >= 3 && !currentConstraints.distanceConcern) {
+        suggestions.push({
+          type: 'distanceConcern',
+          title: 'Location/distance is often mentioned',
+          description: `Mentioned in ${patterns.locationConcernCount} of ${patterns.totalRSVPs} recent RSVPs`,
+          confidence: locationConfidence,
+          action: 'accept',
+        });
+      }
+
+      if (patterns.timeConcernCount >= 3) {
+        suggestions.push({
+          type: 'timeConcern',
+          title: 'Timing conflicts detected',
+          description: `Mentioned in ${patterns.timeConcernCount} of ${patterns.totalRSVPs} recent RSVPs`,
+          confidence: timeConfidence,
+          action: 'accept',
+        });
+      }
+
+      // Check for schedule conflicts
+      if (patterns.unavailableDays.length >= 3) {
+        const dayFrequency: Record<string, number> = {};
+        patterns.unavailableDays.forEach(day => {
+          dayFrequency[day] = (dayFrequency[day] || 0) + 1;
+        });
+
+        const frequentDays = Object.entries(dayFrequency)
+          .filter(([_, count]) => count >= 2)
+          .map(([day]) => day);
+
+        if (frequentDays.length > 0 &&
+            !currentConstraints.scheduleConflicts?.some((d: string) => frequentDays.includes(d))) {
+          suggestions.push({
+            type: 'scheduleConflicts',
+            title: `${frequentDays.join(', ')} seem difficult`,
+            description: `You've mentioned these days as unavailable multiple times`,
+            confidence: Math.round((Math.max(...Object.values(dayFrequency)) / patterns.totalRSVPs) * 100),
+            action: 'accept',
+            data: frequentDays,
+          });
+        }
+      }
+
+      res.json({
+        currentConstraints,
+        patterns: {
+          budgetConcernCount: patterns.budgetConcernCount,
+          locationConcernCount: patterns.locationConcernCount,
+          timeConcernCount: patterns.timeConcernCount,
+          unavailableDays: patterns.unavailableDays,
+          totalRSVPs: patterns.totalRSVPs,
+        },
+        suggestions,
+      });
+    } catch (error: any) {
+      console.error("Error analyzing member constraints:", error);
+      if (error.message === "Unauthorized") {
+        return res.status(403).json({ message: "You don't have access to this member" });
+      }
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Update member constraints (accept/dismiss AI suggestions)
+  app.patch("/api/members/:memberId/constraints", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = await getUserId(req);
+      const { memberId } = req.params;
+
+      // Validate request body
+      const parseResult = safeParse(updateMemberConstraintsActionSchema, req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: parseResult.error.errors[0]?.message || "Invalid request" });
+      }
+      const { action, constraintType, data } = parseResult.data;
+
+      // Verify user has access to this member profile
+      await requireMemberAccess(userId, memberId);
+
+      // Get current member data
+      const member = await db.select()
+        .from(membersTable)
+        .where(eq(membersTable.id, memberId))
+        .limit(1);
+
+      if (member.length === 0) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+
+      const currentConstraints = member[0].memberConstraints as any || {};
+
+      if (action === 'accept') {
+        // Update constraints based on type
+        if (constraintType === 'budgetConcern') {
+          currentConstraints.budgetConcern = true;
+        } else if (constraintType === 'distanceConcern') {
+          currentConstraints.distanceConcern = true;
+        } else if (constraintType === 'scheduleConflicts' && data) {
+          currentConstraints.scheduleConflicts = [
+            ...(currentConstraints.scheduleConflicts || []),
+            ...data.filter((d: string) => !currentConstraints.scheduleConflicts?.includes(d))
+          ];
+        }
+
+        // Update member in database
+        await db.update(membersTable)
+          .set({ memberConstraints: currentConstraints })
+          .where(eq(membersTable.id, memberId));
+
+        res.json({ success: true, constraints: currentConstraints });
+      } else {
+        // action === 'dismiss' - User dismissed the suggestion
+        res.json({ success: true, message: 'Suggestion dismissed' });
+      }
+    } catch (error: any) {
+      console.error("Error updating member constraints:", error);
+      if (error.message === "Unauthorized") {
+        return res.status(403).json({ message: "You don't have access to this member" });
+      }
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Get user's groups
   app.get("/api/user/groups", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const groups = await storage.getUserGroups(userId);
       res.json(groups);
     } catch (error: any) {
@@ -789,7 +1022,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Export user groups as backup (downloadable JSON)
   app.get("/api/user/groups/backup", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const groups = await storage.getUserGroups(userId);
       
       // Create backup object with timestamp
@@ -812,7 +1045,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get user's group collections
   app.get("/api/user/collections", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const collections = await storage.getUserGroupCollections(userId);
       res.json(collections);
     } catch (error: any) {
@@ -823,7 +1056,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get member dashboard data (all groups, events, stats)
   app.get("/api/user/dashboard", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
 
       // Get user info
       const [user] = await db
@@ -872,7 +1105,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             .from(groupsTable)
             .where(eq(groupsTable.id, groupId));
 
-          if (!group) return null;
+          if (!group || group.deletedAt) return null;
 
           // Find member record if exists
           const memberRecord = memberGroups.find(m => m.groupId === groupId);
@@ -982,7 +1215,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           status: itinerary.status,
           eventDate: itinerary.eventDate,
           rsvpStatus: rsvp?.response || null,
-          attended: rsvp?.attended || false,
+          isOrganizer: group.isOrganizer,
+          attended: rsvp?.response === 'yes',
           venues: items.map(item => ({
             name: item.venueName,
             type: item.venueType,
@@ -991,7 +1225,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         totalInvited++;
         if (rsvp?.response) totalResponded++;
-        if (rsvp?.attended) totalAttended++;
+        if (rsvp?.response === 'yes') totalAttended++;
 
         if (isPast) {
           pastEvents.push(eventData);
@@ -1031,11 +1265,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create a new group collection
   app.post("/api/user/collections", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const { name, orderIndex } = req.body;
+      const userId = await getUserId(req);
+
+      // Validate request body
+      const parseResult = safeParse(createCollectionSchema, req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: parseResult.error.errors[0]?.message || "Invalid request" });
+      }
+      const { name, orderIndex } = parseResult.data;
+
       const collection = await storage.createGroupCollection(userId, { name, orderIndex });
       res.json(collection);
     } catch (error: any) {
+      console.error("[Create Collection] Error:", error);
       res.status(500).json({ message: error.message });
     }
   });
@@ -1044,16 +1286,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/user/collections/:id", isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const userId = req.user.claims.sub;
-      const { name } = req.body;
-      
+      const userId = await getUserId(req);
+
+      // Validate request body
+      const parseResult = safeParse(updateCollectionSchema, req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: parseResult.error.errors[0]?.message || "Invalid request" });
+      }
+      const { name } = parseResult.data;
+
       // Verify ownership
       const collections = await storage.getUserGroupCollections(userId);
       const collection = collections.find(c => c.id === id);
       if (!collection) {
         return res.status(404).json({ message: "Collection not found" });
       }
-      
+
       const updated = await storage.updateGroupCollection(id, { name });
       res.json(updated);
     } catch (error: any) {
@@ -1065,7 +1313,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/user/collections/:id", isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       
       // Verify ownership
       const collections = await storage.getUserGroupCollections(userId);
@@ -1084,21 +1332,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Reorder group collections
   app.patch("/api/user/collections/reorder", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const { collectionOrders } = req.body; // Array of { id, orderIndex }
-      
+      const userId = await getUserId(req);
+
+      // Validate request body
+      const parseResult = safeParse(reorderCollectionsSchema, req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: parseResult.error.errors[0]?.message || "Invalid request" });
+      }
+      const { collectionOrders } = parseResult.data;
+
       // Verify all collections belong to this user
       const userCollections = await storage.getUserGroupCollections(userId);
       const userCollectionIds = new Set(userCollections.map(c => c.id));
-      const allOwned = collectionOrders.every((order: any) => userCollectionIds.has(order.id));
-      
+      const allOwned = collectionOrders.every((order) => userCollectionIds.has(order.id));
+
       if (!allOwned) {
         return res.status(403).json({ message: "You don't own all these collections" });
       }
-      
+
       await storage.reorderGroupCollections(collectionOrders);
       res.json({ success: true });
     } catch (error: any) {
+      console.error("[Reorder Collections] Error:", error);
       res.status(500).json({ message: error.message });
     }
   });
@@ -1107,7 +1362,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/groups/:id/collection", isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const { collectionId, orderIndex } = req.body;
       
       // Verify user owns the group
@@ -1135,7 +1390,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Reorder groups within a collection or uncategorized
   app.patch("/api/groups/reorder", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const { groupOrders } = req.body; // Array of { id, orderIndex }
       
       // Verify all groups belong to this user
@@ -1157,7 +1412,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get user's events (all itinerary invites for this user)
   app.get("/api/user/events", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
+      console.log('[DEBUG] /api/user/events called for userId:', userId);
 
       // Find all itinerary invites for this user
       // This includes both member invites and organizer invites (memberId = null)
@@ -1179,20 +1435,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
         .from(itineraryInvites)
         .leftJoin(itineraries, eq(itineraryInvites.itineraryId, itineraries.id))
-        .leftJoin(groupsTable, eq(itineraries.groupId, groupsTable.id));
+        .leftJoin(groupsTable, eq(itineraries.groupId, groupsTable.id))
+        .where(isNull(groupsTable.deletedAt));
 
       // Filter to only invites relevant to this user
       const verifiedInvites = [];
       const seenItineraryIds = new Set<string>();
 
       for (const invite of invitesQuery) {
-        // Check if user is the group organizer
-        const isGroupOrganizer = invite.groupUserId === userId;
+        // Skip if itineraryId is null/undefined
+        if (!invite.itineraryId) {
+          continue;
+        }
 
         // Skip if we've already added this itinerary for this user
         if (seenItineraryIds.has(invite.itineraryId)) {
           continue;
         }
+
+        // Check if user is the group organizer
+        const isGroupOrganizer = invite.groupUserId === userId;
 
         if (isGroupOrganizer) {
           // User owns the group - add as organizer
@@ -1207,6 +1469,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
       }
+
+      console.log('[DEBUG] Verified invites after filtering:', verifiedInvites.length);
 
       // Fetch RSVP status and itinerary items for each invite
       const events = await Promise.all(verifiedInvites.map(async (invite) => {
@@ -1378,6 +1642,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           itineraryName: invite.itineraryName,
           eventDate: invite.eventDate,
           status: invite.status,
+          inviteSentAt: itinerary?.inviteSentAt || null,
           groupId: invite.groupId,
           groupName: invite.groupName,
           groupEmoji: invite.groupEmoji,
@@ -1426,7 +1691,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       }));
 
-      // Add draft itineraries (auto-created for scheduled groups)
+      // Add draft and proposed itineraries (auto-created for scheduled groups, or manually created but not yet sent)
+      // Only include itineraries that don't already have invites (to avoid duplicates)
+      const existingItineraryIds = verifiedInvites.map(inv => inv.itineraryId);
       const draftItineraries = await db
         .select({
           itineraryId: itineraries.id,
@@ -1442,9 +1709,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .leftJoin(groupsTable, eq(itineraries.groupId, groupsTable.id))
         .where(
           and(
-            eq(itineraries.status, 'draft'),
+            or(
+              eq(itineraries.status, 'draft'),
+              eq(itineraries.status, 'proposed')
+            ),
             eq(itineraries.isSaved, false),
-            sql`${itineraries.groupId} IN (SELECT id FROM groups WHERE user_id = ${userId})`
+            sql`${itineraries.groupId} IN (SELECT id FROM groups WHERE user_id = ${userId})`,
+            // Exclude itineraries that already have invites
+            existingItineraryIds.length > 0
+              ? sql`${itineraries.id} NOT IN (${sql.join(existingItineraryIds.map(id => sql`${id}`), sql`, `)})`
+              : sql`1=1`
           )
         );
 
@@ -1512,12 +1786,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const group of userGroups) {
         if (!group.nextEventDueDate || !group.meetingFrequency) continue;
 
-        // Calculate next 2 future event dates
+        // Calculate next 2 future event dates with smart time selection
         const { calculateFutureEventDates } = await import('./auto-scheduler');
         const futureDates = calculateFutureEventDates(
           new Date(group.nextEventDueDate),
           group.meetingFrequency,
-          2
+          2,
+          group // Pass group for smart time selection
         );
 
         // Check which dates already have real events to avoid duplicates
@@ -1563,20 +1838,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
             .map(p => new Date(p.eventDate!).toISOString().split('T')[0])
         );
 
+        // Check for rejected dates for this group
+        const rejectedDates = await db
+          .select()
+          .from(rejectedEventDates)
+          .where(eq(rejectedEventDates.groupId, group.id));
+
+        const rejectedDateStrs = new Set(
+          rejectedDates.map(rd => new Date(rd.rejectedDate).toISOString().split('T')[0])
+        );
+
         for (const date of futureDates) {
           const dateStr = date.toISOString().split('T')[0];
 
+          // Skip if this date was explicitly rejected by the user
+          if (rejectedDateStrs.has(dateStr)) {
+            console.log(`[Virtual Events] Skipping rejected date ${dateStr} for group ${group.name}`);
+            continue;
+          }
+
           // Skip if a real event, draft, or proposed itinerary already exists for this date
           if (existingEventDates.has(dateStr) || draftEventDates.has(dateStr) || proposedEventDates.has(dateStr)) continue;
+
+          // Check if there's an auto-scheduled event for this date
+          const autoEvent = await db
+            .select()
+            .from(autoScheduledEvents)
+            .where(
+              and(
+                eq(autoScheduledEvents.groupId, group.id),
+                sql`DATE(${autoScheduledEvents.proposedDate}) = ${dateStr}`
+              )
+            )
+            .limit(1);
+
+          const autoEventData = autoEvent[0];
 
           // Create virtual event object
           virtualEvents.push({
             inviteId: `virtual-${group.id}-${dateStr}`,
             inviteToken: null,
-            itineraryId: null,
+            itineraryId: autoEventData?.itineraryId || null,
             itineraryName: `${group.name}`,
             eventDate: date.toISOString(),
-            status: 'virtual' as any, // Special status to indicate this is a placeholder
+            status: autoEventData?.status || ('virtual' as any), // Use auto-event status if exists
             groupId: group.id,
             groupName: group.name,
             groupEmoji: group.emoji || '🎉',
@@ -1593,6 +1898,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             items: [],
             isVirtual: true, // Flag to identify virtual events
             meetingFrequency: group.meetingFrequency,
+            // Auto-scheduled event fields
+            isAutoScheduled: !!autoEventData,
+            autoEventId: autoEventData?.id || null,
+            autoEventItineraryId: autoEventData?.itineraryId || null,
+            autoSendAt: autoEventData?.autoSendAt?.toISOString() || null,
+            proposedDate: autoEventData?.proposedDate?.toISOString() || null,
+            confidenceScore: autoEventData?.confidenceScore || null,
+            requiresReview: autoEventData?.requiresReview || null,
           });
         }
       }
@@ -1600,15 +1913,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Merge real events, draft itineraries, and virtual events
       const allEvents = [...events, ...draftEvents, ...virtualEvents];
 
+      // Debug: Log event counts and any potential duplicates
+      console.log(`[User Events] Merging: ${events.length} real, ${draftEvents.length} drafts, ${virtualEvents.length} virtual`);
+
+      // Check for duplicate dates within virtual events
+      const virtualDateCounts = new Map<string, number>();
+      for (const ve of virtualEvents) {
+        const dateKey = ve.eventDate ? new Date(ve.eventDate).toISOString().split('T')[0] : 'null';
+        const groupKey = `${ve.groupName}-${dateKey}`;
+        virtualDateCounts.set(groupKey, (virtualDateCounts.get(groupKey) || 0) + 1);
+      }
+      for (const [key, count] of virtualDateCounts.entries()) {
+        if (count > 1) {
+          console.log(`[User Events] WARNING: Duplicate virtual event for ${key} (count: ${count})`);
+        }
+      }
+
+      // Final deduplication by itineraryId AND inviteId (safety check to prevent any duplicates)
+      const deduplicatedEvents = [];
+      const seenFinalItineraryIds = new Set<string>();
+      const seenInviteIds = new Set<string>();
+
+      for (const event of allEvents) {
+        // Check inviteId first (catches virtual event duplicates)
+        if (event.inviteId && seenInviteIds.has(event.inviteId)) {
+          continue; // Skip duplicate
+        }
+
+        if (event.itineraryId) {
+          // Real event with itineraryId - deduplicate by itineraryId
+          if (!seenFinalItineraryIds.has(event.itineraryId)) {
+            deduplicatedEvents.push(event);
+            seenFinalItineraryIds.add(event.itineraryId);
+            if (event.inviteId) seenInviteIds.add(event.inviteId);
+          }
+        } else {
+          // Virtual event without itineraryId - deduplicate by inviteId
+          deduplicatedEvents.push(event);
+          if (event.inviteId) seenInviteIds.add(event.inviteId);
+        }
+      }
+
       // Sort by event date (upcoming first, then past)
-      allEvents.sort((a, b) => {
+      deduplicatedEvents.sort((a, b) => {
         if (!a.eventDate && !b.eventDate) return 0;
         if (!a.eventDate) return 1;
         if (!b.eventDate) return -1;
         return new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime();
       });
 
-      res.json(allEvents);
+      console.log(`[User Events] Returning ${deduplicatedEvents.length} events for user ${userId} (removed ${allEvents.length - deduplicatedEvents.length} duplicates)`);
+      if (deduplicatedEvents.length > 0) {
+        console.log(`[User Events] First event:`, {
+          name: deduplicatedEvents[0].itineraryName,
+          groupName: deduplicatedEvents[0].groupName,
+          date: deduplicatedEvents[0].eventDate,
+          status: deduplicatedEvents[0].status,
+        });
+      } else {
+        console.log(`[User Events] WARNING: Returning EMPTY array! verifiedInvites=${verifiedInvites.length}, draftEvents=${draftEvents.length}, virtualEvents=${virtualEvents.length}`);
+      }
+
+      res.json(deduplicatedEvents);
     } catch (error: any) {
       console.error('[User Events] Error:', error);
       res.status(500).json({ message: error.message });
@@ -1618,7 +1984,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get user's pending hosting requests
   app.get("/api/user/hosting-requests", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
 
       // Find members for this user
       const userMembers = await db
@@ -1665,7 +2031,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!validatedInput) return;
 
       const { members, ...groupData } = validatedInput;
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
 
       // Validate group data for database insertion
       const validatedGroup = insertGroupSchema.parse(groupData);
@@ -1780,6 +2146,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const group = req.group;
       const validatedUpdates = updateGroupSchema.parse(req.body);
 
+      // Check for cadence change
+      let cadenceChanged = false;
+      let pipelineRebuilt = false;
+      let eventsCleared = 0;
+      let eventsCreated = 0;
+
+      if (validatedUpdates.meetingFrequency &&
+          validatedUpdates.meetingFrequency !== group.meetingFrequency &&
+          group.autoScheduleEnabled) {
+
+        console.log(`[Cadence Change] ${group.name}: ${group.meetingFrequency} → ${validatedUpdates.meetingFrequency}`);
+        cadenceChanged = true;
+
+        // Clear existing pending events
+        eventsCleared = await storage.deletePendingAutoEvents(req.params.id);
+        console.log(`[Cadence Change] Cleared ${eventsCleared} pending events`);
+      }
+
       // If location is being updated, geocode it
       let geocodingResult: 'success' | 'failed' | 'not_attempted' = 'not_attempted';
       if (validatedUpdates.locationBase) {
@@ -1797,7 +2181,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const updatedGroup = await storage.updateGroup(req.params.id, validatedUpdates);
-      res.json({ ...updatedGroup, geocodingResult });
+
+      // Regenerate pipeline with new cadence
+      if (cadenceChanged) {
+        const { maintainEventPipeline } = await import('./auto-scheduler.js');
+        eventsCreated = await maintainEventPipeline(req.params.id, storage);
+        pipelineRebuilt = true;
+        console.log(`[Cadence Change] Created ${eventsCreated} new events with new cadence`);
+      }
+
+      res.json({
+        ...updatedGroup,
+        geocodingResult,
+        cadenceChange: cadenceChanged ? {
+          oldCadence: group.meetingFrequency,
+          newCadence: validatedUpdates.meetingFrequency,
+          eventsCleared,
+          eventsCreated,
+          pipelineRebuilt
+        } : undefined
+      });
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }
@@ -1832,7 +2235,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Leave group (remove member)
   app.delete("/api/groups/:groupId/members/:memberId", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const { groupId, memberId } = req.params;
 
       // Get the member to verify it belongs to the requesting user
@@ -1889,6 +2292,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'automationLevel': 'automationLevel',
         'review_every_nth_event': 'reviewEveryNthEvent',
         'reviewEveryNthEvent': 'reviewEveryNthEvent',
+        'membersCanCreateEvents': 'membersCanCreateEvents',
+        'members_can_create_events': 'membersCanCreateEvents',
       };
       
       // Pattern 1: Single field/value pair (from mutation)
@@ -1943,21 +2348,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Group not found" });
       }
 
-      const { pauseType, value } = req.body;
+      // Validate request body
+      const parseResult = safeParse(pauseAutomationSchema, req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: parseResult.error.errors[0]?.message || "Invalid pause parameters" });
+      }
+      const { pauseType, value } = parseResult.data;
+
       const updates: any = {
         automationPaused: true,
       };
 
-      if (pauseType === 'events' && typeof value === 'number') {
+      if (pauseType === 'events') {
         // Pause for N events
         updates.automationPauseEventsRemaining = value;
         updates.automationPausedUntil = null;
-      } else if (pauseType === 'until' && value) {
-        // Pause until specific date
-        updates.automationPausedUntil = new Date(value);
-        updates.automationPauseEventsRemaining = null;
       } else {
-        return res.status(400).json({ message: "Invalid pause parameters" });
+        // pauseType === 'until' - Pause until specific date
+        updates.automationPausedUntil = new Date(value as string);
+        updates.automationPauseEventsRemaining = null;
       }
 
       const updatedGroup = await storage.updateGroup(req.params.id, updates);
@@ -2017,24 +2426,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
-      // Update itinerary to proposed status
-      const { addDays } = await import('date-fns');
+      // Update itinerary to proposed status using adaptive timeline
+      const { calculateAdaptiveTimeline, calculateRsvpDeadline } = await import('./adaptive-timeline');
       const eventDate = new Date(event.proposedDate);
-      const rsvpDeadline = addDays(eventDate, -3);
+      const now = new Date();
+
+      // Calculate adaptive timeline based on how far out the event is
+      const adaptiveConfig = calculateAdaptiveTimeline(eventDate, now);
+      const rsvpDeadline = calculateRsvpDeadline(eventDate, adaptiveConfig);
+
+      console.log(`[Auto-Approve] Using ${adaptiveConfig.timelineType} timeline for event ${event.id}: ${adaptiveConfig.reasoning}`);
 
       await storage.updateItinerary(itinerary.id, {
         status: 'proposed',
         eventDate: event.proposedDate,
         rsvpDeadline,
-        autoScheduleConfig: {
-          inviteAdvanceDays: 14,
-          rsvpWindowDays: 11,
-          reminders: [
-            { type: 'gentle_nudge', daysBeforeDeadline: 7 },
-            { type: 'final_call', daysBeforeDeadline: 1 },
-            { type: 'day_before', daysBeforeEvent: 1 }
-          ]
-        }
+        autoScheduleConfig: adaptiveConfig
       });
 
       // Log venue visits for rotation tracking
@@ -2059,6 +2466,93 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Skip an auto-scheduled event (mark as rejected, create replacement for later week)
+  app.post("/api/auto-events/:id/skip", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = await getUserId(req);
+      const eventId = req.params.id;
+
+      // Get the event to verify ownership
+      const event = await storage.getAutoScheduledEvent(eventId);
+      if (!event) {
+        return res.status(404).json({ message: "Auto-scheduled event not found" });
+      }
+
+      // Verify user owns the group
+      const group = await storage.getGroup(event.groupId);
+      if (!group || group.userId !== userId) {
+        return res.status(403).json({ message: "Forbidden: You don't own this group" });
+      }
+
+      // Skip the event (marks as rejected)
+      const result = await storage.skipAutoScheduledEvent(eventId);
+
+      // Import maintainEventPipeline to create replacement event
+      const { maintainEventPipeline } = await import('./auto-scheduler');
+
+      console.log(`[Auto-Event Skip] Triggering pipeline maintenance for group ${result.groupId}`);
+
+      // Trigger pipeline maintenance to create replacement event for a later week
+      await maintainEventPipeline(result.groupId, storage);
+
+      res.json({
+        message: "Event skipped successfully. A replacement event will be created for a future week.",
+        groupId: result.groupId
+      });
+    } catch (error: any) {
+      console.error("[Auto-Event Skip] Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Delete an auto-scheduled event (for past events that didn't happen)
+  app.delete("/api/auto-events/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = await getUserId(req);
+      const eventId = req.params.id;
+
+      // Get the event to verify ownership
+      const event = await storage.getAutoScheduledEvent(eventId);
+      if (!event) {
+        return res.status(404).json({ message: "Auto-scheduled event not found" });
+      }
+
+      // Verify user owns the group
+      const group = await storage.getGroup(event.groupId);
+      if (!group || group.userId !== userId) {
+        return res.status(403).json({ message: "Forbidden: You don't own this group" });
+      }
+
+      // Track rejected date if the event has a proposed date
+      if (event.proposedDate) {
+        try {
+          await db.insert(rejectedEventDates).values({
+            groupId: event.groupId,
+            rejectedDate: event.proposedDate,
+            reason: 'user_deleted',
+            sourceType: 'auto_event',
+            sourceId: eventId,
+          });
+          console.log(`[Rejected Dates] Tracked rejected date for group ${event.groupId}: ${event.proposedDate}`);
+        } catch (error) {
+          console.error('[Rejected Dates] Error tracking rejected date:', error);
+          // Don't fail the delete if tracking fails
+        }
+      }
+
+      // Delete the event
+      await storage.deleteAutoScheduledEvent(eventId);
+
+      res.json({
+        message: "Event deleted successfully",
+        groupId: event.groupId
+      });
+    } catch (error: any) {
+      console.error("[Auto-Event Delete] Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Trigger auto-schedule for a group (manually create pending event if within window)
   app.post("/api/groups/:id/trigger-auto-schedule", isAuthenticated, requireGroupOwnership(), async (req: any, res) => {
     try {
@@ -2068,11 +2562,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (!group.autoScheduleEnabled) {
-        return res.status(400).json({ message: "Auto-scheduling is not enabled for this group" });
+        return res.status(400).json({
+          message: "Auto-scheduling not enabled",
+          code: "AUTO_SCHEDULE_DISABLED",
+          suggestion: "Enable auto-scheduling in group settings, or use manual event creation"
+        });
       }
 
       if (!group.userId) {
-        return res.status(400).json({ message: "Group must have an owner" });
+        return res.status(400).json({
+          message: "Group must have an owner",
+          code: "NO_OWNER"
+        });
       }
 
       // Check if there's already a pending auto-event
@@ -2142,7 +2643,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (!selection) {
-        return res.status(400).json({ message: "No viable itineraries or activities to schedule" });
+        return res.status(400).json({
+          message: "No venues available for AI scheduling",
+          code: "NO_VENUES",
+          suggestion: "Add some favorite venues or activities first, then try again"
+        });
       }
 
       let itineraryId: string | null;
@@ -2351,6 +2856,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         proposedDate = group.nextEventDueDate ? new Date(group.nextEventDueDate) : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
       }
 
+      // Update the itinerary with the proposed date (fixes TBD date bug)
+      await storage.updateItinerary(itineraryId, {
+        eventDate: proposedDate
+      });
+      console.log(`[Manual Trigger] Updated itinerary ${itineraryId} with eventDate: ${proposedDate.toISOString()}`);
+
       // If there are existing proposed/scheduled events, return both options for user to choose
       if (existingProposedOrScheduled.length > 0) {
         // Get full details of existing events with their items
@@ -2436,9 +2947,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Determine initial status based on confidence
       // ≥80: auto-approve immediately
-      // <80: pending (requires organizer review or will auto-send after 48hrs)
+      // <80: pending_approval (requires organizer review or will auto-send after 48hrs)
       const shouldAutoApprove = confidenceResult.score >= 80;
-      const initialStatus = shouldAutoApprove ? 'auto_approved' : 'pending';
+      const initialStatus = shouldAutoApprove ? 'auto_approved' : 'pending_approval';
       const requiresReview = confidenceResult.score < 60;
 
       const pendingEvent = await storage.createAutoScheduledEvent({
@@ -2472,6 +2983,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             optionNumber: option.optionNumber,
             venues: option.venues, // Already in correct format from selectBestItineraryForAutoSchedule
             description: option.description,
+            nearbySuggestions: option.nearbySuggestions || null,
           });
         }
         console.log('[Auto-Schedule] ✅ Itinerary options created');
@@ -2551,34 +3063,120 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Clear all pending auto-scheduled events for a group
+  app.delete("/api/groups/:id/auto-scheduled-events", isAuthenticated, requireGroupOwnership(), async (req: any, res) => {
+    try {
+      const group = await storage.getGroup(req.params.id);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      if (!group.autoScheduleEnabled) {
+        return res.status(400).json({ message: "Auto-scheduling is not enabled for this group" });
+      }
+
+      console.log(`[Event Pipeline] Clearing pending events for ${group.name}`);
+
+      const deletedCount = await storage.deletePendingAutoEvents(req.params.id);
+
+      return res.status(200).json({
+        message: `Cleared ${deletedCount} pending event(s)`,
+        deletedCount,
+        group: {
+          id: group.id,
+          name: group.name,
+        }
+      });
+    } catch (error: any) {
+      console.error('Error clearing pending events:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Get group by shareable link
-  app.get("/api/groups/by-link/:shareableLink", async (req, res) => {
+  app.get("/api/groups/by-link/:shareableLink", publicEndpointLimiter, async (req, res) => {
     try {
       const group = await storage.getGroupByShareableLink(req.params.shareableLink);
       if (!group) {
         return res.status(404).json({ message: "Group not found" });
       }
-      res.json(group);
+
+      // Filter sensitive fields for public group preview
+      // Only return data needed for invite/join context
+      const safeGroup = {
+        id: group.id,
+        name: group.name,
+        emoji: group.emoji,
+        locationBase: group.locationBase,  // City-level location
+        budgetMin: group.budgetMin,
+        budgetMax: group.budgetMax,
+        meetingFrequency: group.meetingFrequency,
+        generalAvailability: group.generalAvailability,
+        activityCategories: group.activityCategories,
+        // Explicitly exclude: userId, additionalInstructions, schedulingPreferences,
+        // automation settings, lastEventDate, nextEventDueDate, and other internal config
+      };
+
+      res.json(safeGroup);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
   // Get group members
-  app.get("/api/groups/:id/members", async (req, res) => {
+  app.get("/api/groups/:id/members", publicEndpointLimiter, async (req, res) => {
     try {
       const members = await storage.getGroupMembers(req.params.id);
-      res.json(members);
+
+      // Filter sensitive fields for public access
+      // Only return data needed for social context (showing who's invited)
+      const safeMembers = members.map(m => ({
+        id: m.id,
+        name: m.name,
+        rsvpStatus: m.rsvpStatus,
+        hasJoined: m.hasJoined,
+        isOrganizer: m.isOrganizer,
+        // Explicitly exclude: claimToken, email, userId, memberLocation,
+        // memberBudgetMin/Max, memberAvailability, preferences
+      }));
+
+      res.json(safeMembers);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
   // Get group activities
-  app.get("/api/groups/:id/activities", async (req, res) => {
+  app.get("/api/groups/:id/activities", publicEndpointLimiter, async (req, res) => {
     try {
       const activities = await storage.getGroupActivities(req.params.id);
-      res.json(activities);
+
+      // Filter sensitive AI reasoning that may contain private context
+      const safeActivities = activities.map(a => ({
+        id: a.id,
+        groupId: a.groupId,
+        venueName: a.venueName,
+        venueAddress: a.venueAddress,
+        city: a.city,
+        venueType: a.venueType,
+        description: a.description,
+        googlePlaceId: a.googlePlaceId,
+        latitude: a.latitude,
+        longitude: a.longitude,
+        rating: a.rating,
+        reviewCount: a.reviewCount,
+        priceLevel: a.priceLevel,
+        photoUrl: a.photoUrl,
+        // Exclude: aiReasoning (may contain sensitive context about group dynamics)
+        suggestedDate: a.suggestedDate,
+        suggestedTime: a.suggestedTime,
+        priceEstimate: a.priceEstimate,
+        source: a.source,
+        quality: a.quality,
+        createdAt: a.createdAt,
+      }));
+
+      res.json(safeActivities);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -3135,7 +3733,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get individual member by ID (requires authentication)
-  app.get("/api/members/:id", isAuthenticated, async (req: any, res) => {
+  // Phase 1: Make member endpoint public for event invite flow
+  app.get("/api/members/:id", publicEndpointLimiter, async (req, res) => {
     try {
       const member = await storage.getMember(req.params.id);
       if (!member) {
@@ -3150,7 +3749,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update member (requires authentication - user must be group owner OR the member themselves)
   app.patch("/api/members/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       
       // Get the member to check authorization
       const member = await storage.getMember(req.params.id);
@@ -3208,7 +3807,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get member's preferences for a specific group
   app.get("/api/groups/:groupId/my-preferences", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const { groupId } = req.params;
 
       // Verify user is a member or owner of this group
@@ -3231,7 +3830,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update member's preferences for a specific group
   app.patch("/api/groups/:groupId/my-preferences", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const { groupId } = req.params;
 
       // Verify user is a member or owner of this group
@@ -3468,7 +4067,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update member profile (authenticated only)
   app.patch("/api/members/:id/profile", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
 
       const { homeBaseLocation, homeBaseLatitude, homeBaseLongitude, activityPreferences, personalAvailability } = req.body;
 
@@ -3505,7 +4104,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get member's favorite venues
   app.get("/api/members/:memberId/favorites", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const { memberId } = req.params;
 
       // Get the member
@@ -3530,7 +4129,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Add a favorite venue
   app.post("/api/members/:memberId/favorites", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const { memberId } = req.params;
       const { venuePlaceId, venueName, venueAddress, venuePhotoUrl, category } = req.body;
 
@@ -3636,7 +4235,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Remove a favorite venue
   app.delete("/api/members/:memberId/favorites/:placeId", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const { memberId, placeId } = req.params;
 
       // Get the member
@@ -3687,17 +4286,138 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Return simplified results for autocomplete
       const suggestions = results.map((place: any) => ({
-        placeId: place.googlePlaceId,
+        placeId: place.placeId || place.googlePlaceId,
         name: place.name,
         address: place.address,
         category: place.types?.[0] || 'other',
         photoUrl: place.photoUrl,
         rating: place.rating,
+        priceLevel: place.priceLevel,
       }));
 
-      res.json(suggestions);
+      res.json({ results: suggestions });
     } catch (error: any) {
       console.error('[Venue Search] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get curated venues for browsing
+  app.get("/api/curated-venues", isAuthenticated, async (req: any, res) => {
+    try {
+      const { category, priceLevel, limit = "20" } = req.query;
+
+      let query = db.select().from(curatedVenues).where(eq(curatedVenues.isActive, true));
+
+      // Apply filters
+      const conditions: any[] = [eq(curatedVenues.isActive, true)];
+
+      if (category && typeof category === 'string') {
+        conditions.push(eq(curatedVenues.category, category));
+      }
+
+      if (priceLevel && typeof priceLevel === 'string') {
+        const priceLevelNum = parseInt(priceLevel);
+        if (!isNaN(priceLevelNum)) {
+          conditions.push(eq(curatedVenues.priceLevel, priceLevelNum));
+        }
+      }
+
+      const venues = await db
+        .select()
+        .from(curatedVenues)
+        .where(and(...conditions))
+        .orderBy(desc(curatedVenues.rating))
+        .limit(parseInt(limit as string) || 20);
+
+      res.json(venues);
+    } catch (error: any) {
+      console.error('[Curated Venues] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // AI-powered venue alternative suggestions
+  app.post("/api/venues/suggest-alternatives", isAuthenticated, async (req: any, res) => {
+    try {
+      // Validate request body
+      const parseResult = safeParse(suggestAlternativesSchema, req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: parseResult.error.errors[0]?.message || "Invalid request" });
+      }
+      const { currentVenue, itineraryId } = parseResult.data;
+
+      // Get itinerary context if provided
+      let itinerary = null;
+      let groupLocation = "San Francisco, CA";
+
+      if (itineraryId) {
+        itinerary = await storage.getItinerary(itineraryId);
+        if (itinerary?.group) {
+          groupLocation = itinerary.group.locationBase || groupLocation;
+        }
+      }
+
+      // Search for similar venues
+      const venueType = currentVenue.venueType || 'restaurant';
+      const searchQuery = `${venueType} near ${currentVenue.address || groupLocation}`;
+
+      const alternatives = await searchPlaces(
+        searchQuery,
+        groupLocation,
+        3, // 3 mile radius
+        undefined,
+        false,
+        venueType,
+        undefined,
+        new Set([currentVenue.placeId]), // Exclude current venue
+        false,
+        true
+      );
+
+      // Limit to top 5 and add reasoning
+      const suggestions = alternatives.slice(0, 5).map((alt: any) => {
+        const reasons: string[] = [];
+
+        // Compare ratings
+        if (currentVenue.rating && alt.rating) {
+          const currentRating = parseFloat(currentVenue.rating);
+          const altRating = parseFloat(alt.rating);
+          if (altRating > currentRating) {
+            reasons.push(`Higher rated (${alt.rating} vs ${currentVenue.rating})`);
+          }
+        }
+
+        // Compare price levels
+        if (currentVenue.priceLevel && alt.priceLevel) {
+          const currentPrice = currentVenue.priceLevel.length;
+          const altPrice = alt.priceLevel.length;
+          if (altPrice < currentPrice) {
+            reasons.push(`More affordable (${alt.priceLevel} vs ${currentVenue.priceLevel})`);
+          }
+        }
+
+        // Check review count
+        if (alt.reviewCount && alt.reviewCount > 100) {
+          reasons.push(`Well-reviewed (${alt.reviewCount} reviews)`);
+        }
+
+        return {
+          placeId: alt.placeId,
+          name: alt.name,
+          address: alt.address,
+          rating: alt.rating,
+          priceLevel: alt.priceLevel,
+          reviewCount: alt.reviewCount,
+          photoUrl: alt.photoUrl,
+          types: alt.types,
+          reasoning: reasons.length > 0 ? reasons.join(', ') : 'Similar venue in area',
+        };
+      });
+
+      res.json({ suggestions });
+    } catch (error: any) {
+      console.error('[AI Venue Suggestions] Error:', error);
       res.status(500).json({ message: error.message });
     }
   });
@@ -3708,7 +4428,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/members/:id/hosting-toggle", requireMemberAccess(), async (req: any, res) => {
     try {
       const { openToHosting, claimToken } = req.body;
-      const userId = req.user?.claims?.sub;
+      const userId = await getUserId(req);
 
       if (!userId && !claimToken) {
         return res.status(401).json({ message: "Authentication or claim token required" });
@@ -3739,7 +4459,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/itineraries/:id/volunteer-host", requireMemberAccess(), async (req: any, res) => {
     try {
       const { claimToken } = req.body;
-      const userId = req.user?.claims?.sub;
+      const userId = await getUserId(req);
 
       if (!userId && !claimToken) {
         return res.status(401).json({ message: "Authentication or claim token required" });
@@ -3799,7 +4519,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/itineraries/:id/hand-off-host", requireMemberAccess(), async (req: any, res) => {
     try {
       const { newHostMemberId, claimToken } = req.body;
-      const userId = req.user?.claims?.sub;
+      const userId = await getUserId(req);
 
       if (!userId && !claimToken) {
         return res.status(401).json({ message: "Authentication or claim token required" });
@@ -3871,7 +4591,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/groups/:groupId/request-host", isAuthenticated, requireGroupOwnership(), async (req: any, res) => {
     try {
       const { itineraryId } = req.body;
-      const userId = req.user?.claims?.sub;
+      const userId = await getUserId(req);
 
       if (!userId) {
         return res.status(401).json({ message: "Authentication required" });
@@ -3916,7 +4636,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get pending host assignment for a group
   app.get("/api/groups/:groupId/pending-host-request", async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = await getUserId(req);
 
       if (!userId) {
         return res.status(401).json({ message: "Authentication required" });
@@ -3939,7 +4659,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/members/:memberId/host-assignments", async (req: any, res) => {
     try {
       const { claimToken } = req.query;
-      const userId = req.user?.claims?.sub;
+      const userId = await getUserId(req);
 
       if (!userId && !claimToken) {
         return res.status(401).json({ message: "Authentication or claim token required" });
@@ -3970,7 +4690,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/host-assignments/:assignmentId/respond", requireMemberAccess(), async (req: any, res) => {
     try {
       const { accepted, claimToken } = req.body;
-      const userId = req.user?.claims?.sub;
+      const userId = await getUserId(req);
 
       if (!userId && !claimToken) {
         return res.status(401).json({ message: "Authentication or claim token required" });
@@ -4114,7 +4834,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/members/claim", isAuthenticated, async (req: any, res) => {
     try {
       const { claimToken } = req.body;
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
 
       if (!claimToken) {
         return res.status(400).json({ message: "Claim token required" });
@@ -4164,12 +4884,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Phase 2: Link authenticated user to existing member record (simpler than claim)
+  app.post("/api/members/link-account", isAuthenticated, async (req: any, res) => {
+    try {
+      const { memberId } = req.body;
+      const userId = await getUserId(req);
+
+      if (!memberId) {
+        return res.status(400).json({ message: "Member ID required" });
+      }
+
+      // Find member by ID
+      const member = await storage.getMember(memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+
+      // Check if already linked to a different user
+      if (member.userId && member.userId !== userId) {
+        return res.status(409).json({
+          message: "This membership has already been claimed by another account"
+        });
+      }
+
+      // If already linked to this user, just return success
+      if (member.userId === userId) {
+        return res.json({
+          message: "Account already linked",
+          member,
+        });
+      }
+
+      // Link the account - update member record with userId
+      const updatedMember = await storage.updateMember(member.id, {
+        userId,
+        claimedAt: new Date(),
+        hasJoined: true,
+      });
+
+      console.log(`[Link Account] Successfully linked member ${member.name} (${memberId}) to user ${userId}`);
+
+      res.json({
+        message: "Account linked successfully",
+        member: updatedMember,
+      });
+    } catch (error: any) {
+      console.error('[Link Account] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Get member's events (pending invitations, upcoming, past)
   // Supports both authenticated users and unclaimed members via claim token
   app.get("/api/members/me/events", async (req: any, res) => {
     try {
       const { claimToken } = req.query;
-      const userId = req.user?.claims?.sub;
+      const userId = await getUserId(req);
 
       if (!userId && !claimToken) {
         return res.status(401).json({ message: "Authentication or claim token required" });
@@ -4538,7 +5308,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = safeParse(organizerRsvpSchema, req.body, res);
       if (!validatedData) return;
 
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const { itineraryId } = req.params;
       const { response, rsvpFeedback } = validatedData;
 
@@ -4603,7 +5373,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Approve a pending guest RSVP (organizer only)
   app.post("/api/rsvps/:rsvpId/approve", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const { rsvpId } = req.params;
 
       // Get the RSVP
@@ -4654,7 +5424,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Deny a pending guest RSVP (organizer only) - deletes the RSVP
   app.post("/api/rsvps/:rsvpId/deny", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const { rsvpId } = req.params;
 
       // Get the RSVP
@@ -4700,9 +5470,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update RSVP (for organizer to set member RSVP)
   app.patch("/api/rsvps/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const { id } = req.params;
-      const { response } = req.body;
+
+      // Validate request body
+      const parseResult = safeParse(updateRsvpResponseSchema, req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: parseResult.error.errors[0]?.message || "Invalid response value" });
+      }
+      const { response } = parseResult.data;
 
       // Get the RSVP
       const [existingRsvp] = await db
@@ -4737,7 +5513,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete itinerary invite (for organizer to remove members)
   app.delete("/api/itinerary-invites/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const { id } = req.params;
 
       // Get the invite
@@ -4819,7 +5595,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create a voting event (authenticated) - enriches with Google Places data
   app.post("/api/voting-events", isAuthenticated, requireGroupOwnership(), async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const validatedEvent = insertVotingEventSchema.parse(req.body);
       const skipEnrichmentCheck = req.body.skipEnrichmentCheck === true;
 
@@ -4852,6 +5628,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Merge Google Places data if found
           if (places.length > 0) {
             const place = places[0];
+
+            // Validate venue name match
+            const { calculateNameSimilarity } = await import('./google-places');
+            const similarity = calculateNameSimilarity(validatedEvent.title, place.name);
+
+            console.log(`[Voting Event] Name similarity check: "${validatedEvent.title}" vs "${place.name}" = ${Math.round(similarity * 100)}%`);
+
+            // Warn if similarity is low (but don't block - user explicitly added this)
+            if (similarity < 0.5) {
+              console.warn(`[Voting Event] LOW SIMILARITY WARNING: User requested "${validatedEvent.title}" but top Google result is "${place.name}"`);
+            }
+
+            // Check for suspicious types (tour operators, etc.)
+            const suspiciousTypes = ['travel_agency', 'tour_operator'];
+            const hasSuspiciousType = place.types?.some(type => suspiciousTypes.includes(type));
+
+            if (hasSuspiciousType) {
+              console.warn(`[Voting Event] SUSPICIOUS TYPE WARNING: "${place.name}" is a ${place.types?.find(t => suspiciousTypes.includes(t))}`);
+              // Don't auto-enrich with tour operator data
+              enrichmentStatus = 'no_results';
+              console.log(`[Voting Event] Rejecting enrichment for "${validatedEvent.title}" - venue type is ${place.types?.find(t => suspiciousTypes.includes(t))}`);
+              return res.json({
+                enrichmentStatus,
+                warning: `The top Google result appears to be a ${place.types?.find(t => suspiciousTypes.includes(t))} instead of a venue. Please verify the venue name.`
+              });
+            }
+
             enrichedEvent = {
               ...validatedEvent,
               venueAddress: place.address || validatedEvent.venueAddress,
@@ -4870,6 +5673,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               rating: place.rating,
               reviewCount: place.reviewCount,
               address: place.address,
+              similarityScore: Math.round(similarity * 100) + '%'
             });
           } else {
             enrichmentStatus = 'no_results';
@@ -4917,7 +5721,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Event not found" });
       }
 
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       if (event.createdBy !== userId) {
         return res.status(403).json({ message: "Unauthorized to edit this event" });
       }
@@ -4938,7 +5742,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Event not found" });
       }
 
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       if (event.createdBy !== userId) {
         return res.status(403).json({ message: "Unauthorized to delete this event" });
       }
@@ -4957,7 +5761,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = safeParse(castVoteSchema, req.body, res);
       if (!validatedData) return;
 
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const { voteType } = validatedData;
 
       const vote = await storage.castVote(req.params.id, userId, voteType);
@@ -4976,7 +5780,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Remove a vote (authenticated)
   app.delete("/api/voting-events/:id/vote", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       await storage.removeVote(req.params.id, userId);
       res.json({ success: true });
     } catch (error: any) {
@@ -4997,7 +5801,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get user's vote for an event (authenticated)
   app.get("/api/voting-events/:id/my-vote", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const vote = await storage.getUserVote(req.params.id, userId);
       res.json(vote || null);
     } catch (error: any) {
@@ -5025,7 +5829,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Verify user owns this group
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       if (group.userId !== userId) {
         return res.status(403).json({ message: "Not authorized to modify this group" });
       }
@@ -5080,7 +5884,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Verify user owns this group
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       if (group.userId !== userId) {
         return res.status(403).json({ message: "Not authorized to modify this group" });
       }
@@ -5484,10 +6288,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Group not found" });
       }
 
-      // Verify user owns this group
-      const userId = req.user.claims.sub;
-      if (group.userId !== userId) {
-        return res.status(403).json({ message: "Not authorized to modify this group" });
+      // Verify user is a member of this group (or owns it)
+      const userId = await getUserId(req);
+      const isOwner = group.userId === userId;
+      const member = await storage.getGroupMemberByUserId(req.params.id, userId);
+
+      if (!isOwner && !member) {
+        return res.status(403).json({ message: "Not authorized to access this group" });
+      }
+
+      // Check if members are allowed to create events
+      if (!isOwner && member && !group.membersCanCreateEvents) {
+        return res.status(403).json({ message: "Only the group organizer can discover venues for this group" });
       }
 
       // Fetch member group preferences for fallback chain
@@ -5513,7 +6325,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = safeParse(generateCategorySchema, req.body, res);
       if (!validatedData) return;
 
-      const { categories, category, location, radius, count = 9, sortBy = 'rating', tempInstructions } = validatedData;
+      const { categories, category, location, radius, count = 9, sortBy = 'rating', budgetOverride, tempInstructions } = validatedData;
+
+      // Use budgetOverride if provided, otherwise fall back to effectiveBudget
+      const finalBudget = budgetOverride !== undefined ? budgetOverride : effectiveBudget;
+
+      if (budgetOverride !== undefined) {
+        console.log(`[Category Generate] Using budget override: $${budgetOverride} (instead of effective budget: $${effectiveBudget})`);
+      } else {
+        console.log(`[Category Generate] Using effective budget: $${effectiveBudget}`);
+      }
 
       // Support both single category (backward compatibility) and multiple categories
       let categoriesToProcess = categories || (category ? [category] : []);
@@ -5587,6 +6408,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const existingActivities = await storage.getGroupActivities(req.params.id);
       const existingVenueNames = existingActivities.map(a => a.venueName);
 
+      // ========== LEARNING SYSTEM: Query Historical Data ==========
+      console.log(`[Learning] Querying historical data for personalization...`);
+
+      // 1. Get venue visit history for rotation and proven winners
+      const visitStats = await db.select({
+        googlePlaceId: venueVisitHistory.googlePlaceId,
+        count: sql<number>`count(*)`.as('count'),
+        lastVisit: sql<Date>`max(visited_at)`.as('last_visit'),
+      })
+      .from(venueVisitHistory)
+      .where(eq(venueVisitHistory.groupId, req.params.id))
+      .groupBy(venueVisitHistory.googlePlaceId);
+
+      const visitMap = new Map(visitStats.map(v => [v.googlePlaceId, {
+        count: Number(v.count),
+        lastVisit: v.lastVisit,
+        daysSinceVisit: v.lastVisit ? Math.floor((Date.now() - new Date(v.lastVisit).getTime()) / (1000 * 60 * 60 * 24)) : 999
+      }]));
+
+      console.log(`[Learning] Found visit history for ${visitMap.size} venues`);
+
+      // 2. Get member favorites for boosting
+      const groupMembers = await storage.getGroupMembers(req.params.id);
+      const allMemberFavorites = await Promise.all(
+        groupMembers.map(m => storage.getMemberFavoriteVenues(m.id))
+      );
+      const favoritesMap = new Map<string, number>(); // placeId -> member count
+      for (const memberFavs of allMemberFavorites) {
+        for (const fav of memberFavs) {
+          if (fav.venuePlaceId) {
+            favoritesMap.set(fav.venuePlaceId, (favoritesMap.get(fav.venuePlaceId) || 0) + 1);
+          }
+        }
+      }
+
+      console.log(`[Learning] Found ${favoritesMap.size} unique favorited venues across ${groupMembers.length} members`);
+
+      // 3. Build swipe consensus map from existing activities (already have swipeConsensus field)
+      const swipeConsensusMap = new Map<string, number>();
+      for (const activity of existingActivities) {
+        if (activity.googlePlaceId && activity.swipeConsensus !== null) {
+          swipeConsensusMap.set(activity.googlePlaceId, activity.swipeConsensus);
+        }
+      }
+
+      console.log(`[Learning] Found swipe consensus data for ${swipeConsensusMap.size} venues`);
+
       // Map category to Google Places search query
       const categorySearchQueries: Record<string, string> = {
         'meal': 'restaurants',
@@ -5614,7 +6482,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Search Google Places directly (no AI needed!)
-        // Apply budget filter using preference fallback chain
+        // Apply budget filter (uses budgetOverride if provided, otherwise effectiveBudget)
         const places = await searchPlaces(
           `${searchQuery} in ${searchLocation}`,
           searchLocation,
@@ -5622,7 +6490,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           coordinates,
           false, // skipCurated
           undefined, // venueType
-          effectiveBudget || undefined // Apply effective budget from fallback chain
+          finalBudget || undefined // Apply final budget (override or effective)
         );
 
         console.log(`[Category Generate] Got ${places.length} places from Google for ${currentCategory}`);
@@ -5632,9 +6500,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           continue;
         }
 
-        // Process and filter Google Places results
+        // Process and filter Google Places results with concurrency limiting
+        // Limit to 5 concurrent AI validation calls to prevent rate limiting
+        const limit = pLimit(5);
+
         const enrichedActivities = await Promise.all(
-          places.map(async (place) => {
+          places.map(place => limit(async () => {
             // Skip if already in existing activities
             if (existingVenueNames.includes(place.name)) {
               console.log(`[Category Generate] Skipping duplicate: ${place.name}`);
@@ -5657,6 +6528,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
               return null;
             }
 
+            // LAYER 1: Google Place Type Filtering
+            // Exclude obviously wrong business types (universal exclusions)
+            const invalidTypes = ['liquor_store', 'convenience_store', 'gas_station', 'supermarket', 'grocery_store', 'pharmacy', 'drugstore'];
+            const placeTypes = place.types || [];
+            const hasInvalidType = placeTypes.some((type: string) => invalidTypes.includes(type));
+
+            if (hasInvalidType) {
+              const invalidType = placeTypes.find((type: string) => invalidTypes.includes(type));
+              console.log(`[Category Generate] ❌ Skipping ${place.name} - invalid business type: ${invalidType} (types: ${placeTypes.join(', ')})`);
+              return null;
+            }
+
+            // Category-specific type validation
+            if (currentCategory === 'meal') {
+              // Exclude dessert-specific venues from meal searches
+              const dessertTypes = ['ice_cream_shop', 'dessert_shop', 'dessert', 'bakery'];
+              const isDessertVenue = placeTypes.some((type: string) => dessertTypes.includes(type));
+
+              if (isDessertVenue) {
+                console.log(`[Category Generate] ❌ Skipping ${place.name} - dessert venue in meal search (types: ${placeTypes.join(', ')})`);
+                return null;
+              }
+
+              // For meal category, prefer restaurant types
+              const mealTypes = ['restaurant', 'meal_takeaway', 'meal_delivery', 'cafe', 'food'];
+              const hasMealType = placeTypes.some((type: string) => mealTypes.some(mt => type.includes(mt)));
+
+              if (!hasMealType) {
+                console.log(`[Category Generate] ⚠️  Skipping ${place.name} - no meal-related types (types: ${placeTypes.join(', ')})`);
+                return null;
+              }
+            } else if (currentCategory === 'dessert') {
+              // For dessert category, require dessert-specific types
+              const dessertTypes = ['ice_cream_shop', 'dessert_shop', 'dessert', 'bakery', 'cafe'];
+              const isDessertVenue = placeTypes.some((type: string) => dessertTypes.includes(type));
+
+              if (!isDessertVenue) {
+                console.log(`[Category Generate] ⚠️  Skipping ${place.name} - not a dessert venue (types: ${placeTypes.join(', ')})`);
+                return null;
+              }
+            } else if (currentCategory === 'drinks') {
+              // For drinks category, require bar/nightlife types
+              const drinkTypes = ['bar', 'night_club', 'nightclub', 'pub', 'wine_bar', 'cocktail_bar'];
+              const isDrinkVenue = placeTypes.some((type: string) => drinkTypes.some(dt => type.includes(dt)));
+
+              if (!isDrinkVenue) {
+                console.log(`[Category Generate] ⚠️  Skipping ${place.name} - not a bar/nightlife venue (types: ${placeTypes.join(', ')})`);
+                return null;
+              }
+            } else if (currentCategory === 'cafes') {
+              // For cafes category, require cafe/coffee types
+              const cafeTypes = ['cafe', 'coffee_shop', 'coffee', 'tea'];
+              const isCafeVenue = placeTypes.some((type: string) => cafeTypes.some(ct => type.includes(ct)));
+
+              if (!isCafeVenue) {
+                console.log(`[Category Generate] ⚠️  Skipping ${place.name} - not a cafe/coffee shop (types: ${placeTypes.join(', ')})`);
+                return null;
+              }
+            }
+
+            console.log(`[Category Generate] ✅ ${place.name} passed type validation (types: ${placeTypes.join(', ')})`);
+
             // Calculate distance from search center
             let distanceFromBase: number | undefined;
             if (coordinates && place.location?.lat && place.location?.lng) {
@@ -5672,9 +6605,137 @@ export async function registerRoutes(app: Express): Promise<Server> {
               distanceFromBase = R * c;
             }
 
-            // Skip AI categorization - trust Google's results for category searches
-            // Google already filtered to bars/restaurants/etc based on our search query
-            
+            // LAYER 3: Enhanced Location Validation (Moderate Strictness)
+            // Enforce distance < radius * 1.2 (20% buffer for edge-of-radius venues)
+            if (distanceFromBase !== undefined) {
+              const maxDistance = searchRadius * 1.2; // 20% buffer
+              if (distanceFromBase > maxDistance) {
+                console.log(`[Category Generate] ❌ Skipping ${place.name} - too far: ${distanceFromBase.toFixed(2)}mi (max: ${maxDistance.toFixed(2)}mi)`);
+                return null;
+              } else if (distanceFromBase > searchRadius) {
+                console.log(`[Category Generate] ⚠️  ${place.name} is ${distanceFromBase.toFixed(2)}mi away (within buffer, radius: ${searchRadius}mi)`);
+              }
+            }
+
+            // City validation - check if venue city matches search location
+            if (place.city && searchLocation) {
+              const searchLower = searchLocation.toLowerCase();
+              const placeCityLower = place.city.toLowerCase();
+
+              // SF city name variants for flexible matching
+              const sfVariants = ['sf', 'san francisco', 'san fran', 'san fransisco', 'frisco'];
+              const oaklandVariants = ['oakland', 'oak'];
+              const berkeleyVariants = ['berkeley', 'berk'];
+
+              // Check if search is for SF
+              const isSearchSF = sfVariants.some(v => searchLower.includes(v));
+              const isPlaceSF = sfVariants.some(v => placeCityLower.includes(v));
+
+              // Check if search is for Oakland
+              const isSearchOakland = oaklandVariants.some(v => searchLower.includes(v));
+              const isPlaceOakland = oaklandVariants.some(v => placeCityLower.includes(v));
+
+              // Check if search is for Berkeley
+              const isSearchBerkeley = berkeleyVariants.some(v => searchLower.includes(v));
+              const isPlaceBerkeley = berkeleyVariants.some(v => placeCityLower.includes(v));
+
+              // Flag city mismatches (but allow if within distance buffer)
+              if ((isSearchSF && !isPlaceSF) ||
+                  (isSearchOakland && !isPlaceOakland) ||
+                  (isSearchBerkeley && !isPlaceBerkeley)) {
+
+                // If venue is outside city AND outside distance buffer, reject
+                if (distanceFromBase && distanceFromBase > searchRadius) {
+                  console.log(`[Category Generate] ❌ Skipping ${place.name} - wrong city: ${place.city} (searched: ${searchLocation}, distance: ${distanceFromBase.toFixed(2)}mi)`);
+                  return null;
+                } else {
+                  // Within distance buffer, log warning but allow
+                  console.log(`[Category Generate] ⚠️  ${place.name} in ${place.city} (searched: ${searchLocation}) but within distance buffer`);
+                }
+              }
+            }
+
+            // LAYER 2: Smart AI Quality Validation (Edge Case Detection)
+            // Only run AI validation after Google type filtering passes
+            // This catches edge cases like "sports bar with extensive menu" classified incorrectly
+            const aiValidation = await validateVenueForCategory(
+              place.name,
+              place.address,
+              placeTypes,
+              currentCategory as 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences'
+            );
+
+            if (!aiValidation.isValid) {
+              console.log(`[Category Generate] ❌ AI Validation failed for ${place.name}: ${aiValidation.reasoning}`);
+              return null;
+            }
+
+            console.log(`[Category Generate] ✅ ${place.name} passed all validation layers (Google types + AI quality check)`);
+
+            // ========== PERSONALIZED SCORING: Apply Learning Signals ==========
+            const googleRating = parseFloat(place.rating || '0');
+            let personalizedScore = googleRating;
+            let badges: string[] = [];
+            let learningBoosts: string[] = [];
+
+            // 1. Visit History (rotation + proven winners)
+            const visitInfo = visitMap.get(place.placeId);
+            if (visitInfo) {
+              if (visitInfo.daysSinceVisit < 60) {
+                // Recently visited - filter out
+                console.log(`[Learning] ❌ Filtering ${place.name} - visited ${visitInfo.daysSinceVisit} days ago (< 60 day cooldown)`);
+                return null;
+              } else if (visitInfo.daysSinceVisit >= 180 && googleRating >= 4.5) {
+                // Proven winner: visited 6+ months ago with great rating
+                personalizedScore += 0.5;
+                badges.push('🏆 Proven winner');
+                learningBoosts.push(`proven winner (+0.5)`);
+                console.log(`[Learning] 🏆 ${place.name} is a proven winner (+0.5 boost)`);
+              } else {
+                // Been a while
+                personalizedScore += 0.2;
+                badges.push('📅 Been a while');
+                learningBoosts.push(`rotation (+0.2)`);
+              }
+            } else {
+              // Never visited
+              personalizedScore += 0.3;
+              badges.push('✨ New to group');
+              learningBoosts.push(`new spot (+0.3)`);
+            }
+
+            // 2. Member Favorites
+            const favCount = favoritesMap.get(place.placeId);
+            if (favCount && favCount > 0) {
+              const boost = Math.min(favCount * 0.3, 1.0); // +0.3 per member, max +1.0
+              personalizedScore += boost;
+              badges.push(`❤️ ${favCount} member${favCount > 1 ? 's' : ''} favorited`);
+              learningBoosts.push(`${favCount} favorites (+${boost.toFixed(1)})`);
+              console.log(`[Learning] ❤️ ${place.name} favorited by ${favCount} member(s) (+${boost.toFixed(1)} boost)`);
+            }
+
+            // 3. Swipe Consensus (if venue was swiped before)
+            const swipeConsensus = swipeConsensusMap.get(place.placeId);
+            if (swipeConsensus !== undefined) {
+              if (swipeConsensus >= 70) {
+                // High consensus - strong boost
+                personalizedScore += 0.8;
+                badges.push('🌟 High group approval');
+                learningBoosts.push(`${swipeConsensus}% approval (+0.8)`);
+                console.log(`[Learning] 🌟 ${place.name} has ${swipeConsensus}% approval (+0.8 boost)`);
+              } else if (swipeConsensus >= 50) {
+                // Moderate consensus
+                personalizedScore += 0.4;
+                learningBoosts.push(`${swipeConsensus}% approval (+0.4)`);
+              } else if (swipeConsensus < 30) {
+                // Low consensus - penalize or skip
+                console.log(`[Learning] 👎 ${place.name} has low approval (${swipeConsensus}%), skipping`);
+                return null;
+              }
+            }
+
+            console.log(`[Learning] 📊 ${place.name}: Google ${googleRating.toFixed(1)}★ → Personalized ${personalizedScore.toFixed(1)}★ [${learningBoosts.join(', ')}]`);
+
             return {
               venueName: place.name,
               venueAddress: place.address,
@@ -5688,17 +6749,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
               reviewCount: place.reviewCount || null,
               priceLevel: place.priceLevel,
               photoUrl: place.photoUrl,
+              googleMapsUrl: `https://www.google.com/maps/place/?q=place_id:${place.placeId}`,
               googleReview: place.review || null,
               category: currentCategory, // Use the requested category directly
               distanceFromGroupBase: distanceFromBase,
+              personalizedScore, // Add personalized score for sorting
+              badges, // Add badges for transparency
             };
-          })
+          }))
         );
 
-        // Filter out nulls (filtered items)
+        // Filter out nulls (filtered items) and calculate filtering stats
         let validActivities = enrichedActivities.filter(a => a !== null);
 
-        // Sort based on mode: distance for multi-venue outings, rating for single destinations
+        // Log filtering statistics
+        const totalFromGoogle = places.length;
+        const passedFiltering = validActivities.length;
+        const filteredCount = totalFromGoogle - passedFiltering;
+        const passRate = totalFromGoogle > 0 ? ((passedFiltering / totalFromGoogle) * 100).toFixed(1) : 0;
+
+        console.log(`\n[Category Generate] 📊 Filtering Summary for "${currentCategory}":`);
+        console.log(`  ├─ Total from Google: ${totalFromGoogle}`);
+        console.log(`  ├─ Passed all filters: ${passedFiltering}`);
+        console.log(`  ├─ Filtered out: ${filteredCount}`);
+        console.log(`  └─ Pass rate: ${passRate}%\n`);
+
+        // Sort based on mode: personalized score (default) or distance
         if (sortBy === 'distance') {
           validActivities.sort((a, b) => {
             const distA = a.distanceFromGroupBase || 999;
@@ -5707,35 +6783,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
           console.log(`[Category Generate] Sorted ${currentCategory} by distance`);
         } else {
+          // Sort by personalized score (combines Google rating + learning signals)
           validActivities.sort((a, b) => {
-            const ratingA = parseFloat(a.rating || '0');
-            const ratingB = parseFloat(b.rating || '0');
-            return ratingB - ratingA; // Highest rating first
+            const scoreA = a.personalizedScore || parseFloat(a.rating || '0');
+            const scoreB = b.personalizedScore || parseFloat(b.rating || '0');
+            return scoreB - scoreA; // Highest score first
           });
-          console.log(`[Category Generate] Sorted ${currentCategory} by rating`);
+          console.log(`[Category Generate] Sorted ${currentCategory} by personalized score (learning-enhanced)`);
         }
 
         // Return ALL results for pagination (don't limit to count)
         // Users can now scroll through dozens of venues without extra API calls
         console.log(`[Category Generate] Returning all ${validActivities.length} ${currentCategory} venues for pagination`);
-        
+
         resultsByCategory[currentCategory] = validActivities;
         allResults.push(...validActivities);
 
-        // Save search to history for quick re-access
-        try {
-          await storage.saveCategorySearch({
-            groupId: req.params.id,
-            category: currentCategory,
-            searchLocation,
-            searchRadius,
-            results: validActivities,
-          });
-          console.log(`[Category Generate] Saved search to history for ${currentCategory}`);
-        } catch (err) {
-          console.error(`[Category Generate] Failed to save search history for ${currentCategory}:`, err);
-          // Non-critical, continue
-        }
+        // NOTE: No longer auto-saving to history - user must select which venues to keep
+        // They will be saved via POST /api/groups/:id/add-venues-to-library
       }
 
       console.log(`[Category Generate] Completed. Total: ${allResults.length} venues across ${categoriesToProcess.length} categories`);
@@ -5761,7 +6826,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Verify user owns this group
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       if (group.userId !== userId) {
         return res.status(403).json({ message: "Not authorized to access this group" });
       }
@@ -5772,6 +6837,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(searches);
     } catch (error: any) {
       console.error("[Category Search History] Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Add selected venues to the library (save to activities)
+  app.post("/api/groups/:id/add-venues-to-library", isAuthenticated, async (req: any, res) => {
+    try {
+      const group = await storage.getGroup(req.params.id);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      // Verify user owns this group
+      const userId = await getUserId(req);
+      if (group.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized to modify this group" });
+      }
+
+      const { category, searchLocation, searchRadius, selectedVenues } = req.body;
+
+      if (!category || !selectedVenues || !Array.isArray(selectedVenues)) {
+        return res.status(400).json({ message: "Missing required fields: category, selectedVenues" });
+      }
+
+      console.log(`[Add Venues] Saving ${selectedVenues.length} ${category} venues to activities for group ${req.params.id}`);
+
+      // Get existing activities to avoid duplicates
+      const existingActivities = await storage.getAllGroupActivities(req.params.id);
+      const existingPlaceIds = new Set(existingActivities.map(a => a.googlePlaceId).filter(Boolean));
+
+      // Save each selected venue as an activity
+      const createdActivities = [];
+      for (const venue of selectedVenues) {
+        // Skip if already exists
+        if (venue.googlePlaceId && existingPlaceIds.has(venue.googlePlaceId)) {
+          console.log(`[Add Venues] Skipping duplicate venue: ${venue.venueName}`);
+          continue;
+        }
+
+        const newActivity = await storage.createActivity({
+          groupId: req.params.id,
+          venueName: venue.venueName,
+          venueAddress: venue.venueAddress,
+          venueType: venue.venueType || 'venue',
+          category,
+          description: '',
+          googlePlaceId: venue.googlePlaceId || null,
+          rating: venue.rating ? String(venue.rating) : null,
+          reviewCount: venue.reviewCount ? Number(venue.reviewCount) : null,
+          priceLevel: venue.priceLevel ? String(venue.priceLevel) : null,
+          photoUrl: venue.photoUrl || null,
+        });
+        createdActivities.push(newActivity);
+      }
+
+      console.log(`[Add Venues] Created ${createdActivities.length} new activities (${selectedVenues.length - createdActivities.length} were duplicates)`);
+
+      res.json({
+        success: true,
+        count: createdActivities.length,
+        message: `Added ${createdActivities.length} venues to your library${selectedVenues.length > createdActivities.length ? ` (${selectedVenues.length - createdActivities.length} duplicates skipped)` : ''}`
+      });
+    } catch (error: any) {
+      console.error("[Add Venues] Error:", error);
       res.status(500).json({ message: error.message });
     }
   });
@@ -5954,7 +7083,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Verify user owns this group
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       if (group.userId !== userId) {
         return res.status(403).json({ message: "Not authorized to modify this group" });
       }
@@ -6055,8 +7184,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Process and filter places (take top 3-5 venues)
-      const topVenues = places
+      // Apply smart time and day inference based on activity type (MOVED UP for agent)
+      const inferredTiming = inferTimeFromActivity(schedulingParams);
+      console.log(`[AI Scheduling] Applied inferences:`, inferredTiming.appliedInferences);
+
+      // VALIDATION: Check if inferred time makes sense for activity type
+      const activityLower = schedulingParams.activityType.toLowerCase();
+      let validatedTimePreference = inferredTiming.timePreference;
+      const validationWarnings: string[] = [];
+
+      // Check for obvious mismatches
+      if (activityLower.includes('dinner') && (validatedTimePreference === 'morning' || validatedTimePreference === 'afternoon')) {
+        validationWarnings.push(`CORRECTED: Dinner scheduled for ${validatedTimePreference}, changing to evening`);
+        validatedTimePreference = 'evening';
+      } else if (activityLower.includes('breakfast') && validatedTimePreference === 'evening') {
+        validationWarnings.push(`CORRECTED: Breakfast scheduled for evening, changing to morning`);
+        validatedTimePreference = 'morning';
+      } else if (activityLower.includes('brunch') && (validatedTimePreference === 'evening' || validatedTimePreference === 'night')) {
+        validationWarnings.push(`CORRECTED: Brunch scheduled for ${validatedTimePreference}, changing to morning`);
+        validatedTimePreference = 'morning';
+      } else if (activityLower.includes('lunch') && (validatedTimePreference === 'morning' || validatedTimePreference === 'night')) {
+        validationWarnings.push(`CORRECTED: Lunch scheduled for ${validatedTimePreference}, changing to afternoon`);
+        validatedTimePreference = 'afternoon';
+      }
+
+      if (validationWarnings.length > 0) {
+        console.log(`[AI Scheduling Validation] ${validationWarnings.join(', ')}`);
+      }
+
+      // Generate 2-3 date/time options based on timeframe and constraints
+      const timeOptions = generateTimeOptions(
+        schedulingParams.timeframe || 'next week',
+        inferredTiming.dayConstraints,
+        validatedTimePreference,
+        group.timezone || 'America/Los_Angeles'
+      );
+
+      console.log(`[AI Scheduling] Generated ${timeOptions.length} time options`);
+
+      // Filter places for quality and de-duplication
+      const qualityPlaces = places
         .filter(place => !existingVenueNames.includes(place.name))
         .filter(place => {
           const rating = parseFloat(place.rating || '0');
@@ -6068,34 +7235,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (neighborhoodFilter && place.location) {
             const inNeighborhood = isInNeighborhood(place.location.lat, place.location.lng, neighborhoodFilter);
             if (!inNeighborhood) {
-              console.log(`[AI Scheduling] Filtering out ${place.name} - not in ${neighborhoodFilter} (coords: ${place.location.lat}, ${place.location.lng})`);
+              console.log(`[AI Scheduling] Filtering out ${place.name} - not in ${neighborhoodFilter}`);
             }
             return inNeighborhood;
           }
           return true;
-        })
-        .sort((a, b) => parseFloat(b.rating || '0') - parseFloat(a.rating || '0'))
-        .slice(0, 3);
+        });
 
-      if (topVenues.length === 0) {
+      if (qualityPlaces.length === 0) {
         return res.status(404).json({ message: "No quality venues found" });
       }
 
-      console.log(`[AI Scheduling] Selected ${topVenues.length} venues for event`);
+      console.log(`[AI Scheduling] Found ${qualityPlaces.length} quality venues, using agent for selection...`);
 
-      // Apply smart time and day inference based on activity type
-      const inferredTiming = inferTimeFromActivity(schedulingParams);
-      console.log(`[AI Scheduling] Applied inferences:`, inferredTiming.appliedInferences);
+      // Convert places to VenueForAgent format for intelligent selection
+      const venuesForAgent: VenueForAgent[] = qualityPlaces.map(place => ({
+        type: 'activity' as const,
+        id: place.placeId || place.name,
+        name: place.name,
+        score: parseFloat(place.rating || '0') * 3, // Convert rating to score format
+        visitCount: 0,
+        daysSinceLastVisit: 999,
+        qualityScore: parseFloat(place.rating || '0'),
+        category: null, // Let agent derive category from venueType for better diversity
+        venueType: place.types[0] || 'restaurant',
+        rating: place.rating,
+        venueAddress: place.address,
+        googlePlaceId: place.placeId,
+        latitude: place.location?.lat || null,
+        longitude: place.location?.lng || null,
+      }));
 
-      // Generate 2-3 date/time options based on timeframe and constraints
-      const timeOptions = generateTimeOptions(
-        schedulingParams.timeframe || 'next week',
-        inferredTiming.dayConstraints,
-        inferredTiming.timePreference,
-        group.timezone || 'America/Los_Angeles'
-      );
+      // Use AI Event Planning Agent for intelligent venue selection
+      let selectedVenuesData: Array<{ name: string; placeId?: string }>;
+      let agentReasoning: string | undefined;
+      let agentConfidence: number | undefined;
 
-      console.log(`[AI Scheduling] Generated ${timeOptions.length} time options`);
+      try {
+        const firstEventDate = new Date(timeOptions[0].eventDate);
+        const agentResult = await planEventWithAgent({
+          group,
+          eventDate: firstEventDate,
+          availableVenues: venuesForAgent,
+          constraints: {
+            desiredVenueCount: 3,
+            maxDistanceMiles: group.searchRadius || 2,
+          },
+        });
+
+        selectedVenuesData = agentResult.selectedVenues.map(v => ({
+          name: v.name,
+          placeId: v.googlePlaceId || undefined,
+        }));
+        agentReasoning = agentResult.reasoning;
+        agentConfidence = agentResult.confidence;
+
+        console.log(`[AI Scheduling Agent] Selected ${selectedVenuesData.length} venues`);
+        console.log(`[AI Scheduling Agent] Reasoning: ${agentReasoning}`);
+        console.log(`[AI Scheduling Agent] Confidence: ${agentConfidence}%`);
+      } catch (agentError) {
+        console.error(`[AI Scheduling Agent] Failed, falling back to simple selection:`, agentError);
+        // Fallback: simple rating-based selection
+        selectedVenuesData = qualityPlaces
+          .sort((a, b) => parseFloat(b.rating || '0') - parseFloat(a.rating || '0'))
+          .slice(0, 3)
+          .map(p => ({ name: p.name, placeId: p.placeId }));
+      }
+
+      // Get full place data for selected venues
+      const topVenues = selectedVenuesData
+        .map(selected => qualityPlaces.find(p =>
+          p.placeId === selected.placeId || p.name === selected.name
+        ))
+        .filter(p => p !== undefined);
+
+      if (topVenues.length === 0) {
+        return res.status(404).json({ message: "No venues selected" });
+      }
+
+      console.log(`[AI Scheduling] Final selection: ${topVenues.length} venues`);
 
       // Create activities from the top venues
       const createdActivities = [];
@@ -6131,10 +7349,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Generate event name
       const eventName = `${schedulingParams.activityType.charAt(0).toUpperCase() + schedulingParams.activityType.slice(1)} ${schedulingParams.timeframe || ''}`.trim();
 
+      // DEDUPLICATION: Check for existing proposed itineraries on the same date
+      // This prevents creating duplicate events when user submits multiple times
+      const { deduplicateByDate } = await import('./itinerary-deduplication');
+      const proposedEventDate = new Date(timeOptions[0].eventDate);
+      await deduplicateByDate(req.params.id, proposedEventDate, 'AI Scheduling');
+
       // Create proposed itinerary with multiple time slots
       // proposedOrder must be set for proposed itineraries (array of item IDs in sequence)
       const proposedOrder = items.map(item => item.sourceId);
-      
+
       // createItinerary signature: (insertItinerary, userId, itemsData)
       // Set eventDate to first time option so itinerary shows up on Home tab immediately
       const itinerary = await storage.createItinerary(
@@ -6145,7 +7369,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           inviteToken: null,
           timingRecommendations: timeOptions.length > 1 ? 'Vote for your preferred time' : null,
           proposedOrder,
-          eventDate: new Date(timeOptions[0].eventDate), // Set default to first time option
+          eventDate: proposedEventDate, // Set default to first time option
         },
         userId, // Passed separately, not in the object!
         items
@@ -6450,7 +7674,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Any authenticated user can add to group favorites (not just owner)
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
 
       const { activityData } = req.body;
       
@@ -6859,7 +8083,7 @@ Looking forward to planning great activities together!
   // Get swipe deck - mix of voting events and AI suggestions
   app.get("/api/groups/:id/swipe-deck", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const groupId = req.params.id;
 
       // Get group settings for category filtering
@@ -7072,7 +8296,7 @@ Looking forward to planning great activities together!
     try {
       const { groupId } = req.params;
       const { selectedVenues } = req.body; // Array of { sourceType, sourceId }
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
 
       if (!selectedVenues || !Array.isArray(selectedVenues) || selectedVenues.length === 0) {
         return res.status(400).json({ message: "No venues selected" });
@@ -7176,6 +8400,12 @@ Looking forward to planning great activities together!
           issues: validation.issues,
         });
       }
+
+      // DEDUPLICATION: Delete any existing unsent draft itineraries for this group
+      // This prevents duplicate itineraries when user clicks "Send to Group" multiple times
+      // Only delete drafts that haven't been sent yet (no eventDate or inviteSentAt)
+      const { deduplicateUnsentDrafts } = await import('./itinerary-deduplication');
+      await deduplicateUnsentDrafts(groupId, 'Validate Itinerary');
 
       // Create itinerary with proposed order
       const itinerary = await storage.createItinerary(
@@ -7611,6 +8841,36 @@ Looking forward to planning great activities together!
             // Override name and address if parsed from URL
             if (parsedPlace.name) name = parsedPlace.name;
             if (parsedPlace.address) address = parsedPlace.address;
+          } else if (parsedPlace?.type === 'coordinates' && parsedPlace.placeName) {
+            // No direct Place ID found, but we have coordinates + name
+            // Search for the venue using the name and coordinates
+            console.log(`[Add Ad-hoc Venue] Searching for venue "${parsedPlace.placeName}" at coordinates ${parsedPlace.lat}, ${parsedPlace.lng}`);
+            const places = await searchPlaces(
+              parsedPlace.placeName,
+              { latitude: parsedPlace.lat!, longitude: parsedPlace.lng! }
+            );
+
+            if (places.length > 0) {
+              const topResult = places[0];
+              console.log(`[Add Ad-hoc Venue] Found venue via search: ${topResult.name} (${topResult.placeId})`);
+              googlePlaceId = topResult.placeId;
+              name = topResult.name;
+              address = topResult.address;
+            } else {
+              console.warn(`[Add Ad-hoc Venue] No venues found for "${parsedPlace.placeName}"`);
+            }
+          } else if (parsedPlace?.type === 'text_search' && parsedPlace.placeName) {
+            // Text search needed
+            console.log(`[Add Ad-hoc Venue] Searching for venue "${parsedPlace.placeName}"`);
+            const places = await searchPlaces(parsedPlace.placeName);
+
+            if (places.length > 0) {
+              const topResult = places[0];
+              console.log(`[Add Ad-hoc Venue] Found venue via search: ${topResult.name} (${topResult.placeId})`);
+              googlePlaceId = topResult.placeId;
+              name = topResult.name;
+              address = topResult.address;
+            }
           }
         } catch (error) {
           console.error('[Add Ad-hoc Venue] Error parsing Google Maps URL:', error);
@@ -7621,7 +8881,34 @@ Looking forward to planning great activities together!
       // Fetch Google Places details if placeId is provided
       if (googlePlaceId) {
         try {
-          const placeDetails = await getPlaceDetails(googlePlaceId);
+          // Import validation function
+          const { validateVenuePlaceId } = await import('./google-places');
+
+          // Validate that Place ID matches expected venue name
+          const validation = await validateVenuePlaceId(name, googlePlaceId);
+
+          // Log validation warnings
+          if (validation.warnings.length > 0) {
+            console.warn('[Add Ad-hoc Venue] Venue validation warnings:', {
+              expectedName: name,
+              placeId: googlePlaceId,
+              actualName: validation.placeDetails?.name,
+              confidence: validation.confidence,
+              warnings: validation.warnings
+            });
+          }
+
+          // Reject if validation failed with low confidence
+          if (!validation.isValid) {
+            console.error('[Add Ad-hoc Venue] Venue validation FAILED:', validation.warnings);
+            return res.status(400).json({
+              message: 'Venue validation failed',
+              errors: validation.warnings,
+              suggestion: `The Place ID appears to point to "${validation.placeDetails?.name}" instead of "${name}". Please verify the correct venue.`
+            });
+          }
+
+          const placeDetails = validation.placeDetails;
           if (placeDetails) {
             // Use Google Places data to enrich the venue
             if (!address) address = placeDetails.address;
@@ -7769,7 +9056,7 @@ Looking forward to planning great activities together!
   app.delete("/api/itineraries/:id", isAuthenticated, async (req: any, res) => {
     try {
       const itineraryId = req.params.id;
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       
       // Get the itinerary and verify authorization
       const itinerary = await storage.getItinerary(itineraryId);
@@ -7787,7 +9074,43 @@ Looking forward to planning great activities together!
       if (group.userId !== userId) {
         return res.status(403).json({ message: "Not authorized to delete this itinerary" });
       }
-      
+
+      // Track rejected date if the itinerary has an event date
+      if (itinerary.eventDate) {
+        try {
+          await db.insert(rejectedEventDates).values({
+            groupId: itinerary.groupId,
+            rejectedDate: itinerary.eventDate,
+            reason: 'user_deleted',
+            sourceType: 'itinerary',
+            sourceId: itineraryId,
+          });
+          console.log(`[Rejected Dates] Tracked rejected date for group ${itinerary.groupId}: ${itinerary.eventDate}`);
+        } catch (error) {
+          console.error('[Rejected Dates] Error tracking rejected date:', error);
+          // Don't fail the delete if tracking fails
+        }
+      }
+
+      // Send cancellation notifications if this was a proposed/scheduled event (not a draft)
+      if (itinerary.status === 'proposed' || itinerary.status === 'scheduled') {
+        try {
+          const groupMembers = await storage.getGroupMembers(itinerary.groupId);
+          const memberIds = groupMembers.map(m => m.id);
+
+          const { notifyEventCancelled } = await import('./notifications');
+          await notifyEventCancelled({
+            itineraryId,
+            groupId: itinerary.groupId,
+            eventName: itinerary.name || 'Upcoming Event',
+            memberIds
+          });
+        } catch (notifyError) {
+          console.error('[Notifications] Error sending cancellation notifications:', notifyError);
+          // Don't fail the delete if notifications fail
+        }
+      }
+
       await storage.deleteItinerary(itineraryId);
       res.json({ message: "Itinerary deleted" });
     } catch (error: any) {
@@ -7795,8 +9118,208 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Create a new itinerary (used for TBD events on dashboard)
+  app.post("/api/itineraries", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = await getUserId(req);
+
+      // Validate request body
+      const validatedData = safeParse(insertItinerarySchema, req.body, res);
+      if (!validatedData) return;
+
+      console.log('[Create Itinerary] Creating new itinerary:', {
+        groupId: validatedData.groupId,
+        name: validatedData.name,
+        status: validatedData.status,
+        eventDate: validatedData.eventDate
+      });
+
+      // Verify user has access to the group
+      const group = await storage.getGroup(validatedData.groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      // Check if user is member of the group
+      const groupMembers = await storage.getGroupMembers(validatedData.groupId);
+      const isMember = groupMembers.some(m => m.userId === userId);
+      const isOwner = group.userId === userId;
+
+      if (!isMember && !isOwner) {
+        return res.status(403).json({ message: "You must be a member of this group to create itineraries" });
+      }
+
+      // Create itinerary with no items initially (items can be added later via decide-now)
+      const itinerary = await storage.createItinerary(
+        validatedData,
+        userId,
+        [] // Empty items array - will be populated by decide-now
+      );
+
+      console.log('[Create Itinerary] ✅ Created itinerary:', itinerary.id);
+
+      res.json(itinerary);
+    } catch (error: any) {
+      console.error('[Create Itinerary] Error:', error);
+      res.status(500).json({
+        message: error.message || "Couldn't create itinerary. Mind giving it another try?"
+      });
+    }
+  });
+
+  // Auto-populate TBD event with AI-selected venues
+  app.post("/api/itineraries/:id/decide-now", isAuthenticated, requireItineraryAccess(), async (req: any, res) => {
+    try {
+      const itineraryId = req.params.id;
+      const userId = await getUserId(req);
+
+      console.log('');
+      console.log('🎯 ========================================');
+      console.log('🎯 DECIDE NOW ENDPOINT CALLED!');
+      console.log('🎯 Itinerary ID:', itineraryId);
+      console.log('🎯 User ID:', userId);
+      console.log('🎯 ========================================');
+      console.log('');
+      console.log('[Decide Now] Starting venue selection for itinerary:', itineraryId);
+
+      // Get the itinerary
+      const itinerary = await storage.getItinerary(itineraryId);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      // Get the group
+      const group = await storage.getGroup(itinerary.groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      // Use the existing auto-scheduler logic to select best venues
+      const { selectBestItineraryForAutoSchedule } = await import('./auto-scheduler');
+
+      const result = await selectBestItineraryForAutoSchedule(
+        storage,
+        group
+      );
+
+      // For backwards compatibility, support both options and itineraryOptions
+      const itineraryOptions = result.options || result.itineraryOptions || [];
+
+      if (!result || itineraryOptions.length === 0) {
+        return res.status(500).json({
+          message: "Hmm, we're struggling to find suitable venues for this one. While we think about it, feel free to manually add some spots you have in mind!"
+        });
+      }
+
+      const usedAI = result.usedAI !== false; // Default to true if not specified
+
+      console.log('[Decide Now] Venue selection complete:', {
+        usedAI,
+        optionCount: itineraryOptions.length,
+        topOptionVenues: itineraryOptions[0]?.venues.length || 0
+      });
+
+      // Get the top option (best selected itinerary)
+      const topOption = itineraryOptions[0];
+
+      if (!topOption || !topOption.venues || topOption.venues.length === 0) {
+        return res.status(500).json({
+          message: "No suitable venues found. Try adding more activities or favorites to this group."
+        });
+      }
+
+      // Create itinerary items from the selected venues
+      const items = topOption.venues.map((venue: any, index: number) => ({
+        itineraryId,
+        venueName: venue.venueName,
+        venueType: venue.venueType || venue.category || 'venue',
+        venueAddress: venue.venueAddress || venue.address,
+        photoUrl: venue.photoUrl,
+        rating: venue.rating,
+        googlePlaceId: venue.googlePlaceId || venue.placeId,
+        notes: venue.reasoning || null,
+        googleMapsUrl: venue.googleMapsUrl || venue.mapsUrl ||
+          (venue.googlePlaceId ? `https://www.google.com/maps/place/?q=place_id:${venue.googlePlaceId}` : null),
+        sourceType: venue.sourceType || 'activity',
+        sourceId: venue.sourceId || venue.activityId || venue.votingEventId,
+        orderIndex: index,
+        arrivalTime: null,
+        departureTime: null,
+        travelNotes: null,
+      }));
+
+      // Clear existing items and add new ones
+      const existingItems = await db
+        .select()
+        .from(itineraryItems)
+        .where(eq(itineraryItems.itineraryId, itineraryId));
+
+      if (existingItems.length > 0) {
+        await db
+          .delete(itineraryItems)
+          .where(eq(itineraryItems.itineraryId, itineraryId));
+      }
+
+      // Insert new items
+      await db.insert(itineraryItems).values(items);
+
+      // Update itinerary name if it's generic
+      if (itinerary.name.includes('Auto-scheduled') || itinerary.name.includes('TBD')) {
+        const venueSummary = items.map((v: any) => v.venueName).join(', ');
+        const newName = items.length === 1
+          ? items[0].venueName
+          : `${items[0].venueName} + ${items.length - 1} more`;
+
+        await storage.updateItinerary(itineraryId, {
+          name: newName.length > 100 ? newName.substring(0, 97) + '...' : newName
+        });
+      }
+
+      console.log('[Decide Now] Successfully populated', items.length, 'venues');
+
+      // Return the updated itinerary with items
+      const updatedItinerary = await storage.getItinerary(itineraryId);
+      const updatedItems = await db
+        .select()
+        .from(itineraryItems)
+        .where(eq(itineraryItems.itineraryId, itineraryId))
+        .orderBy(itineraryItems.orderIndex);
+
+      // Friendly messages based on selection method
+      let successMessage: string;
+      if (usedAI) {
+        successMessage = `AI selected ${items.length} venue${items.length > 1 ? 's' : ''} for your event`;
+      } else {
+        successMessage = "We had trouble getting AI's picks this time, so we went with our backup venue selection! Feel free to regenerate if you want AI to take another shot.";
+      }
+
+      res.json({
+        itinerary: updatedItinerary,
+        items: updatedItems,
+        venueCount: items.length,
+        reasoning: topOption.reasoning || topOption.description || 'Selected venues based on your group preferences and visit history',
+        usedAI,
+        message: successMessage,
+      });
+
+    } catch (error: any) {
+      console.error('[Decide Now] Error:', error);
+      console.error('[Decide Now] Error stack:', error.stack);
+      console.error('[Decide Now] Error details:', {
+        message: error.message,
+        itineraryId,
+        userId,
+        errorType: error.constructor.name
+      });
+      res.status(500).json({
+        message: error.message || "We hit a snag. Mind giving it another try?",
+        errorDetails: error.message
+      });
+    }
+  });
+
   // ========== TIME SLOT MANAGEMENT ==========
-  
+
   // Get time slots for an itinerary
   app.get("/api/itineraries/:itineraryId/time-slots", async (req: any, res) => {
     try {
@@ -7806,7 +9329,7 @@ Looking forward to planning great activities together!
       
       let userId = null;
       if (req.user) {
-        userId = req.user.claims.sub;
+        userId = await getUserId(req);
       }
       
       const timeSlotsWithVotes = await Promise.all(timeSlots.map(async slot => {
@@ -7836,7 +9359,7 @@ Looking forward to planning great activities together!
     try {
       const { itineraryId } = req.params;
       const { timeSlots } = req.body; // Array of { proposedDateTime, label }
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       
       const itinerary = await storage.getItinerary(itineraryId);
       if (!itinerary) {
@@ -7875,7 +9398,7 @@ Looking forward to planning great activities together!
       
       let userId = null;
       if (req.user) {
-        userId = req.user.claims.sub;
+        userId = await getUserId(req);
       }
       
       if (!userId && !memberId) {
@@ -7905,7 +9428,7 @@ Looking forward to planning great activities together!
       let memberId = null;
       
       if (req.user) {
-        userId = req.user.claims.sub;
+        userId = await getUserId(req);
       } else if (req.body.memberId) {
         memberId = req.body.memberId;
       }
@@ -7925,7 +9448,7 @@ Looking forward to planning great activities together!
   app.patch("/api/time-slots/:timeSlotId/select", isAuthenticated, async (req: any, res) => {
     try {
       const { timeSlotId } = req.params;
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       
       const timeSlot = await storage.getTimeSlot(timeSlotId);
       if (!timeSlot) {
@@ -7936,10 +9459,24 @@ Looking forward to planning great activities together!
       if (!itinerary) {
         return res.status(404).json({ message: "Itinerary not found" });
       }
-      
+
       const group = await storage.getGroup(itinerary.groupId);
-      if (!group || group.userId !== userId) {
-        return res.status(403).json({ message: "Only the group organizer can select a time slot" });
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      // Allow group owner OR event host to select time slot
+      const isOwner = group.userId === userId;
+      let isHost = false;
+
+      if (itinerary.hostMemberId) {
+        const members = await storage.getGroupMembers(itinerary.groupId);
+        const hostMember = members.find(m => m.id === itinerary.hostMemberId);
+        isHost = hostMember?.userId === userId;
+      }
+
+      if (!isOwner && !isHost) {
+        return res.status(403).json({ message: "Only the group organizer or event host can select a time slot" });
       }
       
       const updated = await storage.updateTimeSlotSelection(timeSlotId, true);
@@ -7972,7 +9509,7 @@ Looking forward to planning great activities together!
       if (!validatedData) return;
 
       let { name, timingRecommendations } = validatedData;
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       
       // Get the original itinerary with items
       const original = await storage.getItinerary(req.params.id);
@@ -8030,7 +9567,7 @@ Looking forward to planning great activities together!
   // Duplicate a saved itinerary to create an editable draft copy
   app.post("/api/itineraries/:id/duplicate", isAuthenticated, requireItineraryAccess(), async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       
       // Get the original itinerary with items
       const original = await storage.getItinerary(req.params.id);
@@ -8152,7 +9689,7 @@ Looking forward to planning great activities together!
       if (!validatedData) return;
 
       const { isPrimary, eventDate, eventDates, autoScheduleConfig } = validatedData;
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       
       const itinerary = await storage.getItinerary(req.params.id);
       if (!itinerary) {
@@ -8202,14 +9739,26 @@ Looking forward to planning great activities together!
         
         for (const member of members) {
           const inviteToken = crypto.randomUUID();
-          
+
           await db.insert(itineraryInvites).values({
             itineraryId: req.params.id,
             memberId: member.id,
             inviteToken,
           });
         }
-        
+
+        // Send in-app notifications to all invited members
+        try {
+          await notifyEventInvite({
+            itineraryId: req.params.id,
+            groupId: group.id,
+            eventName: itinerary.name || 'New Event',
+            memberIds: members.map(m => m.id),
+          });
+        } catch (notifError) {
+          console.error('[Send Itinerary Multi-Date] Failed to send notifications:', notifError);
+        }
+
         console.log(`[Send Itinerary Multi-Date] Created 1 event with ${eventDates.length} time options for members to vote on`);
         
         // Return the updated itinerary
@@ -8225,20 +9774,22 @@ Looking forward to planning great activities together!
       // If event date is provided, set it up and send invites
       if (eventDate) {
         const date = new Date(eventDate);
-        
-        // Setup schedule config with defaults if not provided
-        const scheduleConfig = autoScheduleConfig || {
-          inviteAdvanceDays: 14,
-          rsvpWindowDays: 11,
-          reminders: [
-            { type: 'gentle_nudge', daysBeforeDeadline: 7 },
-            { type: 'final_call', daysBeforeDeadline: 1 },
-            { type: 'day_before', daysBeforeEvent: 1 }
-          ]
-        };
-        
-        const rsvpDeadline = new Date(date);
-        rsvpDeadline.setDate(date.getDate() - (scheduleConfig.inviteAdvanceDays - scheduleConfig.rsvpWindowDays));
+
+        // Use adaptive timeline if no config provided
+        let scheduleConfig;
+        if (autoScheduleConfig) {
+          // Use provided config if specified
+          scheduleConfig = autoScheduleConfig;
+        } else {
+          // Calculate adaptive timeline based on event date
+          const { calculateAdaptiveTimeline } = await import('./adaptive-timeline');
+          scheduleConfig = calculateAdaptiveTimeline(date, new Date());
+          console.log(`[Send Itinerary] Using ${scheduleConfig.timelineType} timeline: ${scheduleConfig.reasoning}`);
+        }
+
+        // Calculate RSVP deadline based on timeline config
+        const { calculateRsvpDeadline } = await import('./adaptive-timeline');
+        const rsvpDeadline = calculateRsvpDeadline(date, scheduleConfig);
 
         updates.eventDate = date;
         updates.rsvpDeadline = rsvpDeadline;
@@ -8273,15 +9824,27 @@ Looking forward to planning great activities together!
           // Create invites for existing members
           for (const member of members) {
             const inviteToken = crypto.randomUUID();
-            
+
             // Store invite in database
             await db.insert(itineraryInvites).values({
               itineraryId: itinerary.id,
               memberId: member.id,
               inviteToken,
             });
-            
+
             memberInvites.set(member.id, inviteToken);
+          }
+
+          // Send in-app notifications to all invited members
+          try {
+            await notifyEventInvite({
+              itineraryId: itinerary.id,
+              groupId: group.id,
+              eventName: itinerary.name || 'New Event',
+              memberIds: members.map(m => m.id),
+            });
+          } catch (notifError) {
+            console.error('[Send Itinerary] Failed to send notifications:', notifError);
           }
         }
         
@@ -8749,6 +10312,16 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Get auto-scheduled events timeline for a group (past 90 days + all future)
+  app.get("/api/groups/:groupId/auto-scheduled-events/timeline", async (req, res) => {
+    try {
+      const events = await storage.getAutoScheduledEventsTimeline(req.params.groupId);
+      res.json(events);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Get auto-schedule queue with AI validation
   app.get("/api/groups/:groupId/auto-schedule-queue", async (req, res) => {
     try {
@@ -8773,6 +10346,44 @@ Looking forward to planning great activities together!
 
       console.log('[Regenerate Queue] Regenerating event:', eventId);
 
+      // Track regeneration count in metadata
+      const { queueEventMetadata } = await import('../shared/schema');
+
+      // Check if metadata exists for this event
+      const existingMetadata = await db
+        .select()
+        .from(queueEventMetadata)
+        .where(
+          and(
+            eq(queueEventMetadata.groupId, groupId),
+            eq(queueEventMetadata.eventId, eventId)
+          )
+        )
+        .limit(1);
+
+      let regenerationCount = 1;
+
+      if (existingMetadata.length > 0) {
+        // Increment existing count
+        regenerationCount = existingMetadata[0].regenerationCount + 1;
+        await db
+          .update(queueEventMetadata)
+          .set({
+            regenerationCount,
+            updatedAt: new Date(),
+          })
+          .where(eq(queueEventMetadata.id, existingMetadata[0].id));
+      } else {
+        // Create new metadata entry
+        await db.insert(queueEventMetadata).values({
+          groupId,
+          eventId,
+          regenerationCount: 1,
+        });
+      }
+
+      console.log(`[Regenerate Queue] Regeneration count: ${regenerationCount}`);
+
       // Get the current queue to extract venues to exclude
       const { generateAutoScheduleQueue, regenerateQueueEvent } = await import("./smart-event-pairing");
       const currentQueue = await generateAutoScheduleQueue(groupId, storage);
@@ -8790,9 +10401,15 @@ Looking forward to planning great activities together!
         return res.status(500).json({ message: 'Failed to regenerate event' });
       }
 
+      // Add regeneration count to the new event
+      const newEventWithCount = {
+        ...newEvent,
+        regenerationCount,
+      };
+
       // Return updated queue with the new event replacing the old one
       const updatedEvents = currentQueue.events.map(e =>
-        e.id === eventId ? newEvent : e
+        e.id === eventId ? newEventWithCount : e
       );
 
       res.json({ events: updatedEvents });
@@ -8822,6 +10439,12 @@ Looking forward to planning great activities together!
         queueEvent.venues.map((v: any) => ({ name: v.venueName, type: v.venueType })),
         group?.location || 'San Francisco'
       );
+
+      // DEDUPLICATION: Check for existing proposed itineraries on the same date
+      // This prevents duplicate itineraries if user clicks "Approve" multiple times
+      const { deduplicateByDate } = await import('./itinerary-deduplication');
+      const proposedEventDate = new Date(queueEvent.scheduledDate);
+      await deduplicateByDate(groupId, proposedEventDate, 'Approve Queue');
 
       // Create proposed order (just the order they appear in the queue)
       const proposedOrder = queueEvent.venues.map((v: any) => v.sourceId);
@@ -8880,50 +10503,165 @@ Looking forward to planning great activities together!
     }
   });
 
-  // Create a guest RSVP for an itinerary (public endpoint - no auth required)
+  // Phase 1: Event invite RSVP (public endpoint - no auth required)
+  // Simplified RSVP flow for event-by-event invites
+  app.post("/api/itineraries/:id/rsvp", async (req, res) => {
+    try {
+      const { memberId, response, rsvpFeedback } = req.body;
+      const { id: itineraryId } = req.params;
+
+      // Validate required fields
+      if (!memberId || !memberId.trim()) {
+        return res.status(400).json({ message: "Member ID is required" });
+      }
+      if (!response || !["going", "maybe", "not_going"].includes(response)) {
+        return res.status(400).json({ message: "Valid response required (going, maybe, or not_going)" });
+      }
+
+      // Verify member exists
+      const member = await storage.getMember(memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+
+      // Verify itinerary exists
+      const itinerary = await storage.getItinerary(itineraryId);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      // Check if RSVP already exists
+      const existingRsvps = await db
+        .select()
+        .from(rsvpsTable)
+        .where(sql`itinerary_id = ${itineraryId} AND member_id = ${memberId}`);
+
+      let rsvp;
+      const rsvpData: any = {
+        response,
+        rsvpFeedback: rsvpFeedback || null,
+        updatedAt: new Date(),
+      };
+
+      if (existingRsvps.length > 0) {
+        // Update existing RSVP
+        const updated = await db
+          .update(rsvpsTable)
+          .set(rsvpData)
+          .where(sql`id = ${existingRsvps[0].id}`)
+          .returning();
+        rsvp = updated[0];
+      } else {
+        // Create new RSVP
+        const inserted = await db
+          .insert(rsvpsTable)
+          .values({
+            itineraryId,
+            memberId,
+            ...rsvpData,
+          })
+          .returning();
+        rsvp = inserted[0];
+      }
+
+      // Log event-specific feedback if provided
+      if (rsvpFeedback && (rsvpFeedback.feedbackText || rsvpFeedback.alternativeDays || rsvpFeedback.alternativeTimes)) {
+        console.log(`[Event Invite RSVP] Member ${member.name} (${memberId}) provided feedback for event ${itineraryId}:`, rsvpFeedback);
+      }
+
+      res.json(rsvp);
+    } catch (error: any) {
+      console.error('[Event Invite RSVP] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Phase 3: Create/update guest RSVP for an itinerary (public endpoint - no auth required)
   app.post("/api/itineraries/:id/guest-rsvp", async (req, res) => {
     try {
-      const { guestName, guestEmail, response } = req.body;
+      const { guestToken, guestName, guestEmail, response, rsvpFeedback } = req.body;
       const { id: itineraryId } = req.params;
 
       // Validate required fields
       if (!guestName || !guestName.trim()) {
         return res.status(400).json({ message: "Guest name is required" });
       }
-      if (!response || !["yes", "maybe", "no"].includes(response)) {
-        return res.status(400).json({ message: "Valid response required (yes, maybe, or no)" });
+
+      // Support both old format (yes/maybe/no) and new format (going/maybe/not_going)
+      const validResponses = ["yes", "maybe", "no", "going", "not_going"];
+      if (!response || !validResponses.includes(response)) {
+        return res.status(400).json({ message: "Valid response required" });
       }
 
-      // Verify itinerary exists and is sent (not proposed)
+      // Normalize response to new format
+      const normalizedResponse = response === "yes" ? "going" :
+                                 response === "no" ? "not_going" :
+                                 response;
+
+      // Verify itinerary exists
       const itinerary = await storage.getItinerary(itineraryId);
       if (!itinerary) {
         return res.status(404).json({ message: "Event not found" });
       }
-      if (itinerary.status !== "sent") {
-        return res.status(400).json({ message: "This event is not yet finalized" });
+
+      // Check if updating existing guest RSVP (guestToken provided)
+      let existingRsvp = null;
+      if (guestToken) {
+        const existing = await db
+          .select()
+          .from(rsvpsTable)
+          .where(sql`guest_token = ${guestToken} AND itinerary_id = ${itineraryId}`);
+
+        if (existing.length > 0) {
+          existingRsvp = existing[0];
+        }
       }
 
-      // Generate unique guest token for RSVP link
-      const guestToken = crypto.randomBytes(32).toString('hex');
+      let rsvp;
+      if (existingRsvp) {
+        // Update existing guest RSVP
+        const updated = await db
+          .update(rsvpsTable)
+          .set({
+            response: normalizedResponse,
+            guestName: guestName.trim(),
+            guestEmail: guestEmail?.trim() || null,
+            rsvpFeedback: rsvpFeedback || null,
+            updatedAt: new Date(),
+          })
+          .where(sql`id = ${existingRsvp.id}`)
+          .returning();
+        rsvp = updated[0];
+      } else {
+        // Create new guest RSVP
+        const newGuestToken = guestToken || crypto.randomBytes(32).toString('hex');
 
-      // Create guest RSVP
-      const rsvp = await db
-        .insert(rsvpsTable)
-        .values({
-          itineraryId,
-          isGuest: true,
-          guestName: guestName.trim(),
-          guestEmail: guestEmail?.trim() || null,
-          guestToken,
-          response,
-          memberName: null,
-          memberId: null,
-          userId: null,
-        })
-        .returning();
+        const inserted = await db
+          .insert(rsvpsTable)
+          .values({
+            itineraryId,
+            isGuest: true,
+            guestName: guestName.trim(),
+            guestEmail: guestEmail?.trim() || null,
+            guestToken: newGuestToken,
+            response: normalizedResponse,
+            rsvpFeedback: rsvpFeedback || null,
+            memberName: null,
+            memberId: null,
+            userId: null,
+          })
+          .returning();
+        rsvp = inserted[0];
+      }
 
-      res.json(rsvp[0]);
+      // Log guest feedback if provided
+      if (rsvpFeedback && (rsvpFeedback.feedbackText || rsvpFeedback.alternativeDays || rsvpFeedback.alternativeTimes)) {
+        console.log(`[Guest RSVP] Guest ${guestName} provided feedback for event ${itineraryId}:`, rsvpFeedback);
+      }
+
+      res.json(rsvp);
     } catch (error: any) {
+      console.error('[Guest RSVP] Error:', error);
       res.status(500).json({ message: error.message });
     }
   });
@@ -9051,7 +10789,7 @@ Looking forward to planning great activities together!
   // Create guest invite for an itinerary
   app.post("/api/itineraries/:itineraryId/guest-invites", isAuthenticated, requireItineraryAccess(), async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const { itineraryId } = req.params;
       const { guestName } = req.body;
 
@@ -9093,7 +10831,7 @@ Looking forward to planning great activities together!
   // Get all guest invites for an itinerary
   app.get("/api/itineraries/:itineraryId/guest-invites", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const { itineraryId } = req.params;
 
       // Verify itinerary exists and user is authorized
@@ -9206,7 +10944,7 @@ Looking forward to planning great activities together!
         return;
       }
 
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const { itineraryId } = { itineraryId: req.params.id };
       const { actuallyAttended, venueRating, frequencyPreference, wouldDoAgain, improvementNotes } = validatedData;
 
@@ -9329,7 +11067,7 @@ Looking forward to planning great activities together!
   // Get aggregated RSVP feedback for a group
   app.get("/api/groups/:groupId/feedback-summary", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const { groupId } = req.params;
 
       // Verify user owns the group
@@ -9421,7 +11159,7 @@ Looking forward to planning great activities together!
   // Get aggregated post-event feedback for a group
   app.get("/api/groups/:groupId/post-event-feedback-summary", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const { groupId } = req.params;
 
       // Verify user owns the group
@@ -9560,7 +11298,7 @@ Looking forward to planning great activities together!
   app.post("/api/frequency-feedback", isAuthenticated, async (req, res) => {
     try {
       const { groupId, feedback } = req.body;
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
 
       // Store feedback
       await storage.createFrequencyFeedback({
@@ -9623,7 +11361,7 @@ Looking forward to planning great activities together!
   // Get learning insights for a group (what the system has learned)
   app.get("/api/groups/:groupId/learning-insights", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const { groupId } = req.params;
 
       // Verify user has access to the group
@@ -9820,7 +11558,7 @@ Looking forward to planning great activities together!
   // Admin endpoint: Calibrate all groups
   app.post("/api/admin/calibrate-all", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
 
       // For now, any authenticated user can trigger this
       // In production, you'd want to check for admin role
@@ -9841,7 +11579,7 @@ Looking forward to planning great activities together!
   // Remove a venue from the blacklist
   app.delete("/api/groups/:groupId/rejected-venues", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const { groupId } = req.params;
       const { venueName } = req.body;
 
@@ -9881,7 +11619,7 @@ Looking forward to planning great activities together!
   // Manually trigger next event scheduling with 3 itinerary options
   app.post("/api/groups/:groupId/schedule-next-event", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const { groupId } = req.params;
       const { allowMemberVoting = false } = req.body;
 
@@ -9913,7 +11651,7 @@ Looking forward to planning great activities together!
       // Create the auto-scheduled event with pending status
       const { addDays } = await import('date-fns');
       const proposedDate = group.nextEventDueDate ? new Date(group.nextEventDueDate) : addDays(new Date(), 7);
-      const autoSendAt = addDays(proposedDate, -3); // Auto-send 3 days before proposed date if no action
+      const autoSendAt = addDays(proposedDate, -7); // Auto-send 7 days before proposed date (minimum lead time for RSVPs)
 
       const autoEvent = await storage.createAutoScheduledEvent({
         groupId,
@@ -9923,30 +11661,10 @@ Looking forward to planning great activities together!
         allowMemberVoting,
       });
 
-      // Validate each option with AI to ensure logical ordering
-      console.log('[Schedule Next Event] Validating options with AI...');
-      const { validateItinerary } = await import('./itinerary-validation.js');
-
-      for (let i = 0; i < result.options.length; i++) {
-        const option = result.options[i];
-        try {
-          // Validate the venue order for this option
-          const validation = await validateItinerary(option.venues);
-
-          if (validation.proposedOrder && validation.proposedOrder.length > 0) {
-            // Reorder venues based on AI recommendation
-            const reorderedVenues = validation.proposedOrder.map(sourceId =>
-              option.venues.find(v => v.sourceId === sourceId)
-            ).filter(Boolean);
-
-            result.options[i].venues = reorderedVenues;
-            console.log(`[Schedule Next Event] ✅ Validated option ${i + 1}: ${validation.validationNotes || 'Order optimized'}`);
-          }
-        } catch (validationError: any) {
-          // Log but don't fail - validation is optional enhancement
-          console.log(`[Schedule Next Event] ⚠️  AI validation failed for option ${i + 1}, using original order:`, validationError.message);
-        }
-      }
+      // Note: Options are already validated and ordered by the AI Event Planning Agent
+      // The agent uses specialized tools for diversity, time appropriateness, and logical flow
+      // No additional validation needed - trust the agent's expertise
+      console.log('[Schedule Next Event] Using agent-validated options (already ordered optimally)');
 
       // Store the 3 options
       const { itineraryOptions: itineraryOptionsTable } = await import('../shared/schema');
@@ -9957,6 +11675,7 @@ Looking forward to planning great activities together!
             optionNumber: option.optionNumber,
             venues: option.venues,
             description: option.description,
+            nearbySuggestions: option.nearbySuggestions || null,
           }).returning();
           return saved;
         })
@@ -9976,7 +11695,7 @@ Looking forward to planning great activities together!
   app.get("/api/auto-events/:eventId/options", isAuthenticated, async (req: any, res) => {
     try {
       const { eventId } = req.params;
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
 
       // Get the auto event
       const event = await storage.getAutoScheduledEvent(eventId);
@@ -10036,7 +11755,7 @@ Looking forward to planning great activities together!
     try {
       const { eventId } = req.params;
       const { optionId } = req.body;
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
 
       if (!optionId) {
         return res.status(400).json({ message: "Option ID is required" });
@@ -10101,7 +11820,7 @@ Looking forward to planning great activities together!
     try {
       const { eventId } = req.params;
       const { optionId } = req.body;
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
 
       if (!optionId) {
         return res.status(400).json({ message: "Option ID is required" });
@@ -10141,10 +11860,97 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Regenerate itinerary options for an auto-scheduled event (Try Again)
+  app.post("/api/auto-events/:eventId/regenerate-options", isAuthenticated, async (req: any, res) => {
+    try {
+      const { eventId } = req.params;
+      const userId = await getUserId(req);
+
+      // Get the auto event
+      const event = await storage.getAutoScheduledEvent(eventId);
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      // Verify user is the group owner
+      const group = await storage.getGroup(event.groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+      if (group.userId !== userId) {
+        return res.status(403).json({ message: "Only the group owner can regenerate options" });
+      }
+
+      // Don't allow regeneration if an option has already been selected
+      if (event.selectedOptionId) {
+        return res.status(400).json({ message: "Cannot regenerate after an option has been selected" });
+      }
+
+      console.log(`[Regenerate Options] Starting for event ${eventId}`);
+
+      // Delete existing options and votes
+      const { itineraryOptions: itineraryOptionsTable, itineraryOptionVotes } = await import('../shared/schema');
+
+      // Delete votes first (foreign key constraint)
+      await db
+        .delete(itineraryOptionVotes)
+        .where(eq(itineraryOptionVotes.autoEventId, eventId));
+
+      // Delete options
+      await db
+        .delete(itineraryOptionsTable)
+        .where(eq(itineraryOptionsTable.autoEventId, eventId));
+
+      console.log(`[Regenerate Options] Deleted old options, generating new ones...`);
+
+      // Generate new options using the auto-scheduler
+      const { selectBestItineraryForAutoSchedule } = await import('./auto-scheduler');
+      const result = await selectBestItineraryForAutoSchedule(storage, group);
+
+      if (!result.options || result.options.length === 0) {
+        return res.status(500).json({ message: "Failed to generate new options" });
+      }
+
+      // Save new options
+      const savedOptions = await Promise.all(
+        result.options.map(async (option) => {
+          const [saved] = await db.insert(itineraryOptionsTable).values({
+            autoEventId: eventId,
+            optionNumber: option.optionNumber,
+            venues: option.venues,
+            description: option.description,
+            nearbySuggestions: option.nearbySuggestions || null,
+          }).returning();
+          return saved;
+        })
+      );
+
+      console.log(`[Regenerate Options] Generated ${savedOptions.length} new option(s)`);
+
+      // Fetch the new options with vote counts
+      const optionsWithVotes = await Promise.all(
+        savedOptions.map(async (option) => ({
+          ...option,
+          voteCount: 0, // New options have no votes
+        }))
+      );
+
+      res.json({
+        success: true,
+        message: "New options generated",
+        event,
+        options: optionsWithVotes,
+      });
+    } catch (error: any) {
+      console.error('[Regenerate Options] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Generate and retrieve group-level insights (budget, availability, activity types)
   app.get("/api/groups/:groupId/insights", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const { groupId } = req.params;
       const { regenerate } = req.query; // ?regenerate=true to force regeneration
 
@@ -10191,7 +11997,7 @@ Looking forward to planning great activities together!
   // Dismiss a specific insight
   app.post("/api/groups/:groupId/insights/dismiss", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const { groupId } = req.params;
       const { insightType } = req.body; // 'budget', 'availability', 'activityTypes'
 
@@ -10221,7 +12027,7 @@ Looking forward to planning great activities together!
   // Edit an insight suggestion
   app.patch("/api/groups/:groupId/insights/:insightType", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const { groupId, insightType } = req.params;
       const { suggestion } = req.body;
 
@@ -10304,7 +12110,7 @@ Looking forward to planning great activities together!
   app.get("/api/admin/stats", isAuthenticated, async (req: any, res) => {
     try {
       // Check if user is admin (currently only the platform owner)
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const user = await storage.getUser(userId);
       
       // For now, only allow specific admin email
@@ -10326,7 +12132,7 @@ Looking forward to planning great activities together!
   // Admin endpoint to create database backup
   app.post("/api/admin/create-backup", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const user = await storage.getUser(userId);
       
       const adminEmails = getAdminEmails();
@@ -10358,7 +12164,7 @@ Looking forward to planning great activities together!
   // Admin endpoint to get all database backups
   app.get("/api/admin/backups", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const user = await storage.getUser(userId);
       
       const adminEmails = getAdminEmails();
@@ -10387,7 +12193,7 @@ Looking forward to planning great activities together!
   // Admin endpoint to restore database from backup
   app.post("/api/admin/restore/:backupId", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const user = await storage.getUser(userId);
       
       const adminEmails = getAdminEmails();
@@ -10413,7 +12219,7 @@ Looking forward to planning great activities together!
   app.get("/api/admin/test-accounts", isAuthenticated, async (req: any, res) => {
     try {
       // Check if user is admin
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const user = await storage.getUser(userId);
       
       const adminEmails = getAdminEmails();
@@ -10434,7 +12240,7 @@ Looking forward to planning great activities together!
   app.post("/api/admin/switch-user", isAuthenticated, async (req: any, res) => {
     try {
       // Check if user is admin
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const user = await storage.getUser(userId);
       
       const adminEmails = getAdminEmails();
@@ -10475,7 +12281,7 @@ Looking forward to planning great activities together!
   app.post("/api/admin/cache-photos", isAuthenticated, async (req: any, res) => {
     try {
       // Check if user is admin
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const user = await storage.getUser(userId);
       
       const adminEmails = getAdminEmails();
@@ -10617,7 +12423,7 @@ Looking forward to planning great activities together!
   app.post("/api/admin/backfill-favorites-coordinates", isAuthenticated, async (req: any, res) => {
     try {
       // Check if user is admin
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const user = await storage.getUser(userId);
       
       const adminEmails = getAdminEmails();
@@ -10719,7 +12525,7 @@ Looking forward to planning great activities together!
   app.post("/api/admin/audit-venue-data", isAuthenticated, async (req: any, res) => {
     try {
       // Check if user is admin
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const user = await storage.getUser(userId);
       
       const adminEmails = getAdminEmails();
@@ -10789,7 +12595,7 @@ Looking forward to planning great activities together!
   app.post("/api/admin/cleanup-curated-venues", isAuthenticated, async (req: any, res) => {
     try {
       // Check if user is admin
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const user = await storage.getUser(userId);
       
       const adminEmails = getAdminEmails();
@@ -10965,7 +12771,7 @@ Looking forward to planning great activities together!
   app.get("/api/admin/deleted-venues", isAuthenticated, async (req: any, res) => {
     try {
       // Check if user is admin
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const user = await storage.getUser(userId);
       
       const adminEmails = getAdminEmails();
@@ -10996,7 +12802,7 @@ Looking forward to planning great activities together!
   app.post("/api/admin/cleanup-orphaned-voting-data", isAuthenticated, async (req: any, res) => {
     try {
       // Check if user is admin
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const user = await storage.getUser(userId);
 
       const adminEmails = getAdminEmails();
@@ -11023,7 +12829,7 @@ Looking forward to planning great activities together!
   app.delete("/api/admin/groups/:id", isAuthenticated, async (req: any, res) => {
     try {
       // Check if user is admin
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const user = await storage.getUser(userId);
 
       const adminEmails = getAdminEmails();
@@ -11057,7 +12863,7 @@ Looking forward to planning great activities together!
     console.log("[Venue Recategorization] ===== ENDPOINT CALLED =====");
     try {
       // Check if user is admin
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const user = await storage.getUser(userId);
       console.log(`[Venue Recategorization] User check: userId=${userId}, user=${user?.email || 'null'}`);
       
@@ -11186,7 +12992,7 @@ Looking forward to planning great activities together!
   app.post("/api/admin/scraped-venues/upload", isAuthenticated, async (req: any, res) => {
     try {
       // Check if user is admin
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const user = await storage.getUser(userId);
       
       const adminEmails = getAdminEmails();
@@ -11217,7 +13023,7 @@ Looking forward to planning great activities together!
   app.get("/api/admin/scraped-venues/comparison", isAuthenticated, async (req: any, res) => {
     try {
       // Check if user is admin
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const user = await storage.getUser(userId);
       
       const adminEmails = getAdminEmails();
@@ -11240,7 +13046,7 @@ Looking forward to planning great activities together!
   app.delete("/api/admin/scraped-venues/clear", isAuthenticated, async (req: any, res) => {
     try {
       // Check if user is admin
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const user = await storage.getUser(userId);
       
       const adminEmails = getAdminEmails();
@@ -11264,7 +13070,7 @@ Looking forward to planning great activities together!
   app.get("/api/admin/venue-analytics", isAuthenticated, async (req: any, res) => {
     try {
       // Check if user is admin
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const user = await storage.getUser(userId);
       
       const adminEmails = getAdminEmails();
@@ -11336,7 +13142,7 @@ Looking forward to planning great activities together!
   app.get("/api/admin/venues-by-filter", isAuthenticated, async (req: any, res) => {
     try {
       // Check if user is admin
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const user = await storage.getUser(userId);
       
       const adminEmails = getAdminEmails();
@@ -11390,7 +13196,7 @@ Looking forward to planning great activities together!
   app.post("/api/admin/scraped-venues/upload", isAuthenticated, async (req: any, res) => {
     try {
       // Check if user is admin
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const user = await storage.getUser(userId);
       
       const adminEmails = getAdminEmails();
@@ -11425,7 +13231,7 @@ Looking forward to planning great activities together!
   app.get("/api/admin/scraped-venues/comparison", isAuthenticated, async (req: any, res) => {
     try {
       // Check if user is admin
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const user = await storage.getUser(userId);
       
       const adminEmails = getAdminEmails();
@@ -11445,7 +13251,7 @@ Looking forward to planning great activities together!
   app.delete("/api/admin/scraped-venues/clear", isAuthenticated, async (req: any, res) => {
     try {
       // Check if user is admin
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const user = await storage.getUser(userId);
       
       const adminEmails = getAdminEmails();
@@ -11465,7 +13271,7 @@ Looking forward to planning great activities together!
   app.post("/api/admin/scraped-venues/import", isAuthenticated, async (req: any, res) => {
     try {
       // Check if user is admin
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const user = await storage.getUser(userId);
       
       const adminEmails = getAdminEmails();
@@ -11490,7 +13296,7 @@ Looking forward to planning great activities together!
   app.get("/api/admin/api-logs", isAuthenticated, async (req: any, res) => {
     try {
       // Check if user is admin
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const user = await storage.getUser(userId);
       
       const adminEmails = getAdminEmails();
@@ -11566,7 +13372,7 @@ Looking forward to planning great activities together!
   app.get("/api/admin/api-costs", isAuthenticated, async (req: any, res) => {
     try {
       // Check if user is admin
-      const userId = req.user.claims.sub;
+      const userId = await getUserId(req);
       const user = await storage.getUser(userId);
       
       const adminEmails = getAdminEmails();
@@ -11813,6 +13619,77 @@ Looking forward to planning great activities together!
       });
     } catch (error: any) {
       console.error("Error fetching API costs:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ============================================================================
+  // NOTIFICATION ENDPOINTS
+  // ============================================================================
+
+  // Get user's notifications
+  app.get("/api/notifications", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = await getUserId(req);
+      const { limit, offset, unreadOnly } = req.query;
+
+      const notifications = await getUserNotifications(userId, {
+        limit: limit ? parseInt(limit as string) : undefined,
+        offset: offset ? parseInt(offset as string) : undefined,
+        unreadOnly: unreadOnly === 'true',
+      });
+
+      res.json(notifications);
+    } catch (error: any) {
+      console.error("Error fetching notifications:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get unread notification count
+  app.get("/api/notifications/unread-count", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = await getUserId(req);
+      const count = await getUnreadCount(userId);
+      res.json({ count });
+    } catch (error: any) {
+      console.error("Error fetching unread count:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Mark a notification as read
+  app.post("/api/notifications/:id/mark-read", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      await markAsRead(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error marking notification as read:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Mark all notifications as read
+  app.post("/api/notifications/mark-all-read", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = await getUserId(req);
+      await markAllAsRead(userId);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error marking all notifications as read:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Delete a notification
+  app.delete("/api/notifications/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      await deleteNotification(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting notification:", error);
       res.status(500).json({ message: error.message });
     }
   });

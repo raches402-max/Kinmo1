@@ -8,10 +8,36 @@ import { storage } from './storage';
 
 /**
  * Get the authenticated user ID from the request
+ * CRITICAL: This returns the stable user.id from the database, NOT the OAuth sub
+ * OAuth subs can change, but user.id is stable and tied to email
  */
-export function getUserId(req: Request): string {
+export async function getUserId(req: Request): Promise<string> {
   const user = req.user as any;
-  return user?.claims?.sub;
+  const email = user?.claims?.email;
+  const oauthSub = user?.claims?.sub;
+
+  if (!email && !oauthSub) {
+    throw new Error("No authentication claims found");
+  }
+
+  // Look up user by email first (most stable identifier)
+  if (email) {
+    const dbUser = await storage.getUserByEmail(email);
+    if (dbUser) {
+      return dbUser.id;
+    }
+  }
+
+  // Fallback: try looking up by OAuth sub directly (for backwards compatibility)
+  if (oauthSub) {
+    const dbUser = await storage.getUser(oauthSub);
+    if (dbUser) {
+      return dbUser.id;
+    }
+  }
+
+  // If we get here, user is authenticated but not in database (shouldn't happen)
+  throw new Error("Authenticated user not found in database");
 }
 
 /**
@@ -31,6 +57,15 @@ export async function userIsMemberOfGroup(userId: string, groupId: string): Prom
 }
 
 /**
+ * Synchronous version for cases where we just need OAuth sub
+ * DEPRECATED: Use getUserId() instead whenever possible
+ */
+export function getOAuthSub(req: Request): string {
+  const user = req.user as any;
+  return user?.claims?.sub;
+}
+
+/**
  * Check if a claim token is valid for a specific member
  */
 export async function isValidClaimToken(memberId: string, claimToken: string): Promise<boolean> {
@@ -45,7 +80,7 @@ export async function isValidClaimToken(memberId: string, claimToken: string): P
 export function requireGroupOwnership() {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const userId = getUserId(req);
+      const userId = await getUserId(req);
       // Check URL params first, then fall back to request body for POST endpoints
       const groupId = req.params.id || req.params.groupId || (req.body as any)?.groupId;
 
@@ -79,7 +114,7 @@ export function requireGroupOwnership() {
 export function requireGroupAccess() {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const userId = getUserId(req);
+      const userId = await getUserId(req);
       const groupId = req.params.id || req.params.groupId;
 
       if (!groupId) {
@@ -120,7 +155,7 @@ export function requireGroupAccess() {
 export function requireItineraryAccess() {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const userId = getUserId(req);
+      const userId = await getUserId(req);
       const itineraryId = req.params.id || req.params.itineraryId;
 
       if (!itineraryId) {
@@ -137,6 +172,17 @@ export function requireItineraryAccess() {
       if (itinerary.createdBy === userId) {
         (req as any).itinerary = itinerary;
         return next();
+      }
+
+      // Check if user is the host member of this itinerary
+      if (itinerary.hostMemberId) {
+        const members = await storage.getGroupMembers(itinerary.groupId);
+        const hostMember = members.find(m => m.id === itinerary.hostMemberId);
+        if (hostMember?.userId === userId) {
+          (req as any).itinerary = itinerary;
+          (req as any).isHost = true;
+          return next();
+        }
       }
 
       // Check if user owns the group
@@ -160,7 +206,7 @@ export function requireItineraryAccess() {
 export function requireVotingEventAccess() {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const userId = getUserId(req);
+      const userId = await getUserId(req);
       const eventId = req.params.id;
 
       if (!eventId) {
@@ -200,7 +246,7 @@ export function requireVotingEventAccess() {
 export function requireCollectionOwnership() {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const userId = getUserId(req);
+      const userId = await getUserId(req);
       const collectionId = req.params.id;
 
       if (!collectionId) {
@@ -229,7 +275,7 @@ export function requireCollectionOwnership() {
 export function requireMemberAccess() {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const userId = getUserId(req);
+      const userId = await getUserId(req);
       const memberId = req.params.id;
       const claimToken = req.body.claimToken;
 

@@ -15,6 +15,7 @@ import { Users, Calendar, TrendingUp, MapPin, Repeat, ArrowLeft, DollarSign, Dat
 import { format } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { getErrorToast } from "@/components/ErrorDisplay";
 import type { ApiCallLog } from "@shared/schema";
 
 interface AdminStats {
@@ -146,11 +147,7 @@ function ScrapedComparisonTab() {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/scraped-venues/comparison"] });
     },
     onError: (error: any) => {
-      toast({
-        title: "Upload failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -168,11 +165,7 @@ function ScrapedComparisonTab() {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/scraped-venues/comparison"] });
     },
     onError: (error: any) => {
-      toast({
-        title: "Clear failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -190,11 +183,7 @@ function ScrapedComparisonTab() {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/venue-analytics"] });
     },
     onError: (error: any) => {
-      toast({
-        title: "Import failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -212,11 +201,7 @@ function ScrapedComparisonTab() {
 
       uploadMutation.mutate(venues);
     } catch (error: any) {
-      toast({
-        title: "File read error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     }
 
     if (fileInputRef.current) {
@@ -624,11 +609,7 @@ export default function Admin() {
       });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Photo caching failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -645,11 +626,7 @@ export default function Admin() {
       });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Cleanup failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -664,11 +641,7 @@ export default function Admin() {
       });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Backfill failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -683,11 +656,7 @@ export default function Admin() {
       });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Recategorization failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -702,11 +671,7 @@ export default function Admin() {
       });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Cleanup failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -731,11 +696,7 @@ export default function Admin() {
       });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Backup failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -752,11 +713,7 @@ export default function Admin() {
       });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Restore failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 

@@ -16,12 +16,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import EmojiPicker from "emoji-picker-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ArrowLeft, Plus, X, Users, Mic2, Music, Trophy, Mountain, PartyPopper, Gamepad2, Palette, Film, Laugh, GraduationCap, Loader2 } from "lucide-react";
+import { getErrorToast } from "@/components/ErrorDisplay";
+import { ArrowLeft, ArrowRight, Plus, X, Users, Mic2, Music, Trophy, Mountain, PartyPopper, Gamepad2, Palette, Film, Laugh, GraduationCap, Loader2, Check } from "lucide-react";
 import { Link } from "wouter";
 import { AvailabilityGrid, createEmptyAvailability } from "@/components/AvailabilityGrid";
 import { SwipeSession } from "@/components/SwipeSession";
 import { HelpTooltip } from "@/components/HelpTooltip";
 import { GroupCreatedSuccess } from "@/components/GroupCreatedSuccess";
+import { cn } from "@/lib/utils";
 
 const formSchema = z.object({
   name: z.string().min(1, "Group name is required"),
@@ -43,9 +45,6 @@ type MemberInput = {
   email: string;
 };
 
-const closenessLabels = ["Acquaintances", "Friends", "Good Friends", "Close Friends", "Best Friends"];
-const noveltyLabels = ["We like our usual spots", "Leaning familiar", "Open sometimes", "Pretty adventurous", "Always up for new things!"];
-
 const activityCategories = [
   { id: "concerts", label: "Concerts", icon: Music },
   { id: "karaoke", label: "Karaoke", icon: Mic2 },
@@ -61,7 +60,7 @@ const activityCategories = [
 ];
 
 const groupEmojis = [
-  "🎉", "🍕", "🎸", "🎮", "⚽", "🎬", "🍻", "☕", 
+  "🎉", "🍕", "🎸", "🎮", "⚽", "🎬", "🍻", "☕",
   "🌮", "🎯", "🎭", "🎨", "🍔", "🎵", "🏃", "🎲"
 ];
 
@@ -69,9 +68,77 @@ function getRandomEmoji() {
   return groupEmojis[Math.floor(Math.random() * groupEmojis.length)];
 }
 
+// Step indicator component
+function StepIndicator({ currentStep, totalSteps, steps }: { currentStep: number; totalSteps: number; steps: { title: string }[] }) {
+  return (
+    <div className="mb-8">
+      <div className="flex items-center justify-between">
+        {steps.map((step, index) => {
+          const isCompleted = index < currentStep;
+          const isCurrent = index === currentStep;
+
+          return (
+            <div key={index} className="flex items-center flex-1">
+              <div className="flex flex-col items-center flex-1">
+                <div
+                  className={cn(
+                    "w-10 h-10 rounded-full flex items-center justify-center border-2 transition-colors",
+                    isCompleted && "bg-primary border-primary text-primary-foreground",
+                    isCurrent && "border-primary text-primary bg-primary/10",
+                    !isCompleted && !isCurrent && "border-muted-foreground/30 text-muted-foreground"
+                  )}
+                >
+                  {isCompleted ? (
+                    <Check className="h-5 w-5" />
+                  ) : (
+                    <span className="text-sm font-medium">{index + 1}</span>
+                  )}
+                </div>
+                <div className="mt-2 text-center hidden sm:block">
+                  <p
+                    className={cn(
+                      "text-xs font-medium",
+                      isCurrent && "text-foreground",
+                      !isCurrent && "text-muted-foreground"
+                    )}
+                  >
+                    {step.title}
+                  </p>
+                </div>
+              </div>
+
+              {index < steps.length - 1 && (
+                <div
+                  className={cn(
+                    "h-0.5 flex-1 mx-2 transition-colors",
+                    index < currentStep ? "bg-primary" : "bg-muted-foreground/30"
+                  )}
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Mobile step label */}
+      <div className="sm:hidden text-center mt-4">
+        <p className="text-sm font-medium">{steps[currentStep].title}</p>
+        <p className="text-xs text-muted-foreground">Step {currentStep + 1} of {totalSteps}</p>
+      </div>
+    </div>
+  );
+}
+
+const STEPS = [
+  { title: "Basics" },
+  { title: "Preferences" },
+  { title: "Members" },
+];
+
 export default function CreateGroup() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const [currentStep, setCurrentStep] = useState(0);
   const [members, setMembers] = useState<MemberInput[]>([{ name: "", email: "" }]);
   const [budgetRange, setBudgetRange] = useState<number[]>([0, 60]);
   const [closeness, setCloseness] = useState(3);
@@ -110,7 +177,7 @@ export default function CreateGroup() {
   });
 
   const createGroupMutation = useMutation({
-    mutationFn: async (data: FormValues & { 
+    mutationFn: async (data: FormValues & {
       availability: any;
       members: MemberInput[];
       activityCategories?: string[];
@@ -121,15 +188,10 @@ export default function CreateGroup() {
       queryClient.invalidateQueries({ queryKey: ["/api/groups"] });
       setCreatedGroupId(data.id);
       setCreatedGroupData(data);
-      // Show success screen
       setShowSuccessScreen(true);
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error creating group",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -138,7 +200,7 @@ export default function CreateGroup() {
       setShowSwipeSession(false);
       toast({
         title: "Preferences saved!",
-        description: "Generating AI-powered activity suggestions...",
+        description: "Your group is ready to go",
       });
       navigate(`/group/${createdGroupId}`);
     }
@@ -146,7 +208,6 @@ export default function CreateGroup() {
 
   function handleSuccessContinue() {
     setShowSuccessScreen(false);
-    // Show swipe session
     setShowSwipeSession(true);
   }
 
@@ -188,11 +249,33 @@ export default function CreateGroup() {
     );
   };
 
+  // Navigation
+  const canGoNext = () => {
+    if (currentStep === 0) {
+      const name = form.getValues("name");
+      const location = form.getValues("locationBase");
+      return name.length > 0 && location.length > 0;
+    }
+    return true;
+  };
+
+  const goNext = () => {
+    if (currentStep < STEPS.length - 1) {
+      setCurrentStep(currentStep + 1);
+    }
+  };
+
+  const goBack = () => {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
           <Link href="/">
             <Button variant="ghost" size="sm" data-testid="button-back">
               <ArrowLeft className="mr-2 h-4 w-4" />
@@ -205,50 +288,38 @@ export default function CreateGroup() {
       </header>
 
       {/* Form */}
-      <div className="max-w-4xl mx-auto px-6 py-16">
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-12">
-            {/* Group Details Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Group Details</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-8">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Group Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Friday Night Crew" {...field} data-testid="input-group-name" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+        <StepIndicator currentStep={currentStep} totalSteps={STEPS.length} steps={STEPS} />
 
-                <FormField
-                  control={form.control}
-                  name="emoji"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Group Icon</FormLabel>
-                      <div className="flex items-center gap-3">
-                        <div className="text-4xl" data-testid="text-selected-emoji">{field.value || "🎉"}</div>
-                        <Popover open={emojiPickerOpen} onOpenChange={setEmojiPickerOpen} modal={true}>
-                          <PopoverTrigger asChild>
-                            <Button 
-                              type="button"
-                              variant="outline" 
-                              size="sm"
-                              data-testid="button-choose-emoji"
-                            >
-                              Choose emoji 🙂
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
-                            <div className="overflow-hidden rounded-lg">
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)}>
+            {/* Step 1: Basics */}
+            {currentStep === 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Let's get started</CardTitle>
+                  <CardDescription>Tell us about your group</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="flex gap-4">
+                    <FormField
+                      control={form.control}
+                      name="emoji"
+                      render={({ field }) => (
+                        <FormItem className="flex-shrink-0">
+                          <FormLabel>Icon</FormLabel>
+                          <Popover open={emojiPickerOpen} onOpenChange={setEmojiPickerOpen} modal={true}>
+                            <PopoverTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="w-14 h-14 text-3xl"
+                                data-testid="button-choose-emoji"
+                              >
+                                {field.value || "🎉"}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
                               <EmojiPicker
                                 onEmojiClick={(emojiData) => {
                                   field.onChange(emojiData.emoji);
@@ -257,44 +328,81 @@ export default function CreateGroup() {
                                 width={350}
                                 height={400}
                               />
-                            </div>
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="locationBase"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center">
-                        Location Base
-                        <HelpTooltip
-                          content="The city or area where your group meets. We'll search for venues near here."
-                          examples={["San Francisco, CA", "Brooklyn, NY", "Austin, TX"]}
-                        />
-                      </FormLabel>
-                      <FormControl>
-                        <Input placeholder="San Francisco, CA" {...field} data-testid="input-location" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="space-y-4">
-                  <Label className="flex items-center">
-                    Budget Range (per person)
-                    <HelpTooltip
-                      content="The typical price range per person for venues. This helps us suggest places that fit your group's budget."
-                      examples={["$0-$20 for casual cafes", "$20-$60 for restaurants", "$60+ for fine dining"]}
+                            </PopoverContent>
+                          </Popover>
+                        </FormItem>
+                      )}
                     />
-                  </Label>
+
+                    <FormField
+                      control={form.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem className="flex-1">
+                          <FormLabel>Group Name</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Friday Night Crew" className="h-14 text-lg" {...field} data-testid="input-group-name" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <FormField
+                    control={form.control}
+                    name="locationBase"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="flex items-center">
+                          Where does your group usually meet?
+                          <HelpTooltip
+                            content="We'll search for venues near here."
+                            examples={["San Francisco, CA", "Brooklyn, NY"]}
+                          />
+                        </FormLabel>
+                        <FormControl>
+                          <Input placeholder="San Francisco, CA" {...field} data-testid="input-location" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="space-y-2">
+                    <Label className="flex items-center">
+                      How often do you want to meet?
+                      <HelpTooltip content="This helps us suggest events at the right pace." />
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <div className="w-20">
+                        <Input
+                          type="number"
+                          min={1}
+                          max={99}
+                          value={frequencyNumber}
+                          onChange={(e) => setFrequencyNumber(parseInt(e.target.value) || 1)}
+                          data-testid="input-frequency-number"
+                        />
+                      </div>
+                      <span className="text-sm text-muted-foreground">time(s) per</span>
+                      <Select value={frequencyUnit} onValueChange={setFrequencyUnit}>
+                        <SelectTrigger className="flex-1" data-testid="select-frequency-unit">
+                          <SelectValue placeholder="Select unit" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="week">week</SelectItem>
+                          <SelectItem value="month">month</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
                   <div className="space-y-4">
+                    <Label className="flex items-center">
+                      Budget per person
+                      <HelpTooltip content="Typical price range per person for venues." />
+                    </Label>
                     <Slider
                       min={0}
                       max={250}
@@ -305,77 +413,77 @@ export default function CreateGroup() {
                       data-testid="slider-budget"
                     />
                     <div className="flex justify-between text-sm">
-                      <span className="font-medium" data-testid="text-budget-min">${budgetRange[0]}</span>
-                      <span className="font-medium" data-testid="text-budget-max">
+                      <span className="font-medium">${budgetRange[0]}</span>
+                      <span className="font-medium">
                         {budgetRange[1] >= 250 ? "$250+" : `$${budgetRange[1]}`}
                       </span>
                     </div>
                   </div>
-                </div>
+                </CardContent>
+              </Card>
+            )}
 
-                <div className="space-y-2">
-                  <Label className="flex items-center">
-                    How Often to Meet
-                    <HelpTooltip
-                      content="How frequently your group typically gets together. This helps the AI suggest new events at the right pace."
-                      examples={["1x each week (weekly)", "2x each month (biweekly)", "1x each month (monthly)"]}
-                    />
-                  </Label>
-                  <div className="flex items-center gap-2">
-                    <div className="w-20">
-                      <Input
-                        type="number"
-                        min={1}
-                        max={99}
-                        value={frequencyNumber}
-                        onChange={(e) => setFrequencyNumber(parseInt(e.target.value) || 1)}
-                        data-testid="input-frequency-number"
-                      />
-                    </div>
-                    <span className="text-sm text-muted-foreground">x each</span>
-                    <Select value={frequencyUnit} onValueChange={setFrequencyUnit}>
-                      <SelectTrigger className="flex-1" data-testid="select-frequency-unit">
-                        <SelectValue placeholder="Select unit" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="day">day</SelectItem>
-                        <SelectItem value="week">week</SelectItem>
-                        <SelectItem value="month">month</SelectItem>
-                        <SelectItem value="year">year</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <Label className="flex items-center">
-                    Group Availability
-                    <HelpTooltip
-                      content="Click on the grid to mark when your group is typically free to meet. The AI will suggest events during these times."
-                    />
-                  </Label>
-                  <AvailabilityGrid
-                    value={availability}
-                    onChange={setAvailability}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Preferences Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Group Preferences</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-10">
-                <div className="space-y-4">
-                  <Label className="text-base flex items-center">
-                    How willing is your group to try new things?
-                    <HelpTooltip
-                      content="This helps us balance familiar favorites with new discoveries. 'Usual spots' means mostly places you know, while 'Always up for new things' means we'll suggest lots of new venues."
-                    />
-                  </Label>
+            {/* Step 2: Preferences */}
+            {currentStep === 1 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>What do you like to do?</CardTitle>
+                  <CardDescription>Help us find the right spots for your group</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-8">
                   <div className="space-y-3">
+                    <Label className="text-base">What types of activities?</Label>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant={categoryToggles.mealEnabled ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCategoryToggles({ ...categoryToggles, mealEnabled: !categoryToggles.mealEnabled })}
+                        className={categoryToggles.mealEnabled ? "gap-1.5 bg-activity-meals hover:bg-activity-meals/90 text-white" : "gap-1.5"}
+                      >
+                        🍽️ Meals
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={categoryToggles.cafeEnabled ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCategoryToggles({ ...categoryToggles, cafeEnabled: !categoryToggles.cafeEnabled })}
+                        className={categoryToggles.cafeEnabled ? "gap-1.5 bg-activity-cafes hover:bg-activity-cafes/90 text-white" : "gap-1.5"}
+                      >
+                        ☕ Cafes
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={categoryToggles.drinksEnabled ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCategoryToggles({ ...categoryToggles, drinksEnabled: !categoryToggles.drinksEnabled })}
+                        className={categoryToggles.drinksEnabled ? "gap-1.5 bg-activity-drinks hover:bg-activity-drinks/90 text-white" : "gap-1.5"}
+                      >
+                        🍺 Drinks
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={categoryToggles.dessertEnabled ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCategoryToggles({ ...categoryToggles, dessertEnabled: !categoryToggles.dessertEnabled })}
+                        className={categoryToggles.dessertEnabled ? "gap-1.5 bg-activity-dessert hover:bg-activity-dessert/90 text-white" : "gap-1.5"}
+                      >
+                        🍰 Dessert
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={categoryToggles.experiencesEnabled ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCategoryToggles({ ...categoryToggles, experiencesEnabled: !categoryToggles.experiencesEnabled })}
+                        className={categoryToggles.experiencesEnabled ? "gap-1.5 bg-activity-experiences hover:bg-activity-experiences/90 text-white" : "gap-1.5"}
+                      >
+                        🎭 Experiences
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <Label className="text-base">How adventurous is your group?</Label>
                     <Slider
                       min={1}
                       max={5}
@@ -385,212 +493,146 @@ export default function CreateGroup() {
                       className="w-full"
                       data-testid="slider-novelty"
                     />
-                    <div className="flex justify-between text-xs text-muted-foreground px-1">
-                      <span>We like our usual spots</span>
-                      <span>Open sometimes</span>
-                      <span>Always up for new things!</span>
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Stick to favorites</span>
+                      <span>Try new things</span>
                     </div>
                   </div>
-                </div>
 
-                <div className="space-y-3">
-                  <Label className="text-base flex items-center">
-                    What types of activities interest your group?
-                    <HelpTooltip
-                      content="Choose which types of venues and experiences the AI should suggest. Disabled categories won't show up in suggestions."
-                      examples={["Disable 'Drinks' if your group doesn't drink alcohol", "Enable 'Experiences' for concerts, museums, etc."]}
+                  <div className="space-y-3">
+                    <Label className="text-base">When are you usually free?</Label>
+                    <AvailabilityGrid
+                      value={availability}
+                      onChange={setAvailability}
                     />
-                  </Label>
-                  <div className="flex flex-wrap gap-3">
-                    <Button
-                      type="button"
-                      variant={categoryToggles.mealEnabled ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setCategoryToggles({ ...categoryToggles, mealEnabled: !categoryToggles.mealEnabled })}
-                      className={categoryToggles.mealEnabled ? "gap-1.5 bg-activity-meals hover:bg-activity-meals/90 text-white" : "gap-1.5"}
-                      data-testid="button-toggle-meal"
-                    >
-                      <span>🍽️</span>
-                      <span>Meals</span>
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={categoryToggles.cafeEnabled ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setCategoryToggles({ ...categoryToggles, cafeEnabled: !categoryToggles.cafeEnabled })}
-                      className={categoryToggles.cafeEnabled ? "gap-1.5 bg-activity-cafes hover:bg-activity-cafes/90 text-white" : "gap-1.5"}
-                      data-testid="button-toggle-cafe"
-                    >
-                      <span>☕</span>
-                      <span>Cafes</span>
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={categoryToggles.drinksEnabled ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setCategoryToggles({ ...categoryToggles, drinksEnabled: !categoryToggles.drinksEnabled })}
-                      className={categoryToggles.drinksEnabled ? "gap-1.5 bg-activity-drinks hover:bg-activity-drinks/90 text-white" : "gap-1.5"}
-                      data-testid="button-toggle-drinks"
-                    >
-                      <span>🍺</span>
-                      <span>Drinks</span>
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={categoryToggles.dessertEnabled ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setCategoryToggles({ ...categoryToggles, dessertEnabled: !categoryToggles.dessertEnabled })}
-                      className={categoryToggles.dessertEnabled ? "gap-1.5 bg-activity-dessert hover:bg-activity-dessert/90 text-white" : "gap-1.5"}
-                      data-testid="button-toggle-dessert"
-                    >
-                      <span>🍰</span>
-                      <span>Dessert</span>
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={categoryToggles.experiencesEnabled ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setCategoryToggles({ ...categoryToggles, experiencesEnabled: !categoryToggles.experiencesEnabled })}
-                      className={categoryToggles.experiencesEnabled ? "gap-1.5 bg-activity-experiences hover:bg-activity-experiences/90 text-white" : "gap-1.5"}
-                      data-testid="button-toggle-experiences"
-                    >
-                      <span>🎭</span>
-                      <span>Experiences</span>
-                    </Button>
                   </div>
-                  <p className="text-sm text-muted-foreground pt-2">Then select specific experience types to further refine suggestions (optional)</p>
-                  <div className="flex flex-wrap gap-3">
-                    {activityCategories.map((category) => {
-                      const Icon = category.icon;
-                      return (
-                        <Button
-                          key={category.id}
-                          type="button"
-                          variant={selectedCategories.includes(category.id) ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => toggleCategory(category.id)}
-                          className="gap-1.5"
-                          data-testid={`button-category-${category.id}`}
-                        >
-                          <Icon className="h-4 w-4" />
-                          <span>{category.label}</span>
-                        </Button>
-                      );
-                    })}
-                  </div>
-                </div>
 
-                <FormField
-                  control={form.control}
-                  name="pastPreferences"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>What Has Your Group Enjoyed in the Past?</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="e.g., Trying new restaurants, outdoor activities, board game cafes, art museums..."
-                          className="resize-none h-24"
-                          {...field}
-                          data-testid="textarea-past-preferences"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="additionalInstructions"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Additional Instructions for AI (Optional)</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="e.g., Must be accessible by public transit, prefer venues with outdoor seating, avoid crowded places..."
-                          className="resize-none h-24"
-                          {...field}
-                          data-testid="textarea-additional-instructions"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </CardContent>
-            </Card>
-
-            {/* Members Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Group Members (Optional)</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {members.map((member, index) => (
-                  <div key={index} className="flex gap-3 items-start">
-                    <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <Input
-                        placeholder="Name"
-                        value={member.name}
-                        onChange={(e) => updateMember(index, "name", e.target.value)}
-                        data-testid={`input-member-name-${index}`}
-                      />
-                      <Input
-                        type="email"
-                        placeholder="Email"
-                        value={member.email}
-                        onChange={(e) => updateMember(index, "email", e.target.value)}
-                        data-testid={`input-member-email-${index}`}
-                      />
-                    </div>
-                    {members.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeMember(index)}
-                        data-testid={`button-remove-member-${index}`}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
+                  <FormField
+                    control={form.control}
+                    name="additionalInstructions"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Anything else we should know? (optional)</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="e.g., Need accessible venues, prefer outdoor seating..."
+                            className="resize-none h-20"
+                            {...field}
+                            data-testid="textarea-additional-instructions"
+                          />
+                        </FormControl>
+                      </FormItem>
                     )}
-                  </div>
-                ))}
-                
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={addMember}
-                  className="w-full"
-                  data-testid="button-add-member"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Another Member
-                </Button>
-              </CardContent>
-            </Card>
+                  />
+                </CardContent>
+              </Card>
+            )}
 
-            {/* Submit Button */}
-            <div className="flex justify-end">
-              <Button
-                type="submit"
-                size="lg"
-                disabled={createGroupMutation.isPending}
-                data-testid="button-create-submit"
-              >
-                {createGroupMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Creating Group...
-                  </>
-                ) : (
-                  <>
-                    <Users className="mr-2 h-5 w-5" />
-                    Create Group & Get Suggestions
-                  </>
+            {/* Step 3: Members */}
+            {currentStep === 2 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Invite your people</CardTitle>
+                  <CardDescription>Add members now or share a link later — totally optional</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {members.map((member, index) => (
+                    <div key={index} className="flex gap-3 items-start">
+                      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <Input
+                          placeholder="Name"
+                          value={member.name}
+                          onChange={(e) => updateMember(index, "name", e.target.value)}
+                          data-testid={`input-member-name-${index}`}
+                        />
+                        <Input
+                          type="email"
+                          placeholder="Email"
+                          value={member.email}
+                          onChange={(e) => updateMember(index, "email", e.target.value)}
+                          data-testid={`input-member-email-${index}`}
+                        />
+                      </div>
+                      {members.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeMember(index)}
+                          data-testid={`button-remove-member-${index}`}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addMember}
+                    className="w-full"
+                    data-testid="button-add-member"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Another
+                  </Button>
+
+                  <p className="text-sm text-muted-foreground text-center pt-4">
+                    You can always invite more people after creating the group
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Navigation Buttons */}
+            <div className="flex items-center justify-between mt-6">
+              <div>
+                {currentStep > 0 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={goBack}
+                    data-testid="button-back-step"
+                  >
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Back
+                  </Button>
                 )}
-              </Button>
+              </div>
+
+              <div className="flex items-center gap-3">
+                {currentStep < STEPS.length - 1 ? (
+                  <Button
+                    type="button"
+                    onClick={goNext}
+                    disabled={!canGoNext()}
+                    data-testid="button-next-step"
+                  >
+                    Continue
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </Button>
+                ) : (
+                  <Button
+                    type="submit"
+                    disabled={createGroupMutation.isPending}
+                    data-testid="button-create-submit"
+                  >
+                    {createGroupMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <Users className="mr-2 h-5 w-5" />
+                        Create Group
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
             </div>
           </form>
         </Form>

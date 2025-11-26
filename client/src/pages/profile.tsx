@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
+import { getErrorToast } from "@/components/ErrorDisplay";
 import { Loader2, User, ArrowLeft } from "lucide-react";
 import { Link } from "wouter";
 
@@ -41,11 +42,7 @@ export default function Profile() {
       });
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update profile",
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 

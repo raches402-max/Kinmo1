@@ -72,20 +72,38 @@ async function backfillItineraries() {
           sourceId: v.sourceId,
         }));
 
-        // Create the itinerary
-        const newItinerary = await storage.createItinerary(
-          {
-            groupId: event.groupId,
-            name: `Auto-scheduled event for ${group.name}`,
-            eventDate: event.proposedDate,
-            status: 'proposed',
-            proposedOrder: [],
-          },
-          group.userId!,
-          venueItems
-        );
+        // Check if an itinerary already exists for this group/date (prevent duplicates)
+        const eventDateStr = new Date(event.proposedDate).toISOString().split('T')[0];
+        const existingItineraries = await db
+          .select()
+          .from(itineraries)
+          .where(and(
+            eq(itineraries.groupId, event.groupId),
+            db.sql`DATE(${itineraries.eventDate}) = ${eventDateStr}`
+          ));
 
-        console.log(`  ✅ Created itinerary ${newItinerary.id}`);
+        let newItinerary;
+
+        if (existingItineraries.length > 0) {
+          // Itinerary already exists for this date - reuse it instead of creating duplicate
+          newItinerary = existingItineraries[0];
+          console.log(`  ℹ️  Itinerary already exists for ${group.name} on ${eventDateStr}, reusing ${newItinerary.id}`);
+        } else {
+          // Create the itinerary
+          newItinerary = await storage.createItinerary(
+            {
+              groupId: event.groupId,
+              name: `Auto-scheduled event for ${group.name}`,
+              eventDate: event.proposedDate,
+              status: 'proposed',
+              proposedOrder: [],
+            },
+            group.userId!,
+            venueItems
+          );
+
+          console.log(`  ✅ Created itinerary ${newItinerary.id}`);
+        }
 
         // Create invites for all group members
         const members = await storage.getGroupMembers(event.groupId);

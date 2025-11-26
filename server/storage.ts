@@ -1,7 +1,7 @@
 // Reference: javascript_database blueprint
 // Reference: javascript_log_in_with_replit blueprint
 import {
-  users, groups, members, memberGroupPreferences, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, itineraryInvites, reminderLogs, autoScheduledEvents, frequencyFeedback, venueVisitHistory, userProfiles, proposedTimeSlots, timeSlotVotes, groupCollections, categorySearchHistory, hostAssignments, groupBackups, databaseBackups, scrapedVenuesImport, curatedVenues, seenActivities, memberFavoriteVenues,
+  users, groups, members, memberGroupPreferences, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, itineraryInvites, reminderLogs, autoScheduledEvents, itineraryOptions, frequencyFeedback, venueVisitHistory, userProfiles, proposedTimeSlots, timeSlotVotes, groupCollections, categorySearchHistory, hostAssignments, groupBackups, databaseBackups, scrapedVenuesImport, curatedVenues, seenActivities, memberFavoriteVenues,
   type User, type UpsertUser,
   type Group, type InsertGroup, type UpdateGroup,
   type Member, type InsertMember, type UpdateMember,
@@ -28,7 +28,7 @@ import {
   type MemberFavoriteVenue, type InsertMemberFavoriteVenue
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql, and, or, inArray, isNull, isNotNull, gte } from "drizzle-orm";
+import { eq, desc, sql, and, or, inArray, isNull, isNotNull, gte, asc, lt } from "drizzle-orm";
 import { randomBytes } from "crypto";
 
 export interface IStorage {
@@ -126,6 +126,8 @@ export interface IStorage {
   getAutoScheduledEventsReadyForAutoSend(): Promise<AutoScheduledEvent[]>;
   hasExistingProposedEvents(groupId: string): Promise<boolean>;
   countFutureEvents(groupId: string): Promise<number>;
+  skipAutoScheduledEvent(eventId: string): Promise<{ groupId: string }>;
+  deleteAutoScheduledEvent(eventId: string): Promise<{ groupId: string }>;
   getUserUpcomingEventsWithTimeSlots(userId: string, startDate?: Date, endDate?: Date): Promise<Array<{
     groupId: string;
     groupName: string;
@@ -990,6 +992,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createItinerary(insertItinerary: InsertItinerary, userId: string, itemsData: Array<{sourceType: 'activity' | 'voting_event' | 'ad_hoc', sourceId: string, adHocData?: any}>): Promise<Itinerary> {
+    // Validation: proposed itineraries must have an eventDate
+    if (insertItinerary.status === 'proposed' && !insertItinerary.eventDate) {
+      throw new Error('Cannot create proposed itinerary without eventDate. Proposed itineraries must have a scheduled date.');
+    }
+
     const results = await db
       .insert(itineraries)
       .values({ ...insertItinerary, createdBy: userId })
@@ -1248,6 +1255,21 @@ export class DatabaseStorage implements IStorage {
       photoUrl: string | null;
     }
   ): Promise<ItineraryItem> {
+    // Data integrity checks
+    if (venue.googlePlaceId && !venue.googlePlaceId.startsWith('ChIJ')) {
+      console.warn('[Storage] WARNING: Non-standard Place ID format detected:', {
+        venueName: venue.venueName,
+        placeId: venue.googlePlaceId
+      });
+    }
+
+    if (!venue.venueAddress && !venue.latitude) {
+      console.warn('[Storage] WARNING: Venue has neither address nor coordinates:', {
+        venueName: venue.venueName,
+        placeId: venue.googlePlaceId
+      });
+    }
+
     // Get current max order index
     const existingItems = await db
       .select()
@@ -1609,7 +1631,7 @@ export class DatabaseStorage implements IStorage {
       .from(autoScheduledEvents)
       .where(and(
         eq(autoScheduledEvents.groupId, groupId),
-        eq(autoScheduledEvents.status, 'pending')
+        eq(autoScheduledEvents.status, 'pending_approval')
       ))
       .orderBy(desc(autoScheduledEvents.createdAt))
       .limit(1);
@@ -1617,12 +1639,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPendingAutoScheduledEvents(groupId: string): Promise<Array<AutoScheduledEvent & { itinerary?: Itinerary & { items: ItineraryItem[] } }>> {
+    // Include pending_approval, auto_approved, and approved events
+    // These are all events that are waiting to be sent or have been auto-approved
     const events = await db
       .select()
       .from(autoScheduledEvents)
       .where(and(
         eq(autoScheduledEvents.groupId, groupId),
-        eq(autoScheduledEvents.status, 'pending')
+        inArray(autoScheduledEvents.status, ['pending_approval', 'auto_approved', 'approved'])
       ))
       .orderBy(desc(autoScheduledEvents.createdAt));
     
@@ -1664,7 +1688,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(autoScheduledEvents)
       .where(and(
-        eq(autoScheduledEvents.status, 'pending'),
+        eq(autoScheduledEvents.status, 'pending_approval'),
         sql`${autoScheduledEvents.autoSendAt} <= ${now}`
       ));
   }
@@ -1676,7 +1700,7 @@ export class DatabaseStorage implements IStorage {
       .from(autoScheduledEvents)
       .where(and(
         eq(autoScheduledEvents.groupId, groupId),
-        eq(autoScheduledEvents.status, 'pending')
+        eq(autoScheduledEvents.status, 'pending_approval')
       ))
       .limit(1);
 
@@ -1720,6 +1744,147 @@ export class DatabaseStorage implements IStorage {
       ));
 
     return autoEvents.length;
+  }
+
+  async deletePendingAutoEvents(groupId: string): Promise<number> {
+    // Delete all pending auto-scheduled events (not yet finalized/scheduled)
+    // This allows organizers to clear the pipeline and regenerate
+    const eventsToDelete = await db
+      .select()
+      .from(autoScheduledEvents)
+      .where(and(
+        eq(autoScheduledEvents.groupId, groupId),
+        inArray(autoScheduledEvents.status, [
+          'pending_approval',
+          'auto_approved',
+          'approved',
+          'auto_sent'
+        ])
+        // Note: 'scheduled' status events are NOT deleted as they are finalized
+      ));
+
+    if (eventsToDelete.length === 0) {
+      return 0;
+    }
+
+    const eventIds = eventsToDelete.map(e => e.id);
+
+    // Delete associated itinerary options first (foreign key constraint)
+    await db
+      .delete(itineraryOptions)
+      .where(inArray(itineraryOptions.autoEventId, eventIds));
+
+    // Delete the events
+    await db
+      .delete(autoScheduledEvents)
+      .where(inArray(autoScheduledEvents.id, eventIds));
+
+    console.log(`[Storage] Deleted ${eventsToDelete.length} pending auto-scheduled events for group ${groupId}`);
+    return eventsToDelete.length;
+  }
+
+  async skipAutoScheduledEvent(eventId: string): Promise<{ groupId: string }> {
+    // Mark an auto-scheduled event as skipped/rejected
+    // This prevents it from being counted in the pipeline and allows replacement creation
+    const event = await this.getAutoScheduledEvent(eventId);
+
+    if (!event) {
+      throw new Error("Auto-scheduled event not found");
+    }
+
+    // Don't allow skipping already scheduled/finalized events
+    if (event.status === 'scheduled') {
+      throw new Error("Cannot skip a finalized event");
+    }
+
+    // Update status to rejected (represents "skipped")
+    await db
+      .update(autoScheduledEvents)
+      .set({ status: 'rejected' })
+      .where(eq(autoScheduledEvents.id, eventId));
+
+    console.log(`[Storage] Skipped auto-scheduled event ${eventId} for group ${event.groupId}`);
+
+    return { groupId: event.groupId };
+  }
+
+  async deleteAutoScheduledEvent(eventId: string): Promise<{ groupId: string }> {
+    // Delete an auto-scheduled event (for expired/past events that didn't happen)
+    const event = await this.getAutoScheduledEvent(eventId);
+
+    if (!event) {
+      throw new Error("Auto-scheduled event not found");
+    }
+
+    // Don't allow deleting finalized events
+    if (event.status === 'scheduled') {
+      throw new Error("Cannot delete a finalized event");
+    }
+
+    // Delete associated itinerary options first (foreign key constraint)
+    await db
+      .delete(itineraryOptions)
+      .where(eq(itineraryOptions.autoEventId, eventId));
+
+    // Delete the event
+    await db
+      .delete(autoScheduledEvents)
+      .where(eq(autoScheduledEvents.id, eventId));
+
+    console.log(`[Storage] Deleted auto-scheduled event ${eventId} for group ${event.groupId}`);
+
+    return { groupId: event.groupId };
+  }
+
+  async getAutoScheduledEventsTimeline(groupId: string): Promise<Array<AutoScheduledEvent & {
+    itineraryOptions?: Array<{
+      id: string;
+      optionNumber: number;
+      venues: any;
+      description?: string;
+    }>;
+    itinerary?: Itinerary & { items: ItineraryItem[] };
+  }>> {
+    // Get events from last 90 days and all future events
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+    const events = await db
+      .select()
+      .from(autoScheduledEvents)
+      .where(and(
+        eq(autoScheduledEvents.groupId, groupId),
+        or(
+          gte(autoScheduledEvents.proposedDate, ninetyDaysAgo),
+          // Also include events without a date yet (pending selection)
+          isNull(autoScheduledEvents.proposedDate)
+        )
+      ))
+      .orderBy(asc(autoScheduledEvents.proposedDate));
+
+    // Fetch itinerary options for each event
+    const eventsWithOptions = await Promise.all(
+      events.map(async (event) => {
+        const options = await db
+          .select()
+          .from(itineraryOptions)
+          .where(eq(itineraryOptions.autoEventId, event.id));
+
+        // Also fetch the linked itinerary if it exists
+        let itinerary = undefined;
+        if (event.itineraryId) {
+          itinerary = await this.getItinerary(event.itineraryId);
+        }
+
+        return {
+          ...event,
+          itineraryOptions: options,
+          itinerary
+        };
+      })
+    );
+
+    return eventsWithOptions;
   }
 
   async getUserUpcomingEventsWithTimeSlots(
@@ -1785,7 +1950,6 @@ export class DatabaseStorage implements IStorage {
         .where(and(
           eq(autoScheduledEvents.groupId, group.id),
           or(
-            eq(autoScheduledEvents.status, 'pending'),
             eq(autoScheduledEvents.status, 'pending_approval'),
             eq(autoScheduledEvents.status, 'approved'),
             eq(autoScheduledEvents.status, 'auto_approved'),

@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { logApiCall, calculateOpenAICost } from './openai';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -26,7 +27,9 @@ export async function generateScheduleConfig(
   groupSize: number,
   eventDateFromNow?: number // Optional: days from now to the event (if already known)
 ): Promise<ScheduleConfig> {
-  const venueDescriptions = venues.map(v => 
+  const startTime = Date.now();
+
+  const venueDescriptions = venues.map(v =>
     `${v.name} (${v.type})${v.requiresReservation ? ' - requires reservation' : ''}`
   ).join(', ');
 
@@ -44,24 +47,26 @@ Determine the ideal timing for:
 3. Which automated reminders to send (gentle_nudge, final_call, day_before)
 
 **Guidelines:**
-- Fine dining / upscale venues with reservations: 7-14 days advance notice, 3-5 day RSVP window
-- Casual spots / bars: 3-5 days advance notice, 2-3 day RSVP window
-- Large groups (>6 people): Need more advance notice for coordination
-- Small groups (2-4 people): Can be more spontaneous
-- Always include gentle_nudge halfway through RSVP window if window > 2 days
-- Always include final_call 1 day before RSVP deadline if window > 2 days
+- CRITICAL: RSVP deadline must be at least 7 days before event (inviteAdvanceDays - rsvpWindowDays >= 7)
+- Standard timeline (21 days out): 21 days advance notice, 14 day RSVP window (deadline 7 days before)
+- Medium timeline (14 days out): 14 days advance notice, 7 day RSVP window (deadline 7 days before)
+- Fine dining / upscale venues: Use standard timeline for proper planning
+- Casual spots: Use medium timeline but never less than 7 days before event for RSVP deadline
+- Large groups (>6 people): Need more advance notice, use standard timeline
+- Always include gentle_nudge halfway through RSVP window
+- Always include final_call 1 day before RSVP deadline
 - Always include day_before reminder for all events
 
 **Output Format (JSON):**
 {
-  "inviteAdvanceDays": 7,
-  "rsvpWindowDays": 3,
+  "inviteAdvanceDays": 21,
+  "rsvpWindowDays": 14,
   "reminders": [
-    {"type": "gentle_nudge", "daysBeforeDeadline": 2},
+    {"type": "gentle_nudge", "daysBeforeDeadline": 7},
     {"type": "final_call", "daysBeforeDeadline": 1},
     {"type": "day_before", "daysBeforeEvent": 1}
   ],
-  "reasoning": "Upscale restaurant requiring reservations needs 7-day advance notice. 3-day RSVP window gives planner time to book."
+  "reasoning": "Standard timeline gives 3 weeks notice with RSVP deadline 7 days before event for venue booking."
 }
 
 Keep reasoning to 1-2 sentences max.`;
@@ -85,12 +90,33 @@ Keep reasoning to 1-2 sentences max.`;
 
     const config = JSON.parse(response.choices[0].message.content || '{}') as ScheduleConfig;
 
-    // Validation & defaults
+    // Log successful API call
+    await logApiCall({
+      service: 'openai',
+      method: 'generateScheduleConfig',
+      cacheStatus: 'miss',
+      status: 'success',
+      responseTimeMs: Date.now() - startTime,
+      costEstimate: calculateOpenAICost(
+        'gpt-4o-mini',
+        response.usage?.prompt_tokens || 0,
+        response.usage?.completion_tokens || 0
+      ),
+      parameters: { venueCount: venues.length, groupSize, eventDateFromNow },
+      metadata: {
+        inputTokens: response.usage?.prompt_tokens,
+        outputTokens: response.usage?.completion_tokens,
+        inviteAdvanceDays: config.inviteAdvanceDays,
+        rsvpWindowDays: config.rsvpWindowDays,
+      },
+    });
+
+    // Validation & defaults - ensure at least 7 days before event for RSVP deadline
     if (!config.inviteAdvanceDays || config.inviteAdvanceDays < 1) {
-      config.inviteAdvanceDays = 5;
+      config.inviteAdvanceDays = 14;
     }
     if (!config.rsvpWindowDays || config.rsvpWindowDays < 1) {
-      config.rsvpWindowDays = 3;
+      config.rsvpWindowDays = 7;
     }
     if (!config.reminders || config.reminders.length === 0) {
       config.reminders = [
@@ -101,19 +127,32 @@ Keep reasoning to 1-2 sentences max.`;
     }
 
     return config;
-  } catch (error) {
+  } catch (error: any) {
+    // Log failed API call
+    await logApiCall({
+      service: 'openai',
+      method: 'generateScheduleConfig',
+      cacheStatus: 'miss',
+      status: 'error',
+      responseTimeMs: Date.now() - startTime,
+      errorMessage: error.message,
+      parameters: { venueCount: venues.length, groupSize, eventDateFromNow },
+    });
+
     console.error('Error generating schedule config:', error);
     
-    // Fallback to sensible defaults
-    const isUpscale = venues.some(v => 
-      v.type.toLowerCase().includes('fine') || 
+    // Fallback to sensible defaults - ensure at least 7 days before event for RSVP deadline
+    const isUpscale = venues.some(v =>
+      v.type.toLowerCase().includes('fine') ||
       v.type.toLowerCase().includes('restaurant') ||
       v.requiresReservation
     );
-    
-    const inviteAdvanceDays = isUpscale || groupSize > 6 ? 7 : 5;
-    const rsvpWindowDays = isUpscale || groupSize > 6 ? 3 : 2;
-    
+
+    // Default timeline: 21 days advance, 14 day RSVP window = 7 days before event
+    // Smaller groups: 14 days advance, 7 day RSVP window = 7 days before event
+    const inviteAdvanceDays = isUpscale || groupSize > 6 ? 21 : 14;
+    const rsvpWindowDays = isUpscale || groupSize > 6 ? 14 : 7;
+
     return {
       inviteAdvanceDays,
       rsvpWindowDays,

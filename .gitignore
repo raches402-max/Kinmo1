@@ -11,4 +11,16 @@ vite.config.ts.*
 .env.development
 .env.production
 .env.test
-.env*.local
+.env*.local# Development and debugging files
+server/test-*.ts
+server/debug-*.ts
+server/check-*.ts
+server/analyze-*.ts
+server/compare-*.ts
+server/import-*.ts
+test-*.ts
+test-*.js
+*-TEST-*.ts
+DIAGNOSIS.md
+*_TEST_RESULTS.md
+attached_assets/

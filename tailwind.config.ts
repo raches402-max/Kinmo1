@@ -9,6 +9,18 @@ export default {
         lg: "0.75rem", /* 12px - for cards, modals */
         md: "0.5rem", /* 8px - for buttons, inputs */
         sm: "0.375rem", /* 6px - for badges, small elements */
+        soft: "0.75rem", /* 12px - cards, buttons */
+        softer: "1rem", /* 16px - large cards */
+        pill: "9999px", /* pills, tags */
+      },
+      boxShadow: {
+        // Warm shadows with brown tint instead of pure black
+        warm: "0 2px 8px -2px rgba(62, 39, 28, 0.1), 0 4px 16px -4px rgba(62, 39, 28, 0.06)",
+        "warm-lg": "0 4px 16px -4px rgba(62, 39, 28, 0.12), 0 8px 32px -8px rgba(62, 39, 28, 0.08)",
+        "warm-hover": "0 8px 24px -4px rgba(62, 39, 28, 0.14), 0 16px 48px -8px rgba(62, 39, 28, 0.1)",
+        // Gold glow for primary buttons
+        "gold": "0 4px 14px -3px rgba(242, 201, 76, 0.4)",
+        "gold-lg": "0 8px 24px -4px rgba(242, 201, 76, 0.35)",
       },
       colors: {
         // Flat / base colors (regular buttons)
@@ -93,6 +105,7 @@ export default {
       },
       fontFamily: {
         sans: ["var(--font-sans)"],
+        heading: ["var(--font-heading)"],
         serif: ["var(--font-serif)"],
         mono: ["var(--font-mono)"],
       },

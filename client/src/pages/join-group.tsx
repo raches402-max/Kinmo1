@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { getErrorToast } from "@/components/ErrorDisplay";
 import { Users, ArrowRight } from "lucide-react";
 import type { Group } from "@shared/schema";
 
@@ -60,11 +61,7 @@ export default function JoinGroup() {
       navigate(`/group/${group?.id}`);
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error joining group",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 

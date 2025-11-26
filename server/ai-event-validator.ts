@@ -5,6 +5,7 @@
 
 import OpenAI from 'openai';
 import { format } from 'date-fns';
+import { logApiCall, calculateOpenAICost, getAICache, setAICache } from './openai';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -89,6 +90,27 @@ export async function validateQueueEvent(
   event: QueueEvent,
   groupContext?: GroupContext
 ): Promise<ValidationResult> {
+  const startTime = Date.now();
+
+  // Generate cache key from event properties that affect validation
+  const venueKey = event.venues.map(v => `${v.venueName}:${v.venueType}`).sort().join('|');
+  const cacheKey = `validate:${event.scheduledDate}:${event.scheduledTime || 'unset'}:${venueKey}:${event.sourceType}`;
+
+  // Check cache first (1 hour TTL - validation results are stable for same inputs)
+  const cached = getAICache<ValidationResult>(cacheKey);
+  if (cached) {
+    console.log('[AI Event Validator] Cache hit for event validation');
+    await logApiCall({
+      service: 'openai',
+      method: 'validateQueueEvent',
+      cacheStatus: 'hit',
+      status: 'success',
+      responseTimeMs: Date.now() - startTime,
+      parameters: { eventId: event.id, venueCount: event.venues.length },
+    });
+    return cached;
+  }
+
   try {
     const dayOfWeek = getDayOfWeek(event.scheduledDate);
     const timeOfDay = inferTimeOfDay(event.scheduledTime, event.venues);
@@ -101,85 +123,50 @@ export async function validateQueueEvent(
       ? `Saved itinerary "${event.sourceItineraryName}"`
       : 'Group favorites';
 
-    const prompt = `You are validating an auto-scheduled group event. Analyze if this event makes sense.
+    // Few-shot examples improve consistency and quality
+    const fewShotExamples = `
+EXAMPLE 1 (Good Event):
+Input: Saturday 7:00 PM, Venues: 1. Flour + Water (Italian Restaurant), 2. Trick Dog (Cocktail Bar)
+Output: {"score": 95, "confidence": 0.95, "reasoning": "Perfect dinner-to-drinks flow on a Saturday evening.", "concerns": [], "suggestions": []}
 
-Event Details:
+EXAMPLE 2 (Bad Time Match):
+Input: Tuesday 9:00 AM, Venues: 1. Salt & Straw (Ice Cream Shop)
+Output: {"score": 45, "confidence": 0.90, "reasoning": "Ice cream at 9 AM on a weekday is unusual for a social event.", "concerns": ["Ice cream is typically an afternoon/evening treat", "Weekday morning is work time for most people"], "suggestions": ["Reschedule to afternoon (2-5 PM)", "Consider a weekend instead"]}
+
+EXAMPLE 3 (Poor Venue Flow):
+Input: Saturday 6:00 PM, Venues: 1. Burma Superstar (Restaurant), 2. State Bird Provisions (Restaurant), 3. Rich Table (Restaurant)
+Output: {"score": 55, "confidence": 0.85, "reasoning": "Three full-service restaurants back-to-back is too much food.", "concerns": ["Three restaurants in one evening is excessive", "Guests will be uncomfortably full"], "suggestions": ["Keep one restaurant, add a bar or dessert spot", "Split into multiple event dates"]}`;
+
+    const prompt = `Validate this auto-scheduled group event for time appropriateness and venue flow.
+
+EVENT TO VALIDATE:
 - Date: ${format(new Date(event.scheduledDate), 'MMMM d, yyyy')} (${dayOfWeek})
-- Time: ${event.scheduledTime || 'Not specified'}
-- Time of Day: ${timeOfDay}
-- Number of Venues: ${event.venues.length}
+- Time: ${event.scheduledTime || 'Not specified'} (${timeOfDay})
+- Venues: ${venueList}
 - Source: ${sourceDescription}
 
-Venues:
-${venueList}
+SCORING RULES:
+- 80-100: Auto-approve (great event)
+- 60-79: Needs review (minor issues)
+- 0-59: Not recommended (significant problems)
 
-Validation Criteria:
+Deduct points for:
+- Time mismatch (ice cream at 9 AM, bar at 10 AM): -20 to -30
+- Poor venue flow (3 restaurants in a row): -15 to -20
+- Questionable day choice (brunch on Tuesday): -10
+- Minor concerns: -5 to -10
 
-1. TIME APPROPRIATENESS (Most Important):
-   - Are these venue types appropriate for the scheduled time?
-   - Examples of BAD matches:
-     * Ice cream shop at 9 AM on a weekday
-     * Breakfast cafe at 9 PM
-     * Bar at 10 AM
-   - Examples of GOOD matches:
-     * Brunch cafe at 11 AM on Saturday
-     * Restaurant + bar at 7 PM
-     * Dessert spot at 8 PM
+${fewShotExamples}
 
-2. VENUE COMBINATION LOGIC:
-   - Do these venues flow well together for a single event?
-   - Examples of BAD combinations:
-     * 3 full restaurants in a row
-     * 2 breakfast spots back-to-back
-   - Examples of GOOD combinations:
-     * Dinner → Bar → Dessert
-     * Lunch → Coffee
-     * Single restaurant/cafe/bar
-
-3. DAY OF WEEK MATCH:
-   - Does the day of week make sense for these venue types?
-   - Weekend vs weekday considerations:
-     * Brunch works better on weekends
-     * Bars work any evening
-     * Coffee shops work any day
-
-4. PACING:
-   - Is ${dayOfWeek} a reasonable day for a social event?
-   - Weeknights are fine for casual events
-   - Avoid if this feels too rushed or awkward
-
-Scoring Rubric:
-- Start at 100
-- Deduct 20-30 points for major time mismatches (ice cream at 9 AM)
-- Deduct 15-20 points for poor venue flow (3 meals in a row)
-- Deduct 10 points for questionable day choice
-- Deduct 5-10 points for minor concerns
-
-Score Interpretation:
-- 80-100: Validated - This is a great event, auto-approve
-- 60-79: Needs Review - Decent but has minor issues
-- 0-59: Not Recommended - Has significant problems
-
-Return JSON with this exact structure:
-{
-  "score": <number 0-100>,
-  "reasoning": "<1-2 sentence explanation of the score>",
-  "concerns": ["<specific concern 1>", "<specific concern 2>"],
-  "suggestions": ["<actionable suggestion 1>", "<actionable suggestion 2>"]
-}
-
-Important:
-- If score >= 80, concerns and suggestions can be empty arrays
-- If score < 80, provide at least 1 concern and 1 suggestion
-- Be specific and actionable in concerns/suggestions
-- Keep reasoning concise (under 100 characters)`;
+NOW VALIDATE THE EVENT ABOVE.
+Return JSON: {"score": 0-100, "confidence": 0.0-1.0, "reasoning": "brief", "concerns": [], "suggestions": []}`;
 
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o', // Upgraded from mini for better auto-schedule validation (timing, venue type matching, budget appropriateness)
+      model: 'gpt-4o-mini', // Using mini with few-shot examples for consistent, cost-effective validation
       messages: [
         {
           role: 'system',
-          content: 'You are an expert event planner validating auto-scheduled events. Be concise and specific.',
+          content: 'You are an expert event planner. Validate events using the examples as a guide. Be consistent with scoring.',
         },
         {
           role: 'user',
@@ -187,11 +174,43 @@ Important:
         },
       ],
       response_format: { type: 'json_object' },
-      temperature: 0.3, // Lowered from 0.7 for more consistent scoring
-      max_tokens: 500,
+      temperature: 0.2, // Very low for maximum consistency
+      max_tokens: 400,
     });
 
-    const aiResponse = JSON.parse(response.choices[0].message.content || '{}');
+    let aiResponse;
+    try {
+      aiResponse = JSON.parse(response.choices[0]?.message?.content || '{}');
+    } catch (parseError) {
+      console.error('[AI Event Validator] Failed to parse AI response:', parseError);
+      aiResponse = { score: 50, reasoning: 'Failed to parse AI response' };
+    }
+
+    // Log successful API call with cost tracking
+    const responseTimeMs = Date.now() - startTime;
+    await logApiCall({
+      service: 'openai',
+      method: 'validateQueueEvent',
+      cacheStatus: 'miss',
+      status: 'success',
+      responseTimeMs,
+      costEstimate: calculateOpenAICost(
+        'gpt-4o-mini',
+        response.usage?.prompt_tokens || 0,
+        response.usage?.completion_tokens || 0
+      ),
+      parameters: {
+        eventId: event.id,
+        venueCount: event.venues.length,
+        sourceType: event.sourceType,
+      },
+      metadata: {
+        inputTokens: response.usage?.prompt_tokens,
+        outputTokens: response.usage?.completion_tokens,
+        score: aiResponse.score,
+        confidence: aiResponse.confidence,
+      },
+    });
 
     // Validate and sanitize the response
     const score = Math.max(0, Math.min(100, aiResponse.score || 50));
@@ -199,13 +218,34 @@ Important:
     const concerns = Array.isArray(aiResponse.concerns) ? aiResponse.concerns : [];
     const suggestions = Array.isArray(aiResponse.suggestions) ? aiResponse.suggestions : [];
 
-    return {
+    const result: ValidationResult = {
       score,
       reasoning,
       concerns,
       suggestions,
     };
+
+    // Cache the result for 1 hour (3600 seconds)
+    setAICache(cacheKey, result, 3600);
+
+    return result;
   } catch (error) {
+    // Log failed API call
+    const responseTimeMs = Date.now() - startTime;
+    await logApiCall({
+      service: 'openai',
+      method: 'validateQueueEvent',
+      cacheStatus: 'miss',
+      status: 'error',
+      responseTimeMs,
+      errorMessage: (error as Error).message,
+      parameters: {
+        eventId: event.id,
+        venueCount: event.venues.length,
+        sourceType: event.sourceType,
+      },
+    });
+
     console.error('[AI Event Validator] Error validating event:', error);
 
     // Return safe default - requires manual review

@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kinmo Logo Concepts</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --terracotta: #C75D3A;
+      --terracotta-dark: #A84D2F;
+      --sage: #A3C4A8;
+      --dusty-rose: #D49A9A;
+      --cream: #FAF6F1;
+      --espresso: #3E271C;
+      --warm-gray: #8B7B6B;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: var(--cream);
+      color: var(--espresso);
+      min-height: 100vh;
+      padding: 3rem 2rem;
+    }
+
+    .page-header {
+      text-align: center;
+      margin-bottom: 4rem;
+    }
+
+    .page-header h1 {
+      font-family: 'Nunito', sans-serif;
+      font-size: 2.5rem;
+      font-weight: 800;
+      color: var(--espresso);
+      margin-bottom: 0.5rem;
+    }
+
+    .page-header p {
+      color: var(--warm-gray);
+      font-size: 1.1rem;
+    }
+
+    .concepts-grid {
+      display: grid;
+      gap: 3rem;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .concept-section {
+      background: white;
+      border-radius: 24px;
+      padding: 2.5rem;
+      box-shadow: 0 4px 24px rgba(62, 39, 28, 0.06);
+    }
+
+    .concept-section h2 {
+      font-family: 'Nunito', sans-serif;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--terracotta);
+      margin-bottom: 0.5rem;
+    }
+
+    .concept-section .description {
+      color: var(--warm-gray);
+      margin-bottom: 2rem;
+      line-height: 1.6;
+    }
+
+    .logo-variants {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3rem;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .logo-variant {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .logo-variant .label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--warm-gray);
+    }
+
+    .logo-box {
+      padding: 2rem;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .logo-box.light {
+      background: var(--cream);
+      border: 1px solid rgba(62, 39, 28, 0.08);
+    }
+
+    .logo-box.dark {
+      background: var(--espresso);
+    }
+
+    /* Icon-only display */
+    .icon-grid {
+      display: flex;
+      gap: 2rem;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: flex-end;
+    }
+
+    .icon-size {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .icon-size .size-label {
+      font-size: 0.65rem;
+      color: var(--warm-gray);
+    }
+
+    /* Comparison section */
+    .comparison-row {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 2rem;
+      padding-top: 2rem;
+      border-top: 1px solid rgba(62, 39, 28, 0.08);
+    }
+
+    .comparison-item {
+      padding: 1rem 2rem;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .comparison-item.on-white {
+      background: white;
+      border: 1px solid rgba(62, 39, 28, 0.1);
+    }
+
+    .comparison-item.on-cream {
+      background: var(--cream);
+    }
+
+    .comparison-item.on-dark {
+      background: var(--espresso);
+    }
+
+    .comparison-item.on-terracotta {
+      background: var(--terracotta);
+    }
+
+    .nav-preview {
+      background: white;
+      border-radius: 12px;
+      padding: 1rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+      box-shadow: 0 2px 12px rgba(62, 39, 28, 0.08);
+      margin-top: 1.5rem;
+    }
+
+    .nav-preview .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .nav-preview .nav-links {
+      display: flex;
+      gap: 1.5rem;
+      margin-left: auto;
+    }
+
+    .nav-preview .nav-links span {
+      color: var(--warm-gray);
+      font-size: 0.9rem;
+    }
+
+    .section-divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(62, 39, 28, 0.1), transparent);
+      margin: 1rem 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="page-header">
+    <h1>Kinmo Logo Exploration</h1>
+    <p>Simple, memorable, warm &mdash; capturing the joy of gathering around food</p>
+  </div>
+
+  <div class="concepts-grid">
+
+    <!-- CONCEPT 1: Dining Table O -->
+    <section class="concept-section">
+      <h2>Concept 1: The Gathering Table</h2>
+      <p class="description">
+        Your original idea &mdash; the "O" in Kinmo becomes a dining table viewed from above, with small circles representing friends gathered around it. This creates a powerful visual metaphor: the letter itself tells the story of what Kinmo does.
+      </p>
+
+      <div class="logo-variants">
+        <div class="logo-variant">
+          <div class="logo-box light">
+            <svg width="180" height="48" viewBox="0 0 180 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <!-- K -->
+              <text x="0" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">K</text>
+              <!-- i -->
+              <text x="24" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">i</text>
+              <!-- n -->
+              <text x="40" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">n</text>
+              <!-- m -->
+              <text x="68" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">m</text>
+              <!-- The Gathering O -->
+              <g transform="translate(112, 24)">
+                <!-- Table (center circle) -->
+                <circle cx="12" cy="0" r="10" fill="#C75D3A"/>
+                <!-- People around the table -->
+                <circle cx="12" cy="-16" r="4" fill="#C75D3A"/>
+                <circle cx="24" cy="-8" r="4" fill="#C75D3A"/>
+                <circle cx="24" cy="8" r="4" fill="#C75D3A"/>
+                <circle cx="12" cy="16" r="4" fill="#C75D3A"/>
+                <circle cx="0" cy="8" r="4" fill="#C75D3A"/>
+                <circle cx="0" cy="-8" r="4" fill="#C75D3A"/>
+              </g>
+            </svg>
+          </div>
+          <span class="label">Full Wordmark</span>
+        </div>
+
+        <div class="logo-variant">
+          <div class="logo-box dark">
+            <svg width="180" height="48" viewBox="0 0 180 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <text x="0" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">K</text>
+              <text x="24" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">i</text>
+              <text x="40" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">n</text>
+              <text x="68" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">m</text>
+              <g transform="translate(112, 24)">
+                <circle cx="12" cy="0" r="10" fill="#C75D3A"/>
+                <circle cx="12" cy="-16" r="4" fill="#C75D3A"/>
+                <circle cx="24" cy="-8" r="4" fill="#C75D3A"/>
+                <circle cx="24" cy="8" r="4" fill="#C75D3A"/>
+                <circle cx="12" cy="16" r="4" fill="#C75D3A"/>
+                <circle cx="0" cy="8" r="4" fill="#C75D3A"/>
+                <circle cx="0" cy="-8" r="4" fill="#C75D3A"/>
+              </g>
+            </svg>
+          </div>
+          <span class="label">On Dark</span>
+        </div>
+      </div>
+
+      <!-- Icon only versions -->
+      <div class="section-divider"></div>
+      <p style="text-align: center; color: var(--warm-gray); font-size: 0.85rem; margin: 1rem 0;">Standalone Icon (for favicons, app icons)</p>
+      <div class="icon-grid">
+        <div class="icon-size">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="24" cy="24" r="10" fill="#C75D3A"/>
+            <circle cx="24" cy="6" r="5" fill="#C75D3A"/>
+            <circle cx="39.5" cy="15" r="5" fill="#C75D3A"/>
+            <circle cx="39.5" cy="33" r="5" fill="#C75D3A"/>
+            <circle cx="24" cy="42" r="5" fill="#C75D3A"/>
+            <circle cx="8.5" cy="33" r="5" fill="#C75D3A"/>
+            <circle cx="8.5" cy="15" r="5" fill="#C75D3A"/>
+          </svg>
+          <span class="size-label">48px</span>
+        </div>
+        <div class="icon-size">
+          <svg width="32" height="32" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="24" cy="24" r="10" fill="#C75D3A"/>
+            <circle cx="24" cy="6" r="5" fill="#C75D3A"/>
+            <circle cx="39.5" cy="15" r="5" fill="#C75D3A"/>
+            <circle cx="39.5" cy="33" r="5" fill="#C75D3A"/>
+            <circle cx="24" cy="42" r="5" fill="#C75D3A"/>
+            <circle cx="8.5" cy="33" r="5" fill="#C75D3A"/>
+            <circle cx="8.5" cy="15" r="5" fill="#C75D3A"/>
+          </svg>
+          <span class="size-label">32px</span>
+        </div>
+        <div class="icon-size">
+          <svg width="24" height="24" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="24" cy="24" r="10" fill="#C75D3A"/>
+            <circle cx="24" cy="6" r="5" fill="#C75D3A"/>
+            <circle cx="39.5" cy="15" r="5" fill="#C75D3A"/>
+            <circle cx="39.5" cy="33" r="5" fill="#C75D3A"/>
+            <circle cx="24" cy="42" r="5" fill="#C75D3A"/>
+            <circle cx="8.5" cy="33" r="5" fill="#C75D3A"/>
+            <circle cx="8.5" cy="15" r="5" fill="#C75D3A"/>
+          </svg>
+          <span class="size-label">24px</span>
+        </div>
+        <div class="icon-size">
+          <svg width="16" height="16" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="24" cy="24" r="10" fill="#C75D3A"/>
+            <circle cx="24" cy="6" r="5" fill="#C75D3A"/>
+            <circle cx="39.5" cy="15" r="5" fill="#C75D3A"/>
+            <circle cx="39.5" cy="33" r="5" fill="#C75D3A"/>
+            <circle cx="24" cy="42" r="5" fill="#C75D3A"/>
+            <circle cx="8.5" cy="33" r="5" fill="#C75D3A"/>
+            <circle cx="8.5" cy="15" r="5" fill="#C75D3A"/>
+          </svg>
+          <span class="size-label">16px</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONCEPT 2: Simplified Table (4 people) -->
+    <section class="concept-section">
+      <h2>Concept 2: Intimate Gathering (4 seats)</h2>
+      <p class="description">
+        A more minimal interpretation &mdash; fewer "seats" around the table creates a cleaner silhouette that reads better at small sizes. This version emphasizes an intimate dinner party feel.
+      </p>
+
+      <div class="logo-variants">
+        <div class="logo-variant">
+          <div class="logo-box light">
+            <svg width="180" height="48" viewBox="0 0 180 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <text x="0" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">K</text>
+              <text x="24" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">i</text>
+              <text x="40" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">n</text>
+              <text x="68" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">m</text>
+              <!-- 4-seat table O -->
+              <g transform="translate(112, 24)">
+                <circle cx="12" cy="0" r="9" fill="#C75D3A"/>
+                <circle cx="12" cy="-16" r="4.5" fill="#C75D3A"/>
+                <circle cx="28" cy="0" r="4.5" fill="#C75D3A"/>
+                <circle cx="12" cy="16" r="4.5" fill="#C75D3A"/>
+                <circle cx="-4" cy="0" r="4.5" fill="#C75D3A"/>
+              </g>
+            </svg>
+          </div>
+          <span class="label">4-seat variant</span>
+        </div>
+
+        <div class="logo-variant">
+          <div class="logo-box dark">
+            <svg width="180" height="48" viewBox="0 0 180 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <text x="0" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">K</text>
+              <text x="24" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">i</text>
+              <text x="40" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">n</text>
+              <text x="68" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">m</text>
+              <g transform="translate(112, 24)">
+                <circle cx="12" cy="0" r="9" fill="#C75D3A"/>
+                <circle cx="12" cy="-16" r="4.5" fill="#C75D3A"/>
+                <circle cx="28" cy="0" r="4.5" fill="#C75D3A"/>
+                <circle cx="12" cy="16" r="4.5" fill="#C75D3A"/>
+                <circle cx="-4" cy="0" r="4.5" fill="#C75D3A"/>
+              </g>
+            </svg>
+          </div>
+          <span class="label">On Dark</span>
+        </div>
+      </div>
+
+      <div class="section-divider"></div>
+      <p style="text-align: center; color: var(--warm-gray); font-size: 0.85rem; margin: 1rem 0;">Standalone Icon</p>
+      <div class="icon-grid">
+        <div class="icon-size">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="24" cy="24" r="10" fill="#C75D3A"/>
+            <circle cx="24" cy="6" r="6" fill="#C75D3A"/>
+            <circle cx="42" cy="24" r="6" fill="#C75D3A"/>
+            <circle cx="24" cy="42" r="6" fill="#C75D3A"/>
+            <circle cx="6" cy="24" r="6" fill="#C75D3A"/>
+          </svg>
+          <span class="size-label">48px</span>
+        </div>
+        <div class="icon-size">
+          <svg width="32" height="32" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="24" cy="24" r="10" fill="#C75D3A"/>
+            <circle cx="24" cy="6" r="6" fill="#C75D3A"/>
+            <circle cx="42" cy="24" r="6" fill="#C75D3A"/>
+            <circle cx="24" cy="42" r="6" fill="#C75D3A"/>
+            <circle cx="6" cy="24" r="6" fill="#C75D3A"/>
+          </svg>
+          <span class="size-label">32px</span>
+        </div>
+        <div class="icon-size">
+          <svg width="24" height="24" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="24" cy="24" r="10" fill="#C75D3A"/>
+            <circle cx="24" cy="6" r="6" fill="#C75D3A"/>
+            <circle cx="42" cy="24" r="6" fill="#C75D3A"/>
+            <circle cx="24" cy="42" r="6" fill="#C75D3A"/>
+            <circle cx="6" cy="24" r="6" fill="#C75D3A"/>
+          </svg>
+          <span class="size-label">24px</span>
+        </div>
+        <div class="icon-size">
+          <svg width="16" height="16" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="24" cy="24" r="10" fill="#C75D3A"/>
+            <circle cx="24" cy="6" r="6" fill="#C75D3A"/>
+            <circle cx="42" cy="24" r="6" fill="#C75D3A"/>
+            <circle cx="24" cy="42" r="6" fill="#C75D3A"/>
+            <circle cx="6" cy="24" r="6" fill="#C75D3A"/>
+          </svg>
+          <span class="size-label">16px</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONCEPT 3: Ring of Connection -->
+    <section class="concept-section">
+      <h2>Concept 3: Connected Ring</h2>
+      <p class="description">
+        An abstracted version where the "people" dots connect via a subtle ring, emphasizing the bond between friends. The ring can be the table OR the connection itself. Works beautifully as a standalone mark.
+      </p>
+
+      <div class="logo-variants">
+        <div class="logo-variant">
+          <div class="logo-box light">
+            <svg width="180" height="48" viewBox="0 0 180 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <text x="0" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">K</text>
+              <text x="24" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">i</text>
+              <text x="40" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">n</text>
+              <text x="68" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">m</text>
+              <!-- Connected ring O -->
+              <g transform="translate(124, 24)">
+                <circle cx="0" cy="0" r="14" stroke="#C75D3A" stroke-width="3" fill="none"/>
+                <circle cx="0" cy="-14" r="4" fill="#C75D3A"/>
+                <circle cx="12" cy="7" r="4" fill="#C75D3A"/>
+                <circle cx="-12" cy="7" r="4" fill="#C75D3A"/>
+              </g>
+            </svg>
+          </div>
+          <span class="label">Ring variant</span>
+        </div>
+
+        <div class="logo-variant">
+          <div class="logo-box dark">
+            <svg width="180" height="48" viewBox="0 0 180 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <text x="0" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">K</text>
+              <text x="24" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">i</text>
+              <text x="40" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">n</text>
+              <text x="68" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">m</text>
+              <g transform="translate(124, 24)">
+                <circle cx="0" cy="0" r="14" stroke="#C75D3A" stroke-width="3" fill="none"/>
+                <circle cx="0" cy="-14" r="4" fill="#C75D3A"/>
+                <circle cx="12" cy="7" r="4" fill="#C75D3A"/>
+                <circle cx="-12" cy="7" r="4" fill="#C75D3A"/>
+              </g>
+            </svg>
+          </div>
+          <span class="label">On Dark</span>
+        </div>
+      </div>
+
+      <div class="section-divider"></div>
+      <p style="text-align: center; color: var(--warm-gray); font-size: 0.85rem; margin: 1rem 0;">Standalone Icon</p>
+      <div class="icon-grid">
+        <div class="icon-size">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="24" cy="24" r="16" stroke="#C75D3A" stroke-width="3.5" fill="none"/>
+            <circle cx="24" cy="6" r="5" fill="#C75D3A"/>
+            <circle cx="38" cy="32" r="5" fill="#C75D3A"/>
+            <circle cx="10" cy="32" r="5" fill="#C75D3A"/>
+          </svg>
+          <span class="size-label">48px</span>
+        </div>
+        <div class="icon-size">
+          <svg width="32" height="32" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="24" cy="24" r="16" stroke="#C75D3A" stroke-width="3.5" fill="none"/>
+            <circle cx="24" cy="6" r="5" fill="#C75D3A"/>
+            <circle cx="38" cy="32" r="5" fill="#C75D3A"/>
+            <circle cx="10" cy="32" r="5" fill="#C75D3A"/>
+          </svg>
+          <span class="size-label">32px</span>
+        </div>
+        <div class="icon-size">
+          <svg width="24" height="24" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="24" cy="24" r="16" stroke="#C75D3A" stroke-width="4" fill="none"/>
+            <circle cx="24" cy="6" r="5.5" fill="#C75D3A"/>
+            <circle cx="38" cy="32" r="5.5" fill="#C75D3A"/>
+            <circle cx="10" cy="32" r="5.5" fill="#C75D3A"/>
+          </svg>
+          <span class="size-label">24px</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONCEPT 4: Abstract K Mark -->
+    <section class="concept-section">
+      <h2>Concept 4: The "K" Gathering</h2>
+      <p class="description">
+        What if the icon was built from the "K" instead? Three dots arrange themselves into a K-like shape while also suggesting people gathering. Bold and distinctive &mdash; instantly recognizable.
+      </p>
+
+      <div class="logo-variants">
+        <div class="logo-variant">
+          <div class="logo-box light">
+            <svg width="200" height="48" viewBox="0 0 200 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <!-- K icon made of dots -->
+              <g transform="translate(4, 4)">
+                <circle cx="8" cy="4" r="6" fill="#C75D3A"/>
+                <circle cx="8" cy="20" r="6" fill="#C75D3A"/>
+                <circle cx="8" cy="36" r="6" fill="#C75D3A"/>
+                <circle cx="22" cy="20" r="5" fill="#C75D3A"/>
+                <circle cx="32" cy="8" r="5" fill="#C75D3A"/>
+                <circle cx="32" cy="32" r="5" fill="#C75D3A"/>
+              </g>
+              <text x="52" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">inmo</text>
+            </svg>
+          </div>
+          <span class="label">K-dots wordmark</span>
+        </div>
+
+        <div class="logo-variant">
+          <div class="logo-box dark">
+            <svg width="200" height="48" viewBox="0 0 200 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <g transform="translate(4, 4)">
+                <circle cx="8" cy="4" r="6" fill="#C75D3A"/>
+                <circle cx="8" cy="20" r="6" fill="#C75D3A"/>
+                <circle cx="8" cy="36" r="6" fill="#C75D3A"/>
+                <circle cx="22" cy="20" r="5" fill="#C75D3A"/>
+                <circle cx="32" cy="8" r="5" fill="#C75D3A"/>
+                <circle cx="32" cy="32" r="5" fill="#C75D3A"/>
+              </g>
+              <text x="52" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">inmo</text>
+            </svg>
+          </div>
+          <span class="label">On Dark</span>
+        </div>
+      </div>
+
+      <div class="section-divider"></div>
+      <p style="text-align: center; color: var(--warm-gray); font-size: 0.85rem; margin: 1rem 0;">Standalone Icon</p>
+      <div class="icon-grid">
+        <div class="icon-size">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="6" r="6" fill="#C75D3A"/>
+            <circle cx="12" cy="24" r="6" fill="#C75D3A"/>
+            <circle cx="12" cy="42" r="6" fill="#C75D3A"/>
+            <circle cx="28" cy="24" r="5" fill="#C75D3A"/>
+            <circle cx="40" cy="10" r="5" fill="#C75D3A"/>
+            <circle cx="40" cy="38" r="5" fill="#C75D3A"/>
+          </svg>
+          <span class="size-label">48px</span>
+        </div>
+        <div class="icon-size">
+          <svg width="32" height="32" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="6" r="6" fill="#C75D3A"/>
+            <circle cx="12" cy="24" r="6" fill="#C75D3A"/>
+            <circle cx="12" cy="42" r="6" fill="#C75D3A"/>
+            <circle cx="28" cy="24" r="5" fill="#C75D3A"/>
+            <circle cx="40" cy="10" r="5" fill="#C75D3A"/>
+            <circle cx="40" cy="38" r="5" fill="#C75D3A"/>
+          </svg>
+          <span class="size-label">32px</span>
+        </div>
+        <div class="icon-size">
+          <svg width="24" height="24" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="6" r="6" fill="#C75D3A"/>
+            <circle cx="12" cy="24" r="6" fill="#C75D3A"/>
+            <circle cx="12" cy="42" r="6" fill="#C75D3A"/>
+            <circle cx="28" cy="24" r="5" fill="#C75D3A"/>
+            <circle cx="40" cy="10" r="5" fill="#C75D3A"/>
+            <circle cx="40" cy="38" r="5" fill="#C75D3A"/>
+          </svg>
+          <span class="size-label">24px</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONCEPT 5: Plate with People -->
+    <section class="concept-section">
+      <h2>Concept 5: The Shared Plate</h2>
+      <p class="description">
+        A more literal food reference &mdash; the "O" becomes a plate viewed from above with simplified figures gathered around it. The negative space in the center could suggest a bowl or serving dish.
+      </p>
+
+      <div class="logo-variants">
+        <div class="logo-variant">
+          <div class="logo-box light">
+            <svg width="180" height="48" viewBox="0 0 180 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <text x="0" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">K</text>
+              <text x="24" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">i</text>
+              <text x="40" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">n</text>
+              <text x="68" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">m</text>
+              <!-- Plate O with people -->
+              <g transform="translate(124, 24)">
+                <!-- Outer plate rim -->
+                <circle cx="0" cy="0" r="16" fill="#C75D3A"/>
+                <!-- Inner plate (negative space) -->
+                <circle cx="0" cy="0" r="9" fill="#FAF6F1"/>
+                <!-- People as small arcs/bumps on the rim -->
+                <circle cx="0" cy="-16" r="3.5" fill="#3E271C"/>
+                <circle cx="13.8" cy="8" r="3.5" fill="#3E271C"/>
+                <circle cx="-13.8" cy="8" r="3.5" fill="#3E271C"/>
+              </g>
+            </svg>
+          </div>
+          <span class="label">Plate variant</span>
+        </div>
+
+        <div class="logo-variant">
+          <div class="logo-box dark">
+            <svg width="180" height="48" viewBox="0 0 180 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <text x="0" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">K</text>
+              <text x="24" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">i</text>
+              <text x="40" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">n</text>
+              <text x="68" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">m</text>
+              <g transform="translate(124, 24)">
+                <circle cx="0" cy="0" r="16" fill="#C75D3A"/>
+                <circle cx="0" cy="0" r="9" fill="#3E271C"/>
+                <circle cx="0" cy="-16" r="3.5" fill="#FAF6F1"/>
+                <circle cx="13.8" cy="8" r="3.5" fill="#FAF6F1"/>
+                <circle cx="-13.8" cy="8" r="3.5" fill="#FAF6F1"/>
+              </g>
+            </svg>
+          </div>
+          <span class="label">On Dark</span>
+        </div>
+      </div>
+
+      <div class="section-divider"></div>
+      <p style="text-align: center; color: var(--warm-gray); font-size: 0.85rem; margin: 1rem 0;">Standalone Icon</p>
+      <div class="icon-grid">
+        <div class="icon-size">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="24" cy="24" r="20" fill="#C75D3A"/>
+            <circle cx="24" cy="24" r="11" fill="#FAF6F1"/>
+            <circle cx="24" cy="4" r="4" fill="#3E271C"/>
+            <circle cx="41" cy="32" r="4" fill="#3E271C"/>
+            <circle cx="7" cy="32" r="4" fill="#3E271C"/>
+          </svg>
+          <span class="size-label">48px</span>
+        </div>
+        <div class="icon-size">
+          <svg width="32" height="32" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="24" cy="24" r="20" fill="#C75D3A"/>
+            <circle cx="24" cy="24" r="11" fill="#FAF6F1"/>
+            <circle cx="24" cy="4" r="4" fill="#3E271C"/>
+            <circle cx="41" cy="32" r="4" fill="#3E271C"/>
+            <circle cx="7" cy="32" r="4" fill="#3E271C"/>
+          </svg>
+          <span class="size-label">32px</span>
+        </div>
+        <div class="icon-size">
+          <svg width="24" height="24" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="24" cy="24" r="20" fill="#C75D3A"/>
+            <circle cx="24" cy="24" r="11" fill="#FAF6F1"/>
+            <circle cx="24" cy="4" r="4.5" fill="#3E271C"/>
+            <circle cx="41" cy="32" r="4.5" fill="#3E271C"/>
+            <circle cx="7" cy="32" r="4.5" fill="#3E271C"/>
+          </svg>
+          <span class="size-label">24px</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- IN-CONTEXT PREVIEW -->
+    <section class="concept-section">
+      <h2>In-Context: Navigation Preview</h2>
+      <p class="description">
+        How each concept would look in your actual navigation bar, replacing the current sparkle icon.
+      </p>
+
+      <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+        <!-- Nav with Concept 1 -->
+        <div class="nav-preview">
+          <div class="nav-logo">
+            <svg width="28" height="28" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="24" cy="24" r="10" fill="#C75D3A"/>
+              <circle cx="24" cy="6" r="5" fill="#C75D3A"/>
+              <circle cx="39.5" cy="15" r="5" fill="#C75D3A"/>
+              <circle cx="39.5" cy="33" r="5" fill="#C75D3A"/>
+              <circle cx="24" cy="42" r="5" fill="#C75D3A"/>
+              <circle cx="8.5" cy="33" r="5" fill="#C75D3A"/>
+              <circle cx="8.5" cy="15" r="5" fill="#C75D3A"/>
+            </svg>
+            <span style="font-family: Nunito, sans-serif; font-weight: 700; font-size: 1.25rem; color: #3E271C;">Kinmo</span>
+          </div>
+          <div class="nav-links">
+            <span>Dashboard</span>
+            <span>Groups</span>
+            <span>Profile</span>
+          </div>
+        </div>
+
+        <!-- Nav with Concept 2 (4 seats) -->
+        <div class="nav-preview">
+          <div class="nav-logo">
+            <svg width="28" height="28" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="24" cy="24" r="10" fill="#C75D3A"/>
+              <circle cx="24" cy="6" r="6" fill="#C75D3A"/>
+              <circle cx="42" cy="24" r="6" fill="#C75D3A"/>
+              <circle cx="24" cy="42" r="6" fill="#C75D3A"/>
+              <circle cx="6" cy="24" r="6" fill="#C75D3A"/>
+            </svg>
+            <span style="font-family: Nunito, sans-serif; font-weight: 700; font-size: 1.25rem; color: #3E271C;">Kinmo</span>
+          </div>
+          <div class="nav-links">
+            <span>Dashboard</span>
+            <span>Groups</span>
+            <span>Profile</span>
+          </div>
+        </div>
+
+        <!-- Nav with Concept 3 (ring) -->
+        <div class="nav-preview">
+          <div class="nav-logo">
+            <svg width="28" height="28" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="24" cy="24" r="16" stroke="#C75D3A" stroke-width="3.5" fill="none"/>
+              <circle cx="24" cy="6" r="5" fill="#C75D3A"/>
+              <circle cx="38" cy="32" r="5" fill="#C75D3A"/>
+              <circle cx="10" cy="32" r="5" fill="#C75D3A"/>
+            </svg>
+            <span style="font-family: Nunito, sans-serif; font-weight: 700; font-size: 1.25rem; color: #3E271C;">Kinmo</span>
+          </div>
+          <div class="nav-links">
+            <span>Dashboard</span>
+            <span>Groups</span>
+            <span>Profile</span>
+          </div>
+        </div>
+
+        <!-- Nav with Concept 4 (K-dots) -->
+        <div class="nav-preview">
+          <div class="nav-logo">
+            <svg width="24" height="28" viewBox="0 0 40 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="10" cy="6" r="5" fill="#C75D3A"/>
+              <circle cx="10" cy="24" r="5" fill="#C75D3A"/>
+              <circle cx="10" cy="42" r="5" fill="#C75D3A"/>
+              <circle cx="24" cy="24" r="4" fill="#C75D3A"/>
+              <circle cx="34" cy="10" r="4" fill="#C75D3A"/>
+              <circle cx="34" cy="38" r="4" fill="#C75D3A"/>
+            </svg>
+            <span style="font-family: Nunito, sans-serif; font-weight: 700; font-size: 1.25rem; color: #3E271C;">Kinmo</span>
+          </div>
+          <div class="nav-links">
+            <span>Dashboard</span>
+            <span>Groups</span>
+            <span>Profile</span>
+          </div>
+        </div>
+
+        <!-- Nav with Concept 5 (plate) -->
+        <div class="nav-preview">
+          <div class="nav-logo">
+            <svg width="28" height="28" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="24" cy="24" r="20" fill="#C75D3A"/>
+              <circle cx="24" cy="24" r="11" fill="white"/>
+              <circle cx="24" cy="4" r="4" fill="#3E271C"/>
+              <circle cx="41" cy="32" r="4" fill="#3E271C"/>
+              <circle cx="7" cy="32" r="4" fill="#3E271C"/>
+            </svg>
+            <span style="font-family: Nunito, sans-serif; font-weight: 700; font-size: 1.25rem; color: #3E271C;">Kinmo</span>
+          </div>
+          <div class="nav-links">
+            <span>Dashboard</span>
+            <span>Groups</span>
+            <span>Profile</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Summary & Recommendations -->
+    <section class="concept-section" style="background: linear-gradient(135deg, #C75D3A 0%, #A84D2F 100%); color: white;">
+      <h2 style="color: white;">Recommendations</h2>
+      <div style="color: rgba(255,255,255,0.9); line-height: 1.8;">
+        <p><strong>Best for small sizes (favicon):</strong> Concept 2 (4-seat) or Concept 3 (ring) &mdash; fewer elements stay readable at 16px</p>
+        <br>
+        <p><strong>Most literal / storytelling:</strong> Concept 1 (6-seat) or Concept 5 (plate) &mdash; immediately communicates "gathering around food"</p>
+        <br>
+        <p><strong>Most distinctive / brandable:</strong> Concept 4 (K-dots) &mdash; unique silhouette, memorable, but less literal about the dining aspect</p>
+        <br>
+        <p><strong>My pick:</strong> Concept 2 (4-seat) strikes the best balance &mdash; it tells the story clearly, works at all sizes, and has a pleasing symmetry that feels warm and inviting.</p>
+      </div>
+    </section>
+
+  </div>
+
+</body>
+</html>

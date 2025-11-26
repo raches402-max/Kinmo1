@@ -2,6 +2,7 @@ import { useRoute, useLocation, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { getErrorToast } from "@/components/ErrorDisplay";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -76,6 +77,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { TimeSlotVoting } from "@/components/TimeSlotVoting";
 import { AddAdHocVenueDialog } from "@/components/AddAdHocVenueDialog";
+import { EditVenueDialog } from "@/components/EditVenueDialog";
+import { Header } from "@/components/Header";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { Calendar as DatePicker } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn, formatDateTimeWithTimezone } from "@/lib/utils";
@@ -86,9 +90,10 @@ interface SortableVenueCardProps {
   isOrganizer: boolean;
   toast: any;
   queryClient: any;
+  onEdit?: (venue: any) => void;
 }
 
-function SortableVenueCard({ venue, idx, isOrganizer, toast, queryClient }: SortableVenueCardProps) {
+function SortableVenueCard({ venue, idx, isOrganizer, toast, queryClient, onEdit }: SortableVenueCardProps) {
   const {
     attributes,
     listeners,
@@ -145,10 +150,14 @@ function SortableVenueCard({ venue, idx, isOrganizer, toast, queryClient }: Sort
                       size="sm"
                       className="h-7 w-7 p-0"
                       onClick={() => {
-                        toast({
-                          title: "Edit coming soon",
-                          description: "Inline editing will be available shortly",
-                        });
+                        if (onEdit) {
+                          onEdit(venue);
+                        } else {
+                          toast({
+                            title: "Edit coming soon",
+                            description: "Inline editing will be available shortly",
+                          });
+                        }
                       }}
                     >
                       <Edit className="h-3.5 w-3.5" />
@@ -160,10 +169,15 @@ function SortableVenueCard({ venue, idx, isOrganizer, toast, queryClient }: Sort
                       onClick={async () => {
                         if (confirm(`Remove "${venue.venueName}" from itinerary?`)) {
                           try {
-                            await fetch(`/api/itinerary-items/${venue.id}`, {
+                            const response = await fetch(`/api/itinerary-items/${venue.id}`, {
                               method: "DELETE",
                               credentials: "include",
                             });
+
+                            if (!response.ok) {
+                              throw new Error(`Failed to delete: ${response.status}`);
+                            }
+
                             queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
                             toast({
                               title: "Removed",
@@ -261,6 +275,8 @@ export default function EventDetailsPage() {
   const [, setLocation] = useLocation();
   const [guestName, setGuestName] = useState("");
   const [showAddVenueDialog, setShowAddVenueDialog] = useState(false);
+  const [showEditVenueDialog, setShowEditVenueDialog] = useState(false);
+  const [venueToEdit, setVenueToEdit] = useState<any>(null);
   const [schedulingPreferences, setSchedulingPreferences] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedTimeSlotId, setSelectedTimeSlotId] = useState<string | null>(null);
@@ -273,41 +289,49 @@ export default function EventDetailsPage() {
     })
   );
 
-  const { data: event, isLoading } = useQuery<any>({
-    queryKey: ["/api/user/events", eventId],
-    enabled: !!eventId,
-    queryFn: async () => {
-      // First try to find in user events
-      const events = await fetch(`/api/user/events`).then(r => r.json());
-      const foundEvent = events.find((e: any) => e.itineraryId === eventId);
-
-      // If not found (e.g., proposed itinerary without invites), fetch directly from itinerary endpoint
-      if (!foundEvent) {
-        const itinerary = await fetch(`/api/itineraries/${eventId}`).then(r => {
-          if (!r.ok) return null;
-          return r.json();
-        });
-
-        if (itinerary) {
-          // Transform itinerary to match event structure
-          return {
-            itineraryId: itinerary.id,
-            itineraryName: itinerary.name,
-            eventDate: itinerary.eventDate,
-            groupId: itinerary.groupId,
-            groupName: itinerary.group?.name,
-            groupEmoji: itinerary.group?.emoji,
-            groupTimezone: itinerary.group?.timezone,
-            items: itinerary.items || [],
-            isOrganizer: true, // Assume organizer for proposed itineraries
-            members: [],
-          };
-        }
-      }
-
-      return foundEvent;
+  // Fetch all events and use select to extract the one we need
+  // This leverages React Query's caching - if events are already cached, no network request
+  const { data: eventFromList, isLoading } = useQuery<any>({
+    queryKey: ["/api/user/events"],
+    select: (events) => {
+      // Find the event matching this eventId
+      const foundEvent = events?.find((e: any) => e.itineraryId === eventId);
+      return foundEvent || null;
     },
   });
+
+  // Fallback: If event not found in user events (e.g., proposed itinerary without invites),
+  // fetch directly from itinerary endpoint
+  const { data: fallbackItinerary } = useQuery<any>({
+    queryKey: ["/api/itineraries/:id", eventId],
+    enabled: !!eventId && !eventFromList && !isLoading,
+    queryFn: async () => {
+      const response = await fetch(`/api/itineraries/${eventId}`);
+      if (!response.ok) return null;
+      const itinerary = await response.json();
+
+      if (itinerary) {
+        // Transform itinerary to match event structure
+        return {
+          itineraryId: itinerary.id,
+          itineraryName: itinerary.name,
+          eventDate: itinerary.eventDate,
+          groupId: itinerary.groupId,
+          groupName: itinerary.group?.name,
+          groupEmoji: itinerary.group?.emoji,
+          groupTimezone: itinerary.group?.timezone,
+          groupAccentColor: itinerary.group?.accentColor,
+          items: itinerary.items || [],
+          isOrganizer: true, // Assume organizer for proposed itineraries
+          members: [],
+        };
+      }
+      return null;
+    },
+  });
+
+  // Use fallback if main event not found
+  const event = eventFromList || fallbackItinerary;
 
   // Fetch full itinerary details including time slots for proposed itineraries
   const { data: itineraryDetails } = useQuery<any>({
@@ -410,12 +434,29 @@ export default function EventDetailsPage() {
       setLocation(`/event/${eventId}`);
     },
     onError: (error: any) => {
-      toast({
-        title: "Error finalizing event",
-        description: error.message,
-        variant: "destructive",
+      toast(getErrorToast(error));
+    },
+  });
+
+  const sendToGroupMutation = useMutation({
+    mutationFn: async () => {
+      if (!event?.eventDate) throw new Error("Event date is required");
+      return apiRequest("POST", `/api/itineraries/${eventId}/send`, {
+        isPrimary: true,
+        eventDate: event.eventDate
       });
     },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/itineraries/:id", eventId] });
+      toast({
+        title: "Event sent to group!",
+        description: "Group members will receive notifications about this event."
+      });
+    },
+    onError: (error: any) => {
+      toast(getErrorToast(error));
+    }
   });
 
   const reorderVenuesMutation = useMutation({
@@ -451,11 +492,7 @@ export default function EventDetailsPage() {
       if (context?.previousEvent) {
         queryClient.setQueryData(["/api/user/events", eventId], context.previousEvent);
       }
-      toast({
-        title: "Error updating order",
-        description: "Could not update venue order. Please try again.",
-        variant: "destructive",
-      });
+      toast(getErrorToast(err));
     },
     onSuccess: () => {
       // Refetch to ensure we have the latest data
@@ -465,6 +502,23 @@ export default function EventDetailsPage() {
         description: "Venue order has been updated",
       });
     },
+  });
+
+  const regenerateVenuesMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("POST", `/api/itineraries/${eventId}/decide-now`, {});
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/events", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
+      toast({
+        title: "Venues regenerated!",
+        description: `AI selected ${data.venueCount} new venue${data.venueCount > 1 ? 's' : ''} for your event.`
+      });
+    },
+    onError: (error: any) => {
+      toast(getErrorToast(error));
+    }
   });
 
   const updateEventDateMutation = useMutation({
@@ -535,10 +589,16 @@ export default function EventDetailsPage() {
       if (!inviteToRemove || !inviteToRemove.inviteId) {
         throw new Error("Invite not found");
       }
-      return fetch(`/api/itinerary-invites/${inviteToRemove.inviteId}`, {
+      const response = await fetch(`/api/itinerary-invites/${inviteToRemove.inviteId}`, {
         method: "DELETE",
         credentials: "include",
       });
+
+      if (!response.ok) {
+        throw new Error(`Failed to delete invite: ${response.status}`);
+      }
+
+      return response;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/user/events", eventId] });
@@ -546,6 +606,9 @@ export default function EventDetailsPage() {
         title: "Invite removed",
         description: "Member has been removed from this event",
       });
+    },
+    onError: (error: Error) => {
+      toast(getErrorToast(error));
     },
   });
 
@@ -577,11 +640,7 @@ export default function EventDetailsPage() {
       setLocation("/");
     },
     onError: (error: any) => {
-      toast({
-        title: "Error deleting event",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -673,17 +732,18 @@ export default function EventDetailsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background p-4">
-      <div className="max-w-4xl mx-auto space-y-6">
-        <Button
-          variant="ghost"
-          onClick={() => setLocation("/")}
-          className="gap-2"
-          data-testid="button-back"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Dashboard
-        </Button>
+    <div className="min-h-screen bg-background">
+      <Header />
+
+      <div className="max-w-4xl mx-auto p-6 space-y-6">
+        {/* Breadcrumbs */}
+        <Breadcrumbs
+          items={[
+            { label: event.groupName || "Group", href: `/group/${event.groupId}` },
+            { label: event.itineraryName || "Event" }
+          ]}
+          className="mb-2"
+        />
 
         <Card data-testid="event-details-card">
           <CardHeader>
@@ -896,6 +956,23 @@ export default function EventDetailsPage() {
                     AI-hosted
                   </Badge>
                 )}
+                {event.status === 'draft' && !event.inviteSentAt && (
+                  <Badge variant="outline" className="gap-1 bg-orange-50 text-orange-700 border-orange-300">
+                    📝 Draft - Not sent to group
+                  </Badge>
+                )}
+                {isOrganizer && event.status === 'draft' && !event.inviteSentAt && event.eventDate && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => sendToGroupMutation.mutate()}
+                    disabled={sendToGroupMutation.isPending}
+                    className="gap-1"
+                  >
+                    <Send className="h-4 w-4" />
+                    {sendToGroupMutation.isPending ? 'Sending...' : 'Send to Group'}
+                  </Button>
+                )}
                 {isOrganizer && (
                   <Button
                     variant="ghost"
@@ -985,15 +1062,38 @@ export default function EventDetailsPage() {
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold text-lg">Venues</h3>
                 {isOrganizer && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowAddVenueDialog(true)}
-                    className="gap-2"
-                  >
-                    <MapPin className="h-4 w-4" />
-                    Add Location
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    {event.items && event.items.length > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => regenerateVenuesMutation.mutate()}
+                        disabled={regenerateVenuesMutation.isPending}
+                        className="gap-2"
+                      >
+                        {regenerateVenuesMutation.isPending ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            AI Selecting...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-4 w-4" />
+                            Regenerate Venues
+                          </>
+                        )}
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowAddVenueDialog(true)}
+                      className="gap-2"
+                    >
+                      <MapPin className="h-4 w-4" />
+                      Add Location
+                    </Button>
+                  </div>
                 )}
               </div>
               <DndContext
@@ -1014,6 +1114,10 @@ export default function EventDetailsPage() {
                         isOrganizer={isOrganizer}
                         toast={toast}
                         queryClient={queryClient}
+                        onEdit={(venue) => {
+                          setVenueToEdit(venue);
+                          setShowEditVenueDialog(true);
+                        }}
                       />
                     ))}
                   </div>
@@ -1441,6 +1545,16 @@ export default function EventDetailsPage() {
           onSuccess={() => {
             queryClient.invalidateQueries({ queryKey: ["/api/user/events", eventId] });
           }}
+        />
+      )}
+
+      {/* Edit Venue Dialog */}
+      {event?.itineraryId && (
+        <EditVenueDialog
+          open={showEditVenueDialog}
+          onOpenChange={setShowEditVenueDialog}
+          venue={venueToEdit}
+          itineraryId={event.itineraryId}
         />
       )}
 

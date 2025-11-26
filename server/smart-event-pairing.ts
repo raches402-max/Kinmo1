@@ -13,6 +13,7 @@ import { subDays, format } from "date-fns";
 import { validateQueueEvent } from "./ai-event-validator";
 import { suggestOptimalTime } from "./ai-time-picker";
 import { inferTimePeriod, calculateDayDensity } from "./availability-utils";
+import { planEventWithAgent, type VenueForAgent } from "./ai-event-agent";
 
 interface QueueVenue {
   sourceType: 'voting_event' | 'activity';
@@ -35,6 +36,7 @@ interface QueueEvent {
   aiValidationReasoning: string;
   aiValidationConcerns: string[];
   aiValidationSuggestions: string[];
+  regenerationCount?: number;
 }
 
 interface QueueData {
@@ -241,100 +243,168 @@ export async function regenerateQueueEvent(
       throw new Error('Group not found');
     }
 
-    // Get Favorites
+    // Get Favorites and activities
     const votingEvents = await storage.getGroupVotingEvents(groupId);
+    const activities = await storage.getGroupActivities(groupId);
     const favorites = votingEvents.filter((ve: any) => ve.netVotes >= 0);
 
-    if (favorites.length < 2) {
-      throw new Error('Not enough Favorites to regenerate. Need at least 2 favorites.');
+    if (favorites.length < 2 && activities.length < 2) {
+      throw new Error('Not enough venues to regenerate. Need at least 2 favorites or activities.');
     }
 
-    // Determine preferred time
-    const preferredTime = await inferPreferredTimeOfDay(group, storage);
+    // Convert to VenueForAgent format for agent selection
+    const venuesForAgent: VenueForAgent[] = [];
 
-    // Filter favorites appropriate for time and exclude previously shown ones
-    const suitableFavorites = favorites.filter((fav: any) => {
-      const times = categorizeVenueTimeOfDay(fav.category || fav.venueType || 'restaurant');
-      const isTimeAppropriate = times.includes(preferredTime);
-      const notExcluded = !excludeVenueIds.includes(fav.id);
-      return isTimeAppropriate && notExcluded;
+    // Add favorites (voting events)
+    for (const fav of favorites) {
+      if (excludeVenueIds.includes(fav.id)) continue; // Skip excluded venues
+
+      const recentlyVisited = await wasVenueVisitedRecently(groupId, 'voting_event', fav.id, 60);
+
+      venuesForAgent.push({
+        type: 'voting_event',
+        id: fav.id,
+        name: fav.title,
+        score: (fav.upvotes || 0) * 10, // Higher score for upvoted favorites
+        visitCount: recentlyVisited ? 1 : 0,
+        daysSinceLastVisit: recentlyVisited ? 30 : 999,
+        qualityScore: fav.upvotes || 0,
+        feedback: (fav.upvotes || 0) >= 3 ? 'favorite' : null,
+        category: fav.category,
+        venueType: fav.venueType || 'restaurant',
+        rating: fav.rating,
+        venueAddress: fav.location,
+        googlePlaceId: fav.googlePlaceId,
+        latitude: null,
+        longitude: null,
+      });
+    }
+
+    // Add activities (if needed for diversity)
+    for (const activity of activities) {
+      if (excludeVenueIds.includes(activity.id)) continue;
+      if (activity.businessStatus === 'CLOSED_PERMANENTLY' || activity.businessStatus === 'CLOSED_TEMPORARILY') continue;
+      if (activity.feedback === 'thumbs_down' || activity.feedback === 'never_again') continue;
+
+      const recentlyVisited = await wasVenueVisitedRecently(groupId, 'activity', activity.id, 60);
+
+      venuesForAgent.push({
+        type: 'activity',
+        id: activity.id,
+        name: activity.venueName,
+        score: activity.feedback === 'favorite' ? 80 : 50,
+        visitCount: recentlyVisited ? 1 : 0,
+        daysSinceLastVisit: recentlyVisited ? 30 : 999,
+        qualityScore: activity.feedback === 'favorite' ? 9 : 7,
+        feedback: activity.feedback,
+        category: activity.category,
+        venueType: activity.venueType,
+        rating: activity.rating,
+        venueAddress: activity.venueAddress,
+        googlePlaceId: activity.googlePlaceId,
+        latitude: activity.latitude,
+        longitude: activity.longitude,
+      });
+    }
+
+    if (venuesForAgent.length < 2) {
+      throw new Error('No alternative venues available after filtering. Try skipping this date or adding more Favorites.');
+    }
+
+    console.log(`[Smart Pairing Regeneration] Using AI agent to select from ${venuesForAgent.length} available venues`);
+
+    // Use AI Event Planning Agent for intelligent venue selection
+    const agentResult = await planEventWithAgent({
+      group,
+      eventDate: date,
+      availableVenues: venuesForAgent,
+      constraints: {
+        desiredVenueCount: 2,
+        maxDistanceMiles: group.searchRadius || 5,
+      },
     });
 
-    // Sort by upvotes
-    suitableFavorites.sort((a: any, b: any) => b.upvotes - a.upvotes);
+    if (!agentResult || agentResult.selectedVenues.length === 0) {
+      // Fallback: simple selection if agent fails
+      console.log('[Smart Pairing Regeneration] Agent failed, using fallback selection');
+      const fallbackVenues = venuesForAgent
+        .filter(v => !excludeVenueIds.includes(v.id))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 2);
 
-    if (suitableFavorites.length === 0) {
-      throw new Error('No alternative Favorites available. Try skipping this date or adding more Favorites.');
-    }
-
-    // Pick 1-2 different venues
-    const selectedFavorites = suitableFavorites.slice(0, 2);
-
-    // Check if recently visited
-    const notRecentlyVisited = [];
-    for (const fav of selectedFavorites) {
-      const recent = await wasVenueVisitedRecently(
-        groupId,
-        'voting_event',
-        fav.id,
-        60
-      );
-      if (!recent) {
-        notRecentlyVisited.push(fav);
+      if (fallbackVenues.length === 0) {
+        throw new Error('No venues available for regeneration');
       }
+
+      const venues: QueueVenue[] = fallbackVenues.map(v => ({
+        sourceType: v.type,
+        sourceId: v.id,
+        venueName: v.name,
+        venueType: v.venueType || 'restaurant',
+        venueAddress: v.venueAddress,
+        googlePlaceId: v.googlePlaceId,
+      }));
+
+      const newEvent: QueueEvent = {
+        id: `queue-${date.toISOString()}-favorites-regen-${Date.now()}`,
+        scheduledDate: date.toISOString(),
+        scheduledTime: undefined,
+        venues,
+        sourceType: 'favorites',
+        aiValidationScore: 0,
+        aiValidationReasoning: 'Fallback selection (agent unavailable)',
+        aiValidationConcerns: [],
+        aiValidationSuggestions: [],
+      };
+
+      return newEvent;
     }
 
-    // If all are recently visited, use them anyway (better than no regeneration)
-    const finalVenues = notRecentlyVisited.length > 0 ? notRecentlyVisited : selectedFavorites;
+    console.log(`[Smart Pairing Regeneration] Agent selected ${agentResult.selectedVenues.length} venues`);
+    console.log(`[Smart Pairing Regeneration] Agent reasoning: ${agentResult.reasoning}`);
+    console.log(`[Smart Pairing Regeneration] Agent confidence: ${agentResult.confidence}%`);
 
-    const venues: QueueVenue[] = finalVenues.map((fav: any) => ({
-      sourceType: 'voting_event' as const,
-      sourceId: fav.id,
-      venueName: fav.title,
-      venueType: fav.category || fav.venueType || 'restaurant',
-      venueAddress: fav.location,
-      googlePlaceId: fav.googlePlaceId,
+    const finalVenues = agentResult.selectedVenues;
+
+    const venues: QueueVenue[] = finalVenues.map((venue: VenueForAgent) => ({
+      sourceType: venue.type,
+      sourceId: venue.id,
+      venueName: venue.name,
+      venueType: venue.venueType || 'restaurant',
+      venueAddress: venue.venueAddress,
+      googlePlaceId: venue.googlePlaceId,
     }));
 
-    // Create new queue event
+    // Create new queue event with agent's reasoning
     const newEvent: QueueEvent = {
       id: `queue-${date.toISOString()}-favorites-regen-${Date.now()}`,
       scheduledDate: date.toISOString(),
       scheduledTime: undefined,
       venues,
       sourceType: 'favorites',
-      aiValidationScore: 0,
-      aiValidationReasoning: '',
-      aiValidationConcerns: [],
+      aiValidationScore: agentResult.confidence,
+      aiValidationReasoning: `Agent: ${agentResult.reasoning} | Flow: ${agentResult.flow}`,
+      aiValidationConcerns: agentResult.warnings || [],
       aiValidationSuggestions: [],
     };
 
-    // Run AI validation and time picker
+    // Run AI time picker (agent doesn't pick time, only venues)
     const venuesForScheduling = venues.map(v => ({
       name: v.venueName,
       type: v.venueType,
     }));
 
-    const [timeResult, validation] = await Promise.all([
-      suggestOptimalTime({
-        venues: venuesForScheduling,
-        generalAvailability: group.generalAvailability,
-        meetingFrequency: group.meetingFrequency || '1x month',
-        location: group.location,
-        currentGroupId: groupId,
-      }),
-      validateQueueEvent(newEvent, {
-        meetingFrequency: group.meetingFrequency || '1x month',
-      }),
-    ]);
+    const timeResult = await suggestOptimalTime({
+      venues: venuesForScheduling,
+      generalAvailability: group.generalAvailability,
+      meetingFrequency: group.meetingFrequency || '1x month',
+      location: group.location,
+      currentGroupId: groupId,
+    });
 
     newEvent.scheduledTime = timeResult.suggestedTime || format(timeResult.eventDate, 'HH:mm');
-    newEvent.aiValidationScore = validation.score;
-    newEvent.aiValidationReasoning = validation.reasoning;
-    newEvent.aiValidationConcerns = validation.concerns;
-    newEvent.aiValidationSuggestions = validation.suggestions;
 
-    console.log(`[Smart Pairing] Regenerated event with ${venues.length} venues, score: ${validation.score}`);
+    console.log(`[Smart Pairing] Regenerated event with ${venues.length} venues, confidence: ${agentResult.confidence}%`);
 
     return newEvent;
   } catch (error: any) {
@@ -363,7 +433,8 @@ export async function generateAutoScheduleQueue(
     const nextDates = calculateFutureEventDates(
       new Date(),
       group.meetingFrequency || '1x month',
-      5 // Generate 5 future dates
+      5, // Generate 5 future dates
+      group // Pass group for smart time selection
     );
     console.log(`[Smart Pairing] Next ${nextDates.length} dates:`, nextDates.map(d => d.toISOString()));
 
@@ -417,53 +488,93 @@ export async function generateAutoScheduleQueue(
           aiValidationSuggestions: [],
         });
       }
-      // Otherwise, pick 1-2 venues from Favorites with variety
+      // Otherwise, use AI agent to intelligently select venues from Favorites
       else if (favorites.length > 0) {
-        // Filter favorites appropriate for preferred time
-        const suitableFavorites = favorites.filter((fav: any) => {
-          const times = categorizeVenueTimeOfDay(fav.category || fav.venueType || 'restaurant');
-          return times.includes(preferredTime);
-        });
+        // Get activities for diversity
+        const activities = await storage.getGroupActivities(groupId);
 
-        // Sort by upvotes and filter out already-used venues
-        const availableFavorites = suitableFavorites
-          .filter((fav: any) => !usedVenueIds.has(fav.id))
-          .sort((a: any, b: any) => b.upvotes - a.upvotes);
+        // Convert to VenueForAgent format
+        const venuesForAgent: VenueForAgent[] = [];
 
-        // If we've used all favorites, reset and allow reuse
-        const favoritesToUse = availableFavorites.length > 0
-          ? availableFavorites
-          : suitableFavorites.sort((a: any, b: any) => b.upvotes - a.upvotes);
+        // Add favorites (voting events)
+        for (const fav of favorites) {
+          if (usedVenueIds.has(fav.id)) continue; // Skip already used
 
-        // Pick 1-2 venues for this event
-        const selectedFavorites = favoritesToUse.slice(0, 2);
+          const recentlyVisited = await wasVenueVisitedRecently(groupId, 'voting_event', fav.id, 60);
+          if (recentlyVisited) continue; // Skip recently visited
 
-        if (selectedFavorites.length > 0) {
-          // Mark all selected favorites as used for variety (before checking recent visits)
-          selectedFavorites.forEach((fav: any) => usedVenueIds.add(fav.id));
+          venuesForAgent.push({
+            type: 'voting_event',
+            id: fav.id,
+            name: fav.title,
+            score: (fav.upvotes || 0) * 10,
+            visitCount: 0,
+            daysSinceLastVisit: 999,
+            qualityScore: fav.upvotes || 0,
+            feedback: (fav.upvotes || 0) >= 3 ? 'favorite' : null,
+            category: fav.category,
+            venueType: fav.venueType || 'restaurant',
+            rating: fav.rating,
+            venueAddress: fav.location,
+            googlePlaceId: fav.googlePlaceId,
+            latitude: null,
+            longitude: null,
+          });
+        }
 
-          // Check if recently visited
-          const notRecentlyVisited = [];
-          for (const fav of selectedFavorites) {
-            const recent = await wasVenueVisitedRecently(
-              groupId,
-              'voting_event',
-              fav.id,
-              60 // 60-day cooldown
-            );
-            if (!recent) {
-              notRecentlyVisited.push(fav);
-            }
-          }
+        // Add activities for diversity
+        for (const activity of activities) {
+          if (usedVenueIds.has(activity.id)) continue;
+          if (activity.businessStatus === 'CLOSED_PERMANENTLY' || activity.businessStatus === 'CLOSED_TEMPORARILY') continue;
+          if (activity.feedback === 'thumbs_down' || activity.feedback === 'never_again') continue;
 
-          if (notRecentlyVisited.length > 0) {
-            const venues: QueueVenue[] = notRecentlyVisited.map((fav: any) => ({
-              sourceType: 'voting_event' as const,
-              sourceId: fav.id,
-              venueName: fav.title,
-              venueType: fav.category || fav.venueType || 'restaurant',
-              venueAddress: fav.location,
-              googlePlaceId: fav.googlePlaceId,
+          const recentlyVisited = await wasVenueVisitedRecently(groupId, 'activity', activity.id, 60);
+          if (recentlyVisited) continue;
+
+          venuesForAgent.push({
+            type: 'activity',
+            id: activity.id,
+            name: activity.venueName,
+            score: activity.feedback === 'favorite' ? 80 : 50,
+            visitCount: 0,
+            daysSinceLastVisit: 999,
+            qualityScore: activity.feedback === 'favorite' ? 9 : 7,
+            feedback: activity.feedback,
+            category: activity.category,
+            venueType: activity.venueType,
+            rating: activity.rating,
+            venueAddress: activity.venueAddress,
+            googlePlaceId: activity.googlePlaceId,
+            latitude: activity.latitude,
+            longitude: activity.longitude,
+          });
+        }
+
+        if (venuesForAgent.length >= 2) {
+          console.log(`[Smart Pairing Queue] Using AI agent to select venues for ${date.toISOString()}`);
+
+          // Use AI Event Planning Agent
+          const agentResult = await planEventWithAgent({
+            group,
+            eventDate: date,
+            availableVenues: venuesForAgent,
+            constraints: {
+              desiredVenueCount: 2,
+              maxDistanceMiles: group.searchRadius || 5,
+            },
+          });
+
+          if (agentResult && agentResult.selectedVenues.length > 0) {
+            // Mark venues as used
+            agentResult.selectedVenues.forEach(v => usedVenueIds.add(v.id));
+
+            const venues: QueueVenue[] = agentResult.selectedVenues.map((venue: VenueForAgent) => ({
+              sourceType: venue.type,
+              sourceId: venue.id,
+              venueName: venue.name,
+              venueType: venue.venueType || 'restaurant',
+              venueAddress: venue.venueAddress,
+              googlePlaceId: venue.googlePlaceId,
             }));
 
             candidateEvents.push({
@@ -472,12 +583,18 @@ export async function generateAutoScheduleQueue(
               scheduledTime: undefined,
               venues,
               sourceType: 'favorites',
-              aiValidationScore: 0,
-              aiValidationReasoning: '',
-              aiValidationConcerns: [],
+              aiValidationScore: agentResult.confidence,
+              aiValidationReasoning: `Agent: ${agentResult.reasoning} | Flow: ${agentResult.flow}`,
+              aiValidationConcerns: agentResult.warnings || [],
               aiValidationSuggestions: [],
             });
+
+            console.log(`[Smart Pairing Queue] Agent selected ${venues.length} venues, confidence: ${agentResult.confidence}%`);
+          } else {
+            console.log(`[Smart Pairing Queue] Agent failed for ${date.toISOString()}, skipping this date`);
           }
+        } else {
+          console.log(`[Smart Pairing Queue] Not enough venues available for ${date.toISOString()}`);
         }
       }
     }
@@ -498,31 +615,47 @@ export async function generateAutoScheduleQueue(
             type: v.venueType,
           }));
 
-          // Run AI time picker and validator in parallel for each event
-          const [timeResult, validation] = await Promise.all([
-            suggestOptimalTime({
+          // Check if event was already validated by agent (confidence > 0)
+          const needsValidation = event.aiValidationScore === 0;
+
+          if (needsValidation) {
+            // Run AI time picker and validator in parallel for non-agent events
+            const [timeResult, validation] = await Promise.all([
+              suggestOptimalTime({
+                venues: venuesForScheduling,
+                generalAvailability: group.generalAvailability,
+                meetingFrequency: group.meetingFrequency || '1x month',
+                location: group.location,
+                currentGroupId: groupId,
+              }),
+              validateQueueEvent(event, {
+                meetingFrequency: group.meetingFrequency || '1x month',
+              }),
+            ]);
+
+            event.scheduledTime = timeResult.suggestedTime || format(timeResult.eventDate, 'HH:mm');
+            event.aiValidationScore = validation.score;
+            event.aiValidationReasoning = validation.reasoning;
+            event.aiValidationConcerns = validation.concerns;
+            event.aiValidationSuggestions = validation.suggestions;
+
+            console.log(`[Smart Pairing] Validated with legacy AI, score: ${validation.score}`);
+          } else {
+            // Agent-selected event, only need time picker
+            const timeResult = await suggestOptimalTime({
               venues: venuesForScheduling,
               generalAvailability: group.generalAvailability,
               meetingFrequency: group.meetingFrequency || '1x month',
               location: group.location,
               currentGroupId: groupId,
-            }),
-            validateQueueEvent(event, {
-              meetingFrequency: group.meetingFrequency || '1x month',
-            }),
-          ]);
+            });
 
-          // Set the scheduled time from AI suggestion (use raw time string to preserve local timezone)
-          event.scheduledTime = timeResult.suggestedTime || format(timeResult.eventDate, 'HH:mm');
+            event.scheduledTime = timeResult.suggestedTime || format(timeResult.eventDate, 'HH:mm');
+
+            console.log(`[Smart Pairing] Agent-validated event, confidence: ${event.aiValidationScore}%`);
+          }
+
           console.log(`[Smart Pairing] AI suggested time: ${event.scheduledTime}`);
-
-          // Set validation results
-          event.aiValidationScore = validation.score;
-          event.aiValidationReasoning = validation.reasoning;
-          event.aiValidationConcerns = validation.concerns;
-          event.aiValidationSuggestions = validation.suggestions;
-
-          console.log(`[Smart Pairing] Validation score: ${validation.score}/100 - ${validation.reasoning}`);
         } catch (error) {
           console.error('[Smart Pairing] Processing error:', error);
           // Set default time if AI fails
@@ -533,8 +666,30 @@ export async function generateAutoScheduleQueue(
       })
     );
 
+    // Fetch regeneration counts for all events
+    const { queueEventMetadata } = await import('../shared/schema');
+    const { db } = await import('./db');
+    const { eq } = await import('drizzle-orm');
+
+    const metadata = await db
+      .select()
+      .from(queueEventMetadata)
+      .where(eq(queueEventMetadata.groupId, groupId));
+
+    // Create a map of eventId -> regenerationCount
+    const regenerationCounts = new Map<string, number>();
+    metadata.forEach(m => {
+      regenerationCounts.set(m.eventId, m.regenerationCount);
+    });
+
+    // Add regeneration counts to events
+    const eventsWithCounts = validatedEvents.map(event => ({
+      ...event,
+      regenerationCount: regenerationCounts.get(event.id) || 0,
+    }));
+
     return {
-      events: validatedEvents
+      events: eventsWithCounts
     };
 
   } catch (error: any) {

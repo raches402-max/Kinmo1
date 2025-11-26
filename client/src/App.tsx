@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { BottomNav } from "@/components/BottomNav";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
 import Landing from "@/pages/landing";
@@ -16,8 +17,11 @@ import JoinEntry from "@/pages/join-entry";
 import JoinGroup from "@/pages/join-group";
 import InvitePage from "@/pages/invite";
 import RsvpItineraryPage from "@/pages/rsvp-itinerary";
+import EventInvitePage from "@/pages/event-invite";
+import GuestEventInvitePage from "@/pages/guest-event-invite";
 import GuestRsvpPage from "@/pages/guest-rsvp";
 import ClaimMemberPage from "@/pages/claim-member";
+import LinkMemberAccountPage from "@/pages/link-member-account";
 import MemberEventsPage from "@/pages/member-events";
 import Profile from "@/pages/profile";
 import MemberProfileSetup from "@/pages/member-profile-setup";
@@ -25,6 +29,9 @@ import EventDetailsPage from "@/pages/event-details";
 import Admin from "@/pages/admin";
 import LearningInsights from "@/pages/learning-insights";
 import Preferences from "@/pages/preferences";
+import NotificationsPage from "@/pages/notifications";
+import Privacy from "@/pages/privacy";
+import Terms from "@/pages/terms";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -68,40 +75,58 @@ function Router() {
   }
 
   return (
-    <Switch>
-      {!isAuthenticated ? (
-        <>
-          <Route path="/" component={Landing} />
-          <Route path="/join-entry" component={JoinEntry} />
-          <Route path="/join/:shareableLink" component={JoinGroup} />
-          <Route path="/invite/:token" component={InvitePage} />
-          <Route path="/rsvp/:itineraryId/:inviteToken" component={RsvpItineraryPage} />
-          <Route path="/guest-rsvp/:guestToken" component={GuestRsvpPage} />
-          <Route path="/claim/:claimToken" component={ClaimMemberPage} />
-          <Route path="/events" component={MemberEventsPage} />
-        </>
-      ) : (
-        <>
-          <Route path="/" component={Dashboard} />
-          <Route path="/preferences" component={Preferences} />
-          <Route path="/create-group" component={CreateGroup} />
-          <Route path="/group/:id" component={GroupDetail} />
-          <Route path="/groups/:id/learning" component={LearningInsights} />
-          <Route path="/join-entry" component={JoinEntry} />
-          <Route path="/join/:shareableLink" component={JoinGroup} />
-          <Route path="/invite/:token" component={InvitePage} />
-          <Route path="/rsvp/:itineraryId/:inviteToken" component={RsvpItineraryPage} />
-          <Route path="/guest-rsvp/:guestToken" component={GuestRsvpPage} />
-          <Route path="/claim/:claimToken" component={ClaimMemberPage} />
-          <Route path="/events" component={MemberEventsPage} />
-          <Route path="/profile" component={Profile} />
-          <Route path="/member-profile-setup/:memberId" component={MemberProfileSetup} />
-          <Route path="/event/:id" component={EventDetailsPage} />
-          <Route path="/admin" component={Admin} />
-        </>
-      )}
-      <Route component={NotFound} />
-    </Switch>
+    <>
+      {/* Add bottom padding on mobile to prevent content from being hidden by bottom nav */}
+      <div className="pb-20 md:pb-0">
+        <Switch>
+          {!isAuthenticated ? (
+            <>
+              <Route path="/" component={Landing} />
+              <Route path="/join-entry" component={JoinEntry} />
+              <Route path="/join/:shareableLink" component={JoinGroup} />
+              <Route path="/invite/:token" component={InvitePage} />
+              <Route path="/event/:eventId/invite" component={EventInvitePage} />
+              <Route path="/event/:eventId/guest" component={GuestEventInvitePage} />
+              <Route path="/rsvp/:itineraryId/:inviteToken" component={RsvpItineraryPage} />
+              <Route path="/guest-rsvp/:guestToken" component={GuestRsvpPage} />
+              <Route path="/claim/:claimToken" component={ClaimMemberPage} />
+              <Route path="/events" component={MemberEventsPage} />
+              <Route path="/privacy" component={Privacy} />
+              <Route path="/terms" component={Terms} />
+            </>
+          ) : (
+            <>
+              <Route path="/" component={Dashboard} />
+              <Route path="/preferences" component={Preferences} />
+              <Route path="/notifications" component={NotificationsPage} />
+              <Route path="/create-group" component={CreateGroup} />
+              <Route path="/group/:id" component={GroupDetail} />
+              <Route path="/groups/:id/learning" component={LearningInsights} />
+              <Route path="/join-entry" component={JoinEntry} />
+              <Route path="/join/:shareableLink" component={JoinGroup} />
+              <Route path="/invite/:token" component={InvitePage} />
+              <Route path="/event/:eventId/invite" component={EventInvitePage} />
+              <Route path="/event/:eventId/guest" component={GuestEventInvitePage} />
+              <Route path="/rsvp/:itineraryId/:inviteToken" component={RsvpItineraryPage} />
+              <Route path="/guest-rsvp/:guestToken" component={GuestRsvpPage} />
+              <Route path="/claim/:claimToken" component={ClaimMemberPage} />
+              <Route path="/link-member-account" component={LinkMemberAccountPage} />
+              <Route path="/events" component={MemberEventsPage} />
+              <Route path="/profile" component={Profile} />
+              <Route path="/member-profile-setup/:memberId" component={MemberProfileSetup} />
+              <Route path="/event/:id" component={EventDetailsPage} />
+              <Route path="/admin" component={Admin} />
+              <Route path="/privacy" component={Privacy} />
+              <Route path="/terms" component={Terms} />
+            </>
+          )}
+          <Route component={NotFound} />
+        </Switch>
+      </div>
+
+      {/* Show bottom nav only for authenticated users */}
+      {isAuthenticated && <BottomNav />}
+    </>
   );
 }
 

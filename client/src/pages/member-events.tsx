@@ -6,10 +6,12 @@ import { Calendar, MapPin, Clock, CheckCircle, XCircle, HelpCircle, Sparkles, Ho
 import { format } from "date-fns";
 import { Link } from "wouter";
 import { TimeSlotVoting } from "@/components/TimeSlotVoting";
+import { Header } from "@/components/Header";
 import { useAuth } from "@/hooks/useAuth";
 import type { User } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { getErrorToast } from "@/components/ErrorDisplay";
 
 type EventItem = {
   id: string;
@@ -71,8 +73,10 @@ export default function MemberEventsPage() {
   });
 
   const requestHostMutation = useMutation({
-    mutationFn: async (itineraryId: string) => {
-      return await apiRequest("POST", `/api/itineraries/${itineraryId}/request-host`, {});
+    mutationFn: async ({ groupId, itineraryId }: { groupId: string; itineraryId: string }) => {
+      return await apiRequest("POST", `/api/groups/${groupId}/request-host`, {
+        itineraryId
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
@@ -82,11 +86,7 @@ export default function MemberEventsPage() {
       });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error requesting host",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -110,11 +110,7 @@ export default function MemberEventsPage() {
       }
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error responding to hosting request",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -218,7 +214,10 @@ export default function MemberEventsPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => requestHostMutation.mutate(event.itineraryId)}
+                onClick={() => requestHostMutation.mutate({
+                  groupId: event.groupId,
+                  itineraryId: event.itineraryId
+                })}
                 disabled={requestHostMutation.isPending}
                 className="gap-1"
                 data-testid={`button-request-host-${event.itineraryId}`}
@@ -270,6 +269,7 @@ export default function MemberEventsPage() {
             itineraryId={event.itineraryId}
             userId={user?.id}
             isOrganizer={event.isOrganizer}
+            isHost={event.hostMemberId === event.currentUserMemberId}
             timezone={event.groupTimezone}
           />
 
@@ -294,9 +294,11 @@ export default function MemberEventsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="max-w-6xl mx-auto space-y-8">
-        {/* Header */}
+    <div className="min-h-screen bg-background">
+      <Header />
+
+      <div className="max-w-6xl mx-auto p-6 space-y-8">
+        {/* Page Header */}
         <div>
           <h1 className="text-3xl font-bold" data-testid="heading-my-events">My Events</h1>
           <p className="text-muted-foreground mt-2" data-testid="text-description">

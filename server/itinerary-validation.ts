@@ -92,6 +92,25 @@ export async function validateItinerary(
     }
   }
 
+  // Check for duplicate meal types (prevent "two dinners" issue)
+  const venueTypes = selectedVenues.map(v => v.venueType.toLowerCase());
+  const mealKeywords = ['restaurant', 'dining', 'eatery', 'bistro', 'grill', 'kitchen', 'cuisine'];
+  const mealCount = venueTypes.filter(vt =>
+    mealKeywords.some(keyword => vt.includes(keyword))
+  ).length;
+
+  if (mealCount >= 2) {
+    return {
+      isValid: false,
+      proposedOrder: [],
+      validationNotes: "Cannot have multiple full meals in one evening. Please choose one main dining venue and complement with drinks, dessert, or an activity.",
+      issues: [
+        `Found ${mealCount} restaurant/dining venues - itinerary should have at most 1 meal venue`,
+        "Suggested: 1 meal + 1 drinks/dessert/activity"
+      ],
+    };
+  }
+
   // For single venue, skip AI validation and use simple default
   if (selectedVenues.length === 1) {
     return {
@@ -140,8 +159,15 @@ Format your response as JSON with just the optimal order (using venue numbers fr
       temperature: 0.7,
     });
 
-    const aiResponse = JSON.parse(response.choices[0].message.content || "{}");
-    const proposedOrder = (aiResponse.order as number[] || []).map(idx => 
+    let aiResponse;
+    try {
+      aiResponse = JSON.parse(response.choices[0]?.message?.content || "{}");
+    } catch (parseError) {
+      console.error("Failed to parse AI response:", parseError);
+      aiResponse = {};
+    }
+
+    const proposedOrder = (aiResponse.order as number[] || []).map(idx =>
       selectedVenues[idx - 1]?.sourceId
     ).filter(Boolean);
 

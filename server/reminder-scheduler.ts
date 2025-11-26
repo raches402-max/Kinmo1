@@ -12,9 +12,19 @@ import {
   type ReminderData,
 } from './email-service';
 import { storage } from './storage';
-import { selectBestItineraryForAutoSchedule, shouldTriggerAutoSchedule } from './auto-scheduler';
+import { selectBestItineraryForAutoSchedule, shouldTriggerAutoSchedule, maintainEventPipeline, calculateTargetEventCount } from './auto-scheduler';
 import { calculateEventConfidence, shouldRequireReview } from './confidence-scoring';
 import { randomBytes } from 'crypto';
+
+/**
+ * Validates that a date is valid before performing mutations
+ * @throws Error if date is invalid
+ */
+function validateDate(date: Date, context: string): void {
+  if (isNaN(date.getTime())) {
+    throw new Error(`Invalid date in ${context}: ${date}`);
+  }
+}
 
 interface ReminderToSend {
   itineraryId: string;
@@ -63,6 +73,7 @@ export async function processScheduledReminders(): Promise<void> {
       };
 
       const eventDate = new Date(itinerary.eventDate);
+      validateDate(eventDate, 'processScheduledReminders - eventDate');
       const inviteSendDate = new Date(eventDate);
       inviteSendDate.setDate(eventDate.getDate() - config.inviteAdvanceDays);
 
@@ -105,12 +116,14 @@ export async function processScheduledReminders(): Promise<void> {
       };
 
       const rsvpDeadline = new Date(itinerary.rsvpDeadline);
+      validateDate(rsvpDeadline, 'processScheduledReminders - rsvpDeadline');
       const eventDate = new Date(itinerary.eventDate);
+      validateDate(eventDate, 'processScheduledReminders - reminder eventDate');
 
       // Check each configured reminder
       for (const reminder of config.reminders) {
         let sendDate: Date;
-        
+
         if (reminder.type === 'day_before' && reminder.daysBeforeEvent) {
           sendDate = new Date(eventDate);
           sendDate.setDate(eventDate.getDate() - reminder.daysBeforeEvent);
@@ -158,6 +171,11 @@ async function sendInitialInvites(itinerary: any, group: any): Promise<void> {
 
     if (membersWithEmails.length === 0) {
       console.log('No recipients with emails for itinerary:', itinerary.id);
+      // Mark as sent to prevent retrying
+      await db
+        .update(itineraries)
+        .set({ inviteSentAt: new Date() })
+        .where(eq(itineraries.id, itinerary.id));
       return;
     }
 
@@ -259,6 +277,31 @@ async function sendReminderEmails(
       .from(members)
       .where(eq(members.groupId, group.id));
 
+    // Send in-app RSVP reminder notifications for gentle_nudge and final_call
+    if (reminderType === 'gentle_nudge' || reminderType === 'final_call') {
+      try {
+        const { notifyRSVPReminder } = await import('./notifications');
+        const memberIds = groupMembers.map(m => m.id);
+
+        // Calculate hours until deadline
+        const rsvpDeadline = itinerary.rsvpDeadline ? new Date(itinerary.rsvpDeadline) : null;
+        const hoursUntilDeadline = rsvpDeadline
+          ? Math.round((rsvpDeadline.getTime() - Date.now()) / (1000 * 60 * 60))
+          : 24;
+
+        await notifyRSVPReminder({
+          itineraryId: itinerary.id,
+          groupId: group.id,
+          eventName: itinerary.name || 'Upcoming Event',
+          memberIds,
+          hoursUntilDeadline
+        });
+        console.log(`[Notifications] Sent in-app RSVP reminders for ${reminderType}`);
+      } catch (notifyError) {
+        console.error('[Notifications] Error sending RSVP reminder notifications:', notifyError);
+      }
+    }
+
     const membersWithEmails = groupMembers.filter(m => m.email);
 
     if (membersWithEmails.length === 0) {
@@ -349,6 +392,54 @@ async function sendReminderEmails(
 }
 
 /**
+ * Auto-Process AI Suggestions
+ * Automatically approves events where autoSendAt has passed
+ * Removes "overdue" concept - AI suggestions become visible when ready
+ */
+async function autoProcessSuggestions(): Promise<void> {
+  try {
+    // Find events ready to be suggested (autoSendAt has passed)
+    const readyEvents = await db
+      .select()
+      .from(autoScheduledEvents)
+      .where(
+        sql`${autoScheduledEvents.status} = 'pending_approval'
+            AND ${autoScheduledEvents.autoSendAt} < NOW()`
+      );
+
+    if (readyEvents.length === 0) {
+      return; // No events ready
+    }
+
+    console.log(`[Auto-Process] Found ${readyEvents.length} AI suggestions ready to show`);
+
+    for (const event of readyEvents) {
+      try {
+        // Import here to avoid circular dependency
+        const { approveAndCreateItinerary } = await import('./auto-approval');
+
+        // Automatically approve AI's top suggestion
+        const result = await approveAndCreateItinerary(
+          event.id,
+          null, // Let it choose best option
+          'auto' // Mark as auto-suggested
+        );
+
+        if (result.success) {
+          console.log(`[Auto-Process] ✓ AI suggestion ready for group ${event.groupId}: ${result.itinerary?.name}`);
+        } else {
+          console.error(`[Auto-Process] ✗ Failed to process suggestion: ${result.error}`);
+        }
+      } catch (error) {
+        console.error(`[Auto-Process] Error processing event ${event.id}:`, error);
+      }
+    }
+  } catch (error) {
+    console.error('[Auto-Process] Error in autoProcessSuggestions:', error);
+  }
+}
+
+/**
  * Auto-Scheduling Worker: Creates pending events for groups that need them
  * Runs once per day to check if groups need their next event created
  */
@@ -393,7 +484,6 @@ export async function processAutoScheduling(): Promise<void> {
             autoSendAt: addDays(new Date(), 2),
             status: 'pending_approval',
             allowMemberVoting: false,
-            approvedByOrganizer: false,
           });
 
           // Store the 3 itinerary options
@@ -622,7 +712,7 @@ export async function processAutoScheduling(): Promise<void> {
           itineraryId,
           proposedDate,
           autoSendAt,
-          status: requiresReview ? 'pending' : 'auto_approved', // Auto-approve if no review needed
+          status: requiresReview ? 'pending_approval' : 'auto_approved', // Auto-approve if no review needed
           confidenceScore: confidenceResult.score,
           confidenceFactors: confidenceResult.factors,
           requiresReview,
@@ -706,6 +796,37 @@ export async function processAutoScheduling(): Promise<void> {
         }
       }
     }
+
+    // NEW: Detect and fix pipeline gaps (when events were manually deleted)
+    console.log('[Pipeline Gap Detection] Checking for groups with insufficient future events...');
+    for (const group of autoEnabledGroups) {
+      try {
+        // Skip groups without a valid userId
+        if (!group.userId) continue;
+
+        // Skip if automation is paused
+        if (group.automationPaused) {
+          console.log(`[Pipeline Gap] Skipping ${group.name} - automation paused`);
+          continue;
+        }
+
+        // Count existing future events
+        const existingCount = await storage.countFutureEvents(group.id);
+
+        // Calculate target event count based on cadence (use custom target if set)
+        const targetCount = group.targetFutureEvents ?? calculateTargetEventCount(group.meetingFrequency);
+
+        // If there's a gap, trigger pipeline maintenance
+        if (existingCount < targetCount) {
+          console.log(`[Pipeline Gap] Group "${group.name}" has ${existingCount}/${targetCount} events - triggering backfill`);
+          await maintainEventPipeline(group.id, storage);
+        } else {
+          console.log(`[Pipeline Gap] Group "${group.name}" has ${existingCount}/${targetCount} events - pipeline healthy`);
+        }
+      } catch (gapError) {
+        console.error(`[Pipeline Gap] Error checking group ${group.name}:`, gapError);
+      }
+    }
   } catch (error) {
     console.error('Error processing auto-scheduling:', error);
   }
@@ -713,13 +834,14 @@ export async function processAutoScheduling(): Promise<void> {
 
 /**
  * Auto-Draft Itinerary Worker: Creates draft itineraries for upcoming virtual events
- * Runs daily to check for events 14-21 days away and auto-populates with favorites
+ * Uses adaptive timeline to determine when to create drafts based on event proximity
  */
 export async function processAutoDraftItineraries(): Promise<void> {
-  const DRAFT_CREATION_WINDOW_DAYS = 14; // Create drafts 14 days before event
-
   try {
     console.log('[Auto-Draft] Checking for virtual events needing draft itineraries...');
+
+    // Import adaptive timeline functions
+    const { calculateAdaptiveTimeline } = await import('./adaptive-timeline');
 
     // Get all groups with auto-scheduling enabled
     const autoEnabledGroups = await db
@@ -748,12 +870,20 @@ export async function processAutoDraftItineraries(): Promise<void> {
       const now = new Date();
       const daysUntilEvent = Math.ceil((eventDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
-      // Only process events that are exactly 14 days away (within a 24-hour window)
-      if (daysUntilEvent < DRAFT_CREATION_WINDOW_DAYS || daysUntilEvent > DRAFT_CREATION_WINDOW_DAYS + 1) {
+      // Use adaptive timeline to determine when to create draft
+      const timeline = calculateAdaptiveTimeline(eventDate, now);
+
+      // Create draft at the invite send time (when we would send invites)
+      // This gives organizers a chance to review before invites go out
+      const shouldCreateDraft = daysUntilEvent <= timeline.inviteAdvanceDays &&
+                                daysUntilEvent >= (timeline.inviteAdvanceDays - 1);
+
+      if (!shouldCreateDraft) {
         continue;
       }
 
-      console.log(`[Auto-Draft] Group ${group.name} has event in ${daysUntilEvent} days - checking for draft`);
+      console.log(`[Auto-Draft] Group ${group.name} has event in ${daysUntilEvent} days - using ${timeline.timelineType} timeline`);
+      console.log(`[Auto-Draft] Timeline: ${timeline.reasoning}`);
 
       // Check if a draft itinerary already exists for this date
       const existingDrafts = await db
@@ -887,17 +1017,17 @@ export async function processAutoSend(): Promise<void> {
         console.log(`Event ${event.id} has no volunteer host - AI auto-approving and sending`);
 
         // Update itinerary to proposed status with event date and schedule config
-        const inviteAdvanceDays = 14;
+        const inviteAdvanceDays = 21; // Increased from 14 to give members more planning time
         const eventDate = new Date(event.proposedDate);
-        const rsvpDeadline = addDays(eventDate, -3);
-        
+        const rsvpDeadline = addDays(eventDate, -7); // Increased from 3 to 7 days before event
+
         await storage.updateItinerary(itinerary.id, {
           status: 'proposed',
           eventDate: event.proposedDate,
           rsvpDeadline,
           autoScheduleConfig: {
             inviteAdvanceDays,
-            rsvpWindowDays: 11,
+            rsvpWindowDays: 14, // Updated from 11 to match new timeline (21 - 7 = 14)
             reminders: [
               { type: 'gentle_nudge', daysBeforeDeadline: 7 },
               { type: 'final_call', daysBeforeDeadline: 1 },
@@ -1127,6 +1257,16 @@ export function startReminderScheduler(): void {
     });
   }, AUTO_APPROVAL_INTERVAL_MS);
 
+  // Run auto-process suggestions immediately and every hour (async, non-blocking)
+  autoProcessSuggestions().catch(err => {
+    console.error('Error in initial auto-process suggestions:', err);
+  });
+  setInterval(() => {
+    autoProcessSuggestions().catch(err => {
+      console.error('Error in scheduled auto-process suggestions:', err);
+    });
+  }, AUTO_APPROVAL_INTERVAL_MS);
+
   // Run time slot selection immediately and daily (async, non-blocking)
   checkAndSelectTimeSlots().catch(err => {
     console.error('Error in initial time selection check:', err);
@@ -1188,6 +1328,167 @@ export function startReminderScheduler(): void {
       console.error('Error in scheduled activity refresh:', err);
     });
   }, ACTIVITY_REFRESH_INTERVAL_MS);
+
+  // Auto-Cleanup Old Pending Events - runs daily
+  const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+  const processOldEventCleanup = async () => {
+    try {
+      console.log('[Event Cleanup] Starting cleanup of old pending events...');
+
+      // Get all pending events older than 60 days
+      const sixtyDaysAgo = new Date();
+      sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+
+      const oldEvents = await db
+        .select()
+        .from(autoScheduledEvents)
+        .where(
+          and(
+            sql`${autoScheduledEvents.status} IN ('pending_approval', 'auto_approved', 'approved', 'auto_sent')`,
+            lt(autoScheduledEvents.createdAt, sixtyDaysAgo)
+          )
+        );
+
+      if (oldEvents.length === 0) {
+        console.log('[Event Cleanup] No old pending events to clean up');
+        return;
+      }
+
+      console.log(`[Event Cleanup] Found ${oldEvents.length} event(s) older than 60 days`);
+
+      // Delete each group's old events
+      const deletedByGroup = new Map<string, number>();
+
+      for (const event of oldEvents) {
+        await storage.deletePendingAutoEvents(event.groupId);
+        const count = deletedByGroup.get(event.groupId) || 0;
+        deletedByGroup.set(event.groupId, count + 1);
+      }
+
+      for (const [groupId, count] of deletedByGroup.entries()) {
+        const group = await storage.getGroup(groupId);
+        console.log(`[Event Cleanup] Cleaned up ${count} old event(s) for group: ${group?.name || groupId}`);
+      }
+
+      console.log('[Event Cleanup] Cleanup complete');
+    } catch (error) {
+      console.error('[Event Cleanup] Error during cleanup:', error);
+    }
+  };
+
+  processOldEventCleanup().catch(err => {
+    console.error('Error in initial event cleanup:', err);
+  });
+  setInterval(() => {
+    processOldEventCleanup().catch(err => {
+      console.error('Error in scheduled event cleanup:', err);
+    });
+  }, CLEANUP_INTERVAL_MS);
+
+  // Post-Event Feedback Request - runs daily
+  const FEEDBACK_REQUEST_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+  const processPostEventFeedbackRequests = async () => {
+    try {
+      console.log('[Feedback Request] Checking for completed events needing feedback requests...');
+
+      // Get events that completed 1-2 days ago and haven't had feedback requests sent
+      const twoDaysAgo = new Date();
+      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+      const oneDayAgo = new Date();
+      oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+
+      // Find itineraries with events that happened 1-2 days ago
+      const completedItineraries = await db
+        .select({
+          itinerary: itineraries,
+          group: groups,
+        })
+        .from(itineraries)
+        .innerJoin(groups, eq(itineraries.groupId, groups.id))
+        .where(
+          and(
+            or(
+              eq(itineraries.status, 'scheduled'),
+              eq(itineraries.status, 'proposed')
+            ),
+            sql`${itineraries.eventDate} < ${oneDayAgo.toISOString()}`,
+            sql`${itineraries.eventDate} > ${twoDaysAgo.toISOString()}`
+          )
+        );
+
+      if (completedItineraries.length === 0) {
+        console.log('[Feedback Request] No recently completed events found');
+        return;
+      }
+
+      console.log(`[Feedback Request] Found ${completedItineraries.length} recently completed event(s)`);
+
+      for (const { itinerary, group } of completedItineraries) {
+        try {
+          // Check if we've already sent feedback requests for this itinerary
+          const existingLog = await db
+            .select()
+            .from(reminderLogs)
+            .where(
+              and(
+                eq(reminderLogs.itineraryId, itinerary.id),
+                eq(reminderLogs.reminderType, 'feedback_request')
+              )
+            )
+            .limit(1);
+
+          if (existingLog.length > 0) {
+            console.log(`[Feedback Request] Already sent for itinerary ${itinerary.id}`);
+            continue;
+          }
+
+          // Get members who RSVP'd yes (attended)
+          const attendees = await db
+            .select()
+            .from(members)
+            .where(eq(members.groupId, group.id));
+
+          const memberIds = attendees.map(m => m.id);
+
+          // Send feedback request notifications
+          const { notifyFeedbackRequest } = await import('./notifications');
+          await notifyFeedbackRequest({
+            itineraryId: itinerary.id,
+            groupId: group.id,
+            eventName: itinerary.name || 'Recent Event',
+            memberIds
+          });
+
+          // Log that we sent feedback requests
+          await db.insert(reminderLogs).values({
+            itineraryId: itinerary.id,
+            reminderType: 'feedback_request',
+            recipientEmail: 'all_members',
+            emailStatus: 'sent',
+          });
+
+          console.log(`[Feedback Request] Sent feedback requests for ${itinerary.name} (group: ${group.name})`);
+        } catch (itineraryError) {
+          console.error(`[Feedback Request] Error processing itinerary ${itinerary.id}:`, itineraryError);
+        }
+      }
+
+      console.log('[Feedback Request] Finished processing feedback requests');
+    } catch (error) {
+      console.error('[Feedback Request] Error:', error);
+    }
+  };
+
+  processPostEventFeedbackRequests().catch(err => {
+    console.error('Error in initial feedback request processing:', err);
+  });
+  setInterval(() => {
+    processPostEventFeedbackRequests().catch(err => {
+      console.error('Error in scheduled feedback request processing:', err);
+    });
+  }, FEEDBACK_REQUEST_INTERVAL_MS);
 
   console.log('Reminder scheduler started successfully');
 }

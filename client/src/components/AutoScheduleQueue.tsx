@@ -4,6 +4,7 @@
  * Shows events generated from Favorites and saved itineraries
  */
 
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,9 +17,14 @@ import {
   AlertCircle,
   RefreshCw,
   Edit,
-  X
+  X,
+  ExternalLink,
+  Search
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { getErrorToast } from "@/components/ErrorDisplay";
+import { RegenerationFallbackDialog } from "@/components/RegenerationFallbackDialog";
+import { DiscoverVenuesModal } from "@/components/DiscoverVenuesModal";
 
 interface AutoScheduleQueueProps {
   groupId: string;
@@ -31,6 +37,7 @@ interface QueueVenue {
   sourceId: string;
   venueName: string;
   venueType: string;
+  googleMapsUrl?: string;
 }
 
 interface QueueEvent {
@@ -45,6 +52,7 @@ interface QueueEvent {
   aiValidationReasoning: string;
   aiValidationConcerns: string[];
   aiValidationSuggestions: string[];
+  regenerationCount?: number;
 }
 
 interface QueueData {
@@ -55,11 +63,26 @@ export function AutoScheduleQueue({ groupId, isOrganizer, onNavigateToTab }: Aut
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  // State for regeneration fallback dialog
+  const [fallbackDialogOpen, setFallbackDialogOpen] = useState(false);
+  const [currentEventForFallback, setCurrentEventForFallback] = useState<QueueEvent | null>(null);
+
+  // State for discover venues modal
+  const [discoverModalOpen, setDiscoverModalOpen] = useState(false);
+
   // Fetch auto-schedule queue
   const { data, isLoading, error, refetch } = useQuery<QueueData>({
     queryKey: [`/api/groups/${groupId}/auto-schedule-queue`],
     enabled: !!groupId,
   });
+
+  // Fetch Favorites count for empty state logic
+  const { data: favoritesData } = useQuery<any[]>({
+    queryKey: [`/api/groups/${groupId}/voting-events`],
+    enabled: !!groupId,
+  });
+
+  const favoritesCount = favoritesData?.length || 0;
 
   // Approve mutation
   const approveMutation = useMutation({
@@ -90,11 +113,7 @@ export function AutoScheduleQueue({ groupId, isOrganizer, onNavigateToTab }: Aut
       queryClient.invalidateQueries({ queryKey: [`/api/groups/${groupId}/itineraries`] });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -127,42 +146,65 @@ export function AutoScheduleQueue({ groupId, isOrganizer, onNavigateToTab }: Aut
       queryClient.invalidateQueries({ queryKey: [`/api/groups/${groupId}/auto-schedule-queue`] });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
-  const handleTryAgain = (eventId: string) => {
-    regenerateMutation.mutate(eventId);
+  const handleTryAgain = (event: QueueEvent) => {
+    // Check if this event has been regenerated 3+ times
+    if (event.regenerationCount && event.regenerationCount >= 3) {
+      setCurrentEventForFallback(event);
+      setFallbackDialogOpen(true);
+    } else {
+      regenerateMutation.mutate(event.id);
+    }
   };
 
   const handleEdit = (event: QueueEvent) => {
-    // Navigate to Build tab
+    // Navigate to Manual tab
     if (onNavigateToTab) {
-      onNavigateToTab('build');
+      onNavigateToTab('manual');
       toast({
-        title: "Opening Build tab",
-        description: "You can now create a custom itinerary in the Build tab.",
+        title: "Opening Manual Creation",
+        description: "You can now create a custom itinerary in the Plan Event tab.",
       });
     } else {
       toast({
         title: "Edit Feature",
-        description: "Edit functionality coming soon. For now, you can skip this event and create a custom itinerary in the Build tab.",
+        description: "Edit functionality coming soon. For now, you can skip this event and create a custom itinerary in the Plan Event tab.",
       });
     }
   };
 
-  const handleSkip = (eventId: string) => {
-    // For skip, we just refresh the queue - the skipped event won't reappear
-    // because we track visit history
-    toast({
-      title: "Event Skipped",
-      description: "This event has been removed from the queue.",
-    });
-    refetch();
+  const handleSkip = async (eventId: string) => {
+    try {
+      const response = await fetch(`/api/auto-events/${eventId}/skip`, {
+        method: "POST",
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to skip event");
+      }
+
+      const result = await response.json();
+
+      toast({
+        title: "Event Skipped",
+        description: result.message || "This event has been skipped. A replacement will be created for a future week.",
+      });
+
+      // Refetch to show updated queue
+      refetch();
+    } catch (error: any) {
+      console.error("Error skipping event:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to skip event. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   if (isLoading) {
@@ -191,26 +233,61 @@ export function AutoScheduleQueue({ groupId, isOrganizer, onNavigateToTab }: Aut
 
   const { events } = data;
 
-  // Empty state
+  // Empty state with smart messaging based on Favorites count
   if (!events || events.length === 0) {
+    let emptyStateTitle = "No auto-scheduled events yet";
+    let emptyStateMessage = "Build your Favorites for smarter suggestions!";
+    let emptyStateIcon = Calendar;
+
+    if (favoritesCount === 0) {
+      emptyStateTitle = "Your Favorites is empty";
+      emptyStateMessage = "Discover venues first to unlock smart auto-scheduling! The AI will create personalized events from places your group loves.";
+      emptyStateIcon = Search;
+    } else if (favoritesCount < 3) {
+      emptyStateTitle = `You have ${favoritesCount} Favorite${favoritesCount === 1 ? '' : 's'}`;
+      emptyStateMessage = "Add more Favorites (3+ recommended) for better auto-scheduling variety and smarter event suggestions.";
+    }
+
+    const EmptyIcon = emptyStateIcon;
+
     return (
-      <Card>
-        <CardContent className="p-12 text-center">
-          <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-          <h3 className="text-lg font-semibold mb-2">No auto-scheduled events yet</h3>
-          <p className="text-sm text-muted-foreground mb-6">
-            Add 5+ favorites or save an itinerary to enable smart auto-scheduling
-          </p>
-          <div className="flex gap-3 justify-center">
-            <Button variant="outline" onClick={() => onNavigateToTab?.('favorites')}>
-              Add to Favorites
-            </Button>
-            <Button variant="outline" onClick={() => onNavigateToTab?.('build')}>
-              Save an Itinerary
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <>
+        <Card>
+          <CardContent className="p-12 text-center">
+            <EmptyIcon className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+            <h3 className="text-lg font-semibold mb-2">{emptyStateTitle}</h3>
+            <p className="text-sm text-muted-foreground mb-6">
+              {emptyStateMessage}
+            </p>
+            <div className="flex gap-3 justify-center flex-wrap">
+              <Button
+                variant={favoritesCount === 0 ? "default" : "outline"}
+                onClick={() => setDiscoverModalOpen(true)}
+                className="flex items-center gap-2"
+              >
+                <Search className="h-4 w-4" />
+                Discover Venues
+              </Button>
+              {favoritesCount === 0 ? (
+                <Button variant="outline" onClick={() => onNavigateToTab?.('manual')}>
+                  Use Manual Planning
+                </Button>
+              ) : (
+                <Button variant="outline" onClick={() => onNavigateToTab?.('manual')}>
+                  Save an Itinerary
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Discover Venues Modal */}
+        <DiscoverVenuesModal
+          open={discoverModalOpen}
+          onOpenChange={setDiscoverModalOpen}
+          groupId={groupId}
+        />
+      </>
     );
   }
 
@@ -310,7 +387,19 @@ export function AutoScheduleQueue({ groupId, isOrganizer, onNavigateToTab }: Aut
                       >
                         <span className="font-medium text-muted-foreground">{index + 1}.</span>
                         <MapPin className="h-3 w-3 text-muted-foreground" />
-                        <span className="flex-1">{venue.venueName}</span>
+                        {venue.googleMapsUrl ? (
+                          <a
+                            href={venue.googleMapsUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex-1 hover:underline text-primary flex items-center gap-1"
+                          >
+                            {venue.venueName}
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        ) : (
+                          <span className="flex-1">{venue.venueName}</span>
+                        )}
                         <Badge variant="outline" className="text-xs">
                           {venue.venueType}
                         </Badge>
@@ -318,36 +407,6 @@ export function AutoScheduleQueue({ groupId, isOrganizer, onNavigateToTab }: Aut
                     ))}
                   </div>
                 </div>
-
-                {/* AI Validation Details */}
-                {event.aiValidationReasoning && (
-                  <div className="space-y-2 pt-2 border-t">
-                    <div className="text-xs font-medium text-muted-foreground">AI Analysis</div>
-                    <p className="text-sm">{event.aiValidationReasoning}</p>
-
-                    {event.aiValidationConcerns && event.aiValidationConcerns.length > 0 && (
-                      <div className="space-y-1">
-                        <div className="text-xs font-medium text-yellow-700">Concerns:</div>
-                        <ul className="text-xs text-muted-foreground space-y-0.5 pl-4">
-                          {event.aiValidationConcerns.map((concern, i) => (
-                            <li key={i} className="list-disc">{concern}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {event.aiValidationSuggestions && event.aiValidationSuggestions.length > 0 && (
-                      <div className="space-y-1">
-                        <div className="text-xs font-medium text-blue-700">Suggestions:</div>
-                        <ul className="text-xs text-muted-foreground space-y-0.5 pl-4">
-                          {event.aiValidationSuggestions.map((suggestion, i) => (
-                            <li key={i} className="list-disc">{suggestion}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                )}
 
                 {/* Actions (Organizer only) */}
                 {isOrganizer && (
@@ -373,12 +432,15 @@ export function AutoScheduleQueue({ groupId, isOrganizer, onNavigateToTab }: Aut
                     {event.sourceType === 'favorites' && (
                       <Button
                         variant="outline"
-                        onClick={() => handleTryAgain(event.id)}
+                        onClick={() => handleTryAgain(event)}
                         disabled={approveMutation.isPending || regenerateMutation.isPending}
                         className="w-full"
                       >
                         <RefreshCw className="h-4 w-4 mr-2" />
                         {regenerateMutation.isPending ? 'Regenerating...' : 'Try Again (Different Favorites)'}
+                        {event.regenerationCount && event.regenerationCount > 0 && (
+                          <Badge variant="secondary" className="ml-2">{event.regenerationCount}</Badge>
+                        )}
                       </Button>
                     )}
                   </div>
@@ -388,6 +450,40 @@ export function AutoScheduleQueue({ groupId, isOrganizer, onNavigateToTab }: Aut
           );
         })}
       </div>
+
+      {/* Regeneration Fallback Dialog */}
+      {currentEventForFallback && (
+        <RegenerationFallbackDialog
+          open={fallbackDialogOpen}
+          onOpenChange={setFallbackDialogOpen}
+          regenerationCount={currentEventForFallback.regenerationCount || 0}
+          onDiscoverMore={() => {
+            setFallbackDialogOpen(false);
+            setDiscoverModalOpen(true);
+          }}
+          onManualPlanning={() => {
+            setFallbackDialogOpen(false);
+            onNavigateToTab?.('manual');
+            toast({
+              title: "Opening Manual Planning",
+              description: "Create a custom event with full control over venues and timing.",
+            });
+          }}
+          onKeepTrying={() => {
+            setFallbackDialogOpen(false);
+            if (currentEventForFallback) {
+              regenerateMutation.mutate(currentEventForFallback.id);
+            }
+          }}
+        />
+      )}
+
+      {/* Discover Venues Modal */}
+      <DiscoverVenuesModal
+        open={discoverModalOpen}
+        onOpenChange={setDiscoverModalOpen}
+        groupId={groupId}
+      />
     </div>
   );
 }

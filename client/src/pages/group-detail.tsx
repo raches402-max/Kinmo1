@@ -1,4 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useGroupMutations } from "@/hooks/useGroupMutations";
 import { useRoute, Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,7 +24,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, ChevronRight, ChevronLeft, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell, Edit2, Edit, Compass, Home, UserCheck, MessageCircle, TrendingUp, AlertCircle, Users, Loader2, Map as MapIcon, Info, MoreVertical, Zap, Brain } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Group, Activity, Member, VotingEvent, Vote } from "@shared/schema";
@@ -34,9 +35,10 @@ import { SwipeSession } from "@/components/SwipeSession";
 import { FavoritesMap } from "@/components/FavoritesMap";
 import { AddAdHocVenueDialog } from "@/components/AddAdHocVenueDialog";
 import { GroupInsights } from "@/components/GroupInsights";
-import { ScheduleEventModal } from "@/components/ScheduleEventModal";
+import { UnifiedEventCreationModal } from "@/components/UnifiedEventCreationModal";
 import { DiscoverVenuesModal } from "@/components/DiscoverVenuesModal";
 import { AIAssistantModal } from "@/components/AIAssistantModal";
+import { ItineraryDisplay, SortableItineraryItem } from "@/components/ItineraryDisplay";
 import EventsTable from "@/components/EventsTable";
 import { calculateDistance, getDistanceCategory, formatDistance } from "@/lib/distance";
 import { format } from 'date-fns';
@@ -59,6 +61,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import EmojiPicker from 'emoji-picker-react';
+import { Breadcrumbs } from "@/components/Breadcrumbs";
 
 // Type definition for user events
 type SafeMember = {
@@ -80,6 +83,7 @@ type UserEvent = {
   groupName: string;
   groupEmoji: string;
   groupAccentColor: string | null;
+  groupTimezone: string | null;
   isOrganizer: boolean;
   isVirtual?: boolean;
   meetingFrequency?: string;
@@ -350,156 +354,7 @@ function getActivityCategory(activity: { venueType: string; category?: string | 
   return 'experiences';
 }
 
-// Sortable itinerary item component
-function SortableItineraryItem({ item, index, onRemove }: { item: any; index: number; onRemove: () => void }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: item.id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className="flex items-center gap-3 p-3 rounded-md bg-card border"
-      data-testid={`itinerary-item-${item.id}`}
-    >
-      <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
-        <GripVertical className="h-5 w-5 text-muted-foreground" />
-      </div>
-      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/25 text-primary font-bold">
-        {index + 1}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="font-medium truncate">{item.venueName}</p>
-        <p className="text-xs text-muted-foreground truncate">{item.venueType}</p>
-      </div>
-      {item.rating && (
-        <Badge variant="secondary" className="gap-1">
-          <Star className="h-3 w-3 fill-current" />
-          {item.rating}
-        </Badge>
-      )}
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onRemove}
-        className="h-8 w-8 p-0 flex-shrink-0"
-        data-testid={`button-remove-itinerary-${item.id}`}
-      >
-        <X className="h-4 w-4" />
-      </Button>
-    </div>
-  );
-}
-
-// Itinerary display component with drag-to-reorder
-function ItineraryDisplay({ itinerary, groupId }: { itinerary: any; groupId: string }) {
-  const { toast } = useToast();
-  const [items, setItems] = useState(itinerary.items || []);
-  
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
-
-  const updateOrderMutation = useMutation({
-    mutationFn: async (newOrder: string[]) => {
-      return await apiRequest("PATCH", `/api/itineraries/${itinerary.id}/order`, {
-        proposedOrder: newOrder,
-      });
-    },
-    onSuccess: () => {
-      // Note: No need to invalidate nearby-suggestions on reorder
-      // Nearby suggestions are based on WHICH venues are present, not their order
-      toast({
-        title: "Order updated",
-        description: "Your itinerary has been reordered",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error updating order",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const deleteItemMutation = useMutation({
-    mutationFn: async (itemId: string) => {
-      return await apiRequest("DELETE", `/api/itinerary-items/${itemId}`, {});
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "itineraries"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "nearby-suggestions"] });
-      toast({
-        title: "Venue removed",
-        description: "The venue has been removed from your itinerary",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error removing venue",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-
-    if (over && active.id !== over.id) {
-      const oldIndex = items.findIndex((item: any) => item.id === active.id);
-      const newIndex = items.findIndex((item: any) => item.id === over.id);
-      
-      const newItems = arrayMove(items, oldIndex, newIndex);
-      setItems(newItems);
-      
-      // Update on server
-      const newOrder = newItems.map((item: any) => item.sourceId);
-      updateOrderMutation.mutate(newOrder);
-    }
-  }
-
-  const handleRemoveItem = (itemId: string) => {
-    deleteItemMutation.mutate(itemId);
-  };
-
-  return (
-    <div className="space-y-3">
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={handleDragEnd}
-      >
-        <SortableContext items={items.map((i: any) => i.id)} strategy={verticalListSortingStrategy}>
-          {items.map((item: any, index: number) => (
-            <SortableItineraryItem 
-              key={item.id} 
-              item={item} 
-              index={index} 
-              onRemove={() => handleRemoveItem(item.id)}
-            />
-          ))}
-        </SortableContext>
-      </DndContext>
-    </div>
-  );
-}
+// ItineraryDisplay is now imported from @/components/ItineraryDisplay
 
 function SortableCartVenue({ id, index, venueName, venueType, photoUrl, onRemove, distanceToNext, lat, lng, placeId, groupId, expandedNearbyId, onToggleNearby, nearbySuggestions, onAddNearby, addVenueLoading, selectedVenueIds }: {
   id: string;
@@ -714,7 +569,10 @@ export default function GroupDetail() {
   const [, navigate] = useLocation();
   const groupId = params?.id;
   const { toast } = useToast();
-  
+
+  // Centralized mutations hook for simple mutations without local state callbacks
+  const mutations = useGroupMutations({ groupId: groupId || '' });
+
   // Parse URL search params for auto-opening edit dialog
   const urlParams = new URLSearchParams(window.location.search);
   const editItineraryIdFromUrl = urlParams.get('edit');
@@ -850,17 +708,32 @@ export default function GroupDetail() {
   const [categoryResults, setCategoryResults] = useState<any[]>([]);
   const [multiVenueMode, setMultiVenueMode] = useState(false);
   
-  // Schedule event modal state
-  const [scheduleEventModalOpen, setScheduleEventModalOpen] = useState(false);
+  // Event creation modal state
+  const [eventCreationModalOpen, setEventCreationModalOpen] = useState(false);
 
-  // Auto-open Schedule Event Modal if ?action=schedule in URL
+  // Handle URL parameters for actions and tab navigation
   const [location, setLocation] = useLocation();
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+
+    // Handle ?action=schedule - open event creation modal
     if (params.get('action') === 'schedule') {
-      // Open modal first
-      setScheduleEventModalOpen(true);
-      // Clean up URL after a brief delay to ensure modal opens
+      setEventCreationModalOpen(true);
+    }
+
+    // Handle ?action=discover - open discover venues modal
+    if (params.get('action') === 'discover') {
+      setDiscoverVenuesModalOpen(true);
+    }
+
+    // Handle ?tab=build (or other tabs) - navigate to specific tab
+    const tabParam = params.get('tab');
+    if (tabParam && ['home', 'preferences', 'activities', 'build', 'feedback'].includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
+
+    // Clean up URL after processing
+    if (params.get('action') || params.get('tab')) {
       setTimeout(() => {
         window.history.replaceState({}, '', `/group/${groupId}`);
       }, 100);
@@ -1016,6 +889,7 @@ export default function GroupDetail() {
     groupName: group?.name || '',
     groupEmoji: group?.emoji || '🎉',
     groupAccentColor: group?.accentColor || null,
+    groupTimezone: group?.timezone || null,
     isOrganizer: true, // Auto-events are always for organizers
     isAutoScheduled: true, // Custom flag to identify auto-events
     autoSendAt: autoEvent.autoSendAt, // Deadline for auto-send
@@ -1041,8 +915,31 @@ export default function GroupDetail() {
     pendingGuestRsvps: [],
   } as UserEvent & { isAutoScheduled?: boolean; autoSendAt?: string; confidenceScore?: number; requiresReview?: boolean }));
 
-  // Merge auto-events with regular events
-  const allGroupEvents = [...groupEvents, ...autoEventsAsUserEvents];
+  // Merge auto-events with regular events, deduplicating by date
+  // Auto-events from the dedicated endpoint take priority (they have more complete data)
+  const allGroupEvents = useMemo(() => {
+    const autoEventDates = new Set(
+      autoEventsAsUserEvents.map(e =>
+        e.eventDate ? new Date(e.eventDate).toISOString().split('T')[0] : null
+      ).filter(Boolean)
+    );
+
+    // Filter out groupEvents that are virtual events for dates that have real auto-events
+    const filteredGroupEvents = groupEvents.filter(e => {
+      // Keep non-virtual events (real itineraries/invites)
+      if (!e.isVirtual) return true;
+
+      // For virtual events, check if there's an auto-event for the same date
+      const eventDate = e.eventDate ? new Date(e.eventDate).toISOString().split('T')[0] : null;
+      if (eventDate && autoEventDates.has(eventDate)) {
+        // Skip this virtual event - the auto-event version is better
+        return false;
+      }
+      return true;
+    });
+
+    return [...filteredGroupEvents, ...autoEventsAsUserEvents];
+  }, [groupEvents, autoEventsAsUserEvents]);
 
   // Categorize group events (including auto-events)
   const now = new Date();
@@ -1647,15 +1544,34 @@ export default function GroupDetail() {
       });
     },
     onError: (error: any) => {
+      const errorMsg = error.message || "";
+
       // Don't show error if it's just "not within window" - this is expected
-      if (error.message?.includes("Not within 10-day creation window")) {
+      if (errorMsg.includes("Not within 10-day creation window")) {
         console.log("Auto-schedule trigger skipped - not within window");
-      } else {
+        return;
+      }
+
+      // Graceful fallback: if AI can't generate, switch to manual creation
+      const isConfigError = errorMsg.includes("No viable") ||
+                            errorMsg.includes("not enabled") ||
+                            errorMsg.includes("No venues");
+
+      if (isConfigError) {
+        // Missing prerequisites - fallback to manual creation
         toast({
-          title: "Could not create event",
-          description: error.message || "Please try again later",
+          title: "Switching to manual creation",
+          description: "Add venues or enable auto-scheduling first",
+        });
+        setActiveTab("build");
+      } else {
+        // Other error - show error but offer manual as alternative
+        toast({
+          title: "AI generation failed",
+          description: "Try creating manually instead",
           variant: "destructive",
         });
+        setActiveTab("build");
       }
     },
   });
@@ -1836,25 +1752,7 @@ export default function GroupDetail() {
     },
   });
 
-  const deleteMemberMutation = useMutation({
-    mutationFn: async (memberId: string) => {
-      return await apiRequest("DELETE", `/api/members/${memberId}`, {});
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "members"] });
-      toast({
-        title: "Member removed",
-        description: "The member has been removed from the group",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error removing member",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
+  // deleteMemberMutation - now using mutations.deleteMember from useGroupMutations hook
 
   const updateMemberMutation = useMutation({
     mutationFn: async ({ memberId, data }: { memberId: string; data: { name?: string; email?: string } }) => {
@@ -1870,27 +1768,7 @@ export default function GroupDetail() {
     },
   });
 
-  const toggleHostingMutation = useMutation({
-    mutationFn: async ({ memberId, openToHosting }: { memberId: string; openToHosting: boolean }) => {
-      return await apiRequest("PATCH", `/api/members/${memberId}/hosting-toggle`, { openToHosting });
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "members"] });
-      toast({
-        title: variables.openToHosting ? "Hosting enabled" : "Hosting disabled",
-        description: variables.openToHosting 
-          ? "Member is now open to hosting events" 
-          : "Member will no longer be asked to host events",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error updating member",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
+  // toggleHostingMutation - now using mutations.toggleHosting from useGroupMutations hook
 
   // Itinerary validation mutation
   const validateItineraryMutation = useMutation({
@@ -2287,28 +2165,7 @@ export default function GroupDetail() {
     },
   });
 
-  const deleteSavedItineraryMutation = useMutation({
-    mutationFn: async (itineraryId: string) => {
-      return await apiRequest("DELETE", `/api/itineraries/${itineraryId}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "saved-itineraries"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "proposed-itineraries"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/members/me/events"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
-      toast({
-        title: "Event deleted",
-        description: "The event has been removed",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error deleting plan",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
+  // deleteSavedItineraryMutation - now using mutations.deleteSavedItinerary from useGroupMutations hook
 
   const duplicateItineraryMutation = useMutation({
     mutationFn: async (itineraryId: string) => {
@@ -2558,39 +2415,7 @@ export default function GroupDetail() {
     },
   });
 
-  const voteMutation = useMutation({
-    mutationFn: async ({ eventId, voteType }: { eventId: string; voteType: 'upvote' | 'downvote' }) => {
-      return await apiRequest("POST", `/api/voting-events/${eventId}/vote`, { voteType });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "voting-events"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "my-votes"] });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error voting",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const removeVoteMutation = useMutation({
-    mutationFn: async (eventId: string) => {
-      return await apiRequest("DELETE", `/api/voting-events/${eventId}/vote`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "voting-events"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "my-votes"] });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error removing vote",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
+  // voteMutation, removeVoteMutation - now using mutations.vote, mutations.removeVote from useGroupMutations hook
 
   const toggleEditCategory = (categoryId: string) => {
     setEditCategories(prev =>
@@ -2604,12 +2429,12 @@ export default function GroupDetail() {
     const currentVote = myVotes[eventId];
     if (currentVote) {
       if (currentVote.voteType === voteType) {
-        removeVoteMutation.mutate(eventId);
+        mutations.removeVote.mutate(eventId);
       } else {
-        voteMutation.mutate({ eventId, voteType });
+        mutations.vote.mutate({ eventId, voteType });
       }
     } else {
-      voteMutation.mutate({ eventId, voteType });
+      mutations.vote.mutate({ eventId, voteType });
     }
   };
 
@@ -2644,6 +2469,7 @@ export default function GroupDetail() {
       setEditGroupData({
         name: group.name,
         emoji: group.emoji || "🎉",
+        accentColor: "#60A5FA",
         locationBase: group.locationBase,
         pastPreferences: group.pastPreferences || "",
         additionalInstructions: group.additionalInstructions || "",
@@ -2868,8 +2694,16 @@ export default function GroupDetail() {
         </div>
       </header>
       <div className="max-w-7xl mx-auto px-6 py-6">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-3xl mx-auto grid-cols-5">
+        {/* Breadcrumbs */}
+        <Breadcrumbs
+          items={[
+            { label: group.name || "Group" }
+          ]}
+          className="mb-4"
+        />
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6 pb-20 sm:pb-0">
+          {/* Desktop tabs - hidden on mobile */}
+          <TabsList className="hidden sm:grid w-full max-w-3xl mx-auto grid-cols-5">
             <TabsTrigger value="home" data-testid="tab-home">Home</TabsTrigger>
             <TabsTrigger value="preferences" data-testid="tab-preferences">Group</TabsTrigger>
             <TabsTrigger value="activities" data-testid="tab-activities">Activities</TabsTrigger>
@@ -2877,13 +2711,54 @@ export default function GroupDetail() {
             <TabsTrigger value="feedback" data-testid="tab-feedback">Insights</TabsTrigger>
           </TabsList>
 
+          {/* Mobile bottom navigation */}
+          <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border z-50 sm:hidden safe-area-pb">
+            <div className="flex justify-around py-2">
+              <button
+                onClick={() => setActiveTab("home")}
+                className={`flex flex-col items-center px-3 py-1.5 rounded-lg transition-colors ${activeTab === "home" ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                <Home className="h-5 w-5" />
+                <span className="text-[10px] mt-0.5 font-medium">Home</span>
+              </button>
+              <button
+                onClick={() => setActiveTab("preferences")}
+                className={`flex flex-col items-center px-3 py-1.5 rounded-lg transition-colors ${activeTab === "preferences" ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                <Settings className="h-5 w-5" />
+                <span className="text-[10px] mt-0.5 font-medium">Group</span>
+              </button>
+              <button
+                onClick={() => setActiveTab("activities")}
+                className={`flex flex-col items-center px-3 py-1.5 rounded-lg transition-colors ${activeTab === "activities" ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                <Compass className="h-5 w-5" />
+                <span className="text-[10px] mt-0.5 font-medium">Explore</span>
+              </button>
+              <button
+                onClick={() => setActiveTab("build")}
+                className={`flex flex-col items-center px-3 py-1.5 rounded-lg transition-colors ${activeTab === "build" ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                <Calendar className="h-5 w-5" />
+                <span className="text-[10px] mt-0.5 font-medium">Create</span>
+              </button>
+              <button
+                onClick={() => setActiveTab("feedback")}
+                className={`flex flex-col items-center px-3 py-1.5 rounded-lg transition-colors ${activeTab === "feedback" ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                <TrendingUp className="h-5 w-5" />
+                <span className="text-[10px] mt-0.5 font-medium">Insights</span>
+              </button>
+            </div>
+          </nav>
+
           {/* Home Tab */}
           <TabsContent value="home" className="space-y-6">
             <div className="max-w-6xl mx-auto space-y-6">
               {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <Button
-                  onClick={() => setScheduleEventModalOpen(true)}
+                  onClick={() => setEventCreationModalOpen(true)}
                   size="lg"
                   className="gap-2"
                   data-testid="button-schedule-event"
@@ -2913,7 +2788,7 @@ export default function GroupDetail() {
                       Get started by creating your first event for this group
                     </p>
                     <Button
-                      onClick={() => setSchedulePromptDialogOpen(true)}
+                      onClick={() => setEventCreationModalOpen(true)}
                       data-testid="button-create-first-event"
                     >
                       <Plus className="h-4 w-4 mr-2" />
@@ -3010,7 +2885,7 @@ export default function GroupDetail() {
               <TabsContent value="details" className="space-y-6">
                 <div className="max-w-3xl mx-auto space-y-6">
                   {/* Accordion-based Group Settings */}
-                  <Accordion type="multiple" defaultValue={["basic-info", "automation"]} className="space-y-6">
+                  <Accordion type="multiple" defaultValue={[]} className="space-y-6">
 
                     {/* Section 1: Basic Info (Always visible by default) */}
                     <AccordionItem value="basic-info" className="border rounded-lg">
@@ -3808,7 +3683,7 @@ export default function GroupDetail() {
                                     id={`hosting-${member.id}`}
                                     checked={member.openToHosting}
                                     onCheckedChange={(checked) => {
-                                      toggleHostingMutation.mutate({
+                                      mutations.toggleHosting.mutate({
                                         memberId: member.id,
                                         openToHosting: checked === true
                                       });
@@ -3863,7 +3738,7 @@ export default function GroupDetail() {
                                           <AlertDialogFooter>
                                             <AlertDialogCancel>Cancel</AlertDialogCancel>
                                             <AlertDialogAction
-                                              onClick={() => deleteMemberMutation.mutate(member.id)}
+                                              onClick={() => mutations.deleteMember.mutate(member.id)}
                                             >
                                               Remove
                                             </AlertDialogAction>
@@ -5750,7 +5625,7 @@ export default function GroupDetail() {
                       className="gap-2"
                       data-testid="button-toggle-map"
                     >
-                      <Map className="h-4 w-4" />
+                      <MapIcon className="h-4 w-4" />
                       {showFavoritesMap ? "Hide Map" : "Show Map"}
                     </Button>
                   </div>
@@ -6378,10 +6253,10 @@ export default function GroupDetail() {
                               size="sm"
                               onClick={() => {
                                 if (confirm(`Delete "${itinerary.name}"?`)) {
-                                  deleteSavedItineraryMutation.mutate(itinerary.id);
+                                  mutations.deleteSavedItinerary.mutate(itinerary.id);
                                 }
                               }}
-                              disabled={deleteSavedItineraryMutation.isPending}
+                              disabled={mutations.deleteSavedItinerary.isPending}
                               data-testid={`button-delete-itinerary-${itinerary.id}`}
                             >
                               <Trash2 className="h-4 w-4" />
@@ -6632,7 +6507,7 @@ export default function GroupDetail() {
                           </CollapsibleTrigger>
                           <CollapsibleContent className="mt-2">
                             <div className="p-3 bg-muted/30 rounded-md border space-y-3">
-                              {group?.availability && (
+                              {!!group?.availability && (
                                 <div className="space-y-1.5">
                                   <p className="text-xs font-medium text-muted-foreground">Group Availability</p>
                                   <ReadOnlyAvailabilityGrid
@@ -7342,7 +7217,7 @@ export default function GroupDetail() {
                               </CollapsibleTrigger>
                               <CollapsibleContent className="mt-2">
                                 <div className="p-3 bg-muted/30 rounded-md border space-y-3">
-                                  {group?.availability && (
+                                  {!!group?.availability && (
                                     <div className="space-y-1.5">
                                       <p className="text-xs font-medium text-muted-foreground">Group Availability</p>
                                       <ReadOnlyAvailabilityGrid 
@@ -8591,7 +8466,7 @@ export default function GroupDetail() {
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                                 <AlertDialogAction
-                                  onClick={() => deleteMemberMutation.mutate(member.id)}
+                                  onClick={() => mutations.deleteMember.mutate(member.id)}
                                 >
                                   Remove
                                 </AlertDialogAction>
@@ -9018,6 +8893,7 @@ export default function GroupDetail() {
                           key={item.id}
                           item={item}
                           index={index}
+                          editable={true}
                           onRemove={() => {
                             setEditItineraryItems(prev => prev.filter(i => i.id !== item.id));
                           }}
@@ -9719,13 +9595,18 @@ export default function GroupDetail() {
         </DialogContent>
       </Dialog>
 
-      {/* Schedule Event Modal */}
+      {/* Event Creation Modal */}
       {groupId && (
-        <ScheduleEventModal
-          open={scheduleEventModalOpen}
-          onOpenChange={setScheduleEventModalOpen}
+        <UnifiedEventCreationModal
+          open={eventCreationModalOpen}
+          onOpenChange={setEventCreationModalOpen}
           groupId={groupId}
-          onNavigateToTab={(tab) => setActiveTab(tab)}
+          onOpenScheduleModal={(_groupId) => {
+            // Trigger AI auto-generation immediately
+            triggerAutoScheduleMutation.mutate();
+          }}
+          onNavigateToManualTab={(_groupId) => setActiveTab("build")}
+          onOpenDiscoverVenues={(_groupId) => setDiscoverVenuesModalOpen(true)}
         />
       )}
 
@@ -9744,7 +9625,7 @@ export default function GroupDetail() {
       <AIAssistantModal
         open={aiAssistantModalOpen}
         onOpenChange={setAiAssistantModalOpen}
-        onOpenScheduleModal={() => setScheduleEventModalOpen(true)}
+        onOpenScheduleModal={() => setEventCreationModalOpen(true)}
         onOpenDiscoverModal={() => setDiscoverVenuesModalOpen(true)}
       />
 

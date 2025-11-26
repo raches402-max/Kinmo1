@@ -3,6 +3,7 @@ import { X, Heart, Star, MapPin, ExternalLink, Sparkles, Users } from 'lucide-re
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { BADGE_COLORS } from '@/lib/tokens';
 
 interface SwipeVenue {
   id: string;
@@ -61,7 +62,7 @@ export function SwipeCard({ venue, onSwipe, onSkip }: SwipeCardProps) {
   // Generate Google Maps URL
   const getGoogleMapsUrl = () => {
     if (venue.googlePlaceId) {
-      return `https://www.google.com/maps/search/?api=1&query=Google&query_place_id=${venue.googlePlaceId}`;
+      return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venue.title || 'Location')}&query_place_id=${venue.googlePlaceId}`;
     } else if (venue.venueAddress) {
       return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venue.venueAddress)}`;
     }
@@ -109,17 +110,12 @@ export function SwipeCard({ venue, onSwipe, onSkip }: SwipeCardProps) {
           {/* Badges */}
           <div className="flex items-center gap-2 flex-wrap">
             {/* Source Type Badge */}
-            {venue.sourceType === 'ai_suggestion' ? (
-              <Badge variant="default" className="gap-1 bg-purple-100 text-purple-800 border-purple-200" data-testid="badge-ai-suggested">
-                <Sparkles className="h-3 w-3" />
-                AI Suggested
-              </Badge>
-            ) : venue.likedBy && venue.likedBy.length > 0 ? (
-              <Badge variant="secondary" className="gap-1 bg-blue-100 text-blue-800 border-blue-200" data-testid="badge-group-favorite">
+            {venue.likedBy && venue.likedBy.length > 0 && (
+              <Badge variant="secondary" className={`gap-1 ${BADGE_COLORS.favorite}`} data-testid="badge-group-favorite">
                 <Users className="h-3 w-3" />
                 Group Favorite
               </Badge>
-            ) : null}
+            )}
 
             {venue.isNew && (
               <Badge variant="default" className="gap-1" data-testid="badge-new">
@@ -183,17 +179,6 @@ export function SwipeCard({ venue, onSwipe, onSkip }: SwipeCardProps) {
             )}
           </div>
 
-          {/* Description */}
-          {venue.description && (
-            <p className="text-sm text-muted-foreground">
-              {venue.description}
-            </p>
-          )}
-
-          {/* Swipe Instructions */}
-          <p className="text-sm text-muted-foreground text-center pt-2">
-            Swipe right to vote • Swipe left to skip
-          </p>
         </div>
       </Card>
 

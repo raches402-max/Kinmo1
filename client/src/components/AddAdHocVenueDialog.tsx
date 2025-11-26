@@ -7,6 +7,7 @@ import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { useToast } from "../hooks/use-toast";
+import { getErrorToast } from "./ErrorDisplay";
 import { MapPin, Link as LinkIcon, Search } from "lucide-react";
 
 interface AddAdHocVenueDialogProps {
@@ -92,11 +93,7 @@ export function AddAdHocVenueDialog({ open, onOpenChange, itineraryId, onSuccess
       onSuccess?.();
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -112,12 +109,8 @@ export function AddAdHocVenueDialog({ open, onOpenChange, itineraryId, onSuccess
     onSuccess: (data) => {
       setSearchResults(data.results || []);
     },
-    onError: () => {
-      toast({
-        title: "Search failed",
-        description: "Could not search for places",
-        variant: "destructive",
-      });
+    onError: (error: any) => {
+      toast(getErrorToast(error || new Error("Could not search for places")));
     },
   });
 

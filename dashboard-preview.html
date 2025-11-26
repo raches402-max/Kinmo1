@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Mockup - Kinmo.ai</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: #F9FAFB;
+      color: #1F2937;
+      line-height: 1.5;
+    }
+
+    /* Header */
+    .header {
+      background: white;
+      border-bottom: 1px solid #E5E7EB;
+      padding: 0 24px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+    }
+
+    .logo {
+      font-size: 24px;
+      font-weight: 700;
+      color: #8B5CF6;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 24px;
+    }
+
+    .nav-link {
+      color: #6B7280;
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 200ms;
+    }
+
+    .nav-link:hover,
+    .nav-link.active {
+      color: #8B5CF6;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .notification-bell {
+      position: relative;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 8px;
+    }
+
+    .notification-badge {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      background: #EF4444;
+      color: white;
+      font-size: 11px;
+      font-weight: 700;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .user-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #8B5CF6, #EC4899);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    /* Container */
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 32px 24px;
+    }
+
+    /* Welcome Section */
+    .welcome-section {
+      background: linear-gradient(135deg, #F3E8FF 0%, #FFFFFF 100%);
+      border-radius: 12px;
+      padding: 32px;
+      margin-bottom: 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .welcome-content h1 {
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+
+    .welcome-content p {
+      color: #6B7280;
+      font-size: 16px;
+    }
+
+    .welcome-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn {
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 200ms;
+      border: none;
+      font-size: 14px;
+    }
+
+    .btn-primary {
+      background: #8B5CF6;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #7C3AED;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+    }
+
+    .btn-secondary {
+      background: white;
+      color: #374151;
+      border: 1px solid #D1D5DB;
+    }
+
+    .btn-secondary:hover {
+      background: #F3F4F6;
+    }
+
+    /* Main Layout */
+    .main-layout {
+      display: grid;
+      grid-template-columns: 1fr 350px;
+      gap: 32px;
+    }
+
+    /* Section Headers */
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .section-header h2 {
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #6B7280;
+    }
+
+    .section-header .icon {
+      font-size: 20px;
+    }
+
+    .section-divider {
+      height: 2px;
+      background: linear-gradient(90deg, #8B5CF6 0%, transparent 100%);
+      margin-bottom: 24px;
+    }
+
+    /* Event Cards */
+    .events-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .event-card {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      transition: all 200ms ease-out;
+      position: relative;
+    }
+
+    .event-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .event-card.needs-rsvp {
+      border: 2px solid #8B5CF6;
+      background: #FAFBFC;
+    }
+
+    .event-card.responded {
+      border: 1px solid #E5E7EB;
+    }
+
+    .event-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 16px;
+    }
+
+    .event-datetime {
+      font-weight: 700;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #374151;
+    }
+
+    .event-badge {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .badge-rsvp {
+      background: #8B5CF6;
+      color: white;
+    }
+
+    .badge-confirmed {
+      background: #10B981;
+      color: white;
+    }
+
+    .event-title {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .event-emoji {
+      font-size: 24px;
+    }
+
+    .event-details {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 20px;
+      color: #6B7280;
+      font-size: 14px;
+    }
+
+    .event-detail {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .event-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .rsvp-buttons {
+      display: flex;
+      gap: 8px;
+    }
+
+    .rsvp-btn {
+      padding: 10px 20px;
+      border-radius: 8px;
+      border: 1px solid #D1D5DB;
+      background: white;
+      color: #374151;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 200ms;
+      font-size: 14px;
+    }
+
+    .rsvp-btn:hover {
+      background: #F3F4F6;
+      border-color: #8B5CF6;
+    }
+
+    .rsvp-btn.selected {
+      background: #8B5CF6;
+      color: white;
+      border-color: #8B5CF6;
+    }
+
+    .btn-link {
+      padding: 10px 20px;
+      border-radius: 8px;
+      background: transparent;
+      color: #8B5CF6;
+      font-weight: 600;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 200ms;
+      border: 1px solid transparent;
+    }
+
+    .btn-link:hover {
+      background: #F3F4F6;
+    }
+
+    .event-card.responded .event-actions {
+      color: #6B7280;
+    }
+
+    /* Groups Sidebar */
+    .groups-sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .group-card {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      transition: all 200ms;
+      cursor: pointer;
+    }
+
+    .group-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .group-emoji {
+      font-size: 32px;
+      margin-bottom: 12px;
+      display: block;
+    }
+
+    .group-name {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .group-members {
+      font-size: 14px;
+      color: #6B7280;
+      margin-bottom: 12px;
+    }
+
+    .group-action {
+      color: #8B5CF6;
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .new-group-btn {
+      width: 100%;
+      padding: 16px;
+      border-radius: 8px;
+      border: 2px dashed #D1D5DB;
+      background: white;
+      color: #6B7280;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 200ms;
+    }
+
+    .new-group-btn:hover {
+      border-color: #8B5CF6;
+      color: #8B5CF6;
+      background: #F9FAFB;
+    }
+
+    /* Past Events */
+    .past-events-section {
+      margin-top: 32px;
+      padding-top: 32px;
+      border-top: 1px solid #E5E7EB;
+    }
+
+    .past-events-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      color: #6B7280;
+      padding: 12px 0;
+    }
+
+    .past-events-header:hover {
+      color: #374151;
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+      .main-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .groups-sidebar {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      }
+    }
+
+    @media (max-width: 640px) {
+      .header {
+        padding: 0 16px;
+      }
+
+      .nav-links {
+        display: none;
+      }
+
+      .container {
+        padding: 16px;
+      }
+
+      .welcome-section {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 20px;
+      }
+
+      .welcome-actions {
+        width: 100%;
+        flex-direction: column;
+      }
+
+      .btn {
+        width: 100%;
+      }
+
+      .event-card {
+        padding: 16px;
+      }
+
+      .event-actions {
+        flex-direction: column;
+      }
+
+      .rsvp-buttons {
+        width: 100%;
+      }
+
+      .rsvp-btn {
+        flex: 1;
+      }
+
+      .groups-sidebar {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Empty State */
+    .empty-state {
+      text-align: center;
+      padding: 64px 32px;
+      background: white;
+      border-radius: 12px;
+      border: 2px dashed #E5E7EB;
+    }
+
+    .empty-state-icon {
+      font-size: 64px;
+      margin-bottom: 16px;
+    }
+
+    .empty-state h3 {
+      font-size: 20px;
+      margin-bottom: 8px;
+      color: #374151;
+    }
+
+    .empty-state p {
+      color: #6B7280;
+      margin-bottom: 24px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <div class="logo">Kinmo</div>
+      <nav class="nav-links">
+        <a href="#" class="nav-link active">Dashboard</a>
+        <a href="#" class="nav-link">My Groups</a>
+        <a href="#" class="nav-link">Profile</a>
+      </nav>
+    </div>
+    <div class="header-right">
+      <div class="notification-bell">
+        🔔
+        <span class="notification-badge">2</span>
+      </div>
+      <div class="user-avatar">S</div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <div class="container">
+    <!-- Welcome Section -->
+    <section class="welcome-section">
+      <div class="welcome-content">
+        <h1>👋 Hey Sarah!</h1>
+        <p>You have 3 upcoming events</p>
+      </div>
+      <div class="welcome-actions">
+        <button class="btn btn-primary">+ Create Event</button>
+        <button class="btn btn-secondary">Auto-Schedule</button>
+      </div>
+    </section>
+
+    <!-- Main Layout -->
+    <div class="main-layout">
+      <!-- Left Column: Events -->
+      <main>
+        <div class="section-header">
+          <span class="icon">🎯</span>
+          <h2>Upcoming Events</h2>
+        </div>
+        <div class="section-divider"></div>
+
+        <div class="events-list">
+          <!-- Event 1: Needs RSVP -->
+          <article class="event-card needs-rsvp">
+            <div class="event-header">
+              <div class="event-datetime">THIS FRIDAY, 7:00 PM</div>
+              <span class="event-badge badge-rsvp">🔔 RSVP</span>
+            </div>
+            <h3 class="event-title">
+              <span class="event-emoji">🍽️</span>
+              Team Dinner at Pizzeria Delfina
+            </h3>
+            <div class="event-details">
+              <div class="event-detail">📍 Mission District</div>
+              <div class="event-detail">👥 8 going, 2 maybe</div>
+              <div class="event-detail">⏰ RSVP by Tomorrow</div>
+            </div>
+            <div class="event-actions">
+              <div class="rsvp-buttons">
+                <button class="rsvp-btn">Yes</button>
+                <button class="rsvp-btn">Maybe</button>
+                <button class="rsvp-btn">No</button>
+              </div>
+              <a href="#" class="btn-link">View Details →</a>
+            </div>
+          </article>
+
+          <!-- Event 2: Already Responded -->
+          <article class="event-card responded">
+            <div class="event-header">
+              <div class="event-datetime">NEXT WEEK, SAT 8:00 PM</div>
+              <span class="event-badge badge-confirmed">⭐</span>
+            </div>
+            <h3 class="event-title">
+              <span class="event-emoji">🎬</span>
+              Movie Night
+            </h3>
+            <div class="event-details">
+              <div class="event-detail">📍 Alamo Drafthouse</div>
+              <div class="event-detail">👥 5 going, 1 maybe</div>
+            </div>
+            <div class="event-actions">
+              <button class="rsvp-btn selected">✓ I'm going!</button>
+              <a href="#" class="btn-link">View Details →</a>
+            </div>
+          </article>
+
+          <!-- Event 3: Already Responded -->
+          <article class="event-card responded">
+            <div class="event-header">
+              <div class="event-datetime">DEC 15, 6:30 PM</div>
+              <span class="event-badge badge-confirmed">⭐</span>
+            </div>
+            <h3 class="event-title">
+              <span class="event-emoji">🍺</span>
+              Brewery Crawl
+            </h3>
+            <div class="event-details">
+              <div class="event-detail">📍 Starting at Cellarmaker</div>
+              <div class="event-detail">👥 5 going, 1 maybe</div>
+            </div>
+            <div class="event-actions">
+              <button class="rsvp-btn selected">✓ Already responded</button>
+              <a href="#" class="btn-link">View Details →</a>
+            </div>
+          </article>
+        </div>
+
+        <!-- Past Events Section -->
+        <section class="past-events-section">
+          <div class="past-events-header">
+            <span>📅 PAST EVENTS (3)</span>
+            <span>→</span>
+          </div>
+        </section>
+      </main>
+
+      <!-- Right Column: Groups Sidebar -->
+      <aside class="groups-sidebar">
+        <div class="section-header">
+          <h2>Your Groups</h2>
+        </div>
+
+        <!-- Group Card 1 -->
+        <div class="group-card">
+          <span class="group-emoji">🍕</span>
+          <div class="group-name">Weekly Dinners</div>
+          <div class="group-members">12 members</div>
+          <a href="#" class="group-action">View →</a>
+        </div>
+
+        <!-- Group Card 2 -->
+        <div class="group-card">
+          <span class="group-emoji">🎬</span>
+          <div class="group-name">Movie Nights</div>
+          <div class="group-members">6 members</div>
+          <a href="#" class="group-action">View →</a>
+        </div>
+
+        <!-- Group Card 3 -->
+        <div class="group-card">
+          <span class="group-emoji">🍺</span>
+          <div class="group-name">Brewery Crew</div>
+          <div class="group-members">8 members</div>
+          <a href="#" class="group-action">View →</a>
+        </div>
+
+        <!-- New Group Button -->
+        <button class="new-group-btn">+ New Group</button>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    // Simple interactivity demo
+    document.querySelectorAll('.rsvp-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const parent = this.closest('.rsvp-buttons');
+        if (parent) {
+          parent.querySelectorAll('.rsvp-btn').forEach(b => b.classList.remove('selected'));
+          this.classList.add('selected');
+        } else {
+          this.classList.toggle('selected');
+        }
+      });
+    });
+
+    document.querySelector('.past-events-header')?.addEventListener('click', function() {
+      alert('Past events section would expand here!');
+    });
+  </script>
+</body>
+</html>

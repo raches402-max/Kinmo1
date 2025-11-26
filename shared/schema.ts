@@ -44,6 +44,24 @@ export const userProfiles = pgTable("user_profiles", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// Notifications table (in-app notification system)
+export const notifications = pgTable("notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  type: text("type").notNull(), // 'event_invite' | 'rsvp_reminder' | 'event_update' | 'time_selected' | 'feedback_request' | 'venue_change'
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  actionUrl: text("action_url"), // URL to navigate to when notification is clicked
+  actionLabel: text("action_label"), // Label for the action button (e.g., "RSVP Now", "View Event")
+  read: boolean("read").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  metadata: jsonb("metadata"), // Additional data: { eventId, groupId, itineraryId, etc. }
+},
+(table) => [
+  index("idx_notifications_user_read").on(table.userId, table.read),
+  index("idx_notifications_created").on(table.createdAt),
+]);
+
 // Group collections table (organize groups into custom collections)
 export const groupCollections = pgTable("group_collections", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -113,6 +131,9 @@ export const groups = pgTable("groups", {
   // Future event pipeline configuration
   targetFutureEvents: integer("target_future_events"), // Number of future events to maintain in pipeline (null = use smart default based on cadence)
   allowEarlyRsvp: boolean("allow_early_rsvp").default(true).notNull(), // Whether members can RSVP to approved events before they are fully scheduled
+
+  // Member permissions
+  membersCanCreateEvents: boolean("members_can_create_events").default(true).notNull(), // Whether members (non-organizers) can create events and discover venues
 
   // Visual customization
   accentColor: varchar("accent_color", { length: 7 }), // Hex color code for group visual identity (e.g., "#60A5FA")
@@ -465,7 +486,7 @@ export const autoScheduledEvents = pgTable("auto_scheduled_events", {
   itineraryId: varchar("itinerary_id").references(() => itineraries.id, { onDelete: "cascade" }), // Links to proposed itinerary
   proposedDate: timestamp("proposed_date").notNull(), // AI-suggested event date/time
   status: text("status").default("pending_approval").notNull(), // 'pending_approval', 'auto_approved', 'approved', 'rejected', 'auto_sent', 'scheduled'
-  autoSendAt: timestamp("auto_send_at").notNull(), // When to auto-send if no organizer action (3 days before target)
+  autoSendAt: timestamp("auto_send_at").notNull(), // When to auto-send if no organizer action (7 days before target for RSVP lead time)
   allowMemberVoting: boolean("allow_member_voting").default(false).notNull(), // Whether members can vote on itinerary options
   selectedOptionId: varchar("selected_option_id"), // Which itinerary option was selected (references itineraryOptions.id)
 
@@ -478,6 +499,17 @@ export const autoScheduledEvents = pgTable("auto_scheduled_events", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Rejected event dates - track dates the user explicitly doesn't want events on
+export const rejectedEventDates = pgTable("rejected_event_dates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  groupId: varchar("group_id").notNull().references(() => groups.id, { onDelete: "cascade" }),
+  rejectedDate: timestamp("rejected_date").notNull(), // The date to skip (stored as timestamp for consistency)
+  reason: text("reason").default("user_deleted").notNull(), // 'user_deleted', 'skipped', 'manual'
+  sourceType: text("source_type"), // 'itinerary', 'auto_event', 'virtual' - what was deleted
+  sourceId: varchar("source_id"), // ID of the deleted item (if applicable)
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Itinerary options - multiple itinerary options generated for auto-scheduled events
 export const itineraryOptions = pgTable("itinerary_options", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -485,6 +517,7 @@ export const itineraryOptions = pgTable("itinerary_options", {
   optionNumber: integer("option_number").notNull(), // 1, 2, or 3
   venues: jsonb("venues").notNull(), // Array of {sourceType: 'activity'|'voting_event', sourceId: string, venueName: string, badges: string[]}
   description: text("description"), // Optional AI-generated description of this option
+  nearbySuggestions: jsonb("nearby_suggestions"), // Optional array of nearby complementary venues
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -1061,6 +1094,11 @@ export const insertUserProfileSchema = createInsertSchema(userProfiles).omit({
   updatedAt: true,
 });
 
+export const insertNotificationSchema = createInsertSchema(notifications).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertGroupCollectionSchema = createInsertSchema(groupCollections).omit({
   id: true,
   createdAt: true,
@@ -1190,6 +1228,9 @@ export type InsertUserProfile = z.infer<typeof insertUserProfileSchema>;
 export type UserProfile = typeof userProfiles.$inferSelect;
 export type UpdateUserProfile = z.infer<typeof updateUserProfileSchema>;
 
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+export type Notification = typeof notifications.$inferSelect;
+
 export type InsertGroupCollection = z.infer<typeof insertGroupCollectionSchema>;
 export type GroupCollection = typeof groupCollections.$inferSelect;
 export type UpdateGroupCollection = z.infer<typeof updateGroupCollectionSchema>;
@@ -1220,6 +1261,25 @@ export type CuratedVenue = typeof curatedVenues.$inferSelect;
 
 export type InsertApiCallLog = z.infer<typeof insertApiCallLogSchema>;
 export type ApiCallLog = typeof apiCallLogs.$inferSelect;
+
+// Queue event metadata table (tracks regeneration counts for auto-schedule queue events)
+export const queueEventMetadata = pgTable("queue_event_metadata", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  groupId: varchar("group_id").notNull().references(() => groups.id, { onDelete: "cascade" }),
+  eventId: text("event_id").notNull(), // The queue event ID (e.g., "queue-2025-11-30T...")
+  regenerationCount: integer("regeneration_count").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertQueueEventMetadataSchema = createInsertSchema(queueEventMetadata).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertQueueEventMetadata = z.infer<typeof insertQueueEventMetadataSchema>;
+export type QueueEventMetadata = typeof queueEventMetadata.$inferSelect;
 
 // Database backups table (complete snapshots for disaster recovery)
 export const databaseBackups = pgTable("database_backups", {

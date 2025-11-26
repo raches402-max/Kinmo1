@@ -1,6 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import { Button } from "@/components/ui/button";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -9,6 +10,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { ArrowLeft, Brain, Ban, Users, TrendingUp, Calendar, AlertCircle, CheckCircle2, XCircle, Trash2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { getErrorToast } from "@/components/ErrorDisplay";
 
 interface LearningInsightsData {
   groupId: string;
@@ -83,11 +85,7 @@ export default function LearningInsights() {
       });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -158,14 +156,17 @@ export default function LearningInsights() {
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto p-6 max-w-6xl">
+        {/* Breadcrumbs */}
+        <Breadcrumbs
+          items={[
+            { label: data.groupName || "Group", href: `/group/${groupId}` },
+            { label: "Insights" }
+          ]}
+          className="mb-4"
+        />
+
         {/* Header */}
         <div className="mb-6">
-          <Link href={`/groups/${groupId}`}>
-            <Button variant="ghost" className="mb-4">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Group
-            </Button>
-          </Link>
           <div className="flex items-center gap-3 mb-2">
             <Brain className="h-8 w-8 text-primary" />
             <h1 className="text-3xl font-bold">{data.groupName} - Learning Insights</h1>

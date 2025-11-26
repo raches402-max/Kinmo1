@@ -132,6 +132,46 @@ export async function selectBestTimeSlot(itineraryId: string): Promise<TimeSelec
     // Mark the winning time slot as selected and update itinerary
     await markTimeSlotAsSelected(itineraryId, winner.timeSlotId, winner.proposedDateTime);
 
+    // Send time selected notifications
+    try {
+      const [itinerary] = await db
+        .select()
+        .from(itineraries)
+        .where(eq(itineraries.id, itineraryId))
+        .limit(1);
+
+      if (itinerary) {
+        const { members } = await import('../shared/schema');
+        const groupMembers = await db
+          .select()
+          .from(members)
+          .where(eq(members.groupId, itinerary.groupId));
+
+        const memberIds = groupMembers.map(m => m.id);
+
+        // Format the selected time nicely
+        const selectedTime = winner.proposedDateTime.toLocaleDateString('en-US', {
+          weekday: 'long',
+          month: 'long',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit'
+        });
+
+        const { notifyTimeSelected } = await import('./notifications');
+        await notifyTimeSelected({
+          itineraryId,
+          groupId: itinerary.groupId,
+          eventName: itinerary.name || 'Upcoming Event',
+          selectedTime,
+          memberIds
+        });
+      }
+    } catch (notifyError) {
+      console.error('[Time Selector] Error sending time selected notifications:', notifyError);
+      // Don't fail time selection if notifications fail
+    }
+
     return {
       success: true,
       selectedTimeSlot: winner,

@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Discover Venues - Redesign Mockup v2</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    .tab-active {
+      background: hsl(222, 47%, 11%);
+      color: white;
+    }
+    .category-btn { transition: all 0.15s ease; }
+    .category-btn:hover { transform: translateY(-2px); }
+    .category-btn.selected {
+      background: hsl(222, 47%, 95%);
+      border-color: hsl(222, 47%, 40%);
+      box-shadow: 0 0 0 2px hsl(222, 47%, 85%);
+    }
+    .venue-card:hover { transform: translateY(-2px); box-shadow: 0 8px 16px rgba(0,0,0,0.08); }
+    .fade-in { animation: fadeIn 0.3s ease-out; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .google-link:hover { color: #1a73e8; }
+    .swipe-card {
+      transition: transform 0.3s ease;
+    }
+    .swipe-card.swiping-left {
+      transform: translateX(-100px) rotate(-10deg);
+      opacity: 0.5;
+    }
+    .swipe-card.swiping-right {
+      transform: translateX(100px) rotate(10deg);
+      opacity: 0.5;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-8">
+
+  <!-- Modal Container -->
+  <div class="max-w-2xl mx-auto">
+    <div class="bg-white rounded-2xl shadow-2xl overflow-hidden">
+
+      <!-- Header -->
+      <div class="px-6 py-5 border-b border-gray-100">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+              <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+              </svg>
+              Venues
+            </h2>
+            <p class="text-sm text-gray-500 mt-0.5">Manage and discover places for your group</p>
+          </div>
+          <button class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Tab Navigation - REORDERED: Our Places → Search → Browse -->
+      <div class="px-6 pt-4">
+        <div class="flex gap-1 p-1 bg-gray-100 rounded-xl">
+          <button onclick="showTab('places')" id="tab-places" class="tab-btn flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all tab-active">
+            Our Places
+          </button>
+          <button onclick="showTab('search')" id="tab-search" class="tab-btn flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all text-gray-600 hover:text-gray-900 hover:bg-gray-50">
+            Search
+          </button>
+          <button onclick="showTab('browse')" id="tab-browse" class="tab-btn flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all text-gray-600 hover:text-gray-900 hover:bg-gray-50">
+            Browse
+          </button>
+        </div>
+      </div>
+
+      <!-- Tab Content -->
+      <div class="p-6">
+
+        <!-- OUR PLACES TAB (Now First) -->
+        <div id="content-places" class="tab-content fade-in">
+          <!-- Stats bar -->
+          <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-100">
+            <div class="flex items-center gap-4">
+              <div class="text-center">
+                <p class="text-2xl font-semibold text-gray-900">24</p>
+                <p class="text-xs text-gray-500">Total places</p>
+              </div>
+              <div class="w-px h-8 bg-gray-200"></div>
+              <div class="text-center">
+                <p class="text-2xl font-semibold text-green-600">8</p>
+                <p class="text-xs text-gray-500">Upvoted</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <!-- Swipe Mode Button -->
+              <button onclick="showSwipeMode('places')" class="px-3 py-1.5 text-sm font-medium text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors flex items-center gap-1.5" title="Quickly vote on venues by swiping">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/>
+                </svg>
+                Swipe
+              </button>
+              <button onclick="showTab('browse')" class="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                </svg>
+                Add more
+              </button>
+            </div>
+          </div>
+
+          <!-- Filter tabs for categories -->
+          <div class="flex gap-1 mb-4 overflow-x-auto pb-1">
+            <button class="px-3 py-1.5 text-sm font-medium bg-gray-900 text-white rounded-lg whitespace-nowrap">All</button>
+            <button class="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg whitespace-nowrap">🍽️ Meals (12)</button>
+            <button class="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg whitespace-nowrap">☕ Cafes (5)</button>
+            <button class="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg whitespace-nowrap">🍷 Drinks (4)</button>
+            <button class="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg whitespace-nowrap">🎉 Activities (3)</button>
+          </div>
+
+          <!-- Venue list - compact cards with Google links -->
+          <div class="space-y-2 max-h-80 overflow-y-auto pr-1">
+            <!-- Venue Item 1 -->
+            <div class="venue-card flex items-center gap-3 p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-all">
+              <a href="https://www.google.com/maps/place/?q=place_id:ChIJN1t_tDeuEmsRUsoyG83frY4" target="_blank" class="w-14 h-14 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0 relative group">
+                <img src="https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=100&h=100&fit=crop" class="w-full h-full object-cover">
+                <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                  <svg class="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                  </svg>
+                </div>
+              </a>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <a href="https://www.google.com/maps/place/?q=place_id:ChIJN1t_tDeuEmsRUsoyG83frY4" target="_blank" class="font-medium text-gray-900 truncate hover:text-blue-600 transition-colors">Flour + Water</a>
+                  <a href="https://www.google.com/maps/place/?q=place_id:ChIJN1t_tDeuEmsRUsoyG83frY4" target="_blank" class="google-link text-gray-400 hover:text-blue-600 transition-colors flex-shrink-0" title="View on Google Maps">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                    </svg>
+                  </a>
+                </div>
+                <p class="text-xs text-gray-500 truncate">Italian · Mission District</p>
+                <div class="flex items-center gap-2 mt-1">
+                  <a href="https://www.google.com/maps/place/?q=place_id:ChIJN1t_tDeuEmsRUsoyG83frY4" target="_blank" class="flex items-center text-xs text-yellow-600 hover:underline">
+                    <svg class="w-3 h-3 fill-current mr-0.5" viewBox="0 0 20 20"><path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z"/></svg>
+                    4.6 <span class="text-gray-400 ml-0.5">(2,847)</span>
+                  </a>
+                  <span class="text-xs text-gray-400">·</span>
+                  <span class="text-xs text-green-600">$$$</span>
+                </div>
+              </div>
+              <div class="flex items-center gap-1">
+                <button class="p-1.5 hover:bg-white rounded-lg transition-colors" title="Upvote">
+                  <svg class="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+                  </svg>
+                </button>
+                <span class="text-sm font-medium text-gray-600 w-4 text-center">3</span>
+              </div>
+            </div>
+
+            <!-- Venue Item 2 -->
+            <div class="venue-card flex items-center gap-3 p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-all">
+              <a href="https://www.google.com/maps/search/?api=1&query=Sightglass+Coffee+SoMa+San+Francisco" target="_blank" class="w-14 h-14 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0 relative group">
+                <img src="https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=100&h=100&fit=crop" class="w-full h-full object-cover">
+                <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                  <svg class="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                  </svg>
+                </div>
+              </a>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <a href="https://www.google.com/maps/search/?api=1&query=Sightglass+Coffee+SoMa+San+Francisco" target="_blank" class="font-medium text-gray-900 truncate hover:text-blue-600 transition-colors">Sightglass Coffee</a>
+                  <a href="https://www.google.com/maps/search/?api=1&query=Sightglass+Coffee+SoMa+San+Francisco" target="_blank" class="google-link text-gray-400 hover:text-blue-600 transition-colors flex-shrink-0" title="View on Google Maps">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                    </svg>
+                  </a>
+                </div>
+                <p class="text-xs text-gray-500 truncate">Cafe · SoMa</p>
+                <div class="flex items-center gap-2 mt-1">
+                  <a href="https://www.google.com/maps/search/?api=1&query=Sightglass+Coffee+SoMa+San+Francisco" target="_blank" class="flex items-center text-xs text-yellow-600 hover:underline">
+                    <svg class="w-3 h-3 fill-current mr-0.5" viewBox="0 0 20 20"><path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z"/></svg>
+                    4.5 <span class="text-gray-400 ml-0.5">(1,523)</span>
+                  </a>
+                  <span class="text-xs text-gray-400">·</span>
+                  <span class="text-xs text-green-600">$$</span>
+                </div>
+              </div>
+              <div class="flex items-center gap-1">
+                <button class="p-1.5 hover:bg-white rounded-lg transition-colors" title="Upvote">
+                  <svg class="w-5 h-5 text-gray-300 hover:text-green-500" fill="none" stroke="currentColor" viewBox="0 0 20 20">
+                    <path stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z"/>
+                  </svg>
+                </button>
+                <span class="text-sm font-medium text-gray-400 w-4 text-center">1</span>
+              </div>
+            </div>
+
+            <!-- Venue Item 3 -->
+            <div class="venue-card flex items-center gap-3 p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-all">
+              <a href="https://www.google.com/maps/search/?api=1&query=Trick+Dog+Mission+District+San+Francisco" target="_blank" class="w-14 h-14 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0 relative group">
+                <img src="https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=100&h=100&fit=crop" class="w-full h-full object-cover">
+                <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                  <svg class="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                  </svg>
+                </div>
+              </a>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <a href="https://www.google.com/maps/search/?api=1&query=Trick+Dog+Mission+District+San+Francisco" target="_blank" class="font-medium text-gray-900 truncate hover:text-blue-600 transition-colors">Trick Dog</a>
+                  <a href="https://www.google.com/maps/search/?api=1&query=Trick+Dog+Mission+District+San+Francisco" target="_blank" class="google-link text-gray-400 hover:text-blue-600 transition-colors flex-shrink-0" title="View on Google Maps">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                    </svg>
+                  </a>
+                </div>
+                <p class="text-xs text-gray-500 truncate">Bar · Mission District</p>
+                <div class="flex items-center gap-2 mt-1">
+                  <a href="https://www.google.com/maps/search/?api=1&query=Trick+Dog+Mission+District+San+Francisco" target="_blank" class="flex items-center text-xs text-yellow-600 hover:underline">
+                    <svg class="w-3 h-3 fill-current mr-0.5" viewBox="0 0 20 20"><path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z"/></svg>
+                    4.4 <span class="text-gray-400 ml-0.5">(892)</span>
+                  </a>
+                  <span class="text-xs text-gray-400">·</span>
+                  <span class="text-xs text-green-600">$$</span>
+                </div>
+              </div>
+              <div class="flex items-center gap-1">
+                <button class="p-1.5 hover:bg-white rounded-lg transition-colors" title="Upvote">
+                  <svg class="w-5 h-5 text-gray-300 hover:text-green-500" fill="none" stroke="currentColor" viewBox="0 0 20 20">
+                    <path stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z"/>
+                  </svg>
+                </button>
+                <span class="text-sm font-medium text-gray-400 w-4 text-center">0</span>
+              </div>
+            </div>
+
+            <!-- Added by friend indicator -->
+            <div class="venue-card flex items-center gap-3 p-3 bg-blue-50 rounded-xl hover:bg-blue-100 transition-all border border-blue-100">
+              <a href="https://www.google.com/maps/search/?api=1&query=Pizzeria+Delfina+Mission+San+Francisco" target="_blank" class="w-14 h-14 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0 relative group">
+                <img src="https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=100&h=100&fit=crop" class="w-full h-full object-cover">
+                <div class="absolute -bottom-1 -right-1 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold border-2 border-white">S</div>
+                <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                  <svg class="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                  </svg>
+                </div>
+              </a>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <a href="https://www.google.com/maps/search/?api=1&query=Pizzeria+Delfina+Mission+San+Francisco" target="_blank" class="font-medium text-gray-900 truncate hover:text-blue-600 transition-colors">Pizzeria Delfina</a>
+                  <span class="text-xs text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">New</span>
+                  <a href="https://www.google.com/maps/search/?api=1&query=Pizzeria+Delfina+Mission+San+Francisco" target="_blank" class="google-link text-gray-400 hover:text-blue-600 transition-colors flex-shrink-0" title="View on Google Maps">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                    </svg>
+                  </a>
+                </div>
+                <p class="text-xs text-gray-500 truncate">Pizza · Mission District</p>
+                <div class="flex items-center gap-2 mt-1">
+                  <a href="https://www.google.com/maps/search/?api=1&query=Pizzeria+Delfina+Mission+San+Francisco" target="_blank" class="flex items-center text-xs text-yellow-600 hover:underline">
+                    <svg class="w-3 h-3 fill-current mr-0.5" viewBox="0 0 20 20"><path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z"/></svg>
+                    4.5 <span class="text-gray-400 ml-0.5">(3,241)</span>
+                  </a>
+                  <span class="text-xs text-gray-400">·</span>
+                  <span class="text-xs text-green-600">$$</span>
+                </div>
+                <p class="text-xs text-blue-600 mt-0.5">Added by Sarah</p>
+              </div>
+              <div class="flex items-center gap-1">
+                <button class="p-1.5 hover:bg-white rounded-lg transition-colors" title="Upvote">
+                  <svg class="w-5 h-5 text-gray-300 hover:text-green-500" fill="none" stroke="currentColor" viewBox="0 0 20 20">
+                    <path stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z"/>
+                  </svg>
+                </button>
+                <span class="text-sm font-medium text-gray-400 w-4 text-center">0</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- View full library link -->
+          <div class="mt-4 pt-4 border-t border-gray-100 text-center">
+            <button class="text-sm text-blue-600 hover:text-blue-700 font-medium">
+              View full Venue Library
+            </button>
+          </div>
+        </div>
+
+        <!-- SEARCH TAB -->
+        <div id="content-search" class="tab-content hidden fade-in">
+          <p class="text-sm text-gray-600 mb-4">Know exactly where you want to go? Search for it directly.</p>
+
+          <!-- Search Input - Prominent -->
+          <div class="relative mb-4">
+            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+            <input type="text" placeholder="Search for a restaurant, cafe, bar..."
+              class="w-full pl-10 pr-4 py-3 text-base border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              id="search-input"
+              oninput="handleSearch(this.value)">
+          </div>
+
+          <!-- Search Results Preview -->
+          <div id="search-results" class="space-y-2 mb-4">
+            <!-- Empty state -->
+            <div class="text-center py-8 text-gray-400">
+              <svg class="w-12 h-12 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+              </svg>
+              <p class="text-sm">Start typing to search places</p>
+            </div>
+          </div>
+
+          <!-- Recent searches / suggestions -->
+          <div class="border-t border-gray-100 pt-4">
+            <p class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Popular in your area</p>
+            <div class="flex flex-wrap gap-2">
+              <button class="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-full transition-colors">Tartine Bakery</button>
+              <button class="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-full transition-colors">Flour + Water</button>
+              <button class="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-full transition-colors">Bi-Rite Creamery</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- BROWSE TAB (Now Last) -->
+        <div id="content-browse" class="tab-content hidden fade-in">
+          <p class="text-sm text-gray-600 mb-4">Select categories and we'll find top-rated spots near your group</p>
+
+          <!-- Category Selection - MULTI-SELECT with chips -->
+          <div class="mb-4">
+            <div class="flex items-center justify-between mb-2">
+              <label class="text-xs font-medium text-gray-500">Categories</label>
+              <span class="text-xs text-gray-400" id="category-count">Select 1 or more</span>
+            </div>
+            <div class="grid grid-cols-5 gap-2">
+              <button onclick="toggleCategory(this, 'meal')" data-category="meal" class="category-btn flex flex-col items-center p-3 rounded-xl border-2 border-gray-200 hover:border-gray-300 transition-all">
+                <span class="text-2xl mb-1">🍽️</span>
+                <span class="text-xs font-medium text-gray-700">Meals</span>
+              </button>
+              <button onclick="toggleCategory(this, 'cafes')" data-category="cafes" class="category-btn flex flex-col items-center p-3 rounded-xl border-2 border-gray-200 hover:border-gray-300 transition-all">
+                <span class="text-2xl mb-1">☕</span>
+                <span class="text-xs font-medium text-gray-700">Cafes</span>
+              </button>
+              <button onclick="toggleCategory(this, 'drinks')" data-category="drinks" class="category-btn flex flex-col items-center p-3 rounded-xl border-2 border-gray-200 hover:border-gray-300 transition-all">
+                <span class="text-2xl mb-1">🍷</span>
+                <span class="text-xs font-medium text-gray-700">Drinks</span>
+              </button>
+              <button onclick="toggleCategory(this, 'dessert')" data-category="dessert" class="category-btn flex flex-col items-center p-3 rounded-xl border-2 border-gray-200 hover:border-gray-300 transition-all">
+                <span class="text-2xl mb-1">🍰</span>
+                <span class="text-xs font-medium text-gray-700">Desserts</span>
+              </button>
+              <button onclick="toggleCategory(this, 'experiences')" data-category="experiences" class="category-btn flex flex-col items-center p-3 rounded-xl border-2 border-gray-200 hover:border-gray-300 transition-all">
+                <span class="text-2xl mb-1">🎉</span>
+                <span class="text-xs font-medium text-gray-700">Activities</span>
+              </button>
+            </div>
+            <!-- Selected categories chips -->
+            <div id="selected-categories" class="flex flex-wrap gap-2 mt-3 min-h-[28px]">
+              <!-- Chips appear here when categories are selected -->
+            </div>
+          </div>
+
+          <!-- Location & Radius - Compact inline -->
+          <div class="flex gap-3 mb-5">
+            <div class="flex-1">
+              <label class="block text-xs font-medium text-gray-500 mb-1.5">Location</label>
+              <input type="text" placeholder="Mission District, SF (or use group default)"
+                class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+            </div>
+            <div class="w-28">
+              <label class="block text-xs font-medium text-gray-500 mb-1.5">Radius</label>
+              <select class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                <option>5 miles</option>
+                <option selected>10 miles</option>
+                <option>25 miles</option>
+                <option>50 miles</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Advanced Options Toggle -->
+          <details class="mb-5 group">
+            <summary class="flex items-center gap-2 text-sm text-gray-500 cursor-pointer hover:text-gray-700">
+              <svg class="w-4 h-4 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+              </svg>
+              Advanced options
+            </summary>
+            <div class="mt-3 pl-6 space-y-3 fade-in">
+              <div class="flex gap-3">
+                <div class="flex-1">
+                  <label class="block text-xs font-medium text-gray-500 mb-1.5">Number of results</label>
+                  <select class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white">
+                    <option>5 venues</option>
+                    <option selected>9 venues</option>
+                    <option>15 venues</option>
+                  </select>
+                </div>
+                <div class="flex-1">
+                  <label class="block text-xs font-medium text-gray-500 mb-1.5">Sort by</label>
+                  <select class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white">
+                    <option selected>Highest rated</option>
+                    <option>Closest</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1.5">Special requests</label>
+                <input type="text" placeholder="e.g., outdoor seating, family-friendly..."
+                  class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+              </div>
+            </div>
+          </details>
+
+          <!-- Action Buttons - Grid View or Swipe Mode -->
+          <div class="space-y-3">
+            <button onclick="showBrowseResults('grid')" id="btn-find-venues" class="w-full py-3 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/>
+              </svg>
+              Find Venues
+            </button>
+            <button onclick="showBrowseResults('swipe')" id="btn-swipe-discover" class="w-full py-2.5 bg-purple-50 text-purple-700 rounded-xl font-medium hover:bg-purple-100 transition-colors flex items-center justify-center gap-2 border border-purple-200 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/>
+              </svg>
+              Swipe to Discover
+            </button>
+          </div>
+
+          <!-- Secondary option -->
+          <div class="mt-4 pt-4 border-t border-gray-100 text-center">
+            <button onclick="showTab('search')" class="text-sm text-gray-500 hover:text-gray-700">
+              Looking for a specific place? <span class="text-blue-600 font-medium">Search instead</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- BROWSE RESULTS - Grid View (shown after Find Venues) -->
+        <div id="content-browse-results" class="tab-content hidden fade-in">
+          <div class="flex items-center justify-between mb-4">
+            <button onclick="showTab('browse')" class="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+              </svg>
+              Back to search
+            </button>
+            <div class="flex items-center gap-2">
+              <span class="text-sm text-gray-500">9 results</span>
+              <div class="flex bg-gray-100 rounded-lg p-0.5">
+                <button onclick="switchResultsView('grid')" id="view-grid" class="p-1.5 rounded bg-white shadow-sm">
+                  <svg class="w-4 h-4 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+                  </svg>
+                </button>
+                <button onclick="switchResultsView('swipe')" id="view-swipe" class="p-1.5 rounded text-gray-400 hover:text-gray-600">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Results Grid -->
+          <div id="results-grid" class="grid grid-cols-3 gap-3 max-h-80 overflow-y-auto">
+            <!-- Result Card 1 -->
+            <div class="bg-gray-50 rounded-xl overflow-hidden hover:shadow-md transition-all cursor-pointer group" onclick="toggleResultSelection(this)">
+              <div class="aspect-square relative">
+                <img src="https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=200&h=200&fit=crop" class="w-full h-full object-cover">
+                <div class="absolute top-2 right-2 w-6 h-6 rounded-full border-2 border-white bg-white/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity result-check">
+                  <svg class="w-4 h-4 text-green-500 hidden" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                </div>
+              </div>
+              <div class="p-2">
+                <h4 class="font-medium text-sm truncate">Delfina</h4>
+                <div class="flex items-center gap-1 text-xs text-gray-500">
+                  <svg class="w-3 h-3 fill-yellow-400 text-yellow-400" viewBox="0 0 20 20"><path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z"/></svg>
+                  4.5 (2.1k) · $$$
+                </div>
+              </div>
+            </div>
+            <!-- Result Card 2 -->
+            <div class="bg-gray-50 rounded-xl overflow-hidden hover:shadow-md transition-all cursor-pointer group selected ring-2 ring-green-500" onclick="toggleResultSelection(this)">
+              <div class="aspect-square relative">
+                <img src="https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=200&h=200&fit=crop" class="w-full h-full object-cover">
+                <div class="absolute top-2 right-2 w-6 h-6 rounded-full border-2 border-white bg-green-500 flex items-center justify-center result-check">
+                  <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                </div>
+              </div>
+              <div class="p-2">
+                <h4 class="font-medium text-sm truncate">Burma Superstar</h4>
+                <div class="flex items-center gap-1 text-xs text-gray-500">
+                  <svg class="w-3 h-3 fill-yellow-400 text-yellow-400" viewBox="0 0 20 20"><path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z"/></svg>
+                  4.3 (5.1k) · $$
+                </div>
+              </div>
+            </div>
+            <!-- Result Card 3 -->
+            <div class="bg-gray-50 rounded-xl overflow-hidden hover:shadow-md transition-all cursor-pointer group" onclick="toggleResultSelection(this)">
+              <div class="aspect-square relative">
+                <img src="https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=200&h=200&fit=crop" class="w-full h-full object-cover">
+                <div class="absolute top-2 right-2 w-6 h-6 rounded-full border-2 border-white bg-white/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity result-check">
+                  <svg class="w-4 h-4 text-green-500 hidden" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                </div>
+              </div>
+              <div class="p-2">
+                <h4 class="font-medium text-sm truncate">Trick Dog</h4>
+                <div class="flex items-center gap-1 text-xs text-gray-500">
+                  <svg class="w-3 h-3 fill-yellow-400 text-yellow-400" viewBox="0 0 20 20"><path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z"/></svg>
+                  4.4 (892) · $$
+                </div>
+              </div>
+            </div>
+            <!-- More cards... -->
+            <div class="bg-gray-50 rounded-xl overflow-hidden hover:shadow-md transition-all cursor-pointer group selected ring-2 ring-green-500" onclick="toggleResultSelection(this)">
+              <div class="aspect-square relative">
+                <img src="https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=200&h=200&fit=crop" class="w-full h-full object-cover">
+                <div class="absolute top-2 right-2 w-6 h-6 rounded-full border-2 border-white bg-green-500 flex items-center justify-center result-check">
+                  <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                </div>
+              </div>
+              <div class="p-2">
+                <h4 class="font-medium text-sm truncate">Sightglass</h4>
+                <div class="flex items-center gap-1 text-xs text-gray-500">
+                  <svg class="w-3 h-3 fill-yellow-400 text-yellow-400" viewBox="0 0 20 20"><path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z"/></svg>
+                  4.5 (1.5k) · $$
+                </div>
+              </div>
+            </div>
+            <div class="bg-gray-50 rounded-xl overflow-hidden hover:shadow-md transition-all cursor-pointer group" onclick="toggleResultSelection(this)">
+              <div class="aspect-square relative">
+                <img src="https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=200&h=200&fit=crop" class="w-full h-full object-cover">
+                <div class="absolute top-2 right-2 w-6 h-6 rounded-full border-2 border-white bg-white/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity result-check">
+                  <svg class="w-4 h-4 text-green-500 hidden" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                </div>
+              </div>
+              <div class="p-2">
+                <h4 class="font-medium text-sm truncate">Pizzeria Delfina</h4>
+                <div class="flex items-center gap-1 text-xs text-gray-500">
+                  <svg class="w-3 h-3 fill-yellow-400 text-yellow-400" viewBox="0 0 20 20"><path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z"/></svg>
+                  4.5 (3.2k) · $$
+                </div>
+              </div>
+            </div>
+            <div class="bg-gray-50 rounded-xl overflow-hidden hover:shadow-md transition-all cursor-pointer group" onclick="toggleResultSelection(this)">
+              <div class="aspect-square relative">
+                <img src="https://images.unsplash.com/photo-1551218808-94e220e084d2?w=200&h=200&fit=crop" class="w-full h-full object-cover">
+                <div class="absolute top-2 right-2 w-6 h-6 rounded-full border-2 border-white bg-white/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity result-check">
+                  <svg class="w-4 h-4 text-green-500 hidden" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                </div>
+              </div>
+              <div class="p-2">
+                <h4 class="font-medium text-sm truncate">Zuni Cafe</h4>
+                <div class="flex items-center gap-1 text-xs text-gray-500">
+                  <svg class="w-3 h-3 fill-yellow-400 text-yellow-400" viewBox="0 0 20 20"><path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z"/></svg>
+                  4.4 (2.8k) · $$$
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Add Selected Button -->
+          <div class="mt-4 pt-4 border-t border-gray-100">
+            <button class="w-full py-3 bg-green-600 text-white rounded-xl font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+              </svg>
+              Add 2 Selected to Our Places
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Swipe Mode Overlay -->
+    <div id="swipe-overlay" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden fade-in">
+        <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div>
+            <h3 class="font-semibold text-gray-900" id="swipe-title">Swipe Mode</h3>
+            <p class="text-sm text-gray-500" id="swipe-subtitle">Quickly vote on venues</p>
+          </div>
+          <button onclick="hideSwipeMode()" class="p-2 hover:bg-gray-100 rounded-lg">
+            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Swipe Card -->
+        <div class="p-6">
+          <div class="relative">
+            <div class="swipe-card aspect-[4/3] rounded-xl overflow-hidden mb-4 shadow-lg" id="swipe-card">
+              <img src="https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=400&h=300&fit=crop" class="w-full h-full object-cover" id="swipe-image">
+            </div>
+            <div class="text-center mb-4">
+              <h4 class="text-xl font-semibold text-gray-900" id="swipe-venue-name">Burma Superstar</h4>
+              <p class="text-sm text-gray-500" id="swipe-venue-type">Burmese · Clement Street</p>
+              <div class="flex items-center justify-center gap-3 mt-2">
+                <a href="https://www.google.com/maps/search/?api=1&query=Burma+Superstar+San+Francisco" target="_blank" class="flex items-center text-sm text-yellow-600 hover:underline">
+                  <svg class="w-4 h-4 fill-current mr-1" viewBox="0 0 20 20"><path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z"/></svg>
+                  <span id="swipe-rating">4.3 (5,127)</span>
+                </a>
+                <span class="text-gray-400">·</span>
+                <span class="text-sm text-green-600" id="swipe-price">$$</span>
+                <span class="text-gray-400">·</span>
+                <a href="https://www.google.com/maps/search/?api=1&query=Burma+Superstar+San+Francisco" target="_blank" class="text-sm text-blue-600 hover:underline flex items-center gap-1">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                  </svg>
+                  Maps
+                </a>
+              </div>
+            </div>
+
+            <!-- Swipe Actions -->
+            <div class="flex items-center justify-center gap-6">
+              <button onclick="swipeAction('left')" class="w-16 h-16 rounded-full bg-red-100 hover:bg-red-200 text-red-500 flex items-center justify-center transition-all hover:scale-110 shadow-md">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
+              <button onclick="swipeAction('right')" class="w-16 h-16 rounded-full bg-green-100 hover:bg-green-200 text-green-500 flex items-center justify-center transition-all hover:scale-110 shadow-md">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+              </button>
+            </div>
+
+            <p class="text-center text-xs text-gray-400 mt-4" id="swipe-progress">3 of 12 venues remaining</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Design Notes -->
+    <div class="mt-8 p-6 bg-white rounded-xl shadow-sm">
+      <h3 class="font-semibold text-gray-900 mb-3">Design Changes (v2)</h3>
+      <ul class="space-y-2 text-sm text-gray-600">
+        <li class="flex items-start gap-2">
+          <span class="text-green-500 mt-0.5">✓</span>
+          <span><strong>Reordered tabs:</strong> Our Places → Search → Browse (most common action first)</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-green-500 mt-0.5">✓</span>
+          <span><strong>Multi-select categories:</strong> Click multiple categories, shown as removable chips</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-green-500 mt-0.5">✓</span>
+          <span><strong>Swipe mode for Browse:</strong> Two buttons - "Find Venues" (grid) or "Swipe to Discover"</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-green-500 mt-0.5">✓</span>
+          <span><strong>View toggle in results:</strong> Switch between Grid and Swipe view after results load</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-green-500 mt-0.5">✓</span>
+          <span><strong>Google Maps links everywhere</strong></span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-green-500 mt-0.5">✓</span>
+          <span><strong>Rating counts</strong> in "4.6 (2,847)" format</span>
+        </li>
+      </ul>
+
+      <h4 class="font-semibold text-gray-900 mt-6 mb-2">Tab Order Rationale</h4>
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-left border-b">
+            <th class="pb-2">Tab</th>
+            <th class="pb-2">Why This Order</th>
+          </tr>
+        </thead>
+        <tbody class="text-gray-600">
+          <tr class="border-b">
+            <td class="py-2 font-medium">1. Our Places</td>
+            <td class="py-2">Most common - "what do we have?" Check before adding</td>
+          </tr>
+          <tr class="border-b">
+            <td class="py-2 font-medium">2. Search</td>
+            <td class="py-2">Quick add - "add that specific place" - low friction</td>
+          </tr>
+          <tr>
+            <td class="py-2 font-medium">3. Browse</td>
+            <td class="py-2">Heavy action - AI/API calls, slower, for exploration</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    // Track selected categories
+    let selectedCategories = new Set();
+    const categoryLabels = {
+      meal: '🍽️ Meals',
+      cafes: '☕ Cafes',
+      drinks: '🍷 Drinks',
+      dessert: '🍰 Desserts',
+      experiences: '🎉 Activities'
+    };
+
+    function showTab(tab) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      const content = document.getElementById('content-' + tab);
+      if (content) content.classList.remove('hidden');
+
+      document.querySelectorAll('.tab-btn').forEach(el => {
+        el.classList.remove('tab-active');
+        el.classList.add('text-gray-600', 'hover:text-gray-900', 'hover:bg-gray-50');
+      });
+      const activeTab = document.getElementById('tab-' + tab);
+      if (activeTab) {
+        activeTab.classList.add('tab-active');
+        activeTab.classList.remove('text-gray-600', 'hover:text-gray-900', 'hover:bg-gray-50');
+      }
+    }
+
+    function toggleCategory(el, category) {
+      if (selectedCategories.has(category)) {
+        selectedCategories.delete(category);
+        el.classList.remove('selected');
+      } else {
+        selectedCategories.add(category);
+        el.classList.add('selected');
+      }
+      updateCategoryChips();
+      updateButtonState();
+    }
+
+    function removeCategory(category) {
+      selectedCategories.delete(category);
+      const btn = document.querySelector(`[data-category="${category}"]`);
+      if (btn) btn.classList.remove('selected');
+      updateCategoryChips();
+      updateButtonState();
+    }
+
+    function updateCategoryChips() {
+      const container = document.getElementById('selected-categories');
+      const countLabel = document.getElementById('category-count');
+
+      if (selectedCategories.size === 0) {
+        container.innerHTML = '';
+        countLabel.textContent = 'Select 1 or more';
+        return;
+      }
+
+      countLabel.textContent = `${selectedCategories.size} selected`;
+
+      container.innerHTML = Array.from(selectedCategories).map(cat => `
+        <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
+          ${categoryLabels[cat]}
+          <button onclick="removeCategory('${cat}')" class="hover:bg-blue-200 rounded-full p-0.5">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </span>
+      `).join('');
+    }
+
+    function updateButtonState() {
+      const btnFind = document.getElementById('btn-find-venues');
+      const btnSwipe = document.getElementById('btn-swipe-discover');
+      const disabled = selectedCategories.size === 0;
+      btnFind.disabled = disabled;
+      btnSwipe.disabled = disabled;
+    }
+
+    function showBrowseResults(mode) {
+      if (mode === 'swipe') {
+        showSwipeMode('browse');
+      } else {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+        document.getElementById('content-browse-results').classList.remove('hidden');
+      }
+    }
+
+    function switchResultsView(mode) {
+      if (mode === 'swipe') {
+        showSwipeMode('browse');
+      }
+      // Update toggle buttons
+      document.getElementById('view-grid').className = mode === 'grid' ? 'p-1.5 rounded bg-white shadow-sm' : 'p-1.5 rounded text-gray-400 hover:text-gray-600';
+      document.getElementById('view-swipe').className = mode === 'swipe' ? 'p-1.5 rounded bg-white shadow-sm' : 'p-1.5 rounded text-gray-400 hover:text-gray-600';
+    }
+
+    function toggleResultSelection(el) {
+      el.classList.toggle('selected');
+      el.classList.toggle('ring-2');
+      el.classList.toggle('ring-green-500');
+      const check = el.querySelector('.result-check');
+      if (el.classList.contains('selected')) {
+        check.classList.remove('bg-white/80', 'opacity-0', 'group-hover:opacity-100');
+        check.classList.add('bg-green-500');
+        check.querySelector('svg').classList.remove('hidden', 'text-green-500');
+        check.querySelector('svg').classList.add('text-white');
+      } else {
+        check.classList.add('bg-white/80', 'opacity-0', 'group-hover:opacity-100');
+        check.classList.remove('bg-green-500');
+        check.querySelector('svg').classList.add('hidden', 'text-green-500');
+        check.querySelector('svg').classList.remove('text-white');
+      }
+    }
+
+    function handleSearch(value) {
+      const resultsDiv = document.getElementById('search-results');
+      if (value.length < 2) {
+        resultsDiv.innerHTML = `
+          <div class="text-center py-8 text-gray-400">
+            <svg class="w-12 h-12 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+            <p class="text-sm">Start typing to search places</p>
+          </div>
+        `;
+        return;
+      }
+
+      resultsDiv.innerHTML = `
+        <div class="space-y-2 fade-in">
+          <div class="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-xl cursor-pointer transition-colors border border-gray-100">
+            <div class="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center text-orange-600">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+              </svg>
+            </div>
+            <div class="flex-1">
+              <h4 class="font-medium text-gray-900">${value} Bakery</h4>
+              <p class="text-xs text-gray-500">123 Valencia St, San Francisco</p>
+              <div class="flex items-center gap-2 mt-0.5">
+                <span class="flex items-center text-xs text-yellow-600">
+                  <svg class="w-3 h-3 fill-current mr-0.5" viewBox="0 0 20 20"><path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z"/></svg>
+                  4.7 (1,892)
+                </span>
+                <span class="text-xs text-gray-400">·</span>
+                <span class="text-xs text-green-600">$$</span>
+              </div>
+            </div>
+            <button class="px-3 py-1.5 text-sm bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors">
+              Add
+            </button>
+          </div>
+          <div class="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-xl cursor-pointer transition-colors border border-gray-100">
+            <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+              </svg>
+            </div>
+            <div class="flex-1">
+              <h4 class="font-medium text-gray-900">${value} Coffee Roasters</h4>
+              <p class="text-xs text-gray-500">456 Mission St, San Francisco</p>
+              <div class="flex items-center gap-2 mt-0.5">
+                <span class="flex items-center text-xs text-yellow-600">
+                  <svg class="w-3 h-3 fill-current mr-0.5" viewBox="0 0 20 20"><path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z"/></svg>
+                  4.4 (756)
+                </span>
+                <span class="text-xs text-gray-400">·</span>
+                <span class="text-xs text-green-600">$</span>
+              </div>
+            </div>
+            <button class="px-3 py-1.5 text-sm bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors">
+              Add
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    let swipeContext = 'places'; // 'places' or 'browse'
+
+    function showSwipeMode(context) {
+      swipeContext = context;
+      const title = document.getElementById('swipe-title');
+      const subtitle = document.getElementById('swipe-subtitle');
+
+      if (context === 'browse') {
+        title.textContent = 'Swipe to Discover';
+        subtitle.textContent = 'Swipe right to add, left to skip';
+      } else {
+        title.textContent = 'Vote on Venues';
+        subtitle.textContent = 'Help your group decide';
+      }
+
+      document.getElementById('swipe-overlay').classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function hideSwipeMode() {
+      document.getElementById('swipe-overlay').classList.add('hidden');
+      document.body.style.overflow = '';
+    }
+
+    function swipeAction(direction) {
+      const card = document.getElementById('swipe-card');
+      card.classList.add(direction === 'left' ? 'swiping-left' : 'swiping-right');
+
+      setTimeout(() => {
+        card.classList.remove('swiping-left', 'swiping-right');
+        // In real app, load next venue
+      }, 300);
+    }
+
+    // Initialize - show Our Places first
+    showTab('places');
+  </script>
+</body>
+</html>

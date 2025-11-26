@@ -9,6 +9,7 @@ import { Sparkles, CheckCircle, UserPlus } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { getErrorToast } from "@/components/ErrorDisplay";
 
 type MemberClaimData = {
   id: string;
@@ -56,11 +57,7 @@ export default function ClaimMemberPage() {
       setShowProfileDialog(true);
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 

@@ -32,6 +32,53 @@ export const importScrapedVenuesSchema = z.object({
   venues: z.array(z.any()).min(1, "At least one venue is required"),
 });
 
+// ========== USER PREFERENCES SCHEMAS ==========
+
+export const updateUserPreferencesSchema = z.object({
+  budgetMin: z.number().min(0, "Budget must be positive").optional(),
+  budgetMax: z.number().min(0, "Budget must be positive").optional(),
+  activityPreferences: z.array(z.string()).optional(),
+  personalAvailability: z.record(z.any()).optional(),
+  emailNotifications: z.boolean().optional(),
+});
+
+export const updateMemberConstraintsActionSchema = z.object({
+  action: z.enum(['accept', 'dismiss'], {
+    errorMap: () => ({ message: "Action must be 'accept' or 'dismiss'" })
+  }),
+  constraintType: z.enum(['budgetConcern', 'distanceConcern', 'scheduleConflicts'], {
+    errorMap: () => ({ message: "Invalid constraint type" })
+  }),
+  data: z.array(z.string()).optional(),
+});
+
+export const pauseAutomationSchema = z.object({
+  pauseType: z.enum(['events', 'until'], {
+    errorMap: () => ({ message: "Pause type must be 'events' or 'until'" })
+  }),
+  value: z.union([
+    z.number().int().min(1, "Number of events must be at least 1"),
+    z.string().datetime("Invalid date format"),
+  ]),
+}).refine(
+  (data) => {
+    if (data.pauseType === 'events') {
+      return typeof data.value === 'number';
+    }
+    if (data.pauseType === 'until') {
+      return typeof data.value === 'string';
+    }
+    return false;
+  },
+  { message: "Value must be a number for 'events' or a date string for 'until'" }
+);
+
+export const updateRsvpResponseSchema = z.object({
+  response: z.enum(['yes', 'maybe', 'no'], {
+    errorMap: () => ({ message: "Response must be 'yes', 'maybe', or 'no'" })
+  }),
+});
+
 // ========== USER/COLLECTION SCHEMAS ==========
 
 export const createCollectionSchema = z.object({
@@ -206,6 +253,7 @@ export const generateCategorySchema = z.object({
   radius: z.number().int().min(2).max(50).optional(),
   count: z.number().int().min(1).max(100).default(9),
   sortBy: z.enum(['distance', 'rating']).default('rating'),
+  budgetOverride: z.number().min(0).max(500).optional(),
   tempInstructions: z.string().optional(),
 }).refine(
   (data) => data.categories || data.category,
@@ -291,8 +339,9 @@ export const sendItinerarySchema = z.object({
   eventDate: z.string().datetime().optional(),
   eventDates: z.array(z.string().datetime()).optional(),
   autoScheduleConfig: z.object({
-    inviteAdvanceDays: z.number().int().min(1).max(90).default(14),
-    rsvpWindowDays: z.number().int().min(1).max(30).default(11),
+    // Default: 21 days advance notice, 14 day RSVP window = 7 days before event for decision
+    inviteAdvanceDays: z.number().int().min(1).max(90).default(21),
+    rsvpWindowDays: z.number().int().min(1).max(30).default(14),
     reminders: z.array(z.object({
       type: z.enum(['gentle_nudge', 'final_call', 'day_before']),
       daysBeforeDeadline: z.number().int().min(0).optional(),
@@ -451,6 +500,18 @@ export const updateItineraryItemSchema = z.object({
 
 export const searchVenuesSchema = z.object({
   query: z.string().min(2, "Query must be at least 2 characters"),
+});
+
+// ========== VENUE SUGGESTION SCHEMAS ==========
+
+export const suggestAlternativesSchema = z.object({
+  currentVenue: z.object({
+    name: z.string().min(1, "Venue name is required"),
+    venueType: z.string().optional(),
+    address: z.string().optional(),
+    placeId: z.string().optional(),
+  }),
+  itineraryId: z.string().optional(),
 });
 
 // Helper type exports for TypeScript inference

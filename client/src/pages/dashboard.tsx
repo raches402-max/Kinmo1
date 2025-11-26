@@ -8,10 +8,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from "@/components/ui/dropdown-menu";
 import { Plus, Sparkles, Users, MapPin, Calendar, CheckCircle, XCircle, HelpCircle, ExternalLink, Settings, LogOut, MoreVertical, ChevronDown, ChevronUp, ChevronRight, Pencil, Trash2, FolderOpen, UserCheck, Bot, UserPlus, Star, MessageSquare, Copy, Check, Baby } from "lucide-react";
@@ -21,11 +23,16 @@ import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { getErrorToast, ErrorDisplay } from "@/components/ErrorDisplay";
+import { LoadingState, SkeletonCard } from "@/components/LoadingState";
 import type { Group, User, UserProfile, GroupCollection } from "@shared/schema";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import EventsTable from "@/components/EventsTable";
 import { GroupCard } from "@/components/GroupCard";
 import { DraggableGroupCard } from "@/components/DraggableGroupCard";
+import { Header } from "@/components/Header";
+import { UnifiedEventCreationModal } from "@/components/UnifiedEventCreationModal";
+import { OnboardingChecklist } from "@/components/OnboardingChecklist";
 import {
   DndContext,
   closestCenter,
@@ -70,10 +77,12 @@ type UserEvent = {
   itineraryName: string;
   eventDate: string | null;
   status: string;
+  inviteSentAt: string | null;
   groupId: string;
   groupName: string;
   groupEmoji: string;
   groupAccentColor: string | null;
+  groupTimezone: string | null;
   isOrganizer: boolean;
   isVirtual?: boolean;
   meetingFrequency?: string;
@@ -165,6 +174,54 @@ function groupEventsByTime(events: UserEvent[]): Map<TimeCategory, UserEvent[]> 
   return groups;
 }
 
+// Group events by group (for "By Group" sort mode)
+type GroupedByGroup = {
+  groupId: string;
+  groupName: string;
+  groupEmoji: string;
+  groupAccentColor: string | null;
+  events: UserEvent[];
+  nextEventDate: Date | null;
+};
+
+function groupEventsByGroup(events: UserEvent[]): GroupedByGroup[] {
+  // Group events by groupId
+  const grouped = new Map<string, UserEvent[]>();
+  events.forEach(event => {
+    if (!grouped.has(event.groupId)) {
+      grouped.set(event.groupId, []);
+    }
+    grouped.get(event.groupId)!.push(event);
+  });
+
+  // Convert to array with metadata
+  const result = Array.from(grouped.entries()).map(([groupId, groupEvents]) => {
+    // Sort events within group by date
+    const sortedEvents = [...groupEvents].sort((a, b) => {
+      if (!a.eventDate) return 1;
+      if (!b.eventDate) return -1;
+      return new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime();
+    });
+
+    const firstEvent = sortedEvents[0];
+    return {
+      groupId,
+      groupName: firstEvent.groupName,
+      groupEmoji: firstEvent.groupEmoji,
+      groupAccentColor: firstEvent.groupAccentColor,
+      events: sortedEvents,
+      nextEventDate: firstEvent.eventDate ? new Date(firstEvent.eventDate) : null
+    };
+  });
+
+  // Sort groups by next event date (soonest first)
+  return result.sort((a, b) => {
+    if (!a.nextEventDate) return 1;
+    if (!b.nextEventDate) return -1;
+    return a.nextEventDate.getTime() - b.nextEventDate.getTime();
+  });
+}
+
 export default function Dashboard() {
   const { user } = useAuth() as { user: User | undefined };
   const { toast } = useToast();
@@ -176,8 +233,10 @@ export default function Dashboard() {
   const [renameCollectionName, setRenameCollectionName] = useState("");
   const [openCollections, setOpenCollections] = useState<Set<string>>(new Set());
   const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
-  const [isPastEventsExpanded, setIsPastEventsExpanded] = useState(true);
+  const [isPastEventsExpanded, setIsPastEventsExpanded] = useState(false);
   const [showArchivedEvents, setShowArchivedEvents] = useState(false);
+  const [selectedEvents, setSelectedEvents] = useState<Set<string>>(new Set());
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   // Drag-and-drop state
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
@@ -198,6 +257,33 @@ export default function Dashboard() {
   // Create event dialog state
   const [showCreateEventDialog, setShowCreateEventDialog] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
+
+  // Event sort mode state
+  const [eventSortMode, setEventSortMode] = useState<'date' | 'group'>('date');
+
+  // Tab state from URL query param
+  const urlParams = new URLSearchParams(window.location.search);
+  const initialTab = urlParams.get("tab") || "my-events";
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  // Sync tab state with URL when it changes
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabFromUrl = params.get("tab") || "my-events";
+    if (tabFromUrl !== activeTab) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [window.location.search]);
+
+  // Onboarding checklist state
+  const [onboardingDismissed, setOnboardingDismissed] = useState(() => {
+    return localStorage.getItem('onboardingDismissed') === 'true';
+  });
+
+  const handleDismissOnboarding = () => {
+    setOnboardingDismissed(true);
+    localStorage.setItem('onboardingDismissed', 'true');
+  };
   
   // Test account switcher dialog state
   const [showTestAccountDialog, setShowTestAccountDialog] = useState(false);
@@ -228,19 +314,60 @@ export default function Dashboard() {
     enabled: isAdmin,
   });
   
-  const { data: groups = [], isLoading } = useQuery<Array<Group & { members: SafeMember[] }>>({
+  const { data: groups = [], isLoading, error: groupsError, refetch: refetchGroups } = useQuery<Array<Group & { members: SafeMember[] }>>({
     queryKey: ["/api/user/groups"],
     enabled: !!user,
   });
 
-  const { data: collections = [], isLoading: collectionsLoading } = useQuery<GroupCollection[]>({
+  const { data: collections = [], isLoading: collectionsLoading, error: collectionsError, refetch: refetchCollections } = useQuery<GroupCollection[]>({
     queryKey: ["/api/user/collections"],
     enabled: !!user,
   });
 
-  const { data: events = [], isLoading: eventsLoading } = useQuery<UserEvent[]>({
+  const { data: rawEvents = [], isLoading: eventsLoading, error: eventsError, refetch: refetchEvents } = useQuery<UserEvent[]>({
     queryKey: ["/api/user/events"],
     enabled: !!user,
+    retry: 1,
+    retryDelay: 1000,
+  });
+
+  // Deduplicate events by itineraryId (client-side safety check)
+  const events = useMemo(() => {
+    const seen = new Map<string, UserEvent>();
+
+    for (const event of rawEvents) {
+      if (event.itineraryId) {
+        // Only keep first occurrence of each itineraryId
+        if (!seen.has(event.itineraryId)) {
+          seen.set(event.itineraryId, event);
+        }
+      } else {
+        // Virtual events without itineraryId - always include
+        // Use inviteId as unique key for these
+        if (!seen.has(event.inviteId)) {
+          seen.set(event.inviteId, event);
+        }
+      }
+    }
+
+    const deduplicated = Array.from(seen.values());
+
+    if (deduplicated.length < rawEvents.length) {
+      console.log(`[Dashboard] Removed ${rawEvents.length - deduplicated.length} duplicate events`);
+    }
+
+    return deduplicated;
+  }, [rawEvents]);
+
+  // DEBUG: Log events query state
+  console.log('[Dashboard] Events query state:', {
+    eventsCount: events.length,
+    isLoading: eventsLoading,
+    error: eventsError,
+    errorMessage: eventsError instanceof Error ? eventsError.message : null,
+    userExists: !!user,
+    userId: user?.id,
+    firstEvent: events[0]
   });
 
   const { data: profile } = useQuery<UserProfile | null>({
@@ -252,7 +379,7 @@ export default function Dashboard() {
   const currentTime = new Date();
   const pastEventsNeedingFeedback = events.filter(event => {
     const isPast = event.eventDate && new Date(event.eventDate) < currentTime;
-    const attendedOrOrganizer = event.rsvp?.response === 'yes' || event.isOrganizer;
+    const attendedOrOrganizer = event.rsvp?.response === 'yes';
     const noFeedbackYet = !event.rsvp?.postEventFeedback;
     return isPast && attendedOrOrganizer && noFeedbackYet;
   });
@@ -309,11 +436,7 @@ export default function Dashboard() {
       });
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to create collection",
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -331,11 +454,7 @@ export default function Dashboard() {
       });
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to rename collection",
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -352,11 +471,7 @@ export default function Dashboard() {
       });
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to delete collection",
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -385,11 +500,7 @@ export default function Dashboard() {
       });
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to move group",
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -405,12 +516,77 @@ export default function Dashboard() {
       });
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to delete group",
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
+  });
+
+  const deleteEventMutation = useMutation({
+    mutationFn: async (eventIds: string[]) => {
+      // Separate virtual from real events
+      const virtualEventIds = eventIds.filter(id => id.startsWith('virtual-'));
+      const realEventIds = eventIds.filter(id => !id.startsWith('virtual-'));
+
+      // Process real event deletions
+      if (realEventIds.length > 0) {
+        await Promise.all(
+          realEventIds.map(async (eventId) => {
+            // Determine if this is an itinerary or an invite
+            const event = events.find(e => e.itineraryId === eventId || e.inviteId === eventId);
+            if (!event) throw new Error("Event not found");
+
+            // Use the appropriate endpoint based on whether it's an itinerary or invite
+            const endpoint = event.itineraryId
+              ? `/api/itineraries/${event.itineraryId}`
+              : `/api/itinerary-invites/${event.inviteId}`;
+
+            await apiRequest("DELETE", endpoint);
+          })
+        );
+      }
+
+      return { virtualEventIds, realEventIds };
+    },
+    onMutate: async (eventIds) => {
+      // For any events being deleted, optimistically remove from UI
+      if (eventIds.length > 0) {
+        await queryClient.cancelQueries({ queryKey: ["/api/user/events"] });
+        const previousEvents = queryClient.getQueryData(["/api/user/events"]);
+
+        queryClient.setQueryData(["/api/user/events"], (old: any) => {
+          if (!old) return old;
+          return old.filter((e: any) => {
+            const id = e.itineraryId || e.inviteId;
+            return !eventIds.includes(id);
+          });
+        });
+
+        return { previousEvents };
+      }
+    },
+    onSuccess: (data, variables, context: any) => {
+      // Only invalidate queries if we deleted real events
+      if (data?.realEventIds && data.realEventIds.length > 0) {
+        queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
+      }
+
+      toast({
+        title: "Events deleted",
+        description: `${variables.length} event${variables.length > 1 ? 's' : ''} deleted successfully`
+      });
+      setDeleteConfirmOpen(false);
+      setSelectedEvents(new Set());
+    },
+    onError: (error: any, eventIds, context: any) => {
+      // Rollback optimistic update
+      if (context?.previousEvents) {
+        queryClient.setQueryData(["/api/user/events"], context.previousEvents);
+      }
+      toast({
+        title: "Error deleting events",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
   });
 
   const leaveGroupMutation = useMutation({
@@ -425,11 +601,7 @@ export default function Dashboard() {
       });
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to leave group",
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -442,11 +614,7 @@ export default function Dashboard() {
       window.location.reload();
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to switch user",
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -465,11 +633,7 @@ export default function Dashboard() {
       });
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to submit RSVP",
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -488,11 +652,7 @@ export default function Dashboard() {
       });
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to submit RSVP",
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -509,11 +669,7 @@ export default function Dashboard() {
       });
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to volunteer as host",
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -530,11 +686,7 @@ export default function Dashboard() {
       });
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to hand off host",
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -577,11 +729,7 @@ export default function Dashboard() {
     },
     onError: (error: any) => {
       console.error('[Post Event Feedback] Mutation error:', error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to submit feedback",
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -598,11 +746,7 @@ export default function Dashboard() {
       });
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to approve guest",
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -619,11 +763,7 @@ export default function Dashboard() {
       });
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to deny guest",
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -843,7 +983,23 @@ export default function Dashboard() {
   };
 
   const { events: displayedUpcomingEvents, hiddenCount: hiddenEventsCount } = limitEventsPerGroup(upcomingEvents);
-  const pastEvents = events.filter(e => e.eventDate && new Date(e.eventDate) <= now);
+
+  // Past events should only include events that:
+  // 1. Have a date that has passed
+  // 2. Were actually sent out (inviteSentAt exists) OR have a status indicating they happened
+  // 3. Are not in draft status (unless they were sent)
+  const pastEvents = events.filter(e => {
+    if (!e.eventDate || new Date(e.eventDate) > now) return false;
+
+    // Exclude draft events that were never sent
+    if (e.status === 'draft' && !e.inviteSentAt) return false;
+
+    // Exclude saved events that were never sent
+    if (e.status === 'saved' && !e.inviteSentAt) return false;
+
+    // Include events that were sent or have a real status (proposed, scheduled, completed, rejected)
+    return true;
+  });
 
   // Split past events into recent (last 90 days) and archived (older)
   const ninetyDaysAgo = new Date();
@@ -963,9 +1119,9 @@ export default function Dashboard() {
     return `${items[0].venueName} + ${items.length - 1}`;
   };
 
-  const getGoogleMapsUrl = (venue: {venueAddress?: string | null, googlePlaceId?: string | null}) => {
+  const getGoogleMapsUrl = (venue: {venueName?: string | null, venueAddress?: string | null, googlePlaceId?: string | null}) => {
     if (venue.googlePlaceId) {
-      return `https://www.google.com/maps/search/?api=1&query=&query_place_id=${venue.googlePlaceId}`;
+      return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venue.venueName || venue.venueAddress || 'Location')}&query_place_id=${venue.googlePlaceId}`;
     }
     if (venue.venueAddress) {
       return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venue.venueAddress)}`;
@@ -1020,15 +1176,20 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-6 w-6 text-primary" />
-            <h1 className="text-xl font-bold">Kinmo.ai</h1>
-          </div>
+      <Header
+        testAccounts={testAccounts}
+        onShowTestAccountDialog={() => setShowTestAccountDialog(true)}
+      />
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        <div className="mb-8 flex items-center justify-between">
+          <h2 className="text-3xl font-bold">
+            Welcome back, {displayName.split(" ")[0]}!
+          </h2>
           <div className="flex items-center gap-4">
-            <Button 
-              variant="default" 
+            <Button
+              variant="default"
               onClick={() => setShowCreateEventDialog(true)}
               data-testid="button-create-event"
             >
@@ -1041,114 +1202,97 @@ export default function Dashboard() {
                 New Group
               </Button>
             </Link>
-            {user && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-8 w-8 rounded-full p-0" data-testid="button-user-menu">
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage 
-                        src={user.profileImageUrl || undefined} 
-                        alt={displayName}
-                        className="object-cover"
-                      />
-                      <AvatarFallback>{getFirstInitial(displayName)}</AvatarFallback>
-                    </Avatar>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel>
-                    <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none">{displayName}</p>
-                      <p className="text-xs leading-none text-muted-foreground">
-                        {user.email}
-                      </p>
-                    </div>
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <Link href="/preferences">
-                    <DropdownMenuItem data-testid="menu-preferences">
-                      <Settings className="mr-2 h-4 w-4" />
-                      Preferences
-                    </DropdownMenuItem>
-                  </Link>
-                  <Link href="/profile">
-                    <DropdownMenuItem data-testid="menu-profile">
-                      <Settings className="mr-2 h-4 w-4" />
-                      Profile Settings
-                    </DropdownMenuItem>
-                  </Link>
-                  {user.email === 'raches402@gmail.com' && (
-                    <>
-                      <Link href="/admin">
-                        <DropdownMenuItem data-testid="menu-admin">
-                          <Sparkles className="mr-2 h-4 w-4" />
-                          Admin Dashboard
-                        </DropdownMenuItem>
-                      </Link>
-                      {testAccounts.length > 0 && (
-                        <DropdownMenuItem 
-                          onClick={() => setShowTestAccountDialog(true)}
-                          data-testid="menu-switch-user"
-                        >
-                          <Users className="mr-2 h-4 w-4" />
-                          Switch to Test Account
-                        </DropdownMenuItem>
-                      )}
-                    </>
-                  )}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem 
-                    onClick={() => window.location.href = "/api/logout"}
-                    data-testid="menu-logout"
-                  >
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Sign Out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
           </div>
         </div>
-      </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-6 py-8">
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold">
-            Welcome back, {displayName.split(" ")[0]}!
-          </h2>
-        </div>
+        {/* Onboarding Checklist - show for new users */}
+        {!isLoading && !onboardingDismissed && (
+          <div className="mb-6">
+            <OnboardingChecklist
+              groups={groups}
+              profile={profile}
+              userId={user?.id}
+              hasEvents={events.length > 0}
+              onDismiss={handleDismissOnboarding}
+              onOpenDiscoverVenues={(groupId) => setLocation(`/group/${groupId}?action=discover`)}
+            />
+          </div>
+        )}
 
-        <Tabs defaultValue="my-events" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="mb-6">
             <TabsTrigger value="my-events" data-testid="tab-my-events">My Events</TabsTrigger>
             <TabsTrigger value="my-groups" data-testid="tab-my-groups">My Groups</TabsTrigger>
           </TabsList>
 
           <TabsContent value="my-events" data-testid="content-my-events">
-            <div className="space-y-8">
-              {/* Feedback Banner */}
-              {!eventsLoading && pastEventsNeedingFeedback.length > 0 && (
-                <Card className="bg-primary/15 border-primary/20" data-testid="banner-pending-feedback">
-                  <CardContent className="py-4">
+            {/* Global Delete Button - Floating */}
+            {selectedEvents.size > 0 && (
+              <div className="fixed bottom-8 right-8 z-50">
+                <Button
+                  variant="destructive"
+                  size="lg"
+                  onClick={() => setDeleteConfirmOpen(true)}
+                  className="shadow-lg"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete {selectedEvents.size} Event{selectedEvents.size > 1 ? 's' : ''}
+                </Button>
+              </div>
+            )}
+
+            <div className="space-y-6">
+              {/* Consolidated Action Required Card */}
+              {!eventsLoading && (pendingInvites.length > 0 || guestApprovalEvents.length > 0 || pastEventsNeedingFeedback.length > 0) && (
+                <Card className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 border-amber-200/50 dark:border-amber-800/30 shadow-warm" data-testid="card-action-required">
+                  <CardContent className="py-5">
                     <div className="flex items-start gap-4">
-                      <div className="flex-shrink-0 p-2 rounded-lg bg-primary/25">
-                        <MessageSquare className="h-5 w-5 text-primary" />
+                      <div className="flex-shrink-0 p-2.5 rounded-softer bg-amber-100 dark:bg-amber-900/50">
+                        <Sparkles className="h-5 w-5 text-amber-600 dark:text-amber-400" />
                       </div>
                       <div className="flex-1">
-                        <h3 className="font-semibold mb-1">Share Your Feedback</h3>
-                        <p className="text-sm text-muted-foreground mb-3">
-                          {pastEventsNeedingFeedback.length} past {pastEventsNeedingFeedback.length === 1 ? 'event needs' : 'events need'} your feedback
-                        </p>
-                        <Button 
-                          size="sm" 
-                          onClick={() => handlePostEventFeedback(pastEventsNeedingFeedback[0])}
-                          className="gap-2"
-                          data-testid="button-banner-feedback"
-                        >
-                          <MessageSquare className="h-4 w-4" />
-                          Leave Feedback
-                        </Button>
+                        <h3 className="font-semibold text-lg mb-2">Action Required</h3>
+                        <div className="flex flex-wrap gap-2 mb-4">
+                          {pendingInvites.length > 0 && (
+                            <Badge variant="secondary" className="rounded-pill bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-700">
+                              {pendingInvites.length} RSVP{pendingInvites.length > 1 ? 's' : ''} needed
+                            </Badge>
+                          )}
+                          {guestApprovalEvents.reduce((count, e) => count + e.pendingGuestRsvps.length, 0) > 0 && (
+                            <Badge variant="secondary" className="rounded-pill bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700">
+                              {guestApprovalEvents.reduce((count, e) => count + e.pendingGuestRsvps.length, 0)} guest{guestApprovalEvents.reduce((count, e) => count + e.pendingGuestRsvps.length, 0) > 1 ? 's' : ''} to approve
+                            </Badge>
+                          )}
+                          {pastEventsNeedingFeedback.length > 0 && (
+                            <Badge variant="secondary" className="rounded-pill bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-700">
+                              {pastEventsNeedingFeedback.length} feedback{pastEventsNeedingFeedback.length > 1 ? 's' : ''} needed
+                            </Badge>
+                          )}
+                        </div>
+
+                        {/* Quick action buttons */}
+                        <div className="flex flex-wrap gap-2">
+                          {pendingInvites.length > 0 && pendingInvites[0].itineraryId && (
+                            <Link href={`/rsvp/${pendingInvites[0].itineraryId}/${pendingInvites[0].inviteToken}`}>
+                              <Button size="sm" variant="outline" className="gap-1.5">
+                                <CheckCircle className="h-3.5 w-3.5" />
+                                RSVP Now
+                              </Button>
+                            </Link>
+                          )}
+                          {pastEventsNeedingFeedback.length > 0 && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handlePostEventFeedback(pastEventsNeedingFeedback[0])}
+                              className="gap-1.5"
+                              data-testid="button-banner-feedback"
+                            >
+                              <MessageSquare className="h-3.5 w-3.5" />
+                              Leave Feedback
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </CardContent>
@@ -1164,320 +1308,63 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* Pending Invites Section */}
-              {!eventsLoading && pendingInvites.length > 0 && (
-                <div>
-                  <h3 className="text-xl font-bold mb-4">Pending Invites ({pendingInvites.length})</h3>
-                  <div className="border rounded-md">
-                    {pendingInvites.map((event, index) => {
-                      const canVolunteerToHost = !event.isOrganizer && event.currentUserOpenToHosting && !event.hostMemberId && event.currentUserMemberId;
-                      const isExpanded = expandedEvents.has(event.inviteId);
-
-                      return (
-                        <div key={event.inviteId} className={`${index !== 0 ? 'border-t' : ''}`} data-testid={`event-card-${event.itineraryId}`}>
-                          {/* Main Row */}
-                          <Link href={`/rsvp/${event.itineraryId}/${event.inviteToken}`}>
-                            <div
-                              className="px-4 py-3 hover:bg-muted/50 transition-colors border-l-4 cursor-pointer"
-                              style={{ borderLeftColor: event.groupAccentColor || '#94A3B8' }}
-                            >
-                              <div className="flex items-start gap-4">
-                                {/* Event Info */}
-                                <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span className="text-2xl">{event.groupEmoji}</span>
-                                  <Badge
-                                    variant="secondary"
-                                    className="font-semibold text-sm"
-                                    style={{
-                                      backgroundColor: event.groupAccentColor
-                                        ? hexToRgba(event.groupAccentColor, 0.15)
-                                        : 'rgba(148, 163, 184, 0.15)',
-                                      borderColor: event.groupAccentColor || '#94A3B8',
-                                      borderWidth: '1px',
-                                      borderStyle: 'solid',
-                                      color: event.groupAccentColor || 'inherit'
-                                    }}
-                                  >
-                                    {event.groupName}
-                                  </Badge>
-                                </div>
-                                <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-                                  <MapPin className="h-3 w-3" />
-                                  <span>{getMeetingAtText(event.items)}</span>
-                                  {event.hostMemberId && event.hostMemberName && (
-                                    <>
-                                      <span>•</span>
-                                      <span>hosts: {event.hostMemberName}</span>
-                                    </>
-                                  )}
-                                  {!event.hostMemberId && (
-                                    <>
-                                      <span>•</span>
-                                      <Bot className="h-3 w-3" />
-                                      <span>Auto-scheduled</span>
-                                    </>
-                                  )}
-                                </div>
-
-                                {/* Action Buttons */}
-                                <div className="flex gap-1.5 flex-wrap">
-                                  <Button
-                                    variant="default"
-                                    size="sm"
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      handleRsvpClick(event, 'yes');
-                                    }}
-                                    disabled={rsvpMutation.isPending}
-                                    className="h-7 text-xs"
-                                    data-testid={`button-yes-${event.itineraryId}`}
-                                  >
-                                    <CheckCircle className="h-3 w-3 mr-1" />
-                                    Yes
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      handleRsvpClick(event, 'maybe');
-                                    }}
-                                    disabled={rsvpMutation.isPending}
-                                    className="h-7 text-xs"
-                                    data-testid={`button-maybe-${event.itineraryId}`}
-                                  >
-                                    <HelpCircle className="h-3 w-3 mr-1" />
-                                    Maybe
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      handleRsvpClick(event, 'no');
-                                    }}
-                                    disabled={rsvpMutation.isPending}
-                                    className="h-7 text-xs"
-                                    data-testid={`button-no-${event.itineraryId}`}
-                                  >
-                                    <XCircle className="h-3 w-3 mr-1" />
-                                    No
-                                  </Button>
-                                  {event.items.length > 1 && (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        toggleEventExpand(event.inviteId);
-                                      }}
-                                      className="h-7 text-xs"
-                                    >
-                                      {isExpanded ? <ChevronDown className="h-3 w-3 mr-1" /> : <ChevronRight className="h-3 w-3 mr-1" />}
-                                      {isExpanded ? 'Hide' : 'Show'} Details
-                                    </Button>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                          </Link>
-
-                          {/* Expanded Venue Details */}
-                          {isExpanded && event.items.length > 1 && (
-                            <div className="px-4 py-3 bg-muted/30 border-t">
-                              <div className="space-y-2">
-                                {event.items.map((venue, idx) => (
-                                  <div key={venue.id} className="flex items-start gap-2 text-sm">
-                                    <Badge variant="outline" className="h-5 shrink-0 text-xs">{idx + 1}</Badge>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="font-medium">{venue.venueName}</div>
-                                      {venue.venueAddress && (
-                                        <div className="text-xs text-muted-foreground">{venue.venueAddress}</div>
-                                      )}
-                                      <div className="flex items-center gap-3 mt-1">
-                                        {venue.rating && (
-                                          <span className="text-xs text-muted-foreground">
-                                            ⭐ {venue.rating}
-                                          </span>
-                                        )}
-                                        {venue.googlePlaceId && (
-                                          <a
-                                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venue.venueName || venue.venueAddress || 'Location')}&query_place_id=${venue.googlePlaceId}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-xs text-primary hover:underline"
-                                            data-testid={`link-maps-${venue.id}`}
-                                          >
-                                            View on Maps
-                                          </a>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
+              {/* Error State */}
+              {!eventsLoading && eventsError && (
+                <ErrorDisplay
+                  error={eventsError}
+                  onRetry={() => refetchEvents()}
+                  className="mb-4"
+                />
               )}
 
-              {/* Guest Approvals Section */}
-              {!eventsLoading && guestApprovalEvents.length > 0 && (
-                <div data-testid="section-guest-approvals">
-                  <h3 className="text-xl font-bold mb-4">Guest Approvals Needed ({guestApprovalEvents.reduce((count, event) => count + event.pendingGuestRsvps.length, 0)})</h3>
-                  <div className="border rounded-md">
-                    {guestApprovalEvents.flatMap((event, eventIndex) =>
-                      event.pendingGuestRsvps.map((guestRsvp, guestIndex) => {
-                        const isFirstItem = eventIndex === 0 && guestIndex === 0;
-                        const responseIcon = {
-                          yes: CheckCircle,
-                          maybe: HelpCircle,
-                          no: XCircle,
-                        }[guestRsvp.response.toLowerCase()] || HelpCircle;
-                        const ResponseIcon = responseIcon;
-
-                        const guestRowContent = (
-                            <div
-                              className={`${!isFirstItem ? 'border-t' : ''} px-4 py-3 hover:bg-muted/50 transition-colors border-l-4 ${event.itineraryId ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}
-                              style={{ borderLeftColor: event.groupAccentColor || '#94A3B8' }}
-                              data-testid={`guest-rsvp-${guestRsvp.id}`}
-                            >
-                              <div className="flex items-start justify-between gap-4">
-                                <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span className="text-2xl">{event.groupEmoji}</span>
-                                  <Badge
-                                    variant="secondary"
-                                    className="font-semibold text-sm"
-                                    style={{
-                                      backgroundColor: event.groupAccentColor
-                                        ? hexToRgba(event.groupAccentColor, 0.15)
-                                        : 'rgba(148, 163, 184, 0.15)',
-                                      borderColor: event.groupAccentColor || '#94A3B8',
-                                      borderWidth: '1px',
-                                      borderStyle: 'solid',
-                                      color: event.groupAccentColor || 'inherit'
-                                    }}
-                                  >
-                                    {event.groupName}
-                                  </Badge>
-                                </div>
-                                <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-                                  <UserPlus className="h-3 w-3" />
-                                  <span className="font-medium">{guestRsvp.guestName}</span>
-                                  <span>•</span>
-                                  <ResponseIcon className="h-3 w-3" />
-                                  <span>{guestRsvp.response}</span>
-                                  {guestRsvp.additionalAttendees && guestRsvp.additionalAttendees.length > 0 && (
-                                    <>
-                                      <span>•</span>
-                                      <Users className="h-3 w-3" />
-                                      <span>+{guestRsvp.additionalAttendees.length}</span>
-                                    </>
-                                  )}
-                                  {guestRsvp.numberOfKids > 0 && (
-                                    <>
-                                      <span>•</span>
-                                      <Baby className="h-3 w-3" />
-                                      <span>{guestRsvp.numberOfKids} kids</span>
-                                    </>
-                                  )}
-                                </div>
-                                <div className="flex gap-1.5">
-                                  <Button
-                                    variant="default"
-                                    size="sm"
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      approveGuestRsvpMutation.mutate({ rsvpId: guestRsvp.id, guestName: guestRsvp.guestName });
-                                    }}
-                                    disabled={approveGuestRsvpMutation.isPending || denyGuestRsvpMutation.isPending}
-                                    className="h-7 text-xs"
-                                    data-testid={`button-approve-${guestRsvp.id}`}
-                                  >
-                                    <Check className="h-3 w-3 mr-1" />
-                                    Approve
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      denyGuestRsvpMutation.mutate({ rsvpId: guestRsvp.id, guestName: guestRsvp.guestName });
-                                    }}
-                                    disabled={approveGuestRsvpMutation.isPending || denyGuestRsvpMutation.isPending}
-                                    className="h-7 text-xs"
-                                    data-testid={`button-deny-${guestRsvp.id}`}
-                                  >
-                                    <XCircle className="h-3 w-3 mr-1" />
-                                    Deny
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        );
-
-                        return event.itineraryId ? (
-                          <Link key={guestRsvp.id} href={`/event/${event.itineraryId}`}>
-                            {guestRowContent}
-                          </Link>
-                        ) : (
-                          <div key={guestRsvp.id}>
-                            {guestRowContent}
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Upcoming Events Section */}
+              {/* Upcoming Events Section - Unified List */}
               {!eventsLoading && upcomingEvents.length > 0 && (
                 <div>
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-xl font-bold">Upcoming Events ({displayedUpcomingEvents.length})</h3>
-                    {hiddenEventsCount > 0 && (
-                      <span className="text-sm text-muted-foreground">
-                        +{hiddenEventsCount} more in groups • <Link to="/groups" className="text-primary hover:underline">See all</Link>
-                      </span>
-                    )}
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xl font-bold">Upcoming Events</h3>
+                    <div className="flex items-center gap-3">
+                      {hiddenEventsCount > 0 && (
+                        <span className="text-sm text-muted-foreground">
+                          +{hiddenEventsCount} more
+                        </span>
+                      )}
+                      <Select value={eventSortMode} onValueChange={(v) => setEventSortMode(v as 'date' | 'group')}>
+                        <SelectTrigger className="w-[130px] h-8 text-sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="date">By Date</SelectItem>
+                          <SelectItem value="group">By Group</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  {(() => {
-                    const groupedEvents = groupEventsByTime(displayedUpcomingEvents);
-                    const categoryOrder: TimeCategory[] = ['Today', 'Tomorrow', 'This Week', 'Next Week', 'Later'];
-
-                    return categoryOrder.map(category => {
-                      const categoryEvents = groupedEvents.get(category) || [];
-                      if (categoryEvents.length === 0) return null;
-
-                      return (
-                        <div key={category} className="mb-6 last:mb-0">
-                          <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-3">
-                            {category}
-                          </h4>
+                  {eventSortMode === 'date' ? (
+                    <EventsTable
+                      events={displayedUpcomingEvents}
+                      expandedEvents={expandedEvents}
+                      onToggleExpand={toggleEventExpand}
+                    />
+                  ) : (
+                    <div className="space-y-6">
+                      {groupEventsByGroup(displayedUpcomingEvents).map(group => (
+                        <div key={group.groupId}>
+                          <div className="flex items-center gap-2 mb-3 pb-2 border-b">
+                            <span className="text-xl">{group.groupEmoji}</span>
+                            <span className="font-medium">{group.groupName}</span>
+                            <Badge variant="secondary" className="ml-auto">
+                              {group.events.length} event{group.events.length !== 1 ? 's' : ''}
+                            </Badge>
+                          </div>
                           <EventsTable
-                            events={categoryEvents}
+                            events={group.events}
                             expandedEvents={expandedEvents}
                             onToggleExpand={toggleEventExpand}
                           />
                         </div>
-                      );
-                    });
-                  })()}
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1533,12 +1420,41 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* Empty State */}
+              {/* Empty State - contextual guidance based on user state */}
               {!eventsLoading && events.length === 0 && (
                 <Card className="text-center py-12">
-                  <CardContent>
-                    <Calendar className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-                    <h3 className="text-lg font-semibold mb-2">No Events Yet</h3>
+                  <CardContent className="space-y-4">
+                    <Calendar className="h-16 w-16 mx-auto text-muted-foreground" />
+                    <div>
+                      <h3 className="text-lg font-semibold mb-2">No Events Yet</h3>
+                      {groups.length === 0 ? (
+                        <>
+                          <p className="text-muted-foreground mb-4">
+                            Create a group to start planning events with friends
+                          </p>
+                          <Link href="/create-group">
+                            <Button>
+                              <Plus className="mr-2 h-4 w-4" />
+                              Create Your First Group
+                            </Button>
+                          </Link>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-muted-foreground mb-4">
+                            Ready to plan something? Pick a group and schedule an event.
+                          </p>
+                          <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                            <Link href={`/group/${groups[0]?.id}`}>
+                              <Button>
+                                <Sparkles className="mr-2 h-4 w-4" />
+                                Plan an Event
+                              </Button>
+                            </Link>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               )}
@@ -1576,7 +1492,7 @@ export default function Dashboard() {
               {isLoading || collectionsLoading ? (
                 <div className="space-y-4">
                   <Skeleton className="h-12 w-full" />
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {[...Array(3)].map((_, i) => (
                       <Card key={i}>
                         <CardHeader className="pb-3">
@@ -1590,14 +1506,22 @@ export default function Dashboard() {
                     ))}
                   </div>
                 </div>
+              ) : (groupsError || collectionsError) ? (
+                <ErrorDisplay
+                  error={groupsError || collectionsError}
+                  onRetry={() => {
+                    refetchGroups();
+                    refetchCollections();
+                  }}
+                />
               ) : groups.length === 0 ? (
                 <Card className="text-center py-12">
                   <CardContent className="space-y-4">
                     <Users className="h-16 w-16 mx-auto text-muted-foreground" />
                     <div>
                       <h3 className="text-lg font-semibold mb-2">No groups yet</h3>
-                      <p className="text-muted-foreground mb-4">
-                        Create your first group
+                      <p className="text-muted-foreground mb-4 max-w-md mx-auto">
+                        Groups help you plan events with the same people regularly. Create one for your friend circle, family, or coworkers.
                       </p>
                       <Link href="/create-group">
                         <Button data-testid="button-create-first-group">
@@ -1615,10 +1539,10 @@ export default function Dashboard() {
                   onDragStart={handleDragStart}
                   onDragEnd={handleDragEnd}
                 >
-                  <div className="space-y-4">
+                  <div className="space-y-5">
                     {/* Collections Header */}
                     <div className="flex items-center gap-2">
-                      <h2 className="text-lg font-semibold">Collections</h2>
+                      <h2 className="text-xl font-semibold">Collections</h2>
                       <Button
                         variant="outline"
                         size="icon"
@@ -1638,7 +1562,7 @@ export default function Dashboard() {
                       onOpenChange={() => toggleCollection(collection.id)}
                       data-testid={`collapsible-collection-${collection.id}`}
                     >
-                      <div className="border rounded-md p-4">
+                      <div className="border border-border/50 rounded-softer p-5 bg-gradient-to-br from-card to-muted/20 shadow-warm">
                         <div className="flex items-center justify-between gap-4 mb-3">
                           <CollapsibleTrigger className="flex items-center gap-2 hover-elevate rounded-md px-2 py-1 -ml-2 flex-1" data-testid={`trigger-collection-${collection.id}`}>
                             {openCollections.has(collection.id) ? (
@@ -1721,7 +1645,7 @@ export default function Dashboard() {
                               items={collectionGroupsList.map(g => g.id)}
                               strategy={verticalListSortingStrategy}
                             >
-                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {collectionGroupsList.map((group) => (
                                   <GroupCardWrapper key={group.id} group={group} />
                                 ))}
@@ -1740,7 +1664,7 @@ export default function Dashboard() {
                       onOpenChange={() => toggleCollection('uncategorized')}
                       data-testid="collapsible-all-groups"
                     >
-                      <div className="border rounded-md p-4">
+                      <div className="border border-border/50 rounded-softer p-5 bg-gradient-to-br from-card to-muted/20 shadow-warm">
                         <div className="flex items-center gap-2 mb-3">
                           <CollapsibleTrigger className="flex items-center gap-2 hover-elevate rounded-md px-2 py-1 -ml-2 flex-1" data-testid="trigger-all-groups">
                             {openCollections.has('uncategorized') ? (
@@ -1759,7 +1683,7 @@ export default function Dashboard() {
                             items={uncategorizedGroups.map(g => g.id)}
                             strategy={verticalListSortingStrategy}
                           >
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                               {uncategorizedGroups.map((group) => (
                                 <GroupCardWrapper key={group.id} group={group} />
                               ))}
@@ -2106,95 +2030,59 @@ export default function Dashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* Create Event Dialog */}
-      <Dialog open={showCreateEventDialog} onOpenChange={setShowCreateEventDialog}>
-        <DialogContent className="sm:max-w-md" data-testid="dialog-create-event">
-          <DialogHeader>
-            <DialogTitle>Create an Event</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            {groups.length > 0 ? (
-              <>
-                <div className="space-y-2">
-                  <Label>Select a Group</Label>
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {groups.map((group) => (
-                      <button
-                        key={group.id}
-                        onClick={() => setSelectedGroupId(group.id)}
-                        className={`w-full text-left p-3 rounded-md border transition-colors hover-elevate ${
-                          selectedGroupId === group.id 
-                            ? 'border-primary bg-primary/25' 
-                            : 'border-border'
-                        }`}
-                        data-testid={`button-select-group-${group.id}`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="text-2xl">{group.emoji || '👥'}</span>
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium">{group.name}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {group.members?.length || 0} members
-                            </div>
-                          </div>
-                          {selectedGroupId === group.id && (
-                            <Check className="h-5 w-5 text-primary" />
-                          )}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background px-2 text-muted-foreground">
-                      Or
-                    </span>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="text-center text-muted-foreground py-4">
-                <p className="mb-4">You don't have any groups yet.</p>
-              </div>
-            )}
-            <Link href="/create-group">
-              <Button variant="outline" className="w-full" data-testid="button-create-new-group">
-                <Plus className="mr-2 h-4 w-4" />
-                Create New Group
-              </Button>
-            </Link>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowCreateEventDialog(false);
-                setSelectedGroupId("");
-              }}
-              data-testid="button-cancel-create-event"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                if (selectedGroupId) {
-                  setShowCreateEventDialog(false);
-                  setLocation(`/group/${selectedGroupId}`);
-                  setSelectedGroupId("");
-                }
-              }}
-              disabled={!selectedGroupId}
-              data-testid="button-continue-create-event"
-            >
-              Continue
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Unified Event Creation Modal */}
+      <UnifiedEventCreationModal
+        open={showCreateEventDialog}
+        onOpenChange={(open) => {
+          setShowCreateEventDialog(open);
+          if (!open) setSelectedGroupId("");
+        }}
+        onNavigateToManualTab={(groupId) => {
+          setLocation(`/group/${groupId}?tab=build`);
+        }}
+        onOpenScheduleModal={async (groupId) => {
+          // Trigger AI generation directly, then navigate to see result
+          toast({
+            title: "Creating event...",
+            description: "AI is generating your event",
+          });
+          try {
+            await apiRequest("POST", `/api/groups/${groupId}/trigger-auto-schedule`, {});
+            queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "auto-scheduled-events"] });
+            toast({
+              title: "Event created!",
+              description: "Check the group page to review your new event",
+            });
+            setLocation(`/group/${groupId}`);
+          } catch (error: any) {
+            // Graceful fallback: if AI can't generate, switch to manual creation
+            const errorMsg = error.message || "";
+            const isConfigError = errorMsg.includes("No viable") ||
+                                  errorMsg.includes("not enabled") ||
+                                  errorMsg.includes("No venues");
+
+            if (isConfigError) {
+              // Missing prerequisites - fallback to manual creation
+              toast({
+                title: "Switching to manual creation",
+                description: "Add venues or enable auto-scheduling first",
+              });
+              setLocation(`/group/${groupId}?tab=build`);
+            } else {
+              // Other error - show error but still offer manual option
+              toast({
+                title: "AI generation failed",
+                description: "Opening manual creation instead",
+                variant: "destructive",
+              });
+              setLocation(`/group/${groupId}?tab=build`);
+            }
+          }
+        }}
+        onOpenDiscoverVenues={(groupId) => {
+          setLocation(`/group/${groupId}`);
+        }}
+      />
 
       {/* Test Account Switcher Dialog */}
       <Dialog open={showTestAccountDialog} onOpenChange={setShowTestAccountDialog}>
@@ -2226,6 +2114,30 @@ export default function Dashboard() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Global Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedEvents.size} Event{selectedEvents.size > 1 ? 's' : ''}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {selectedEvents.size} event{selectedEvents.size > 1 ? 's' : ''}? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteEventMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                deleteEventMutation.mutate(Array.from(selectedEvents));
+              }}
+              disabled={deleteEventMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteEventMutation.isPending ? "Deleting..." : `Delete ${selectedEvents.size} Event${selectedEvents.size > 1 ? 's' : ''}`}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

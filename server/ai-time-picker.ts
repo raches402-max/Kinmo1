@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { fromZonedTime } from 'date-fns-tz';
+import { logApiCall, calculateOpenAICost } from './openai';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -457,8 +458,33 @@ Return ONLY a JSON object with this exact structure:
     const responseTime = Date.now() - startTime;
     console.log(`[AI Time Picker] GPT-4o multiple options response time: ${responseTime}ms`);
 
-    const result = JSON.parse(response.choices[0]?.message?.content || '{}');
-    console.log('[AI Time Picker] Multiple options response:', JSON.stringify(result));
+    // Log API call with cost tracking
+    const inputTokens = response.usage?.prompt_tokens || 0;
+    const outputTokens = response.usage?.completion_tokens || 0;
+    await logApiCall({
+      service: 'openai',
+      method: 'suggestMultipleTimeOptions',
+      cacheStatus: 'miss',
+      status: 'success',
+      responseTimeMs: responseTime,
+      costEstimate: calculateOpenAICost('gpt-4o', inputTokens, outputTokens),
+      parameters: {
+        venueCount: input.venues.length,
+        hasAvailability: !!input.generalAvailability,
+        meetingFrequency: input.meetingFrequency,
+      },
+      metadata: { inputTokens, outputTokens },
+    });
+
+    let result;
+    try {
+      result = JSON.parse(response.choices[0]?.message?.content || '{}');
+      console.log('[AI Time Picker] Multiple options response:', JSON.stringify(result));
+    } catch (parseError) {
+      console.error('[AI Time Picker] Failed to parse AI response:', parseError);
+      console.log('[AI Time Picker] Using fallback options due to parse error');
+      return generateFallbackOptions(input, minDate, maxDate, tzIdentifier);
+    }
 
     if (!result.options || !Array.isArray(result.options) || result.options.length === 0) {
       console.log('[AI Time Picker] Invalid response, using fallback options');
@@ -497,8 +523,20 @@ Return ONLY a JSON object with this exact structure:
     }
 
     return { options };
-  } catch (error) {
+  } catch (error: any) {
     console.error('[AI Time Picker] Error generating multiple options:', error);
+
+    // Log error
+    await logApiCall({
+      service: 'openai',
+      method: 'suggestMultipleTimeOptions',
+      cacheStatus: 'miss',
+      status: 'error',
+      responseTimeMs: 0,
+      errorMessage: error.message,
+      parameters: { venueCount: input.venues.length },
+    });
+
     const now = new Date();
     const minDate = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
     const maxDate = new Date(now.getTime() + 21 * 24 * 60 * 60 * 1000);
@@ -790,8 +828,34 @@ Return ONLY a JSON object with this exact structure:
     const responseTime = Date.now() - startTime;
     console.log(`[AI Time Picker] GPT-4o response time: ${responseTime}ms (attempt ${attempt}/${maxRetries})`);
 
-    const result = JSON.parse(response.choices[0]?.message?.content || '{}');
-    console.log('[AI Time Picker] Raw AI response:', JSON.stringify(result));
+    // Log API call with cost tracking
+    const inputTokens = response.usage?.prompt_tokens || 0;
+    const outputTokens = response.usage?.completion_tokens || 0;
+    await logApiCall({
+      service: 'openai',
+      method: 'suggestOptimalTime',
+      cacheStatus: 'miss',
+      status: 'success',
+      responseTimeMs: responseTime,
+      costEstimate: calculateOpenAICost('gpt-4o', inputTokens, outputTokens),
+      parameters: {
+        venueCount: input.venues.length,
+        attempt,
+        hasExistingEvents: !!(input.existingEvents?.length),
+        hasSchedulingPrefs: !!input.schedulingPreferences,
+      },
+      metadata: { inputTokens, outputTokens },
+    });
+
+    let result;
+    try {
+      result = JSON.parse(response.choices[0]?.message?.content || '{}');
+      console.log('[AI Time Picker] Raw AI response:', JSON.stringify(result));
+    } catch (parseError) {
+      console.error('[AI Time Picker] Failed to parse AI response:', parseError);
+      console.log('[AI Time Picker] Using fallback time due to parse error');
+      return generateFallbackTime(input, minDate, maxDate, tzIdentifier);
+    }
 
     if (!result.date || !result.time) {
       console.log('[AI Time Picker] Missing date or time in response, using fallback');
@@ -885,9 +949,20 @@ Return ONLY a JSON object with this exact structure:
         reasoning: result.reasoning || 'AI-selected optimal time based on venue type and group availability',
         suggestedTime: result.time, // Return raw time string from AI
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error(`[AI Time Picker] Error on attempt ${attempt}:`, error);
-      
+
+      // Log error
+      await logApiCall({
+        service: 'openai',
+        method: 'suggestOptimalTime',
+        cacheStatus: 'miss',
+        status: 'error',
+        responseTimeMs: 0,
+        errorMessage: error.message,
+        parameters: { venueCount: input.venues.length, attempt },
+      });
+
       if (attempt === maxRetries) {
         const now = new Date();
         const minDate = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);

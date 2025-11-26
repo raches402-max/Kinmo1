@@ -1,9 +1,76 @@
 import { IStorage } from "./storage";
 import type { Group, Itinerary, Activity, VotingEvent } from "@shared/schema";
 import { addDays } from "date-fns";
+import { fromZonedTime } from "date-fns-tz";
 import { db } from "./db";
-import { venueVisitHistory } from "@shared/schema";
-import { eq, sql } from "drizzle-orm";
+import { venueVisitHistory, rejectedEventDates, autoScheduledEvents, itineraries } from "@shared/schema";
+import { eq, sql, and, gte, lte } from "drizzle-orm";
+import { selectVenuesWithAI, type VenueForSelection } from "./ai-venue-selector";
+import { planEventWithAgent, type VenueForAgent } from "./ai-event-agent";
+import {
+  calculateQualityScore,
+  calculateVotingEventQuality,
+  calculateVenueScore,
+  shouldSkipVenue,
+  getVisitStats,
+} from "./venue-scoring-utils";
+import { orderVenuesLogically } from "./venue-ordering-utils";
+import { selectDiverseVenues, getVenueCategory } from "./venue-diversity-utils";
+import { calculateAdaptiveTimeline, calculateInviteSendDate } from "./adaptive-timeline";
+
+/**
+ * Hash a string to a 32-bit integer for PostgreSQL advisory locks
+ * Uses a simple hash function that's consistent across runs
+ */
+function hashStringToInt(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  return Math.abs(hash);
+}
+
+/**
+ * Determine the best default time for an event based on group availability
+ * Returns an hour (0-23) in the group's local timezone
+ */
+function getDefaultEventTime(group: Group): number {
+  const availability = group.availability as Record<string, { morning?: boolean; afternoon?: boolean; evening?: boolean }> | null;
+
+  if (!availability) {
+    return 19; // Default to 7:00 PM if no availability data
+  }
+
+  // Count preferences across all days
+  let morningCount = 0;
+  let afternoonCount = 0;
+  let eveningCount = 0;
+
+  for (const day of Object.values(availability)) {
+    if (day.morning) morningCount++;
+    if (day.afternoon) afternoonCount++;
+    if (day.evening) eveningCount++;
+  }
+
+  // Determine primary time preference
+  const maxCount = Math.max(morningCount, afternoonCount, eveningCount);
+
+  if (maxCount === 0) {
+    // No preferences set - default to evening
+    return 18; // 6:00 PM
+  }
+
+  // Return time based on preference (using most common preference)
+  if (eveningCount === maxCount) {
+    return 18; // 6:00 PM - most common for social events
+  } else if (afternoonCount === maxCount) {
+    return 14; // 2:00 PM
+  } else {
+    return 10; // 10:00 AM
+  }
+}
 
 /**
  * Get visit statistics for all venues in a group
@@ -69,123 +136,9 @@ function generateGoogleMapsUrl(googlePlaceId?: string | null, venueName?: string
   return null;
 }
 
-/**
- * Smart venue ordering: arranges venues in logical flow
- * Priority order: meal → drinks → dessert/cafe
- * This ensures dinner comes before ice cream, etc.
- */
-function orderVenuesLogically<T extends {
-  category?: string | null;
-  venueType?: string | null;
-  name?: string;
-}>(venues: T[]): T[] {
-  if (venues.length <= 1) return venues;
-
-  // Assign priority to each venue type (lower = earlier in sequence)
-  const getPriority = (venue: T): number => {
-    const category = venue.category?.toLowerCase() || '';
-    const venueType = venue.venueType?.toLowerCase() || '';
-
-    // Meals/restaurants first (priority 1)
-    if (category === 'meal' ||
-        venueType.includes('restaurant') ||
-        venueType.includes('dining') ||
-        venueType.includes('food')) {
-      return 1;
-    }
-
-    // Drinks/bars second (priority 2)
-    if (category === 'drinks' ||
-        venueType.includes('bar') ||
-        venueType.includes('brewery') ||
-        venueType.includes('pub') ||
-        venueType.includes('wine') ||
-        venueType.includes('cocktail')) {
-      return 2;
-    }
-
-    // Dessert/cafes/ice cream last (priority 3)
-    if (category === 'dessert' ||
-        category === 'cafes' ||
-        venueType.includes('dessert') ||
-        venueType.includes('ice cream') ||
-        venueType.includes('bakery') ||
-        venueType.includes('cafe') ||
-        venueType.includes('coffee')) {
-      return 3;
-    }
-
-    // Experiences/activities in the middle (priority 1.5)
-    return 1.5;
-  };
-
-  // Sort by priority
-  return [...venues].sort((a, b) => getPriority(a) - getPriority(b));
-}
-
-/**
- * Select diverse venues ensuring no duplicate categories when possible
- * Prioritizes high-scoring venues while maintaining category diversity
- * Example: If top 2 are both "meal", takes #1 and skips to first non-meal venue
- */
-function selectDiverseVenues<T extends {
-  category?: string | null;
-  venueType?: string | null;
-  [key: string]: any;
-}>(venues: T[], desiredCount: number): T[] {
-  if (venues.length === 0) return [];
-  if (venues.length <= 1) return venues.slice(0, 1);
-  if (desiredCount <= 0) return [];
-  if (desiredCount === 1) return [venues[0]];
-
-  const selected: T[] = [];
-  const usedCategories = new Set<string>();
-
-  // Helper to get effective category
-  const getCategory = (venue: T): string => {
-    if (venue.category) return venue.category.toLowerCase();
-
-    // Fallback to venue type analysis
-    const venueType = venue.venueType?.toLowerCase() || '';
-    if (venueType.includes('restaurant') || venueType.includes('dining') || venueType.includes('food')) {
-      return 'meal';
-    }
-    if (venueType.includes('bar') || venueType.includes('brewery') || venueType.includes('pub')) {
-      return 'drinks';
-    }
-    if (venueType.includes('ice cream') || venueType.includes('dessert') || venueType.includes('bakery')) {
-      return 'dessert';
-    }
-    if (venueType.includes('cafe') || venueType.includes('coffee')) {
-      return 'cafes';
-    }
-    return 'experiences';
-  };
-
-  // First pass: select venues with unique categories
-  for (const venue of venues) {
-    if (selected.length >= desiredCount) break;
-
-    const category = getCategory(venue);
-    if (!usedCategories.has(category)) {
-      selected.push(venue);
-      usedCategories.add(category);
-    }
-  }
-
-  // Second pass: if we haven't filled the desired count, allow duplicates
-  // (Better to have 2 restaurants than only 1 venue total)
-  if (selected.length < desiredCount) {
-    for (const venue of venues) {
-      if (selected.length >= desiredCount) break;
-      if (!selected.includes(venue)) {
-        selected.push(venue);
-      }
-    }
-  }
-
-  return selected;
-}
+// Venue ordering and diversity functions moved to utilities:
+// - orderVenuesLogically() → venue-ordering-utils.ts
+// - selectDiverseVenues() → venue-diversity-utils.ts
 
 /**
  * Calculate optimal venue count based on venue categories and time requirements
@@ -250,6 +203,7 @@ export async function selectBestItineraryForAutoSchedule(
 ): Promise<{
   itineraryId?: string;
   selectedVenues?: Array<{ sourceType: 'activity' | 'voting_event', sourceId: string }>;
+  usedAI?: boolean;
   options?: Array<{
     optionNumber: number;
     venues: Array<{
@@ -260,6 +214,7 @@ export async function selectBestItineraryForAutoSchedule(
     }>;
     description: string;
   }>;
+  itineraryOptions?: Array<any>; // For backwards compatibility
 }> {
 
   console.log(`[Selection] Starting venue selection for group ${group.name}`);
@@ -290,6 +245,8 @@ export async function selectBestItineraryForAutoSchedule(
     rating?: string | null;
     venueAddress?: string | null;
     googlePlaceId?: string | null;
+    latitude?: number | string | null;
+    longitude?: number | string | null;
   };
 
   const scoredVenues: ScoredVenue[] = [];
@@ -297,40 +254,23 @@ export async function selectBestItineraryForAutoSchedule(
 
   // Score activities
   for (const activity of activities) {
-    // Skip downvoted
-    if (activity.feedback === 'downvote' || activity.feedback === 'not_this' || activity.feedback === 'pass') {
-      continue;
-    }
-
-    // Skip permanently/temporarily closed venues
-    if (activity.businessStatus === 'CLOSED_PERMANENTLY' || activity.businessStatus === 'CLOSED_TEMPORARILY') {
-      console.log(`[Selection] Skipping ${activity.venueName} - ${activity.businessStatus}`);
+    // Skip downvoted or closed venues
+    if (shouldSkipVenue(activity.businessStatus, activity.feedback)) {
+      if (activity.businessStatus === 'CLOSED_PERMANENTLY' || activity.businessStatus === 'CLOSED_TEMPORARILY') {
+        console.log(`[Selection] Skipping ${activity.venueName} - ${activity.businessStatus}`);
+      }
       continue;
     }
 
     // Quality score from feedback
-    let qualityScore = 1; // neutral
-    if (activity.feedback === 'favorite') qualityScore = 3;
-    else if (activity.feedback === 'more_like_this') qualityScore = 2.5;
-    else if (activity.feedback === 'upvote') qualityScore = 2;
+    const qualityScore = calculateQualityScore(activity.feedback);
 
     // Visit stats
     const stats = visitStats.find(v => v.activityId === activity.id);
-    const visitCount = stats?.count || 0;
-    const lastVisit = stats?.lastVisit ? new Date(stats.lastVisit).getTime() : 0;
-    const daysSinceLastVisit = lastVisit ? (now - lastVisit) / (1000 * 60 * 60 * 24) : 999;
-
-    // Never visited bonus
-    const neverVisitedBonus = visitCount === 0 ? 3 : 1;
-
-    // Recency bonus: more days = higher bonus (max 2x at 60+ days)
-    const recencyBonus = Math.min(daysSinceLastVisit / 30, 2);
-
-    // Frequency penalty: halve score for each visit
-    const frequencyPenalty = Math.pow(0.5, visitCount);
+    const { visitCount, daysSinceLastVisit } = getVisitStats(stats);
 
     // Final score
-    const score = qualityScore * neverVisitedBonus * recencyBonus * frequencyPenalty;
+    const score = calculateVenueScore(qualityScore, visitCount, daysSinceLastVisit);
 
     scoredVenues.push({
       type: 'activity',
@@ -347,6 +287,8 @@ export async function selectBestItineraryForAutoSchedule(
       rating: activity.rating,
       venueAddress: activity.venueAddress,
       googlePlaceId: activity.googlePlaceId,
+      latitude: activity.latitude,
+      longitude: activity.longitude,
     });
   }
 
@@ -363,39 +305,25 @@ export async function selectBestItineraryForAutoSchedule(
   // Score voting events
   for (const votingEvent of votingEvents) {
     const voteCount = voteCounts.find(vc => vc.id === votingEvent.id);
-    const netVotes = voteCount?.netVotes || 0;
     const upvotes = voteCount?.upvotes || 0;
+    const downvotes = voteCount?.downvotes || 0;
+    const netVotes = voteCount?.netVotes || 0;
 
-    // Quality score based on upvotes:
-    // - Base score of 2 (venues in Favorites are already vetted)
-    // - +0.5 for each net upvote (capped at +1.5 for 3+ upvotes)
-    // - This makes highly upvoted favorites score up to 3.5 (better than "favorite" feedback on activities)
-    const upvoteBonus = Math.min(netVotes * 0.5, 1.5);
-    const qualityScore = Math.max(1, 2 + upvoteBonus); // Min 1, typical 2-3.5
+    // Calculate quality score (returns -1 if net downvotes)
+    const qualityScore = calculateVotingEventQuality(upvotes, downvotes);
 
     // Skip if downvoted more than upvoted
-    if (netVotes < 0) {
+    if (qualityScore === -1) {
       console.log(`[Selection] Skipping ${votingEvent.title} - net downvotes: ${netVotes}`);
       continue;
     }
 
     // Visit stats
     const stats = visitStats.find(v => v.votingEventId === votingEvent.id);
-    const visitCount = stats?.count || 0;
-    const lastVisit = stats?.lastVisit ? new Date(stats.lastVisit).getTime() : 0;
-    const daysSinceLastVisit = lastVisit ? (now - lastVisit) / (1000 * 60 * 60 * 24) : 999;
-
-    // Never visited bonus
-    const neverVisitedBonus = visitCount === 0 ? 3 : 1;
-
-    // Recency bonus
-    const recencyBonus = Math.min(daysSinceLastVisit / 30, 2);
-
-    // Frequency penalty
-    const frequencyPenalty = Math.pow(0.5, visitCount);
+    const { visitCount, daysSinceLastVisit } = getVisitStats(stats);
 
     // Final score
-    const score = qualityScore * neverVisitedBonus * recencyBonus * frequencyPenalty;
+    const score = calculateVenueScore(qualityScore, visitCount, daysSinceLastVisit);
 
     scoredVenues.push({
       type: 'voting_event',
@@ -412,6 +340,8 @@ export async function selectBestItineraryForAutoSchedule(
       rating: votingEvent.rating,
       venueAddress: votingEvent.venueAddress,
       googlePlaceId: votingEvent.googlePlaceId,
+      latitude: votingEvent.latitude,
+      longitude: votingEvent.longitude,
     });
   }
 
@@ -434,8 +364,163 @@ export async function selectBestItineraryForAutoSchedule(
 
   console.log(`[Selection] Found ${favoriteVenues.length} total favorites, ${suitableFavorites.length} suitable (not recently visited)`);
 
-  // If we have ≥5 suitable Favorites, use ONLY Favorites (1 smart itinerary, not 3 options)
-  if (suitableFavorites.length >= 5) {
+  // ============================================================================
+  // TRY AI AGENT SELECTION FIRST (falls back to old AI, then algorithmic)
+  // ============================================================================
+  if (scoredVenues.length >= 1) {
+    console.log('[Selection] Attempting AI agent venue selection...');
+
+    // Try new AI agent first (now selects 1 primary venue)
+    const agentResult = await planEventWithAgent({
+      group,
+      eventDate: new Date(), // TODO: Pass actual event date when available
+      availableVenues: scoredVenues as VenueForAgent[],
+      constraints: {
+        maxDistanceMiles: 5,
+        minConfidence: 75,
+        desiredVenueCount: 1, // Select 1 primary venue
+      },
+    });
+
+    if (agentResult && agentResult.selectedVenues.length >= 1) {
+      console.log(`[Selection] ✅ Agent selected ${agentResult.selectedVenues.length} venue(s)`);
+      console.log(`[Selection] Agent confidence: ${agentResult.confidence}%`);
+      console.log(`[Selection] Agent reasoning: ${agentResult.reasoning}`);
+
+      const primaryVenue = agentResult.selectedVenues[0];
+      const isFavorite = primaryVenue.type === 'voting_event';
+
+      console.log(`[Selection] Primary venue: ${primaryVenue.name} (${isFavorite ? 'Favorite' : 'Activity'})`);
+
+      // Find nearby complementary venues (within context-aware distance)
+      const { findNearbyVenues, getDistanceThreshold } = await import('./venue-distance-utils');
+      const distanceThreshold = getDistanceThreshold(group);
+
+      console.log(`[Selection] Distance threshold for this group: ${distanceThreshold} miles`);
+      console.log(`[Selection] Primary venue coords: lat=${primaryVenue.latitude}, lon=${primaryVenue.longitude}`);
+
+      // Filter out the primary venue and find nearby options
+      const otherVenues = scoredVenues.filter(v => v.id !== primaryVenue.id);
+      console.log(`[Selection] Searching ${otherVenues.length} other venues for nearby options`);
+
+      const nearbyVenues = findNearbyVenues(primaryVenue, otherVenues, distanceThreshold);
+
+      console.log(`[Selection] Found ${nearbyVenues.length} venues within ${distanceThreshold} miles`);
+      if (nearbyVenues.length > 0) {
+        nearbyVenues.slice(0, 5).forEach(v => {
+          console.log(`  - ${v.name} (${v.distance.toFixed(2)} mi away)`);
+        });
+      }
+
+      // Get different category venues (if dinner, suggest bars/dessert)
+      const primaryCategory = getVenueCategory(primaryVenue);
+      console.log(`[Selection] Primary venue category: ${primaryCategory}`);
+
+      const complementaryVenues = nearbyVenues
+        .filter(v => {
+          const category = getVenueCategory(v);
+          const isComplementary = category !== primaryCategory;
+          if (!isComplementary) {
+            console.log(`  - Skipping ${v.name} (same category: ${category})`);
+          }
+          return isComplementary;
+        })
+        .slice(0, 3); // Maximum 3 suggestions
+
+      console.log(`[Selection] Found ${complementaryVenues.length} complementary venues (different category from ${primaryCategory})`);
+
+      // SIMPLIFIED OUTPUT: 1 primary venue + optional nearby suggestions
+      return {
+        selectedVenues: [{
+          sourceType: primaryVenue.type,
+          sourceId: primaryVenue.id,
+        }],
+        usedAI: true,
+        options: [{
+          optionNumber: 1,
+          venues: [{
+            sourceType: primaryVenue.type,
+            sourceId: primaryVenue.id,
+            venueName: primaryVenue.name,
+            badges: [
+              isFavorite ? '⭐ From Favorites' : '🤖 Agent Selected',
+              ...generateVenueBadges(primaryVenue.qualityScore, primaryVenue.visitCount, primaryVenue.daysSinceLastVisit, primaryVenue.feedback)
+            ],
+            rating: primaryVenue.rating,
+            venueAddress: primaryVenue.venueAddress,
+            googleMapsUrl: generateGoogleMapsUrl(primaryVenue.googlePlaceId, primaryVenue.name, primaryVenue.venueAddress),
+          }],
+          description: agentResult.flow || `${isFavorite ? 'From your Favorites' : 'Perfect for tonight'}`,
+          nearbySuggestions: complementaryVenues.map(v => ({
+            sourceType: v.type,
+            sourceId: v.id,
+            venueName: v.name,
+            distance: v.distance,
+            walkingTime: Math.round(v.distance * 20), // ~20 min per mile walking
+            category: getVenueCategory(v),
+            badges: [
+              v.type === 'voting_event' ? '⭐ Favorite' : '💡 Nearby',
+              `${v.distance.toFixed(1)} mi away`,
+              ...generateVenueBadges(v.qualityScore, v.visitCount, v.daysSinceLastVisit, v.feedback)
+            ],
+            rating: v.rating,
+            venueAddress: v.venueAddress,
+            googleMapsUrl: generateGoogleMapsUrl(v.googlePlaceId, v.name, v.venueAddress),
+          })),
+        }],
+      };
+    } else {
+      console.log('[Selection] ⚠️  Agent failed, trying fallback AI selector...');
+
+      // Fallback to old AI selector
+      const aiResult = await selectVenuesWithAI(
+        scoredVenues as VenueForSelection[],
+        group.name,
+        new Date(),
+        3
+      );
+
+      if (aiResult && aiResult.selectedVenues.length >= 2) {
+        console.log(`[Selection] ✅ Fallback AI selected ${aiResult.selectedVenues.length} venues`);
+        console.log(`[Selection] AI reasoning: ${aiResult.reasoning}`);
+
+        const orderedVenues = orderVenuesLogically(aiResult.selectedVenues);
+
+        return {
+          selectedVenues: orderedVenues.map(v => ({
+            sourceType: v.type,
+            sourceId: v.id,
+          })),
+          usedAI: true,
+          options: [{
+            optionNumber: 1,
+            venues: orderedVenues.map(v => {
+              const primaryBadge = v.type === 'voting_event' ? '⭐ From Favorites' : '🤖 AI Selected';
+              return {
+                sourceType: v.type,
+                sourceId: v.id,
+                venueName: v.name,
+                badges: [primaryBadge, ...generateVenueBadges(v.qualityScore, v.visitCount, v.daysSinceLastVisit, v.feedback)],
+                rating: v.rating,
+                venueAddress: v.venueAddress,
+                googleMapsUrl: generateGoogleMapsUrl(v.googlePlaceId, v.name, v.venueAddress),
+              };
+            }),
+            description: aiResult.itineraryFlow || 'AI-curated itinerary',
+          }],
+        };
+      } else {
+        console.log('[Selection] ⚠️  Both agent and AI failed, falling back to algorithmic selection');
+      }
+    }
+  }
+
+  // ============================================================================
+  // FALLBACK: Algorithmic Selection (original logic)
+  // ============================================================================
+
+  // If we have ≥3 suitable Favorites, use ONLY Favorites (1 smart itinerary, not 3 options)
+  if (suitableFavorites.length >= 3) {
     console.log(`[Selection] Using Favorites-only mode (${suitableFavorites.length} available)`);
 
     // Rank favorites by score
@@ -458,13 +543,14 @@ export async function selectBestItineraryForAutoSchedule(
         sourceType: v.type,
         sourceId: v.id,
       })),
+      usedAI: false, // Algorithmic fallback
       options: [{
         optionNumber: 1,
         venues: orderedFavorites.map(v => ({
           sourceType: v.type,
           sourceId: v.id,
           venueName: v.name,
-          badges: ['⭐ Favorite', ...generateVenueBadges(v.qualityScore, v.visitCount, v.daysSinceLastVisit, v.feedback)],
+          badges: ['⭐ From Favorites', ...generateVenueBadges(v.qualityScore, v.visitCount, v.daysSinceLastVisit, v.feedback)],
           rating: v.rating,
           venueAddress: v.venueAddress,
           googleMapsUrl: generateGoogleMapsUrl(v.googlePlaceId, v.name, v.venueAddress),
@@ -474,7 +560,53 @@ export async function selectBestItineraryForAutoSchedule(
     };
   }
 
-  // If <5 suitable Favorites, fall back to original 3-option flow mixing all venues
+  // If we have 1-2 suitable Favorites, create hybrid itinerary (Favorites + AI gap-fillers)
+  if (suitableFavorites.length >= 1 && suitableFavorites.length < 3) {
+    console.log(`[Selection] Using hybrid mode (${suitableFavorites.length} Favorites + AI gap-fillers)`);
+
+    // Start with sorted Favorites
+    suitableFavorites.sort((a, b) => b.score - a.score);
+
+    // Take all suitable Favorites
+    const selectedFavorites = suitableFavorites;
+
+    // Get AI suggestions (activities) to fill gaps
+    const activityVenues = scoredVenues.filter(v => v.type === 'activity');
+    const neededCount = Math.max(0, 3 - selectedFavorites.length);
+    const gapFillers = activityVenues.slice(0, neededCount);
+
+    console.log(`[Selection] Combining ${selectedFavorites.length} Favorites + ${gapFillers.length} AI suggestions`);
+
+    // Combine and order logically
+    const hybridVenues = orderVenuesLogically([...selectedFavorites, ...gapFillers]);
+
+    return {
+      selectedVenues: hybridVenues.map(v => ({
+        sourceType: v.type,
+        sourceId: v.id,
+      })),
+      usedAI: false, // Algorithmic fallback
+      options: [{
+        optionNumber: 1,
+        venues: hybridVenues.map(v => {
+          // Different badges for Favorites vs AI suggestions
+          const primaryBadge = v.type === 'voting_event' ? '⭐ From Favorites' : '✨ AI Suggestion';
+          return {
+            sourceType: v.type,
+            sourceId: v.id,
+            venueName: v.name,
+            badges: [primaryBadge, ...generateVenueBadges(v.qualityScore, v.visitCount, v.daysSinceLastVisit, v.feedback)],
+            rating: v.rating,
+            venueAddress: v.venueAddress,
+            googleMapsUrl: generateGoogleMapsUrl(v.googlePlaceId, v.name, v.venueAddress),
+          };
+        }),
+        description: 'From Favorites + AI suggestions',
+      }],
+    };
+  }
+
+  // If 0 suitable Favorites, fall back to original 3-option flow mixing all venues
   console.log(`[Selection] Using standard 3-option mode (only ${suitableFavorites.length} suitable Favorites)`);
 
   // Need at least 3 venues to create meaningful options
@@ -491,10 +623,10 @@ export async function selectBestItineraryForAutoSchedule(
           sourceId: v.id,
         }));
       console.log(`[Selection] Fallback: Using ${count} venue(s) for single option`);
-      return { selectedVenues: selected };
+      return { selectedVenues: selected, usedAI: false };
     }
 
-    return {};
+    return { usedAI: false };
   }
 
   // Generate up to 3 distinct itinerary options
@@ -509,7 +641,7 @@ export async function selectBestItineraryForAutoSchedule(
   options.push({
     optionNumber: 1,
     venues: option1Venues.map(v => {
-      const sourceBadge = v.type === 'voting_event' ? '⭐ Favorite' : '✨ Suggested';
+      const sourceBadge = v.type === 'voting_event' ? '⭐ From Favorites' : '✨ AI Suggestion';
       return {
         sourceType: v.type,
         sourceId: v.id,
@@ -551,7 +683,7 @@ export async function selectBestItineraryForAutoSchedule(
   options.push({
     optionNumber: 2,
     venues: option2VenuesOrdered.map(v => {
-      const sourceBadge = v.type === 'voting_event' ? '⭐ Favorite' : '✨ Suggested';
+      const sourceBadge = v.type === 'voting_event' ? '⭐ From Favorites' : '✨ AI Suggestion';
       return {
         sourceType: v.type,
         sourceId: v.id,
@@ -611,7 +743,7 @@ export async function selectBestItineraryForAutoSchedule(
     options.push({
       optionNumber: 3,
       venues: option3VenuesOrdered.map(v => {
-        const sourceBadge = v.type === 'voting_event' ? '⭐ Favorite' : '✨ Suggested';
+        const sourceBadge = v.type === 'voting_event' ? '⭐ From Favorites' : '✨ AI Suggestion';
         return {
           sourceType: v.type,
           sourceId: v.id,
@@ -634,7 +766,7 @@ export async function selectBestItineraryForAutoSchedule(
     opt.venues.forEach(v => console.log(`    - ${v.venueName} ${v.badges.join(' ')}`));
   });
 
-  return { options };
+  return { options, usedAI: false }; // Algorithmic fallback
 }
 
 /**
@@ -701,17 +833,39 @@ export function calculateNextEventDueDate(lastEventDate: Date, meetingFrequency:
 /**
  * Calculate the next N future event dates for a recurring group
  * Used to display virtual/placeholder events on the home page
+ * Now with smart time selection based on group availability!
  */
 export function calculateFutureEventDates(
   nextEventDueDate: Date,
   meetingFrequency: string,
-  count: number
+  count: number,
+  group?: Group
 ): Date[] {
   const futureDates: Date[] = [];
   let currentDate = new Date(nextEventDueDate);
 
+  // Determine the best default time based on group availability
+  const defaultHour = group ? getDefaultEventTime(group) : 19; // Default to 7 PM
+  const timezone = group?.timezone || 'America/Los_Angeles'; // Default to PST
+
   for (let i = 0; i < count; i++) {
-    futureDates.push(new Date(currentDate));
+    // Create a date with just the date part (no weird times!)
+    const dateOnly = new Date(currentDate);
+    dateOnly.setHours(0, 0, 0, 0);
+
+    // Set the time in the group's timezone
+    const year = dateOnly.getFullYear();
+    const month = dateOnly.getMonth();
+    const day = dateOnly.getDate();
+
+    // Create a date string in the group's timezone at the preferred time
+    const localDateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(defaultHour).padStart(2, '0')}:00:00`;
+
+    // Convert to UTC for storage
+    const utcDate = fromZonedTime(localDateString, timezone);
+
+    futureDates.push(utcDate);
+
     // Calculate the next occurrence
     currentDate = calculateNextEventDueDate(currentDate, meetingFrequency);
   }
@@ -834,18 +988,14 @@ export async function shouldTriggerAutoSchedule(
 
   // Not yet within the 10-day window
   if (daysUntilDue > 10 || daysUntilDue < 0) {
+    console.log(`[Auto-Schedule] Group ${group.name} not within 10-day window (${daysUntilDue} days until due)`);
     return false;
   }
 
-  // For high-cadence groups (<10 days between events), limit to 1 event on calendar
-  const cadence = calculateCadenceInDays(group.meetingFrequency);
-  if (cadence < 10) {
-    const hasExistingEvents = await storage.hasExistingProposedEvents(group.id);
-    if (hasExistingEvents) {
-      console.log(`[Auto-Schedule] Skipping high-cadence group ${group.name} (cadence: ${cadence.toFixed(1)} days) - already has proposed/scheduled event`);
-      return false;
-    }
-  }
+  // REMOVED: Old high-cadence limiter that blocked pipeline maintenance
+  // The maintainEventPipeline() function now properly manages event counts
+  // for all cadences using targetFutureEvents
+  console.log(`[Auto-Schedule] Group ${group.name} is within trigger window`);
 
   return true;
 }
@@ -870,24 +1020,36 @@ export async function maintainEventPipeline(
 ): Promise<number> {
   console.log(`[Event Pipeline] Maintaining pipeline for group ${groupId}`);
 
-  // Get the group
-  const group = await storage.getGroup(groupId);
-  if (!group) {
-    console.log(`[Event Pipeline] Group ${groupId} not found`);
+  // CRITICAL FIX 1: Acquire per-group mutex lock using PostgreSQL advisory locks
+  // This prevents race conditions when multiple scheduler runs try to process the same group
+  const lockId = hashStringToInt(groupId);
+  const lockResult = await db.execute(sql`SELECT pg_try_advisory_lock(${lockId})`);
+  const lockAcquired = lockResult.rows[0]?.pg_try_advisory_lock;
+
+  if (!lockAcquired) {
+    console.log(`[Event Pipeline] Group ${groupId} is already being processed by another worker, skipping`);
     return 0;
   }
 
-  // Skip if auto-scheduling is not enabled
-  if (!group.autoScheduleEnabled) {
-    console.log(`[Event Pipeline] Auto-scheduling not enabled for group ${group.name}`);
-    return 0;
-  }
+  try {
+    // Get the group
+    const group = await storage.getGroup(groupId);
+    if (!group) {
+      console.log(`[Event Pipeline] Group ${groupId} not found`);
+      return 0;
+    }
 
-  // Skip if automation is paused
-  if (group.automationPaused) {
-    console.log(`[Event Pipeline] Automation is paused for group ${group.name}`);
-    return 0;
-  }
+    // Skip if auto-scheduling is not enabled
+    if (!group.autoScheduleEnabled) {
+      console.log(`[Event Pipeline] Auto-scheduling not enabled for group ${group.name}`);
+      return 0;
+    }
+
+    // Skip if automation is paused
+    if (group.automationPaused) {
+      console.log(`[Event Pipeline] Automation is paused for group ${group.name}`);
+      return 0;
+    }
 
   // Determine target event count
   const targetCount = group.targetFutureEvents ?? calculateTargetEventCount(group.meetingFrequency);
@@ -928,8 +1090,31 @@ export async function maintainEventPipeline(
 
   console.log(`[Event Pipeline] Creating ${eventsNeeded} events starting from ${startDate.toISOString()}`);
 
-  // Generate future event dates
-  const futureDates = calculateFutureEventDates(startDate, group.meetingFrequency, eventsNeeded);
+  // Generate future event dates with smart time selection
+  const allFutureDates = calculateFutureEventDates(startDate, group.meetingFrequency, eventsNeeded * 2, group);
+
+  // Filter out rejected dates
+  const rejectedDates = await db
+    .select()
+    .from(rejectedEventDates)
+    .where(eq(rejectedEventDates.groupId, groupId));
+
+  const rejectedDateStrs = new Set(
+    rejectedDates.map(rd => new Date(rd.rejectedDate).toISOString().split('T')[0])
+  );
+
+  const futureDates = allFutureDates
+    .filter(date => {
+      const dateStr = date.toISOString().split('T')[0];
+      if (rejectedDateStrs.has(dateStr)) {
+        console.log(`[Event Pipeline] Skipping rejected date ${dateStr} for group ${group.name}`);
+        return false;
+      }
+      return true;
+    })
+    .slice(0, eventsNeeded);
+
+  console.log(`[Event Pipeline] After filtering rejected dates: ${futureDates.length} valid dates found`);
 
   // Create a full auto-scheduled event for each date
   const { itineraryOptions: itineraryOptionsTable } = await import('../shared/schema');
@@ -939,6 +1124,42 @@ export async function maintainEventPipeline(
     try {
       console.log(`[Event Pipeline] Generating full event for ${group.name} on ${eventDate.toISOString()}`);
 
+      // CRITICAL FIX 2: Timezone-aware duplicate prevention
+      // Use date ranges instead of string comparison to avoid timezone issues
+      const startOfDay = new Date(eventDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(eventDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      // CRITICAL FIX 3: Check BOTH autoScheduledEvents AND itineraries tables
+      // This prevents collisions between manual and auto events on the same date
+      const [existingAutoEvents, existingItineraries] = await Promise.all([
+        db.select()
+          .from(autoScheduledEvents)
+          .where(and(
+            eq(autoScheduledEvents.groupId, groupId),
+            gte(autoScheduledEvents.proposedDate, startOfDay),
+            lte(autoScheduledEvents.proposedDate, endOfDay)
+          )),
+        db.select()
+          .from(itineraries)
+          .where(and(
+            eq(itineraries.groupId, groupId),
+            gte(itineraries.eventDate, startOfDay),
+            lte(itineraries.eventDate, endOfDay)
+          ))
+      ]);
+
+      if (existingAutoEvents.length > 0) {
+        console.log(`[Event Pipeline] Auto-event already exists on ${eventDate.toISOString().split('T')[0]} for ${group.name} (Event ID: ${existingAutoEvents[0].id}), skipping duplicate creation`);
+        continue;
+      }
+
+      if (existingItineraries.length > 0) {
+        console.log(`[Event Pipeline] Manual itinerary already exists on ${eventDate.toISOString().split('T')[0]} for ${group.name} (Itinerary ID: ${existingItineraries[0].id}), skipping to avoid collision`);
+        continue;
+      }
+
       // Generate itinerary options for this event
       // Note: This is expensive but gives users real events with full details
       const selection = await selectBestItineraryForAutoSchedule(storage, group);
@@ -946,47 +1167,68 @@ export async function maintainEventPipeline(
       if (selection.options && selection.options.length > 0) {
         console.log(`[Event Pipeline] Generated ${selection.options.length} itinerary options`);
 
-        // Create auto-scheduled event with pending_approval status
-        // Set autoSendAt to 3 days before the event (or now if event is within 3 days)
-        const autoSendDate = new Date(eventDate);
-        autoSendDate.setDate(autoSendDate.getDate() - 3);
-        const now = new Date();
-        if (autoSendDate < now) {
-          autoSendDate.setTime(now.getTime());
-        }
+        // CRITICAL FIX 4: Wrap event creation in a transaction
+        // This ensures all-or-nothing: if option insertion fails, the event won't be created
+        await db.transaction(async (tx) => {
+          // Create auto-scheduled event with pending_approval status
+          // Calculate adaptive timeline based on how far out the event is
+          const now = new Date();
+          const adaptiveTimeline = calculateAdaptiveTimeline(eventDate, now);
+          const autoSendDate = calculateInviteSendDate(eventDate, now);
 
-        const autoEvent = await storage.createAutoScheduledEvent({
-          groupId: groupId,
-          proposedDate: eventDate,
-          status: 'pending_approval',
-          confidenceScore: null,
-          requiresReview: false,
-          reviewReason: null,
-          autoSendAt: autoSendDate,
+          // If invite send date would be in the past, send immediately
+          if (autoSendDate < now) {
+            autoSendDate.setTime(now.getTime());
+          }
+
+          console.log(`[Event Pipeline] Using ${adaptiveTimeline.timelineType} timeline: ${adaptiveTimeline.reasoning}`);
+
+          // Validate autoSendAt is before proposedDate
+          if (autoSendDate >= eventDate) {
+            throw new Error(`autoSendAt (${autoSendDate.toISOString()}) must be before proposedDate (${eventDate.toISOString()})`);
+          }
+
+          const autoEvent = await storage.createAutoScheduledEvent({
+            groupId: groupId,
+            proposedDate: eventDate,
+            status: 'pending_approval',
+            confidenceScore: null,
+            requiresReview: false,
+            reviewReason: null,
+            autoSendAt: autoSendDate,
+            timelineConfig: adaptiveTimeline, // Store the timeline config for later use
+          });
+
+          // Store the itinerary options within the same transaction
+          await Promise.all(
+            selection.options.map(async (option) => {
+              await tx.insert(itineraryOptionsTable).values({
+                autoEventId: autoEvent.id,
+                optionNumber: option.optionNumber,
+                venues: option.venues,
+                description: option.description,
+              });
+            })
+          );
+
+          console.log(`[Event Pipeline] Created full event for ${group.name} on ${eventDate.toISOString()}`);
         });
 
-        // Store the itinerary options
-        await Promise.all(
-          selection.options.map(async (option) => {
-            await db.insert(itineraryOptionsTable).values({
-              autoEventId: autoEvent.id,
-              optionNumber: option.optionNumber,
-              venues: option.venues,
-              description: option.description,
-            });
-          })
-        );
-
         createdCount++;
-        console.log(`[Event Pipeline] Created full event for ${group.name} on ${eventDate.toISOString()}`);
       } else {
         console.log(`[Event Pipeline] No itinerary options generated for ${eventDate.toISOString()}, skipping`);
       }
     } catch (error) {
       console.error(`[Event Pipeline] Failed to create event for ${group.name} on ${eventDate.toISOString()}:`, error);
+      // Transaction will auto-rollback on error, leaving no orphaned records
     }
   }
 
-  console.log(`[Event Pipeline] Successfully created ${createdCount}/${eventsNeeded} events for ${group.name}`);
-  return createdCount;
+    console.log(`[Event Pipeline] Successfully created ${createdCount}/${eventsNeeded} events for ${group.name}`);
+    return createdCount;
+  } finally {
+    // CRITICAL FIX 1: Always release the advisory lock, even if an error occurred
+    await db.execute(sql`SELECT pg_advisory_unlock(${lockId})`);
+    console.log(`[Event Pipeline] Released lock for group ${groupId}`);
+  }
 }

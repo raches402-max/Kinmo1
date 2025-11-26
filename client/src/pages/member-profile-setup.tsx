@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { getErrorToast } from "@/components/ErrorDisplay";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { MapPin, Calendar, Sparkles, Heart, X, Search, Plus } from "lucide-react";
 import { AvailabilityGrid } from "@/components/AvailabilityGrid";
@@ -298,11 +299,7 @@ export default function MemberProfileSetup() {
       setLocation("/");
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 

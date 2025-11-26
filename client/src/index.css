@@ -2,88 +2,96 @@
 @tailwind components;
 @tailwind utilities;
 
-/* LIGHT MODE */
+/* LIGHT MODE - "Warm Gathering" Palette */
 :root {
-  --button-outline: rgba(0,0,0, .10);
-  --badge-outline: rgba(0,0,0, .05);
+  --button-outline: rgba(62, 39, 28, .12);
+  --badge-outline: rgba(62, 39, 28, .06);
 
   /* Automatic computation of border around primary / danger buttons */
   --opaque-button-border-intensity: -8; /* In terms of percentages */
 
-  /* Base Colors - Warm Off-White & Black */
-  --background: 40 10% 99%; /* Warm off-white with yellow tint */
-  --foreground: 0 0% 0%; /* Pure black for maximum contrast */
+  /* =========================
+     WARM GATHERING PALETTE
+     Evokes sunset dinner parties, cozy gatherings
+     ========================= */
 
-  /* Grays - Warm tinted for friendly feel */
-  --gray-light: 40 8% 96%; /* Warm light gray */
-  --gray-medium: 40 4% 45%; /* Warm medium gray */
-  --gray-dark: 40 2% 20%; /* Warm dark gray */
+  /* Base - Clean with subtle warmth */
+  --background: 40 10% 99%;           /* Clean warm off-white */
+  --foreground: 0 0% 0%;              /* Pure black for contrast */
 
-  --border: 40 6% 90%; /* Warm border */
-  --card: 40 15% 99%; /* Warm white for cards */
-  --card-foreground: 0 0% 0%; /* Pure black text on cards */
-  --card-border: 40 8% 85%; /* Warm card borders */
+  /* Grays - Warm brown-tinted */
+  --gray-light: 32 25% 94%;           /* Warm light */
+  --gray-medium: 25 15% 50%;          /* Warm medium */
+  --gray-dark: 25 20% 25%;            /* Warm dark */
 
-  --sidebar: 40 8% 96%; /* Warm sidebar background */
-  --sidebar-foreground: 0 0% 0%; /* Pure black sidebar text */
-  --sidebar-border: 40 8% 85%; /* Warm sidebar borders */
-  --sidebar-primary: 44 87% 63%; /* Gold */
-  --sidebar-primary-foreground: 0 0% 0%; /* Pure black on gold */
-  --sidebar-accent: 40 8% 96%; /* Warm sidebar accent */
-  --sidebar-accent-foreground: 0 0% 0%; /* Pure black sidebar accent text */
-  --sidebar-ring: 168 74% 36%; /* Teal ring for focus states */
+  --border: 32 20% 85%;               /* Warm border */
+  --card: 38 45% 98%;                 /* Soft cream cards */
+  --card-foreground: 25 30% 14%;      /* Espresso text */
+  --card-border: 32 25% 88%;          /* Warm card borders */
 
-  --popover: 40 15% 99%; /* Warm popover background */
-  --popover-foreground: 0 0% 0%; /* Pure black popover text */
-  --popover-border: 40 8% 85%; /* Warm popover borders */
+  --sidebar: 35 35% 95%;              /* Warm sidebar */
+  --sidebar-foreground: 25 30% 14%;   /* Espresso text */
+  --sidebar-border: 32 25% 85%;       /* Warm borders */
+  --sidebar-primary: 44 87% 63%;      /* Sunflower Gold */
+  --sidebar-primary-foreground: 0 0% 0%; /* Black on gold */
+  --sidebar-accent: 35 30% 93%;       /* Warm accent bg */
+  --sidebar-accent-foreground: 25 30% 14%;
+  --sidebar-ring: 44 87% 63%;         /* Gold ring */
 
-  /* Primary - Gold (Main CTAs) */
-  --primary: 44 87% 63%; /* Gold #F2C94C */
-  --primary-foreground: 0 0% 0%; /* Pure black on gold */
-  --primary-hover: 46 88% 67%; /* Gold hover #F5D563 */
+  --popover: 38 45% 98%;              /* Cream popover */
+  --popover-foreground: 25 30% 14%;   /* Espresso text */
+  --popover-border: 32 25% 85%;       /* Warm borders */
 
-  /* Secondary - Coral (Secondary actions, highlights) */
-  --secondary: 0 100% 71%; /* Coral #FF6B6B */
-  --secondary-foreground: 40 10% 99%; /* White on coral */
-  --secondary-hover: 349 79% 65%; /* Coral dark #EE5A6F */
+  /* PRIMARY - Sunflower Gold (Main CTAs) */
+  --primary: 44 87% 63%;              /* Sunflower Gold #F2C94C */
+  --primary-foreground: 0 0% 0%;      /* Black text for contrast */
+  --primary-hover: 46 88% 67%;        /* Lighter gold on hover */
 
-  /* Muted - Warm Light Gray */
-  --muted: 40 8% 96%; /* Warm muted background */
-  --muted-foreground: 40 4% 45%; /* Warm muted text */
+  /* SECONDARY - Soft Sage (Balance, calm elements) */
+  --secondary: 145 25% 72%;           /* Sage #A3C4A8 */
+  --secondary-foreground: 25 30% 14%; /* Espresso on sage */
+  --secondary-hover: 145 28% 65%;     /* Deeper sage */
 
-  /* Accent - Teal (USE SPARINGLY: borders, status, indicators) */
-  --accent: 168 74% 36%; /* Teal #16A085 */
-  --accent-foreground: 0 0% 100%; /* White on teal */
-  --accent-light: 168 76% 42%; /* Teal light #1ABC9C */
-  --accent-dark: 168 75% 32%; /* Teal dark #138F75 */
-  --accent-subtle: 168 50% 95%; /* Very light teal for backgrounds */
+  /* Muted - Warm Cream Gray */
+  --muted: 35 25% 93%;                /* Warm muted background */
+  --muted-foreground: 25 15% 45%;     /* Warm brown-gray text */
 
-  /* Activity Colors - Vibrant & Bold */
-  --activity-meals: 15 85% 55%;
-  --activity-cafes: 30 85% 45%;
-  --activity-drinks: 280 75% 60%;
-  --activity-dessert: 340 85% 60%;
-  --activity-experiences: 200 80% 50%;
+  /* ACCENT - Dusty Rose (Highlights, special moments) */
+  --accent: 350 45% 72%;              /* Dusty rose #D49A9A */
+  --accent-foreground: 25 30% 14%;    /* Espresso on rose */
+  --accent-light: 350 50% 78%;        /* Light rose */
+  --accent-dark: 350 40% 62%;         /* Deep rose */
+  --accent-subtle: 350 40% 95%;       /* Very light rose */
 
-  /* Semantic Colors */
-  --destructive: 0 80% 55%;
-  --destructive-foreground: 40 10% 99%; /* Warm white on red */
-  --success: 145 70% 45%;
-  --success-foreground: 40 10% 99%; /* Warm white on green */
-  --warning: 38 92% 50%;
-  --warning-foreground: 0 0% 0%; /* Pure black on warning yellow */
+  /* Activity Colors - Warm, cohesive */
+  --activity-meals: 16 70% 50%;       /* Terracotta family */
+  --activity-cafes: 30 65% 48%;       /* Warm amber */
+  --activity-drinks: 350 45% 60%;     /* Dusty rose family */
+  --activity-dessert: 340 55% 65%;    /* Soft pink */
+  --activity-experiences: 145 30% 50%; /* Sage family */
 
-  --input: 40 8% 85%; /* Warm input borders */
-  --ring: 168 74% 36%; /* Teal ring for focus states */
-  --chart-1: 44 87% 63%; /* Gold */
-  --chart-2: 0 100% 71%; /* Coral */
-  --chart-3: 168 74% 36%; /* Teal */
-  --chart-4: 280 75% 60%; /* Purple (kept) */
-  --chart-5: 340 85% 60%; /* Pink (kept) */
+  /* Semantic Colors - Warmer versions */
+  --destructive: 4 70% 55%;           /* Warm red */
+  --destructive-foreground: 38 45% 98%;
+  --success: 152 50% 42%;             /* Warm green */
+  --success-foreground: 38 45% 98%;
+  --warning: 38 85% 52%;              /* Rich amber */
+  --warning-foreground: 25 30% 14%;
 
-  --font-sans: Inter, sans-serif;
+  --input: 32 20% 85%;                /* Warm input borders */
+  --ring: 44 87% 63%;                 /* Gold ring */
+  --chart-1: 44 87% 63%;              /* Gold */
+  --chart-2: 145 25% 60%;             /* Sage */
+  --chart-3: 350 45% 65%;             /* Dusty rose */
+  --chart-4: 30 65% 55%;              /* Amber */
+  --chart-5: 25 50% 45%;              /* Sienna */
+
+  /* Typography - Distinctive & Warm */
+  --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-heading: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-display: 'Fraunces', Georgia, serif;
   --font-serif: Georgia, serif;
-  --font-mono: Menlo, monospace;
+  --font-mono: 'JetBrains Mono', Menlo, monospace;
 
   /* Typography Scale */
   --text-display: 2.5rem; /* 40px */
@@ -155,88 +163,89 @@
   --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
 }
 
+/* DARK MODE - "Warm Gathering" at Night */
 .dark {
-  --button-outline: rgba(255,255,255, .10);
-  --badge-outline: rgba(255,255,255, .05);
+  --button-outline: rgba(255, 245, 235, .12);
+  --badge-outline: rgba(255, 245, 235, .06);
 
   --opaque-button-border-intensity: 9;  /* In terms of percentages */
 
-  /* Base Colors - Black & White (Inverted) */
-  --background: 0 0% 8%;
-  --foreground: 0 0% 98%;
+  /* Base - Warm dark browns (NOT pure black) */
+  --background: 25 25% 8%;            /* Warm near-black */
+  --foreground: 35 30% 92%;           /* Warm cream white */
 
-  /* Grays - Simplified */
-  --gray-light: 0 0% 20%;
-  --gray-medium: 0 0% 60%;
-  --gray-dark: 0 0% 85%;
+  /* Grays - Warm brown-tinted */
+  --gray-light: 25 15% 18%;
+  --gray-medium: 25 10% 55%;
+  --gray-dark: 35 20% 80%;
 
-  --border: 0 0% 20%;
-  --card: 0 0% 10%;
-  --card-foreground: 0 0% 98%;
-  --card-border: 0 0% 16%;
+  --border: 25 15% 18%;
+  --card: 25 20% 10%;                 /* Warm dark card */
+  --card-foreground: 35 30% 92%;
+  --card-border: 25 15% 16%;
 
-  --sidebar: 0 0% 10%;
-  --sidebar-foreground: 0 0% 98%;
-  --sidebar-border: 0 0% 16%;
-  --sidebar-primary: 44 87% 63%; /* Gold */
-  --sidebar-primary-foreground: 0 0% 10%;
-  --sidebar-accent: 0 0% 20%;
-  --sidebar-accent-foreground: 0 0% 98%;
-  --sidebar-ring: 168 74% 36%; /* Teal ring for focus states */
+  --sidebar: 25 20% 10%;
+  --sidebar-foreground: 35 30% 92%;
+  --sidebar-border: 25 15% 16%;
+  --sidebar-primary: 44 87% 65%;      /* Gold (slightly lighter for dark) */
+  --sidebar-primary-foreground: 25 25% 8%;
+  --sidebar-accent: 25 15% 15%;
+  --sidebar-accent-foreground: 35 30% 92%;
+  --sidebar-ring: 44 87% 65%;
 
-  --popover: 0 0% 10%;
-  --popover-foreground: 0 0% 98%;
-  --popover-border: 0 0% 16%;
+  --popover: 25 20% 10%;
+  --popover-foreground: 35 30% 92%;
+  --popover-border: 25 15% 16%;
 
-  /* Primary - Gold (Main CTAs) */
-  --primary: 44 87% 63%; /* Gold (same in dark mode) */
-  --primary-foreground: 0 0% 10%;
-  --primary-hover: 46 88% 67%; /* Gold hover */
+  /* PRIMARY - Sunflower Gold (brighter for dark mode) */
+  --primary: 44 87% 65%;
+  --primary-foreground: 0 0% 0%;
+  --primary-hover: 46 88% 70%;
 
-  /* Secondary - Coral (Secondary actions) */
-  --secondary: 0 100% 71%; /* Coral */
-  --secondary-foreground: 0 0% 98%; /* White on coral */
-  --secondary-hover: 349 79% 65%; /* Coral dark */
+  /* SECONDARY - Sage (adjusted for dark) */
+  --secondary: 145 22% 55%;
+  --secondary-foreground: 35 30% 92%;
+  --secondary-hover: 145 25% 48%;
 
-  /* Muted - Dark Gray */
-  --muted: 0 0% 20%;
-  --muted-foreground: 0 0% 60%;
+  /* Muted - Warm dark */
+  --muted: 25 15% 15%;
+  --muted-foreground: 25 10% 55%;
 
-  /* Accent - Teal (USE SPARINGLY) */
-  --accent: 168 74% 36%; /* Teal */
-  --accent-foreground: 0 0% 98%; /* White on teal */
-  --accent-light: 168 76% 42%; /* Teal light */
-  --accent-dark: 168 75% 32%; /* Teal dark */
-  --accent-subtle: 168 30% 15%; /* Dark teal for backgrounds */
+  /* ACCENT - Dusty Rose */
+  --accent: 350 40% 60%;
+  --accent-foreground: 35 30% 92%;
+  --accent-light: 350 45% 65%;
+  --accent-dark: 350 35% 50%;
+  --accent-subtle: 350 25% 15%;
 
-  /* Activity Colors - Same as light mode */
-  --activity-meals: 15 85% 55%;
-  --activity-cafes: 30 85% 45%;
-  --activity-drinks: 280 75% 60%;
-  --activity-dessert: 340 85% 60%;
-  --activity-experiences: 200 80% 50%;
+  /* Activity Colors - Same warmth */
+  --activity-meals: 16 65% 55%;
+  --activity-cafes: 30 60% 52%;
+  --activity-drinks: 350 40% 58%;
+  --activity-dessert: 340 50% 62%;
+  --activity-experiences: 145 28% 48%;
 
   /* Semantic Colors */
-  --destructive: 0 80% 55%;
-  --destructive-foreground: 0 0% 98%;
-  --success: 145 70% 45%;
-  --success-foreground: 0 0% 98%;
-  --warning: 38 92% 50%;
-  --warning-foreground: 0 0% 10%;
+  --destructive: 4 65% 52%;
+  --destructive-foreground: 35 30% 92%;
+  --success: 152 45% 45%;
+  --success-foreground: 35 30% 92%;
+  --warning: 38 80% 55%;
+  --warning-foreground: 25 25% 8%;
 
-  --input: 0 0% 20%;
-  --ring: 168 74% 36%; /* Teal ring */
-  --chart-1: 44 87% 63%; /* Gold */
-  --chart-2: 0 100% 71%; /* Coral */
-  --chart-3: 168 74% 36%; /* Teal */
-  --chart-4: 280 75% 60%; /* Purple (kept) */
-  --chart-5: 340 85% 60%; /* Pink (kept) */
+  --input: 25 15% 18%;
+  --ring: 44 87% 65%;
+  --chart-1: 44 87% 65%;
+  --chart-2: 145 22% 55%;
+  --chart-3: 350 40% 60%;
+  --chart-4: 30 60% 55%;
+  --chart-5: 25 45% 50%;
 
-  /* Simplified Shadow System - Same as light mode */
-  --shadow-subtle: 0 2px 8px rgba(0, 0, 0, 0.2);
-  --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.3);
+  /* Simplified Shadow System */
+  --shadow-subtle: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.4);
 
-  /* Legacy shadow aliases for compatibility */
+  /* Legacy shadow aliases */
   --shadow-2xs: var(--shadow-subtle);
   --shadow-xs: var(--shadow-subtle);
   --shadow-sm: var(--shadow-subtle);
@@ -246,7 +255,7 @@
   --shadow-xl: var(--shadow-elevated);
   --shadow-2xl: var(--shadow-elevated);
 
-  /* Automatically computed borders - intensity can be controlled by the user by the --opaque-button-border-intensity setting */
+  /* Automatically computed borders */
   --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
   --sidebar-accent-border: hsl(from hsl(var(--sidebar-accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
   --primary-border: hsl(from hsl(var(--primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
@@ -263,6 +272,22 @@
 
   body {
     @apply font-sans antialiased bg-background text-foreground;
+  }
+
+  /* Outfit for headings - friendly, geometric sans */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading;
+    letter-spacing: -0.01em; /* Slight tightening for Outfit at larger sizes */
+  }
+
+  /* Smooth transitions for interactive elements */
+  button, a, [role="button"] {
+    @apply transition-all duration-200 ease-out;
+  }
+
+  /* Better focus states with warm ring */
+  :focus-visible {
+    @apply outline-none ring-2 ring-primary/50 ring-offset-2 ring-offset-background;
   }
 }
 
@@ -281,4 +306,190 @@
     color: hsl(var(--muted-foreground));
     pointer-events: none;
   }
+
+  /* Safe area padding for iOS devices with notch/home indicator */
+  .safe-area-pb {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .safe-area-pt {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  /* ========================
+     MICRO-INTERACTIONS
+     ======================== */
+
+  /* Card lift on hover */
+  .hover-lift {
+    @apply transition-all duration-200 ease-out;
+  }
+  .hover-lift:hover {
+    @apply -translate-y-1 shadow-warm-hover;
+  }
+
+  /* Button press effect */
+  .press-scale:active {
+    @apply scale-[0.98];
+  }
+
+  /* Subtle glow for primary actions */
+  .glow-primary {
+    box-shadow: 0 0 20px -5px hsl(var(--primary) / 0.3);
+  }
+  .glow-primary:hover {
+    box-shadow: 0 0 30px -5px hsl(var(--primary) / 0.4);
+  }
+
+  /* Warm card style */
+  .card-warm {
+    @apply bg-card border border-card-border rounded-softer shadow-warm;
+    @apply transition-all duration-200;
+  }
+  .card-warm:hover {
+    @apply shadow-warm-lg -translate-y-0.5;
+  }
+
+  /* Staggered fade-in animation for lists */
+  .fade-in-stagger > * {
+    @apply opacity-0 animate-[fadeIn_0.3s_ease-out_forwards];
+  }
+  .fade-in-stagger > *:nth-child(1) { animation-delay: 0ms; }
+  .fade-in-stagger > *:nth-child(2) { animation-delay: 50ms; }
+  .fade-in-stagger > *:nth-child(3) { animation-delay: 100ms; }
+  .fade-in-stagger > *:nth-child(4) { animation-delay: 150ms; }
+  .fade-in-stagger > *:nth-child(5) { animation-delay: 200ms; }
+  .fade-in-stagger > *:nth-child(n+6) { animation-delay: 250ms; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Landing page animations */
+@keyframes slowSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.animate-slow-spin {
+  animation: slowSpin 60s linear infinite;
+}
+
+/* Hero "kin" phase: gentle fade in */
+@keyframes kinReveal {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-kin-reveal {
+  animation: kinReveal 0.5s ease-out forwards;
+}
+
+/* Hero finale: "KINMO" - warm, organic bloom reveal */
+@keyframes kinmoBloom {
+  0% {
+    opacity: 0;
+    transform: scale(0.92);
+    letter-spacing: -0.02em;
+  }
+  40% {
+    opacity: 0.8;
+    transform: scale(0.98);
+    letter-spacing: 0em;
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.01);
+    letter-spacing: 0.01em;
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    letter-spacing: 0em;
+  }
+}
+
+/* Subtle glow pulse after Kinmo appears */
+@keyframes kinmoGlow {
+  0%, 100% {
+    text-shadow: 0 0 0 transparent;
+  }
+  50% {
+    text-shadow: 0 0 20px hsl(var(--primary) / 0.3);
+  }
+}
+
+.animate-hero-finale {
+  animation: kinmoBloom 1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.animate-hero-finale-glow {
+  animation: kinmoBloom 1s cubic-bezier(0.22, 1, 0.36, 1) forwards,
+             kinmoGlow 3s ease-in-out 1s infinite;
+}
+
+/* Subtle pulse for sun rays */
+@keyframes pulseSubtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.animate-pulse-subtle {
+  animation: pulseSubtle 3s ease-in-out infinite;
+}
+
+/* Subtle bounce for scroll indicator */
+@keyframes bounceSubtle {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(6px); }
+}
+
+.animate-bounce-subtle {
+  animation: bounceSubtle 2s ease-in-out infinite;
+}
+
+/* Radial gradient background */
+.bg-gradient-radial {
+  background: radial-gradient(circle, var(--tw-gradient-stops));
+}
+
+/* Display font utility */
+.font-display {
+  font-family: var(--font-display);
+}
+
+/* ========================
+   COMPONENT ENHANCEMENTS
+   ======================== */
+
+/* Primary button - clean solid gold */
+[data-slot="button"].bg-primary,
+button.bg-primary {
+  box-shadow: 0 2px 4px -1px hsl(44 87% 40% / 0.25);
+}
+[data-slot="button"].bg-primary:hover,
+button.bg-primary:hover {
+  box-shadow: 0 4px 12px -2px hsl(44 87% 40% / 0.35);
+}
+
+/* Card enhancement */
+[data-slot="card"],
+.card {
+  @apply transition-all duration-200;
+}
+[data-slot="card"]:hover,
+.card:hover:not(:has(button:hover)):not(:has(a:hover)) {
+  @apply shadow-warm-lg;
 }

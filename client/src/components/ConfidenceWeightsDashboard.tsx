@@ -122,9 +122,9 @@ export function ConfidenceWeightsDashboard({ groupId, isOrganizer }: Props) {
   if (!data) {
     return (
       <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200">
-        <h3 className="text-lg font-semibold mb-2">AI Learning System</h3>
+        <h3 className="text-lg font-semibold mb-2">Performance Insights</h3>
         <p className="text-gray-600 text-sm">
-          No calibration data yet. The system will start learning after members swipe on venues and events are created.
+          No data yet. Insights will appear after members swipe on venues and events are created.
         </p>
       </div>
     );
@@ -142,9 +142,9 @@ export function ConfidenceWeightsDashboard({ groupId, isOrganizer }: Props) {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h3 className="text-lg font-semibold mb-1">AI Confidence System</h3>
+            <h3 className="text-lg font-semibold mb-1">Event Success Metrics</h3>
             <p className="text-sm text-gray-600">
-              How the AI predicts which events will succeed
+              Understanding what makes events successful
             </p>
           </div>
           {isOrganizer && canCalibrate && (

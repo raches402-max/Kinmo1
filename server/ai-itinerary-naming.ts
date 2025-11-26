@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { logApiCall, calculateOpenAICost, getAICache, setAICache } from './openai';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -13,6 +14,27 @@ export async function generateItineraryName(
   venues: VenueForNaming[],
   location: string
 ): Promise<string> {
+  const startTime = Date.now();
+
+  // Generate cache key from sorted venue names and location (stable inputs)
+  const venueKey = venues.map(v => `${v.name}:${v.type}`).sort().join('|');
+  const cacheKey = `itinerary-name:${venueKey}:${location}`;
+
+  // Check cache first (24 hour TTL - venue names don't change)
+  const cached = getAICache<string>(cacheKey);
+  if (cached) {
+    console.log('[AI Naming] Cache hit for itinerary name');
+    await logApiCall({
+      service: 'openai',
+      method: 'generateItineraryName',
+      cacheStatus: 'hit',
+      status: 'success',
+      responseTimeMs: Date.now() - startTime,
+      parameters: { venueCount: venues.length, location },
+    });
+    return cached;
+  }
+
   try {
     const venueList = venues.map((v, idx) => `${idx + 1}. ${v.name} (${v.type})`).join('\n');
 
@@ -44,13 +66,47 @@ Return ONLY the itinerary name, nothing else.`;
     });
 
     const name = response.choices[0]?.message?.content?.trim();
-    
+
+    // Log successful API call
+    await logApiCall({
+      service: 'openai',
+      method: 'generateItineraryName',
+      cacheStatus: 'miss',
+      status: 'success',
+      responseTimeMs: Date.now() - startTime,
+      costEstimate: calculateOpenAICost(
+        'gpt-4o-mini',
+        response.usage?.prompt_tokens || 0,
+        response.usage?.completion_tokens || 0
+      ),
+      parameters: { venueCount: venues.length, location },
+      metadata: {
+        inputTokens: response.usage?.prompt_tokens,
+        outputTokens: response.usage?.completion_tokens,
+        generatedName: name,
+      },
+    });
+
     if (!name) {
       return generateFallbackName(venues, location);
     }
 
+    // Cache the result for 24 hours (86400 seconds) - itinerary names are stable
+    setAICache(cacheKey, name, 86400);
+
     return name;
-  } catch (error) {
+  } catch (error: any) {
+    // Log failed API call
+    await logApiCall({
+      service: 'openai',
+      method: 'generateItineraryName',
+      cacheStatus: 'miss',
+      status: 'error',
+      responseTimeMs: Date.now() - startTime,
+      errorMessage: error.message,
+      parameters: { venueCount: venues.length, location },
+    });
+
     console.error('[AI Naming] Error generating name:', error);
     return generateFallbackName(venues, location);
   }

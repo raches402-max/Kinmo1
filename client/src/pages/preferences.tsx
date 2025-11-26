@@ -9,8 +9,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
+import { getErrorToast } from "@/components/ErrorDisplay";
 import { Link } from "wouter";
 import { FavoriteVenuesManager } from "@/components/FavoriteVenuesManager";
+import { Header } from "@/components/Header";
+import { AvailabilityGrid, createEmptyAvailability } from "@/components/AvailabilityGrid";
+import { cn } from "@/lib/utils";
 import {
   Settings,
   ChevronLeft,
@@ -20,16 +24,32 @@ import {
   Heart,
   Check,
   X,
+  Lightbulb,
+  Loader2,
+  Sparkles,
+  Coffee,
+  Users,
+  Mail,
+  BellRing,
 } from "lucide-react";
 
 type ActivityCategory = "meal" | "cafes" | "drinks" | "dessert" | "experiences";
 
-const ACTIVITY_CATEGORIES: { value: ActivityCategory; label: string; icon: string }[] = [
-  { value: "meal", label: "Restaurants & Meals", icon: "🍽️" },
-  { value: "cafes", label: "Cafes & Coffee", icon: "☕" },
-  { value: "drinks", label: "Bars & Drinks", icon: "🍷" },
-  { value: "dessert", label: "Dessert & Sweets", icon: "🍰" },
-  { value: "experiences", label: "Experiences & Activities", icon: "🎨" },
+const ACTIVITY_CATEGORIES: { value: ActivityCategory; label: string; shortLabel: string; icon: string; description: string }[] = [
+  { value: "meal", label: "Restaurants & Meals", shortLabel: "Meals", icon: "🍽️", description: "Dinner, lunch, brunch spots" },
+  { value: "cafes", label: "Cafes & Coffee", shortLabel: "Cafes", icon: "☕", description: "Coffee shops, tea houses" },
+  { value: "drinks", label: "Bars & Drinks", shortLabel: "Drinks", icon: "🍷", description: "Bars, cocktail lounges" },
+  { value: "dessert", label: "Dessert & Sweets", shortLabel: "Dessert", icon: "🍰", description: "Ice cream, bakeries" },
+  { value: "experiences", label: "Experiences & Activities", shortLabel: "Activities", icon: "🎨", description: "Events, shows, fun outings" },
+];
+
+// Budget level indicators for visual feedback
+const BUDGET_LEVELS = [
+  { max: 20, label: "Budget-friendly", emoji: "$" },
+  { max: 40, label: "Moderate", emoji: "$$" },
+  { max: 80, label: "Upscale", emoji: "$$$" },
+  { max: 150, label: "Fine dining", emoji: "$$$$" },
+  { max: 250, label: "Luxury", emoji: "$$$$$" },
 ];
 
 const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -42,13 +62,255 @@ const TIME_SLOT_LABELS: Record<TimeSlot, string> = {
   evening: "Evening (6pm-12am)",
 };
 
+// Component for per-group budget override with dual-track slider
+function GroupBudgetOverride({
+  groupId,
+  groupName,
+  groupEmoji,
+  groupBudgetMin,
+  groupBudgetMax,
+  globalBudgetRange,
+}: {
+  groupId: string;
+  groupName: string;
+  groupEmoji: string | null;
+  groupBudgetMin: number;
+  groupBudgetMax: number;
+  globalBudgetRange: [number, number];
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [isEnabled, setIsEnabled] = useState(false);
+  const [budgetOverride, setBudgetOverride] = useState<[number, number]>(globalBudgetRange);
+
+  // Fetch group-specific preferences
+  const { data: groupPrefs, isLoading } = useQuery({
+    queryKey: ["/api/user/preferences/groups", groupId],
+    queryFn: async () => {
+      const res = await fetch(`/api/user/preferences/groups/${groupId}`);
+      if (!res.ok) throw new Error("Failed to fetch group preferences");
+      return res.json();
+    },
+  });
+
+  // Handle data initialization when fetched
+  useEffect(() => {
+    if (groupPrefs?.budgetOverrideMin !== null && groupPrefs?.budgetOverrideMax !== null) {
+      setIsEnabled(true);
+      setBudgetOverride([groupPrefs.budgetOverrideMin, groupPrefs.budgetOverrideMax]);
+    }
+  }, [groupPrefs]);
+
+  // Save group budget override
+  const saveMutation = useMutation({
+    mutationFn: async (data: { budgetOverrideMin: number | null; budgetOverrideMax: number | null }) => {
+      const res = await fetch(`/api/user/preferences/groups/${groupId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error("Failed to save group preferences");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/preferences/groups", groupId] });
+      toast({
+        title: "Saved",
+        description: `Your budget for ${groupName} updated`,
+      });
+    },
+    onError: (error: Error) => {
+      toast(getErrorToast(error));
+    },
+  });
+
+  const handleToggle = (enabled: boolean) => {
+    setIsEnabled(enabled);
+    if (!enabled) {
+      // Clear override
+      saveMutation.mutate({ budgetOverrideMin: null, budgetOverrideMax: null });
+    } else {
+      // Default to group's budget range when enabling
+      setBudgetOverride([groupBudgetMin, groupBudgetMax]);
+    }
+  };
+
+  const handleSave = () => {
+    if (isEnabled) {
+      saveMutation.mutate({
+        budgetOverrideMin: budgetOverride[0],
+        budgetOverrideMax: budgetOverride[1],
+      });
+    }
+  };
+
+  // Calculate percentage positions for the group budget range indicator
+  const maxSlider = 250;
+  const groupStartPercent = (groupBudgetMin / maxSlider) * 100;
+  const groupWidthPercent = ((groupBudgetMax - groupBudgetMin) / maxSlider) * 100;
+
+  if (isLoading) {
+    return <Skeleton className="h-14 w-full rounded-xl" />;
+  }
+
+  return (
+    <div className={cn(
+      "rounded-xl border-2 transition-all duration-200",
+      isEnabled
+        ? "p-4 bg-primary/5 border-primary/20 shadow-sm"
+        : "px-4 py-3 bg-muted/30 border-transparent hover:border-muted-foreground/10"
+    )}>
+      {/* Header row */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <span className={cn("text-lg", isEnabled ? "text-xl" : "text-base")}>
+            {groupEmoji || "👥"}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h4 className={cn("font-semibold truncate", !isEnabled && "text-sm")}>{groupName}</h4>
+              {isEnabled ? (
+                <Badge variant="default" className="font-mono text-xs shrink-0 bg-primary/90">
+                  ${budgetOverride[0]}-${budgetOverride[1]}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="font-mono text-xs shrink-0 text-muted-foreground">
+                  ${groupBudgetMin}-${groupBudgetMax}
+                </Badge>
+              )}
+            </div>
+            {!isEnabled && (
+              <p className="text-xs text-muted-foreground mt-0.5">Group budget</p>
+            )}
+          </div>
+        </div>
+        <Switch
+          checked={isEnabled}
+          onCheckedChange={handleToggle}
+          disabled={saveMutation.isPending}
+        />
+      </div>
+
+      {/* Expanded slider section */}
+      {isEnabled && (
+        <div className="mt-4 pt-4 border-t border-primary/10 space-y-3">
+          {/* Group budget label */}
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>Group allows:</span>
+            <span className="font-mono font-medium text-primary/70">${groupBudgetMin}-${groupBudgetMax}</span>
+          </div>
+
+          {/* Dual-track slider */}
+          <div className="relative">
+            {/* Group range indicator (gold background track) */}
+            <div className="absolute top-1/2 -translate-y-1/2 h-2 rounded-full bg-primary/25 pointer-events-none"
+              style={{
+                left: `${groupStartPercent}%`,
+                width: `${groupWidthPercent}%`,
+              }}
+            />
+            {/* Personal preference slider */}
+            <Slider
+              min={0}
+              max={250}
+              step={10}
+              value={budgetOverride}
+              onValueChange={(value) => setBudgetOverride(value as [number, number])}
+              className="w-full relative z-10"
+            />
+          </div>
+
+          {/* Scale labels */}
+          <div className="flex justify-between text-[10px] text-muted-foreground/60 px-1">
+            <span>$0</span>
+            <span>$50</span>
+            <span>$100</span>
+            <span>$150</span>
+            <span>$200+</span>
+          </div>
+
+          {/* Save button row */}
+          <div className="flex justify-between items-center pt-1">
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground">Your budget:</span>
+              <span className="font-mono font-semibold text-foreground">
+                ${budgetOverride[0]}-${budgetOverride[1]}
+              </span>
+            </div>
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={saveMutation.isPending}
+              className="min-w-[70px]"
+            >
+              {saveMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Save"
+              )}
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Helper functions to convert between full day names (Monday) and short names (Mon)
+const DAY_NAME_MAP: Record<string, string> = {
+  "Mon": "Monday",
+  "Tue": "Tuesday",
+  "Wed": "Wednesday",
+  "Thu": "Thursday",
+  "Fri": "Friday",
+  "Sat": "Saturday",
+  "Sun": "Sunday"
+};
+
+const SHORT_DAY_MAP: Record<string, string> = {
+  "Monday": "Mon",
+  "Tuesday": "Tue",
+  "Wednesday": "Wed",
+  "Thursday": "Thu",
+  "Friday": "Fri",
+  "Saturday": "Sat",
+  "Sunday": "Sun"
+};
+
+// Convert from full names to short names for AvailabilityGrid
+function toShortDayFormat(availability: Record<string, Record<TimeSlot, boolean>>) {
+  const result: Record<string, { morning: boolean; afternoon: boolean; evening: boolean }> = {};
+  Object.entries(availability).forEach(([day, slots]) => {
+    const shortDay = SHORT_DAY_MAP[day] || day;
+    result[shortDay] = slots;
+  });
+  return result;
+}
+
+// Convert from short names to full names for API
+function toFullDayFormat(availability: Record<string, { morning: boolean; afternoon: boolean; evening: boolean }>) {
+  const result: Record<string, Record<TimeSlot, boolean>> = {};
+  Object.entries(availability).forEach(([day, slots]) => {
+    const fullDay = DAY_NAME_MAP[day] || day;
+    result[fullDay] = slots;
+  });
+  return result;
+}
+
 export default function Preferences() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [hasChanges, setHasChanges] = useState(false);
 
   // Fetch global preferences
-  const { data: preferences, isLoading } = useQuery({
+  const { data: preferences, isLoading } = useQuery<{
+    budgetMin?: number;
+    budgetMax?: number;
+    activityPreferences?: ActivityCategory[];
+    emailNotifications?: boolean;
+    personalAvailability?: Record<string, Record<TimeSlot, boolean>>;
+  }>({
     queryKey: ["/api/user/preferences"],
   });
 
@@ -56,6 +318,9 @@ export default function Preferences() {
   const { data: userGroups } = useQuery<Array<{
     id: string;
     name: string;
+    emoji: string | null;
+    budgetMin: number;
+    budgetMax: number;
     members: Array<{ id: string; userId: string | null; homeBaseLocation: string | null }>;
   }>>({
     queryKey: ["/api/user/groups"],
@@ -65,6 +330,29 @@ export default function Preferences() {
   const primaryMember = userGroups?.flatMap(g => g.members).find(m => m.userId);
   const memberId = primaryMember?.id;
   const memberHomeLocation = primaryMember?.homeBaseLocation || "San Francisco, CA";
+
+  // Fetch AI constraint analysis
+  const { data: constraintAnalysis, isLoading: constraintsLoading, refetch: refetchConstraints } = useQuery<{
+    currentConstraints: any;
+    patterns: {
+      budgetConcernCount: number;
+      locationConcernCount: number;
+      timeConcernCount: number;
+      unavailableDays: string[];
+      totalRSVPs: number;
+    };
+    suggestions: Array<{
+      type: string;
+      title: string;
+      description: string;
+      confidence: number;
+      action: string;
+      data?: any;
+    }>;
+  }>({
+    queryKey: ["/api/members", memberId, "constraint-analysis"],
+    enabled: !!memberId,
+  });
 
   // Local state for form
   const [budgetRange, setBudgetRange] = useState<[number, number]>([0, 60]);
@@ -124,11 +412,38 @@ export default function Preferences() {
       });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
+      toast(getErrorToast(error));
+    },
+  });
+
+  // Constraint action mutation (accept/dismiss AI suggestions)
+  const constraintMutation = useMutation({
+    mutationFn: async ({ action, constraintType, data }: { action: string; constraintType: string; data?: any }) => {
+      if (!memberId) throw new Error("Member ID not found");
+
+      const response = await fetch(`/api/members/${memberId}/constraints`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ action, constraintType, data }),
       });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to update constraints");
+      }
+
+      return response.json();
+    },
+    onSuccess: (_data, variables) => {
+      refetchConstraints();
+      toast({
+        title: variables.action === 'accept' ? "Constraint accepted" : "Suggestion dismissed",
+        description: variables.action === 'accept' ? "We'll use this when planning events" : undefined,
+      });
+    },
+    onError: (error: Error) => {
+      toast(getErrorToast(error));
     },
   });
 
@@ -150,30 +465,36 @@ export default function Preferences() {
     setHasChanges(true);
   };
 
-  const toggleAvailability = (day: string, slot: TimeSlot) => {
-    setAvailability(prev => ({
-      ...prev,
-      [day]: {
-        ...prev[day],
-        [slot]: !prev[day]?.[slot],
-      },
-    }));
+  const handleAvailabilityChange = (newAvailability: Record<string, { morning: boolean; afternoon: boolean; evening: boolean }>) => {
+    setAvailability(toFullDayFormat(newAvailability));
     setHasChanges(true);
+  };
+
+  // Helper to get budget level indicator
+  const getBudgetLevel = (amount: number) => {
+    for (const level of BUDGET_LEVELS) {
+      if (amount <= level.max) return level;
+    }
+    return BUDGET_LEVELS[BUDGET_LEVELS.length - 1];
   };
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background">
-        <header className="border-b">
-          <div className="max-w-4xl mx-auto px-6 py-4 flex items-center gap-4">
-            <Skeleton className="h-8 w-8" />
+        <Header />
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+          {/* Header skeleton */}
+          <div className="space-y-2">
             <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-4 w-72" />
           </div>
-        </header>
-        <div className="max-w-4xl mx-auto px-6 py-12 space-y-6">
-          <Skeleton className="h-48 w-full" />
-          <Skeleton className="h-64 w-full" />
-          <Skeleton className="h-96 w-full" />
+          {/* Cards skeleton */}
+          <div className="space-y-6">
+            <Skeleton className="h-40 w-full rounded-2xl" />
+            <Skeleton className="h-56 w-full rounded-2xl" />
+            <Skeleton className="h-64 w-full rounded-2xl" />
+            <Skeleton className="h-32 w-full rounded-2xl" />
+          </div>
         </div>
       </div>
     );
@@ -182,41 +503,150 @@ export default function Preferences() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b bg-background sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-6 py-4">
-          <div className="flex items-center gap-4 mb-2">
-            <Link href="/">
-              <Button variant="ghost" size="sm">
-                <ChevronLeft className="h-4 w-4 mr-1" />
-                Back
-              </Button>
-            </Link>
-          </div>
+      <Header />
+
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8">
+        {/* Page Header */}
+        <div className="space-y-1">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Settings className="h-6 w-6" />
-              <h1 className="text-2xl font-black">My Preferences</h1>
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Preferences</h1>
+              <p className="text-muted-foreground mt-1">
+                Customize how Kinmo plans events for you
+              </p>
             </div>
-            {hasChanges && (
-              <Button onClick={handleSave} disabled={updateMutation.isPending}>
-                {updateMutation.isPending ? "Saving..." : "Save Changes"}
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {hasChanges && (
+                <Button
+                  onClick={handleSave}
+                  disabled={updateMutation.isPending}
+                  className="shadow-sm"
+                >
+                  {updateMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Changes"
+                  )}
+                </Button>
+              )}
+            </div>
           </div>
         </div>
-      </header>
 
-      <div className="max-w-4xl mx-auto px-6 py-16 space-y-10">
+        {/* AI Insights - Learned Constraints */}
+        {memberId && constraintAnalysis && constraintAnalysis.suggestions.length > 0 && (
+          <Card className="border-2 border-primary/20 bg-gradient-to-br from-primary/5 via-primary/3 to-transparent overflow-hidden">
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Smart Insights</CardTitle>
+                  <CardDescription>
+                    Patterns we've noticed from your RSVPs
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {constraintAnalysis.suggestions.map((suggestion, index) => (
+                <div
+                  key={index}
+                  className="flex items-center justify-between gap-4 p-4 rounded-xl bg-background/80 backdrop-blur-sm border shadow-sm"
+                >
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-semibold text-sm">{suggestion.title}</h4>
+                    <p className="text-sm text-muted-foreground mt-0.5 line-clamp-2">
+                      {suggestion.description}
+                    </p>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="default"
+                      onClick={() => {
+                        constraintMutation.mutate({
+                          action: 'accept',
+                          constraintType: suggestion.type,
+                          data: suggestion.data,
+                        });
+                      }}
+                      disabled={constraintMutation.isPending}
+                      className="h-9 px-3"
+                    >
+                      {constraintMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Check className="h-4 w-4 mr-1" />
+                          Apply
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        constraintMutation.mutate({
+                          action: 'dismiss',
+                          constraintType: suggestion.type,
+                        });
+                      }}
+                      disabled={constraintMutation.isPending}
+                      className="h-9 px-2 text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Budget Preference */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5" />
-              Budget Range
-            </CardTitle>
+        <Card className="overflow-hidden">
+          <CardHeader className="pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                <DollarSign className="h-5 w-5 text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <CardTitle className="text-lg">Budget Range</CardTitle>
+                <CardDescription>
+                  How much you're comfortable spending per event
+                </CardDescription>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
+          <CardContent className="space-y-6">
+            {/* Visual budget indicator */}
+            <div className="flex items-center justify-center gap-4 py-4 px-6 bg-muted/50 rounded-xl">
+              <div className="text-center">
+                <span className="text-3xl font-bold text-primary">
+                  {budgetRange[0] >= 200 ? "$200+" : `$${budgetRange[0]}`}
+                </span>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {getBudgetLevel(budgetRange[0]).label}
+                </p>
+              </div>
+              <div className="text-2xl text-muted-foreground/50">—</div>
+              <div className="text-center">
+                <span className="text-3xl font-bold text-primary">
+                  {budgetRange[1] >= 200 ? "$200+" : `$${budgetRange[1]}`}
+                </span>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {getBudgetLevel(budgetRange[1]).label}
+                </p>
+              </div>
+            </div>
+
+            {/* Slider */}
+            <div className="px-2">
               <Slider
                 min={0}
                 max={250}
@@ -228,13 +658,13 @@ export default function Preferences() {
                 }}
                 className="w-full"
               />
-              <div className="flex justify-between text-sm">
-                <span className="font-medium">
-                  {budgetRange[0] >= 200 ? "$200+" : `$${budgetRange[0]}`}
-                </span>
-                <span className="font-medium">
-                  {budgetRange[1] >= 200 ? "$200+" : `$${budgetRange[1]}`}
-                </span>
+              {/* Scale markers */}
+              <div className="flex justify-between mt-2 text-xs text-muted-foreground">
+                <span>$0</span>
+                <span>$50</span>
+                <span>$100</span>
+                <span>$150</span>
+                <span>$200+</span>
               </div>
             </div>
           </CardContent>
@@ -242,132 +672,215 @@ export default function Preferences() {
 
         {/* Activity Preferences */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Heart className="h-5 w-5" />
-              Activity Preferences
-            </CardTitle>
+          <CardHeader className="pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-pink-100 dark:bg-pink-900/30 flex items-center justify-center">
+                <Heart className="h-5 w-5 text-pink-600 dark:text-pink-400" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg">Activity Types</CardTitle>
+                  {selectedCategories.length > 0 && (
+                    <Badge variant="secondary" className="text-xs">
+                      {selectedCategories.length} selected
+                    </Badge>
+                  )}
+                </div>
+                <CardDescription>
+                  What kinds of activities do you enjoy?
+                </CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {ACTIVITY_CATEGORIES.map((category) => {
                 const isSelected = selectedCategories.includes(category.value);
                 const activityColorMap = {
-                  meal: { bg: "bg-activity-meals/25", border: "border-activity-meals", text: "text-activity-meals" },
-                  cafes: { bg: "bg-activity-cafes/25", border: "border-activity-cafes", text: "text-activity-cafes" },
-                  drinks: { bg: "bg-activity-drinks/25", border: "border-activity-drinks", text: "text-activity-drinks" },
-                  dessert: { bg: "bg-activity-dessert/25", border: "border-activity-dessert", text: "text-activity-dessert" },
-                  experiences: { bg: "bg-activity-experiences/25", border: "border-activity-experiences", text: "text-activity-experiences" },
+                  meal: {
+                    bg: "bg-activity-meals/15",
+                    bgHover: "hover:bg-activity-meals/10",
+                    border: "border-activity-meals",
+                    text: "text-activity-meals",
+                    ring: "ring-activity-meals/30"
+                  },
+                  cafes: {
+                    bg: "bg-activity-cafes/15",
+                    bgHover: "hover:bg-activity-cafes/10",
+                    border: "border-activity-cafes",
+                    text: "text-activity-cafes",
+                    ring: "ring-activity-cafes/30"
+                  },
+                  drinks: {
+                    bg: "bg-activity-drinks/15",
+                    bgHover: "hover:bg-activity-drinks/10",
+                    border: "border-activity-drinks",
+                    text: "text-activity-drinks",
+                    ring: "ring-activity-drinks/30"
+                  },
+                  dessert: {
+                    bg: "bg-activity-dessert/15",
+                    bgHover: "hover:bg-activity-dessert/10",
+                    border: "border-activity-dessert",
+                    text: "text-activity-dessert",
+                    ring: "ring-activity-dessert/30"
+                  },
+                  experiences: {
+                    bg: "bg-activity-experiences/15",
+                    bgHover: "hover:bg-activity-experiences/10",
+                    border: "border-activity-experiences",
+                    text: "text-activity-experiences",
+                    ring: "ring-activity-experiences/30"
+                  },
                 };
                 const colors = activityColorMap[category.value];
                 return (
                   <button
                     key={category.value}
                     onClick={() => toggleCategory(category.value)}
-                    className={`
-                      flex items-center justify-between p-4 rounded-lg border-2 transition-all
-                      ${isSelected
-                        ? `${colors.border} ${colors.bg}`
-                        : "border-border hover:border-muted-foreground/50"
-                      }
-                    `}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">{category.icon}</span>
-                      <span className="font-semibold">{category.label}</span>
-                    </div>
-                    {isSelected && (
-                      <Check className={`h-5 w-5 ${colors.text}`} />
+                    className={cn(
+                      "group relative flex items-start gap-3 p-4 rounded-xl border-2 transition-all duration-200 text-left",
+                      isSelected
+                        ? `${colors.border} ${colors.bg} shadow-sm`
+                        : `border-transparent bg-muted/40 ${colors.bgHover} hover:border-muted-foreground/20`
                     )}
+                  >
+                    <span className={cn(
+                      "text-2xl transition-transform duration-200",
+                      isSelected && "scale-110"
+                    )}>
+                      {category.icon}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold text-sm">{category.shortLabel}</span>
+                        <div className={cn(
+                          "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200",
+                          isSelected
+                            ? `${colors.border} ${colors.bg}`
+                            : "border-muted-foreground/30"
+                        )}>
+                          {isSelected && (
+                            <Check className={`h-3 w-3 ${colors.text}`} />
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {category.description}
+                      </p>
+                    </div>
                   </button>
                 );
               })}
             </div>
+            {selectedCategories.length === 0 && (
+              <p className="text-sm text-muted-foreground mt-4 text-center py-2 bg-muted/30 rounded-lg">
+                Select at least one activity type you enjoy
+              </p>
+            )}
           </CardContent>
         </Card>
 
         {/* Availability Grid */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Personal Availability
-            </CardTitle>
+          <CardHeader className="pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <CardTitle className="text-lg">Your Availability</CardTitle>
+                <CardDescription>
+                  When are you typically free for group events?
+                </CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr>
-                    <th className="text-left p-2 font-medium text-sm"></th>
-                    {TIME_SLOTS.map(slot => (
-                      <th key={slot} className="text-center p-2 font-medium text-sm">
-                        {TIME_SLOT_LABELS[slot].split(' (')[0]}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {DAYS_OF_WEEK.map(day => (
-                    <tr key={day} className="border-t">
-                      <td className="p-2 font-medium text-sm">{day}</td>
-                      {TIME_SLOTS.map(slot => (
-                        <td key={slot} className="text-center p-2">
-                          <button
-                            onClick={() => toggleAvailability(day, slot)}
-                            className={`
-                              w-10 h-10 rounded-md border-2 transition-all flex items-center justify-center
-                              ${availability[day]?.[slot]
-                                ? "border-green-500 bg-green-500/10"
-                                : "border-gray-300 hover:border-gray-400"
-                              }
-                            `}
-                          >
-                            {availability[day]?.[slot] ? (
-                              <Check className="h-4 w-4 text-green-600" />
-                            ) : (
-                              <X className="h-4 w-4 text-gray-400" />
-                            )}
-                          </button>
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <AvailabilityGrid
+              value={toShortDayFormat(availability)}
+              onChange={handleAvailabilityChange}
+            />
           </CardContent>
         </Card>
 
         {/* Notifications */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Bell className="h-5 w-5" />
-              Notifications
-            </CardTitle>
+          <CardHeader className="pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                <BellRing className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <CardTitle className="text-lg">Notifications</CardTitle>
+                <CardDescription>
+                  How would you like to be notified?
+                </CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-between">
-              <div>
-                <Label htmlFor="email-notifications" className="text-base font-medium">
-                  Email notifications
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  Event invites and reminders
-                </p>
+            <div className="p-4 rounded-xl bg-muted/40 border border-transparent hover:border-muted-foreground/10 transition-colors">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-background flex items-center justify-center">
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <Label htmlFor="email-notifications" className="text-sm font-semibold cursor-pointer">
+                      Email notifications
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Event invites, RSVPs, and reminders
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  id="email-notifications"
+                  checked={emailNotifications}
+                  onCheckedChange={(checked) => {
+                    setEmailNotifications(checked);
+                    setHasChanges(true);
+                  }}
+                />
               </div>
-              <Switch
-                id="email-notifications"
-                checked={emailNotifications}
-                onCheckedChange={(checked) => {
-                  setEmailNotifications(checked);
-                  setHasChanges(true);
-                }}
-              />
             </div>
           </CardContent>
         </Card>
+
+        {/* Per-Group Budget Overrides */}
+        {userGroups && userGroups.length > 0 && (
+          <Card>
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                  <Users className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Group Budgets</CardTitle>
+                  <CardDescription>
+                    Set your personal budget for each group
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {userGroups.map((group) => (
+                  <GroupBudgetOverride
+                    key={group.id}
+                    groupId={group.id}
+                    groupName={group.name}
+                    groupEmoji={group.emoji}
+                    groupBudgetMin={group.budgetMin}
+                    groupBudgetMax={group.budgetMax}
+                    globalBudgetRange={budgetRange}
+                  />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Favorite Venues */}
         {memberId && (
@@ -379,19 +892,29 @@ export default function Preferences() {
           />
         )}
 
-        {/* Save Button (mobile) */}
+        {/* Save Button (mobile) - Sticky at bottom */}
         {hasChanges && (
-          <div className="md:hidden sticky bottom-6">
+          <div className="md:hidden fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background via-background to-transparent pt-8 safe-area-pb">
             <Button
               onClick={handleSave}
               disabled={updateMutation.isPending}
-              className="w-full"
+              className="w-full shadow-lg"
               size="lg"
             >
-              {updateMutation.isPending ? "Saving..." : "Save Changes"}
+              {updateMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Changes"
+              )}
             </Button>
           </div>
         )}
+
+        {/* Bottom padding for mobile save button */}
+        {hasChanges && <div className="md:hidden h-20" />}
       </div>
     </div>
   );

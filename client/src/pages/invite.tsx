@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { getErrorToast } from "@/components/ErrorDisplay";
 import { CheckCircle2, Circle, XCircle, MapPin, DollarSign, Calendar, Clock } from "lucide-react";
 
 type Member = {
@@ -108,13 +109,15 @@ export default function InvitePage() {
     onError: (error: any) => {
       // Check if this is an "already claimed" error
       const isAlreadyClaimed = error.message?.includes("already been claimed");
-      toast({
-        title: isAlreadyClaimed ? "Already claimed" : "Error",
-        description: isAlreadyClaimed 
-          ? "This member has already been claimed by someone else. Please choose a different name or contact the organizer."
-          : error.message,
-        variant: "destructive",
-      });
+      if (isAlreadyClaimed) {
+        toast({
+          title: "Already claimed",
+          description: "This member has already been claimed by someone else. Please choose a different name or contact the organizer.",
+          variant: "destructive",
+        });
+      } else {
+        toast(getErrorToast(error));
+      }
     },
   });
 
@@ -136,11 +139,7 @@ export default function InvitePage() {
       });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -161,11 +160,7 @@ export default function InvitePage() {
       setShowPreferences(false);
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 
@@ -186,11 +181,7 @@ export default function InvitePage() {
       setShowConstraints(false);
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 

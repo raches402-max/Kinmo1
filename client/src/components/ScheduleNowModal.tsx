@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ResponsiveDialog, ResponsiveDialogContent, ResponsiveDialogDescription, ResponsiveDialogHeader, ResponsiveDialogTitle } from "@/components/ResponsiveDialog";
 import { Button } from "@/components/ui/button";
 import { Calendar, Save, Edit } from "lucide-react";
 
@@ -18,14 +18,14 @@ export function ScheduleNowModal({
   onKeepEditing
 }: ScheduleNowModalProps) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Your itinerary is ready!</DialogTitle>
-          <DialogDescription>
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+      <ResponsiveDialogContent className="sm:max-w-md">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle>Your itinerary is ready!</ResponsiveDialogTitle>
+          <ResponsiveDialogDescription>
             Would you like to schedule this event now, or save it as a reusable template?
-          </DialogDescription>
-        </DialogHeader>
+          </ResponsiveDialogDescription>
+        </ResponsiveDialogHeader>
         <div className="flex flex-col gap-3 mt-4">
           <Button
             onClick={onScheduleNow}
@@ -66,7 +66,7 @@ export function ScheduleNowModal({
             Keep Editing
           </Button>
         </div>
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }

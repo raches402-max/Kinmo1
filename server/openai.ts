@@ -12,7 +12,7 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
  * GPT-4o: $2.50/1M input tokens, $10.00/1M output tokens
  * GPT-4o-mini: $0.15/1M input tokens, $0.60/1M output tokens
  */
-async function logApiCall(params: {
+export async function logApiCall(params: {
   service: string;
   method: string;
   cacheStatus: 'hit' | 'miss' | 'write';
@@ -46,7 +46,7 @@ async function logApiCall(params: {
  * Calculate cost estimate for OpenAI API calls
  * Based on token counts and model pricing
  */
-function calculateOpenAICost(model: string, inputTokens: number, outputTokens: number): number {
+export function calculateOpenAICost(model: string, inputTokens: number, outputTokens: number): number {
   const pricing: Record<string, { input: number; output: number }> = {
     'gpt-4o': { input: 2.50 / 1_000_000, output: 10.00 / 1_000_000 },
     'gpt-4o-mini': { input: 0.15 / 1_000_000, output: 0.60 / 1_000_000 },
@@ -54,6 +54,52 @@ function calculateOpenAICost(model: string, inputTokens: number, outputTokens: n
 
   const modelPricing = pricing[model] || pricing['gpt-4o-mini'];
   return (inputTokens * modelPricing.input) + (outputTokens * modelPricing.output);
+}
+
+/**
+ * Simple in-memory cache with TTL for AI responses
+ * Reduces API costs by caching deterministic results
+ */
+interface CacheEntry<T> {
+  value: T;
+  expiresAt: number;
+}
+
+const aiCache = new Map<string, CacheEntry<any>>();
+
+// Clean expired entries periodically (every 5 minutes)
+setInterval(() => {
+  const now = Date.now();
+  const keysToDelete: string[] = [];
+  aiCache.forEach((entry, key) => {
+    if (entry.expiresAt < now) {
+      keysToDelete.push(key);
+    }
+  });
+  keysToDelete.forEach(key => aiCache.delete(key));
+}, 5 * 60 * 1000);
+
+/**
+ * Get cached value if exists and not expired
+ */
+export function getAICache<T>(key: string): T | null {
+  const entry = aiCache.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt < Date.now()) {
+    aiCache.delete(key);
+    return null;
+  }
+  return entry.value as T;
+}
+
+/**
+ * Set cached value with TTL in seconds
+ */
+export function setAICache<T>(key: string, value: T, ttlSeconds: number): void {
+  aiCache.set(key, {
+    value,
+    expiresAt: Date.now() + (ttlSeconds * 1000),
+  });
 }
 
 // Time category mapping based on venue type
@@ -1219,6 +1265,182 @@ Category must be: meal, cafes, drinks, dessert, or experiences`;
   }
 }
 
+/**
+ * Helper function to retry API calls with exponential backoff
+ * Handles rate limiting (429) and temporary errors
+ */
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  initialDelay: number = 1000
+): Promise<T> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      lastError = error;
+
+      // Only retry on rate limit (429) or temporary errors (5xx)
+      const isRateLimitError = error.status === 429 || error.message?.includes('429');
+      const isTemporaryError = error.status >= 500 && error.status < 600;
+
+      if (!isRateLimitError && !isTemporaryError) {
+        // Don't retry on other errors (auth, invalid request, etc.)
+        throw error;
+      }
+
+      // Don't delay after last attempt
+      if (attempt < maxRetries - 1) {
+        const delay = initialDelay * Math.pow(2, attempt); // Exponential backoff
+        console.log(`[Retry] Attempt ${attempt + 1}/${maxRetries} failed, retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  // All retries exhausted
+  throw lastError || new Error('Max retries exceeded');
+}
+
+/**
+ * LAYER 2: Smart AI Quality Validation
+ * Validates if a venue is appropriate for a specific category
+ * This is run AFTER Google Place type filtering to catch edge cases
+ */
+export async function validateVenueForCategory(
+  venueName: string,
+  venueAddress: string,
+  googleTypes: string[],
+  requestedCategory: 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences'
+): Promise<{ isValid: boolean; reasoning: string }> {
+  try {
+    const categoryExamples = {
+      meal: {
+        valid: 'Full-service restaurants, casual dining, ethnic cuisine, food halls, meal takeaway',
+        invalid: 'Ice cream shops, dessert-only bakeries, liquor stores, convenience stores, grocery stores'
+      },
+      cafes: {
+        valid: 'Coffee shops, cafes, tea houses, coffee roasters with seating',
+        invalid: 'Full restaurants, bars, grocery stores with coffee, gas station coffee'
+      },
+      drinks: {
+        valid: 'Bars, pubs, wine bars, cocktail lounges, breweries, nightclubs',
+        invalid: 'Restaurants (unless primarily a bar), liquor stores, convenience stores'
+      },
+      dessert: {
+        valid: 'Ice cream shops, dessert cafes, bakeries with seating, specialty sweets shops, boba tea',
+        invalid: 'Full restaurants, convenience stores, grocery store bakeries'
+      },
+      experiences: {
+        valid: 'Museums, parks, theaters, activities, entertainment venues, tourist attractions',
+        invalid: 'Restaurants, bars, shops, services, infrastructure'
+      }
+    };
+
+    const examples = categoryExamples[requestedCategory];
+    const systemPrompt = `You are validating whether a venue is appropriate for the "${requestedCategory}" category in a social activity planning app.
+
+A venue is VALID for "${requestedCategory}" if:
+- It primarily serves the purpose of ${requestedCategory}
+- It's a good match for what users expect when searching for ${requestedCategory}
+- Examples: ${examples.valid}
+
+A venue is INVALID for "${requestedCategory}" if:
+- It's primarily a different type of business
+- It would confuse or disappoint users looking for ${requestedCategory}
+- Examples: ${examples.invalid}
+
+IMPORTANT EDGE CASES:
+- Ice cream shops should ONLY be valid for "dessert", NOT "meal"
+- Liquor stores are NEVER valid for "meal", "drinks", or "dessert"
+- Convenience stores with food are NEVER valid for "meal"
+- Grocery stores are NEVER valid for any category
+- Full restaurants are NOT valid for "dessert" even if they serve dessert
+
+You MUST respond with a JSON object in this exact format:
+{
+  "isValid": true/false,
+  "reasoning": "Brief explanation (one sentence) of why this venue is or isn't appropriate for ${requestedCategory}"
+}`;
+
+    const startTime = Date.now();
+
+    // Wrap OpenAI API call with retry logic to handle rate limiting
+    const response = await retryWithBackoff(() =>
+      openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        temperature: 0.1, // Low temperature for consistent validation
+        messages: [
+          { role: "system", content: systemPrompt },
+          {
+            role: "user",
+            content: `Venue Name: ${venueName}
+Address: ${venueAddress}
+Google Place Types: ${googleTypes.join(', ')}
+Requested Category: ${requestedCategory}
+
+Is this venue appropriate for the "${requestedCategory}" category?`
+          }
+        ],
+        response_format: { type: "json_object" }
+      })
+    );
+
+    const duration = Date.now() - startTime;
+    const result = JSON.parse(response.choices[0].message.content || '{"isValid": false, "reasoning": "No response"}');
+
+    console.log(`[AI Validation] ${venueName} for category "${requestedCategory}": ${result.isValid ? '✅ VALID' : '❌ INVALID'} - ${result.reasoning} (${duration}ms)`);
+
+    // Track token usage and API costs
+    const inputTokens = response.usage?.prompt_tokens || 0;
+    const outputTokens = response.usage?.completion_tokens || 0;
+    await logApiCall({
+      service: 'openai',
+      method: 'validateVenueForCategory',
+      cacheStatus: 'miss',
+      status: 'success',
+      responseTimeMs: duration,
+      costEstimate: calculateOpenAICost('gpt-4o-mini', inputTokens, outputTokens),
+      parameters: { venueName, requestedCategory },
+      metadata: {
+        model: 'gpt-4o-mini',
+        inputTokens,
+        outputTokens,
+        totalTokens: inputTokens + outputTokens,
+        isValid: result.isValid,
+        reasoning: result.reasoning,
+        googleTypes: googleTypes.join(', '),
+      },
+    });
+
+    return {
+      isValid: result.isValid === true,
+      reasoning: result.reasoning || 'No reasoning provided'
+    };
+  } catch (error) {
+    console.error(`[AI Validation] Error validating ${venueName}:`, error);
+
+    // Log failed API call
+    await logApiCall({
+      service: 'openai',
+      method: 'validateVenueForCategory',
+      cacheStatus: 'miss',
+      status: 'error',
+      errorMessage: (error as Error).message,
+      parameters: { venueName, requestedCategory },
+    });
+
+    // On error, default to valid (don't block venues due to AI errors)
+    // The Google type filtering should have already caught most issues
+    return {
+      isValid: true,
+      reasoning: 'AI validation failed, defaulting to allow'
+    };
+  }
+}
+
 export interface PreferencePattern {
   pattern: string;
   icon: string;
@@ -1705,14 +1927,19 @@ export async function parseSchedulingPromptWithHistory(
 
     const systemPrompt = `You are an expert at parsing natural language scheduling requests for group activities.
 Extract the following information from the user's prompt and return a JSON object:
-1. Activity type (what they want to do) - be SPECIFIC and preserve important modifiers
+1. Activity type (what they want to do) - be SPECIFIC and preserve important modifiers (e.g., "chill dinner", "bottomless brunch", "happy hour")
 2. Category (map to: meal, cafes, drinks, dessert, or experiences)
 3. Location (where, if specified - preserve neighborhood names like "Mission", "Castro", etc.)
-4. Time preference (morning/afternoon/evening/night - if specified)
-5. Day constraints (weekday/weekend/any)
+4. Time preference (morning/afternoon/evening/night) - **IMPORTANT TIME MAPPING RULES**:
+   - **ONLY set timePreference if the user explicitly mentions a time** ("7pm", "morning", "evening", etc.)
+   - **DO NOT infer timePreference from meal types** - let the system handle this
+   - If user says "breakfast" or "brunch" but specifies "afternoon", use "afternoon"
+   - If no explicit time is mentioned, **leave timePreference undefined** (null/empty)
+5. Day constraints (weekday/weekend/any) - map "weeknight" to "weekday"
 6. Timeframe (when: "next week", "this weekend", "in 2 days", etc.)
 7. Meal type specific modifiers (for brunch/breakfast/lunch/dinner: "bottomless", "prix fixe", etc.)
 8. Context keywords - identify the EVENT CONTEXT and extract relevant atmosphere/vibe keywords:
+   - "chill" → ["casual", "relaxed"]
    - "date night" → ["romantic", "intimate", "quiet"]
    - "family" or "kids" → ["family-friendly", "casual", "kids"]
    - "celebration" or "birthday" → ["upscale", "special occasion"]
@@ -1727,8 +1954,10 @@ Extract the following information from the user's prompt and return a JSON objec
 
 **IMPORTANT**: Use the group's history to ENHANCE the request when the user's prompt is vague:
 - If preferences mention "loves outdoor venues" and user says "brunch", add ["outdoor seating"] to venueAttributes
-- If scheduling preferences say "always 8 PM for dinner" and user says "dinner", set timePreference accordingly
+- If scheduling preferences say "always 8 PM for dinner" and user says "dinner", you MAY set timePreference to "evening"
 - If closeness level suggests intimate settings and user says "dinner", add ["intimate"] to contextKeywords
+
+**CRITICAL**: Preserve the meal type in activityType (e.g., "dinner", "brunch", "lunch") so the system can apply proper time inference.
 
 Return your response as a JSON object with these fields: activityType, category, location, timePreference, dayConstraints, timeframe, mealModifiers, contextKeywords, venueAttributes`;
 
@@ -2443,6 +2672,104 @@ Is this a valid venue for social gatherings? Respond with JSON containing "isVal
     return {
       isValid: false,
       reasoning: "Error during validation - treating as non-social venue for safety"
+    };
+  }
+}
+
+/**
+ * Assess the "niche level" of a relationship word/phrase for the landing page rotation
+ * Returns a score from 1-5:
+ * 1 = Very generic (friends, family)
+ * 2 = Common casual (crew, squad)
+ * 3 = Activity-based (book club, hiking crew)
+ * 4 = Specific niche (Sunday football fam, fantasy league)
+ * 5 = Ultra-niche/quirky (Costco run crew, pickleball posse)
+ */
+export async function assessWordNicheLevel(word: string): Promise<{
+  nicheScore: number;
+  suggestedCategory: string;
+  reasoning: string;
+}> {
+  try {
+    const systemPrompt = `You are evaluating relationship words/phrases for a landing page that says "See your [X] more."
+
+Rate the word's "niche level" from 1-5:
+1 = Very generic - applies to almost everyone (friends, family, people)
+2 = Common casual - widely used slang/terms (crew, squad, besties)
+3 = Activity-based - people who share a hobby (book club, gym buddies)
+4 = Specific niche - narrower subcultures (Sunday football fam, fantasy league)
+5 = Ultra-niche/quirky - very specific or humorous (Costco run crew, pickleball posse)
+
+Also suggest a category:
+- "core" (generic relationship terms)
+- "casual" (common slang)
+- "activity" (hobby-based)
+- "sports" (sports/fitness related)
+- "lifeStage" (life-stage specific like "mom friends")
+- "ultraNiche" (very specific/humorous)
+
+Respond with JSON: { "nicheScore": number, "suggestedCategory": string, "reasoning": string }`;
+
+    const startTime = Date.now();
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        {
+          role: "user",
+          content: `Word/phrase: "${word}"
+
+Assess the niche level (1-5) and suggest a category for this relationship term.`
+        }
+      ],
+      response_format: { type: "json_object" },
+      max_completion_tokens: 200,
+    });
+    const responseTimeMs = Date.now() - startTime;
+
+    const result = JSON.parse(response.choices[0].message.content || '{}');
+
+    // Log API call
+    const inputTokens = response.usage?.prompt_tokens || 0;
+    const outputTokens = response.usage?.completion_tokens || 0;
+    await logApiCall({
+      service: 'openai',
+      method: 'assessWordNicheLevel',
+      cacheStatus: 'miss',
+      status: 'success',
+      responseTimeMs,
+      costEstimate: calculateOpenAICost('gpt-4o-mini', inputTokens, outputTokens),
+      parameters: { word },
+      metadata: {
+        model: 'gpt-4o-mini',
+        inputTokens,
+        outputTokens,
+        result,
+      },
+    });
+
+    return {
+      nicheScore: result.nicheScore || 3,
+      suggestedCategory: result.suggestedCategory || 'activity',
+      reasoning: result.reasoning || "No reasoning provided"
+    };
+  } catch (error) {
+    console.error("Error assessing word niche level:", error);
+
+    await logApiCall({
+      service: 'openai',
+      method: 'assessWordNicheLevel',
+      cacheStatus: 'miss',
+      status: 'error',
+      parameters: { word },
+      errorMessage: (error as Error).message,
+    });
+
+    // Default to medium niche on error
+    return {
+      nicheScore: 3,
+      suggestedCategory: 'activity',
+      reasoning: "Error during assessment - defaulting to medium niche level"
     };
   }
 }

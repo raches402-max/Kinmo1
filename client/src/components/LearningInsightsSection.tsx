@@ -13,6 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Brain, Ban, Users, TrendingUp, Calendar, AlertCircle, CheckCircle2, XCircle, Trash2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { getErrorToast } from "@/components/ErrorDisplay";
 
 interface LearningInsightsSectionProps {
   groupId: string;
@@ -88,11 +89,7 @@ export function LearningInsightsSection({ groupId }: LearningInsightsSectionProp
       });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast(getErrorToast(error));
     },
   });
 

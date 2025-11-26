@@ -56,13 +56,30 @@ app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 
 // Security: HTTP headers protection
 app.use(helmet({
-  contentSecurityPolicy: app.get("env") === "development" ? false : undefined,
+  contentSecurityPolicy: app.get("env") === "development" ? false : {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"], // unsafe-inline needed for Vite in dev
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "https:", "blob:"],
+      connectSrc: [
+        "'self'",
+        "https://api.openai.com",
+        "https://maps.googleapis.com",
+        "https://places.googleapis.com"
+      ],
+      frameSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      upgradeInsecureRequests: [],
+    }
+  },
   crossOriginEmbedderPolicy: app.get("env") === "development" ? false : undefined,
 }));
 
 // Security: CORS protection
 const isDevelopment = env.NODE_ENV === 'development';
-const allowedOrigins = env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5000'];
+const allowedOrigins = env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5000', 'http://localhost:3000'];
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -155,9 +172,9 @@ app.use((req, res, next) => {
   }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
+  // For Replit: Backend uses 3000, Frontend (preview) uses 5000
   // this serves both the API and the client.
-  const preferredPort = parseInt(process.env.PORT || '5000', 10);
+  const preferredPort = parseInt(process.env.PORT || '3000', 10);
 
   // Check if preferred port is available
   const port = await getAvailablePort(preferredPort);
