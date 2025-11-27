@@ -3,6 +3,7 @@ import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import net from "net";
+import path from "path";
 import { env } from "./config"; // Validate environment variables at startup
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
@@ -153,6 +154,10 @@ app.use((req, res, next) => {
 
 (async () => {
   const server = await registerRoutes(app);
+
+  // Serve mockups folder for design previews (before Vite middleware)
+  const mockupsPath = path.resolve(import.meta.dirname, "..", "client", "src", "components", "mockups");
+  app.use("/mockups", express.static(mockupsPath));
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

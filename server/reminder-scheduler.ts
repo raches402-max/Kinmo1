@@ -1490,5 +1490,31 @@ export function startReminderScheduler(): void {
     });
   }, FEEDBACK_REQUEST_INTERVAL_MS);
 
+  // Planning Agent - runs daily to generate proactive insights
+  const PLANNING_AGENT_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+  const runPlanningAgentTask = async () => {
+    try {
+      console.log('[Planning Agent] Starting scheduled run...');
+      const { runPlanningAgent } = await import('./planning-agent');
+      await runPlanningAgent();
+    } catch (error) {
+      console.error('[Planning Agent] Error in scheduled run:', error);
+    }
+  };
+
+  // Run after a short delay on startup (give other systems time to initialize)
+  setTimeout(() => {
+    runPlanningAgentTask().catch(err => {
+      console.error('Error in initial planning agent run:', err);
+    });
+  }, 60000); // 1 minute after startup
+
+  setInterval(() => {
+    runPlanningAgentTask().catch(err => {
+      console.error('Error in scheduled planning agent run:', err);
+    });
+  }, PLANNING_AGENT_INTERVAL_MS);
+
   console.log('Reminder scheduler started successfully');
 }

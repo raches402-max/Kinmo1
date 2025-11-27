@@ -61,6 +61,19 @@ export interface IStorage {
   // Member Group Preferences
   getMemberGroupPreferences(userId: string, groupId: string): Promise<MemberGroupPreferences | undefined>;
   upsertMemberGroupPreferences(userId: string, groupId: string, preferences: Partial<InsertMemberGroupPreferences>): Promise<MemberGroupPreferences>;
+  getGroupMembersAvailability(groupId: string): Promise<Array<{
+    memberId: string;
+    memberName: string;
+    userId: string | null;
+    availability: Record<string, { morning: boolean; afternoon: boolean; evening: boolean }> | null;
+  }>>;
+  getGroupMembersBudgets(groupId: string): Promise<Array<{
+    memberId: string;
+    memberName: string;
+    userId: string | null;
+    budgetMin: number;
+    budgetMax: number;
+  }>>;
 
   // Activities
   getGroupActivities(groupId: string): Promise<Activity[]>;
@@ -803,6 +816,167 @@ export class DatabaseStorage implements IStorage {
         .returning();
       return created;
     }
+  }
+
+  async getGroupMembersAvailability(groupId: string): Promise<Array<{
+    memberId: string;
+    memberName: string;
+    userId: string | null;
+    availability: Record<string, { morning: boolean; afternoon: boolean; evening: boolean }> | null;
+  }>> {
+    // Get all members of the group
+    const groupMembers = await this.getGroupMembers(groupId);
+
+    // Get all member group preferences for this group (for overrides)
+    const allGroupPrefs = await db
+      .select()
+      .from(memberGroupPreferences)
+      .where(eq(memberGroupPreferences.groupId, groupId));
+
+    // Get all user profiles for members who have userId (for global defaults)
+    const userIds = groupMembers
+      .filter(m => m.userId)
+      .map(m => m.userId as string);
+
+    let userProfilesMap: Map<string, UserProfile> = new Map();
+    if (userIds.length > 0) {
+      const profiles = await db
+        .select()
+        .from(userProfiles)
+        .where(sql`${userProfiles.userId} IN ${userIds}`);
+
+      profiles.forEach(profile => {
+        userProfilesMap.set(profile.userId, profile);
+      });
+    }
+
+    // Build the result with effective availability for each member
+    return groupMembers.map(member => {
+      // Priority 1: Group-specific override (memberGroupPreferences.availabilityOverride)
+      const groupPref = member.userId
+        ? allGroupPrefs.find(p => p.userId === member.userId)
+        : null;
+
+      if (groupPref?.availabilityOverride) {
+        return {
+          memberId: member.id,
+          memberName: member.name || 'Unknown',
+          userId: member.userId,
+          availability: groupPref.availabilityOverride as Record<string, { morning: boolean; afternoon: boolean; evening: boolean }>,
+        };
+      }
+
+      // Priority 2: Member's personal availability (members.personalAvailability)
+      if (member.personalAvailability) {
+        return {
+          memberId: member.id,
+          memberName: member.name || 'Unknown',
+          userId: member.userId,
+          availability: member.personalAvailability as Record<string, { morning: boolean; afternoon: boolean; evening: boolean }>,
+        };
+      }
+
+      // Priority 3: User profile's global availability (userProfiles.personalAvailability)
+      if (member.userId) {
+        const userProfile = userProfilesMap.get(member.userId);
+        if (userProfile?.personalAvailability) {
+          return {
+            memberId: member.id,
+            memberName: member.name || 'Unknown',
+            userId: member.userId,
+            availability: userProfile.personalAvailability as Record<string, { morning: boolean; afternoon: boolean; evening: boolean }>,
+          };
+        }
+      }
+
+      // No availability set - return null
+      return {
+        memberId: member.id,
+        memberName: member.name || 'Unknown',
+        userId: member.userId,
+        availability: null,
+      };
+    });
+  }
+
+  async getGroupMembersBudgets(groupId: string): Promise<Array<{
+    memberId: string;
+    memberName: string;
+    userId: string | null;
+    budgetMin: number;
+    budgetMax: number;
+  }>> {
+    // Get the group for default budget values
+    const group = await this.getGroup(groupId);
+    const groupBudgetMin = group?.budgetMin ?? 20;
+    const groupBudgetMax = group?.budgetMax ?? 80;
+
+    // Get all members of the group
+    const groupMembers = await this.getGroupMembers(groupId);
+
+    // Get all member group preferences for this group (for overrides)
+    const allGroupPrefs = await db
+      .select()
+      .from(memberGroupPreferences)
+      .where(eq(memberGroupPreferences.groupId, groupId));
+
+    // Get all user profiles for members who have userId (for global defaults)
+    const userIds = groupMembers
+      .filter(m => m.userId)
+      .map(m => m.userId as string);
+
+    let userProfilesMap: Map<string, UserProfile> = new Map();
+    if (userIds.length > 0) {
+      const profiles = await db
+        .select()
+        .from(userProfiles)
+        .where(sql`${userProfiles.userId} IN ${userIds}`);
+
+      profiles.forEach(profile => {
+        userProfilesMap.set(profile.userId, profile);
+      });
+    }
+
+    // Build the result with effective budget for each member
+    return groupMembers.map(member => {
+      // Priority 1: Group-specific override (memberGroupPreferences.budgetOverrideMin/Max)
+      const groupPref = member.userId
+        ? allGroupPrefs.find(p => p.userId === member.userId)
+        : null;
+
+      if (groupPref?.budgetOverrideMin != null && groupPref?.budgetOverrideMax != null) {
+        return {
+          memberId: member.id,
+          memberName: member.name || 'Unknown',
+          userId: member.userId,
+          budgetMin: groupPref.budgetOverrideMin,
+          budgetMax: groupPref.budgetOverrideMax,
+        };
+      }
+
+      // Priority 2: User profile's global budget (userProfiles.budgetMin/Max)
+      if (member.userId) {
+        const userProfile = userProfilesMap.get(member.userId);
+        if (userProfile?.budgetMin != null && userProfile?.budgetMax != null) {
+          return {
+            memberId: member.id,
+            memberName: member.name || 'Unknown',
+            userId: member.userId,
+            budgetMin: userProfile.budgetMin,
+            budgetMax: userProfile.budgetMax,
+          };
+        }
+      }
+
+      // Priority 3: Group's default budget
+      return {
+        memberId: member.id,
+        memberName: member.name || 'Unknown',
+        userId: member.userId,
+        budgetMin: groupBudgetMin,
+        budgetMax: groupBudgetMax,
+      };
+    });
   }
 
   // Voting Events operations

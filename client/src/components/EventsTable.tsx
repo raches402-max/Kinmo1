@@ -274,6 +274,29 @@ export default function EventsTable({
     }
   });
 
+  // Decide Now mutation - populates venues for an existing TBD event using AI
+  const decideNowMutation = useMutation({
+    mutationFn: async (itineraryId: string) => {
+      return await apiRequest("POST", `/api/itineraries/${itineraryId}/decide-now`, {});
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
+      toast({
+        title: "Venues selected!",
+        description: data.venueCount
+          ? `AI selected ${data.venueCount} venue${data.venueCount > 1 ? 's' : ''} for your event.`
+          : "AI has populated venues for your event."
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Couldn't select venues",
+        description: error.message || "Try adding more favorites or activities first",
+        variant: "destructive"
+      });
+    }
+  });
+
   // Determine border style based on event status
   const getEventBorderStyle = (event: Event): { borderColor: string; borderWidth: string; backgroundColor?: string } => {
     if (!event.isAutoScheduled) {
@@ -807,11 +830,21 @@ export default function EventsTable({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start">
-                        <DropdownMenuItem asChild>
-                          <Link href={`/group/${event.groupId}?action=schedule`} className="flex items-center">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            if (event.itineraryId) {
+                              decideNowMutation.mutate(event.itineraryId);
+                            }
+                          }}
+                          disabled={decideNowMutation.isPending}
+                          className="flex items-center cursor-pointer"
+                        >
+                          {decideNowMutation.isPending ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
                             <Sparkles className="h-4 w-4 mr-2" />
-                            Decide Now
-                          </Link>
+                          )}
+                          {decideNowMutation.isPending ? "Deciding..." : "Decide Now"}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -826,11 +859,21 @@ export default function EventsTable({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start">
-                        <DropdownMenuItem asChild>
-                          <Link href={`/group/${event.groupId}?action=schedule`} className="flex items-center">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            if (event.itineraryId) {
+                              decideNowMutation.mutate(event.itineraryId);
+                            }
+                          }}
+                          disabled={decideNowMutation.isPending}
+                          className="flex items-center cursor-pointer"
+                        >
+                          {decideNowMutation.isPending ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
                             <Sparkles className="h-4 w-4 mr-2" />
-                            Decide Now
-                          </Link>
+                          )}
+                          {decideNowMutation.isPending ? "Deciding..." : "Decide Now"}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

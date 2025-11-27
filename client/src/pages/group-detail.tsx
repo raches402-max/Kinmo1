@@ -30,6 +30,8 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Group, Activity, Member, VotingEvent, Vote } from "@shared/schema";
 import { AvailabilityGrid, createEmptyAvailability } from "@/components/AvailabilityGrid";
 import { ReadOnlyAvailabilityGrid } from "@/components/ReadOnlyAvailabilityGrid";
+import { GroupAvailabilityHeatmap } from "@/components/GroupAvailabilityHeatmap";
+import { GroupBudgetInfluence } from "@/components/GroupBudgetInfluence";
 import { AutoScheduleQueue } from "@/components/AutoScheduleQueue";
 import { SwipeSession } from "@/components/SwipeSession";
 import { FavoritesMap } from "@/components/FavoritesMap";
@@ -37,9 +39,14 @@ import { AddAdHocVenueDialog } from "@/components/AddAdHocVenueDialog";
 import { GroupInsights } from "@/components/GroupInsights";
 import { UnifiedEventCreationModal } from "@/components/UnifiedEventCreationModal";
 import { DiscoverVenuesModal } from "@/components/DiscoverVenuesModal";
+import { VenueDiscoveryModule, type VenueData } from "@/components/venue-discovery";
 import { AIAssistantModal } from "@/components/AIAssistantModal";
 import { ItineraryDisplay, SortableItineraryItem } from "@/components/ItineraryDisplay";
 import EventsTable from "@/components/EventsTable";
+import { EventTimeline } from "@/components/EventTimeline";
+import { DateFirstEventCreator } from "@/components/DateFirstEventCreator";
+import { UnifiedEventSidebar } from "@/components/UnifiedEventSidebar";
+import { mergeAndDeduplicateEvents, UnifiedEvent } from "@/lib/event-utils";
 import { calculateDistance, getDistanceCategory, formatDistance } from "@/lib/distance";
 import { format } from 'date-fns';
 import { toZonedTime, fromZonedTime, formatInTimeZone } from 'date-fns-tz';
@@ -62,6 +69,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import EmojiPicker from 'emoji-picker-react';
 import { Breadcrumbs } from "@/components/Breadcrumbs";
+import { PlanningInsightBanner } from "@/components/PlanningInsightBanner";
 
 // Type definition for user events
 type SafeMember = {
@@ -581,7 +589,7 @@ export default function GroupDetail() {
   const [editGroupOpen, setEditGroupOpen] = useState(false);
   const [editBudgetRange, setEditBudgetRange] = useState<number[]>([50, 250]);
   const [activeTab, setActiveTab] = useState("home");
-  const [createEventSubTab, setCreateEventSubTab] = useState("manual"); // manual or auto
+  const [createEventSubTab, setCreateEventSubTab] = useState("quick"); // quick (date-first), manual (venue-first), or auto
   const [editCloseness, setEditCloseness] = useState(3);
   const [editNovelty, setEditNovelty] = useState(3);
   const [editAvailability, setEditAvailability] = useState(createEmptyAvailability());
@@ -941,6 +949,24 @@ export default function GroupDetail() {
     return [...filteredGroupEvents, ...autoEventsAsUserEvents];
   }, [groupEvents, autoEventsAsUserEvents]);
 
+  // Deduplicated events for EventTimeline (fixes duplicate display bug)
+  const deduplicatedTimelineEvents = useMemo(() => {
+    return mergeAndDeduplicateEvents(
+      itineraries as any[],
+      proposedItineraries as any[],
+      pendingAutoEvents as any[]
+    );
+  }, [itineraries, proposedItineraries, pendingAutoEvents]);
+
+  // Sorted auto-scheduled events for sidebar (chronological order)
+  const sortedPendingAutoEvents = useMemo(() => {
+    return [...pendingAutoEvents].sort((a: any, b: any) => {
+      const aDate = a.proposedDate ? new Date(a.proposedDate).getTime() : Infinity;
+      const bDate = b.proposedDate ? new Date(b.proposedDate).getTime() : Infinity;
+      return aDate - bDate;
+    });
+  }, [pendingAutoEvents]);
+
   // Categorize group events (including auto-events)
   const now = new Date();
   const pendingInvites = allGroupEvents.filter(e => !e.isOrganizer && !e.rsvp && (!e.eventDate || new Date(e.eventDate) > now));
@@ -1141,6 +1167,39 @@ export default function GroupDetail() {
   // Fetch member group preferences
   const { data: memberPreferences } = useQuery({
     queryKey: ["/api/groups", groupId, "my-preferences"],
+    enabled: !!user && !!groupId,
+  });
+
+  // Fetch all members' availability for the heatmap
+  const { data: membersAvailabilityData } = useQuery<{
+    membersAvailability: Array<{
+      memberId: string;
+      memberName: string;
+      userId: string | null;
+      availability: Record<string, { morning: boolean; afternoon: boolean; evening: boolean }> | null;
+    }>;
+    currentUserMemberId: string | null;
+    totalMembers: number;
+  }>({
+    queryKey: ["/api/groups", groupId, "members-availability"],
+    enabled: !!user && !!groupId,
+  });
+
+  // Fetch group members' budget data for GroupBudgetInfluence component
+  const { data: membersBudgetsData } = useQuery<{
+    membersBudgets: Array<{
+      memberId: string;
+      memberName: string;
+      userId: string | null;
+      budgetMin: number;
+      budgetMax: number;
+    }>;
+    currentUserMemberId: string | null;
+    groupBudgetMin: number;
+    groupBudgetMax: number;
+    totalMembers: number;
+  }>({
+    queryKey: ["/api/groups", groupId, "members-budgets"],
     enabled: !!user && !!groupId,
   });
 
@@ -2701,12 +2760,18 @@ export default function GroupDetail() {
           ]}
           className="mb-4"
         />
+
+        {/* Planning Agent Insights Banner */}
+        {groupId && isOwner && (
+          <PlanningInsightBanner groupId={groupId} />
+        )}
+
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6 pb-20 sm:pb-0">
           {/* Desktop tabs - hidden on mobile */}
           <TabsList className="hidden sm:grid w-full max-w-3xl mx-auto grid-cols-5">
             <TabsTrigger value="home" data-testid="tab-home">Home</TabsTrigger>
             <TabsTrigger value="preferences" data-testid="tab-preferences">Group</TabsTrigger>
-            <TabsTrigger value="activities" data-testid="tab-activities">Activities</TabsTrigger>
+            <TabsTrigger value="activities" data-testid="tab-activities">Explore</TabsTrigger>
             <TabsTrigger value="build" data-testid="tab-build">Create Event</TabsTrigger>
             <TabsTrigger value="feedback" data-testid="tab-feedback">Insights</TabsTrigger>
           </TabsList>
@@ -3965,66 +4030,65 @@ export default function GroupDetail() {
                       </div>
 
                       <div className="space-y-3">
-                        <Label className="text-base font-medium">My Budget (per person)</Label>
-                        <div className="flex items-center gap-3 mb-2">
-                          <Checkbox
-                            checked={myPreferencesBudget !== null}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                setMyPreferencesBudget({ min: group?.budgetMin || 0, max: group?.budgetMax || 60 });
-                              } else {
-                                setMyPreferencesBudget(null);
-                              }
+                        {membersBudgetsData && membersBudgetsData.currentUserMemberId ? (
+                          <GroupBudgetInfluence
+                            membersBudgets={membersBudgetsData.membersBudgets}
+                            currentMemberId={membersBudgetsData.currentUserMemberId}
+                            groupBudgetMin={membersBudgetsData.groupBudgetMin}
+                            groupBudgetMax={membersBudgetsData.groupBudgetMax}
+                            myBudget={myPreferencesBudget}
+                            onMyBudgetChange={(budget) => {
+                              setMyPreferencesBudget(budget);
+                              // Auto-save when budget changes
+                              updateMyPreferencesMutation.mutate({
+                                budgetOverrideMin: budget?.min ?? null,
+                                budgetOverrideMax: budget?.max ?? null,
+                              });
+                              // Invalidate the members-budgets query to refresh
+                              queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "members-budgets"] });
                             }}
-                            data-testid="checkbox-budget-override"
                           />
-                          <span className="text-sm">
-                            Set a personal budget 
-                            <span className="text-muted-foreground ml-1">
-                              (Group: ${group?.budgetMin}-${group?.budgetMax})
-                            </span>
-                          </span>
-                        </div>
-                        {myPreferencesBudget !== null && (
-                          <div className="space-y-3">
-                            <div className="relative pt-1">
-                              <Slider
-                                min={0}
-                                max={250}
-                                step={10}
-                                value={[myPreferencesBudget.min, myPreferencesBudget.max]}
-                                onValueChange={(vals) => setMyPreferencesBudget({ min: vals[0], max: vals[1] })}
-                                className="w-full"
-                                data-testid="slider-my-budget"
+                        ) : (
+                          <>
+                            <Label className="text-base font-medium">My Budget (per person)</Label>
+                            <div className="flex items-center gap-3 mb-2">
+                              <Checkbox
+                                checked={myPreferencesBudget !== null}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setMyPreferencesBudget({ min: group?.budgetMin || 0, max: group?.budgetMax || 60 });
+                                  } else {
+                                    setMyPreferencesBudget(null);
+                                  }
+                                }}
+                                data-testid="checkbox-budget-override"
                               />
-                              {/* Group budget range markers */}
-                              {group?.budgetMin !== undefined && group?.budgetMax !== undefined && (
-                                <>
-                                  <div 
-                                    className="absolute top-0 w-0.5 h-2 bg-muted-foreground/40 rounded-full"
-                                    style={{ left: `${(group.budgetMin / 250) * 100}%` }}
-                                    title={`Group min: $${group.budgetMin}`}
-                                  />
-                                  <div 
-                                    className="absolute top-0 w-0.5 h-2 bg-muted-foreground/40 rounded-full"
-                                    style={{ left: `${(group.budgetMax / 250) * 100}%` }}
-                                    title={`Group max: $${group.budgetMax}`}
-                                  />
-                                </>
-                              )}
+                              <span className="text-sm">
+                                Set a personal budget
+                                <span className="text-muted-foreground ml-1">
+                                  (Group: ${group?.budgetMin}-${group?.budgetMax})
+                                </span>
+                              </span>
                             </div>
-                            <div className="flex items-center justify-between">
-                              <div className="text-sm font-medium" data-testid="text-my-budget">
-                                ${myPreferencesBudget.min}-{myPreferencesBudget.max >= 200 ? "$200+" : `$${myPreferencesBudget.max}`}
-                              </div>
-                              {group?.budgetMin !== undefined && group?.budgetMax !== undefined && (
-                                <div className="text-xs text-muted-foreground flex items-center gap-1">
-                                  <div className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full" />
-                                  <span>Group: ${group.budgetMin}-${group.budgetMax}</span>
+                            {myPreferencesBudget !== null && (
+                              <div className="space-y-3">
+                                <div className="relative pt-1">
+                                  <Slider
+                                    min={0}
+                                    max={250}
+                                    step={10}
+                                    value={[myPreferencesBudget.min, myPreferencesBudget.max]}
+                                    onValueChange={(vals) => setMyPreferencesBudget({ min: vals[0], max: vals[1] })}
+                                    className="w-full"
+                                    data-testid="slider-my-budget"
+                                  />
                                 </div>
-                              )}
-                            </div>
-                          </div>
+                                <div className="text-sm font-medium" data-testid="text-my-budget">
+                                  ${myPreferencesBudget.min}-{myPreferencesBudget.max >= 200 ? "$200+" : `$${myPreferencesBudget.max}`}
+                                </div>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
 
@@ -4141,31 +4205,34 @@ export default function GroupDetail() {
                       </div>
 
                       <div className="space-y-3">
-                        <Label className="text-base font-medium">My Availability</Label>
-                        <div className="flex items-center gap-3 mb-2">
-                          <Checkbox
-                            checked={myPreferencesAvailability !== null}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                setMyPreferencesAvailability(createEmptyAvailability());
-                              } else {
-                                setMyPreferencesAvailability(null);
-                              }
+                        {membersAvailabilityData && membersAvailabilityData.currentUserMemberId ? (
+                          <GroupAvailabilityHeatmap
+                            membersAvailability={membersAvailabilityData.membersAvailability.map(m => ({
+                              memberId: m.memberId,
+                              memberName: m.memberName,
+                              availability: m.availability || createEmptyAvailability(),
+                            }))}
+                            currentMemberId={membersAvailabilityData.currentUserMemberId}
+                            myAvailability={myPreferencesAvailability || createEmptyAvailability()}
+                            onMyAvailabilityChange={(newAvailability) => {
+                              setMyPreferencesAvailability(newAvailability);
+                              // Auto-save when availability changes
+                              updateMyPreferencesMutation.mutate({
+                                availabilityOverride: newAvailability,
+                              });
+                              // Invalidate the members-availability query to refresh the heatmap
+                              queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "members-availability"] });
                             }}
-                            data-testid="checkbox-availability-override"
+                            showMemberDetails={true}
                           />
-                          <span className="text-sm">
-                            Set my personal availability schedule
-                            <span className="text-muted-foreground ml-1">
-                              (Using group availability by default)
-                            </span>
-                          </span>
-                        </div>
-                        {myPreferencesAvailability !== null && (
-                          <AvailabilityGrid
-                            value={myPreferencesAvailability}
-                            onChange={setMyPreferencesAvailability}
-                          />
+                        ) : (
+                          <div className="space-y-3">
+                            <Label className="text-base font-medium">My Availability</Label>
+                            <AvailabilityGrid
+                              value={myPreferencesAvailability || createEmptyAvailability()}
+                              onChange={setMyPreferencesAvailability}
+                            />
+                          </div>
                         )}
                       </div>
 
@@ -4267,2043 +4334,144 @@ export default function GroupDetail() {
             </Tabs>
           </TabsContent>
 
-          {/* Tab 2: Activities */}
+          {/* Tab 2: Explore (Venue Discovery) */}
           <TabsContent value="activities" className="space-y-6">
-            <Tabs value={activitiesSubTab} onValueChange={setActivitiesSubTab}>
-              <TabsList className="grid w-full max-w-2xl mx-auto grid-cols-3">
-                <TabsTrigger value="ai-suggested" data-testid="subtab-ai-suggested">AI Suggested</TabsTrigger>
-                <TabsTrigger value="search" data-testid="subtab-search">Search</TabsTrigger>
-                <TabsTrigger value="favorites" data-testid="subtab-favorites">Favorites</TabsTrigger>
-              </TabsList>
-
-              {/* Sub-tab 1: AI Suggested */}
-              <TabsContent value="ai-suggested" className="space-y-6">
-                {/* Main Content - AI-Suggested Activities */}
-                <div className="space-y-6">
-                  <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
-                    <h2 className="text-2xl font-bold" data-testid="text-activities-title">AI-Suggested Activities</h2>
-              </div>
-              <p className="text-muted-foreground mb-4">
-                Select 1-5 venues to build your itinerary. Click the checkboxes to add venues to your plan.
-              </p>
-              
-              {/* Unified AI Generation Block */}
-              <div className="border rounded-md p-3 bg-muted/30">
-                <div className="flex items-center gap-2 mb-3">
-                  <Sparkles className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">AI Activity Generation</span>
-                </div>
-                
-                <div className="space-y-3">
-                  {/* Location and radius controls */}
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder={group?.locationBase || "Location"}
-                      value={categoryLocation}
-                      onChange={(e) => setCategoryLocation(e.target.value)}
-                      className="flex-1 h-8 text-sm"
-                      data-testid="input-category-location"
-                    />
-                    <select
-                      value={categoryRadius}
-                      onChange={(e) => setCategoryRadius(Number(e.target.value))}
-                      className="h-8 px-2 text-sm border rounded-md bg-background"
-                      data-testid="slider-category-radius"
-                    >
-                      <option value={2}>2mi</option>
-                      <option value={10}>10mi</option>
-                      <option value={30}>30mi</option>
-                      <option value={50}>50mi</option>
-                    </select>
-                  </div>
-
-                  {/* Category quick filters */}
-                  <div className="space-y-2">
-                    <div className="flex gap-1.5">
-                      <Button
-                        variant={selectedCategories.includes('meal') ? 'default' : 'ghost'}
-                        size="sm"
-                        onClick={() => {
-                          if (selectedCategories.includes('meal')) {
-                            setSelectedCategories(selectedCategories.filter(c => c !== 'meal'));
-                          } else {
-                            setSelectedCategories([...selectedCategories, 'meal']);
-                          }
-                        }}
-                        className="flex-1 h-8 gap-1.5"
-                        data-testid="button-category-meal"
-                      >
-                        <span>🍽️</span>
-                        <span className="text-xs">Meals</span>
-                        {selectedCategories.includes('meal') && <Check className="h-3 w-3 ml-1" />}
-                      </Button>
-                      <Button
-                        variant={selectedCategories.includes('cafes') ? 'default' : 'ghost'}
-                        size="sm"
-                        onClick={() => {
-                          if (selectedCategories.includes('cafes')) {
-                            setSelectedCategories(selectedCategories.filter(c => c !== 'cafes'));
-                          } else {
-                            setSelectedCategories([...selectedCategories, 'cafes']);
-                          }
-                        }}
-                        className="flex-1 h-8 gap-1.5"
-                        data-testid="button-category-cafes"
-                      >
-                        <span>☕</span>
-                        <span className="text-xs">Cafes</span>
-                        {selectedCategories.includes('cafes') && <Check className="h-3 w-3 ml-1" />}
-                      </Button>
-                      <Button
-                        variant={selectedCategories.includes('drinks') ? 'default' : 'ghost'}
-                        size="sm"
-                        onClick={() => {
-                          if (selectedCategories.includes('drinks')) {
-                            setSelectedCategories(selectedCategories.filter(c => c !== 'drinks'));
-                          } else {
-                            setSelectedCategories([...selectedCategories, 'drinks']);
-                          }
-                        }}
-                        className="flex-1 h-8 gap-1.5"
-                        data-testid="button-category-drinks"
-                      >
-                        <span>🍺</span>
-                        <span className="text-xs">Drinks</span>
-                        {selectedCategories.includes('drinks') && <Check className="h-3 w-3 ml-1" />}
-                      </Button>
-                      <Button
-                        variant={selectedCategories.includes('dessert') ? 'default' : 'ghost'}
-                        size="sm"
-                        onClick={() => {
-                          if (selectedCategories.includes('dessert')) {
-                            setSelectedCategories(selectedCategories.filter(c => c !== 'dessert'));
-                          } else {
-                            setSelectedCategories([...selectedCategories, 'dessert']);
-                          }
-                        }}
-                        className="flex-1 h-8 gap-1.5"
-                        data-testid="button-category-dessert"
-                      >
-                        <span>🍰</span>
-                        <span className="text-xs">Dessert</span>
-                        {selectedCategories.includes('dessert') && <Check className="h-3 w-3 ml-1" />}
-                      </Button>
-                      <Button
-                        variant={selectedCategories.includes('experiences') ? 'default' : 'ghost'}
-                        size="sm"
-                        onClick={() => {
-                          if (selectedCategories.includes('experiences')) {
-                            setSelectedCategories(selectedCategories.filter(c => c !== 'experiences'));
-                          } else {
-                            setSelectedCategories([...selectedCategories, 'experiences']);
-                          }
-                        }}
-                        className="flex-1 h-8 gap-1.5"
-                        data-testid="button-category-experiences"
-                      >
-                        <span>🎭</span>
-                        <span className="text-xs">Experiences</span>
-                        {selectedCategories.includes('experiences') && <Check className="h-3 w-3 ml-1" />}
-                      </Button>
-                    </div>
-                    
-                    {/* Multi-venue mode toggle */}
-                    {selectedCategories.length > 0 && (
-                      <div className="flex items-center justify-between px-1 py-2 border-t">
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            id="multi-venue-mode"
-                            checked={multiVenueMode}
-                            onCheckedChange={setMultiVenueMode}
-                            data-testid="switch-multi-venue"
-                          />
-                          <Label htmlFor="multi-venue-mode" className="text-sm cursor-pointer">
-                            Multi-venue outing
-                          </Label>
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {multiVenueMode ? "Sorted by distance" : "Sorted by rating"}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Contextual messaging */}
-                    {selectedCategories.length > 0 && (
-                      <div className="text-xs text-muted-foreground px-1">
-                        {multiVenueMode ? (
-                          <>Perfect for bar crawls or venue hopping! Results sorted by distance for easy route planning.</>
-                        ) : (
-                          <>
-                            {selectedCategories.length === 1 ? (
-                              <>
-                                {selectedCategories.includes('drinks') && "Find the best bars in the area"}
-                                {selectedCategories.includes('cafes') && "Find the best coffee shops"}
-                                {selectedCategories.includes('meal') && "Discover top-rated restaurants"}
-                                {selectedCategories.includes('dessert') && "Find the sweetest spots"}
-                                {selectedCategories.includes('experiences') && "Explore fun activities"}
-                              </>
-                            ) : (
-                              <>Generating {selectedCategories.length} categories with 9 results each</>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Custom AI instructions */}
-                  <Textarea
-                    placeholder="Refine your search... (e.g., 'Asian food', 'outdoor seating', 'live music')"
-                    value={tempInstructions}
-                    onChange={(e) => setTempInstructions(e.target.value)}
-                    className="resize-none text-sm"
-                    rows={2}
-                    data-testid="input-temp-instructions"
-                  />
-
-                  {/* Category-Specific Generate Button */}
-                  <Button
-                    onClick={() => {
-                      if (selectedCategories.length > 0) {
-                        generateCategoryMutation.mutate({
-                          categories: selectedCategories,
-                          location: categoryLocation.trim() ? { address: categoryLocation.trim(), lat: 0, lng: 0 } : undefined,
-                          radius: categoryRadius,
-                          sortBy: multiVenueMode ? 'distance' : 'rating',
-                          tempInstructions: tempInstructions.trim() || undefined,
-                        });
-                      }
-                    }}
-                    disabled={selectedCategories.length === 0 || generateCategoryMutation.isPending}
-                    size="sm"
-                    className="w-full h-8"
-                    data-testid="button-generate-category"
-                  >
-                    <Sparkles className="mr-2 h-3 w-3" />
-                    {generateCategoryMutation.isPending ? "Generating..." : 
-                     selectedCategories.length > 0 ? (
-                       selectedCategories.length === 1 
-                         ? `Generate ${selectedCategories[0] === 'drinks' ? 'Bars' : selectedCategories[0] === 'cafes' ? 'Coffee' : selectedCategories[0] === 'meal' ? 'Meals' : selectedCategories[0] === 'dessert' ? 'Dessert' : 'Events'}`
-                         : `Generate ${selectedCategories.length} Categories`
-                     ) :
-                     "Select a category above"}
-                  </Button>
-                </div>
-              </div>
-
-              {activitiesLoading ? (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {[...Array(6)].map((_, i) => (
-                  <Card key={i}>
-                    <Skeleton className="h-40 w-full rounded-t-lg" />
-                    <CardHeader>
-                      <Skeleton className="h-5 w-3/4" />
-                      <Skeleton className="h-4 w-1/2" />
-                    </CardHeader>
-                  </Card>
-                ))}
-              </div>
-            ) : activities.length === 0 && categoryResults.length === 0 ? (
-              <Card className="p-12">
-                <div className="text-center">
-                  {group?.activityGenerationStatus === "failed" ? (
-                    <>
-                      <Sparkles className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold mb-2">Ready to Explore</h3>
-                      <p className="text-muted-foreground mb-4">
-                        Select a category above (Bars, Coffee, Meals, Dessert, or Events) to discover venues
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="h-12 w-12 text-primary mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold mb-2">
-                        AI is generating your suggestions...
-                      </h3>
-                      {group.activityGenerationError && (
-                        <p className="text-sm text-primary mb-2" data-testid="text-generation-progress">
-                          {group.activityGenerationError}
-                        </p>
-                      )}
-                      <p className="text-sm text-muted-foreground mb-4">
-                        This can take 30-120 seconds for groups with history
-                      </p>
-                      <Button
-                        onClick={() => cancelGenerationMutation.mutate()}
-                        variant="outline"
-                        size="sm"
-                        disabled={cancelGenerationMutation.isPending}
-                        data-testid="button-cancel-generation"
-                        className="mb-6"
-                      >
-                        {cancelGenerationMutation.isPending ? "Cancelling..." : "Cancel Generation"}
-                      </Button>
-                      
-                      {/* Roadmap */}
-                      <div className="max-w-2xl mx-auto mt-6">
-                        <h4 className="text-sm font-semibold mb-4">How Kinmo Works</h4>
-                        <div className="space-y-3 text-left">
-                          <div className="flex items-start gap-3 p-3 rounded-md bg-primary/25 border-l-4 border-primary">
-                            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground font-bold text-sm flex-shrink-0">
-                              1
-                            </div>
-                            <div>
-                              <p className="font-medium text-sm">Discover</p>
-                              <p className="text-xs text-muted-foreground">AI generates personalized activity suggestions</p>
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-start gap-3 p-3 rounded-md bg-muted/50">
-                            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted-foreground/20 text-muted-foreground font-bold text-sm flex-shrink-0">
-                              2
-                            </div>
-                            <div>
-                              <p className="font-medium text-sm">Itinerary</p>
-                              <p className="text-xs text-muted-foreground">Select 1-5 venues to create your itinerary</p>
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-start gap-3 p-3 rounded-md bg-muted/50">
-                            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted-foreground/20 text-muted-foreground font-bold text-sm flex-shrink-0">
-                              3
-                            </div>
-                            <div>
-                              <p className="font-medium text-sm">Schedule <span className="text-xs text-muted-foreground">(coming soon)</span></p>
-                              <p className="text-xs text-muted-foreground">Pick a date for your outing</p>
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-start gap-3 p-3 rounded-md bg-muted/50">
-                            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted-foreground/20 text-muted-foreground font-bold text-sm flex-shrink-0">
-                              4
-                            </div>
-                            <div>
-                              <p className="font-medium text-sm">Invite <span className="text-xs text-muted-foreground">(coming soon)</span></p>
-                              <p className="text-xs text-muted-foreground">Send to your group for RSVPs</p>
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-start gap-3 p-3 rounded-md bg-muted/50">
-                            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted-foreground/20 text-muted-foreground font-bold text-sm flex-shrink-0">
-                              5
-                            </div>
-                            <div>
-                              <p className="font-medium text-sm">Learn <span className="text-xs text-muted-foreground">(coming soon)</span></p>
-                              <p className="text-xs text-muted-foreground">AI gets smarter from your group's feedback</p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </Card>
-            ) : (
-              <>
-                {/* Category Search Results - Temporary explorations */}
-                {(Array.isArray(categoryResults) ? categoryResults.length > 0 : Object.keys(categoryResults).length > 0) && (() => {
-                  // Check if results are grouped by category (object) or flat array
-                  const isGrouped = !Array.isArray(categoryResults);
-                  const categoryLabels = {
-                    meal: 'Meals',
-                    cafes: 'Coffee',
-                    drinks: 'Bars',
-                    dessert: 'Dessert',
-                    experiences: 'Events'
-                  };
-                  
-                  // Helper to sort results
-                  const sortResults = (results: any[]) => {
-                    return [...results].sort((a, b) => {
-                      if (multiVenueMode) {
-                        // Sort by distance (closest first)
-                        const distA = a.distanceFromGroupBase ?? 999;
-                        const distB = b.distanceFromGroupBase ?? 999;
-                        return distA - distB;
-                      } else {
-                        // Sort by rating (highest first)
-                        const ratingA = parseFloat(a.rating || '0');
-                        const ratingB = parseFloat(b.rating || '0');
-                        if (ratingA !== ratingB) {
-                          return ratingB - ratingA;
-                        }
-                        // Tie-breaker: review count
-                        const reviewCountA = a.reviewCount || 0;
-                        const reviewCountB = b.reviewCount || 0;
-                        return reviewCountB - reviewCountA;
-                      }
-                    });
-                  };
-                  
-                  const sortedResults = isGrouped ? null : sortResults(categoryResults as any[]);
-
-                  return (
-                    <div className="mb-8">
-                      <Card className="border-primary/30">
-                        <div className="p-6">
-                          <div className="flex items-center justify-between mb-4">
-                            <div>
-                              <h3 className="text-lg font-semibold flex items-center gap-2">
-                                <Sparkles className="h-5 w-5 text-primary" />
-                                Search Results
-                              </h3>
-                              <p className="text-sm text-muted-foreground">
-                                Exploring options - heart (❤️) any venue to save it to your main list
-                              </p>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setCategoryResults([])}
-                              data-testid="button-dismiss-search-results"
-                            >
-                              <X className="h-4 w-4 mr-1" />
-                              Dismiss
-                            </Button>
-                          </div>
-                          
-                          <>
-                            {/* Single category - flat grid */}
-                            {!isGrouped && sortedResults && (
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                              {sortedResults.map((result) => {
-                                const tempActivity = {
-                              id: result.placeId || result.googlePlaceId || `temp-${Math.random()}`,
-                              groupId: groupId || '',
-                              venueName: result.venueName,
-                              venueAddress: result.venueAddress,
-                              venueType: result.venueType || 'Venue',
-                              description: result.description,
-                              rating: result.rating?.toString() || null,
-                              reviewCount: result.reviewCount || null,
-                              priceLevel: result.priceLevel?.toString() || null,
-                              photoUrl: result.photoUrl || null,
-                              googlePlaceId: result.googlePlaceId || result.placeId || null,
-                              feedback: (result as any).feedback || null,
-                              category: result.category || null,
-                            };
-                            
-                            const isSelected = selectedVenues.some(v => v.sourceType === 'activity' && v.sourceId === tempActivity.id);
-                            
-                            return (
-                              <Card 
-                                key={tempActivity.id} 
-                                className={`relative overflow-hidden transition-all flex flex-col ${isSelected ? 'ring-2 ring-primary' : ''}`} 
-                                data-testid={`search-result-${tempActivity.id}`}
-                              >
-                                {tempActivity.photoUrl && (
-                                  <div className="aspect-video w-full overflow-hidden bg-muted">
-                                    <img
-                                      src={tempActivity.photoUrl}
-                                      alt={tempActivity.venueName}
-                                      className="w-full h-full object-cover"
-                                    />
-                                  </div>
-                                )}
-                                <div className="absolute top-3 left-3 z-10" onClick={(e) => e.stopPropagation()}>
-                                  <Checkbox
-                                    checked={isSelected}
-                                    onCheckedChange={() => toggleVenueSelection('activity', tempActivity.id)}
-                                    className="h-6 w-6 bg-white border-2"
-                                    data-testid={`checkbox-search-result-${tempActivity.id}`}
-                                  />
-                                </div>
-                                <button
-                                  className={`absolute top-3 right-3 p-2 rounded-full transition-all z-10 ${
-                                    tempActivity.feedback === "love"
-                                      ? "bg-pink-500/90 hover:bg-pink-600/90"
-                                      : "bg-black/40 hover:bg-black/60 border-2 border-white"
-                                  }`}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    
-                                    if (tempActivity.feedback === "love") {
-                                      toast({
-                                        title: "Already saved",
-                                        description: "This venue is already in your list",
-                                      });
-                                      return;
-                                    }
-                                    
-                                    // Create voting event from category search result
-                                    createActivityFromCategoryResultMutation.mutate({
-                                      googlePlaceId: tempActivity.googlePlaceId || tempActivity.id,
-                                      activityData: {
-                                        venueName: tempActivity.venueName,
-                                        venueAddress: tempActivity.venueAddress,
-                                        venueType: tempActivity.venueType,
-                                        description: tempActivity.description || '',
-                                        googlePlaceId: tempActivity.googlePlaceId,
-                                        rating: tempActivity.rating,
-                                        priceLevel: tempActivity.priceLevel,
-                                        photoUrl: tempActivity.photoUrl,
-                                        reviewCount: tempActivity.reviewCount,
-                                        category: tempActivity.category,
-                                      },
-                                    });
-                                  }}
-                                  data-testid={`button-favorite-search-${tempActivity.id}`}
-                                >
-                                  <Heart 
-                                    className={`h-6 w-6 transition-all ${
-                                      tempActivity.feedback === "love" 
-                                        ? "fill-white stroke-white" 
-                                        : "fill-none stroke-white"
-                                    }`} 
-                                    strokeWidth={2.5}
-                                  />
-                                </button>
-                                <div className="p-4 flex-1 flex flex-col">
-                                  <div className="flex items-start justify-between gap-2 mb-1">
-                                    <h3 className="font-semibold line-clamp-1">{tempActivity.venueName}</h3>
-                                    {tempActivity.googlePlaceId && (
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        asChild
-                                        className="h-6 px-2 flex-shrink-0"
-                                        data-testid={`button-google-link-search-${tempActivity.id}`}
-                                        onClick={(e) => e.stopPropagation()}
-                                      >
-                                        <a
-                                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tempActivity.venueName)}&query_place_id=${tempActivity.googlePlaceId}`}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="gap-1"
-                                        >
-                                          <ExternalLink className="h-3 w-3" />
-                                          <span className="text-xs">Maps</span>
-                                        </a>
-                                      </Button>
-                                    )}
-                                  </div>
-                                  <p className="text-xs text-muted-foreground mb-2 line-clamp-1">{tempActivity.venueType}</p>
-                                  
-                                  <div className="flex items-center gap-3 mb-3">
-                                    {tempActivity.rating && (
-                                      <div className="flex items-center gap-1">
-                                        <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                                        <span className="text-sm font-medium">{tempActivity.rating}</span>
-                                        {tempActivity.reviewCount && (
-                                          <span className="text-xs text-muted-foreground">({tempActivity.reviewCount})</span>
-                                        )}
-                                      </div>
-                                    )}
-                                    {tempActivity.priceLevel && (
-                                      <div className="text-sm text-muted-foreground">
-                                        {priceDisplay(tempActivity.priceLevel)}
-                                      </div>
-                                    )}
-                                  </div>
-                                  
-                                  {tempActivity.description && (
-                                    <p className="text-xs text-muted-foreground line-clamp-2 mb-3">{tempActivity.description}</p>
-                                  )}
-                                  
-                                  <p className="text-xs text-muted-foreground mt-auto line-clamp-2">{tempActivity.venueAddress}</p>
-                                </div>
-                              </Card>
-                            );
-                              })}
-                            </div>
-                          )}
-                          
-                          {/* Multiple categories - grouped by category with headers */}
-                          {isGrouped && (
-                            <div className="space-y-8">
-                              {Object.entries(categoryResults as Record<string, any[]>).map(([cat, venues]) => {
-                                const sortedVenues = sortResults(venues);
-                                const ITEMS_PER_PAGE = 6;
-                                const currentPage = categoryPages[cat as keyof typeof categoryPages] || 0;
-                                const totalPages = Math.ceil(sortedVenues.length / ITEMS_PER_PAGE);
-                                const startIdx = currentPage * ITEMS_PER_PAGE;
-                                const endIdx = startIdx + ITEMS_PER_PAGE;
-                                const paginatedVenues = sortedVenues.slice(startIdx, endIdx);
-                                
-                                const handlePrevPage = () => {
-                                  if (currentPage > 0) {
-                                    setCategoryPages(prev => ({ ...prev, [cat]: currentPage - 1 }));
-                                  }
-                                };
-                                
-                                const handleNextPage = () => {
-                                  if (currentPage < totalPages - 1) {
-                                    setCategoryPages(prev => ({ ...prev, [cat]: currentPage + 1 }));
-                                  }
-                                };
-                                
-                                return (
-                                  <div key={cat} className="space-y-3">
-                                    <div className="flex items-center justify-between gap-2 border-b pb-2">
-                                      <div className="flex items-center gap-2">
-                                        <h4 className="text-md font-semibold">{categoryLabels[cat as keyof typeof categoryLabels]}</h4>
-                                        <span className="text-sm text-muted-foreground">({sortedVenues.length} results)</span>
-                                      </div>
-                                      {totalPages > 1 && (
-                                        <div className="flex items-center gap-2">
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={handlePrevPage}
-                                            disabled={currentPage === 0}
-                                            className="h-7 w-7 p-0"
-                                            data-testid={`button-prev-${cat}`}
-                                          >
-                                            <ChevronLeft className="h-4 w-4" />
-                                          </Button>
-                                          <span className="text-xs text-muted-foreground min-w-[4rem] text-center">
-                                            {currentPage + 1} / {totalPages}
-                                          </span>
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={handleNextPage}
-                                            disabled={currentPage >= totalPages - 1}
-                                            className="h-7 w-7 p-0"
-                                            data-testid={`button-next-${cat}`}
-                                          >
-                                            <ChevronRight className="h-4 w-4" />
-                                          </Button>
-                                        </div>
-                                      )}
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                      {paginatedVenues.map((result) => {
-                                        const tempActivity = {
-                                          id: result.placeId || result.googlePlaceId || `temp-${Math.random()}`,
-                                          groupId: groupId || '',
-                                          venueName: result.venueName,
-                                          venueAddress: result.venueAddress,
-                                          venueType: result.venueType || 'Venue',
-                                          description: result.description,
-                                          rating: result.rating?.toString() || null,
-                                          reviewCount: result.reviewCount || null,
-                                          priceLevel: result.priceLevel?.toString() || null,
-                                          photoUrl: result.photoUrl || null,
-                                          googlePlaceId: result.googlePlaceId || result.placeId || null,
-                                          feedback: (result as any).feedback || null,
-                                          category: result.category || null,
-                                        };
-                                        
-                                        const isSelected = selectedVenues.some(v => v.sourceType === 'activity' && v.sourceId === tempActivity.id);
-                                        
-                                        return (
-                                          <Card 
-                                            key={tempActivity.id} 
-                                            className={`relative overflow-hidden transition-all flex flex-col ${isSelected ? 'ring-2 ring-primary' : ''}`} 
-                                            data-testid={`search-result-${tempActivity.id}`}
-                                          >
-                                            {tempActivity.photoUrl && (
-                                              <div className="aspect-video w-full overflow-hidden bg-muted">
-                                                <img
-                                                  src={tempActivity.photoUrl}
-                                                  alt={tempActivity.venueName}
-                                                  className="w-full h-full object-cover"
-                                                />
-                                              </div>
-                                            )}
-                                            <div className="absolute top-3 left-3 z-10" onClick={(e) => e.stopPropagation()}>
-                                              <Checkbox
-                                                checked={isSelected}
-                                                onCheckedChange={() => toggleVenueSelection('activity', tempActivity.id)}
-                                                className="h-6 w-6 bg-white border-2"
-                                                data-testid={`checkbox-search-result-${tempActivity.id}`}
-                                              />
-                                            </div>
-                                            <button
-                                              className={`absolute top-3 right-3 p-2 rounded-full transition-all z-10 ${
-                                                tempActivity.feedback === "love"
-                                                  ? "bg-pink-500/90 hover:bg-pink-600/90"
-                                                  : "bg-black/40 hover:bg-black/60 border-2 border-white"
-                                              }`}
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                
-                                                if (tempActivity.feedback === "love") {
-                                                  toast({
-                                                    title: "Already saved",
-                                                    description: "This venue is already in your list",
-                                                  });
-                                                  return;
-                                                }
-                                                
-                                                createActivityFromCategoryResultMutation.mutate({
-                                                  googlePlaceId: tempActivity.googlePlaceId || tempActivity.id,
-                                                  activityData: {
-                                                    venueName: tempActivity.venueName,
-                                                    venueAddress: tempActivity.venueAddress,
-                                                    venueType: tempActivity.venueType,
-                                                    description: tempActivity.description || '',
-                                                    googlePlaceId: tempActivity.googlePlaceId,
-                                                    rating: tempActivity.rating,
-                                                    priceLevel: tempActivity.priceLevel,
-                                                    photoUrl: tempActivity.photoUrl,
-                                                    reviewCount: tempActivity.reviewCount,
-                                                    category: tempActivity.category,
-                                                  },
-                                                });
-                                              }}
-                                              data-testid={`button-favorite-search-${tempActivity.id}`}
-                                            >
-                                              <Heart 
-                                                className={`h-6 w-6 transition-all ${
-                                                  tempActivity.feedback === "love" 
-                                                    ? "fill-white stroke-white" 
-                                                    : "fill-none stroke-white"
-                                                }`} 
-                                                strokeWidth={2.5}
-                                              />
-                                            </button>
-                                            <div className="p-4 flex-1 flex flex-col">
-                                              <div className="flex items-start justify-between gap-2 mb-1">
-                                                <h3 className="font-semibold line-clamp-1">{tempActivity.venueName}</h3>
-                                                {tempActivity.googlePlaceId && (
-                                                  <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    asChild
-                                                    className="h-6 px-2 flex-shrink-0"
-                                                    data-testid={`button-google-link-search-${tempActivity.id}`}
-                                                    onClick={(e) => e.stopPropagation()}
-                                                  >
-                                                    <a
-                                                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tempActivity.venueName)}&query_place_id=${tempActivity.googlePlaceId}`}
-                                                      target="_blank"
-                                                      rel="noopener noreferrer"
-                                                      className="gap-1"
-                                                    >
-                                                      <ExternalLink className="h-3 w-3" />
-                                                      <span className="text-xs">Maps</span>
-                                                    </a>
-                                                  </Button>
-                                                )}
-                                              </div>
-                                              <p className="text-xs text-muted-foreground mb-2 line-clamp-1">{tempActivity.venueType}</p>
-                                              
-                                              <div className="flex items-center gap-3 mb-3">
-                                                {tempActivity.rating && (
-                                                  <div className="flex items-center gap-1">
-                                                    <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                                                    <span className="text-sm font-medium">{tempActivity.rating}</span>
-                                                    {tempActivity.reviewCount && (
-                                                      <span className="text-xs text-muted-foreground">({tempActivity.reviewCount})</span>
-                                                    )}
-                                                  </div>
-                                                )}
-                                                {tempActivity.priceLevel && (
-                                                  <div className="text-sm text-muted-foreground">
-                                                    {priceDisplay(tempActivity.priceLevel)}
-                                                  </div>
-                                                )}
-                                              </div>
-                                              
-                                              {tempActivity.description && (
-                                                <p className="text-xs text-muted-foreground line-clamp-2 mb-3">{tempActivity.description}</p>
-                                              )}
-                                              
-                                              <p className="text-xs text-muted-foreground mt-auto line-clamp-2">{tempActivity.venueAddress}</p>
-                                            </div>
-                                          </Card>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                          </>
-                        </div>
-                    </Card>
-                  </div>
-                  );
-                })()}
-
-                {/* ARCHIVED (Nov 2025): Old "Saved Activities" section from general AI generation flow */}
-                {/* Divider between search results and saved activities */}
-                {/* categoryResults.length > 0 && activities.length > 0 && (
-                  <div className="my-8 flex items-center gap-4">
-                    <div className="flex-1 h-px bg-border"></div>
-                    <span className="text-sm text-muted-foreground font-medium">Your Saved Activities</span>
-                    <div className="flex-1 h-px bg-border"></div>
-                  </div>
-                ) */}
-              </>
-            )}
-            </div>
-
-            {/* Floating Cart Badge - only visible when venues selected */}
-            {selectedVenues.length > 0 && (
-              <div className="fixed bottom-6 right-6 z-50" data-testid="floating-cart-badge">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="default"
-                      size="lg"
-                      className="shadow-elevated h-14 px-4 gap-3"
-                      data-testid="button-cart-trigger"
-                    >
-                      <div className="relative">
-                        <ShoppingCart className="h-5 w-5" />
-                        <div className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-background text-foreground text-xs font-bold flex items-center justify-center border-2 border-primary">
-                          {selectedVenues.length}
-                        </div>
-                      </div>
-                      <span className="text-sm font-medium">{selectedVenues.length} Venue{selectedVenues.length !== 1 ? 's' : ''}</span>
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent 
-                    className="w-96 p-0" 
-                    align="end"
-                    side="top"
-                    sideOffset={8}
-                    data-testid="cart-popover-content"
-                  >
-                    <div className="p-4 border-b">
-                      <h3 className="font-semibold text-base mb-1">Your Itinerary Cart</h3>
-                      <p className="text-xs text-muted-foreground">{selectedVenues.length} of 5 venues selected</p>
-                      {(() => {
-                        // Calculate total route distance
-                        let totalDistance = 0;
-                        let hasAllCoords = true;
-                        
-                        for (let i = 0; i < selectedVenues.length - 1; i++) {
-                          const current = selectedVenues[i];
-                          const next = selectedVenues[i + 1];
-                          
-                          let currentLat, currentLng, nextLat, nextLng;
-                          
-                          if (current.sourceType === 'activity') {
-                            const activity = activities.find(a => a.id === current.sourceId);
-                            currentLat = parseFloat(activity?.latitude || '0');
-                            currentLng = parseFloat(activity?.longitude || '0');
-                          } else {
-                            const event = votingEvents.find(e => e.id === current.sourceId);
-                            currentLat = parseFloat(event?.latitude || '0');
-                            currentLng = parseFloat(event?.longitude || '0');
-                          }
-                          
-                          if (next.sourceType === 'activity') {
-                            const activity = activities.find(a => a.id === next.sourceId);
-                            nextLat = parseFloat(activity?.latitude || '0');
-                            nextLng = parseFloat(activity?.longitude || '0');
-                          } else {
-                            const event = votingEvents.find(e => e.id === next.sourceId);
-                            nextLat = parseFloat(event?.latitude || '0');
-                            nextLng = parseFloat(event?.longitude || '0');
-                          }
-                          
-                          if (currentLat && currentLng && nextLat && nextLng) {
-                            totalDistance += calculateDistance(currentLat, currentLng, nextLat, nextLng);
-                          } else {
-                            hasAllCoords = false;
-                          }
-                        }
-                        
-                        if (selectedVenues.length > 1 && hasAllCoords) {
-                          const category = getDistanceCategory(totalDistance);
-                          const colorClass = category === 'close' ? 'text-green-600 dark:text-green-400' : 
-                                            category === 'moderate' ? 'text-yellow-600 dark:text-yellow-400' : 
-                                            'text-red-600 dark:text-red-400';
-                          return (
-                            <p className={`text-xs font-medium mt-1 ${colorClass}`}>
-                              Total route: {formatDistance(totalDistance)}
-                            </p>
-                          );
-                        }
-                        return null;
-                      })()}
-                    </div>
-                    <DndContext
-                      sensors={sensors}
-                      collisionDetection={closestCenter}
-                      onDragEnd={(event: DragEndEvent) => {
-                        const { active, over } = event;
-                        if (over && active.id !== over.id) {
-                          setSelectedVenues((venues) => {
-                            const oldIndex = venues.findIndex(v => `${v.sourceType}-${v.sourceId}` === active.id);
-                            const newIndex = venues.findIndex(v => `${v.sourceType}-${v.sourceId}` === over.id);
-                            return arrayMove(venues, oldIndex, newIndex);
-                          });
-                        }
-                      }}
-                    >
-                      <SortableContext
-                        items={selectedVenues.map(v => `${v.sourceType}-${v.sourceId}`)}
-                        strategy={verticalListSortingStrategy}
-                      >
-                        <div className="max-h-96 overflow-y-auto p-3 space-y-0">
-                          {selectedVenues.map((venue, index) => {
-                            const venueId = `${venue.sourceType}-${venue.sourceId}`;
-                            let venueName = '';
-                            let venueType = '';
-                            let photoUrl = '';
-                            let lat = 0, lng = 0;
-                            let placeId = '';
-                            
-                            if (venue.sourceType === 'activity') {
-                              const activity = activities.find(a => a.id === venue.sourceId);
-                              venueName = activity?.venueName || 'Unknown';
-                              venueType = activity?.venueType || '';
-                              photoUrl = activity?.photoUrl || '';
-                              lat = parseFloat(activity?.latitude || '0');
-                              lng = parseFloat(activity?.longitude || '0');
-                              placeId = activity?.googlePlaceId || '';
-                            } else {
-                              const event = votingEvents.find(e => e.id === venue.sourceId);
-                              venueName = event?.title || 'Unknown';
-                              venueType = event?.venueType || '';
-                              photoUrl = event?.photoUrl || '';
-                              lat = parseFloat(event?.latitude || '0');
-                              lng = parseFloat(event?.longitude || '0');
-                              placeId = event?.googlePlaceId || '';
-                            }
-                            
-                            // Calculate distance to next venue
-                            let distanceToNext = null;
-                            if (index < selectedVenues.length - 1) {
-                              const nextVenue = selectedVenues[index + 1];
-                              let nextLat = 0, nextLng = 0;
-                              
-                              if (nextVenue.sourceType === 'activity') {
-                                const activity = activities.find(a => a.id === nextVenue.sourceId);
-                                nextLat = parseFloat(activity?.latitude || '0');
-                                nextLng = parseFloat(activity?.longitude || '0');
-                              } else {
-                                const event = votingEvents.find(e => e.id === nextVenue.sourceId);
-                                nextLat = parseFloat(event?.latitude || '0');
-                                nextLng = parseFloat(event?.longitude || '0');
-                              }
-                              
-                              if (lat && lng && nextLat && nextLng) {
-                                const distance = calculateDistance(lat, lng, nextLat, nextLng);
-                                distanceToNext = {
-                                  distance,
-                                  category: getDistanceCategory(distance)
-                                };
-                              }
-                            }
-                            
-                            // Get all selected place IDs for checking if a suggestion is already selected
-                            const selectedVenueIds = selectedVenues.map(v => {
-                              if (v.sourceType === 'activity') {
-                                return activities.find(a => a.id === v.sourceId)?.googlePlaceId;
-                              } else {
-                                return votingEvents.find(e => e.id === v.sourceId)?.googlePlaceId;
-                              }
-                            }).filter(Boolean) as string[];
-
-                            return (
-                              <SortableCartVenue
-                                key={venueId}
-                                id={venueId}
-                                index={index}
-                                venueName={venueName}
-                                venueType={venueType}
-                                photoUrl={photoUrl}
-                                onRemove={() => toggleVenueSelection(venue.sourceType, venue.sourceId)}
-                                distanceToNext={distanceToNext}
-                                lat={lat}
-                                lng={lng}
-                                placeId={placeId}
-                                groupId={groupId}
-                                expandedNearbyId={expandedNearbyVenueId}
-                                onToggleNearby={handleToggleNearby}
-                                nearbySuggestions={venueNearbySuggestions[venueId]}
-                                onAddNearby={handleAddNearby}
-                                addVenueLoading={addVotingEventMutation.isPending}
-                                selectedVenueIds={selectedVenueIds}
-                              />
-                            );
-                          })}
-                        </div>
-                      </SortableContext>
-                    </DndContext>
-                    <div className="p-3 border-t flex gap-2">
-                      <Button
-                        onClick={() => setActiveTab("build")}
-                        disabled={selectedVenues.length < 1}
-                        className="flex-1"
-                        size="sm"
-                        data-testid="button-build-itinerary-cart"
-                      >
-                        Build Itinerary
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          setSelectedVenues([]);
-                          setAddedSuggestionPlaceIds(new Set()); // Clear tracking set
-                        }}
-                        variant="outline"
-                        size="sm"
-                        data-testid="button-clear-cart"
-                      >
-                        Clear
-                      </Button>
-                    </div>
-                  </PopoverContent>
-                </Popover>
-              </div>
-            )}
-              </TabsContent>
-
-              {/* Sub-tab 2: Search */}
-              <TabsContent value="search" className="space-y-6">
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="text-2xl font-bold mb-2">Search for Venues</h2>
-                    <p className="text-muted-foreground mb-4">
-                      Find specific places you want to add to your itinerary
-                    </p>
-                  </div>
-
-                  {/* Search Input */}
-                  <div className="relative max-w-xl">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      type="text"
-                      placeholder="Search for parks, restaurants, cafes, or any venue..."
-                      value={venueSearchQuery}
-                      onChange={(e) => setVenueSearchQuery(e.target.value)}
-                      className="pl-9"
-                      data-testid="input-venue-search"
-                    />
-                  </div>
-
-                  {/* Search Results */}
-                  {venueSearchQuery.trim() && venueSearchQuery.trim().length >= 2 && (
-                    <div className="space-y-3">
-                      <p className="text-sm text-muted-foreground">
-                        Search results for "{venueSearchQuery}"
-                      </p>
-                      {venueSearchResults.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                          {venueSearchResults.map((result: any) => {
-                            // Check if already favorited (ONLY in activities OR voting events - NOT optimistic tracker)
-                            const inActivities = activities.some(a => !a.archivedAt && a.googlePlaceId && a.googlePlaceId === result.placeId);
-                            const inVotingEvents = votingEvents.some(e => e.googlePlaceId && e.googlePlaceId === result.placeId);
-                            const alreadyFavorited = inActivities || inVotingEvents;
-                            
-                            // Check if already in cart (selected venues OR existing itineraries OR optimistically added)
-                            const inSelectedVenues = selectedVenues.some(v => {
-                              if (v.sourceType === 'voting_event') {
-                                const votingEvent = votingEvents.find(e => e.id === v.sourceId);
-                                return votingEvent?.googlePlaceId === result.placeId;
-                              } else if (v.sourceType === 'activity') {
-                                const activity = activities.find(a => a.id === v.sourceId);
-                                return activity?.googlePlaceId === result.placeId;
-                              }
-                              return false;
-                            });
-                            
-                            const inExistingItinerary = itineraries.some(itinerary => 
-                              itinerary.items.some((item: any) => {
-                                if (item.sourceType === 'voting_event') {
-                                  const votingEvent = votingEvents.find(e => e.id === item.sourceId);
-                                  return votingEvent?.googlePlaceId === result.placeId;
-                                } else if (item.sourceType === 'activity') {
-                                  const activity = activities.find(a => a.id === item.sourceId);
-                                  return activity?.googlePlaceId === result.placeId;
-                                }
-                                return false;
-                              })
-                            );
-                            
-                            // Use optimistic tracker ONLY for cart state, not favorite state
-                            const alreadyInCart = inSelectedVenues || inExistingItinerary || addedSuggestionPlaceIds.has(result.placeId);
-
-                            return (
-                              <div
-                                key={result.placeId}
-                                className="flex gap-3 p-3 rounded-md border"
-                                data-testid={`search-result-${result.placeId}`}
-                              >
-                                {result.photoUrl && (
-                                  <img 
-                                    src={result.photoUrl} 
-                                    alt={result.name}
-                                    className="w-20 h-20 rounded object-cover flex-shrink-0"
-                                  />
-                                )}
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium truncate">{result.name}</p>
-                                  {result.rating && (
-                                    <div className="flex items-center gap-1 mt-1">
-                                      <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                                      <span className="text-xs font-medium">{result.rating}</span>
-                                      {result.reviewCount && (
-                                        <span className="text-xs text-muted-foreground">({result.reviewCount})</span>
-                                      )}
-                                    </div>
-                                  )}
-                                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                                    {result.address}
-                                  </p>
-                                  <div className="flex items-center gap-2 mt-2">
-                                    {/* Primary Action: Add to Itinerary */}
-                                    <Button
-                                      variant={alreadyInCart ? "default" : "default"}
-                                      size="sm"
-                                      onClick={() => {
-                                        if (alreadyInCart) return;
-
-                                        // Optimistically track this placeId
-                                        setAddedSuggestionPlaceIds(prev => new Set(Array.from(prev).concat(result.placeId)));
-
-                                        // First add to favorites if not already there
-                                        if (!alreadyFavorited && !addVotingEventMutation.isPending) {
-                                          if (selectedVenues.length >= 5) {
-                                            toast({
-                                              title: "Maximum reached",
-                                              description: "You can select up to 5 venues",
-                                              variant: "destructive"
-                                            });
-                                            return;
-                                          }
-
-                                          addVotingEventMutation.mutate({
-                                            title: result.name,
-                                            venueType: result.types?.[0] || 'venue',
-                                            venueAddress: result.address,
-                                            googlePlaceId: result.placeId,
-                                            photoUrl: result.photoUrl,
-                                            rating: result.rating,
-                                            reviewCount: result.reviewCount,
-                                            priceLevel: result.priceLevel,
-                                            latitude: result.location?.lat?.toString(),
-                                            longitude: result.location?.lng?.toString(),
-                                            city: result.city,
-                                            addToCart: true, // Favorite AND add to cart
-                                          });
-                                        } else if (alreadyFavorited) {
-                                          // Already favorited, just add to cart
-                                          // Check if it's in activities or voting events
-                                          const activity = activities.find(a => a.googlePlaceId === result.placeId);
-                                          const votingEvent = votingEvents.find(e => e.googlePlaceId === result.placeId);
-
-                                          if (activity || votingEvent) {
-                                            if (selectedVenues.length >= 5) {
-                                              toast({
-                                                title: "Maximum reached",
-                                                description: "You can select up to 5 venues",
-                                                variant: "destructive"
-                                              });
-                                              return;
-                                            }
-
-                                            if (activity) {
-                                              setSelectedVenues([...selectedVenues, { sourceType: 'activity', sourceId: activity.id }]);
-                                            } else if (votingEvent) {
-                                              setSelectedVenues([...selectedVenues, { sourceType: 'voting_event', sourceId: votingEvent.id }]);
-                                            }
-                                          }
-                                        }
-                                      }}
-                                      disabled={alreadyInCart}
-                                      className="gap-1.5"
-                                      data-testid={`button-add-itinerary-search-${result.placeId}`}
-                                    >
-                                      <Plus className="h-3.5 w-3.5" />
-                                      {alreadyInCart ? "In Itinerary" : selectedVenues.length === 0 ? "Start Itinerary" : "Add to Itinerary"}
-                                    </Button>
-
-                                    {/* Secondary Action: Save for Later */}
-                                    {!alreadyFavorited && (
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => {
-                                          if (!alreadyFavorited && !addVotingEventMutation.isPending) {
-                                            addVotingEventMutation.mutate({
-                                              title: result.name,
-                                              venueType: result.types?.[0] || 'venue',
-                                              venueAddress: result.address,
-                                              googlePlaceId: result.placeId,
-                                              photoUrl: result.photoUrl,
-                                              rating: result.rating,
-                                              reviewCount: result.reviewCount,
-                                              priceLevel: result.priceLevel,
-                                              latitude: result.location?.lat?.toString(),
-                                              longitude: result.location?.lng?.toString(),
-                                              city: result.city,
-                                              addToCart: false, // Just favorite, don't add to cart
-                                            });
-                                          }
-                                        }}
-                                        disabled={addVotingEventMutation.isPending}
-                                        className="gap-1.5 text-xs"
-                                        data-testid={`button-save-later-search-${result.placeId}`}
-                                      >
-                                        <Heart className="h-3 w-3" />
-                                        Save for later
-                                      </Button>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <Card>
-                          <CardContent className="p-8 text-center text-muted-foreground">
-                            <p className="text-sm">No results found for "{venueSearchQuery}"</p>
-                            <p className="text-xs mt-1">Try a different search term</p>
-                          </CardContent>
-                        </Card>
-                      )}
-                    </div>
-                  )}
-
-                  {!venueSearchQuery.trim() && (
-                    <Card>
-                      <CardContent className="p-12 text-center">
-                        <Search className="h-12 w-12 mx-auto mb-3 text-muted-foreground opacity-50" />
-                        <p className="text-sm text-muted-foreground">Start typing to search for specific venues</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Try searching for "Golden Gate Park" or "pizza near Mission"
-                        </p>
-                      </CardContent>
-                    </Card>
-                  )}
-                </div>
-              </TabsContent>
-
-              {/* Sub-tab 3: Favorites */}
-              <TabsContent value="favorites" className="space-y-6">
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h2 className="text-2xl font-bold mb-2">Your Favorites</h2>
-                      <p className="text-muted-foreground">
-                        Vote on group favorites and select venues to add to your itinerary
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="default"
-                        onClick={() => setDiscoverVenuesModalOpen(true)}
-                        data-testid="button-discover-venues"
-                      >
-                        <Search className="h-4 w-4 mr-1" />
-                        Discover Venues
-                      </Button>
-                      <Dialog open={addEventOpen} onOpenChange={setAddEventOpen}>
-                        <DialogTrigger asChild>
-                          <Button variant="outline" data-testid="button-add-favorite-tab">
-                            <Plus className="h-4 w-4 mr-1" />
-                            Add
-                          </Button>
-                        </DialogTrigger>
-                      <DialogContent data-testid="dialog-add-favorite-tab">
-                        <DialogHeader>
-                          <DialogTitle>Add to Favorites</DialogTitle>
-                          <DialogDescription>
-                            Add a place you'd like your group to vote on
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="space-y-4 py-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="event-title-tab">Place Name</Label>
-                            <Input
-                              id="event-title-tab"
-                              value={newEventTitle}
-                              onChange={(e) => setNewEventTitle(e.target.value)}
-                              placeholder="e.g., The Blue Room"
-                              data-testid="input-event-title-tab"
-                            />
-                          </div>
-                        </div>
-                        <DialogFooter>
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setAddEventOpen(false);
-                              setNewEventTitle("");
-                            }}
-                          >
-                            Cancel
-                          </Button>
-                          <Button
-                            onClick={() => {
-                              if (newEventTitle.trim()) {
-                                createEventMutation.mutate({ 
-                                  title: newEventTitle,
-                                  skipEnrichmentCheck: false 
-                                });
-                              }
-                            }}
-                            disabled={!newEventTitle.trim() || createEventMutation.isPending}
-                            data-testid="button-save-favorite-tab"
-                          >
-                            {createEventMutation.isPending ? "Adding..." : "Add to Favorites"}
-                          </Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                </div>
-
-              {votingEvents.length === 0 ? (
-                <Card>
-                  <CardContent className="p-12 text-center">
-                    <Heart className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                    <h3 className="text-lg font-semibold mb-2">No favorites yet</h3>
-                    <p className="text-sm text-muted-foreground mb-6">
-                      Swipe through venues to discover what your group will love
-                    </p>
-                    <Button
-                      size="lg"
-                      onClick={() => setDiscoverVenuesModalOpen(true)}
-                      className="gap-2"
-                    >
-                      <Search className="h-4 w-4" />
-                      Discover Venues
-                    </Button>
-                    <p className="text-xs text-muted-foreground mt-4">
-                      Or add venues manually from the Activities tab
-                    </p>
-                  </CardContent>
-                </Card>
-              ) : (
-                <>
-                  {/* Progress banner for < 5 favorites */}
-                  {votingEvents.length < 5 && (
-                    <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
-                      <CardContent className="p-4">
-                        <div className="flex items-start gap-3">
-                          <div className="flex-shrink-0 mt-0.5">
-                            <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                              <span className="text-lg font-bold text-blue-600">{votingEvents.length}</span>
-                            </div>
-                          </div>
-                          <div className="flex-1">
-                            <h4 className="font-semibold text-sm mb-1">
-                              {5 - votingEvents.length} more favorite{5 - votingEvents.length !== 1 ? 's' : ''} to unlock auto-scheduling
-                            </h4>
-                            <p className="text-xs text-muted-foreground mb-3">
-                              With 5+ favorites, we can automatically create personalized itineraries for your group
-                            </p>
-                            <div className="flex items-center gap-2 mb-2">
-                              <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-500"
-                                  style={{ width: `${(votingEvents.length / 5) * 100}%` }}
-                                />
-                              </div>
-                              <span className="text-xs font-medium text-muted-foreground">{votingEvents.length}/5</span>
-                            </div>
-                            <Button
-                              size="sm"
-                              onClick={() => setShowSwipeSession(true)}
-                              className="gap-1.5 h-8 text-xs"
-                            >
-                              <Search className="h-3 w-3" />
-                              Discover More Venues
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <div className="relative flex-1">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        type="text"
-                        placeholder="Search favorites by name..."
-                        value={favoritesSearch}
-                        onChange={(e) => setFavoritesSearch(e.target.value)}
-                        className="pl-9"
-                        data-testid="input-favorites-search"
-                      />
-                    </div>
-                    <Button
-                      variant={showFavoritesMap ? "secondary" : "outline"}
-                      onClick={() => setShowFavoritesMap(!showFavoritesMap)}
-                      className="gap-2"
-                      data-testid="button-toggle-map"
-                    >
-                      <MapIcon className="h-4 w-4" />
-                      {showFavoritesMap ? "Hide Map" : "Show Map"}
-                    </Button>
-                  </div>
-
-                  {/* List and Map side-by-side */}
-                  <div className={`grid grid-cols-1 gap-6 ${showFavoritesMap ? 'lg:grid-cols-2' : ''}`}>
-                    {/* Favorites List */}
-                    <div className="space-y-6">
-                  {(() => {
-                    // Categorize voting events
-                    const categorizeVenue = (venueType: string | null): 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences' => {
-                      if (!venueType) return 'experiences';
-                      const lower = venueType.toLowerCase();
-                      
-                      if (lower.includes('coffee') || lower.includes('cafe') || lower.includes('café')) return 'cafes';
-                      if (lower.includes('bar') || lower.includes('brewery') || lower.includes('wine') || lower.includes('cocktail')) return 'drinks';
-                      if (lower.includes('dessert') || lower.includes('ice cream') || lower.includes('boba') || lower.includes('bakery')) return 'dessert';
-                      if (lower.includes('restaurant') || lower.includes('food') || lower.includes('dining') || lower.includes('sushi') || 
-                          lower.includes('pizza') || lower.includes('taco') || lower.includes('burger')) return 'meal';
-                      
-                      return 'experiences';
-                    };
-
-                    const categoryConfig = {
-                      meal: { label: 'MEALS' },
-                      cafes: { label: 'CAFES' },
-                      drinks: { label: 'DRINKS' },
-                      dessert: { label: 'DESSERT' },
-                      experiences: { label: 'EXPERIENCES' }
-                    };
-
-                    // Filter voting events by search
-                    const filteredEvents = votingEvents.filter(event => 
-                      event.title.toLowerCase().includes(favoritesSearch.toLowerCase())
-                    );
-
-                    // Group voting events by category
-                    const grouped = filteredEvents.reduce((acc, event) => {
-                      const category = categorizeVenue(event.venueType);
-                      if (!acc[category]) acc[category] = [];
-                      acc[category].push(event);
-                      return acc;
-                    }, {} as Record<string, typeof votingEvents>);
-
-                    // Sort each category
-                    Object.keys(grouped).forEach(category => {
-                      const sortMode = categorySortMode[category] || 'rating';
-                      grouped[category].sort((a, b) => {
-                        if (sortMode === 'rating') {
-                          const ratingA = parseFloat(a.rating || '0');
-                          const ratingB = parseFloat(b.rating || '0');
-                          return ratingB - ratingA;
-                        } else {
-                          return (b.netVotes || 0) - (a.netVotes || 0);
-                        }
-                      });
-                    });
-
-                    // Function to add all venues from a category
-                    const addAllFromCategory = (categoryKey: string) => {
-                      const categoryEvents = grouped[categoryKey];
-                      if (!categoryEvents) return;
-                      
-                      const newSelections = categoryEvents
-                        .filter(event => !selectedVenues.some(v => v.sourceType === 'voting_event' && v.sourceId === event.id))
-                        .map(event => ({ sourceType: 'voting_event' as const, sourceId: event.id }));
-                      
-                      const totalAfterAdd = selectedVenues.length + newSelections.length;
-                      if (totalAfterAdd > 5) {
-                        toast({
-                          title: "Maximum 5 venues",
-                          description: `You can only select up to 5 venues total`,
-                          variant: "destructive"
-                        });
-                        return;
-                      }
-                      
-                      setSelectedVenues([...selectedVenues, ...newSelections]);
-                    };
-
-                    return Object.entries(categoryConfig).map(([categoryKey, config]) => {
-                      const categoryEvents = grouped[categoryKey];
-                      if (!categoryEvents || categoryEvents.length === 0) return null;
-
-                      const sortMode = categorySortMode[categoryKey] || 'rating';
-
-                      return (
-                        <Card key={categoryKey}>
-                          <CardHeader className="pb-3">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2">
-                                <CardTitle className="text-base">{config.label}</CardTitle>
-                                <Badge variant="secondary">{categoryEvents.length}</Badge>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => setCategorySortMode({ ...categorySortMode, [categoryKey]: sortMode === 'rating' ? 'votes' : 'rating' })}
-                                  data-testid={`button-sort-${categoryKey}`}
-                                >
-                                  <ArrowUpDown className="h-3 w-3 mr-1" />
-                                  {sortMode === 'rating' ? 'Rating' : 'Votes'}
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => addAllFromCategory(categoryKey)}
-                                  data-testid={`button-add-all-${categoryKey}`}
-                                >
-                                  <Plus className="h-3 w-3 mr-1" />
-                                  Add All
-                                </Button>
-                              </div>
-                            </div>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="space-y-2">
-                              {categoryEvents.map(event => {
-                                const myVote = myVotes[event.id];
-                                const isSelected = selectedVenues.some(v => v.sourceType === 'voting_event' && v.sourceId === event.id);
-                                
-                                return (
-                                  <HoverCard key={event.id}>
-                                    <HoverCardTrigger asChild>
-                                      <div 
-                                        className={`flex items-center gap-3 p-3 rounded-md border transition-colors cursor-pointer ${hoveredFavoriteId === event.id ? 'ring-2 ring-primary' : ''}`}
-                                        data-testid={`favorites-row-${event.id}`}
-                                        onMouseEnter={() => setHoveredFavoriteId(event.id)}
-                                        onMouseLeave={() => setHoveredFavoriteId(null)}
-                                      >
-                                        <Checkbox
-                                          checked={isSelected}
-                                          onCheckedChange={() => toggleVenueSelection('voting_event', event.id)}
-                                          className="h-5 w-5"
-                                          onClick={(e) => e.stopPropagation()}
-                                          data-testid={`checkbox-favorite-${event.id}`}
-                                        />
-                                        
-                                        {event.photoUrl && (
-                                          <div className="w-12 h-12 rounded-md overflow-hidden bg-muted shrink-0">
-                                            <img
-                                              src={event.photoUrl}
-                                              alt={event.title}
-                                              className="w-full h-full object-cover"
-                                            />
-                                          </div>
-                                        )}
-                                        
-                                        <div className="flex-1 min-w-0">
-                                          <h4 className="font-medium text-sm truncate">{event.title}</h4>
-                                          {event.venueType && (
-                                            <p className="text-xs text-muted-foreground truncate">{event.venueType}</p>
-                                          )}
-                                        </div>
-
-                                        {event.rating && (
-                                          <Badge variant="secondary" className="gap-1 text-xs shrink-0">
-                                            <Star className="h-3 w-3 fill-current" />
-                                            {event.rating}
-                                            {event.reviewCount && ` (${event.reviewCount})`}
-                                          </Badge>
-                                        )}
-
-                                        <div className="flex items-center gap-1 shrink-0">
-                                          <Badge variant="outline" className="text-xs">
-                                            {event.netVotes > 0 ? '+' : ''}{event.netVotes || 0}
-                                          </Badge>
-                                        </div>
-
-                                        <div className="flex items-center gap-1 shrink-0">
-                                          <Button
-                                            variant={myVote?.voteType === "upvote" ? "default" : "ghost"}
-                                            size="icon"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleVote(event.id, "upvote");
-                                            }}
-                                            className="h-8 w-8"
-                                            data-testid={`button-upvote-${event.id}`}
-                                          >
-                                            <ThumbsUp className="h-3.5 w-3.5" />
-                                          </Button>
-                                          <Button
-                                            variant={myVote?.voteType === "downvote" ? "default" : "ghost"}
-                                            size="icon"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleVote(event.id, "downvote");
-                                            }}
-                                            className="h-8 w-8"
-                                            data-testid={`button-downvote-${event.id}`}
-                                          >
-                                            <ThumbsDown className="h-3.5 w-3.5" />
-                                          </Button>
-                                        </div>
-
-                                        <DropdownMenu>
-                                          <DropdownMenuTrigger asChild>
-                                            <Button
-                                              variant="ghost"
-                                              size="icon"
-                                              className="h-8 w-8 shrink-0"
-                                              onClick={(e) => e.stopPropagation()}
-                                              data-testid={`button-favorite-menu-${event.id}`}
-                                            >
-                                              <MoreVertical className="h-4 w-4" />
-                                            </Button>
-                                          </DropdownMenuTrigger>
-                                          <DropdownMenuContent align="end">
-                                            <DropdownMenuItem
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                openEditFavorite(event);
-                                              }}
-                                              data-testid={`menu-edit-${event.id}`}
-                                            >
-                                              <Edit className="h-4 w-4 mr-2" />
-                                              Edit
-                                            </DropdownMenuItem>
-                                            {event.googlePlaceId && (
-                                              <DropdownMenuItem
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.title)}&query_place_id=${event.googlePlaceId}`;
-                                                  window.open(mapsUrl, '_blank');
-                                                }}
-                                              >
-                                                <MapPin className="h-4 w-4 mr-2" />
-                                                Open in Maps
-                                              </DropdownMenuItem>
-                                            )}
-                                            <DropdownMenuSeparator />
-                                            <DropdownMenuItem
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                setFavoriteToDelete(event);
-                                              }}
-                                              className="text-destructive focus:text-destructive"
-                                              data-testid={`menu-delete-${event.id}`}
-                                            >
-                                              <Trash2 className="h-4 w-4 mr-2" />
-                                              Delete
-                                            </DropdownMenuItem>
-                                          </DropdownMenuContent>
-                                        </DropdownMenu>
-
-                                        <Dialog>
-                                          <DialogTrigger asChild>
-                                            <Button
-                                              variant="ghost"
-                                              size="icon"
-                                              className="h-8 w-8 shrink-0"
-                                              data-testid={`button-view-details-${event.id}`}
-                                              onClick={(e) => e.stopPropagation()}
-                                            >
-                                              <ExternalLink className="h-3.5 w-3.5" />
-                                            </Button>
-                                          </DialogTrigger>
-                                          <DialogContent className="max-w-2xl">
-                                            <DialogHeader>
-                                              <DialogTitle>{event.title}</DialogTitle>
-                                              {event.description && (
-                                                <DialogDescription>{event.description}</DialogDescription>
-                                              )}
-                                            </DialogHeader>
-                                            <div className="space-y-4">
-                                              {event.photoUrl && (
-                                                <div className="aspect-video w-full overflow-hidden rounded-md bg-muted">
-                                                  <img
-                                                    src={event.photoUrl}
-                                                    alt={event.title}
-                                                    className="w-full h-full object-cover"
-                                                  />
-                                                </div>
-                                              )}
-                                              
-                                              <div className="grid gap-2">
-                                                {event.venueAddress && (
-                                                  <div className="flex items-start gap-2">
-                                                    <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
-                                                    <p className="text-sm">{event.venueAddress}</p>
-                                                  </div>
-                                                )}
-                                                
-                                                <div className="flex flex-wrap items-center gap-2">
-                                                  {event.rating && (
-                                                    <Badge variant="secondary" className="gap-1">
-                                                      <Star className="h-3 w-3 fill-current" />
-                                                      {event.rating}
-                                                      {event.reviewCount && ` (${event.reviewCount})`}
-                                                    </Badge>
-                                                  )}
-                                                  {event.priceLevel && (
-                                                    <Badge variant="secondary">
-                                                      {priceDisplay(event.priceLevel)}
-                                                    </Badge>
-                                                  )}
-                                                  {event.venueType && (
-                                                    <Badge variant="outline">{event.venueType}</Badge>
-                                                  )}
-                                                </div>
-                                              </div>
-                                              
-                                              {event.googlePlaceId && (
-                                                <Button
-                                                  variant="outline"
-                                                  asChild
-                                                  className="w-full"
-                                                >
-                                                  <a
-                                                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.title)}&query_place_id=${event.googlePlaceId}`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                  >
-                                                    <MapPin className="mr-2 h-4 w-4" />
-                                                    View on Google Maps
-                                                  </a>
-                                                </Button>
-                                              )}
-                                            </div>
-                                          </DialogContent>
-                                        </Dialog>
-                                      </div>
-                                    </HoverCardTrigger>
-                                    <HoverCardContent className="w-80" side="left">
-                                      <div className="space-y-2">
-                                        <h4 className="font-medium">{event.title}</h4>
-                                        {event.venueAddress && (
-                                          <p className="text-sm text-muted-foreground">{event.venueAddress}</p>
-                                        )}
-                                        <div className="flex flex-wrap gap-2">
-                                          {event.rating && (
-                                            <Badge variant="secondary" className="gap-1">
-                                              <Star className="h-3 w-3 fill-current" />
-                                              {event.rating}
-                                            </Badge>
-                                          )}
-                                          {event.priceLevel && (
-                                            <Badge variant="secondary">
-                                              {priceDisplay(event.priceLevel)}
-                                            </Badge>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </HoverCardContent>
-                                  </HoverCard>
-                                );
-                              })}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      );
-                    });
-                  })()}
-                    </div>
-                    
-                    {/* Map View - only render when showFavoritesMap is true */}
-                    {showFavoritesMap && (
-                      <div className="lg:sticky lg:top-6 h-[600px]">
-                        <FavoritesMap 
-                          venues={votingEvents.filter(event => 
-                            event.title.toLowerCase().includes(favoritesSearch.toLowerCase())
-                          )}
-                          hoveredVenueId={hoveredFavoriteId}
-                          onMarkerHover={setHoveredFavoriteId}
-                          onMarkerClick={(venueId) => {
-                            const element = document.querySelector(`[data-testid="favorites-row-${venueId}"]`);
-                            element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                          }}
-                        />
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-                </div>
-
-                {/* Delete Confirmation Dialog */}
-                <AlertDialog open={!!favoriteToDelete} onOpenChange={(open) => !open && setFavoriteToDelete(null)}>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Delete Favorite?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Are you sure you want to delete "{favoriteToDelete?.title}"? This action cannot be undone.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={() => {
-                          if (favoriteToDelete) {
-                            deleteEventMutation.mutate(favoriteToDelete.id);
-                          }
-                        }}
-                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                      >
-                        Delete
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-
-                {/* Edit Favorite Dialog */}
-                <Dialog open={editFavoriteOpen} onOpenChange={setEditFavoriteOpen}>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Edit Favorite</DialogTitle>
-                      <DialogDescription>
-                        Update the details for this favorite venue
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 py-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="edit-title">Venue Name</Label>
-                        <Input
-                          id="edit-title"
-                          value={editFavoriteData.title}
-                          onChange={(e) => setEditFavoriteData({ ...editFavoriteData, title: e.target.value })}
-                          placeholder="e.g., The Blue Room"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="edit-description">Description (Optional)</Label>
-                        <Textarea
-                          id="edit-description"
-                          value={editFavoriteData.description}
-                          onChange={(e) => setEditFavoriteData({ ...editFavoriteData, description: e.target.value })}
-                          placeholder="Add notes about this venue..."
-                          rows={3}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="edit-venue-type">Venue Type (Optional)</Label>
-                        <Input
-                          id="edit-venue-type"
-                          value={editFavoriteData.venueType}
-                          onChange={(e) => setEditFavoriteData({ ...editFavoriteData, venueType: e.target.value })}
-                          placeholder="e.g., Bar, Restaurant, Cafe"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="edit-price-level">Price Level (Optional)</Label>
-                        <Select
-                          value={editFavoriteData.priceLevel || "NONE"}
-                          onValueChange={(value) => setEditFavoriteData({ ...editFavoriteData, priceLevel: value === "NONE" ? "" : value })}
-                        >
-                          <SelectTrigger id="edit-price-level">
-                            <SelectValue placeholder="Select price level" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="NONE">None</SelectItem>
-                            <SelectItem value="PRICE_LEVEL_INEXPENSIVE">$ - Inexpensive</SelectItem>
-                            <SelectItem value="PRICE_LEVEL_MODERATE">$$ - Moderate</SelectItem>
-                            <SelectItem value="PRICE_LEVEL_EXPENSIVE">$$$ - Expensive</SelectItem>
-                            <SelectItem value="PRICE_LEVEL_VERY_EXPENSIVE">$$$$ - Very Expensive</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setEditFavoriteOpen(false);
-                          setEditingFavorite(null);
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        onClick={handleSaveEditFavorite}
-                        disabled={!editFavoriteData.title.trim() || updateEventMutation.isPending}
-                      >
-                        {updateEventMutation.isPending ? "Saving..." : "Save Changes"}
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-
-                {/* Duplicate Confirmation Dialog */}
-                <AlertDialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Venue Already in Favorites</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        {existingDuplicate && (
-                          <>
-                            "{existingDuplicate.title}" is already in your favorites list
-                            {existingDuplicate.rating && (
-                              <span> with a {existingDuplicate.rating} rating</span>
-                            )}.
-                          </>
-                        )}
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel
-                        onClick={() => {
-                          setDuplicateDialogOpen(false);
-                          setDuplicateEventData(null);
-                          setExistingDuplicate(null);
-                          setAddEventOpen(false);
-                          setNewEventTitle("");
-                        }}
-                      >
-                        Cancel
-                      </AlertDialogCancel>
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          if (existingDuplicate) {
-                            // Scroll to the existing favorite and highlight it
-                            const element = document.querySelector(`[data-testid="favorites-row-${existingDuplicate.id}"]`);
-                            if (element) {
-                              element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                              setHoveredFavoriteId(existingDuplicate.id);
-                              setTimeout(() => setHoveredFavoriteId(null), 3000);
-                            }
-                            setDuplicateDialogOpen(false);
-                            setDuplicateEventData(null);
-                            setExistingDuplicate(null);
-                            setAddEventOpen(false);
-                            setNewEventTitle("");
-                          }
-                        }}
-                      >
-                        View Existing
-                      </Button>
-                      <AlertDialogAction
-                        onClick={() => {
-                          if (duplicateEventData) {
-                            // Retry with allowDuplicate flag
-                            createEventMutation.mutate({
-                              ...duplicateEventData,
-                              allowDuplicate: true
-                            });
-                          }
-                          setDuplicateDialogOpen(false);
-                          setDuplicateEventData(null);
-                          setExistingDuplicate(null);
-                          setAddEventOpen(false);
-                          setNewEventTitle("");
-                        }}
-                      >
-                        Add Anyway
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-
-                {/* Saved Plans Section */}
-                {!savedItinerariesLoading && savedItineraries.length > 0 && (
-              <div className="mt-12 pt-8 border-t">
-                <div className="mb-6">
-                  <h3 className="text-xl font-bold mb-2">Saved Plans</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Your library of saved itineraries - send any of these to your group
-                  </p>
-                </div>
-                <div className="space-y-4">
-                  {savedItineraries.map((itinerary: any) => (
-                    <Card key={itinerary.id} data-testid={`saved-itinerary-${itinerary.id}`}>
-                      <CardHeader className="pb-3">
-                        <div className="flex items-center justify-between gap-4">
-                          <div className="flex-1 min-w-0">
-                            <CardTitle className="text-lg truncate">{itinerary.name}</CardTitle>
-                            <CardDescription className="mt-1 space-y-1">
-                              <div>
-                                {itinerary.items?.length || 0} {(itinerary.items?.length || 0) === 1 ? 'stop' : 'stops'}
-                              </div>
-                              {itinerary.timingRecommendations && (
-                                <div className="flex items-center gap-1.5 text-xs" data-testid={`timing-notes-${itinerary.id}`}>
-                                  <Clock className="h-3 w-3 flex-shrink-0" />
-                                  <span className="truncate">{itinerary.timingRecommendations}</span>
-                                </div>
-                              )}
-                            </CardDescription>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button
-                              variant="default"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedItineraryForScheduling(itinerary);
-                                setActiveTab('build');
-                                requestAnimationFrame(() => {
-                                  setTimeout(() => {
-                                    document.getElementById('schedule-section')?.scrollIntoView({ behavior: 'smooth' });
-                                  }, 150);
-                                });
-                              }}
-                              data-testid={`button-schedule-itinerary-${itinerary.id}`}
-                            >
-                              <Calendar className="h-4 w-4 mr-2" />
-                              Schedule This →
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setEditingItinerary(itinerary);
-                                setEditItineraryName(itinerary.name || "");
-                                setEditItineraryItems(itinerary.items || []);
-                                setEditTimingRecommendations(itinerary.timingRecommendations || "");
-                                setEditItineraryOpen(true);
-                              }}
-                              data-testid={`button-edit-itinerary-${itinerary.id}`}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                duplicateItineraryMutation.mutate(itinerary.id);
-                              }}
-                              disabled={duplicateItineraryMutation.isPending}
-                              data-testid={`button-duplicate-itinerary-${itinerary.id}`}
-                            >
-                              <Copy className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                if (confirm(`Delete "${itinerary.name}"?`)) {
-                                  mutations.deleteSavedItinerary.mutate(itinerary.id);
-                                }
-                              }}
-                              disabled={mutations.deleteSavedItinerary.isPending}
-                              data-testid={`button-delete-itinerary-${itinerary.id}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-2">
-                          {itinerary.items?.map((item: any, index: number) => (
-                            <div
-                              key={item.id}
-                              className="flex items-center gap-3 p-2 rounded-md bg-accent/20 border"
-                              data-testid={`saved-itinerary-item-${item.id}`}
-                            >
-                              <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/25 text-primary font-bold text-sm">
-                                {index + 1}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium truncate">{item.venueName}</p>
-                                {item.venueType && (
-                                  <p className="text-xs text-muted-foreground truncate">{item.venueType}</p>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
+            <VenueDiscoveryModule
+              groupId={groupId || ""}
+              groupLocation={group?.locationBase || ""}
+              mode="select"
+              inline={true}
+              defaultTab="discover"
+              onCreateEvent={(venues: VenueData[]) => {
+                // Convert VenueData[] to the format expected by validateItineraryMutation
+                const venuesForValidation = venues.map((v, index) => ({
+                  sourceType: 'ad_hoc' as const,
+                  sourceId: `temp-${v.googlePlaceId || index}`,
+                  adHocData: {
+                    name: v.name,
+                    address: v.address,
+                    googlePlaceId: v.googlePlaceId,
+                    googleMapsUrl: v.googleMapsUrl,
+                    venueType: v.venueType || v.category || 'venue',
+                  }
+                }));
+                validateItineraryMutation.mutate(venuesForValidation);
+              }}
+              onStartSwipe={() => setDiscoverVenuesModalOpen(true)}
+            />
           </TabsContent>
 
           {/* Tab 3: Itinerary */}
           <TabsContent value="build" className="space-y-5">
+            {/* Event Timeline - Command Center */}
+            <EventTimeline
+              groupId={groupId || ""}
+              groupName={group?.name || "Group"}
+              groupTimezone={group?.timezone || undefined}
+              itineraries={deduplicatedTimelineEvents.map((event) => ({
+                id: event.id,
+                name: event.name,
+                status: event.status,
+                eventDate: event.eventDate || undefined,
+                inviteSentAt: event.inviteSentAt,
+                hostMemberName: event.hostMemberName,
+                items: event.items.map((item) => ({
+                  id: item.id,
+                  venueName: item.venueName || "Venue",
+                  venueAddress: item.venueAddress,
+                  venueType: item.venueType,
+                  photoUrl: item.photoUrl,
+                })),
+                rsvpCount: event.rsvpCount,
+                confidenceScore: event.confidenceScore,
+                autoSendAt: event.autoSendAt,
+              }))}
+              onCreateEvent={() => setEventCreationModalOpen(true)}
+              onEditItinerary={(id) => {
+                const itinerary = [...itineraries, ...proposedItineraries].find((it: any) => it.id === id);
+                if (itinerary) {
+                  setEditingItinerary(itinerary);
+                  setEditItineraryName(itinerary.name || "");
+                  setEditItineraryItems(itinerary.items || []);
+                  setEditItineraryOpen(true);
+                }
+              }}
+              onSendInvites={(id) => {
+                const itinerary = [...itineraries, ...proposedItineraries].find((it: any) => it.id === id);
+                if (itinerary) {
+                  setSelectedItineraryForScheduling(itinerary);
+                  setShowInlineScheduling(true);
+                }
+              }}
+              isAutoScheduleEnabled={group?.autoItineraryEnabled}
+            />
+
             {/* Sub-tabs for Manual vs Auto Schedule */}
             <Tabs value={createEventSubTab} onValueChange={setCreateEventSubTab} className="space-y-6">
-              <TabsList className="grid w-full max-w-md mx-auto grid-cols-2">
-                <TabsTrigger value="manual">Manual Event</TabsTrigger>
+              <TabsList className="grid w-full max-w-lg mx-auto grid-cols-3">
+                <TabsTrigger value="quick">Quick Create</TabsTrigger>
+                <TabsTrigger value="manual">From Venues</TabsTrigger>
                 <TabsTrigger value="auto">Auto Schedule</TabsTrigger>
               </TabsList>
 
-              {/* Manual Event Creation Tab */}
+              {/* Quick Create Tab - Date-First Flow */}
+              <TabsContent value="quick" className="space-y-5">
+                <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-8">
+                  {/* Main Content - Calendar */}
+                  <DateFirstEventCreator
+                    groupId={groupId || ""}
+                    groupLocation={group?.locationBase || ""}
+                    events={deduplicatedTimelineEvents}
+                    onEventCreated={(eventId) => {
+                      queryClient.invalidateQueries({
+                        queryKey: ["/api/groups", groupId, "itineraries"],
+                      });
+                    }}
+                    onSendInvites={(eventId) => {
+                      const itinerary = itineraries.find((it: any) => it.id === eventId);
+                      if (itinerary) {
+                        setSelectedItineraryForScheduling(itinerary);
+                        setShowInlineScheduling(true);
+                      }
+                    }}
+                  />
+
+                  {/* Sidebar - Unified Event List */}
+                  <UnifiedEventSidebar
+                    events={deduplicatedTimelineEvents}
+                    isLoading={itinerariesLoading}
+                    onEventClick={(event) => {
+                      const itinerary = [...itineraries, ...proposedItineraries].find((it: any) => it.id === event.id);
+                      if (itinerary) {
+                        setEditingItinerary(itinerary);
+                        setEditItineraryName(itinerary.name || "");
+                        setEditItineraryItems(itinerary.items || []);
+                        setEditItineraryOpen(true);
+                      }
+                    }}
+                    onEditEvent={(event) => {
+                      const itinerary = [...itineraries, ...proposedItineraries].find((it: any) => it.id === event.id);
+                      if (itinerary) {
+                        setEditingItinerary(itinerary);
+                        setEditItineraryName(itinerary.name || "");
+                        setEditItineraryItems(itinerary.items || []);
+                        setEditItineraryOpen(true);
+                      }
+                    }}
+                    onSendInvites={(event) => {
+                      const itinerary = itineraries.find((it: any) => it.id === event.id);
+                      if (itinerary) {
+                        setSelectedItineraryForScheduling(itinerary);
+                        setShowInlineScheduling(true);
+                      }
+                    }}
+                    showCreateButton={false}
+                    className="hidden lg:block"
+                  />
+                </div>
+              </TabsContent>
+
+              {/* Manual Event Creation Tab - Venue-First Flow */}
               <TabsContent value="manual" className="space-y-5">
                 <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-8">
                   {/* Main Content */}
@@ -7754,24 +5922,24 @@ export default function GroupDetail() {
                         })()}
 
                         {/* Section C: Upcoming Events Pipeline */}
-                        {pendingAutoEvents && pendingAutoEvents.length > 0 && (
+                        {sortedPendingAutoEvents && sortedPendingAutoEvents.length > 0 && (
                           <div className="border-t pt-4 space-y-3">
                             <div className="space-y-2">
                               <div className="flex items-center justify-between">
                                 <span className="text-xs font-semibold">Upcoming Events</span>
                                 <Badge variant="outline" className="text-xs">
-                                  {pendingAutoEvents.length} scheduled
+                                  {sortedPendingAutoEvents.length} scheduled
                                 </Badge>
                               </div>
-                              {pendingAutoEvents.length > 0 && pendingAutoEvents[pendingAutoEvents.length - 1]?.proposedDate && (
+                              {sortedPendingAutoEvents.length > 0 && sortedPendingAutoEvents[sortedPendingAutoEvents.length - 1]?.proposedDate && (
                                 <p className="text-xs text-muted-foreground">
-                                  Events through {new Date(pendingAutoEvents[pendingAutoEvents.length - 1].proposedDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                                  Events through {new Date(sortedPendingAutoEvents[sortedPendingAutoEvents.length - 1].proposedDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
                                 </p>
                               )}
                             </div>
 
                             <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                              {pendingAutoEvents.map((event: any, index: number) => {
+                              {sortedPendingAutoEvents.map((event: any, index: number) => {
                                 const proposedDate = event.proposedDate ? new Date(event.proposedDate) : null;
                                 const now = new Date();
                                 const isNext = index === 0;
@@ -7836,7 +6004,7 @@ export default function GroupDetail() {
                         )}
 
                         {/* Footer Info */}
-                        {(!pendingAutoEvents || pendingAutoEvents.length === 0) && group?.nextEventDueDate && (
+                        {(!sortedPendingAutoEvents || sortedPendingAutoEvents.length === 0) && group?.nextEventDueDate && (
                           <div className="border-t pt-4">
                             <p className="text-xs text-muted-foreground">
                               AI creates events 10 days before target
@@ -9616,6 +7784,7 @@ export default function GroupDetail() {
           open={discoverVenuesModalOpen}
           onOpenChange={setDiscoverVenuesModalOpen}
           groupId={groupId}
+          groupLocation={group?.locationBase}
           onStartSwipeSession={() => setShowSwipeSession(true)}
           onNavigateToTab={(tab) => setActiveTab(tab)}
         />

@@ -128,7 +128,7 @@ function RotatingHeadline() {
   if (phase === "kinmo") {
     return (
       <span className="animate-hero-finale-glow">
-        <span className="text-primary font-semibold">Kinmo</span>
+        <span className="text-primary font-medium">Kinmo</span>
       </span>
     );
   }
@@ -136,7 +136,7 @@ function RotatingHeadline() {
   if (phase === "kin") {
     return (
       <span className="whitespace-nowrap animate-kin-reveal">
-        See your <span className="text-primary font-semibold">kin</span> more.
+        See your <span className="text-primary font-medium">kin</span> more.
       </span>
     );
   }
@@ -145,7 +145,7 @@ function RotatingHeadline() {
     <span className="whitespace-nowrap">
       See your{" "}
       <span
-        className={`inline-block transition-all duration-300 text-primary ${
+        className={`inline-block transition-all duration-300 text-primary font-medium ${
           isAnimating ? "opacity-0 translate-y-3" : "opacity-100 translate-y-0"
         }`}
       >
@@ -178,12 +178,12 @@ export default function Landing() {
       </header>
 
       {/* Hero */}
-      <section className="pt-32 pb-20 px-6">
+      <section className="pt-28 sm:pt-36 pb-24 px-6">
         <div className="max-w-3xl mx-auto text-center">
-          <div className="mb-8">
+          <div className="mb-6">
             <svg
-              width="80"
-              height="80"
+              width="72"
+              height="72"
               viewBox="0 0 48 48"
               fill="none"
               className="mx-auto animate-slow-spin"
@@ -199,20 +199,16 @@ export default function Landing() {
             </svg>
           </div>
 
-          <p className="text-sm text-muted-foreground mb-2">Using AI to help you</p>
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight mb-6">
+          <p className="text-sm tracking-wide uppercase text-muted-foreground mb-3">Using AI to help you</p>
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight mb-12 leading-[1.1]">
             <RotatingHeadline />
           </h1>
 
-          <p className="text-lg sm:text-xl text-muted-foreground mb-10 max-w-xl mx-auto">
-            AI that handles the annoying parts of making plans — so you can skip to the part where you actually see each other.
-          </p>
-
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button
               size="lg"
               onClick={() => window.location.href = "/api/login"}
-              className="px-8"
+              className="px-10 h-12 text-base font-semibold"
               data-testid="button-get-started"
             >
               Get Started
@@ -221,6 +217,7 @@ export default function Landing() {
             <Button
               size="lg"
               variant="outline"
+              className="h-12 text-base"
               onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
             >
               See How It Works
@@ -230,110 +227,139 @@ export default function Landing() {
       </section>
 
       {/* The Problem */}
-      <section id="how-it-works" className="py-20 px-6 bg-muted/30">
+      <section id="how-it-works" className="py-24 px-6 bg-muted/30">
         <div className="max-w-4xl mx-auto">
-          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-4">
-            Planning is easy. Doing it every time is exhausting.
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-center mb-5">
+            The little things that let relationships drift apart
           </h2>
-          <p className="text-center text-muted-foreground mb-12 max-w-2xl mx-auto">
-            Someone has to be the one who texts "when are you free?" for the 47th time. Usually it's you.
+          <p className="text-center text-muted-foreground mb-14 max-w-2xl mx-auto text-base sm:text-lg leading-relaxed">
+            Small frictions pile up until reaching out feels like a whole thing. A little lost momentum can be crippling — even for the closest of relationships.
           </p>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="text-center md:text-left">
-              <h3 className="font-semibold text-lg mb-2">The group chat spiral</h3>
-              <p className="text-muted-foreground text-sm">
-                "We should do something!" *48 hours of scheduling tennis* "...maybe next month?"
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 md:gap-10">
+            <div className="text-center sm:text-left">
+              <h3 className="font-semibold text-lg mb-3">The slow fade</h3>
+              <p className="text-muted-foreground leading-relaxed">
+                Messages get buried. Everyone means to follow up, but few actually do.
               </p>
             </div>
-            <div className="text-center md:text-left">
-              <h3 className="font-semibold text-lg mb-2">The default planner</h3>
-              <p className="text-muted-foreground text-sm">
-                You know who you are. You're tired. We get it.
+            <div className="text-center sm:text-left">
+              <h3 className="font-semibold text-lg mb-3">The planning load</h3>
+              <p className="text-muted-foreground leading-relaxed">
+                It can keep falling on the same shoulders who might get tired.
               </p>
             </div>
-            <div className="text-center md:text-left">
-              <h3 className="font-semibold text-lg mb-2">The slow fade</h3>
-              <p className="text-muted-foreground text-sm">
-                Nobody's mad, everyone's "busy." Months go by. You meant to reach out.
+            <div className="text-center sm:text-left">
+              <h3 className="font-semibold text-lg mb-3">The unspoken stuff</h3>
+              <p className="text-muted-foreground leading-relaxed">
+                Too pricey. Too often. Not often enough. The things that sometimes aren't said.
+              </p>
+            </div>
+            <div className="text-center sm:text-left">
+              <h3 className="font-semibold text-lg mb-3">The reschedule spiral</h3>
+              <p className="text-muted-foreground leading-relaxed">
+                Three weeks can become four. Then six. Then "we should really catch up soon."
               </p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* How it works */}
-      <section className="py-20 px-6">
+      {/* How Kinmo's AI Works */}
+      <section className="py-24 px-6">
         <div className="max-w-4xl mx-auto">
-          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-12">
-            From "we should hang out" to "see you Saturday"
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-center mb-5">
+            How it works
           </h2>
+          <p className="text-center text-muted-foreground mb-16 max-w-2xl mx-auto text-base sm:text-lg leading-relaxed">
+            Kinmo learns the rhythm of your friendships.
+          </p>
 
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid md:grid-cols-3 gap-10 md:gap-12">
             <div>
-              <div className="text-4xl font-bold text-primary/20 mb-3">1</div>
-              <h3 className="font-semibold text-lg mb-2">Add your people</h3>
-              <p className="text-muted-foreground">
-                Create a group. Invite your crew. Tell Kinmo what you're into.
+              <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 text-primary text-lg font-semibold mb-4">1</div>
+              <h3 className="font-semibold text-lg mb-3">Learns what you love</h3>
+              <p className="text-muted-foreground leading-relaxed">
+                Swipe on places, share what you liked. Our tool learns your group's preferences.
               </p>
             </div>
             <div>
-              <div className="text-4xl font-bold text-primary/20 mb-3">2</div>
-              <h3 className="font-semibold text-lg mb-2">Let it handle the annoying parts</h3>
-              <p className="text-muted-foreground">
-                Finding times, suggesting places, sending reminders. The stuff nobody wants to do.
+              <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 text-primary text-lg font-semibold mb-4">2</div>
+              <h3 className="font-semibold text-lg mb-3">Finds when you're free</h3>
+              <p className="text-muted-foreground leading-relaxed">
+                Everyone shares when they're free. It finds times that work.
               </p>
             </div>
             <div>
-              <div className="text-4xl font-bold text-primary/20 mb-3">3</div>
-              <h3 className="font-semibold text-lg mb-2">Actually hang out</h3>
-              <p className="text-muted-foreground">
-                Revolutionary concept: seeing your friends in person.
+              <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 text-primary text-lg font-semibold mb-4">3</div>
+              <h3 className="font-semibold text-lg mb-3">Picks up on the vibes</h3>
+              <p className="text-muted-foreground leading-relaxed">
+                Too pricey? Too far? Too often? It picks up on the subtle stuff people might not say out loud.
               </p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Features */}
-      <section className="py-20 px-6 bg-muted/30">
+      {/* Why Kinmo */}
+      <section className="py-24 sm:py-32 px-6 bg-muted/30 overflow-hidden">
         <div className="max-w-4xl mx-auto">
-          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-4">
-            What it actually does
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-center mb-20">
+            Why Kinmo?
           </h2>
-          <p className="text-center text-muted-foreground mb-12 max-w-xl mx-auto">
-            Less "AI-powered synergy," more "actually useful."
-          </p>
 
-          <div className="grid sm:grid-cols-2 gap-6">
-            {[
-              { title: "Finds times that work", desc: "Everyone marks their availability. Kinmo finds the overlap. No more 27-message threads." },
-              { title: "Learns your group's taste", desc: "Swipe on venues, rate places you've been. It gets smarter about what to suggest." },
-              { title: "Real places, real data", desc: "Powered by Google Places. Hours, ratings, prices, photos — not made up recommendations." },
-              { title: "Keeps things moving", desc: "Gentle reminders, automatic scheduling. It doesn't give up after one 'maybe.'" },
-            ].map((feature, i) => (
-              <div key={i} className="p-6 rounded-lg border border-border/60 bg-card/50">
-                <h3 className="font-semibold mb-2">{feature.title}</h3>
-                <p className="text-muted-foreground text-sm">{feature.desc}</p>
+          <div className="relative">
+            {/* Staggered benefits - editorial style */}
+            <div className="space-y-8 sm:space-y-10">
+              <div className="flex justify-start sm:pl-4">
+                <p className="text-muted-foreground text-base sm:text-lg tracking-wide">
+                  Reduce the weight of planning
+                </p>
               </div>
-            ))}
+
+              <div className="flex justify-start sm:pl-16">
+                <p className="text-muted-foreground text-base sm:text-lg tracking-wide">
+                  Increase the number of planners
+                </p>
+              </div>
+
+              <div className="flex justify-center">
+                <p className="text-muted-foreground/90 text-base sm:text-lg tracking-wide">
+                  Share feedback that loops into future events
+                </p>
+              </div>
+
+              <div className="flex justify-end sm:pr-16">
+                <p className="text-foreground/70 text-base sm:text-lg tracking-wide">
+                  Improve the quality of your events
+                </p>
+              </div>
+            </div>
+
+            {/* The payoff - isolated, prominent */}
+            <div className="mt-16 sm:mt-20 text-center">
+              <p className="text-foreground text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight">
+                See your people more
+              </p>
+              <div className="mt-4 mx-auto w-12 h-1 bg-primary/60 rounded-full" />
+            </div>
           </div>
         </div>
       </section>
 
       {/* CTA */}
-      <section className="py-20 px-6">
+      <section className="py-28 px-6">
         <div className="max-w-2xl mx-auto text-center">
-          <h2 className="text-2xl sm:text-3xl font-bold mb-4">
-            You've said "we should hang out" enough times
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-5 leading-snug">
+            Is there anyone you want to see more?
           </h2>
-          <p className="text-muted-foreground mb-8">
-            Free to use. No credit card. No commitment. Just fewer excuses.
+          <p className="text-muted-foreground mb-10 text-base sm:text-lg leading-relaxed max-w-lg mx-auto">
+            Free to start. See how it feels. No commitment.
           </p>
           <Button
             size="lg"
             onClick={() => window.location.href = "/api/login"}
-            className="px-8"
+            className="px-10 h-12 text-base font-semibold"
           >
             Get Started
             <ArrowRight className="w-4 h-4 ml-2" />
@@ -342,17 +368,17 @@ export default function Landing() {
       </section>
 
       {/* Footer */}
-      <footer className="py-8 px-6 border-t border-border/40">
+      <footer className="py-10 px-6 border-t border-border/30">
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <KinmoIcon size={20} color="currentColor" />
+          <div className="flex items-center gap-2.5 text-muted-foreground">
+            <KinmoIcon size={18} color="currentColor" />
             <span className="text-sm">© {new Date().getFullYear()} Kinmo</span>
           </div>
-          <div className="flex gap-6">
-            <Link href="/privacy" className="text-sm text-muted-foreground hover:text-foreground">
+          <div className="flex gap-8">
+            <Link href="/privacy" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Privacy
             </Link>
-            <Link href="/terms" className="text-sm text-muted-foreground hover:text-foreground">
+            <Link href="/terms" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Terms
             </Link>
           </div>

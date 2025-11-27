@@ -310,12 +310,35 @@ export async function notifyEventCancelled(params: {
   groupId: string;
   eventName: string;
   memberIds: string[];
+  eventDate?: Date | null;
+  venueName?: string | null;
 }) {
-  const { itineraryId, groupId, eventName, memberIds } = params;
+  const { itineraryId, groupId, eventName, memberIds, eventDate, venueName } = params;
 
   const memberData = await db.query.members.findMany({
     where: (members, { inArray }) => inArray(members.id, memberIds),
   });
+
+  // Build a descriptive message with date and location if available
+  let message = `${eventName} has been cancelled`;
+  const details: string[] = [];
+
+  if (eventDate) {
+    const dateStr = new Date(eventDate).toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric'
+    });
+    details.push(dateStr);
+  }
+
+  if (venueName) {
+    details.push(venueName);
+  }
+
+  if (details.length > 0) {
+    message = `${eventName} (${details.join(' • ')}) has been cancelled`;
+  }
 
   const notificationPromises = memberData
     .filter(member => member.userId)
@@ -324,12 +347,14 @@ export async function notifyEventCancelled(params: {
         userId: member.userId!,
         type: 'event_cancelled',
         title: 'Event Cancelled',
-        message: `${eventName} has been cancelled`,
+        message,
         actionUrl: `/groups/${groupId}`,
         actionLabel: 'View Group',
         metadata: {
           itineraryId,
-          groupId
+          groupId,
+          eventDate: eventDate?.toISOString(),
+          venueName
         }
       })
     );

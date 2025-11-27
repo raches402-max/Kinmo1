@@ -3859,6 +3859,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get aggregated availability for all members in a group (for heatmap)
+  app.get("/api/groups/:groupId/members-availability", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = await getUserId(req);
+      const { groupId } = req.params;
+
+      // Verify user is a member or owner of this group
+      const group = await storage.getGroup(groupId);
+      const members = await storage.getGroupMembers(groupId);
+      const member = members.find(m => m.userId === userId);
+      const isOwner = group?.userId === userId;
+
+      if (!member && !isOwner) {
+        return res.status(403).json({ message: "Not a member of this group" });
+      }
+
+      // Get all members' availability with preference hierarchy applied
+      const membersAvailability = await storage.getGroupMembersAvailability(groupId);
+
+      // Find the current user's member ID for the frontend
+      const currentUserMemberId = member?.id || null;
+
+      res.json({
+        membersAvailability,
+        currentUserMemberId,
+        totalMembers: membersAvailability.length,
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get all members' budgets for group budget influence visualization
+  app.get("/api/groups/:groupId/members-budgets", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = await getUserId(req);
+      const { groupId } = req.params;
+
+      // Verify user is a member or owner of this group
+      const group = await storage.getGroup(groupId);
+      const members = await storage.getGroupMembers(groupId);
+      const member = members.find(m => m.userId === userId);
+      const isOwner = group?.userId === userId;
+
+      if (!member && !isOwner) {
+        return res.status(403).json({ message: "Not a member of this group" });
+      }
+
+      // Get all members' budgets with preference hierarchy applied
+      const membersBudgets = await storage.getGroupMembersBudgets(groupId);
+
+      // Find the current user's member ID for the frontend
+      const currentUserMemberId = member?.id || null;
+
+      res.json({
+        membersBudgets,
+        currentUserMemberId,
+        groupBudgetMin: group?.budgetMin ?? 20,
+        groupBudgetMax: group?.budgetMax ?? 80,
+        totalMembers: membersBudgets.length,
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Member RSVP Routes
 
   // Verify an invite token and return member data (no auth required)
@@ -5586,7 +5652,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const events = await storage.getGroupVotingEvents(req.params.groupId);
-      res.json(events);
+
+      // Get "liked by" member names for each event
+      const groupMembers = await storage.getGroupMembers(req.params.groupId);
+      const memberMap = new Map(groupMembers.map(m => [m.userId, m.name]));
+
+      // Fetch upvotes for each event and map to member names
+      const eventsWithLikedBy = await Promise.all(events.map(async (event) => {
+        const eventVotes = await storage.getEventVotes(event.id);
+        const upvoters = eventVotes
+          .filter(v => v.voteType === 'upvote')
+          .map(v => memberMap.get(v.userId))
+          .filter((name): name is string => !!name);
+
+        return {
+          ...event,
+          likedBy: upvoters,
+        };
+      }));
+
+      res.json(eventsWithLikedBy);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -6813,6 +6898,158 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     } catch (error: any) {
       console.error("[Category Generate] Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Quick Event Creation - One-click event creation with AI-selected venues
+  app.post("/api/groups/:id/quick-event", isAuthenticated, requireGroupOwnership(), async (req: any, res) => {
+    try {
+      const group = await storage.getGroup(req.params.id);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      const { eventType } = req.body;
+      const validTypes = ['surprise', 'dinner', 'drinks', 'coffee', 'activity'];
+
+      if (!eventType || !validTypes.includes(eventType)) {
+        return res.status(400).json({
+          message: `Invalid event type. Must be one of: ${validTypes.join(', ')}`
+        });
+      }
+
+      console.log(`[Quick Event] Creating ${eventType} event for group "${group.name}"`);
+
+      // Map event type to category for venue selection
+      const typeToCategory: Record<string, string> = {
+        'surprise': 'all', // AI picks from all categories
+        'dinner': 'meal',
+        'drinks': 'drinks',
+        'coffee': 'cafes',
+        'activity': 'experiences',
+      };
+      const targetCategory = typeToCategory[eventType];
+
+      // Get available venues (activities + voting events)
+      const activities = await storage.getGroupActivities(req.params.id);
+      const votingEvents = await storage.getGroupVotingEvents(req.params.id);
+
+      // Filter by category (unless "all" for surprise)
+      const matchingActivities = targetCategory === 'all'
+        ? activities
+        : activities.filter(a => {
+            const type = (a.venueType || '').toLowerCase();
+            if (targetCategory === 'meal') return type.includes('restaurant') || type.includes('food') || type.includes('meal');
+            if (targetCategory === 'drinks') return type.includes('bar') || type.includes('drinks') || type.includes('wine') || type.includes('cocktail');
+            if (targetCategory === 'cafes') return type.includes('cafe') || type.includes('coffee') || type.includes('tea');
+            if (targetCategory === 'experiences') return type.includes('activity') || type.includes('experience') || type.includes('museum') || type.includes('park');
+            return true;
+          });
+
+      const matchingVotingEvents = targetCategory === 'all'
+        ? votingEvents.filter(v => v.netVotes > 0) // Favorites with positive votes
+        : votingEvents.filter(v => {
+            const type = (v.venueType || '').toLowerCase();
+            if (targetCategory === 'meal') return type.includes('restaurant') || type.includes('food');
+            if (targetCategory === 'drinks') return type.includes('bar') || type.includes('drinks');
+            if (targetCategory === 'cafes') return type.includes('cafe') || type.includes('coffee');
+            if (targetCategory === 'experiences') return type.includes('activity') || type.includes('experience');
+            return false;
+          });
+
+      // Build available venues list with scoring
+      const availableVenues: any[] = [];
+
+      // Add activities (scored by rating and freshness)
+      for (const activity of matchingActivities) {
+        availableVenues.push({
+          sourceType: 'activity' as const,
+          sourceId: activity.id,
+          name: activity.venueName,
+          venueType: activity.venueType,
+          rating: activity.rating,
+          photoUrl: activity.photoUrl,
+          score: parseFloat(activity.rating || '0') + (activity.photoUrl ? 0.5 : 0),
+        });
+      }
+
+      // Add voting events (favorites get bonus)
+      for (const event of matchingVotingEvents) {
+        availableVenues.push({
+          sourceType: 'voting_event' as const,
+          sourceId: event.id,
+          name: event.title,
+          venueType: event.venueType,
+          rating: event.rating,
+          photoUrl: event.photoUrl,
+          score: parseFloat(event.rating || '0') + (event.netVotes > 0 ? 1 : 0) + (event.photoUrl ? 0.5 : 0),
+          isFavorite: true,
+        });
+      }
+
+      // Sort by score and take top venue(s)
+      availableVenues.sort((a, b) => b.score - a.score);
+
+      if (availableVenues.length === 0) {
+        return res.status(400).json({
+          message: `No ${eventType === 'surprise' ? '' : eventType + ' '}venues found. Add some favorites or discover new places first!`
+        });
+      }
+
+      // Select 1-2 venues based on event type
+      const numVenues = eventType === 'surprise' ? Math.min(2, availableVenues.length) : 1;
+      const selectedVenues = availableVenues.slice(0, numVenues);
+
+      console.log(`[Quick Event] Selected ${selectedVenues.length} venues: ${selectedVenues.map(v => v.name).join(', ')}`);
+
+      // Create the itinerary
+      const items = selectedVenues.map(v => ({
+        sourceType: v.sourceType,
+        sourceId: v.sourceId,
+      }));
+
+      // Calculate a suggested date (next Saturday evening)
+      const now = new Date();
+      const daysUntilSaturday = (6 - now.getDay() + 7) % 7 || 7; // Next Saturday
+      const suggestedDate = new Date(now);
+      suggestedDate.setDate(suggestedDate.getDate() + daysUntilSaturday);
+      suggestedDate.setHours(18, 0, 0, 0); // 6 PM
+
+      // Generate event name
+      const eventNames: Record<string, string> = {
+        'surprise': `${group.name} Hangout`,
+        'dinner': `${group.name} Dinner`,
+        'drinks': `${group.name} Drinks`,
+        'coffee': `${group.name} Coffee`,
+        'activity': `${group.name} Activity`,
+      };
+
+      const itinerary = await storage.createItinerary(
+        {
+          groupId: req.params.id,
+          name: eventNames[eventType],
+          status: 'draft',
+          eventDate: suggestedDate,
+          proposedOrder: items.map(i => i.sourceId),
+        },
+        group.userId!,
+        items
+      );
+
+      console.log(`[Quick Event] Created itinerary ${itinerary.id} with ${items.length} venues`);
+
+      // Fetch the full itinerary with items for response
+      const fullItinerary = await storage.getItinerary(itinerary.id);
+
+      res.json({
+        message: `${eventType.charAt(0).toUpperCase() + eventType.slice(1)} event created! Review and send invites when ready.`,
+        itinerary: fullItinerary,
+        suggestedDate: suggestedDate.toISOString(),
+        venueCount: selectedVenues.length,
+      });
+    } catch (error: any) {
+      console.error("[Quick Event] Error:", error);
       res.status(500).json({ message: error.message });
     }
   });
@@ -9098,12 +9335,19 @@ Looking forward to planning great activities together!
           const groupMembers = await storage.getGroupMembers(itinerary.groupId);
           const memberIds = groupMembers.map(m => m.id);
 
+          // Get the first venue name if available
+          const firstVenueName = itinerary.items && itinerary.items.length > 0
+            ? itinerary.items[0].venueName
+            : null;
+
           const { notifyEventCancelled } = await import('./notifications');
           await notifyEventCancelled({
             itineraryId,
             groupId: itinerary.groupId,
             eventName: itinerary.name || 'Upcoming Event',
-            memberIds
+            memberIds,
+            eventDate: itinerary.eventDate,
+            venueName: firstVenueName
           });
         } catch (notifyError) {
           console.error('[Notifications] Error sending cancellation notifications:', notifyError);
@@ -13690,6 +13934,98 @@ Looking forward to planning great activities together!
       res.json({ success: true });
     } catch (error: any) {
       console.error("Error deleting notification:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ============================================
+  // PLANNING INSIGHTS ENDPOINTS
+  // ============================================
+
+  // Get planning insights for a group
+  app.get("/api/groups/:id/planning-insights", isAuthenticated, async (req: any, res) => {
+    try {
+      const groupId = req.params.id;
+      const userId = await getUserId(req);
+
+      // Verify user has access to this group
+      const group = await storage.getGroup(groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      const members = await storage.getGroupMembers(groupId);
+      const isMember = group.userId === userId || members.some(m => m.userId === userId);
+      if (!isMember) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const { getGroupInsights } = await import('./planning-agent');
+      const insights = await getGroupInsights(groupId, userId);
+
+      res.json(insights);
+    } catch (error: any) {
+      console.error("Error fetching planning insights:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Dismiss a planning insight
+  app.post("/api/planning-insights/:id/dismiss", isAuthenticated, async (req: any, res) => {
+    try {
+      const insightId = req.params.id;
+      const userId = await getUserId(req);
+
+      const { dismissInsight } = await import('./planning-agent');
+      await dismissInsight(insightId, userId);
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error dismissing insight:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Mark an insight as acted upon
+  app.post("/api/planning-insights/:id/acted", isAuthenticated, async (req: any, res) => {
+    try {
+      const insightId = req.params.id;
+      const { actionStatus, actionDetails } = req.body;
+
+      const { markInsightActed } = await import('./planning-agent');
+      await markInsightActed(insightId, actionStatus || 'user_acted', actionDetails);
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error marking insight as acted:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Manually trigger planning agent for a group (for testing/debugging)
+  app.post("/api/groups/:id/analyze", isAuthenticated, async (req: any, res) => {
+    try {
+      const groupId = req.params.id;
+      const userId = await getUserId(req);
+
+      // Verify user is the group owner
+      const group = await storage.getGroup(groupId);
+      if (!group || group.userId !== userId) {
+        return res.status(403).json({ message: "Only group owner can trigger analysis" });
+      }
+
+      const { analyzeGroup } = await import('./planning-agent');
+      const insightCount = await analyzeGroup(groupId);
+
+      res.json({
+        success: true,
+        insightsGenerated: insightCount,
+        message: insightCount > 0
+          ? `Generated ${insightCount} new insight(s)`
+          : 'No new insights to report'
+      });
+    } catch (error: any) {
+      console.error("Error running planning agent:", error);
       res.status(500).json({ message: error.message });
     }
   });

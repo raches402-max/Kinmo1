@@ -1298,3 +1298,52 @@ export const insertDatabaseBackupSchema = createInsertSchema(databaseBackups).om
 
 export type InsertDatabaseBackup = z.infer<typeof insertDatabaseBackupSchema>;
 export type DatabaseBackup = typeof databaseBackups.$inferSelect;
+
+// Planning Insights table (proactive AI observations and suggestions)
+export const planningInsights = pgTable("planning_insights", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  groupId: varchar("group_id").notNull().references(() => groups.id, { onDelete: "cascade" }),
+  memberId: varchar("member_id").references(() => members.id, { onDelete: "cascade" }), // Nullable - some insights are group-wide
+
+  // Insight classification
+  insightType: text("insight_type").notNull(), // 'location_fairness' | 'venue_gap' | 'date_clustering' | 'member_inclusion' | 'cadence_health'
+  severity: text("severity").notNull().default("info"), // 'info' | 'suggestion' | 'action_needed'
+  audienceType: text("audience_type").notNull().default("organizer"), // 'organizer' | 'member' | 'all'
+
+  // Display content (LLM-generated)
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+
+  // Structured data from analyzer
+  metadata: jsonb("metadata"), // Analyzer-specific data (e.g., {locationCounts: {...}, suggestedArea: "Oakland"})
+
+  // Action tracking
+  actionType: text("action_type"), // 'suggest_venue' | 'create_draft' | 'send_nudge' | 'adjust_cadence' | null
+  actionTaken: text("action_taken").default("none"), // 'none' | 'suggested' | 'auto_acted' | 'user_acted'
+  actionDetails: jsonb("action_details"), // What was done (e.g., {venueId: "...", eventCreated: true})
+  actionUrl: text("action_url"), // One-click action URL
+  actionLabel: text("action_label"), // Button label for action
+
+  // Lifecycle
+  dismissedAt: timestamp("dismissed_at"), // User dismissed this insight
+  dismissedBy: varchar("dismissed_by").references(() => users.id, { onDelete: "set null" }),
+  expiresAt: timestamp("expires_at"), // Auto-expire old insights
+
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+},
+(table) => [
+  index("idx_planning_insights_group").on(table.groupId),
+  index("idx_planning_insights_member").on(table.memberId),
+  index("idx_planning_insights_type").on(table.insightType),
+  index("idx_planning_insights_active").on(table.groupId, table.dismissedAt, table.expiresAt),
+]);
+
+export const insertPlanningInsightSchema = createInsertSchema(planningInsights).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertPlanningInsight = z.infer<typeof insertPlanningInsightSchema>;
+export type PlanningInsight = typeof planningInsights.$inferSelect;

@@ -69,17 +69,17 @@ export function UnifiedEventCreationModal({
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
-  // Update selectedGroupId when groupId prop changes
+  // Update selectedGroupId when groupId prop changes or modal opens
   useEffect(() => {
-    if (groupId) {
+    if (open && groupId) {
       setSelectedGroupId(groupId);
     }
-  }, [groupId]);
+  }, [open, groupId]);
 
-  // Fetch user's groups
+  // Fetch user's groups (only needed when no groupId is provided)
   const { data: groups = [] } = useQuery<any[]>({
-    queryKey: ["/api/groups"],
-    enabled: open,
+    queryKey: ["/api/user/groups"],
+    enabled: open && !groupId,
   });
 
   // Auto-select if user has only one group

@@ -5,7 +5,7 @@
  */
 
 import { useLocation } from "wouter";
-import { Home, Users, Calendar, Bell, User } from "lucide-react";
+import { Home, Users, Bell, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
@@ -26,11 +26,6 @@ const navItems: NavItem[] = [
     label: "Groups",
     icon: Users,
     path: "/?tab=my-groups",
-  },
-  {
-    label: "Events",
-    icon: Calendar,
-    path: "/?tab=my-events",
   },
   {
     label: "Alerts",
