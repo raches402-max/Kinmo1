@@ -3,7 +3,7 @@
 **Status:** 📋 In Progress
 **Priority:** 🔴 High - Required before production launch
 **Created:** 2025-11-21
-**Last Updated:** 2025-11-23
+**Last Updated:** 2025-11-28
 
 This checklist covers all critical tasks needed before deploying Kinmo.ai to production on the custom domain.
 
@@ -12,39 +12,44 @@ This checklist covers all critical tasks needed before deploying Kinmo.ai to pro
 ## 🔐 Environment & Security Configuration
 
 ### Environment Variables
-- [ ] Review and secure all environment variables for production
-- [ ] Verify DATABASE_URL points to production Neon PostgreSQL database
-- [ ] Generate and set strong SESSION_SECRET (min 32 chars) - use `openssl rand -base64 32`
+- [x] Review and secure all environment variables for production
+  - ✅ Zod schema validates all required env vars at startup (server/config.ts)
+- [x] Verify DATABASE_URL points to production Neon PostgreSQL database
+- [x] Generate and set strong SESSION_SECRET (min 32 chars) - use `openssl rand -base64 32`
+  - ✅ Current: 88 chars (exceeds requirement)
 - [ ] Update REPLIT_DOMAINS with production Kinmo.ai domain
 - [ ] Configure ALLOWED_ORIGINS with production domains only (remove localhost)
 - [ ] Set NODE_ENV to 'production'
 - [ ] Set FRONTEND_URL to https://kinmo.ai
 
 ### API Keys & External Services
-- [ ] Verify OpenAI API key has sufficient credits and rate limits
-- [ ] Verify Google Places API keys and enable billing/quotas
-- [ ] Consider adding GOOGLE_PLACES_API_KEY_2 for load balancing
+- [x] Verify OpenAI API key has sufficient credits and rate limits
+- [x] Verify Google Places API keys and enable billing/quotas
+- [x] Consider adding GOOGLE_PLACES_API_KEY_2 for load balancing
+  - ✅ GOOGLE_PLACES_API_KEY_2 is configured
 - [ ] Configure Resend API with verified sending domain (@kinmo.ai)
 - [ ] Test Resend email deliverability (check spam folders)
 
 ### Security Hardening
-- [ ] Review and adjust rate limiting thresholds for production load
-  - Current: 100 req/15min (API), 5 req/15min (auth)
-- [ ] Enable Content Security Policy in production (currently disabled in dev)
-  - Located in: server/index.ts:58-61
-- [ ] Audit all API endpoints for authentication/authorization
-  - Check middleware: server/authorization.ts
-- [ ] Remove or secure all debug endpoints and test scripts
-  - Files: server/debug-*.ts, server/test-*.ts, server/check-*.ts
-- [ ] Review CORS configuration for production
-  - Located in: server/index.ts:64-85
+- [x] Review and adjust rate limiting thresholds for production load
+  - ✅ Current: 100 req/15min (API), 5 req/15min (auth) - appropriate for launch
+- [x] Enable Content Security Policy in production (currently disabled in dev)
+  - ✅ CSP enabled in production mode (server/index.ts:60-77)
+- [x] Audit all API endpoints for authentication/authorization
+  - ✅ Fixed /api/admin/ai-stats (was missing auth, now secured)
+  - ✅ All admin endpoints use isAuthenticated + requireAdmin()
+- [x] Remove or secure all debug endpoints and test scripts
+  - ✅ No debug-*.ts, test-*.ts, or check-*.ts files in server/
+- [x] Review CORS configuration for production
+  - ✅ Dev mode allows all; production uses ALLOWED_ORIGINS allowlist
 
 ---
 
 ## 🗄️ Database Configuration
 
-- [ ] Run database migrations with `npm run db:push`
-- [ ] Test database connection and verify all tables exist
+- [x] Run database migrations with `npm run db:push`
+  - ✅ drizzle-kit check: "Everything's fine"
+- [x] Test database connection and verify all tables exist
 - [ ] Set up database backups and point-in-time recovery (Neon feature)
 - [ ] Verify connection pooling settings are production-ready
 - [ ] Test database failover and connection retry logic
@@ -56,10 +61,12 @@ This checklist covers all critical tasks needed before deploying Kinmo.ai to pro
 ## 🔨 Build & Testing
 
 ### Production Build
-- [ ] Run production build with `npm run build` and verify success
+- [x] Run production build with `npm run build` and verify success
+  - ✅ Builds in ~15s, outputs to dist/
 - [ ] Test production build locally with `npm run start`
-- [ ] Verify all assets are properly bundled
-- [ ] Check that Replit-specific dev plugins are disabled in production
+- [x] Verify all assets are properly bundled
+  - ⚠️ Bundle is 2.1MB (consider code splitting later)
+- [x] Check that Replit-specific dev plugins are disabled in production
 
 ### Functional Testing
 - [ ] Test Replit Auth integration with production domain
@@ -96,8 +103,8 @@ This checklist covers all critical tasks needed before deploying Kinmo.ai to pro
 - [ ] Test domain redirects (www → non-www or vice versa)
 - [ ] Configure Replit autoscale deployment settings
   - Located in: .replit deployment section
-- [ ] Set up health check endpoint
-  - Consider adding: GET /api/health
+- [x] Set up health check endpoint
+  - ✅ GET /api/health exists with DB connectivity check
 - [ ] Test deployment rollback procedure
 
 ---
@@ -105,8 +112,13 @@ This checklist covers all critical tasks needed before deploying Kinmo.ai to pro
 ## 📊 Monitoring & Observability
 
 ### Error Tracking
-- [ ] Set up error monitoring service (e.g., Sentry, LogRocket)
+- [x] Set up error monitoring service (e.g., Sentry, LogRocket)
+  - ✅ Sentry integrated (server + client)
+  - ✅ React Error Boundary with fallback UI
+  - ✅ Global uncaughtException/unhandledRejection handlers
+  - ⚠️ Add SENTRY_DSN + VITE_SENTRY_DSN to Replit Secrets to activate
 - [ ] Configure error alerting (email/Slack)
+  - Configure in Sentry dashboard after adding DSN
 - [ ] Set up source map upload for production debugging
 - [ ] Test error reporting flow
 
@@ -133,11 +145,12 @@ This checklist covers all critical tasks needed before deploying Kinmo.ai to pro
 ## 📄 Legal & Documentation
 
 ### Legal Pages
-- [ ] Create or update Privacy Policy page
-  - Cover: Data collection, OpenAI usage, Google Places, cookies
-- [ ] Create or update Terms of Service page
-  - Cover: User conduct, liability, dispute resolution
-- [ ] Add legal page links to footer
+- [x] Create or update Privacy Policy page
+  - ✅ /privacy - comprehensive policy covering data collection, OpenAI, Google Places
+- [x] Create or update Terms of Service page
+  - ✅ /terms - covers user conduct, liability, age requirements
+- [x] Add legal page links to footer
+  - ✅ Links in landing page footer
 - [ ] Review GDPR compliance (if applicable)
 - [ ] Review CCPA compliance (if applicable)
 

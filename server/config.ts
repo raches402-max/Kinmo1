@@ -28,6 +28,10 @@ const envSchema = z.object({
   ALLOWED_ORIGINS: z.string().optional(),
   FRONTEND_URL: z.string().optional(),
   REPLIT_DEV_DOMAIN: z.string().optional(),
+
+  // Error Monitoring (optional - Sentry)
+  SENTRY_DSN: z.string().optional(),
+  SENTRY_ENABLED: z.string().optional(), // Set to 'true' to enable in development
 }).refine(
   (data) => data.GOOGLE_PLACES_API_KEY || data.GOOGLE_PLACES_API_KEY_2,
   {

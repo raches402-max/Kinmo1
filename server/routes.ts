@@ -7835,7 +7835,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get A/B testing and cache statistics
-  app.get("/api/admin/ai-stats", async (req, res) => {
+  app.get("/api/admin/ai-stats", isAuthenticated, requireAdmin(), async (req, res) => {
     try {
       // Get prompt cache stats
       const cacheStats = getPromptCacheStats();

@@ -4,10 +4,30 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import net from "net";
 import path from "path";
+import * as Sentry from "@sentry/node";
 import { env } from "./config"; // Validate environment variables at startup
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { startReminderScheduler } from "./reminder-scheduler";
+
+// Initialize Sentry for error monitoring (only if DSN is configured)
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV || 'development',
+    tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0, // 10% in prod, 100% in dev
+    profilesSampleRate: 0.1,
+    integrations: [
+      Sentry.httpIntegration(),
+      Sentry.expressIntegration(),
+    ],
+    // Don't send errors in development unless explicitly enabled
+    enabled: process.env.NODE_ENV === 'production' || process.env.SENTRY_ENABLED === 'true',
+  });
+  console.log('✅ Sentry error monitoring initialized');
+} else {
+  console.log('ℹ️  Sentry not configured (set SENTRY_DSN to enable)');
+}
 
 /**
  * Check if a port is available
@@ -42,12 +62,18 @@ async function getAvailablePort(preferredPort: number): Promise<number> {
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
+  Sentry.captureException(error);
   // Don't exit - let the app continue running
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  if (reason instanceof Error) {
+    Sentry.captureException(reason);
+  } else {
+    Sentry.captureMessage(`Unhandled Rejection: ${reason}`, 'error');
+  }
   // Don't exit - let the app continue running
 });
 
@@ -159,12 +185,19 @@ app.use((req, res, next) => {
   const mockupsPath = path.resolve(import.meta.dirname, "..", "client", "src", "components", "mockups");
   app.use("/mockups", express.static(mockupsPath));
 
+  // Sentry error handler - must be before other error handlers
+  app.use(Sentry.expressErrorHandler());
+
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
+    // Capture error in Sentry (expressErrorHandler may have already done this, but this ensures coverage)
+    if (status >= 500) {
+      Sentry.captureException(err);
+    }
+
     res.status(status).json({ message });
-    throw err;
   });
 
   // importantly only setup vite in development and after

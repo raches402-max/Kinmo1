@@ -25,15 +25,15 @@ This file tracks active tasks, deferred items, and improvement ideas for the pro
 
 **Top 5 immediate priorities to work on:**
 
-1. **🔧 Member Preferences Management Page** - Let members view/edit their preferences, confirm auto-learned constraints, set budget per group. (~4-6 hours)
+1. **📱 Mobile Critical Fixes** - Fix AvailabilityGrid responsiveness, convert large Dialogs to Drawers on mobile. (~5-6 hours)
 
-2. **📱 Mobile Critical Fixes** - Fix AvailabilityGrid responsiveness, convert large Dialogs to Drawers on mobile. (~5-6 hours)
+2. **🚀 Pre-Launch Tasks** - Work through [PRE_LAUNCH.md](./PRE_LAUNCH.md) checklist before going live on Kinmo.ai domain.
 
-3. **🚀 Pre-Launch Tasks** - Work through [PRE_LAUNCH.md](./PRE_LAUNCH.md) checklist before going live on Kinmo.ai domain.
+3. **⚡ Performance Optimization** - Refactor group-detail.tsx (10,480 lines!), add code splitting, optimize re-renders. (~8-12 hours)
 
-4. **⚡ Performance Optimization** - Refactor group-detail.tsx (10,480 lines!), add code splitting, optimize re-renders. (~8-12 hours)
+4. **🎨 Onboarding Phase 2** - Refactor Create Group into multi-step wizard with validation and progress bar. (~4-6 hours)
 
-5. **🔔 In-App Notification System** - Add notification center UI, notification types, real-time updates. (~6-8 hours)
+5. **🔄 Post-Event Feedback Loop Visibility** - Show impact of feedback, group event history with stats. (~4-5 hours)
 
 ---
 
@@ -90,17 +90,45 @@ Import 297 venues (222 food + 75 drinks) from scraped JSON to improve search cov
 
 ---
 
-### 🔧 Member Preferences Management Page
-**Priority:** 🔴 High | **Estimated Time:** 4-6 hours
+### 🔧 Member Preferences Management Page ✅ COMPLETE!
+**Priority:** ✅ Complete | **Status:** Production-ready
 
-Members can't manage their own preferences. Need dedicated page for:
-- View/edit availability grid
-- Set budget preferences (global + per-group overrides)
-- Update location and activity category preferences
-- **Auto-learned constraints section:** Confirm/reject AI assumptions with confidence levels
-- Link from Member Dashboard + user menu dropdown
+**Completed Assessment (2025-11-28):**
 
-**Impact:** Members feel in control, can see and correct AI assumptions.
+Member preferences system is comprehensive and well-architected. Full analysis confirmed:
+
+**✅ What's Implemented:**
+- **Budget preferences** - Global min/max with per-group overrides, 3-level hierarchy
+- **Availability grid** - 7-day × 3-period interactive grid, per-group overrides, aggregation for heatmaps
+- **Activity categories** - 5 categories (Meals, Cafes, Drinks, Dessert, Experiences), swipe discovery, per-group overrides
+- **Location** - Home base with geocoding (lat/lng) for distance calculations
+- **Meeting frequency** - Weekly/biweekly/monthly/bimonthly with per-group overrides
+- **Favorite venues** - Save/manage favorites by category
+- **AI constraint learning** - Auto-detection from RSVP patterns (budget, distance, schedule conflicts)
+- **Accept/dismiss workflow** - Members can confirm or reject AI suggestions
+- **Preferences page UI** - `/preferences` with all settings, smart insights section
+- **Member profile setup** - Onboarding flow with location, availability, interests
+
+**📍 Schema locations:**
+- `user_profiles` table - Global preferences
+- `member_group_preferences` table - Per-group overrides
+- `members` table - Member-level data
+- `memberFavoriteVenues` table - Favorites
+
+**🔌 API endpoints:**
+- `GET/PATCH /api/user/preferences` - Global preferences
+- `GET/PATCH /api/user/preferences/groups/:groupId` - Group-specific overrides
+- `GET/PATCH /api/members/:memberId/profile` - Member profile
+- `GET /api/members/:memberId/constraint-analysis` - AI pattern analysis
+
+**⏳ Future Enhancements (Low Priority):**
+- Transportation mode (car/transit/walking) - affects realistic travel radius
+- Venue ambiance preferences (quiet/lively)
+- Cuisine preferences beyond "Meals" category
+- Notification timing preferences
+- Dietary restrictions (when AI can act on them)
+
+**Impact:** System already delivers on member control and AI transparency goals.
 
 ---
 
@@ -137,12 +165,38 @@ Phase 1 complete (tooltips + success screen). Infrastructure ready (`OnboardingW
 
 ## 🎨 User Experience & Interface
 
-### 🔔 In-App Notification System
-**Priority:** 🟡 Medium | **Estimated Time:** 6-8 hours
+### 🔔 In-App Notification System ✅ COMPLETE!
+**Priority:** ✅ Complete | **Status:** Production-ready
 
-Add notification center UI (bell icon + badge count), notification types (new events, RSVPs, assignments), dashboard action indicators, notification preferences.
+**Completed Assessment (2025-11-28):**
 
-**Impact:** Active users stay informed without checking email, 40% increase in engagement, reduces missed RSVPs.
+Full in-app notification system is implemented and working.
+
+**✅ What's Implemented:**
+- **Database:** `notifications` table with userId, type, title, message, actionUrl, read status, metadata
+- **7 notification types:** event_invite, rsvp_reminder, time_selected, feedback_request, event_update, venue_change, event_cancelled
+- **API endpoints:** GET list, GET unread-count, POST mark-read, POST mark-all-read, DELETE
+- **NotificationBell:** Header bell icon with badge (9+ overflow), dropdown with recent 10
+- **NotificationItem:** Type-specific icons, quick RSVP buttons for invites, delete with 5s undo
+- **NotificationsPage:** Full page at `/notifications` with All/Unread tabs
+- **Mobile:** Bottom nav "Alerts" tab with badge
+- **Polling:** 30-second refresh for unread count
+- **Optimistic updates:** Instant UI feedback with rollback on error
+
+**🔌 Active Triggers:**
+- `notifyEventInvite()` - When itinerary sent to members
+- `notifyRSVPReminder()` - Scheduled before deadline
+- `notifyTimeSelected()` - When time finalized
+- `notifyFeedbackRequest()` - Post-event
+- `notifyEventCancelled()` - When event deleted
+
+**⏳ Future Enhancements (Low Priority):**
+- Wire up `notifyEventUpdate()` (defined but unused)
+- Add notification type preferences (per-type toggles)
+- Email notification integration (field exists, logic missing)
+- WebSocket for real-time (polling is fine for now)
+
+**Impact:** Core notification loop is complete - users stay informed without email.
 
 ---
 
@@ -482,4 +536,4 @@ Track constraint accuracy, re-engagement metrics, blacklist effectiveness. Admin
 
 ---
 
-*Last updated: 2025-11-24*
+*Last updated: 2025-11-28*

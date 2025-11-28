@@ -93,7 +93,19 @@
       "Bash(timeout 30 npx vite build:*)",
       "Bash(git remote set-url:*)",
       "Bash(git fetch:*)",
-      "Bash(printenv:*)"
+      "Bash(printenv:*)",
+      "WebFetch(domain:replit.com)",
+      "WebFetch(domain:openai.com)",
+      "WebFetch(domain:policies.google.com)",
+      "WebFetch(domain:resend.com)",
+      "WebFetch(domain:neon.tech)",
+      "WebFetch(domain:neon.com)",
+      "Bash(grep:*)",
+      "Bash(timeout 15 npm run dev:*)",
+      "Bash(timeout 60 npx vite build:*)",
+      "Bash(git push)",
+      "Bash(git push:*)",
+      "Bash(/home/runner/workspace/setup-claude-plugins.sh)"
     ],
     "deny": [],
     "ask": []

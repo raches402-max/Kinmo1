@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Event Planning Redesign - Brainstorm</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Fraunces:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+
+  <style>
+    /* ================================
+       WARM GATHERING DESIGN SYSTEM
+       ================================ */
+    :root {
+      --background: hsl(40, 10%, 99%);
+      --foreground: hsl(0, 0%, 0%);
+      --card: hsl(38, 45%, 98%);
+      --card-border: hsl(32, 25%, 88%);
+      --muted: hsl(35, 25%, 93%);
+      --muted-foreground: hsl(25, 15%, 45%);
+      --primary: hsl(44, 87%, 63%);
+      --primary-hover: hsl(46, 88%, 67%);
+      --primary-foreground: hsl(0, 0%, 0%);
+      --secondary: hsl(145, 25%, 72%);
+      --secondary-foreground: hsl(25, 30%, 14%);
+      --accent: hsl(350, 45%, 72%);
+      --destructive: hsl(4, 70%, 55%);
+      --shadow-subtle: 0 2px 8px rgba(0, 0, 0, 0.04);
+      --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.12);
+      --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
+      --font-display: 'Fraunces', Georgia, serif;
+      --radius: 0.5rem;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--font-sans);
+      background: hsl(35, 15%, 96%);
+      color: var(--foreground);
+      line-height: 1.5;
+      padding: 2rem;
+      min-height: 100vh;
+    }
+
+    /* ================================
+       LAYOUT
+       ================================ */
+    .page-container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .concept-header {
+      text-align: center;
+      padding: 2rem 0 3rem;
+    }
+
+    .concept-header h1 {
+      font-family: var(--font-display);
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .concept-header p {
+      color: var(--muted-foreground);
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .section {
+      margin-bottom: 4rem;
+    }
+
+    .section-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted-foreground);
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .section-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--card-border);
+    }
+
+    /* ================================
+       UNIFIED COMMAND CENTER
+       ================================ */
+    .command-center {
+      background: var(--card);
+      border-radius: calc(var(--radius) * 2);
+      box-shadow: var(--shadow-elevated);
+      overflow: hidden;
+    }
+
+    .command-header {
+      padding: 1.5rem;
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .command-title {
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+
+    .automation-status {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8125rem;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--secondary);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* ================================
+       TIMELINE VIEW (Main Feature)
+       ================================ */
+    .timeline-container {
+      padding: 1.5rem;
+    }
+
+    .timeline {
+      position: relative;
+      padding-left: 2rem;
+    }
+
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 0.5rem;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: linear-gradient(to bottom, var(--primary), var(--secondary), var(--muted));
+    }
+
+    .timeline-item {
+      position: relative;
+      padding-bottom: 2rem;
+    }
+
+    .timeline-item:last-child {
+      padding-bottom: 0;
+    }
+
+    .timeline-dot {
+      position: absolute;
+      left: -1.625rem;
+      top: 0.25rem;
+      width: 1rem;
+      height: 1rem;
+      border-radius: 50%;
+      background: var(--card);
+      border: 3px solid var(--primary);
+      z-index: 1;
+    }
+
+    .timeline-item.pending .timeline-dot {
+      border-color: var(--accent);
+      background: var(--accent);
+    }
+
+    .timeline-item.draft .timeline-dot {
+      border-color: var(--muted-foreground);
+      border-style: dashed;
+    }
+
+    .timeline-item.auto .timeline-dot::after {
+      content: '⚡';
+      position: absolute;
+      top: -0.5rem;
+      right: -0.5rem;
+      font-size: 0.625rem;
+    }
+
+    .timeline-card {
+      background: var(--background);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 1rem;
+      transition: all 0.2s;
+    }
+
+    .timeline-card:hover {
+      box-shadow: var(--shadow-subtle);
+      transform: translateX(4px);
+    }
+
+    .timeline-card.needs-action {
+      border-color: var(--accent);
+      border-left-width: 3px;
+    }
+
+    .timeline-date {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted-foreground);
+      margin-bottom: 0.375rem;
+    }
+
+    .timeline-title {
+      font-weight: 600;
+      font-size: 1rem;
+      margin-bottom: 0.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .timeline-venues {
+      font-size: 0.875rem;
+      color: var(--muted-foreground);
+      margin-bottom: 0.75rem;
+    }
+
+    .timeline-meta {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      font-size: 0.75rem;
+    }
+
+    .timeline-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.25rem 0.5rem;
+      background: var(--muted);
+      border-radius: 999px;
+      font-size: 0.6875rem;
+      font-weight: 500;
+    }
+
+    .timeline-badge.action {
+      background: hsl(350, 45%, 95%);
+      color: hsl(350, 45%, 45%);
+    }
+
+    .timeline-badge.auto {
+      background: hsl(44, 87%, 95%);
+      color: hsl(44, 50%, 35%);
+    }
+
+    .timeline-actions {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+
+    /* ================================
+       QUICK ACTIONS BAR
+       ================================ */
+    .quick-actions {
+      display: flex;
+      gap: 0.75rem;
+      padding: 1rem 1.5rem;
+      background: var(--muted);
+      border-top: 1px solid var(--card-border);
+    }
+
+    .quick-action-btn {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.875rem 1rem;
+      background: var(--background);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      font-family: var(--font-sans);
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .quick-action-btn:hover {
+      border-color: var(--primary);
+      background: hsla(44, 87%, 63%, 0.08);
+    }
+
+    .quick-action-btn.primary {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: var(--primary-foreground);
+      font-weight: 600;
+    }
+
+    .quick-action-btn.primary:hover {
+      background: var(--primary-hover);
+    }
+
+    /* ================================
+       ONE-CLICK EVENT CREATION
+       ================================ */
+    .one-click-section {
+      background: linear-gradient(135deg, hsla(44, 87%, 63%, 0.1) 0%, hsla(145, 25%, 72%, 0.1) 100%);
+      border: 2px dashed var(--card-border);
+      border-radius: calc(var(--radius) * 2);
+      padding: 2rem;
+      text-align: center;
+    }
+
+    .one-click-title {
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .one-click-subtitle {
+      color: var(--muted-foreground);
+      font-size: 0.9375rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .one-click-options {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .one-click-card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      width: 200px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .one-click-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-elevated);
+      border-color: var(--primary);
+    }
+
+    .one-click-icon {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .one-click-label {
+      font-weight: 600;
+      font-size: 0.9375rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .one-click-desc {
+      font-size: 0.75rem;
+      color: var(--muted-foreground);
+    }
+
+    /* ================================
+       INLINE EDITING
+       ================================ */
+    .inline-edit-card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: calc(var(--radius) * 2);
+      overflow: hidden;
+    }
+
+    .edit-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 1.5rem;
+      background: var(--muted);
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .edit-title {
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .edit-status {
+      font-size: 0.75rem;
+      color: var(--muted-foreground);
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+    }
+
+    .edit-body {
+      padding: 1.5rem;
+    }
+
+    .edit-section {
+      margin-bottom: 1.5rem;
+    }
+
+    .edit-section:last-child {
+      margin-bottom: 0;
+    }
+
+    .edit-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted-foreground);
+      margin-bottom: 0.5rem;
+    }
+
+    .edit-venues {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .edit-venue {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem;
+      background: var(--background);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+    }
+
+    .venue-drag {
+      color: var(--muted-foreground);
+      cursor: grab;
+    }
+
+    .venue-info {
+      flex: 1;
+    }
+
+    .venue-name {
+      font-weight: 500;
+      font-size: 0.9375rem;
+    }
+
+    .venue-meta {
+      font-size: 0.75rem;
+      color: var(--muted-foreground);
+    }
+
+    .venue-remove {
+      width: 1.5rem;
+      height: 1.5rem;
+      border-radius: 50%;
+      border: none;
+      background: transparent;
+      color: var(--muted-foreground);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .venue-remove:hover {
+      background: hsl(4, 70%, 95%);
+      color: var(--destructive);
+    }
+
+    .add-venue-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.75rem;
+      background: transparent;
+      border: 2px dashed var(--card-border);
+      border-radius: var(--radius);
+      color: var(--muted-foreground);
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .add-venue-btn:hover {
+      border-color: var(--primary);
+      color: var(--foreground);
+      background: hsla(44, 87%, 63%, 0.05);
+    }
+
+    .edit-time-row {
+      display: flex;
+      gap: 1rem;
+    }
+
+    .time-picker {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.75rem;
+      background: var(--background);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .time-picker:hover {
+      border-color: var(--primary);
+    }
+
+    .time-picker-value {
+      flex: 1;
+      font-weight: 500;
+    }
+
+    .time-picker-hint {
+      font-size: 0.75rem;
+      color: var(--muted-foreground);
+    }
+
+    .ai-suggest-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1rem;
+      background: linear-gradient(135deg, hsla(44, 87%, 63%, 0.15) 0%, hsla(145, 25%, 72%, 0.15) 100%);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      color: var(--foreground);
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .ai-suggest-btn:hover {
+      background: linear-gradient(135deg, hsla(44, 87%, 63%, 0.25) 0%, hsla(145, 25%, 72%, 0.25) 100%);
+    }
+
+    .edit-footer {
+      display: flex;
+      gap: 0.75rem;
+      padding: 1rem 1.5rem;
+      background: var(--muted);
+      border-top: 1px solid var(--card-border);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1.25rem;
+      border-radius: var(--radius);
+      font-family: var(--font-sans);
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: none;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: var(--primary-foreground);
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-hover);
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--card-border);
+      color: var(--foreground);
+    }
+
+    .btn-outline:hover {
+      border-color: var(--foreground);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--muted-foreground);
+    }
+
+    .btn-ghost:hover {
+      background: var(--muted);
+      color: var(--foreground);
+    }
+
+    /* ================================
+       AI TRANSPARENCY
+       ================================ */
+    .ai-explainer {
+      background: linear-gradient(135deg, hsla(44, 87%, 63%, 0.08) 0%, hsla(145, 25%, 72%, 0.08) 100%);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 1rem;
+      margin-top: 1rem;
+    }
+
+    .ai-explainer-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .ai-explainer-content {
+      font-size: 0.8125rem;
+      color: var(--muted-foreground);
+      line-height: 1.6;
+    }
+
+    .ai-explainer-content ul {
+      margin-top: 0.5rem;
+      padding-left: 1.25rem;
+    }
+
+    .ai-explainer-content li {
+      margin-bottom: 0.25rem;
+    }
+
+    /* ================================
+       EMPTY STATE
+       ================================ */
+    .empty-state {
+      text-align: center;
+      padding: 3rem;
+    }
+
+    .empty-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+      opacity: 0.5;
+    }
+
+    .empty-title {
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .empty-desc {
+      color: var(--muted-foreground);
+      font-size: 0.9375rem;
+      max-width: 400px;
+      margin: 0 auto 1.5rem;
+    }
+
+    /* ================================
+       DESIGN NOTES
+       ================================ */
+    .design-notes {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      border: 1px solid var(--card-border);
+    }
+
+    .design-notes h3 {
+      font-family: var(--font-display);
+      font-size: 1.125rem;
+      margin-bottom: 1rem;
+    }
+
+    .design-notes ul {
+      color: var(--muted-foreground);
+      font-size: 0.9375rem;
+      line-height: 1.8;
+      list-style: disc;
+      padding-left: 1.25rem;
+    }
+
+    .design-notes li {
+      margin-bottom: 0.25rem;
+    }
+
+    .design-notes strong {
+      color: var(--foreground);
+    }
+
+    /* ================================
+       COMPARISON: BEFORE/AFTER
+       ================================ */
+    .comparison-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+    }
+
+    @media (max-width: 900px) {
+      .comparison-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .comparison-card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+    }
+
+    .comparison-card.before {
+      opacity: 0.7;
+    }
+
+    .comparison-card h4 {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted-foreground);
+      margin-bottom: 1rem;
+    }
+
+    .comparison-card.after h4 {
+      color: var(--secondary-foreground);
+    }
+
+    .flow-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .flow-step {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.625rem;
+      background: var(--background);
+      border-radius: var(--radius);
+      font-size: 0.8125rem;
+    }
+
+    .flow-step-num {
+      width: 1.5rem;
+      height: 1.5rem;
+      border-radius: 50%;
+      background: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      color: var(--muted-foreground);
+    }
+
+    .comparison-card.after .flow-step-num {
+      background: var(--primary);
+      color: var(--primary-foreground);
+    }
+  </style>
+</head>
+<body>
+  <div class="page-container">
+    <!-- Header -->
+    <div class="concept-header">
+      <h1>Event Planning Redesign</h1>
+      <p>
+        Reducing friction, increasing visibility, and making AI transparent.
+        One unified view to see, create, and manage all events.
+      </p>
+    </div>
+
+    <!-- CONCEPT 1: Unified Command Center -->
+    <div class="section">
+      <div class="section-label">Concept 1 — Unified Timeline View</div>
+
+      <div class="command-center">
+        <div class="command-header">
+          <div class="command-title">📅 Your Events</div>
+          <div class="automation-status">
+            <span class="status-dot"></span>
+            Auto-scheduling active
+          </div>
+        </div>
+
+        <div class="timeline-container">
+          <div class="timeline">
+            <!-- Needs Action Item -->
+            <div class="timeline-item pending">
+              <div class="timeline-dot"></div>
+              <div class="timeline-card needs-action">
+                <div class="timeline-date">This Friday, Dec 6 · 7:00 PM</div>
+                <div class="timeline-title">
+                  🍜 Ramen Night
+                  <span class="timeline-badge action">Needs your approval</span>
+                </div>
+                <div class="timeline-venues">Marufuku Ramen → Trick Dog</div>
+                <div class="timeline-meta">
+                  <span class="timeline-badge auto">⚡ Auto-generated</span>
+                  <span>4 RSVPs</span>
+                  <span>⭐ From your Favorites</span>
+                </div>
+                <div class="timeline-actions">
+                  <button class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.8125rem;">
+                    ✓ Approve & Send
+                  </button>
+                  <button class="btn btn-outline" style="padding: 0.5rem 1rem; font-size: 0.8125rem;">
+                    Edit First
+                  </button>
+                  <button class="btn btn-ghost" style="padding: 0.5rem 1rem; font-size: 0.8125rem;">
+                    Skip This Week
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Confirmed Item -->
+            <div class="timeline-item">
+              <div class="timeline-dot"></div>
+              <div class="timeline-card">
+                <div class="timeline-date">Saturday, Dec 14 · 6:30 PM</div>
+                <div class="timeline-title">🍝 Italian Night</div>
+                <div class="timeline-venues">Flour + Water → Bi-Rite Creamery</div>
+                <div class="timeline-meta">
+                  <span class="timeline-badge" style="background: hsl(145, 25%, 90%); color: hsl(145, 35%, 35%);">✓ Confirmed</span>
+                  <span>6 going</span>
+                  <span>Hosted by Sarah</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Draft Item -->
+            <div class="timeline-item draft auto">
+              <div class="timeline-dot"></div>
+              <div class="timeline-card" style="opacity: 0.7;">
+                <div class="timeline-date">Week of Dec 21</div>
+                <div class="timeline-title" style="color: var(--muted-foreground);">
+                  AI will create this event
+                  <span class="timeline-badge auto">⚡ Auto</span>
+                </div>
+                <div class="timeline-venues" style="font-style: italic;">Based on your Favorites and availability</div>
+                <div class="timeline-meta">
+                  <span>Coming in 8 days</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="quick-actions">
+          <button class="quick-action-btn primary">
+            ➕ Create Event
+          </button>
+          <button class="quick-action-btn">
+            🎲 Surprise Me
+          </button>
+          <button class="quick-action-btn">
+            📋 From Saved Plan
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONCEPT 2: One-Click Creation -->
+    <div class="section">
+      <div class="section-label">Concept 2 — One-Click Event Creation</div>
+
+      <div class="one-click-section">
+        <div class="one-click-title">What kind of event?</div>
+        <div class="one-click-subtitle">Pick one and we'll handle the rest. You can always edit before sending.</div>
+
+        <div class="one-click-options">
+          <div class="one-click-card">
+            <div class="one-click-icon">🎲</div>
+            <div class="one-click-label">Surprise Me</div>
+            <div class="one-click-desc">AI picks from your Favorites</div>
+          </div>
+          <div class="one-click-card">
+            <div class="one-click-icon">🍽️</div>
+            <div class="one-click-label">Dinner</div>
+            <div class="one-click-desc">Restaurant + optional after</div>
+          </div>
+          <div class="one-click-card">
+            <div class="one-click-icon">🍺</div>
+            <div class="one-click-label">Drinks</div>
+            <div class="one-click-desc">Bar crawl or single spot</div>
+          </div>
+          <div class="one-click-card">
+            <div class="one-click-icon">☕</div>
+            <div class="one-click-label">Coffee</div>
+            <div class="one-click-desc">Casual weekday meetup</div>
+          </div>
+          <div class="one-click-card">
+            <div class="one-click-icon">✏️</div>
+            <div class="one-click-label">Custom</div>
+            <div class="one-click-desc">Build from scratch</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONCEPT 3: Inline Editing -->
+    <div class="section">
+      <div class="section-label">Concept 3 — Inline Event Editor (No Modal)</div>
+
+      <div class="inline-edit-card">
+        <div class="edit-header">
+          <div class="edit-title">
+            <span>🍜</span>
+            Ramen Night
+          </div>
+          <div class="edit-status">
+            <span style="color: var(--accent);">●</span>
+            Draft — not sent yet
+          </div>
+        </div>
+
+        <div class="edit-body">
+          <div class="edit-section">
+            <div class="edit-label">Venues (drag to reorder)</div>
+            <div class="edit-venues">
+              <div class="edit-venue">
+                <span class="venue-drag">⋮⋮</span>
+                <div class="venue-info">
+                  <div class="venue-name">1. Marufuku Ramen</div>
+                  <div class="venue-meta">⭐ 4.5 · $$ · Japantown · ⭐ Group Favorite</div>
+                </div>
+                <button class="venue-remove">✕</button>
+              </div>
+              <div class="edit-venue">
+                <span class="venue-drag">⋮⋮</span>
+                <div class="venue-info">
+                  <div class="venue-name">2. Trick Dog</div>
+                  <div class="venue-meta">⭐ 4.4 · $$ · Mission · 🍸 Cocktail Bar</div>
+                </div>
+                <button class="venue-remove">✕</button>
+              </div>
+              <button class="add-venue-btn">
+                + Add another venue
+              </button>
+            </div>
+          </div>
+
+          <div class="edit-section">
+            <div class="edit-label">When</div>
+            <div class="edit-time-row">
+              <div class="time-picker">
+                <span>📅</span>
+                <div class="time-picker-value">Friday, Dec 6</div>
+                <span class="time-picker-hint">Change</span>
+              </div>
+              <div class="time-picker">
+                <span>🕖</span>
+                <div class="time-picker-value">7:00 PM</div>
+                <span class="time-picker-hint">Change</span>
+              </div>
+              <button class="ai-suggest-btn">
+                ✨ AI: Find best time
+              </button>
+            </div>
+          </div>
+
+          <!-- AI Transparency -->
+          <div class="ai-explainer">
+            <div class="ai-explainer-header">
+              <span>🤖</span>
+              Why this itinerary?
+            </div>
+            <div class="ai-explainer-content">
+              <ul>
+                <li><strong>Marufuku</strong> — Your group's #1 upvoted restaurant (not visited in 45 days)</li>
+                <li><strong>Trick Dog</strong> — Matches your "after-dinner drinks" preference. 0.3 mi from Marufuku.</li>
+                <li><strong>Friday 7 PM</strong> — Best overlap with 4/6 members' availability</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="edit-footer">
+          <button class="btn btn-ghost" style="margin-right: auto;">
+            🗑️ Discard
+          </button>
+          <button class="btn btn-outline">
+            Save as Draft
+          </button>
+          <button class="btn btn-primary">
+            Send Invites →
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONCEPT 4: Flow Comparison -->
+    <div class="section">
+      <div class="section-label">Current vs. Proposed Flow</div>
+
+      <div class="comparison-grid">
+        <div class="comparison-card before">
+          <h4>❌ Current Flow (7+ steps)</h4>
+          <div class="flow-steps">
+            <div class="flow-step">
+              <span class="flow-step-num">1</span>
+              Navigate to Create Event tab
+            </div>
+            <div class="flow-step">
+              <span class="flow-step-num">2</span>
+              Choose between AI/Manual paths
+            </div>
+            <div class="flow-step">
+              <span class="flow-step-num">3</span>
+              Browse venues in Explore tab
+            </div>
+            <div class="flow-step">
+              <span class="flow-step-num">4</span>
+              Add venues to sidebar
+            </div>
+            <div class="flow-step">
+              <span class="flow-step-num">5</span>
+              Choose Quick Schedule vs Build & Edit
+            </div>
+            <div class="flow-step">
+              <span class="flow-step-num">6</span>
+              Review in modal
+            </div>
+            <div class="flow-step">
+              <span class="flow-step-num">7</span>
+              Confirm and send
+            </div>
+          </div>
+        </div>
+
+        <div class="comparison-card after">
+          <h4>✓ Proposed Flow (2-3 steps)</h4>
+          <div class="flow-steps">
+            <div class="flow-step">
+              <span class="flow-step-num">1</span>
+              Click "Create Event" or "Surprise Me"
+            </div>
+            <div class="flow-step">
+              <span class="flow-step-num">2</span>
+              Review inline — edit if needed
+            </div>
+            <div class="flow-step">
+              <span class="flow-step-num">3</span>
+              Send invites
+            </div>
+          </div>
+          <div style="margin-top: 1rem; padding: 0.75rem; background: hsl(145, 25%, 95%); border-radius: var(--radius); font-size: 0.8125rem; color: hsl(145, 30%, 30%);">
+            <strong>Key difference:</strong> No modals, no tab switching, no confusion about which path to take. Everything happens in one place.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Design Notes -->
+    <div class="section">
+      <div class="design-notes">
+        <h3>Design Principles</h3>
+        <ul>
+          <li><strong>Timeline as truth</strong> — One view shows everything: pending approvals, confirmed events, and what AI will create. No hunting across tabs.</li>
+          <li><strong>Progressive disclosure</strong> — Start simple (one-click), reveal complexity only when needed (inline editor).</li>
+          <li><strong>No dead ends</strong> — Every screen has clear actions. "What can I do here?" is always obvious.</li>
+          <li><strong>AI transparency</strong> — "Why this itinerary?" shows AI reasoning. Users understand and trust the suggestions.</li>
+          <li><strong>Inline over modals</strong> — Edit in place. No jarring modal opens/closes. Keep context visible.</li>
+          <li><strong>Smart defaults</strong> — AI fills everything, user just reviews. Change only what you want.</li>
+          <li><strong>Clear status</strong> — Draft vs. Pending vs. Confirmed. Always know where an event stands.</li>
+          <li><strong>Escape hatches</strong> — "Skip this week", "Build from scratch" — always a way out when AI doesn't fit.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Problems Solved -->
+    <div class="section">
+      <div class="design-notes">
+        <h3>Problems This Solves</h3>
+        <ul>
+          <li><strong>"Too many steps"</strong> → One-click creation with smart defaults. 2-3 steps max.</li>
+          <li><strong>"Hard to understand"</strong> → AI explains its reasoning. Clear labels for everything.</li>
+          <li><strong>"Lacks visibility"</strong> → Timeline shows all events: past, present, future, and what AI will do.</li>
+          <li><strong>"Buttons go nowhere"</strong> → Every action leads somewhere. Clear status and next steps.</li>
+          <li><strong>"Not enough control"</strong> → Inline editor lets you change anything. AI suggestions, not mandates.</li>
+          <li><strong>"Clunky/friction"</strong> → No tab switching, no modals, no "which path do I take?" decisions.</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>

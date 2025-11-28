@@ -1,0 +1,1474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Discover Venues - Redesign Concept</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Fraunces:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+
+  <style>
+    /* ================================
+       WARM GATHERING DESIGN SYSTEM
+       ================================ */
+    :root {
+      /* Core palette */
+      --background: hsl(40, 10%, 99%);
+      --foreground: hsl(0, 0%, 0%);
+      --card: hsl(38, 45%, 98%);
+      --card-border: hsl(32, 25%, 88%);
+      --muted: hsl(35, 25%, 93%);
+      --muted-foreground: hsl(25, 15%, 45%);
+
+      /* Primary - Sunflower Gold */
+      --primary: hsl(44, 87%, 63%);
+      --primary-hover: hsl(46, 88%, 67%);
+      --primary-foreground: hsl(0, 0%, 0%);
+
+      /* Secondary - Sage */
+      --secondary: hsl(145, 25%, 72%);
+      --secondary-foreground: hsl(25, 30%, 14%);
+
+      /* Accent - Dusty Rose */
+      --accent: hsl(350, 45%, 72%);
+      --accent-subtle: hsl(350, 40%, 95%);
+
+      /* Shadows */
+      --shadow-subtle: 0 2px 8px rgba(0, 0, 0, 0.04);
+      --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.12);
+
+      /* Typography */
+      --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
+      --font-display: 'Fraunces', Georgia, serif;
+
+      --radius: 0.5rem;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--background);
+      color: var(--foreground);
+      line-height: 1.5;
+      padding: 2rem;
+      min-height: 100vh;
+    }
+
+    /* ================================
+       MODAL CONTAINER
+       ================================ */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    .modal {
+      background: var(--card);
+      border-radius: calc(var(--radius) * 2);
+      box-shadow: var(--shadow-elevated);
+      width: 100%;
+      max-width: 800px;
+      max-height: 90vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      animation: modalIn 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    @keyframes modalIn {
+      from {
+        opacity: 0;
+        transform: scale(0.95) translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+    }
+
+    /* ================================
+       HEADER WITH SEARCH
+       ================================ */
+    .modal-header {
+      padding: 1.5rem 1.5rem 1rem;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .header-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+
+    .modal-title {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .modal-title svg {
+      color: var(--primary);
+    }
+
+    .close-btn {
+      width: 2rem;
+      height: 2rem;
+      border-radius: 50%;
+      border: none;
+      background: var(--muted);
+      color: var(--muted-foreground);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .close-btn:hover {
+      background: hsl(35, 25%, 88%);
+    }
+
+    /* Search bar */
+    .search-container {
+      position: relative;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 0.75rem 1rem 0.75rem 2.75rem;
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      font-size: 0.9375rem;
+      font-family: var(--font-sans);
+      background: var(--background);
+      transition: all 0.2s;
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px hsla(44, 87%, 63%, 0.15);
+    }
+
+    .search-input::placeholder {
+      color: var(--muted-foreground);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 0.875rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--muted-foreground);
+    }
+
+    /* ================================
+       TAB NAVIGATION
+       ================================ */
+    .tabs-list {
+      display: flex;
+      gap: 0.25rem;
+      padding: 0 1.5rem;
+      background: var(--muted);
+      margin: 0 -0.001px; /* Prevent subpixel gaps */
+    }
+
+    .tab-trigger {
+      flex: 1;
+      padding: 0.875rem 1rem;
+      border: none;
+      background: transparent;
+      font-family: var(--font-sans);
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--muted-foreground);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      transition: all 0.2s;
+      position: relative;
+    }
+
+    .tab-trigger:hover {
+      color: var(--foreground);
+    }
+
+    .tab-trigger.active {
+      color: var(--foreground);
+      background: var(--card);
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
+
+    .tab-trigger.active::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--primary);
+    }
+
+    /* ================================
+       TAB CONTENT
+       ================================ */
+    .tab-content {
+      padding: 1.5rem;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    /* ================================
+       GROUP FAVORITES TAB
+       ================================ */
+    .favorites-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.25rem;
+    }
+
+    .favorites-count {
+      font-size: 0.875rem;
+      color: var(--muted-foreground);
+    }
+
+    .swipe-mode-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.625rem 1rem;
+      background: var(--primary);
+      color: var(--primary-foreground);
+      border: none;
+      border-radius: var(--radius);
+      font-family: var(--font-sans);
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 2px 4px -1px hsla(44, 87%, 40%, 0.25);
+    }
+
+    .swipe-mode-btn:hover {
+      background: var(--primary-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px -2px hsla(44, 87%, 40%, 0.35);
+    }
+
+    /* Venue grid */
+    .venues-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 1rem;
+    }
+
+    /* Venue card */
+    .venue-card {
+      background: var(--background);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .venue-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-elevated);
+    }
+
+    .venue-card.is-new {
+      border-color: var(--accent);
+      position: relative;
+    }
+
+    .venue-card.is-new::before {
+      content: 'New for you';
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      background: var(--accent);
+      color: white;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      padding: 0.25rem 0.5rem;
+      border-radius: 999px;
+      z-index: 1;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+
+    .venue-image {
+      width: 100%;
+      height: 120px;
+      object-fit: cover;
+      background: var(--muted);
+    }
+
+    .venue-info {
+      padding: 0.875rem;
+    }
+
+    .venue-name {
+      font-weight: 600;
+      font-size: 0.9375rem;
+      margin-bottom: 0.25rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .venue-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8125rem;
+      color: var(--muted-foreground);
+      margin-bottom: 0.5rem;
+    }
+
+    .venue-rating {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .venue-rating svg {
+      color: hsl(44, 87%, 50%);
+    }
+
+    /* Liked by section */
+    .liked-by {
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+      font-size: 0.75rem;
+      color: var(--muted-foreground);
+    }
+
+    .liked-by-avatars {
+      display: flex;
+      margin-right: 0.125rem;
+    }
+
+    .liked-by-avatar {
+      width: 1.25rem;
+      height: 1.25rem;
+      border-radius: 50%;
+      border: 2px solid var(--background);
+      margin-left: -0.375rem;
+      background: var(--secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.5625rem;
+      font-weight: 600;
+      color: var(--secondary-foreground);
+    }
+
+    .liked-by-avatar:first-child {
+      margin-left: 0;
+    }
+
+    /* ================================
+       DISCOVER TAB
+       ================================ */
+    .discover-intro {
+      text-align: center;
+      padding: 2rem 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .discover-intro h3 {
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .discover-intro p {
+      color: var(--muted-foreground);
+      font-size: 0.9375rem;
+    }
+
+    /* Category pills */
+    .category-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .category-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.5rem 1rem;
+      background: var(--background);
+      border: 1px solid var(--card-border);
+      border-radius: 999px;
+      font-family: var(--font-sans);
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .category-pill:hover {
+      border-color: var(--primary);
+      background: hsla(44, 87%, 63%, 0.08);
+    }
+
+    .category-pill.selected {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: var(--primary-foreground);
+    }
+
+    /* Generate section */
+    .generate-section {
+      background: var(--muted);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+    }
+
+    .generate-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+
+    .generate-title {
+      font-weight: 600;
+      font-size: 0.9375rem;
+    }
+
+    .options-toggle {
+      font-size: 0.8125rem;
+      color: var(--muted-foreground);
+      background: none;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .options-toggle:hover {
+      color: var(--foreground);
+    }
+
+    .generate-row {
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    .location-input {
+      flex: 1;
+      padding: 0.625rem 0.875rem;
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      font-family: var(--font-sans);
+      font-size: 0.875rem;
+      background: var(--background);
+    }
+
+    .location-input:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+
+    .generate-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.625rem 1.25rem;
+      background: var(--foreground);
+      color: var(--background);
+      border: none;
+      border-radius: var(--radius);
+      font-family: var(--font-sans);
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .generate-btn:hover {
+      background: hsl(25, 30%, 20%);
+    }
+
+    /* Divider */
+    .discover-divider {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin: 1.5rem 0;
+      color: var(--muted-foreground);
+      font-size: 0.8125rem;
+    }
+
+    .discover-divider::before,
+    .discover-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--card-border);
+    }
+
+    /* Swipe section in discover */
+    .swipe-section {
+      text-align: center;
+      padding: 1.5rem;
+      background: linear-gradient(135deg, hsla(44, 87%, 63%, 0.08) 0%, hsla(350, 45%, 72%, 0.08) 100%);
+      border-radius: var(--radius);
+      border: 1px dashed var(--card-border);
+    }
+
+    .swipe-section h4 {
+      font-weight: 600;
+      margin-bottom: 0.375rem;
+    }
+
+    .swipe-section p {
+      font-size: 0.875rem;
+      color: var(--muted-foreground);
+      margin-bottom: 1rem;
+    }
+
+    /* ================================
+       EMPTY STATE
+       ================================ */
+    .empty-state {
+      text-align: center;
+      padding: 3rem 1.5rem;
+    }
+
+    .empty-state-icon {
+      width: 4rem;
+      height: 4rem;
+      margin: 0 auto 1rem;
+      background: var(--muted);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .empty-state-icon svg {
+      width: 2rem;
+      height: 2rem;
+      color: var(--muted-foreground);
+    }
+
+    .empty-state h3 {
+      font-weight: 600;
+      margin-bottom: 0.375rem;
+    }
+
+    .empty-state p {
+      font-size: 0.9375rem;
+      color: var(--muted-foreground);
+      margin-bottom: 1.5rem;
+    }
+
+    /* ================================
+       COMPARISON LAYOUTS
+       ================================ */
+    .comparison-container {
+      display: flex;
+      flex-direction: column;
+      gap: 3rem;
+      padding: 2rem;
+      background: hsl(35, 15%, 96%);
+      min-height: 100vh;
+    }
+
+    .comparison-section {
+      max-width: 850px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .comparison-label {
+      font-family: var(--font-sans);
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted-foreground);
+      margin-bottom: 0.75rem;
+    }
+
+    /* Show both tabs */
+    .show-all .tab-content {
+      display: block !important;
+    }
+
+    /* ================================
+       SEARCH DROPDOWN
+       ================================ */
+    .search-dropdown {
+      position: absolute;
+      top: calc(100% + 0.5rem);
+      left: 0;
+      right: 0;
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-elevated);
+      z-index: 100;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .search-section-label {
+      padding: 0.625rem 1rem 0.375rem;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted-foreground);
+      background: var(--muted);
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .search-result {
+      display: flex;
+      align-items: center;
+      gap: 0.875rem;
+      padding: 0.75rem 1rem;
+      cursor: pointer;
+      transition: background 0.15s;
+      border-bottom: 1px solid hsla(32, 25%, 88%, 0.5);
+    }
+
+    .search-result:last-child {
+      border-bottom: none;
+    }
+
+    .search-result:hover {
+      background: var(--muted);
+    }
+
+    .search-result-image {
+      width: 3rem;
+      height: 3rem;
+      border-radius: calc(var(--radius) * 0.75);
+      object-fit: cover;
+      background: var(--muted);
+      flex-shrink: 0;
+    }
+
+    .search-result-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .search-result-name {
+      font-weight: 600;
+      font-size: 0.9375rem;
+      margin-bottom: 0.125rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .search-result-name mark {
+      background: hsla(44, 87%, 63%, 0.3);
+      color: inherit;
+      padding: 0 0.125rem;
+      border-radius: 2px;
+    }
+
+    .search-result-meta {
+      font-size: 0.8125rem;
+      color: var(--muted-foreground);
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+    }
+
+    .search-result-meta svg {
+      color: hsl(44, 87%, 50%);
+    }
+
+    .search-result-action {
+      flex-shrink: 0;
+    }
+
+    .add-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.375rem 0.75rem;
+      background: var(--primary);
+      color: var(--primary-foreground);
+      border: none;
+      border-radius: var(--radius);
+      font-family: var(--font-sans);
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .add-btn:hover {
+      background: var(--primary-hover);
+      transform: scale(1.02);
+    }
+
+    .in-favorites-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.375rem 0.625rem;
+      background: var(--secondary);
+      color: var(--secondary-foreground);
+      border-radius: var(--radius);
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+
+    .in-favorites-badge svg {
+      width: 0.75rem;
+      height: 0.75rem;
+    }
+
+    .search-empty {
+      padding: 1.5rem 1rem;
+      text-align: center;
+      color: var(--muted-foreground);
+      font-size: 0.875rem;
+    }
+
+    .search-loading {
+      padding: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      color: var(--muted-foreground);
+      font-size: 0.875rem;
+    }
+
+    .search-loading-spinner {
+      width: 1rem;
+      height: 1rem;
+      border: 2px solid var(--card-border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Search input with active dropdown */
+    .search-container.has-dropdown .search-input {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px hsla(44, 87%, 63%, 0.15);
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
+    }
+
+    .search-container.has-dropdown .search-dropdown {
+      border-top-left-radius: 0;
+      border-top-right-radius: 0;
+      border-top: none;
+      margin-top: -1px;
+    }
+
+    /* ================================
+       ANIMATIONS
+       ================================ */
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .venue-card {
+      animation: slideUp 0.4s ease-out;
+      animation-fill-mode: both;
+    }
+
+    .venue-card:nth-child(1) { animation-delay: 0ms; }
+    .venue-card:nth-child(2) { animation-delay: 50ms; }
+    .venue-card:nth-child(3) { animation-delay: 100ms; }
+    .venue-card:nth-child(4) { animation-delay: 150ms; }
+    .venue-card:nth-child(5) { animation-delay: 200ms; }
+    .venue-card:nth-child(6) { animation-delay: 250ms; }
+  </style>
+</head>
+<body>
+  <div class="comparison-container">
+
+    <!-- CONCEPT HEADER -->
+    <div style="text-align: center; padding: 2rem 0;">
+      <h1 style="font-family: var(--font-display); font-size: 2rem; margin-bottom: 0.5rem;">
+        Discover Venues — Redesign Concept
+      </h1>
+      <p style="color: var(--muted-foreground); max-width: 500px; margin: 0 auto;">
+        Two-tab structure: <strong>Group Favorites</strong> (first tab) and <strong>Discover</strong>.
+        Both have "Swipe Mode" buttons. Search bar at top works across both.
+      </p>
+    </div>
+
+    <!-- TAB 1: GROUP FAVORITES -->
+    <div class="comparison-section">
+      <div class="comparison-label">Tab 1 — Group Favorites (with venues)</div>
+      <div class="modal">
+        <div class="modal-header">
+          <div class="header-top">
+            <h2 class="modal-title">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
+              </svg>
+              Discover Venues
+            </h2>
+            <button class="close-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+          <div class="search-container">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input type="text" class="search-input" placeholder="Search for a specific place...">
+          </div>
+        </div>
+
+        <div class="tabs-list">
+          <button class="tab-trigger active">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
+            </svg>
+            Group Favorites
+          </button>
+          <button class="tab-trigger">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+            Discover
+          </button>
+        </div>
+
+        <div class="tab-content">
+          <div class="favorites-header">
+            <span class="favorites-count">12 venues saved</span>
+            <button class="swipe-mode-btn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <line x1="9" y1="3" x2="9" y2="21"/>
+              </svg>
+              Swipe Mode
+            </button>
+          </div>
+
+          <div class="venues-grid">
+            <!-- Venue 1 - Group favorite -->
+            <div class="venue-card">
+              <img class="venue-image" src="https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=400&h=200&fit=crop" alt="">
+              <div class="venue-info">
+                <div class="venue-name">Burma Superstar</div>
+                <div class="venue-meta">
+                  <span class="venue-rating">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    4.6
+                  </span>
+                  <span>·</span>
+                  <span>$$</span>
+                  <span>·</span>
+                  <span>Burmese</span>
+                </div>
+                <div class="liked-by">
+                  <div class="liked-by-avatars">
+                    <div class="liked-by-avatar">S</div>
+                    <div class="liked-by-avatar">M</div>
+                    <div class="liked-by-avatar">J</div>
+                  </div>
+                  Liked by Sarah, Mike +1
+                </div>
+              </div>
+            </div>
+
+            <!-- Venue 2 - New suggestion interleaved -->
+            <div class="venue-card is-new">
+              <img class="venue-image" src="https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=400&h=200&fit=crop" alt="">
+              <div class="venue-info">
+                <div class="venue-name">Flour + Water</div>
+                <div class="venue-meta">
+                  <span class="venue-rating">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    4.5
+                  </span>
+                  <span>·</span>
+                  <span>$$$</span>
+                  <span>·</span>
+                  <span>Italian</span>
+                </div>
+                <div class="liked-by" style="color: var(--accent);">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                  </svg>
+                  Similar to Burma Superstar
+                </div>
+              </div>
+            </div>
+
+            <!-- Venue 3 -->
+            <div class="venue-card">
+              <img class="venue-image" src="https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=400&h=200&fit=crop" alt="">
+              <div class="venue-info">
+                <div class="venue-name">Che Fico</div>
+                <div class="venue-meta">
+                  <span class="venue-rating">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    4.7
+                  </span>
+                  <span>·</span>
+                  <span>$$$</span>
+                  <span>·</span>
+                  <span>Italian</span>
+                </div>
+                <div class="liked-by">
+                  <div class="liked-by-avatars">
+                    <div class="liked-by-avatar">M</div>
+                    <div class="liked-by-avatar">A</div>
+                  </div>
+                  Liked by Mike, Alex
+                </div>
+              </div>
+            </div>
+
+            <!-- Venue 4 -->
+            <div class="venue-card">
+              <img class="venue-image" src="https://images.unsplash.com/photo-1559339352-11d035aa65de?w=400&h=200&fit=crop" alt="">
+              <div class="venue-info">
+                <div class="venue-name">Tartine Bakery</div>
+                <div class="venue-meta">
+                  <span class="venue-rating">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    4.4
+                  </span>
+                  <span>·</span>
+                  <span>$$</span>
+                  <span>·</span>
+                  <span>Bakery</span>
+                </div>
+                <div class="liked-by">
+                  <div class="liked-by-avatars">
+                    <div class="liked-by-avatar">S</div>
+                  </div>
+                  Liked by Sarah
+                </div>
+              </div>
+            </div>
+
+            <!-- Venue 5 - New suggestion -->
+            <div class="venue-card is-new">
+              <img class="venue-image" src="https://images.unsplash.com/photo-1552566626-52f8b828add9?w=400&h=200&fit=crop" alt="">
+              <div class="venue-info">
+                <div class="venue-name">Mensho Tokyo</div>
+                <div class="venue-meta">
+                  <span class="venue-rating">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    4.3
+                  </span>
+                  <span>·</span>
+                  <span>$$</span>
+                  <span>·</span>
+                  <span>Ramen</span>
+                </div>
+                <div class="liked-by" style="color: var(--accent);">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                  </svg>
+                  Based on your preferences
+                </div>
+              </div>
+            </div>
+
+            <!-- Venue 6 -->
+            <div class="venue-card">
+              <img class="venue-image" src="https://images.unsplash.com/photo-1466978913421-dad2ebd01d17?w=400&h=200&fit=crop" alt="">
+              <div class="venue-info">
+                <div class="venue-name">Trick Dog</div>
+                <div class="venue-meta">
+                  <span class="venue-rating">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    4.5
+                  </span>
+                  <span>·</span>
+                  <span>$$</span>
+                  <span>·</span>
+                  <span>Cocktail Bar</span>
+                </div>
+                <div class="liked-by">
+                  <div class="liked-by-avatars">
+                    <div class="liked-by-avatar">S</div>
+                    <div class="liked-by-avatar">M</div>
+                    <div class="liked-by-avatar">J</div>
+                    <div class="liked-by-avatar">A</div>
+                  </div>
+                  Liked by everyone!
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: DISCOVER -->
+    <div class="comparison-section">
+      <div class="comparison-label">Tab 2 — Discover</div>
+      <div class="modal">
+        <div class="modal-header">
+          <div class="header-top">
+            <h2 class="modal-title">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
+              </svg>
+              Discover Venues
+            </h2>
+            <button class="close-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+          <div class="search-container">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input type="text" class="search-input" placeholder="Search for a specific place...">
+          </div>
+        </div>
+
+        <div class="tabs-list">
+          <button class="tab-trigger">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
+            </svg>
+            Group Favorites
+          </button>
+          <button class="tab-trigger active">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+            Discover
+          </button>
+        </div>
+
+        <div class="tab-content">
+          <div class="discover-intro">
+            <h3>Find new places to try</h3>
+            <p>Generate venue suggestions by category, or swipe through curated picks.</p>
+          </div>
+
+          <div class="category-pills">
+            <button class="category-pill selected">🍽️ Restaurants</button>
+            <button class="category-pill">☕ Cafes</button>
+            <button class="category-pill">🍷 Bars</button>
+            <button class="category-pill">🍰 Desserts</button>
+            <button class="category-pill">🎉 Experiences</button>
+          </div>
+
+          <div class="generate-section">
+            <div class="generate-header">
+              <span class="generate-title">Generate venues near...</span>
+              <button class="options-toggle">
+                More options
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </button>
+            </div>
+            <div class="generate-row">
+              <input type="text" class="location-input" placeholder="Mission District, SF (or leave blank for default)">
+              <button class="generate-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+                Generate
+              </button>
+            </div>
+          </div>
+
+          <div class="discover-divider">or</div>
+
+          <div class="swipe-section">
+            <h4>Prefer to swipe?</h4>
+            <p>We'll show you a mix of trending spots and hidden gems.</p>
+            <button class="swipe-mode-btn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <line x1="9" y1="3" x2="9" y2="21"/>
+              </svg>
+              Start Swipe Mode
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SEARCH RESULTS DROPDOWN -->
+    <div class="comparison-section">
+      <div class="comparison-label">Search Results — "Mensho" typed</div>
+      <div class="modal">
+        <div class="modal-header">
+          <div class="header-top">
+            <h2 class="modal-title">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
+              </svg>
+              Discover Venues
+            </h2>
+            <button class="close-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+          <div class="search-container has-dropdown">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input type="text" class="search-input" value="Mensho" placeholder="Search for a specific place...">
+
+            <!-- Search Results Dropdown -->
+            <div class="search-dropdown">
+              <!-- Your Favorites Section -->
+              <div class="search-section-label">From Your Favorites</div>
+              <div class="search-result">
+                <img class="search-result-image" src="https://images.unsplash.com/photo-1552566626-52f8b828add9?w=100&h=100&fit=crop" alt="">
+                <div class="search-result-info">
+                  <div class="search-result-name"><mark>Mensho</mark> Tokyo</div>
+                  <div class="search-result-meta">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    4.3 · $$ · Ramen · Mission District
+                  </div>
+                </div>
+                <div class="search-result-action">
+                  <span class="in-favorites-badge">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
+                    In Favorites
+                  </span>
+                </div>
+              </div>
+
+              <!-- Google Places Section -->
+              <div class="search-section-label">From Google</div>
+              <div class="search-result">
+                <img class="search-result-image" src="https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=100&h=100&fit=crop" alt="">
+                <div class="search-result-info">
+                  <div class="search-result-name"><mark>Mensho</mark> Tokyo SF</div>
+                  <div class="search-result-meta">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    4.4 · $$ · Ramen · SOMA
+                  </div>
+                </div>
+                <div class="search-result-action">
+                  <button class="add-btn">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Add
+                  </button>
+                </div>
+              </div>
+              <div class="search-result">
+                <img class="search-result-image" src="https://images.unsplash.com/photo-1557872943-16a5ac26437e?w=100&h=100&fit=crop" alt="">
+                <div class="search-result-info">
+                  <div class="search-result-name"><mark>Mensho</mark> Oakland</div>
+                  <div class="search-result-meta">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    4.2 · $$ · Ramen · Temescal
+                  </div>
+                </div>
+                <div class="search-result-action">
+                  <button class="add-btn">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Add
+                  </button>
+                </div>
+              </div>
+              <div class="search-result">
+                <img class="search-result-image" src="https://images.unsplash.com/photo-1623341214825-9f4f963727da?w=100&h=100&fit=crop" alt="">
+                <div class="search-result-info">
+                  <div class="search-result-name"><mark>Mensho</mark> Tokyo (Palo Alto)</div>
+                  <div class="search-result-meta">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    4.5 · $$ · Ramen · Downtown Palo Alto
+                  </div>
+                </div>
+                <div class="search-result-action">
+                  <button class="add-btn">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Add
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tabs-list">
+          <button class="tab-trigger active">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
+            </svg>
+            Group Favorites
+          </button>
+          <button class="tab-trigger">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+            Discover
+          </button>
+        </div>
+
+        <div class="tab-content" style="filter: blur(2px); opacity: 0.5; pointer-events: none;">
+          <div class="favorites-header">
+            <span class="favorites-count">12 venues saved</span>
+            <button class="swipe-mode-btn">Swipe Mode</button>
+          </div>
+          <div class="venues-grid">
+            <div class="venue-card">
+              <div class="venue-image" style="background: var(--muted);"></div>
+              <div class="venue-info">
+                <div class="venue-name">Burma Superstar</div>
+              </div>
+            </div>
+            <div class="venue-card">
+              <div class="venue-image" style="background: var(--muted);"></div>
+              <div class="venue-info">
+                <div class="venue-name">Flour + Water</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SEARCH NO FAVORITES MATCH -->
+    <div class="comparison-section">
+      <div class="comparison-label">Search Results — No Favorites Match</div>
+      <div class="modal">
+        <div class="modal-header">
+          <div class="header-top">
+            <h2 class="modal-title">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
+              </svg>
+              Discover Venues
+            </h2>
+            <button class="close-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+          <div class="search-container has-dropdown">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input type="text" class="search-input" value="Blue Bottle Coffee" placeholder="Search for a specific place...">
+
+            <div class="search-dropdown">
+              <!-- No Favorites Match -->
+              <div class="search-section-label">From Your Favorites</div>
+              <div class="search-empty">
+                No matches in your favorites
+              </div>
+
+              <!-- Google Places Section -->
+              <div class="search-section-label">From Google</div>
+              <div class="search-result">
+                <img class="search-result-image" src="https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=100&h=100&fit=crop" alt="">
+                <div class="search-result-info">
+                  <div class="search-result-name"><mark>Blue Bottle Coffee</mark> (Hayes Valley)</div>
+                  <div class="search-result-meta">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    4.5 · $$ · Coffee · Hayes Valley
+                  </div>
+                </div>
+                <div class="search-result-action">
+                  <button class="add-btn">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Add
+                  </button>
+                </div>
+              </div>
+              <div class="search-result">
+                <img class="search-result-image" src="https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=100&h=100&fit=crop" alt="">
+                <div class="search-result-info">
+                  <div class="search-result-name"><mark>Blue Bottle Coffee</mark> (Ferry Building)</div>
+                  <div class="search-result-meta">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    4.6 · $$ · Coffee · Embarcadero
+                  </div>
+                </div>
+                <div class="search-result-action">
+                  <button class="add-btn">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Add
+                  </button>
+                </div>
+              </div>
+              <div class="search-result">
+                <img class="search-result-image" src="https://images.unsplash.com/photo-1442512595331-e89e73853f31?w=100&h=100&fit=crop" alt="">
+                <div class="search-result-info">
+                  <div class="search-result-name"><mark>Blue Bottle Coffee</mark> (Mission)</div>
+                  <div class="search-result-meta">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    4.4 · $$ · Coffee · Mission District
+                  </div>
+                </div>
+                <div class="search-result-action">
+                  <button class="add-btn">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Add
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tabs-list">
+          <button class="tab-trigger active">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
+            </svg>
+            Group Favorites
+          </button>
+          <button class="tab-trigger">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+            Discover
+          </button>
+        </div>
+
+        <div class="tab-content" style="filter: blur(2px); opacity: 0.5; pointer-events: none;">
+          <div class="favorites-header">
+            <span class="favorites-count">12 venues saved</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EMPTY STATE FOR FAVORITES -->
+    <div class="comparison-section">
+      <div class="comparison-label">Empty State — No favorites yet</div>
+      <div class="modal">
+        <div class="modal-header">
+          <div class="header-top">
+            <h2 class="modal-title">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
+              </svg>
+              Discover Venues
+            </h2>
+            <button class="close-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+          <div class="search-container">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input type="text" class="search-input" placeholder="Search for a specific place...">
+          </div>
+        </div>
+
+        <div class="tabs-list">
+          <button class="tab-trigger active">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
+            </svg>
+            Group Favorites
+          </button>
+          <button class="tab-trigger">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+            Discover
+          </button>
+        </div>
+
+        <div class="tab-content">
+          <div class="empty-state">
+            <div class="empty-state-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
+              </svg>
+            </div>
+            <h3>No favorites yet</h3>
+            <p>Start swiping or generate venues to build your group's collection.</p>
+            <button class="swipe-mode-btn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <line x1="9" y1="3" x2="9" y2="21"/>
+              </svg>
+              Start Discovering
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DESIGN NOTES -->
+    <div class="comparison-section" style="background: var(--card); border-radius: var(--radius); padding: 1.5rem; border: 1px solid var(--card-border);">
+      <h3 style="font-family: var(--font-display); font-size: 1.125rem; margin-bottom: 1rem;">Design Notes</h3>
+      <ul style="color: var(--muted-foreground); font-size: 0.9375rem; line-height: 1.8; list-style: disc; padding-left: 1.25rem;">
+        <li><strong>Universal search bar</strong> — Always visible at top. Searches BOTH your favorites AND Google Places. Find any venue, even ones not in your library yet.</li>
+        <li><strong>Search results dropdown</strong> — Two sections: "From Your Favorites" (instant match) + "From Google" (external search). If already in favorites, shows "In Favorites" badge. Otherwise shows "Add" button.</li>
+        <li><strong>Highlighted matches</strong> — Search term is highlighted in results (e.g., "<mark>Mensho</mark> Tokyo") for easy scanning.</li>
+        <li><strong>"Liked by..."</strong> — Shows who in the group likes each venue. Creates social proof and fun discovery ("oh, Mike likes this place!").</li>
+        <li><strong>"New for you" badges</strong> — AI-suggested venues interleaved with favorites. Visually distinct with dusty rose accent.</li>
+        <li><strong>Swipe Mode buttons</strong> — Both tabs have them. From Favorites, you swipe through saved + new suggestions. From Discover, pure discovery mode.</li>
+        <li><strong>Two tabs only</strong> — Simpler than 3 tabs. "Group Favorites" is primary (first), "Discover" is secondary.</li>
+        <li><strong>Empty state</strong> — Gentle nudge to start discovering when no favorites exist.</li>
+      </ul>
+    </div>
+
+  </div>
+</body>
+</html>
