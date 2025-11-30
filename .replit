@@ -75,7 +75,7 @@ localPort = 46589
 externalPort = 8008
 
 [env]
-PORT = "5000"
+PORT = "3000"
 
 [workflows]
 runButton = "Project"
@@ -96,7 +96,7 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npm run dev"
-waitForPort = 5000
+waitForPort = 3000
 
 [agent]
 integrations = ["javascript_openai:1.0.0", "javascript_database:1.0.0", "javascript_log_in_with_replit:1.0.0"]
