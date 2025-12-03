@@ -561,7 +561,7 @@ export async function generateActivitySuggestions(groupData: {
       : 2; // Default to 2 miles (Nearby)
     
     if (!groupData.searchRadius) {
-      console.log('[AI Generation] No search radius provided, defaulting to 2 miles (Nearby)');
+
     } else if (![2, 10, 30, 50].includes(groupData.searchRadius)) {
       console.warn(`[AI Generation] Invalid search radius ${groupData.searchRadius}, defaulting to 2 miles (Nearby)`);
     }
@@ -1465,7 +1465,7 @@ export async function analyzePreferencePatterns(data: {
 
     // Don't generate insights if there's not enough data
     if (totalActions < 5) {
-      console.log('[AI Insights] Not enough feedback data to generate patterns (need at least 5 actions)');
+
       return [];
     }
 
@@ -1560,8 +1560,6 @@ Return JSON:
 
     const result = JSON.parse(response.choices[0].message.content || '{"patterns": []}');
     const patterns = result.patterns || [];
-
-    console.log(`[AI Insights] Generated ${patterns.length} preference patterns from ${totalActions} feedback actions`);
 
     // Log successful API call
     const inputTokens = response.usage?.prompt_tokens || 0;
@@ -1687,8 +1685,6 @@ Return your response as a JSON object with these fields.`;
     const responseTimeMs = Date.now() - startTime;
 
     const result = JSON.parse(response.choices[0].message.content || '{}');
-
-    console.log(`[AI Scheduling] Parsed params:`, result);
 
     // Log successful API call
     const inputTokens = response.usage?.prompt_tokens || 0;
@@ -1852,7 +1848,6 @@ export async function parseSchedulingPromptWithHistory(
     const cached = promptCache.get(cacheKey);
 
     if (cached && (Date.now() - cached.timestamp < PROMPT_CACHE_TTL_MS)) {
-      console.log(`[AI Scheduling] Cache HIT for prompt: "${prompt.substring(0, 50)}..." (saved cost with ${cached.model})`);
 
       await logApiCall({
         service: 'openai',
@@ -1878,8 +1873,6 @@ export async function parseSchedulingPromptWithHistory(
       };
     }
 
-    console.log(`[AI Scheduling] Cache MISS - will call OpenAI`);
-
     // A/B Test: Randomly assign to GPT-4o or mini (unless forceModel is specified)
     let selectedModel: 'gpt-4o' | 'gpt-4o-mini';
     let randomValue: number | null = null;
@@ -1888,7 +1881,7 @@ export async function parseSchedulingPromptWithHistory(
     if (forceModel) {
       selectedModel = forceModel;
       useGPT4o = forceModel === 'gpt-4o';
-      console.log(`[AI Scheduling] Model FORCED to ${selectedModel} (for comparison/testing)`);
+
     } else {
       randomValue = Math.random() * 100;
       useGPT4o = randomValue < AB_TEST_GPT4O_PERCENTAGE;

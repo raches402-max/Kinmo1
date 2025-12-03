@@ -1,0 +1,240 @@
+# Manual E2E Testing Checklist
+
+**Purpose:** Verify all critical user flows work before launch
+**Time estimate:** 2-3 hours
+**Last updated:** 2025-12-03
+
+---
+
+## How to Use This Checklist
+
+1. Start the app: `npm run dev` or use the Replit Run button
+2. Open in browser (preferably Chrome with DevTools open)
+3. Work through each section in order
+4. **Mark items as you test:**
+   - `[x]` = ✅ Works
+   - `[-]` = ❌ Broken (add details to Issues table below)
+   - `[ ]` = Not tested yet
+5. For mobile tests, use Chrome DevTools device mode (Cmd+Shift+M / Ctrl+Shift+M)
+
+---
+
+## 1. Authentication Flow
+
+### Sign In
+- [x] Click "Sign in with Replit" on landing page
+- [x] Redirects to Replit OAuth
+- [x] After auth, redirects back to dashboard
+- [x] User name/avatar appears in header
+- [x] Session persists after page refresh
+
+### Sign Out
+- [x] Click profile menu → Sign Out
+- [x] Redirects to landing page
+- [x] Cannot access /dashboard directly (redirects to login)
+
+---
+
+## 2. Group Management
+
+### Create Group
+- [x] Click "Create Group" button on dashboard
+- [x] Fill in group name (required)
+- [x] Set location (e.g., "Oakland, CA")
+- [x ] Set budget range
+- [x] Set preferred days/times
+- [x] Submit → Group is created
+- [x] Redirects to group detail page
+- [x] Group appears in "My Groups" tab
+
+### Edit Group
+- [x] Open a group → Click settings/edit
+- [x] Change group name → Save → Name updates
+- [x] Change location → Save → Location updates
+- [x] Change emoji → Save → Emoji updates
+
+### Invite Member
+- [x] Open a group → Click "Invite"
+- [x] Enter name and email
+- [x] Submit → Member appears in members list (as pending)
+- [ ] Check: Invite email sent? (check spam folder) - email doesnt work yet (as expected - not set up yet)
+
+---
+
+## 3. Event Creation
+
+### Quick Create (AI-Powered)
+- [ ] Open a group with some Favorites
+- [ ] Click "Schedule Now" or equivalent
+- [ ] AI generates itinerary options
+- [ ] Options show venues with details
+- [ ] Can select an option
+- [ ] Event is created with selected venues
+
+### Manual Create
+- [x ] Click "Create Event" (+ button on mobile)
+- [x ] Select a group
+- [x] Set event name
+- [ x] Set date/time
+- [x ] Add venues manually (search or from library)
+- [ x] Save → Event appears in Events list
+
+### Standalone Event (New Feature)
+- [ ] On dashboard, click "Create Event" dropdown
+- [ ] Select "Standalone Event"
+- [ ] Enter event name
+- [ ] Select contacts from multiple groups
+- [ ] Create → Event appears in Events list
+- [ ] Event shows "Standalone" indicator
+
+---
+
+## 4. Venue Discovery & Swiping
+
+### Discover Venues
+- [ ] Open a group → Go to swipe/discover section
+- [ ] Venue cards appear with photos
+- [ ] Swipe right (or click like) → Adds to Favorites
+- [ ] Swipe left (or click skip) → Moves to next card
+- [ ] After swiping several, check Favorites has new venues
+
+### Venue Library/Favorites
+- [ ] Open group → Go to Favorites/Library tab
+- [ ] Shows venues that were liked
+- [ ] Can view venue details
+- [ ] Can remove venue from Favorites
+
+### Search Venues
+- [ ] Go to Edit Venue dialog → Find tab
+- [ ] Search for a venue (e.g., "coffee")
+- [ ] Results appear
+- [ ] Can select a result
+- [ ] "Search near" dropdown appears if itinerary has venues
+
+---
+
+## 5. Event Management
+
+### View Event Details
+- [ ] Click on an event
+- [ ] Shows event name, date, time
+- [ ] Shows venue itinerary with addresses
+- [ ] Shows member list / RSVPs
+- [ ] Shows map or venue locations
+
+### Edit Event
+- [ ] Open event → Click Edit (pencil icon)
+- [ ] Can change event name
+- [ ] Can change date/time
+- [ ] Can reorder venues (drag and drop)
+- [ ] Save → Changes persist
+
+### RSVP Flow (as organizer)
+- [ ] Open event you created
+- [ ] Set your RSVP (Yes/Maybe/No)
+- [ ] RSVP status updates immediately
+
+---
+
+## 6. Invite & RSVP Flow (as Guest)
+
+### Send Invite
+- [ ] Open an event
+- [ ] Click "Send Invites" or similar
+- [ ] Confirm sending
+- [ ] "Invite sent" status appears on event
+
+### Receive & Respond (use incognito or second browser)
+- [ ] Open invite link from email
+- [ ] Page shows event details without login required
+- [ ] Select RSVP response (Yes/Maybe/No)
+- [ ] Submit → Confirmation shown
+- [ ] Back on main account: RSVP appears on event
+
+---
+
+## 7. Mobile-Specific Tests
+
+Open Chrome DevTools → Toggle device mode → Select "iPhone 12 Pro" or similar
+
+### Navigation
+- [ ] Bottom nav bar appears (Events, Groups, Places, Profile)
+- [ ] Tapping each icon navigates correctly
+- [ ] + button (center) opens event creation modal
+- [ ] + button works on ALL pages (not just dashboard)
+
+### Touch Interactions
+- [ ] Swipe cards respond to touch/drag
+- [ ] Pull-to-refresh works on lists (if implemented)
+- [ ] Modals/dialogs fit on screen
+- [ ] Can scroll long content
+
+### Responsive Layout
+- [ ] No horizontal scrolling
+- [ ] Text is readable (not too small)
+- [ ] Buttons are tappable (adequate touch targets)
+- [ ] Forms are usable on mobile keyboard
+
+---
+
+## 8. Error Handling
+
+### Network Errors
+- [ ] Disable network in DevTools → Try an action
+- [ ] Shows error message (not blank screen)
+- [ ] Re-enable network → Can retry/recover
+
+### Invalid Input
+- [ ] Try submitting empty required fields
+- [ ] Shows validation errors
+- [ ] Try very long input (1000+ chars)
+- [ ] Handles gracefully
+
+### Not Found
+- [ ] Go to /groups/fake-id-12345
+- [ ] Shows 404 or "not found" message
+- [ ] Can navigate back to safety
+
+---
+
+## 9. Notifications
+
+- [ ] Perform an action that triggers notification (e.g., RSVP)
+- [ ] Bell icon shows unread count
+- [ ] Click bell → Notification panel opens
+- [ ] Shows recent notifications
+- [ ] Click notification → Marks as read
+- [ ] "Mark all read" works
+
+---
+
+## 10. Quick Sanity Checks
+
+- [ ] Console has no red errors during normal use
+- [ ] Pages load in < 3 seconds
+- [ ] No "undefined" or "null" text visible in UI
+- [ ] Images load (no broken image icons)
+- [ ] Dates display correctly (not "Invalid Date")
+
+---
+
+## Issues Found
+
+| # | Description | Severity | Page/Flow |
+|---|-------------|----------|-----------|
+| 1 | | | |
+| 2 | | | |
+| 3 | | | |
+
+**Severity levels:** 🔴 Blocker, 🟡 Major, 🟢 Minor
+
+---
+
+## Sign-Off
+
+- [ ] All critical flows tested
+- [ ] No 🔴 blockers found
+- [ ] Ready for Phase 3 (Email setup)
+
+**Tested by:** _______________
+**Date:** _______________

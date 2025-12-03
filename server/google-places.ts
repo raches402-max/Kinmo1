@@ -47,11 +47,11 @@ function getNextApiKey(): string {
   
   if (useKey2) {
     apiKeyUsageStats.key2Calls++;
-    console.log(`[API Key] Using Key #2 PRIMARY (total calls: ${apiKeyUsageStats.key2Calls})`);
+
     return key2!;
   } else {
     apiKeyUsageStats.key1Calls++;
-    console.log(`[API Key] Using Key #1 backup (total calls: ${apiKeyUsageStats.key1Calls})`);
+
     return key1!;
   }
 }
@@ -127,19 +127,143 @@ function calculateGooglePlacesCost(method: string, resultCount?: number): number
  */
 export function getMaxPriceLevelForBudget(budgetMax: number): number {
   if (budgetMax <= 30) {
-    console.log(`[Budget Mapping] $${budgetMax} → Max price level: 1 ($)`);
+
     return 1;
   }
   if (budgetMax <= 60) {
-    console.log(`[Budget Mapping] $${budgetMax} → Max price level: 2 ($, $$)`);
+
     return 2;
   }
   if (budgetMax < 100) {
-    console.log(`[Budget Mapping] $${budgetMax} → Max price level: 3 ($, $$, $$$)`);
+
     return 3;
   }
-  console.log(`[Budget Mapping] $${budgetMax} → Max price level: 4 ($, $$, $$$, $$$$)`);
+
   return 4;
+}
+
+/**
+ * Get the best venue type from Google Places types array
+ * Prioritizes primary venue types over generic ones, and checks curated_venues first
+ *
+ * @param types - Array of Google Places types
+ * @param googlePlaceId - Optional place ID to check curated_venues
+ * @returns The most appropriate venue type string
+ */
+export async function getBestVenueType(types: string[], googlePlaceId?: string): Promise<string> {
+  // First, check if we have this venue in curated_venues with a known category
+  if (googlePlaceId) {
+    const cached = await db
+      .select({ category: curatedVenues.category })
+      .from(curatedVenues)
+      .where(eq(curatedVenues.googlePlaceId, googlePlaceId))
+      .limit(1);
+
+    if (cached.length > 0 && cached[0].category) {
+      // Map our categories to display-friendly types
+      const categoryMap: Record<string, string> = {
+        'meal': 'restaurant',
+        'drinks': 'bar',
+        'cafes': 'cafe',
+        'dessert': 'dessert',
+        'experiences': 'experience',
+      };
+      return categoryMap[cached[0].category] || cached[0].category;
+    }
+  }
+
+  if (!types || types.length === 0) {
+    return 'venue';
+  }
+
+  // Priority order for venue types (most specific/desirable first)
+  const typePriority = [
+    // Primary venue types we care about
+    'restaurant',
+    'bar',
+    'night_club',
+    'cafe',
+    'coffee_shop',
+    'bakery',
+    'meal_delivery',
+    'meal_takeaway',
+    // Drinks/nightlife
+    'liquor_store',
+    'wine_bar',
+    'brewery',
+    'distillery',
+    // Entertainment/experiences
+    'movie_theater',
+    'bowling_alley',
+    'amusement_park',
+    'museum',
+    'art_gallery',
+    'spa',
+    'gym',
+    'park',
+    // Dessert (lower priority - often misclassified)
+    'ice_cream_shop',
+    'dessert_shop',
+  ];
+
+  // Types to skip entirely (too generic)
+  const skipTypes = [
+    'point_of_interest',
+    'establishment',
+    'food',
+    'store',
+    'place',
+  ];
+
+  // Find the highest priority type that exists in the array
+  for (const priorityType of typePriority) {
+    if (types.includes(priorityType)) {
+      return priorityType;
+    }
+  }
+
+  // Fall back to first non-generic type
+  for (const type of types) {
+    if (!skipTypes.includes(type)) {
+      return type;
+    }
+  }
+
+  // Last resort
+  return types[0] || 'venue';
+}
+
+/**
+ * Synchronous version for cases where we can't use async
+ * Uses simple priority logic without database lookup
+ */
+export function getBestVenueTypeSync(types: string[]): string {
+  if (!types || types.length === 0) {
+    return 'venue';
+  }
+
+  const typePriority = [
+    'restaurant', 'bar', 'night_club', 'cafe', 'coffee_shop', 'bakery',
+    'wine_bar', 'brewery', 'distillery',
+    'movie_theater', 'bowling_alley', 'museum', 'art_gallery', 'spa', 'gym', 'park',
+    'ice_cream_shop', 'dessert_shop',
+  ];
+
+  const skipTypes = ['point_of_interest', 'establishment', 'food', 'store', 'place'];
+
+  for (const priorityType of typePriority) {
+    if (types.includes(priorityType)) {
+      return priorityType;
+    }
+  }
+
+  for (const type of types) {
+    if (!skipTypes.includes(type)) {
+      return type;
+    }
+  }
+
+  return types[0] || 'venue';
 }
 
 /**
@@ -181,9 +305,9 @@ export function filterByBudget(venues: PlaceResult[], budgetMax: number): PlaceR
     if (priceNum === null) {
       const allowed = budgetMax >= 40;
       if (!allowed) {
-        console.log(`[Budget Filter] ❌ Filtering out "${venue.name}" - no price data (budget: $${budgetMax} < $40)`);
+
       } else {
-        console.log(`[Budget Filter] ✓ Allowing "${venue.name}" - no price data but budget $${budgetMax} >= $40`);
+
       }
       return allowed;
     }
@@ -192,13 +316,13 @@ export function filterByBudget(venues: PlaceResult[], budgetMax: number): PlaceR
     if (priceNum > maxPriceLevel) {
       const priceDisplay = '$'.repeat(priceNum);
       const maxDisplay = '$'.repeat(maxPriceLevel);
-      console.log(`[Budget Filter] ❌ Filtering out "${venue.name}" - ${priceDisplay} exceeds budget $${budgetMax} (max: ${maxDisplay})`);
+
       return false;
     }
 
     // Venue passes filter
     const priceDisplay = '$'.repeat(priceNum);
-    console.log(`[Budget Filter] ✓ Allowing "${venue.name}" - ${priceDisplay} within budget $${budgetMax}`);
+
     return true;
   });
 }
@@ -394,7 +518,7 @@ export function clearPlacesCache() {
     geocodeHits: 0,
     geocodeMisses: 0,
   };
-  console.log('[Google Places Cache] Cache cleared');
+
 }
 
 // Get cache stats for monitoring (actual hits/misses)
@@ -440,11 +564,10 @@ async function getPlaceDetailsFromDB(placeId: string): Promise<PlaceResult | nul
     if (cacheEntry.expiresAt < new Date()) {
       // Cache expired, delete it
       await db.delete(placesCache).where(eq(placesCache.placeId, placeId));
-      console.log(`[DB Cache] Expired - Place Details for ${placeId}`);
+
       return null;
     }
 
-    console.log(`[DB Cache] HIT - Place Details for ${placeId}`);
     return cacheEntry.placeData as PlaceResult;
   } catch (error) {
     console.error(`[DB Cache] Error reading Place Details for ${placeId}:`, error);
@@ -472,7 +595,6 @@ async function savePlaceDetailsToDB(placeId: string, placeData: PlaceResult): Pr
         },
       });
 
-    console.log(`[DB Cache] SAVED - Place Details for ${placeId} (expires in 30 days)`);
   } catch (error) {
     console.error(`[DB Cache] Error saving Place Details for ${placeId}:`, error);
   }
@@ -502,11 +624,10 @@ async function getSearchResultsFromDB(searchQuery: string, searchLocation: strin
     if (cacheEntry.expiresAt < new Date()) {
       // Cache expired, delete it
       await db.delete(searchCache).where(eq(searchCache.id, cacheEntry.id));
-      console.log(`[DB Cache] Expired - Search results for "${searchQuery}" in ${searchLocation}`);
+
       return null;
     }
 
-    console.log(`[DB Cache] HIT - Search results for "${searchQuery}" in ${searchLocation}`);
     // Returns full PlaceResult objects (or legacy string IDs for backwards compatibility)
     return cacheEntry.searchResults as any[];
   } catch (error) {
@@ -530,7 +651,6 @@ async function saveSearchResultsToDB(searchQuery: string, searchLocation: string
         expiresAt,
       });
 
-    console.log(`[DB Cache] SAVED - ${results.length} full search results for "${searchQuery}" in ${searchLocation} (expires in 24 hours)`);
   } catch (error) {
     console.error(`[DB Cache] Error saving search results:`, error);
   }
@@ -553,13 +673,12 @@ async function getGeocodingFromDB(location: string): Promise<GeocodeResult | nul
     
     // Check if expired
     if (new Date() > cachedResult.expiresAt) {
-      console.log(`[DB Cache] EXPIRED - Geocoding for "${location}"`);
+
       // Delete expired entry
       await db.delete(geocodingCache).where(eq(geocodingCache.location, location));
       return null;
     }
 
-    console.log(`[DB Cache] HIT - Geocoding for "${location}" (expires: ${cachedResult.expiresAt.toISOString()})`);
     return {
       latitude: parseFloat(cachedResult.latitude as string),
       longitude: parseFloat(cachedResult.longitude as string),
@@ -598,7 +717,6 @@ async function saveGeocodingToDB(location: string, result: GeocodeResult): Promi
         },
       });
 
-    console.log(`[DB Cache] SAVED - Geocoding for "${location}" (expires in 30 days)`);
   } catch (error) {
     console.error(`[DB Cache] Error saving geocoding:`, error);
   }
@@ -1126,12 +1244,10 @@ async function autoCacheApiResults(
     });
     
     if (highQualityVenues.length === 0) {
-      console.log(`[Auto-Cache] No high-quality venues to cache`);
+
       return;
     }
-    
-    console.log(`[Auto-Cache] Processing ${highQualityVenues.length} high-quality venues`);
-    
+
     // Check which venues already exist
     const existingPlaceIds = await db
       .select({ googlePlaceId: curatedVenues.googlePlaceId })
@@ -1144,7 +1260,7 @@ async function autoCacheApiResults(
     const newVenues = highQualityVenues.filter(v => !existingIds.has(v.placeId));
     
     if (newVenues.length === 0) {
-      console.log(`[Auto-Cache] All venues already cached`);
+
       return;
     }
     
@@ -1153,7 +1269,7 @@ async function autoCacheApiResults(
       try {
         // Validate venue has coordinates
         if (!venue.location) {
-          console.log(`[Auto-Cache] ⚠️  Skipping ${venue.name} - no coordinates`);
+
           continue;
         }
         
@@ -1210,8 +1326,7 @@ async function autoCacheApiResults(
           businessStatus: venue.businessStatus || null,
           lastRefreshed: new Date()
         });
-        
-        console.log(`[Auto-Cache] ✅ Cached new venue: ${venue.name} in ${venueRegion} (${venue.placeId})`);
+
       } catch (insertError) {
         // Ignore duplicate key errors (race condition)
         if (!(insertError as any)?.message?.includes('duplicate')) {
@@ -1219,8 +1334,7 @@ async function autoCacheApiResults(
         }
       }
     }
-    
-    console.log(`[Auto-Cache] Successfully cached ${newVenues.length} new venues`);
+
   } catch (error) {
     console.error('[Auto-Cache] Error:', error);
   }
@@ -1476,7 +1590,7 @@ export async function searchPlaces(
       // Apply budget filter if provided (only filter if budgetMax is a real number and not user-directed)
       if (!userDirected && budgetMax != null && typeof budgetMax === 'number') {
         const filtered = filterByBudget(curatedResults, budgetMax);
-        console.log(`[Budget Filter] ${curatedResults.length} → ${filtered.length} venues after budget filter ($${budgetMax})`);
+
         return filtered;
       }
       return curatedResults;
@@ -1492,7 +1606,7 @@ export async function searchPlaces(
       console.log(`[Cache-First] Found only ${curatedResults.length} curated venues (need 9+), will supplement with API results`);
     }
   } else {
-    console.log(`[API Fallback] Skipping curated search, going directly to Google Places API for "${query}"`);
+
   }
   
   // Create cache key from search parameters
@@ -1528,7 +1642,7 @@ export async function searchPlaces(
         // Apply budget filter if provided (only filter if budgetMax is a real number and not user-directed)
         if (!userDirected && budgetMax != null && typeof budgetMax === 'number') {
           const filtered = filterByBudget(combined, budgetMax);
-          console.log(`[Budget Filter] ${combined.length} → ${filtered.length} venues after budget filter ($${budgetMax})`);
+
           return filtered.map(result => clonePlaceResult(result));
         }
         return combined.map(result => clonePlaceResult(result));
@@ -1540,7 +1654,7 @@ export async function searchPlaces(
       // Apply budget filter if provided (only filter if budgetMax is a real number and not user-directed)
       if (!userDirected && budgetMax != null && typeof budgetMax === 'number') {
         const filtered = filterByBudget(results, budgetMax);
-        console.log(`[Budget Filter] ${results.length} → ${filtered.length} venues after budget filter ($${budgetMax})`);
+
         return filtered;
       }
       return results;
@@ -1549,7 +1663,7 @@ export async function searchPlaces(
     // Check database cache (persistent, 24-hour TTL)
     const dbCachedResults = await getSearchResultsFromDB(query, location, radiusMiles);
     if (dbCachedResults && dbCachedResults.length > 0) {
-      console.log(`[DB Cache] HIT - full search results for "${query}" (${dbCachedResults.length} cached results)`);
+
       // Log cache hit (no API cost)
       await logApiCall({
         service: 'google_places',
@@ -1581,7 +1695,7 @@ export async function searchPlaces(
           // Apply budget filter if provided (only filter if budgetMax is a real number and not user-directed)
           if (!userDirected && budgetMax != null && typeof budgetMax === 'number') {
             const filtered = filterByBudget(combined, budgetMax);
-            console.log(`[Budget Filter] ${combined.length} → ${filtered.length} venues after budget filter ($${budgetMax})`);
+
             return filtered.map(result => clonePlaceResult(result));
           }
           return combined.map(result => clonePlaceResult(result));
@@ -1595,7 +1709,7 @@ export async function searchPlaces(
         const toReturn = results.map(result => clonePlaceResult(result));
         if (!userDirected && budgetMax != null && typeof budgetMax === 'number') {
           const filtered = filterByBudget(toReturn, budgetMax);
-          console.log(`[Budget Filter] ${toReturn.length} → ${filtered.length} venues after budget filter ($${budgetMax})`);
+
           return filtered;
         }
         return toReturn;
@@ -1834,7 +1948,7 @@ export async function searchPlaces(
       // Apply budget filter if provided (only filter if budgetMax is a real number and not user-directed)
       if (!userDirected && budgetMax != null && typeof budgetMax === 'number') {
         const filtered = filterByBudget(combined, budgetMax);
-        console.log(`[Budget Filter] ${combined.length} → ${filtered.length} venues after budget filter ($${budgetMax})`);
+
         return filtered;
       }
       return combined;
@@ -1844,7 +1958,7 @@ export async function searchPlaces(
     // Apply budget filter if provided (only filter if budgetMax is a real number and not user-directed)
     if (!userDirected && budgetMax != null && typeof budgetMax === 'number') {
       const filtered = filterByBudget(results, budgetMax);
-      console.log(`[Budget Filter] ${results.length} → ${filtered.length} venues after budget filter ($${budgetMax})`);
+
       return filtered;
     }
     return results;
@@ -1861,7 +1975,7 @@ export async function searchPlaces(
       // Apply budget filter if provided (only filter if budgetMax is a real number and not user-directed)
       if (!userDirected && budgetMax != null && typeof budgetMax === 'number') {
         const filtered = filterByBudget(curatedResults, budgetMax);
-        console.log(`[Budget Filter] ${curatedResults.length} → ${filtered.length} venues after budget filter ($${budgetMax})`);
+
         return filtered;
       }
       return curatedResults;
@@ -1883,14 +1997,13 @@ export async function searchNearbyPlaces(
   // Check cache first
   if (sessionCache.nearbyResults.has(cacheKey)) {
     sessionCache.stats.nearbyHits++;
-    console.log(`[Google Places Cache] HIT - searchNearbyPlaces for "${query}"`);
+
     const cached = sessionCache.nearbyResults.get(cacheKey)!;
     // Return deep copy to prevent mutation
     return cached.map(result => clonePlaceResult(result));
   }
 
   sessionCache.stats.nearbyMisses++;
-  console.log(`[Google Places Cache] MISS - fetching searchNearbyPlaces for "${query}"`);
 
   try {
     const apiKey = getNextApiKey();

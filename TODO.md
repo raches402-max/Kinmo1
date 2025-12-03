@@ -268,6 +268,27 @@ Add group preview section before joining, use AvailabilityGrid (not text input),
 
 ---
 
+### 🙋 Membership Request Flow
+**Priority:** 🟡 Medium | **Estimated Time:** 3-4 hours
+
+When a user hits a dead-end on the invite/claim page (e.g., their name was already claimed by someone else, or they're not on the member list), allow them to submit a request to join.
+
+**User flow:**
+1. User sees "already claimed" or "not on list" error
+2. User submits their name + optional message ("I think Sarah claimed my spot by mistake")
+3. Organizer receives notification with approve/deny actions
+4. On approval: user added as member or existing member reassigned
+
+**Implementation:**
+- New `membership_requests` table (groupId, requestedName, message, status, userId)
+- API endpoint: `POST /api/groups/:id/membership-requests`
+- Notification to organizer with action buttons
+- Approve/deny endpoints with member creation logic
+
+**Impact:** Eliminates dead-end frustration, keeps users in the flow instead of abandoning.
+
+---
+
 ### 🎨 UX Polish Pass
 **Priority:** 🟡 Medium | **Estimated Time:** 3-10 hours (variable)
 

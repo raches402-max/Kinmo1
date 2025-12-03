@@ -37,6 +37,8 @@ interface GroupAvailabilityHeatmapProps {
   showMemberDetails?: boolean;
   /** Optional: Compact mode for smaller spaces */
   compact?: boolean;
+  /** Optional: Mobile display mode - 'single-day' shows one day at a time, 'compact-week' shows entire week in tiny grid */
+  mobileMode?: 'single-day' | 'compact-week';
 }
 
 const TIME_DETAILS: Record<TimeSlot, { icon: typeof Sun; label: string; shortLabel: string; range: string }> = {
@@ -62,6 +64,7 @@ export function GroupAvailabilityHeatmap({
   onMyAvailabilityChange,
   showMemberDetails = true,
   compact = false,
+  mobileMode = 'single-day',
 }: GroupAvailabilityHeatmapProps) {
   const isMobile = useIsMobile();
   const [hoveredCell, setHoveredCell] = useState<{ day: Day; time: TimeSlot } | null>(null);
@@ -159,32 +162,25 @@ export function GroupAvailabilityHeatmap({
     }
   }, [myAvailability]);
 
-  // Get color intensity based on member count
-  const getCellStyle = (day: Day, time: TimeSlot) => {
-    const { count } = aggregateAvailability[day][time];
+  // Get heat background color based on availability ratio (amber tones)
+  const getHeatBg = (count: number) => {
     const ratio = totalMembers > 0 ? count / totalMembers : 0;
-    const isMySlot = effectiveMyAvailability[day]?.[time];
+    if (ratio === 0) return "bg-gray-100";
+    if (ratio <= 0.2) return "bg-amber-50";
+    if (ratio <= 0.4) return "bg-amber-100";
+    if (ratio <= 0.6) return "bg-amber-200";
+    if (ratio <= 0.8) return "bg-amber-300";
+    return "bg-amber-400";
+  };
 
-    // Use primary color (gold) with varying opacity based on how many can make it
-    // This creates a warm, inviting heatmap
-    if (count === 0) {
-      return {
-        background: "hsl(var(--muted) / 0.3)",
-        border: isMySlot ? "hsl(var(--primary) / 0.5)" : "transparent",
-      };
-    }
-
-    // Calculate saturation and lightness based on ratio
-    // More people = more saturated, slightly darker gold
-    const baseHue = 44; // Gold hue
-    const saturation = 60 + (ratio * 27); // 60-87%
-    const lightness = 85 - (ratio * 25); // 85% -> 60% (gets richer with more people)
-    const alpha = 0.3 + (ratio * 0.7); // 0.3 -> 1.0
-
-    return {
-      background: `hsla(${baseHue}, ${saturation}%, ${lightness}%, ${alpha})`,
-      border: isMySlot ? "hsl(var(--primary))" : count === totalMembers ? "hsl(var(--primary) / 0.3)" : "transparent",
-    };
+  // Get text color - white with progressive opacity (more visible at higher availability)
+  const getHeatText = (count: number) => {
+    const ratio = totalMembers > 0 ? count / totalMembers : 0;
+    if (ratio <= 0.2) return "text-white/20";
+    if (ratio <= 0.4) return "text-white/30";
+    if (ratio <= 0.6) return "text-white/50";
+    if (ratio <= 0.8) return "text-white/70";
+    return "text-white/90";
   };
 
   // Summary stats
@@ -192,8 +188,107 @@ export function GroupAvailabilityHeatmap({
     return acc + TIMES.filter(time => effectiveMyAvailability[day]?.[time]).length;
   }, 0);
 
-  // Mobile layout - single day view with swipe
-  if (isMobile) {
+  // Mobile layout - compact week view (shows all 7 days in a tiny grid)
+  if (isMobile && mobileMode === 'compact-week') {
+    return (
+      <div className="space-y-3 -mx-2">
+        {/* Compact header */}
+        <div className="flex items-center justify-between px-2">
+          <div className="flex items-center gap-1.5">
+            <Users className="h-3.5 w-3.5 text-primary" />
+            <span className="text-xs font-medium text-muted-foreground">{totalMembers} members</span>
+          </div>
+          {sweetSpots.length > 0 && (
+            <div className="flex items-center gap-1 text-2xs text-primary font-medium">
+              <Sparkles className="h-3 w-3" />
+              <span>{sweetSpots.length} perfect</span>
+            </div>
+          )}
+        </div>
+
+        {/* Compact full-week grid - edge to edge */}
+        <div className="space-y-1.5">
+          {/* Day headers */}
+          <div className="grid gap-1.5" style={{ gridTemplateColumns: '32px repeat(7, 1fr)' }}>
+            <div /> {/* Empty corner */}
+            {DAYS.map((day) => (
+              <div key={day} className="text-center">
+                <span className="text-xs font-semibold text-muted-foreground">
+                  {DAY_LABELS[day].short}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Time rows */}
+          {TIMES.map(time => {
+            const TimeIcon = TIME_DETAILS[time].icon;
+
+            return (
+              <div
+                key={time}
+                className="grid gap-1.5"
+                style={{ gridTemplateColumns: '32px repeat(7, 1fr)' }}
+              >
+                {/* Time icon */}
+                <div className="flex items-center justify-center">
+                  <TimeIcon className="h-4 w-4 text-muted-foreground" />
+                </div>
+
+                {/* Day cells */}
+                {DAYS.map((day) => {
+                  const { count } = aggregateAvailability[day][time];
+                  const isMySlot = effectiveMyAvailability[day]?.[time];
+
+                  return (
+                    <button
+                      key={`${day}-${time}`}
+                      onClick={() => toggleMySlot(day, time)}
+                      className={cn(
+                        "h-12 rounded-xl transition-all duration-150 active:scale-95",
+                        "flex items-center justify-center",
+                        getHeatBg(count),
+                        isMySlot
+                          ? "ring-2 ring-violet-500 ring-inset"
+                          : ""
+                      )}
+                      aria-label={`${day} ${time}: ${count} of ${totalMembers} available`}
+                    >
+                      <span className={cn(
+                        "text-sm font-bold",
+                        getHeatText(count)
+                      )}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Compact legend */}
+        <div className="flex items-center justify-center gap-4 text-2xs text-muted-foreground pt-1 px-2">
+          <div className="flex items-center gap-1.5">
+            <span>Heat:</span>
+            <div className="flex gap-0.5">
+              <div className="w-3 h-3 rounded bg-gray-100 border border-gray-200" />
+              <div className="w-3 h-3 rounded bg-amber-200" />
+              <div className="w-3 h-3 rounded bg-amber-400" />
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span>You:</span>
+            <div className="w-3 h-3 rounded bg-amber-200 ring-2 ring-violet-500 ring-inset" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Mobile layout - single day view with swipe (default mobile behavior)
+  if (isMobile && mobileMode === 'single-day') {
     const selectedDay = DAYS[selectedDayIndex];
 
     return (
@@ -268,10 +363,8 @@ export function GroupAvailabilityHeatmap({
             >
               {TIMES.map(time => {
                 const TimeIcon = TIME_DETAILS[time].icon;
-                const { count, members } = aggregateAvailability[selectedDay][time];
+                const { count } = aggregateAvailability[selectedDay][time];
                 const isMySlot = effectiveMyAvailability[selectedDay]?.[time];
-                const ratio = totalMembers > 0 ? count / totalMembers : 0;
-                const isPerfect = count === totalMembers && totalMembers > 0;
 
                 return (
                   <motion.button
@@ -279,77 +372,39 @@ export function GroupAvailabilityHeatmap({
                     onClick={() => toggleMySlot(selectedDay, time)}
                     whileTap={{ scale: 0.98 }}
                     className={cn(
-                      "w-full flex items-center gap-3 p-4 rounded-xl border-2 transition-all duration-200",
+                      "w-full flex items-center gap-3 p-4 rounded-xl transition-all duration-200",
+                      getHeatBg(count),
+                      // Violet ring when personally selected
                       isMySlot
-                        ? "border-primary shadow-sm"
-                        : "border-transparent hover:border-muted-foreground/10"
+                        ? "ring-[3px] ring-violet-500 ring-inset shadow-sm"
+                        : "hover:ring-2 hover:ring-violet-300 hover:ring-inset"
                     )}
-                    style={{
-                      background: count > 0
-                        ? `linear-gradient(135deg, hsla(44, ${60 + ratio * 27}%, ${85 - ratio * 20}%, ${0.2 + ratio * 0.4}) 0%, hsla(44, ${60 + ratio * 27}%, ${80 - ratio * 15}%, ${0.1 + ratio * 0.2}) 100%)`
-                        : "hsl(var(--muted) / 0.3)",
-                    }}
                   >
                     {/* Time icon */}
-                    <div className={cn(
-                      "w-11 h-11 rounded-xl flex items-center justify-center transition-colors",
-                      isPerfect ? "bg-primary/20" : "bg-background/60"
-                    )}>
-                      <TimeIcon className={cn(
-                        "h-5 w-5",
-                        isPerfect ? "text-primary" : "text-muted-foreground"
-                      )} />
+                    <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-white/40">
+                      <TimeIcon className="h-5 w-5 text-amber-700" />
                     </div>
 
                     {/* Time info */}
                     <div className="flex-1 text-left">
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-sm">{TIME_DETAILS[time].label}</span>
-                        {isPerfect && (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-primary/20 text-primary text-2xs font-semibold">
-                            <Sparkles className="h-2.5 w-2.5" />
-                            Everyone
-                          </span>
-                        )}
+                        <span className="font-semibold text-sm text-amber-900">{TIME_DETAILS[time].label}</span>
                       </div>
-                      <div className="text-xs text-muted-foreground mt-0.5">
+                      <div className="text-xs text-amber-700/70 mt-0.5">
                         {TIME_DETAILS[time].range}
-                        {count > 0 && (
-                          <span className="ml-2 text-foreground/70">
-                            · {count} {count === 1 ? "person" : "people"} available
-                          </span>
-                        )}
                       </div>
                     </div>
 
-                    {/* Availability indicator */}
+                    {/* Count indicator */}
                     <div className="flex flex-col items-center gap-1">
-                      {/* Member count visualization */}
-                      <div className="flex -space-x-1">
-                        {Array.from({ length: Math.min(totalMembers, 5) }).map((_, i) => (
-                          <div
-                            key={i}
-                            className={cn(
-                              "w-5 h-5 rounded-full border-2 border-background transition-all",
-                              i < count ? "bg-primary" : "bg-muted"
-                            )}
-                            style={{
-                              opacity: i < count ? 1 : 0.3,
-                            }}
-                          />
-                        ))}
-                        {totalMembers > 5 && (
-                          <div className="w-5 h-5 rounded-full border-2 border-background bg-muted flex items-center justify-center text-[8px] font-bold text-muted-foreground">
-                            +{totalMembers - 5}
-                          </div>
-                        )}
-                      </div>
-                      {/* My toggle indicator */}
                       <span className={cn(
-                        "text-2xs font-medium transition-colors",
-                        isMySlot ? "text-primary" : "text-muted-foreground"
+                        "text-2xl font-bold",
+                        getHeatText(count)
                       )}>
-                        {isMySlot ? "I'm in" : "Tap to join"}
+                        {count}
+                      </span>
+                      <span className="text-2xs text-amber-700/60">
+                        /{totalMembers}
                       </span>
                     </div>
                   </motion.button>
@@ -360,18 +415,18 @@ export function GroupAvailabilityHeatmap({
         </div>
 
         {/* Legend */}
-        <div className="flex items-center justify-center gap-4 pt-2 text-2xs text-muted-foreground">
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded bg-primary/20" />
-            <span>Few available</span>
+        <div className="flex items-center justify-between text-2xs pt-2">
+          <div className="flex items-center gap-1 text-muted-foreground">
+            <span>Group:</span>
+            <div className="flex gap-0.5">
+              <div className="w-3 h-3 rounded bg-gray-100 border" />
+              <div className="w-3 h-3 rounded bg-amber-200" />
+              <div className="w-3 h-3 rounded bg-amber-400" />
+            </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded bg-primary/60" />
-            <span>Some</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded bg-primary" />
-            <span>Everyone</span>
+          <div className="flex items-center gap-1 text-muted-foreground">
+            <span>You:</span>
+            <div className="w-3 h-3 rounded bg-amber-200 ring-2 ring-violet-500 ring-inset" />
           </div>
         </div>
       </div>
@@ -463,51 +518,37 @@ export function GroupAvailabilityHeatmap({
               {DAYS.map((day, idx) => {
                 const { count, members } = aggregateAvailability[day][time];
                 const isMySlot = effectiveMyAvailability[day]?.[time];
-                const isPerfect = count === totalMembers && totalMembers > 0;
                 const isWeekend = idx >= 5;
                 const isHovered = hoveredCell?.day === day && hoveredCell?.time === time;
-                const cellStyle = getCellStyle(day, time);
 
                 return (
                   <div
                     key={`${day}-${time}`}
-                    className={cn("p-0.5", isWeekend && "bg-muted/30 rounded-lg")}
+                    className={cn("p-0.5", isWeekend && "bg-muted/20 rounded-lg")}
                   >
                     <button
                       onClick={() => toggleMySlot(day, time)}
                       onMouseEnter={() => setHoveredCell({ day, time })}
                       onMouseLeave={() => setHoveredCell(null)}
                       className={cn(
-                        "relative w-full h-11 rounded-lg transition-all duration-150",
+                        "relative w-full h-12 rounded-xl transition-all duration-150",
                         "flex items-center justify-center",
-                        "border-2 active:scale-95 hover:scale-[1.02]",
-                        isPerfect && "ring-2 ring-primary/20 ring-offset-1"
+                        "active:scale-90",
+                        getHeatBg(count),
+                        // Violet ring when personally selected
+                        isMySlot
+                          ? "ring-[3px] ring-violet-500 ring-inset shadow-sm"
+                          : "hover:ring-2 hover:ring-violet-300 hover:ring-inset"
                       )}
-                      style={{
-                        background: cellStyle.background,
-                        borderColor: cellStyle.border,
-                      }}
                       aria-label={`${day} ${time}: ${count} of ${totalMembers} available${isMySlot ? " (you're available)" : ""}`}
                     >
-                      {/* Count indicator */}
-                      {count > 0 && (
-                        <span className={cn(
-                          "text-sm font-bold transition-colors",
-                          isPerfect ? "text-primary-foreground" : "text-foreground/70"
-                        )}>
-                          {count}
-                        </span>
-                      )}
-
-                      {/* Perfect time sparkle */}
-                      {isPerfect && (
-                        <Sparkles className="absolute -top-1 -right-1 h-3.5 w-3.5 text-primary" />
-                      )}
-
-                      {/* My availability indicator */}
-                      {isMySlot && (
-                        <div className="absolute bottom-0.5 right-0.5 w-2 h-2 rounded-full bg-primary" />
-                      )}
+                      {/* Count indicator - white with progressive opacity */}
+                      <span className={cn(
+                        "text-xs font-bold transition-colors",
+                        getHeatText(count)
+                      )}>
+                        {count}
+                      </span>
 
                       {/* Hover tooltip */}
                       <AnimatePresence>
@@ -555,29 +596,21 @@ export function GroupAvailabilityHeatmap({
         })}
       </div>
 
-      {/* Footer with legend and summary */}
-      <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
-        {/* Legend */}
-        <div className="flex items-center gap-3 text-2xs text-muted-foreground">
-          <span className="font-medium">Availability:</span>
-          <div className="flex items-center gap-1">
-            <div className="w-4 h-4 rounded bg-muted/50" />
-            <span>None</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-4 h-4 rounded" style={{ background: "hsla(44, 70%, 75%, 0.5)" }} />
-            <span>Some</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-4 h-4 rounded" style={{ background: "hsla(44, 87%, 63%, 1)" }} />
-            <span>Everyone</span>
+      {/* Footer with legend */}
+      <div className="flex items-center justify-between text-2xs pt-2">
+        <div className="flex items-center gap-1 text-muted-foreground">
+          <span>Group:</span>
+          <div className="flex gap-0.5">
+            <div className="w-4 h-4 rounded bg-gray-100 border" />
+            <div className="w-4 h-4 rounded bg-amber-100" />
+            <div className="w-4 h-4 rounded bg-amber-200" />
+            <div className="w-4 h-4 rounded bg-amber-300" />
+            <div className="w-4 h-4 rounded bg-amber-400" />
           </div>
         </div>
-
-        {/* User's availability count */}
-        <div className="flex items-center gap-2 text-xs">
-          <span className="text-muted-foreground">You're available:</span>
-          <span className="font-semibold text-primary">{myAvailableCount} of 21 slots</span>
+        <div className="flex items-center gap-1 text-muted-foreground">
+          <span>You:</span>
+          <div className="w-4 h-4 rounded bg-amber-200 ring-2 ring-violet-500 ring-inset" />
         </div>
       </div>
     </div>

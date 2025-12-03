@@ -275,27 +275,45 @@ export function UnifiedEventCreationModal({
 
       // Step 2: Add venues as itinerary items
       if (data.venues.length > 0) {
-        const items = data.venues.map((venue, index) => ({
-          sourceType: venue.googlePlaceId ? "voting_event" : "ad_hoc",
-          sourceId: venue.id,
-          venueName: venue.name,
-          venueAddress: venue.address || "",
-          venueType: venue.category || "restaurant",
-          googlePlaceId: venue.googlePlaceId || null,
-          rating: venue.rating?.toString() || null,
-          photoUrl: venue.photoUrl || null,
-          orderIndex: index,
-        }));
+        // Separate venues into voting events (favorites) and ad-hoc
+        const votingEventVenues = data.venues.filter(v => v.googlePlaceId);
+        const adHocVenues = data.venues.filter(v => !v.googlePlaceId);
 
-        const itemsRes = await fetch(`/api/itineraries/${itinerary.id}/items`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ items }),
-        });
+        // Add voting event venues using batch endpoint
+        if (votingEventVenues.length > 0) {
+          const items = votingEventVenues.map((venue) => ({
+            sourceType: "voting_event" as const,
+            sourceId: venue.id,
+          }));
 
-        if (!itemsRes.ok) {
-          console.error("Failed to add items, but itinerary was created");
+          const itemsRes = await fetch(`/api/itineraries/${itinerary.id}/items`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ items }),
+          });
+
+          if (!itemsRes.ok) {
+            console.error("Failed to add voting event items:", await itemsRes.text());
+          }
+        }
+
+        // Add ad-hoc venues one by one using the ad-hoc endpoint
+        for (const venue of adHocVenues) {
+          const adHocRes = await fetch(`/api/itineraries/${itinerary.id}/items/ad-hoc`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({
+              name: venue.name,
+              address: venue.address || "",
+              venueType: venue.category || "restaurant",
+            }),
+          });
+
+          if (!adHocRes.ok) {
+            console.error("Failed to add ad-hoc venue:", venue.name, await adHocRes.text());
+          }
         }
       }
 
@@ -356,12 +374,21 @@ export function UnifiedEventCreationModal({
   }));
 
   // Transform groups for MobileEventBuilder
-  const groupsForBuilder = groups.map((g: any) => ({
-    id: g.id,
-    name: g.name,
-    emoji: g.emoji || "👥",
-    memberCount: g.memberCount || 0,
-  }));
+  // When groupId is provided (coming from group page), use selectedGroup data
+  // Otherwise, use the fetched groups list
+  const groupsForBuilder = groupId && selectedGroup
+    ? [{
+        id: selectedGroup.id,
+        name: selectedGroup.name,
+        emoji: selectedGroup.emoji || "👥",
+        memberCount: selectedGroup.members?.length || 0,
+      }]
+    : groups.map((g: any) => ({
+        id: g.id,
+        name: g.name,
+        emoji: g.emoji || "👥",
+        memberCount: g.memberCount || 0,
+      }));
 
   return (
     <>

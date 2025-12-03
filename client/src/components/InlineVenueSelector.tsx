@@ -95,10 +95,10 @@ function VenueCard({ venue, isSelected, onToggle }: VenueCardProps) {
       {venue.category && (
         <p className="text-xs text-muted-foreground">{venue.category}</p>
       )}
-      {venue.rating && (
+      {venue.rating != null && (
         <div className="flex items-center gap-1 mt-1">
           <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-          <span className="text-xs">{venue.rating.toFixed(1)}</span>
+          <span className="text-xs">{Number(venue.rating).toFixed(1)}</span>
         </div>
       )}
     </button>

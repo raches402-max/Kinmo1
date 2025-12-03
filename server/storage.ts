@@ -57,6 +57,7 @@ export interface IStorage {
   // Members
   getGroupMembers(groupId: string): Promise<Member[]>;
   getMember(id: string): Promise<Member | undefined>;
+  getGroupMemberByUserId(groupId: string, userId: string): Promise<Member | undefined>;
   createMember(member: InsertMember): Promise<Member>;
   updateMember(id: string, updates: UpdateMember): Promise<Member>;
   deleteMember(id: string): Promise<void>;
@@ -142,6 +143,7 @@ export interface IStorage {
   getPendingAutoScheduledEvents(groupId: string): Promise<Array<AutoScheduledEvent & { itinerary?: Itinerary & { items: ItineraryItem[] } }>>;
   getAutoScheduledEvent(id: string): Promise<AutoScheduledEvent | undefined>;
   updateAutoScheduledEventStatus(id: string, status: string): Promise<AutoScheduledEvent>;
+  updateAutoScheduledEvent(id: string, updates: Partial<InsertAutoScheduledEvent>): Promise<AutoScheduledEvent>;
   getAutoScheduledEventsReadyForAutoSend(): Promise<AutoScheduledEvent[]>;
   hasExistingProposedEvents(groupId: string): Promise<boolean>;
   countFutureEvents(groupId: string): Promise<number>;
@@ -342,21 +344,38 @@ export class DatabaseStorage implements IStorage {
       .values({ ...insertGroup, userId, shareableLink })
       .returning();
 
-    // Create members if provided
-    if (memberInputs.length > 0) {
-      const membersData = memberInputs.map((m, index) => ({
+    // Get organizer's user info
+    const organizer = await db.select().from(users).where(eq(users.id, userId)).then(rows => rows[0]);
+
+    // Always add the organizer as a member first
+    const organizerMember = {
+      groupId: group.id,
+      name: organizer?.firstName && organizer?.lastName
+        ? `${organizer.firstName} ${organizer.lastName}`.trim()
+        : organizer?.firstName || organizer?.username || 'Organizer',
+      email: organizer?.email || null,
+      claimToken: randomBytes(16).toString('hex'),
+      isOrganizer: true,
+      userId: userId,
+      invitationSent: false,
+      hasJoined: true, // Organizer is already "joined"
+    };
+
+    // Create additional members if provided (skip any that match organizer's email)
+    const additionalMembers = memberInputs
+      .filter(m => !organizer?.email || m.email?.toLowerCase() !== organizer.email.toLowerCase())
+      .map((m) => ({
         groupId: group.id,
         name: m.name || null,
         email: m.email || null,
-        claimToken: randomBytes(16).toString('hex'), // Generate unique claim token for each member
-        isOrganizer: index === 0, // First member is organizer
-        userId: index === 0 ? userId : null, // Set userId for organizer only
+        claimToken: randomBytes(16).toString('hex'),
+        isOrganizer: false,
+        userId: null,
         invitationSent: false,
         hasJoined: false,
       }));
 
-      await db.insert(members).values(membersData);
-    }
+    await db.insert(members).values([organizerMember, ...additionalMembers]);
 
     // Automatically backup after creation
     await this.createAutomaticBackup(group.id, userId, 'create');
@@ -833,6 +852,14 @@ export class DatabaseStorage implements IStorage {
 
   async getMember(id: string): Promise<Member | undefined> {
     const [member] = await db.select().from(members).where(eq(members.id, id));
+    return member || undefined;
+  }
+
+  async getGroupMemberByUserId(groupId: string, userId: string): Promise<Member | undefined> {
+    const [member] = await db
+      .select()
+      .from(members)
+      .where(and(eq(members.groupId, groupId), eq(members.userId, userId)));
     return member || undefined;
   }
 
@@ -1949,6 +1976,15 @@ export class DatabaseStorage implements IStorage {
     const [event] = await db
       .update(autoScheduledEvents)
       .set({ status })
+      .where(eq(autoScheduledEvents.id, id))
+      .returning();
+    return event;
+  }
+
+  async updateAutoScheduledEvent(id: string, updates: Partial<InsertAutoScheduledEvent>): Promise<AutoScheduledEvent> {
+    const [event] = await db
+      .update(autoScheduledEvents)
+      .set(updates)
       .where(eq(autoScheduledEvents.id, id))
       .returning();
     return event;

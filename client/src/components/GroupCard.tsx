@@ -117,22 +117,21 @@ export function GroupCard({
       data-testid={`card-group-${group.id}`}
     >
       <Link href={`/group/${group.id}`} className="block">
-        {/* Floating date badge in corner */}
+        {/* Top accent bar with next event date */}
         {nextEventDate && (
           <div
-            className="absolute top-3 right-12 px-2.5 py-1.5 rounded-lg text-2xs font-bold text-white z-10 flex items-center gap-1"
+            className="flex items-center gap-1.5 px-4 py-1.5 text-2xs font-semibold text-white"
             style={{
               backgroundColor: accentColor,
-              boxShadow: `0 2px 8px ${softenColor(accentColor, 0.4)}`
             }}
           >
             <Sparkles className="w-3 h-3" />
-            {formatEventDate(nextEventDate)}
+            <span>Next up: {formatEventDate(nextEventDate)}</span>
           </div>
         )}
 
         {/* Header */}
-        <div className={`p-4 ${nextEventDate ? 'pr-28' : 'pr-12'}`}>
+        <div className="p-4 pr-12">
           <div className="flex items-center gap-3">
             {/* Emoji with warm background */}
             <div
@@ -161,42 +160,33 @@ export function GroupCard({
           </div>
         </div>
 
-        {/* Member strip with warm tint from accent color */}
+        {/* Member strip with subtle name pills - 2 rows, horizontal scroll for overflow */}
         {group.members && group.members.length > 0 && (
           <div
-            className="px-4 py-3 border-t border-card-border"
+            className="px-4 py-3 border-t border-card-border overflow-x-auto scrollbar-hide"
             style={{
-              background: `linear-gradient(180deg, ${softenColor(accentColor, 0.03)} 0%, ${softenColor(accentColor, 0.06)} 100%)`,
+              background: `linear-gradient(180deg, ${softenColor(accentColor, 0.02)} 0%, ${softenColor(accentColor, 0.05)} 100%)`,
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
             }}
             data-testid={`members-preview-${group.id}`}
           >
-            <div className="flex items-center gap-3 overflow-x-auto pb-0.5">
-              {group.members.slice(0, 5).map((member, idx) => (
-                <div key={member.id} className="flex items-center gap-1.5 flex-shrink-0">
-                  <Avatar className="w-7 h-7 ring-2 ring-card shadow-sm" data-testid={`avatar-member-${idx}`}>
-                    <AvatarFallback
-                      className="text-2xs font-bold"
-                      style={{
-                        backgroundColor: softenColor(accentColor, 0.18),
-                        color: accentColor
-                      }}
-                    >
-                      {getInitial(member.name)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="text-2xs text-card-foreground font-medium">
-                    {formatNameWithInitial(member.name)}
-                  </span>
-                </div>
-              ))}
-              {group.members.length > 5 && (
+            <div
+              className="grid grid-flow-col grid-rows-2 gap-1.5 w-max"
+            >
+              {group.members.map((member, idx) => (
                 <span
-                  className="text-2xs text-muted-foreground font-medium"
-                  data-testid="members-overflow"
+                  key={member.id}
+                  className="inline-flex items-center px-2.5 py-1 rounded-full text-2xs font-medium transition-colors whitespace-nowrap"
+                  style={{
+                    backgroundColor: softenColor(accentColor, 0.1),
+                    color: 'var(--card-foreground)',
+                  }}
+                  data-testid={`member-pill-${idx}`}
                 >
-                  +{group.members.length - 5}
+                  {formatNameWithInitial(member.name)}
                 </span>
-              )}
+              ))}
             </div>
           </div>
         )}

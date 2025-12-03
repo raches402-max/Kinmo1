@@ -5,7 +5,7 @@
  */
 
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { CalendarDays, Users, Plus, Heart, User, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -45,18 +45,19 @@ const navItems: NavItem[] = [
 
 export function BottomNav() {
   const [location, setLocation] = useLocation();
+  const searchString = useSearch(); // Reactive hook for query params
   const [fabOpen, setFabOpen] = useState(false);
 
   const isActive = (path: string) => {
     // Handle tab-based paths (e.g., "/?tab=my-groups")
     if (path.includes("?tab=")) {
       const tabParam = new URLSearchParams(path.split("?")[1]).get("tab");
-      const currentTab = new URLSearchParams(window.location.search).get("tab");
+      const currentTab = new URLSearchParams(searchString).get("tab");
       return location === "/" && currentTab === tabParam;
     }
     // Events is active when on "/" with no tab param or with my-events tab (default)
     if (path === "/") {
-      const currentTab = new URLSearchParams(window.location.search).get("tab");
+      const currentTab = new URLSearchParams(searchString).get("tab");
       return location === "/" && (!currentTab || currentTab === "my-events");
     }
     return location.startsWith(path);

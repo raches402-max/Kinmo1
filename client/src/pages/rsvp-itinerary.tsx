@@ -12,9 +12,10 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, MapPin, Clock, Check, X, HelpCircle, User, Users, Baby } from "lucide-react";
+import { Calendar, MapPin, Clock, Check, X, HelpCircle, User, Users, Baby, CalendarPlus } from "lucide-react";
 import { format } from "date-fns";
 import { TimeSlotVoting } from "@/components/TimeSlotVoting";
+import { generateCalendarUrlFromItinerary } from "@/lib/calendar";
 
 type Member = {
   id: string;
@@ -648,6 +649,29 @@ export default function RsvpItineraryPage() {
                       selectedResponse === "maybe" ? "Maybe" :
                       "Can't make it"
                     }</p>
+                  </div>
+                )}
+
+                {/* Add to Calendar button - shown when RSVP is yes */}
+                {selectedResponse === 'yes' && itinerary.eventDate && (
+                  <div className="mt-4 pt-4 border-t">
+                    <a
+                      href={generateCalendarUrlFromItinerary({
+                        groupName: group.name,
+                        eventName: itinerary.name || group.name,
+                        eventDate: itinerary.eventDate,
+                        venues: itinerary.items.map(item => ({
+                          venueName: item.venueName,
+                          venueAddress: item.venueAddress,
+                        })),
+                      })}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-lg border-2 border-dashed border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/50 transition-colors"
+                    >
+                      <CalendarPlus className="h-5 w-5" />
+                      <span className="font-medium">Add to Google Calendar</span>
+                    </a>
                   </div>
                 )}
               </CardContent>

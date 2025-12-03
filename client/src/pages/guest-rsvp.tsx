@@ -8,9 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Calendar, MapPin, Check, X, HelpCircle, Users, Crown, Clock } from "lucide-react";
+import { Calendar, MapPin, Check, X, HelpCircle, Users, Crown, Clock, CalendarPlus } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { format } from "date-fns";
+import { generateCalendarUrlFromItinerary } from "@/lib/calendar";
 
 type GuestRsvpData = {
   guestInvite: {
@@ -229,6 +230,29 @@ export default function GuestRsvpPage() {
                 </span>
               </div>
             ) : null}
+
+            {/* Add to Calendar button - shown when RSVP is yes */}
+            {guestInvite.rsvpStatus === 'yes' && itinerary.eventDate && (
+              <div className="pt-4 border-t">
+                <a
+                  href={generateCalendarUrlFromItinerary({
+                    groupName: group?.name || 'Event',
+                    eventName: itinerary.name || group?.name || 'Event',
+                    eventDate: itinerary.eventDate,
+                    venues: items.map(item => ({
+                      venueName: item.venueName,
+                      venueAddress: item.venueAddress,
+                    })),
+                  })}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-lg border-2 border-dashed border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/50 transition-colors"
+                >
+                  <CalendarPlus className="h-5 w-5" />
+                  <span className="font-medium">Add to Google Calendar</span>
+                </a>
+              </div>
+            )}
           </CardContent>
         </Card>
 

@@ -4,7 +4,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, updateUserProfileSchema, activities as activitiesTable, groups as groupsTable, members as membersTable, itineraryInvites, guestInvites, rsvps as rsvpsTable, itineraries, itineraryItems, proposedTimeSlots, users, userProfiles, photosCache, geocodingCache, hostAssignments, curatedVenues, votingEvents as votingEventsTable, activitySwipes, activities, votingEvents, swipeSessions, venueVisitHistory, autoScheduledEvents, rejectedEventDates, userSavedPlaces, groupSavedPlaces, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
 import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue, categorizeVenuesBatch, analyzePreferencePatterns, parseSchedulingPrompt, parseSchedulingPromptWithHistory, detectCategory, getPromptCacheStats, validateVenueForCategory, type SchedulingParams } from "./openai";
-import { searchPlaces, searchNearbyPlaces, geocodeLocation, clearPlacesCache, getCacheStats, getPlaceDetails, detectAndParseGoogleMapsUrl } from "./google-places";
+import { searchPlaces, searchNearbyPlaces, geocodeLocation, clearPlacesCache, getCacheStats, getPlaceDetails, detectAndParseGoogleMapsUrl, getBestVenueType, getBestVenueTypeSync } from "./google-places";
 import { planEventWithAgent, type VenueForAgent } from "./ai-event-agent";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import {
@@ -280,11 +280,9 @@ async function trackFeedbackAndMaybeAnalyze(groupId: string) {
     }
 
     const newCount = updatedGroup.feedbackCount || 0;
-    console.log(`[Feedback Tracking] Group ${groupId} feedback count: ${newCount}`);
 
     if (newCount > 0 && newCount % 15 === 0) {
-      console.log(`[Feedback Tracking] Triggering insights analysis at ${newCount} feedback actions`);
-      
+
       setImmediate(async () => {
         try {
           const activities = await storage.getGroupActivities(groupId);
@@ -331,7 +329,6 @@ async function trackFeedbackAndMaybeAnalyze(groupId: string) {
             })
             .where(eq(groupsTable.id, groupId));
 
-          console.log(`[Feedback Tracking] Insights updated for group ${groupId}`);
         } catch (error) {
           console.error(`[Feedback Tracking] Background insights analysis failed:`, error);
         }
@@ -565,10 +562,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Check if expired
         if (new Date() > cachedPhoto.expiresAt) {
-          console.log(`[Photo Cache] EXPIRED - ${photoReference}`);
+
           await db.delete(photosCache).where(eq(photosCache.photoReference, photoReference));
         } else {
-          console.log(`[Photo Cache] HIT - ${photoReference}`);
+
           const imageBuffer = Buffer.from(cachedPhoto.imageData, 'base64');
           res.set('Content-Type', cachedPhoto.contentType);
           res.set('Cache-Control', 'public, max-age=2592000'); // 30 days
@@ -577,8 +574,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Not in cache or expired - download from Google
-      console.log(`[Photo Cache] MISS - downloading ${photoReference}`);
-      
+
       // Use KEY_1 by default for photo downloads (not part of round-robin since photos should be cached)
       const apiKey = process.env.GOOGLE_PLACES_API_KEY;
       if (!apiKey) {
@@ -618,8 +614,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           },
         });
 
-      console.log(`[Photo Cache] SAVED - ${photoReference} (expires in 30 days)`);
-
       // Return the photo
       res.set('Content-Type', contentType);
       res.set('Cache-Control', 'public, max-age=2592000'); // 30 days
@@ -640,17 +634,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Google Place ID is required" });
       }
 
-      console.log(`[Photo Refresh] Refreshing photo for place: ${googlePlaceId}`);
-
       // Fetch fresh place details from Google Places API
       const placeDetails = await getPlaceDetails(googlePlaceId);
 
       if (!placeDetails?.photoUrl) {
-        console.log(`[Photo Refresh] No photo available for ${googlePlaceId}`);
+
         return res.status(404).json({ message: "No photo available for this place" });
       }
-
-      console.log(`[Photo Refresh] Got fresh photo URL: ${placeDetails.photoUrl}`);
 
       // Update all voting_events with this googlePlaceId
       const updatedVotingEvents = await db
@@ -691,7 +681,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(eq(groupSavedPlaces.googlePlaceId, googlePlaceId));
 
       const totalUpdated = updatedVotingEvents.length + updatedComplementary1.length + updatedComplementary2.length;
-      console.log(`[Photo Refresh] Updated ${totalUpdated} venue records for ${googlePlaceId}`);
 
       res.json({
         success: true,
@@ -709,15 +698,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Bulk import curated venues (admin only - for seeding SF data)
   app.post('/api/admin/import-venues', isAuthenticated, requireAdmin(), async (req, res) => {
     try {
-      console.log('[Venue Import] Endpoint hit, body:', typeof req.body, Object.keys(req.body || {}));
 
       // Validate request body
       const validatedData = safeParse(importVenuesSchema, req.body, res);
       if (!validatedData) return;
 
       const { venues } = validatedData;
-
-      console.log(`[Venue Import] Starting import of ${venues.length} venues`);
 
       // Helper to extract Place ID from Google Maps URL
       const extractPlaceId = (url: string): string | null => {
@@ -785,7 +771,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
             }
           } catch (geocodeError) {
-            console.log(`[Venue Import] Geocoding failed for ${venue.title}, using 0,0`);
+
           }
 
           // Insert venue
@@ -813,8 +799,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           skipped.push({ venue: venue.title, reason: 'Import error' });
         }
       }
-
-      console.log(`[Venue Import] Complete: ${imported.length} imported, ${skipped.length} skipped`);
 
       res.json({
         success: true,
@@ -1568,7 +1552,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = await getUserId(req);
       const filterGroupId = req.query.groupId as string | undefined;
-      console.log('[DEBUG] /api/user/events called for userId:', userId, 'filterGroupId:', filterGroupId);
 
       // Build where conditions
       const whereConditions = [isNull(groupsTable.deletedAt)];
@@ -1630,8 +1613,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
       }
-
-      console.log('[DEBUG] Verified invites after filtering:', verifiedInvites.length);
 
       // Fetch RSVP status and itinerary items for each invite
       const events = await Promise.all(verifiedInvites.map(async (invite) => {
@@ -2031,7 +2012,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           // Skip if this date was explicitly rejected by the user
           if (rejectedDateStrs.has(dateStr)) {
-            console.log(`[Virtual Events] Skipping rejected date ${dateStr} for group ${group.name}`);
             continue;
           }
 
@@ -2092,7 +2072,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const allEvents = [...events, ...draftEvents, ...virtualEvents];
 
       // Debug: Log event counts and any potential duplicates
-      console.log(`[User Events] Merging: ${events.length} real, ${draftEvents.length} drafts, ${virtualEvents.length} virtual`);
 
       // Check for duplicate dates within virtual events
       const virtualDateCounts = new Map<string, number>();
@@ -2103,7 +2082,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       for (const [key, count] of virtualDateCounts.entries()) {
         if (count > 1) {
-          console.log(`[User Events] WARNING: Duplicate virtual event for ${key} (count: ${count})`);
+
         }
       }
 
@@ -2140,16 +2119,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime();
       });
 
-      console.log(`[User Events] Returning ${deduplicatedEvents.length} events for user ${userId} (removed ${allEvents.length - deduplicatedEvents.length} duplicates)`);
       if (deduplicatedEvents.length > 0) {
-        console.log(`[User Events] First event:`, {
-          name: deduplicatedEvents[0].itineraryName,
-          groupName: deduplicatedEvents[0].groupName,
-          date: deduplicatedEvents[0].eventDate,
-          status: deduplicatedEvents[0].status,
-        });
+
       } else {
-        console.log(`[User Events] WARNING: Returning EMPTY array! verifiedInvites=${verifiedInvites.length}, draftEvents=${draftEvents.length}, virtualEvents=${virtualEvents.length}`);
+
       }
 
       res.json(deduplicatedEvents);
@@ -2798,11 +2771,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (group.autoItineraryEnabled) {
         // Auto-create itinerary combinations from activities/favorites
-        console.log('[Auto-Schedule] Auto-itinerary enabled - creating combinations from activities');
+
         selection = await selectBestItineraryForAutoSchedule(storage, group);
       } else {
         // Auto-itinerary disabled - only use existing saved itineraries
-        console.log('[Auto-Schedule] Auto-itinerary disabled - checking for saved itineraries');
+
         const savedItineraries = existingItineraries.filter(i => i.isSaved && i.status === 'saved');
 
         if (savedItineraries.length === 0) {
@@ -2925,14 +2898,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
 
-        console.log(`[Auto-Schedule] Created itinerary ${itineraryId} with ${members.length} invites for options flow`);
       } else {
         return res.status(400).json({ message: "No valid selection" });
       }
 
       // Validate and optimize itinerary ordering using AI (only if itinerary was created)
       if (itineraryId) {
-        console.log(`[Manual Trigger] Validating itinerary order with AI...`);
+
         try {
           const { validateItinerary } = await import('./itinerary-validation.js');
           const itineraryWithItems = await storage.getItinerary(itineraryId);
@@ -2967,7 +2939,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
               })
               .where(eq(itineraries.id, itineraryId));
 
-            console.log(`[Manual Trigger] ✅ AI validation complete: ${validation.validationNotes || 'Order optimized'}`);
           }
         } catch (validationError: any) {
           // Log but don't fail - validation is optional enhancement
@@ -3006,17 +2977,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { aggregateMemberAvailability, convertAvailabilityToText } = await import('./availability-utils');
         const aggregatedAvailability = await aggregateMemberAvailability(group.id, storage);
 
-        console.log(`[Manual Trigger] Using aggregated availability from ${aggregatedAvailability.memberCount} members`);
-
         // Convert to text format for AI
         const availabilityString = convertAvailabilityToText(
           aggregatedAvailability.grid,
           aggregatedAvailability.conflicts,
           aggregatedAvailability.memberCount
         );
-
-        console.log(`[Manual Trigger] Availability string: "${availabilityString}"`);
-        console.log(`[Manual Trigger] Venues: ${JSON.stringify(venues)}`);
 
         // Use AI to find optimal time
         const timeResult = await suggestOptimalTime({
@@ -3028,7 +2994,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
 
         proposedDate = timeResult.eventDate;
-        console.log(`[Manual Trigger] AI suggested optimal time: ${proposedDate.toISOString()}, reasoning: ${timeResult.reasoning}`);
+
       } catch (err) {
         console.error('[Manual Trigger] AI time suggestion failed, using fallback:', err);
         proposedDate = group.nextEventDueDate ? new Date(group.nextEventDueDate) : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
@@ -3038,7 +3004,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateItinerary(itineraryId, {
         eventDate: proposedDate
       });
-      console.log(`[Manual Trigger] Updated itinerary ${itineraryId} with eventDate: ${proposedDate.toISOString()}`);
 
       // If there are existing proposed/scheduled events, return both options for user to choose
       if (existingProposedOrScheduled.length > 0) {
@@ -3073,7 +3038,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const autoSendAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours from now
 
       // Calculate confidence score for the event
-      console.log('[Auto-Schedule] Calculating confidence score...');
+
       const { calculateEventConfidence } = await import('./confidence-scoring.js');
 
       // Get venue data for confidence calculation
@@ -3117,12 +3082,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalMembers
       );
 
-      console.log('[Auto-Schedule] Confidence calculated:', {
-        score: confidenceResult.score,
-        factors: confidenceResult.factors,
-        summary: confidenceResult.plainLanguageSummary,
-      });
-
       // Determine initial status based on confidence
       // ≥80: auto-approve immediately
       // <80: pending_approval (requires organizer review or will auto-send after 48hrs)
@@ -3147,12 +3106,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await db.update(itineraries)
           .set({ eventDate: proposedDate })
           .where(eq(itineraries.id, itineraryId));
-        console.log(`[Auto-Schedule] Updated itinerary ${itineraryId} with eventDate: ${proposedDate.toISOString()}`);
+
       }
 
       // Create itineraryOptions if we have options (for member voting and auto-approval)
       if ('options' in selection && selection.options && selection.options.length > 0) {
-        console.log(`[Auto-Schedule] Creating ${selection.options.length} itinerary options`);
+
         const { itineraryOptions } = await import('@shared/schema');
 
         for (const option of selection.options) {
@@ -3164,12 +3123,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             nearbySuggestions: option.nearbySuggestions || null,
           });
         }
-        console.log('[Auto-Schedule] ✅ Itinerary options created');
+
       }
 
       // If auto-approved (≥80% confidence), immediately create the itinerary
       if (shouldAutoApprove) {
-        console.log('[Auto-Schedule] High confidence (≥80%) - auto-approving event');
+
         const { approveAndCreateItinerary } = await import('./auto-approval.js');
         const approvalResult = await approveAndCreateItinerary(
           pendingEvent.id,
@@ -3178,14 +3137,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
 
         if (approvalResult.success) {
-          console.log('[Auto-Schedule] ✅ Event auto-approved and itinerary created');
+
         } else {
           console.error('[Auto-Schedule] ❌ Auto-approval failed:', approvalResult.error);
         }
       } else if (requiresReview) {
-        console.log('[Auto-Schedule] ⚠️  Low confidence (<60%) - flagged for organizer review');
+
       } else {
-        console.log('[Auto-Schedule] ⏳ Medium confidence (60-79%) - pending organizer approval');
+
       }
 
       res.json({
@@ -4425,7 +4384,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .limit(1);
 
         if (!existingVenue) {
-          console.log(`[Auto-Cache] Venue ${venueName} not in curatedVenues, fetching details...`);
 
           // Fetch full venue details from Google Places
           const placeDetails = await getPlaceDetails(venuePlaceId);
@@ -4465,12 +4423,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
               businessStatus: placeDetails.businessStatus || null,
             });
 
-            console.log(`[Auto-Cache] Successfully cached ${venueName} to curatedVenues`);
           } else {
-            console.log(`[Auto-Cache] Could not fetch details for ${venueName}, skipping cache`);
+
           }
         } else {
-          console.log(`[Auto-Cache] Venue ${venueName} already exists in curatedVenues`);
+
         }
       } catch (cacheError: any) {
         // Don't fail the request if caching fails
@@ -6238,8 +6195,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const { calculateNameSimilarity } = await import('./google-places');
             const similarity = calculateNameSimilarity(validatedEvent.title, place.name);
 
-            console.log(`[Voting Event] Name similarity check: "${validatedEvent.title}" vs "${place.name}" = ${Math.round(similarity * 100)}%`);
-
             // Warn if similarity is low (but don't block - user explicitly added this)
             if (similarity < 0.5) {
               console.warn(`[Voting Event] LOW SIMILARITY WARNING: User requested "${validatedEvent.title}" but top Google result is "${place.name}"`);
@@ -6253,7 +6208,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               console.warn(`[Voting Event] SUSPICIOUS TYPE WARNING: "${place.name}" is a ${place.types?.find(t => suspiciousTypes.includes(t))}`);
               // Don't auto-enrich with tour operator data
               enrichmentStatus = 'no_results';
-              console.log(`[Voting Event] Rejecting enrichment for "${validatedEvent.title}" - venue type is ${place.types?.find(t => suspiciousTypes.includes(t))}`);
+
               return res.json({
                 enrichmentStatus,
                 warning: `The top Google result appears to be a ${place.types?.find(t => suspiciousTypes.includes(t))} instead of a venue. Please verify the venue name.`
@@ -6273,16 +6228,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             };
 
             enrichmentStatus = 'success';
-            console.log(`[Voting Event] Enriched "${validatedEvent.title}" with Google Places data:`, {
-              name: place.name,
-              rating: place.rating,
-              reviewCount: place.reviewCount,
-              address: place.address,
-              similarityScore: Math.round(similarity * 100) + '%'
-            });
+
           } else {
             enrichmentStatus = 'no_results';
-            console.log(`[Voting Event] No Google Places results for "${validatedEvent.title}"`);
+
             // Don't create event yet - let frontend ask for confirmation
             return res.json({ enrichmentStatus });
           }
@@ -6293,7 +6242,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       } else {
         enrichmentStatus = 'skipped';
-        console.log(`[Voting Event] Skipping enrichment check for "${validatedEvent.title}"`);
+
       }
 
       // Check for duplicates (unless explicitly allowing duplicates)
@@ -6303,7 +6252,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const duplicate = existingEvents.find(e => e.googlePlaceId === enrichedEvent.googlePlaceId);
 
         if (duplicate) {
-          console.log(`[Voting Event] Duplicate detected: "${validatedEvent.title}" (Google Place ID: ${enrichedEvent.googlePlaceId})`);
+
           return res.status(409).json({
             message: "This venue is already in your favorites",
             existingEvent: duplicate
@@ -6517,10 +6466,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { category, currentVenueNames, checkedActivityIds } = validatedData;
 
-      console.log(`[Category Regen] Regenerating ${category} for group ${req.params.id}`);
-      console.log(`[Category Regen] Avoiding ${currentVenueNames?.length || 0} current venues`);
-      console.log(`[Category Regen] Preserving ${checkedActivityIds?.length || 0} checked activities`);
-
       // Calculate how many new activities we need
       const existingActivities = await storage.getGroupActivities(req.params.id);
       const checkedIds = new Set(checkedActivityIds || []);
@@ -6534,10 +6479,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const neededCount = 3 - checkedCount;
-      console.log(`[Category Regen] Need ${neededCount} new activities (have ${checkedCount} checked)`);
 
       if (neededCount <= 0) {
-        console.log(`[Category Regen] Category already has 3 cards (all checked), skipping regeneration`);
+
         return res.json([]);
       }
 
@@ -6574,7 +6518,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Fetch seen venues from database to prevent repetitive suggestions
       const seenVenuesFromDB = await storage.getSeenVenues(req.params.id);
       const seenVenueNames = seenVenuesFromDB.map(v => v.venueName);
-      console.log(`[Category Regen] Found ${seenVenueNames.length} seen venues to exclude from suggestions`);
 
       // Retry logic to ensure we get enough quality venues
       let allValidActivities: any[] = [];
@@ -6594,7 +6537,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       while (allValidActivities.length < neededCount && attempt < maxAttempts) {
         attempt++;
-        console.log(`[Category Regen] Attempt ${attempt}/${maxAttempts}: Need ${neededCount - allValidActivities.length} more venues`);
 
         // Refresh group data to get latest rejected venues
         const refreshedGroup = await storage.getGroup(req.params.id);
@@ -6603,7 +6545,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         const rejectedVenues = refreshedGroup.rejectedVenues || [];
         const rejectedSet = new Set(rejectedVenues.map(v => v.toLowerCase()));
-        console.log(`[Category Regen] Blacklisted venues: ${rejectedVenues.length}`);
 
         // Get member constraints for this category regeneration
         const groupMembers = await storage.getGroupMembers(refreshedGroup.id);
@@ -6644,15 +6585,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           groupInsights: groupInsights,
         });
 
-        console.log(`[Category Regen] Attempt ${attempt}: Got ${suggestions.length} suggestions for ${category}`);
-
         // Filter out rejected venues AND disabled categories before calling Google Places
         const filteredSuggestions = suggestions.filter(s => {
           const normalized = s.venueName.trim().toLowerCase();
           
           // Skip blacklisted venues
           if (rejectedSet.has(normalized)) {
-            console.log(`[Category Regen] Skipping blacklisted venue: ${s.venueName}`);
+
             return false;
           }
           
@@ -6666,13 +6605,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             (detectedCategory === 'experiences' && (refreshedGroup.experiencesEnabled ?? true));
           
           if (!categoryEnabled) {
-            console.log(`[Category Regen] Skipping ${s.venueName} (${s.venueType}) - ${detectedCategory} category is disabled`);
+
             return false;
           }
           
           return true;
         });
-        console.log(`[Category Regen] After category + blacklist filter: ${filteredSuggestions.length}/${suggestions.length} suggestions`);
 
         // Enrich with Google Places
         const coordinates = refreshedGroup.latitude && refreshedGroup.longitude 
@@ -6692,7 +6630,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           // If Google Places returns NO results at all, this is likely a fake/non-existent venue
           if (places.length === 0) {
-            console.log(`[Category Regen] Rejecting ${suggestion.venueName} - no Google Places results found (fake venue)`);
+
             await storage.addRejectedVenue(req.params.id, suggestion.venueName);
             return null;
           }
@@ -6724,12 +6662,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             // Only accept matches above threshold, otherwise fall back to API
             if (bestMatch.similarity < SIMILARITY_THRESHOLD) {
-              console.log(`[Category Regen] ❌ Best curated match "${bestMatch.place.name}" has low similarity (${bestMatch.similarity.toFixed(2)}) to AI suggestion "${suggestion.venueName}" - falling back to API`);
+
               return null; // This will trigger API fallback in searchPlaces
             }
 
             const place = bestMatch.place;
-            console.log(`[Category Regen] ✅ Matched "${place.name}" to AI suggestion "${suggestion.venueName}" with ${(bestMatch.similarity * 100).toFixed(0)}% similarity`);
 
             // Search for complementary places
             let complementaryPlace = null;
@@ -6753,7 +6690,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // CRITICAL: Only include venues with verified Google Places data
             // Note: photoUrl is optional - we can fetch it later on-demand
             if (!place.rating || !place.address) {
-              console.log(`[Category Regen] Rejecting ${place.name} - missing critical data (rating: ${place.rating}, address: ${!!place.address})`);
+
               return null;
             }
             
@@ -6790,13 +6727,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // If we reach here, finalPlaces is empty due to quality/budget filtering
           // This is NOT a fake venue - it's a real venue that doesn't meet our criteria
-          console.log(`[Category Regen] Skipping ${suggestion.venueName} - failed quality/budget filters (not a fake venue)`);
+
           return null;
         })
       );
 
         const validActivities = enrichedActivities.filter(a => a !== null);
-        console.log(`[Category Regen] Attempt ${attempt}: Got ${validActivities.length} enriched activities`);
 
         // CRITICAL: Filter out disabled categories AFTER AI categorization (in case AI categorized differently)
         const beforeFilter = validActivities.length;
@@ -6826,14 +6762,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (!seenVenues.has(venueKey) && allValidActivities.length < neededCount) {
             seenVenues.add(venueKey);
             allValidActivities.push(activity);
-            console.log(`[Category Regen] Added unique venue: ${activity.venueName} (${allValidActivities.length}/${neededCount})`);
+
           }
         }
 
-        console.log(`[Category Regen] After attempt ${attempt}: Have ${allValidActivities.length}/${neededCount} venues`);
       }
-
-      console.log(`[Category Regen] Retry complete: Collected ${allValidActivities.length}/${neededCount} valid activities`);
 
       // Check if we successfully collected enough venues
       if (allValidActivities.length < neededCount) {
@@ -6852,17 +6785,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      console.log(`[Category Regen] Category has ${checkedCount} checked activities, ${uncheckedActivities.length} unchecked`);
-
       // Delete unchecked activities
       for (const activity of uncheckedActivities) {
         await db.delete(activitiesTable).where(eq(activitiesTable.id, activity.id));
       }
-      console.log(`[Category Regen] Deleted ${uncheckedActivities.length} unchecked activities`);
 
       // Insert new activities to reach exactly 3 total for this category
       const newActivities = [];
-      console.log(`[Category Regen] Inserting ${Math.min(neededCount, allValidActivities.length)}/${neededCount} new activities`);
 
       for (let i = 0; i < Math.min(neededCount, allValidActivities.length); i++) {
         const activityData = allValidActivities[i];
@@ -6876,7 +6805,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const finalCount = checkedCount + newActivities.length;
-      console.log(`[Category Regen] Created ${newActivities.length} new activities. Category now has ${finalCount}/3 cards`);
 
       res.json(newActivities);
     } catch (error: any) {
@@ -6920,8 +6848,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const effectiveBudget = memberPreferences?.budgetOverride ?? userProfile?.budget ?? group.budgetMax;
       const effectiveCategories = memberPreferences?.categoryPreferencesOverride ?? userProfile?.activityPreferences ?? null;
       const effectiveAvailability = memberPreferences?.availabilityOverride ?? userProfile?.personalAvailability ?? group.availability;
-      
-      console.log(`[Category Generate] Preference fallback chain:`);
+
       console.log(`  Budget: ${effectiveBudget} (member: ${memberPreferences?.budgetOverride}, profile: ${userProfile?.budget}, group: ${group.budgetMax})`);
       console.log(`  Categories: ${effectiveCategories ? JSON.stringify(effectiveCategories) : 'null'} (member: ${memberPreferences?.categoryPreferencesOverride ? 'set' : 'null'}, profile: ${userProfile?.activityPreferences ? 'set' : 'null'})`);
       console.log(`  Availability: ${effectiveAvailability ? 'set' : 'null'} (member: ${memberPreferences?.availabilityOverride ? 'set' : 'null'}, profile: ${userProfile?.personalAvailability ? 'set' : 'null'}, group: ${group.availability ? 'set' : 'null'})`);
@@ -6936,9 +6863,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const finalBudget = budgetOverride !== undefined ? budgetOverride : effectiveBudget;
 
       if (budgetOverride !== undefined) {
-        console.log(`[Category Generate] Using budget override: $${budgetOverride} (instead of effective budget: $${effectiveBudget})`);
+
       } else {
-        console.log(`[Category Generate] Using effective budget: $${effectiveBudget}`);
+
       }
 
       // Support both single category (backward compatibility) and multiple categories
@@ -6952,12 +6879,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const originalCount = categoriesToProcess.length;
           categoriesToProcess = categoriesToProcess.filter((cat: string) => effectiveCategories.includes(cat));
           if (categoriesToProcess.length < originalCount) {
-            console.log(`[Category Generate] Filtered categories based on user preferences: ${originalCount} → ${categoriesToProcess.length}`);
+
           }
         } else {
           // No explicit categories requested, use user's preferred categories
           categoriesToProcess = effectiveCategories;
-          console.log(`[Category Generate] Using user's preferred categories: ${categoriesToProcess.join(', ')}`);
+
         }
       }
       
@@ -6977,11 +6904,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid sortBy parameter. Must be 'distance' or 'rating'" });
       }
 
-      console.log(`[Category Generate] Generating ${categoriesToProcess.length} categories for group ${req.params.id}: ${categoriesToProcess.join(', ')}`);
-      console.log(`[Category Generate] Location: ${location?.address || group.locationBase}`);
-      console.log(`[Category Generate] Radius: ${radius || group.searchRadius || 2}mi`);
       if (tempInstructions) {
-        console.log(`[Category Generate] Custom instructions: "${tempInstructions}"`);
+
       }
 
       // Use custom location if provided, otherwise use group location
@@ -6996,13 +6920,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         coordinates = { lat: location.lat, lng: location.lng };
       } else if (location?.address) {
         // Custom location text provided - geocode it for strict distance filtering
-        console.log(`[Category Generate] Geocoding custom location: ${location.address}`);
+
         const geocoded = await geocodeLocation(location.address);
         if (geocoded) {
           coordinates = { lat: geocoded.latitude, lng: geocoded.longitude };
-          console.log(`[Category Generate] Geocoded to: ${geocoded.latitude}, ${geocoded.longitude}`);
+
         } else {
-          console.log(`[Category Generate] Geocoding failed, proceeding without coordinates`);
+
         }
       } else if (group.latitude && group.longitude) {
         // Use group's stored coordinates
@@ -7014,7 +6938,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const existingVenueNames = existingActivities.map(a => a.venueName);
 
       // ========== LEARNING SYSTEM: Query Historical Data ==========
-      console.log(`[Learning] Querying historical data for personalization...`);
 
       // 1. Get venue visit history for rotation and proven winners
       const visitStats = await db.select({
@@ -7032,8 +6955,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         daysSinceVisit: v.lastVisit ? Math.floor((Date.now() - new Date(v.lastVisit).getTime()) / (1000 * 60 * 60 * 24)) : 999
       }]));
 
-      console.log(`[Learning] Found visit history for ${visitMap.size} venues`);
-
       // 2. Get member favorites for boosting
       const groupMembers = await storage.getGroupMembers(req.params.id);
       const allMemberFavorites = await Promise.all(
@@ -7048,8 +6969,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      console.log(`[Learning] Found ${favoritesMap.size} unique favorited venues across ${groupMembers.length} members`);
-
       // 3. Build swipe consensus map from existing activities (already have swipeConsensus field)
       const swipeConsensusMap = new Map<string, number>();
       for (const activity of existingActivities) {
@@ -7057,8 +6976,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           swipeConsensusMap.set(activity.googlePlaceId, activity.swipeConsensus);
         }
       }
-
-      console.log(`[Learning] Found swipe consensus data for ${swipeConsensusMap.size} venues`);
 
       // Map category to Google Places search query
       const categorySearchQueries: Record<string, string> = {
@@ -7074,16 +6991,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const allResults: any[] = [];
 
       for (const currentCategory of categoriesToProcess) {
-        console.log(`[Category Generate] Processing category: ${currentCategory}`);
-        
+
         let searchQuery = categorySearchQueries[currentCategory] || currentCategory;
         
         // If custom instructions provided, append them to refine the search
         if (tempInstructions && tempInstructions.trim()) {
           searchQuery = `${tempInstructions.trim()} ${searchQuery}`;
-          console.log(`[Category Generate] Enhanced search with custom instructions: "${searchQuery} in ${searchLocation}"`);
+
         } else {
-          console.log(`[Category Generate] Direct Google search: "${searchQuery} in ${searchLocation}"`);
+
         }
 
         // Search Google Places directly (no AI needed!)
@@ -7098,8 +7014,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           finalBudget || undefined // Apply final budget (override or effective)
         );
 
-        console.log(`[Category Generate] Got ${places.length} places from Google for ${currentCategory}`);
-
         if (places.length === 0) {
           resultsByCategory[currentCategory] = [];
           continue;
@@ -7113,7 +7027,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           places.map(place => limit(async () => {
             // Skip if already in existing activities
             if (existingVenueNames.includes(place.name)) {
-              console.log(`[Category Generate] Skipping duplicate: ${place.name}`);
+
               return null;
             }
 
@@ -7123,13 +7037,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             // Ensure minimum quality (3.5★ + 10 reviews) regardless of radius
             if (rating < 3.5 || reviewCount < 10) {
-              console.log(`[Category Generate] Skipping ${place.name} - quality filter (${rating}★, ${reviewCount} reviews)`);
+
               return null;
             }
 
             // Only include venues with complete data
             if (!place.rating || !place.address || !place.photoUrl) {
-              console.log(`[Category Generate] Skipping ${place.name} - missing data`);
+
               return null;
             }
 
@@ -7141,7 +7055,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             if (hasInvalidType) {
               const invalidType = placeTypes.find((type: string) => invalidTypes.includes(type));
-              console.log(`[Category Generate] ❌ Skipping ${place.name} - invalid business type: ${invalidType} (types: ${placeTypes.join(', ')})`);
+
               return null;
             }
 
@@ -7152,7 +7066,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const isDessertVenue = placeTypes.some((type: string) => dessertTypes.includes(type));
 
               if (isDessertVenue) {
-                console.log(`[Category Generate] ❌ Skipping ${place.name} - dessert venue in meal search (types: ${placeTypes.join(', ')})`);
+
                 return null;
               }
 
@@ -7161,7 +7075,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const hasMealType = placeTypes.some((type: string) => mealTypes.some(mt => type.includes(mt)));
 
               if (!hasMealType) {
-                console.log(`[Category Generate] ⚠️  Skipping ${place.name} - no meal-related types (types: ${placeTypes.join(', ')})`);
+
                 return null;
               }
             } else if (currentCategory === 'dessert') {
@@ -7170,7 +7084,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const isDessertVenue = placeTypes.some((type: string) => dessertTypes.includes(type));
 
               if (!isDessertVenue) {
-                console.log(`[Category Generate] ⚠️  Skipping ${place.name} - not a dessert venue (types: ${placeTypes.join(', ')})`);
+
                 return null;
               }
             } else if (currentCategory === 'drinks') {
@@ -7179,7 +7093,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const isDrinkVenue = placeTypes.some((type: string) => drinkTypes.some(dt => type.includes(dt)));
 
               if (!isDrinkVenue) {
-                console.log(`[Category Generate] ⚠️  Skipping ${place.name} - not a bar/nightlife venue (types: ${placeTypes.join(', ')})`);
+
                 return null;
               }
             } else if (currentCategory === 'cafes') {
@@ -7188,12 +7102,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const isCafeVenue = placeTypes.some((type: string) => cafeTypes.some(ct => type.includes(ct)));
 
               if (!isCafeVenue) {
-                console.log(`[Category Generate] ⚠️  Skipping ${place.name} - not a cafe/coffee shop (types: ${placeTypes.join(', ')})`);
+
                 return null;
               }
             }
-
-            console.log(`[Category Generate] ✅ ${place.name} passed type validation (types: ${placeTypes.join(', ')})`);
 
             // Calculate distance from search center
             let distanceFromBase: number | undefined;
@@ -7215,10 +7127,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (distanceFromBase !== undefined) {
               const maxDistance = searchRadius * 1.2; // 20% buffer
               if (distanceFromBase > maxDistance) {
-                console.log(`[Category Generate] ❌ Skipping ${place.name} - too far: ${distanceFromBase.toFixed(2)}mi (max: ${maxDistance.toFixed(2)}mi)`);
+
                 return null;
               } else if (distanceFromBase > searchRadius) {
-                console.log(`[Category Generate] ⚠️  ${place.name} is ${distanceFromBase.toFixed(2)}mi away (within buffer, radius: ${searchRadius}mi)`);
+
               }
             }
 
@@ -7251,11 +7163,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
                 // If venue is outside city AND outside distance buffer, reject
                 if (distanceFromBase && distanceFromBase > searchRadius) {
-                  console.log(`[Category Generate] ❌ Skipping ${place.name} - wrong city: ${place.city} (searched: ${searchLocation}, distance: ${distanceFromBase.toFixed(2)}mi)`);
+
                   return null;
                 } else {
                   // Within distance buffer, log warning but allow
-                  console.log(`[Category Generate] ⚠️  ${place.name} in ${place.city} (searched: ${searchLocation}) but within distance buffer`);
+
                 }
               }
             }
@@ -7271,11 +7183,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             );
 
             if (!aiValidation.isValid) {
-              console.log(`[Category Generate] ❌ AI Validation failed for ${place.name}: ${aiValidation.reasoning}`);
+
               return null;
             }
-
-            console.log(`[Category Generate] ✅ ${place.name} passed all validation layers (Google types + AI quality check)`);
 
             // ========== PERSONALIZED SCORING: Apply Learning Signals ==========
             const googleRating = parseFloat(place.rating || '0');
@@ -7288,14 +7198,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (visitInfo) {
               if (visitInfo.daysSinceVisit < 60) {
                 // Recently visited - filter out
-                console.log(`[Learning] ❌ Filtering ${place.name} - visited ${visitInfo.daysSinceVisit} days ago (< 60 day cooldown)`);
+
                 return null;
               } else if (visitInfo.daysSinceVisit >= 180 && googleRating >= 4.5) {
                 // Proven winner: visited 6+ months ago with great rating
                 personalizedScore += 0.5;
                 badges.push('🏆 Proven winner');
                 learningBoosts.push(`proven winner (+0.5)`);
-                console.log(`[Learning] 🏆 ${place.name} is a proven winner (+0.5 boost)`);
+
               } else {
                 // Been a while
                 personalizedScore += 0.2;
@@ -7316,7 +7226,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               personalizedScore += boost;
               badges.push(`❤️ ${favCount} member${favCount > 1 ? 's' : ''} favorited`);
               learningBoosts.push(`${favCount} favorites (+${boost.toFixed(1)})`);
-              console.log(`[Learning] ❤️ ${place.name} favorited by ${favCount} member(s) (+${boost.toFixed(1)} boost)`);
+
             }
 
             // 3. Swipe Consensus (if venue was swiped before)
@@ -7327,25 +7237,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 personalizedScore += 0.8;
                 badges.push('🌟 High group approval');
                 learningBoosts.push(`${swipeConsensus}% approval (+0.8)`);
-                console.log(`[Learning] 🌟 ${place.name} has ${swipeConsensus}% approval (+0.8 boost)`);
+
               } else if (swipeConsensus >= 50) {
                 // Moderate consensus
                 personalizedScore += 0.4;
                 learningBoosts.push(`${swipeConsensus}% approval (+0.4)`);
               } else if (swipeConsensus < 30) {
                 // Low consensus - penalize or skip
-                console.log(`[Learning] 👎 ${place.name} has low approval (${swipeConsensus}%), skipping`);
+
                 return null;
               }
             }
-
-            console.log(`[Learning] 📊 ${place.name}: Google ${googleRating.toFixed(1)}★ → Personalized ${personalizedScore.toFixed(1)}★ [${learningBoosts.join(', ')}]`);
 
             return {
               venueName: place.name,
               venueAddress: place.address,
               city: place.city || null,
-              venueType: place.types[0] || 'venue',
+              venueType: getBestVenueTypeSync(place.types || []),
               description: place.review || '',
               googlePlaceId: place.placeId,
               latitude: place.location?.lat?.toString() || null,
@@ -7373,7 +7281,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const filteredCount = totalFromGoogle - passedFiltering;
         const passRate = totalFromGoogle > 0 ? ((passedFiltering / totalFromGoogle) * 100).toFixed(1) : 0;
 
-        console.log(`\n[Category Generate] 📊 Filtering Summary for "${currentCategory}":`);
         console.log(`  ├─ Total from Google: ${totalFromGoogle}`);
         console.log(`  ├─ Passed all filters: ${passedFiltering}`);
         console.log(`  ├─ Filtered out: ${filteredCount}`);
@@ -7386,7 +7293,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const distB = b.distanceFromGroupBase || 999;
             return distA - distB;
           });
-          console.log(`[Category Generate] Sorted ${currentCategory} by distance`);
+
         } else {
           // Sort by personalized score (combines Google rating + learning signals)
           validActivities.sort((a, b) => {
@@ -7394,12 +7301,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const scoreB = b.personalizedScore || parseFloat(b.rating || '0');
             return scoreB - scoreA; // Highest score first
           });
-          console.log(`[Category Generate] Sorted ${currentCategory} by personalized score (learning-enhanced)`);
+
         }
 
         // Return ALL results for pagination (don't limit to count)
         // Users can now scroll through dozens of venues without extra API calls
-        console.log(`[Category Generate] Returning all ${validActivities.length} ${currentCategory} venues for pagination`);
 
         resultsByCategory[currentCategory] = validActivities;
         allResults.push(...validActivities);
@@ -7408,8 +7314,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // They will be saved via POST /api/groups/:id/add-venues-to-library
       }
 
-      console.log(`[Category Generate] Completed. Total: ${allResults.length} venues across ${categoriesToProcess.length} categories`);
-      
       // Return grouped results if multiple categories, flat array if single category
       if (categoriesToProcess.length === 1) {
         res.json(allResults);
@@ -7850,8 +7754,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Prompt is required" });
       }
 
-      console.log(`[AI Scheduling] Processing prompt for group ${req.params.id}: "${prompt}"`);
-
       // Parse the natural language prompt with group history for smarter understanding
       // Uses GPT-4o (not mini) for intelligent history application
       // Cost: ~5-7x more than mini, but provides significantly better context understanding
@@ -7863,9 +7765,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       const schedulingParams = await parseSchedulingPromptWithHistory(prompt, group.locationBase, groupHistory);
 
-      console.log(`[AI Scheduling] Parsed params:`, schedulingParams);
       if (schedulingParams.historyApplied && schedulingParams.historyApplied.length > 0) {
-        console.log(`[AI Scheduling] History enhancements:`, schedulingParams.historyApplied);
+
       }
 
       // Use category search to find venues based on parsed params
@@ -7893,16 +7794,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Add context keywords for smarter search (e.g., "romantic", "family-friendly")
       if (schedulingParams.contextKeywords && schedulingParams.contextKeywords.length > 0) {
         searchQuery += ' ' + schedulingParams.contextKeywords.join(' ');
-        console.log(`[AI Scheduling] Added context keywords:`, schedulingParams.contextKeywords);
+
       }
 
       // Add venue attributes (e.g., "outdoor seating", "live music")
       if (schedulingParams.venueAttributes && schedulingParams.venueAttributes.length > 0) {
         searchQuery += ' ' + schedulingParams.venueAttributes.join(' ');
-        console.log(`[AI Scheduling] Added venue attributes:`, schedulingParams.venueAttributes);
-      }
 
-      console.log(`[AI Scheduling] Enhanced search query: "${searchQuery} in ${searchLocation}"`);
+      }
 
       // Search Google Places with budget filtering
       const places = await searchPlaces(
@@ -7914,8 +7813,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         undefined, // venueType
         group.budgetMax // Pass budget for filtering
       );
-
-      console.log(`[AI Scheduling] Found ${places.length} places`);
 
       if (places.length === 0) {
         return res.status(404).json({ message: "No venues found matching your criteria" });
@@ -7937,13 +7834,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const matchedNeighborhood = sfNeighborhoods.find(n => locationLower.includes(n));
         if (matchedNeighborhood) {
           neighborhoodFilter = matchedNeighborhood;
-          console.log(`[AI Scheduling] Filtering to ${matchedNeighborhood} neighborhood only`);
+
         }
       }
 
       // Apply smart time and day inference based on activity type (MOVED UP for agent)
       const inferredTiming = inferTimeFromActivity(schedulingParams);
-      console.log(`[AI Scheduling] Applied inferences:`, inferredTiming.appliedInferences);
 
       // VALIDATION: Check if inferred time makes sense for activity type
       const activityLower = schedulingParams.activityType.toLowerCase();
@@ -7977,8 +7873,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         group.timezone || 'America/Los_Angeles'
       );
 
-      console.log(`[AI Scheduling] Generated ${timeOptions.length} time options`);
-
       // Filter places for quality and de-duplication
       const qualityPlaces = places
         .filter(place => !existingVenueNames.includes(place.name))
@@ -7992,7 +7886,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (neighborhoodFilter && place.location) {
             const inNeighborhood = isInNeighborhood(place.location.lat, place.location.lng, neighborhoodFilter);
             if (!inNeighborhood) {
-              console.log(`[AI Scheduling] Filtering out ${place.name} - not in ${neighborhoodFilter}`);
+
             }
             return inNeighborhood;
           }
@@ -8002,8 +7896,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (qualityPlaces.length === 0) {
         return res.status(404).json({ message: "No quality venues found" });
       }
-
-      console.log(`[AI Scheduling] Found ${qualityPlaces.length} quality venues, using agent for selection...`);
 
       // Convert places to VenueForAgent format for intelligent selection
       const venuesForAgent: VenueForAgent[] = qualityPlaces.map(place => ({
@@ -8015,7 +7907,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         daysSinceLastVisit: 999,
         qualityScore: parseFloat(place.rating || '0'),
         category: null, // Let agent derive category from venueType for better diversity
-        venueType: place.types[0] || 'restaurant',
+        venueType: getBestVenueTypeSync(place.types || []),
         rating: place.rating,
         venueAddress: place.address,
         googlePlaceId: place.placeId,
@@ -8047,9 +7939,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         agentReasoning = agentResult.reasoning;
         agentConfidence = agentResult.confidence;
 
-        console.log(`[AI Scheduling Agent] Selected ${selectedVenuesData.length} venues`);
-        console.log(`[AI Scheduling Agent] Reasoning: ${agentReasoning}`);
-        console.log(`[AI Scheduling Agent] Confidence: ${agentConfidence}%`);
       } catch (agentError) {
         console.error(`[AI Scheduling Agent] Failed, falling back to simple selection:`, agentError);
         // Fallback: simple rating-based selection
@@ -8070,18 +7959,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "No venues selected" });
       }
 
-      console.log(`[AI Scheduling] Final selection: ${topVenues.length} venues`);
-
       // Create activities from the top venues
       const createdActivities = [];
       for (const place of topVenues) {
-        const activityCategory = await categorizeVenue(place.name, place.types[0] || 'venue');
+        const venueType = await getBestVenueType(place.types || [], place.placeId);
+        const activityCategory = await categorizeVenue(place.name, venueType);
         const newActivity = await storage.createActivity({
           groupId: req.params.id,
           venueName: place.name,
           venueAddress: place.address,
           city: place.city || null,
-          venueType: place.types[0] || 'venue',
+          venueType,
           description: place.review || '',
           googlePlaceId: place.placeId,
           latitude: place.location?.lat?.toString() || null,
@@ -8132,8 +8020,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         items
       );
 
-      console.log(`[AI Scheduling] Created itinerary ${itinerary.id} with ${items.length} venues`);
-
       // Create time slot options for voting
       for (const option of timeOptions) {
         await storage.createProposedTimeSlot({
@@ -8142,8 +8028,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Note: label removed - frontend will format datetime with timezone
         });
       }
-
-      console.log(`[AI Scheduling] Created ${timeOptions.length} time slots for voting`);
 
       // Collect all applied enhancements for transparency
       const appliedEnhancements: {
@@ -8195,8 +8079,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Group not found" });
       }
 
-      console.log(`[AI Insights] Analyzing preference patterns for group ${req.params.id}`);
-
       // Gather all feedback data
       const activities = await storage.getAllGroupActivities(req.params.id);
       const notThisFeedback = activities
@@ -8226,8 +8108,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .filter(s => s.feedback === 'pass')
         .map(s => s.conceptDescription);
 
-      console.log(`[AI Insights] Feedback data: ${notThisFeedback.length} not-this, ${votingFeedback.length} voting, ${likedConcepts.length} likes, ${passedConcepts.length} passes`);
-
       // Generate insights using OpenAI
       const patterns = await analyzePreferencePatterns({
         notThisFeedback,
@@ -8243,8 +8123,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           lastInsightsUpdate: new Date()
         })
         .where(eq(groupsTable.id, req.params.id));
-
-      console.log(`[AI Insights] Generated and saved ${patterns.length} patterns for group ${req.params.id}`);
 
       res.json({ patterns });
     } catch (error: any) {
@@ -8266,8 +8144,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Prompt is required" });
       }
 
-      console.log(`[Model Comparison] Running both models for: "${prompt}"`);
-
       const groupHistory = {
         preferenceInsights: group.preferenceInsights,
         schedulingPreferences: group.schedulingPreferences,
@@ -8275,7 +8151,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       // Force each model to run once for comparison
-      console.log(`[Model Comparison] Running GPT-4o...`);
+
       const gpt4oStartTime = Date.now();
       const gpt4oResult = await parseSchedulingPromptWithHistory(
         prompt,
@@ -8285,7 +8161,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       const gpt4oTime = Date.now() - gpt4oStartTime;
 
-      console.log(`[Model Comparison] Running GPT-4o-mini...`);
       const miniStartTime = Date.now();
       const miniResult = await parseSchedulingPromptWithHistory(
         prompt,
@@ -8344,8 +8219,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
         costDifference: "GPT-4o costs ~5-7x more than mini per request",
       };
-
-      console.log(`[Model Comparison] Comparison complete!`);
 
       res.json(comparison);
     } catch (error: any) {
@@ -8593,8 +8466,6 @@ Looking forward to planning great activities together!
 
       const { category, count } = validatedData;
 
-      console.log(`[Discover Venues] Creating cache-first discovery session for group ${groupId}, category: ${category || 'all'}, count: ${count}`);
-
       // Create a discovery swipe session
       const { createSwipeSession } = await import('./swipe-session-manager');
       const sessionId = await createSwipeSession({
@@ -8610,7 +8481,7 @@ Looking forward to planning great activities together!
       const deck: any[] = [];
 
       // TIER 1: Popular cached venues (group favorites with cooldown)
-      console.log(`[Discover Venues] Tier 1: Fetching popular cached venues with ${COOLDOWN_DAYS}-day cooldown...`);
+
       const popularVenuesQuery = await db.execute<{
         id: string;
         title: string;
@@ -8669,12 +8540,10 @@ Looking forward to planning great activities together!
         groupId,
       })));
 
-      console.log(`[Discover Venues] Tier 1: Found ${popularVenues.length} popular cached venues`);
-
       // TIER 2: Unvoted activities from cache (if we need more)
       const remaining = count - deck.length;
       if (remaining > 0) {
-        console.log(`[Discover Venues] Tier 2: Fetching ${remaining} unvoted activities...`);
+
         const activitiesQuery = await db.execute<{
           id: string;
           venue_name: string;
@@ -8724,13 +8593,11 @@ Looking forward to planning great activities together!
           groupId,
         })));
 
-        console.log(`[Discover Venues] Tier 2: Found ${activities.length} unvoted activities`);
       }
 
       // TIER 3: Google Places API (only if still need more)
       const stillNeeded = count - deck.length;
       if (stillNeeded > 0) {
-        console.log(`[Discover Venues] Tier 3: Fetching ${stillNeeded} new venues from Google Places API...`);
 
         const { generateSwipeConcepts } = await import('./openai');
         const categoryFilters = {
@@ -8807,14 +8674,11 @@ Looking forward to planning great activities together!
             groupId,
           })));
 
-          console.log(`[Discover Venues] Tier 3: Generated ${filteredNewVenues.length} new venues from API`);
         }
       }
 
       // Shuffle the final deck for variety
       const shuffledDeck = deck.sort(() => Math.random() - 0.5);
-
-      console.log(`[Discover Venues] Created session ${sessionId} with ${shuffledDeck.length} venues (Tier 1: ${popularVenues.length}, Tier 2: ${deck.filter(d => d.sourceType === 'ai_suggestion' && d.isNew && !d.likedByCount).length}, Tier 3: ${deck.filter(d => d.sourceType === 'ai_suggestion' && d.isNew).length})`);
 
       res.json({
         sessionId,
@@ -8917,22 +8781,22 @@ Looking forward to planning great activities together!
         
         // Check if venue belongs to a disabled category
         if (group.cafeEnabled === false && (venueType.includes('cafe') || venueType.includes('coffee') || title.includes('cafe') || title.includes('coffee'))) {
-          console.log(`[Swipe Deck] Filtering out cafe voting event: "${event.title}"`);
+
           return false;
         }
         
         if (group.mealEnabled === false && (venueType.includes('restaurant') || venueType.includes('dining') || venueType.includes('food'))) {
-          console.log(`[Swipe Deck] Filtering out meal voting event: "${event.title}"`);
+
           return false;
         }
         
         if (group.drinksEnabled === false && (venueType.includes('bar') || venueType.includes('brewery') || venueType.includes('pub') || venueType.includes('wine'))) {
-          console.log(`[Swipe Deck] Filtering out drinks voting event: "${event.title}"`);
+
           return false;
         }
         
         if (group.dessertEnabled === false && (venueType.includes('dessert') || venueType.includes('ice cream') || venueType.includes('boba') || venueType.includes('bakery'))) {
-          console.log(`[Swipe Deck] Filtering out dessert voting event: "${event.title}"`);
+
           return false;
         }
         
@@ -8975,8 +8839,7 @@ Looking forward to planning great activities together!
         const enrichedConcepts = await Promise.all(
           concepts.slice(0, neededCount * 2).map(async (concept) => {
             // Use the searchQuery field for Google Places search
-            console.log(`[Swipe Deck] Searching for "${concept.searchQuery}" near ${group.locationBase}`);
-            
+
             try {
               // Parse coordinates - they're stored as strings in DB
               const lat = group.latitude ? parseFloat(group.latitude) : undefined;
@@ -8992,11 +8855,10 @@ Looking forward to planning great activities together!
 
               if (places.length > 0) {
                 const place = places[0];
-                console.log(`[Swipe Deck] ✅ Found venue: "${place.name}" (${place.rating}⭐, ${place.reviewCount} reviews, types: ${place.types?.join(', ')})`);
-                
+
                 // Skip if we already have this place
                 if (existingPlaceIds.has(place.placeId)) {
-                  console.log(`[Swipe Deck] Skipping duplicate place: ${place.name}`);
+
                   return null;
                 }
 
@@ -9006,28 +8868,28 @@ Looking forward to planning great activities together!
                 
                 if (group.cafeEnabled === false) {
                   if (placeTypes.includes('cafe') || placeTypes.includes('coffee') || placeName.includes('cafe') || placeName.includes('coffee')) {
-                    console.log(`[Swipe Deck] ❌ Filtering out cafe from Google Places: "${place.name}"`);
+
                     return null;
                   }
                 }
                 
                 if (group.mealEnabled === false) {
                   if (placeTypes.includes('restaurant') || placeTypes.includes('food')) {
-                    console.log(`[Swipe Deck] ❌ Filtering out restaurant from Google Places: "${place.name}"`);
+
                     return null;
                   }
                 }
                 
                 if (group.drinksEnabled === false) {
                   if (placeTypes.includes('bar') || placeTypes.includes('night_club') || placeTypes.includes('liquor_store')) {
-                    console.log(`[Swipe Deck] ❌ Filtering out bar/drinks from Google Places: "${place.name}"`);
+
                     return null;
                   }
                 }
                 
                 if (group.dessertEnabled === false) {
                   if (placeTypes.includes('bakery') || placeTypes.includes('ice_cream') || placeName.includes('dessert') || placeName.includes('boba')) {
-                    console.log(`[Swipe Deck] ❌ Filtering out dessert from Google Places: "${place.name}"`);
+
                     return null;
                   }
                 }
@@ -9040,7 +8902,7 @@ Looking forward to planning great activities together!
                   title: place.name,
                   description: concept.conceptDescription,
                   venueAddress: place.address,
-                  venueType: place.types?.[0] || concept.conceptType,
+                  venueType: getBestVenueTypeSync(place.types || []) || concept.conceptType,
                   googlePlaceId: place.placeId,
                   rating: place.rating?.toString(),
                   reviewCount: place.reviewCount,
@@ -9421,17 +9283,15 @@ Looking forward to planning great activities together!
       const { query } = req.query;
       const { groupId } = req.params;
 
-      console.log(`[SEARCH VENUES] Received request - GroupID: ${groupId}, Query: "${query}"`);
-
       if (!query || typeof query !== 'string' || query.trim().length < 2) {
-        console.log(`[SEARCH VENUES] Query too short, returning empty results`);
+
         return res.json({ results: [] });
       }
 
       // Get group location for context
       const group = await storage.getGroup(groupId);
       if (!group) {
-        console.log(`[SEARCH VENUES] Group not found: ${groupId}`);
+
         return res.status(404).json({ message: "Group not found" });
       }
 
@@ -9443,11 +9303,7 @@ Looking forward to planning great activities together!
         ? { lat: parseFloat(group.latitude), lng: parseFloat(group.longitude) }
         : undefined;
 
-      console.log(`[SEARCH VENUES] Searching: "${searchQuery}" in ${location} (radius: ${radius} miles)`);
-
       const results = await searchPlaces(searchQuery, location, radius, coordinates, false, undefined, group.budgetMax, undefined, true, true);
-
-      console.log(`[SEARCH VENUES] Found ${results.length} results`);
 
       // Return top 10 results
       const limitedResults = results.slice(0, 10).map(place => ({
@@ -9460,9 +9316,8 @@ Looking forward to planning great activities together!
         types: place.types || [],
       }));
 
-      console.log(`[SEARCH VENUES] Returning ${limitedResults.length} results to frontend`);
       if (limitedResults.length > 0) {
-        console.log(`[SEARCH VENUES] First result: ${limitedResults[0].name}`);
+
       }
 
       res.json({ results: limitedResults });
@@ -9730,7 +9585,7 @@ Looking forward to planning great activities together!
             // Use Google Places data to enrich the venue
             if (!address) address = placeDetails.address;
             if (!venueType && placeDetails.types && placeDetails.types.length > 0) {
-              venueType = placeDetails.types[0];
+              venueType = await getBestVenueType(placeDetails.types, placeDetails.placeId);
             }
             if (placeDetails.location) {
               latitude = placeDetails.location.lat.toString();
@@ -10484,25 +10339,20 @@ Looking forward to planning great activities together!
       let venues;
       if (req.body.venues && Array.isArray(req.body.venues) && req.body.venues.length > 0) {
         venues = req.body.venues;
-        console.log('[Suggest Time] Using venues from request body (cart state)');
+
       } else {
         venues = itinerary.items.map((item: ItineraryItem) => ({
           name: item.venueName,
           type: item.venueType,
         }));
-        console.log('[Suggest Time] Using venues from saved itinerary');
+
       }
 
       const { suggestMultipleTimeOptions, convertAvailabilityToString } = await import('./ai-time-picker');
       
       // Convert availability object to natural language string
       const availabilityString = convertAvailabilityToString(group.availability);
-      
-      console.log('[Suggest Time] Group availability object:', JSON.stringify(group.availability));
-      console.log('[Suggest Time] Converted to string:', availabilityString);
-      console.log('[Suggest Time] Venues:', JSON.stringify(venues));
-      console.log('[Suggest Time] Location:', group.locationBase);
-      
+
       const result = await suggestMultipleTimeOptions({
         generalAvailability: availabilityString,
         venues,
@@ -10705,31 +10555,53 @@ Looking forward to planning great activities together!
 
         console.log(`[Send Itinerary] Sending to ${recipients.length} recipients`);
 
+        // Get organizer info for email
+        const organizerUser = await storage.getUser(group.userId);
+        const organizerName = organizerUser?.firstName || organizerUser?.username || 'Your friend';
+
+        // Format date/time in Pacific timezone
+        const pacificFormatter = new Intl.DateTimeFormat('en-US', {
+          timeZone: 'America/Los_Angeles',
+          weekday: 'long',
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+        });
+        const pacificTimeFormatter = new Intl.DateTimeFormat('en-US', {
+          timeZone: 'America/Los_Angeles',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        });
+        const eventDateFormatted = pacificFormatter.format(date);
+        const eventTimeFormatted = `${pacificTimeFormatter.format(date)} PT`;
+        const rsvpDeadlineFormatted = pacificFormatter.format(rsvpDeadline);
+
         for (const email of recipients) {
           try {
             const member = membersByEmail.get(email);
             if (!member) continue;
-            
+
             const inviteToken = memberInvites.get(member.id);
             if (!inviteToken) continue;
-            
+
             // Create member-specific RSVP link with invite token
             const rsvpLink = `${req.headers.origin || 'http://localhost:5000'}/rsvp/${itinerary.id}/${inviteToken}`;
-            
+
             const { sendItineraryInvite } = await import('./email-service');
-            
+
             await sendItineraryInvite(
               { email, name: member.name || 'Member' },
               {
                 groupName: group.name,
-                organizerName: 'Organizer',
-                eventDate: date.toLocaleDateString(),
-                eventTime: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                organizerName,
+                eventDate: eventDateFormatted,
+                eventTime: eventTimeFormatted,
                 venues: itinerary.items.map((item: ItineraryItem) => ({
                   name: item.venueName || 'Venue',
                   type: item.venueType || 'Activity',
                 })),
-                rsvpDeadline: rsvpDeadline.toLocaleDateString(),
+                rsvpDeadline: rsvpDeadlineFormatted,
                 rsvpLink,
               }
             );
@@ -10768,19 +10640,18 @@ Looking forward to planning great activities together!
   // Helper function to analyze RSVP feedback and trigger auto-reschedule
   async function checkAndReschedule(itineraryId: string) {
     try {
-      console.log(`[Auto-Reschedule] Checking if reschedule needed for itinerary ${itineraryId}`);
-      
+
       // Get itinerary
       const itinerary = await storage.getItinerary(itineraryId);
       if (!itinerary || !itinerary.eventDate) {
-        console.log(`[Auto-Reschedule] Itinerary not found or no event date`);
+
         return;
       }
 
       // Check if already exceeded max reschedule attempts
       const rescheduleAttempts = itinerary.rescheduleAttempts || 0;
       if (rescheduleAttempts >= 2) {
-        console.log(`[Auto-Reschedule] Max reschedule attempts (2) reached`);
+
         return;
       }
 
@@ -10791,7 +10662,7 @@ Looking forward to planning great activities together!
         .where(sql`itinerary_id = ${itineraryId} AND (is_guest IS NULL OR is_guest = false)`);
 
       if (rsvps.length === 0) {
-        console.log(`[Auto-Reschedule] No RSVPs yet`);
+
         return;
       }
 
@@ -10801,8 +10672,6 @@ Looking forward to planning great activities together!
       const noCount = rsvps.filter(r => r.response === 'no').length;
       const totalResponses = rsvps.length;
 
-      console.log(`[Auto-Reschedule] RSVP counts - Yes: ${yesCount}, Maybe: ${maybeCount}, No: ${noCount}`);
-
       // Trigger reschedule if:
       // 1. More than 50% said "no" or "maybe"
       // 2. At least 3 people responded (to avoid premature rescheduling)
@@ -10810,11 +10679,9 @@ Looking forward to planning great activities together!
       const shouldReschedule = totalResponses >= 3 && (negativeResponses / totalResponses) > 0.5;
 
       if (!shouldReschedule) {
-        console.log(`[Auto-Reschedule] Reschedule not needed yet`);
+
         return;
       }
-
-      console.log(`[Auto-Reschedule] Triggering reschedule (${negativeResponses}/${totalResponses} negative responses)`);
 
       // ATOMIC: Try to acquire reschedule lock
       // Only proceed if we successfully set the flag from false to true
@@ -10836,11 +10703,9 @@ Looking forward to planning great activities together!
         .returning();
 
       if (lockAcquired.length === 0) {
-        console.log(`[Auto-Reschedule] Another process already started reschedule, skipping`);
+
         return;
       }
-
-      console.log(`[Auto-Reschedule] Lock acquired, proceeding with reschedule`);
 
       // Analyze feedback patterns
       const feedback = rsvps
@@ -10863,12 +10728,10 @@ Looking forward to planning great activities together!
         }
       }
 
-      console.log(`[Auto-Reschedule] Feedback constraints:`, constraints);
-
       // Get group and venue info for AI
       const group = await storage.getGroup(itinerary.groupId);
       if (!group) {
-        console.log(`[Auto-Reschedule] Group not found`);
+
         return;
       }
 
@@ -10908,8 +10771,7 @@ Looking forward to planning great activities together!
       }
 
       if (!result.suggestedTime) {
-        console.log(`[Auto-Reschedule] AI could not find alternative time`);
-        
+
         // Clear in-progress flag
         await storage.updateItinerary(itineraryId, {
           autoScheduleConfig: {
@@ -10920,8 +10782,6 @@ Looking forward to planning great activities together!
         
         return;
       }
-
-      console.log(`[Auto-Reschedule] New time suggested: ${result.suggestedTime}, reasoning: ${result.reasoning}`);
 
       // Update itinerary with new time and clear in-progress flag
       const newEventDate = new Date(result.suggestedTime);
@@ -10989,13 +10849,11 @@ Looking forward to planning great activities together!
             }
           );
 
-          console.log(`[Auto-Reschedule] Sent reschedule email to ${member.email}`);
         } catch (emailError) {
           console.error(`[Auto-Reschedule] Failed to send email to ${member.email}:`, emailError);
         }
       }
 
-      console.log(`[Auto-Reschedule] Reschedule complete for itinerary ${itineraryId}`);
     } catch (error) {
       console.error(`[Auto-Reschedule] Error:`, error);
     }
@@ -11837,20 +11695,17 @@ Looking forward to planning great activities together!
   // Submit post-event feedback
   app.post("/api/itineraries/:id/post-event-feedback", isAuthenticated, async (req: any, res) => {
     try {
-      console.log('[Post Event Feedback] Received request:', { itineraryId: req.params.id, body: req.body });
 
       // Validate request body
       const validatedData = safeParse(postEventFeedbackSchema, req.body, res);
       if (!validatedData) {
-        console.log('[Post Event Feedback] Validation failed');
+
         return;
       }
 
       const userId = await getUserId(req);
       const { itineraryId } = { itineraryId: req.params.id };
       const { actuallyAttended, venueRating, frequencyPreference, wouldDoAgain, improvementNotes } = validatedData;
-
-      console.log('[Post Event Feedback] Validated data:', { itineraryId, userId, actuallyAttended, venueRating, frequencyPreference, wouldDoAgain });
 
       // Get the itinerary to check group ownership
       const [itinerary] = await db
@@ -11901,7 +11756,7 @@ Looking forward to planning great activities together!
       }
 
       // Update the RSVP with post-event feedback
-      console.log('[Post Event Feedback] Updating RSVP:', rsvp[0].id);
+
       const updated = await db
         .update(rsvpsTable)
         .set({
@@ -11917,8 +11772,6 @@ Looking forward to planning great activities together!
         })
         .where(eq(rsvpsTable.id, rsvp[0].id))
         .returning();
-
-      console.log('[Post Event Feedback] Successfully updated RSVP');
 
       // 🤖 LEARNING LOOP #1: Auto-blacklist low-rated venues
       // If venue rated ≤2 stars OR "would not do again", add to rejected list
@@ -11958,7 +11811,6 @@ Looking forward to planning great activities together!
         console.error(`[Frequency Adjuster] Error:`, err);
       });
 
-      console.log('[Post Event Feedback] Sending response');
       res.json(updated[0]);
     } catch (error: any) {
       console.error('[Post Event Feedback] Error:', error);
@@ -13406,8 +13258,6 @@ Looking forward to planning great activities together!
         return res.status(500).json({ message: "GOOGLE_PLACES_API_KEY_2 not configured" });
       }
 
-      console.log('[Photo Migration] Starting photo caching migration using KEY_2...');
-
       // Get all activities with direct Google URLs
       const uncachedActivities = await db
         .select({
@@ -13416,8 +13266,6 @@ Looking forward to planning great activities together!
         })
         .from(activitiesTable)
         .where(sql`${activitiesTable.photoUrl} LIKE 'https://maps.googleapis.com/%'`);
-
-      console.log(`[Photo Migration] Found ${uncachedActivities.length} activities with uncached photos`);
 
       let successCount = 0;
       let errorCount = 0;
@@ -13446,8 +13294,7 @@ Looking forward to planning great activities together!
               .limit(1);
 
             if (existing.length > 0 && new Date() < existing[0].expiresAt) {
-              console.log(`[Photo Migration] Already cached: ${photoReference}`);
-              
+
               // Update activity to use proxy URL
               await db
                 .update(activitiesTable)
@@ -13497,7 +13344,6 @@ Looking forward to planning great activities together!
               .set({ photoUrl: `/api/photos/${photoReference}` })
               .where(eq(activitiesTable.id, activity.id));
 
-            console.log(`[Photo Migration] ✓ Cached and updated: ${photoReference}`);
             successCount++;
           } catch (error: any) {
             console.error(`[Photo Migration] ✗ Error for activity ${activity.id}:`, error.message);
@@ -13507,15 +13353,12 @@ Looking forward to planning great activities together!
         }));
 
         // Log progress
-        console.log(`[Photo Migration] Progress: ${Math.min(i + BATCH_SIZE, uncachedActivities.length)}/${uncachedActivities.length} processed`);
-        
+
         // Small delay between batches
         if (i + BATCH_SIZE < uncachedActivities.length) {
           await new Promise(resolve => setTimeout(resolve, 100));
         }
       }
-
-      console.log(`[Photo Migration] Complete! Success: ${successCount}, Errors: ${errorCount}`);
 
       res.json({
         success: true,
@@ -13542,8 +13385,6 @@ Looking forward to planning great activities together!
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
 
-      console.log('[Favorites Backfill] Starting coordinate backfill for voting_events...');
-
       // Get all voting_events with googlePlaceId but missing coordinates
       const votingEventsToBackfill = await db
         .select()
@@ -13557,8 +13398,6 @@ Looking forward to planning great activities together!
             )
           )
         );
-
-      console.log(`[Favorites Backfill] Found ${votingEventsToBackfill.length} favorites missing coordinates`);
 
       let successCount = 0;
       let errorCount = 0;
@@ -13593,7 +13432,6 @@ Looking forward to planning great activities together!
               })
               .where(eq(votingEventsTable.id, event.id));
 
-            console.log(`[Favorites Backfill] ✓ Updated "${event.title}" with coordinates (${placeDetails.location.lat}, ${placeDetails.location.lng})`);
             successCount++;
           } catch (error: any) {
             console.error(`[Favorites Backfill] ✗ Error for "${event.title}":`, error.message);
@@ -13607,15 +13445,12 @@ Looking forward to planning great activities together!
         }));
 
         // Log progress
-        console.log(`[Favorites Backfill] Progress: ${Math.min(i + BATCH_SIZE, votingEventsToBackfill.length)}/${votingEventsToBackfill.length} processed`);
-        
+
         // Small delay between batches to be nice to the API
         if (i + BATCH_SIZE < votingEventsToBackfill.length) {
           await new Promise(resolve => setTimeout(resolve, 200));
         }
       }
-
-      console.log(`[Favorites Backfill] Complete! Success: ${successCount}, Errors: ${errorCount}, Skipped: ${skippedCount}`);
 
       res.json({
         success: true,
@@ -13644,8 +13479,6 @@ Looking forward to planning great activities together!
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
 
-      console.log(`[Data Audit] Starting venue data audit and correction...`);
-
       // Known incorrect categorizations to fix
       const corrections = [
         { name: 'Burma Silver Star Restaurant', correctCategory: 'meal', correctDescription: 'Burmese cuisine' },
@@ -13671,7 +13504,7 @@ Looking forward to planning great activities together!
 
         if (result.length > 0) {
           updatedCount++;
-          console.log(`[Data Audit] ✓ Updated curated venue: ${correction.name} → ${correction.correctCategory}`);
+
         }
 
         // Also update any activities using this venue
@@ -13685,11 +13518,9 @@ Looking forward to planning great activities together!
 
         if (activityResult.length > 0) {
           activityUpdates += activityResult.length;
-          console.log(`[Data Audit] ✓ Updated ${activityResult.length} activities for: ${correction.name}`);
+
         }
       }
-
-      console.log(`[Data Audit] Complete! Updated ${updatedCount} curated venues and ${activityUpdates} activities`);
 
       res.json({
         success: true,
@@ -13714,11 +13545,8 @@ Looking forward to planning great activities together!
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
 
-      console.log(`[Venue Cleanup] Starting smart cleanup (rule-based + batched AI)...`);
-
       // Get all curated venues
       const allVenues = await db.select().from(curatedVenues);
-      console.log(`[Venue Cleanup] Found ${allVenues.length} total venues`);
 
       let removedNonVenues = 0;
       let removedMissingPhotos = 0;
@@ -13787,9 +13615,6 @@ Looking forward to planning great activities together!
         }
       }
 
-      console.log(`[Venue Cleanup] Rule-based filtering caught ${removedByRules} obvious non-social venues`);
-      console.log(`[Venue Cleanup] ${venuesNeedingAI.length} venues need AI validation`);
-
       // PHASE 2: Batched AI validation (50 venues per API call for more reliable JSON)
       if (venuesNeedingAI.length > 0) {
         const BATCH_SIZE = 50;
@@ -13798,11 +13623,8 @@ Looking forward to planning great activities together!
           batches.push(venuesNeedingAI.slice(i, i + BATCH_SIZE));
         }
 
-        console.log(`[Venue Cleanup] Processing ${batches.length} AI batches (max ${BATCH_SIZE} venues each)`);
-
         for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
           const batch = batches[batchIndex];
-          console.log(`[Venue Cleanup] Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} venues)`);
 
           const batchInput = batch.map(v => ({
             id: v.id,
@@ -13828,7 +13650,7 @@ Looking forward to planning great activities together!
       }
 
       // PHASE 3: Archive and delete all flagged venues
-      console.log(`[Venue Cleanup] Removing ${venuesToRemove.length} venues...`);
+
       for (const { venue, reasons } of venuesToRemove) {
         // Archive to deleted_venues table before deletion
         await db.insert(deletedVenues).values({
@@ -13839,21 +13661,12 @@ Looking forward to planning great activities together!
 
         // Delete from curated venues
         await db.delete(curatedVenues).where(eq(curatedVenues.id, venue.id));
-        
-        console.log(`[Venue Cleanup] ❌ Removed: ${venue.name}`);
+
         console.log(`[Venue Cleanup]    Reasons: ${reasons.join('; ')}`);
       }
 
       const totalRemoved = venuesToRemove.length;
       const remaining = allVenues.length - totalRemoved;
-
-      console.log(`[Venue Cleanup] Complete!`);
-      console.log(`[Venue Cleanup] - Removed ${removedByRules} non-social venues (rule-based, FREE)`);
-      console.log(`[Venue Cleanup] - Removed ${removedNonVenues - removedByRules} non-social venues (AI batched)`);
-      console.log(`[Venue Cleanup] - Removed ${removedMissingPhotos} venues without photos`);
-      console.log(`[Venue Cleanup] - Removed ${removedLowQuality} low-quality venues`);
-      console.log(`[Venue Cleanup] - Removed ${removedDuplicates} duplicates`);
-      console.log(`[Venue Cleanup] - ${remaining} venues remaining`);
 
       res.json({
         success: true,
@@ -13971,21 +13784,18 @@ Looking forward to planning great activities together!
 
   // Admin endpoint to recategorize all curated venues based on their Google types
   app.post("/api/admin/recategorize-venues", isAuthenticated, async (req: any, res) => {
-    console.log("[Venue Recategorization] ===== ENDPOINT CALLED =====");
+
     try {
       // Check if user is admin
       const userId = await getUserId(req);
       const user = await storage.getUser(userId);
-      console.log(`[Venue Recategorization] User check: userId=${userId}, user=${user?.email || 'null'}`);
-      
+
       const adminEmails = getAdminEmails();
-      console.log(`[Venue Recategorization] Admin emails: ${adminEmails.join(', ')}`);
+
       if (!user || !adminEmails.includes(user.email || '')) {
-        console.log(`[Venue Recategorization] UNAUTHORIZED: User is not admin`);
+
         return res.status(403).json({ message: "Unauthorized: Admin access required" });
       }
-
-      console.log("[Venue Recategorization] ✓ Auth passed. Starting recategorization of all curated venues...");
 
       // Clear categorization cache to ensure all venues are re-evaluated with current logic
       const { categorizeVenue, clearCategorizationCache } = await import('./openai');
@@ -13993,7 +13803,6 @@ Looking forward to planning great activities together!
 
       // Get all curated venues
       const venues = await storage.getAllCuratedVenues();
-      console.log(`[Venue Recategorization] Checking ${venues.length} venues...`);
 
       // Track category distribution before and after
       const CANONICAL_CATEGORIES = ['meal', 'cafes', 'drinks', 'dessert', 'experiences'];
@@ -14005,7 +13814,6 @@ Looking forward to planning great activities together!
         categoriesBefore[venue.category] = (categoriesBefore[venue.category] || 0) + 1;
       });
 
-      console.log("[Venue Recategorization] Category distribution BEFORE:");
       console.log(`  Canonical: ${CANONICAL_CATEGORIES.map(c => `${c}=${categoriesBefore[c] || 0}`).join(', ')}`);
       const nonCanonical = Object.entries(categoriesBefore)
         .filter(([cat]) => !CANONICAL_CATEGORIES.includes(cat))
@@ -14035,9 +13843,7 @@ Looking forward to planning great activities together!
             if (isNonCanonical && venue.category === correctCategory) {
               forcedUpdates++;
             }
-            
-            console.log(`[Venue Recategorization] ${venue.name}: "${venue.category}" → "${correctCategory}"${isNonCanonical ? ' (non-canonical)' : ''}`);
-            
+
             // Update the venue
             await storage.updateVenueCategory(venue.id, correctCategory);
             
@@ -14057,7 +13863,7 @@ Looking forward to planning great activities together!
 
           // Log progress every 100 venues
           if (checked % 100 === 0) {
-            console.log(`[Venue Recategorization] Progress: ${checked}/${venues.length} venues checked, ${changes.length} changes made`);
+
           }
         } catch (error: any) {
           console.error(`[Venue Recategorization] Error processing ${venue.name}:`, error.message);
@@ -14065,7 +13871,6 @@ Looking forward to planning great activities together!
         }
       }
 
-      console.log("[Venue Recategorization] Category distribution AFTER:");
       console.log(`  Canonical: ${CANONICAL_CATEGORIES.map(c => `${c}=${categoriesAfter[c] || 0}`).join(', ')}`);
       const nonCanonicalAfter = Object.entries(categoriesAfter)
         .filter(([cat]) => !CANONICAL_CATEGORIES.includes(cat))
@@ -14076,8 +13881,6 @@ Looking forward to planning great activities together!
       } else {
         console.log("  ✓ All venues now in canonical categories!");
       }
-
-      console.log(`[Venue Recategorization] Complete! Checked ${checked} venues, made ${changes.length} changes (${forcedUpdates} were non-canonical), ${errors} errors`);
 
       res.json({
         success: true,
@@ -14909,9 +14712,6 @@ export async function generateAndStoreActivities(groupId: string, groupData: any
     // Update status to generating
     await storage.updateGroupStatus(groupId, "generating");
 
-    console.log(`[AI Generation] Starting for group ${groupId}`);
-    console.log(`[AI Generation] Group data:`, JSON.stringify(groupData, null, 2));
-
     // OPTIMIZED: Query only venue names (not full objects) to avoid loading large activity records
     const venueNamesQuery = await db
       .select({
@@ -14984,22 +14784,12 @@ export async function generateAndStoreActivities(groupId: string, groupData: any
     // Fetch seen venues from database to prevent repetitive suggestions
     const seenVenuesFromDB = await storage.getSeenVenues(groupId);
     const seenVenueNames = seenVenuesFromDB.map(v => v.venueName);
-    console.log(`[AI Generation] Found ${seenVenueNames.length} seen venues to exclude from suggestions`);
 
     // Fetch highly-rated venues ready to revisit (proven winners from post-event feedback)
     const provenWinners = await storage.getHighlyRatedVenues(groupId);
-    console.log(`[AI Generation] Found ${provenWinners.length} proven winners (highly-rated venues ready to revisit)`);
-
-    console.log(`[AI Generation] Found ${previousFeedback.length} activities with feedback`);
-    console.log(`[AI Generation] Found ${votingFeedback.length} favorites with voting data`);
-    console.log(`[AI Generation] Found ${likedConcepts.length} liked concepts from swipe sessions`);
-    console.log(`[AI Generation] Found ${passedConcepts.length} passed concepts from swipe sessions`);
-    console.log(`[AI Generation] Found ${memberConstraints.length} members with constraints`);
-    console.log(`[AI Generation] Found ${previouslySuggestedVenues.length} previously suggested venues to avoid`);
 
     // Archive old activities before generating new ones (preserves feedback for AI)
     await storage.archiveGroupActivities(groupId);
-    console.log(`[AI Generation] Archived existing activities for group ${groupId}`);
 
     // Track all unique activities across retries
     const allUniqueActivities: any[] = [];
@@ -15032,9 +14822,6 @@ export async function generateAndStoreActivities(groupId: string, groupData: any
       if (groupData.dessertEnabled ?? true) enabledCategories.push('dessert');
       if (groupData.experiencesEnabled ?? true) enabledCategories.push('experiences');
 
-      console.log(`[AI Generation] Checking balance for enabled categories: ${enabledCategories.join(', ')}`);
-      console.log(`[AI Generation] Current counts:`, categoryCounts);
-
       // All ENABLED categories must have at least 3 cards
       return enabledCategories.every(cat => categoryCounts[cat] >= 3);
     };
@@ -15043,7 +14830,6 @@ export async function generateAndStoreActivities(groupId: string, groupData: any
       attempt++;
       const attemptStart = Date.now();
       const needed = 20 - allUniqueActivities.length;
-      console.log(`[AI Generation] Attempt ${attempt}/${maxAttempts}: Need ${needed} more unique activities (have ${allUniqueActivities.length})`);
 
       // Refresh group data to get latest rejected venues
       const refreshedGroup = await storage.getGroup(groupId);
@@ -15052,7 +14838,6 @@ export async function generateAndStoreActivities(groupId: string, groupData: any
       }
       const rejectedVenues = refreshedGroup.rejectedVenues || [];
       const rejectedSet = new Set(rejectedVenues.map(v => v.toLowerCase()));
-      console.log(`[AI Generation] Blacklisted venues: ${rejectedVenues.length}`);
 
       // Get group insights for AI context
       const groupInsights = refreshedGroup.preferenceInsights || undefined;
@@ -15099,27 +14884,23 @@ export async function generateAndStoreActivities(groupId: string, groupData: any
       ]);
 
       const aiPromptEnd = Date.now();
-      console.log(`[AI Generation] Attempt ${attempt}: AI prompt took ${((aiPromptEnd - aiPromptStart) / 1000).toFixed(1)}s`);
-      console.log(`[AI Generation] Attempt ${attempt}: Received ${suggestions.length} suggestions from OpenAI`);
 
       // Filter out rejected venues AND disabled categories BEFORE calling Google Places
       // (Duplicate checking happens after Google Places returns actual venue names)
-      console.log(`[Category Filter] Group settings: meal=${groupData.mealEnabled}, cafe=${groupData.cafeEnabled}, drinks=${groupData.drinksEnabled}, dessert=${groupData.dessertEnabled}, exp=${groupData.experiencesEnabled}`);
-      
+
       const filteredSuggestions = suggestions.filter(s => {
         const normalized = s.venueName.trim().toLowerCase();
         
         // Skip blacklisted venues
         if (rejectedSet.has(normalized)) {
-          console.log(`[API Optimization] Skipping blacklisted venue: ${s.venueName}`);
+
           return false;
         }
         
         // CRITICAL: Skip disabled categories to save API quota
         // Detect category using keyword matching on venue name/type
         const detectedCategory = detectCategory(s.venueName, s.venueType);
-        console.log(`[Category Filter] "${s.venueName}" (${s.venueType}) → detected as "${detectedCategory}"`);
-        
+
         // Check if this category is disabled
         const categoryEnabled = 
           (detectedCategory === 'meal' && (groupData.mealEnabled ?? true)) ||
@@ -15127,18 +14908,14 @@ export async function generateAndStoreActivities(groupId: string, groupData: any
           (detectedCategory === 'drinks' && (groupData.drinksEnabled ?? true)) ||
           (detectedCategory === 'dessert' && (groupData.dessertEnabled ?? true)) ||
           (detectedCategory === 'experiences' && (groupData.experiencesEnabled ?? true));
-        
-        console.log(`[Category Filter] "${s.venueName}" → category="${detectedCategory}", enabled=${categoryEnabled}`);
-        
+
         if (!categoryEnabled) {
-          console.log(`[API Optimization] ❌ FILTERED OUT: ${s.venueName} (${s.venueType}) - ${detectedCategory} category is disabled`);
+
           return false;
         }
-        
-        console.log(`[API Optimization] ✅ KEEPING: ${s.venueName} - ${detectedCategory} category is enabled`);
+
         return true;
       });
-      console.log(`[AI Generation] After category + blacklist filter: ${filteredSuggestions.length}/${suggestions.length} suggestions`);
 
       const googleSearchStart = Date.now();
       // For each suggestion, search Google Places with group's search radius
@@ -15169,7 +14946,7 @@ export async function generateAndStoreActivities(groupId: string, groupData: any
 
           // If Google Places returns NO results at all, this is likely a fake/non-existent venue
           if (places.length === 0) {
-            console.log(`[AI Generation] Rejecting ${suggestion.venueName} - no Google Places results found (fake venue)`);
+
             await storage.addRejectedVenue(groupId, suggestion.venueName);
             return null;
           }
@@ -15210,19 +14987,19 @@ export async function generateAndStoreActivities(groupId: string, groupData: any
               const hasBothBarAndRestaurant = hasBarType && hasRestaurantType;
               
               if (hasBothBarAndRestaurant) {
-                console.log(`[Drinks Filter] ❌ Rejecting ${place.name} - has BOTH bar and restaurant types: ${types.join(', ')}`);
+
                 return false;
               }
               
               if (hasRestaurantType) {
-                console.log(`[Drinks Filter] ❌ Rejecting ${place.name} - has restaurant type: ${types.join(', ')}`);
+
                 return false;
               }
               return true;
             });
             
             if (drinksFiltered.length < budgetFiltered.length) {
-              console.log(`[Drinks Filter] Filtered out ${budgetFiltered.length - drinksFiltered.length} restaurants from drinks category`);
+
             }
           }
           
@@ -15269,7 +15046,7 @@ export async function generateAndStoreActivities(groupId: string, groupData: any
             // CRITICAL: Only include venues with verified Google Places data
             // Note: photoUrl is optional - we can fetch it later on-demand
             if (!curatedPlace.rating || !curatedPlace.address) {
-              console.log(`[AI Generation] Rejecting ${curatedPlace.name} - missing critical data (rating: ${curatedPlace.rating}, address: ${!!curatedPlace.address})`);
+
               return null;
             }
             
@@ -15311,8 +15088,7 @@ export async function generateAndStoreActivities(groupId: string, groupData: any
             // 2. Curated venues filtered out by quality/budget/drinks, OR
             // 3. Curated venues had low name similarity (<60%)
             // In all cases, fall back to Google Places API for fresh results
-            console.log(`[API Fallback] Calling Google Places API for "${suggestion.venueName}"`);
-            
+
             const apiPlaces = await searchPlaces(
               suggestion.searchQuery,
               groupData.locationBase,
@@ -15328,7 +15104,7 @@ export async function generateAndStoreActivities(groupId: string, groupData: any
             
             // If API also returns no results, this is likely a fake venue
             if (apiPlaces.length === 0) {
-              console.log(`[API Fallback] Google Places API returned no results for "${suggestion.venueName}" - likely fake venue`);
+
               await storage.addRejectedVenue(groupId, suggestion.venueName);
               return null;
             }
@@ -15386,11 +15162,9 @@ export async function generateAndStoreActivities(groupId: string, groupData: any
               
               return true;
             });
-            console.log(`[API Fallback] After relevance filter: ${relevantPlaces.length}/${apiPlaces.length} places passed`);
-            
+
             // Apply quality filters using consolidated thresholds
             const { minRating, minReviews } = getQualityThresholds(searchRadius);
-            console.log(`[API Fallback] Applying quality filter (searchRadius: ${searchRadius}, minRating: ${minRating}, minReviews: ${minReviews})`);
 
             const apiQualityFiltered = relevantPlaces.filter(place => {
               const rating = parseFloat(place.rating || '0');
@@ -15403,8 +15177,7 @@ export async function generateAndStoreActivities(groupId: string, groupData: any
 
               return passed;
             });
-            console.log(`[API Fallback] After quality filter: ${apiQualityFiltered.length}/${relevantPlaces.length} places passed`);
-            
+
             const apiBudgetFiltered = apiQualityFiltered.filter(place => {
               const priceLevel = parsePriceLevel(place.priceLevel);
               const budgetMax = groupData.budgetMax;
@@ -15436,12 +15209,11 @@ export async function generateAndStoreActivities(groupId: string, groupData: any
               
               return passed;
             });
-            console.log(`[API Fallback] After budget filter: ${apiBudgetFiltered.length}/${apiQualityFiltered.length} places passed`);
-            
+
             // Apply drinks filter to API results too
             let apiDrinksFiltered = apiBudgetFiltered;
             if (detectedCategory === 'drinks') {
-              console.log(`[API Fallback] Applying drinks filter to ${apiBudgetFiltered.length} places`);
+
               const restaurantTypes = ['restaurant', 'food', 'meal_takeaway', 'meal_delivery', 'sushi_restaurant'];
               const barTypes = ['bar', 'night_club', 'liquor_store'];
               
@@ -15457,16 +15229,16 @@ export async function generateAndStoreActivities(groupId: string, groupData: any
                 const hasBothBarAndRestaurant = hasBarType && hasRestaurantType;
                 
                 if (hasBothBarAndRestaurant || hasRestaurantType) {
-                  console.log(`[Drinks Filter] ❌ REJECTED "${place.name}" - has restaurant type (types: ${types.join(', ')})`);
+
                   return false;
                 }
                 return true;
               });
-              console.log(`[API Fallback] After drinks filter: ${apiDrinksFiltered.length}/${apiBudgetFiltered.length} places passed`);
+
             }
             
             if (apiDrinksFiltered.length === 0) {
-              console.log(`[API Fallback] All API results also filtered out for "${suggestion.venueName}" - no suitable venues found`);
+
               return null;
             }
 
@@ -15482,17 +15254,16 @@ export async function generateAndStoreActivities(groupId: string, groupData: any
 
             // Reject if best match doesn't meet similarity threshold
             if (bestMatch.similarity < SIMILARITY_THRESHOLD) {
-              console.log(`[API Fallback] Low similarity (${bestMatch.similarity.toFixed(2)}) between "${suggestion.venueName}" and "${bestMatch.place.name}" - rejecting`);
+
               return null;
             }
 
             const apiPlace = bestMatch.place;
-            console.log(`[API Fallback] ✅ Using "${apiPlace.name}" (similarity: ${bestMatch.similarity.toFixed(2)}) from Google Places API for suggestion "${suggestion.venueName}"`);
-            
+
             // CRITICAL: Only include venues with verified Google Places data
             // Note: photoUrl is optional - we can fetch it later on-demand
             if (!apiPlace.rating || !apiPlace.address) {
-              console.log(`[API Fallback] Rejecting ${apiPlace.name} - missing critical data (rating: ${apiPlace.rating}, address: ${!!apiPlace.address})`);
+
               return null;
             }
             
@@ -15536,12 +15307,9 @@ export async function generateAndStoreActivities(groupId: string, groupData: any
       }
 
       const googleSearchEnd = Date.now();
-      console.log(`[AI Generation] Attempt ${attempt}: Google Places search took ${((googleSearchEnd - googleSearchStart) / 1000).toFixed(1)}s`);
-      console.log(`[AI Generation] Attempt ${attempt}: Created ${activitiesData.length} activities from Google Places`);
 
       // Filter out null activities (from failed Google Places searches)
       const validActivities = activitiesData.filter((a: any) => a !== null);
-      console.log(`[AI Generation] After filtering nulls: ${validActivities.length} valid activities`);
 
       // First, categorize all new activities using batch categorization (MUCH faster!)
       const categorizationStart = Date.now();
@@ -15571,7 +15339,6 @@ export async function generateAndStoreActivities(groupId: string, groupData: any
       }
 
       const categorizationEnd = Date.now();
-      console.log(`[AI Generation] Attempt ${attempt}: Batch AI categorization took ${((categorizationEnd - categorizationStart) / 1000).toFixed(1)}s for ${uncategorized.length} venues`);
 
       // CRITICAL: Filter out disabled categories AFTER AI categorization
       // The AI may categorize venues differently than our keyword detector, so we need to filter again
@@ -15625,15 +15392,13 @@ export async function generateAndStoreActivities(groupId: string, groupData: any
           seenVenues.add(venueKey);
           allUniqueActivities.push(activity);
           currentCategoryCounts[category]++;
-          console.log(`[AI Generation] Added unique venue: ${activity.venueName} [${category.toUpperCase()}] (${currentCategoryCounts[category]}/3 in category)`);
+
         } else if (seenVenues.has(venueKey)) {
-          console.log(`[AI Generation] Skipping duplicate venue: ${activity.venueName}`);
+
         } else if (category && currentCategoryCounts[category] >= 3) {
-          console.log(`[AI Generation] Skipping ${activity.venueName} - ${category.toUpperCase()} category already has 3 cards`);
+
         }
       }
-
-      console.log(`[AI Generation] After attempt ${attempt}: Have ${allUniqueActivities.length}/15 unique activities`);
 
       // After each attempt, check category distribution if we aren't done yet
       if (!hasBalancedDistribution(allUniqueActivities) && attempt < maxAttempts) {
@@ -15652,8 +15417,6 @@ export async function generateAndStoreActivities(groupId: string, groupData: any
           }
         }
 
-        console.log(`[AI Generation] 📊 Current category distribution after attempt ${attempt}:`, categoryCounts);
-
         // Identify underrepresented ENABLED categories (less than 3)
         const enabledCategoriesForRetry = [];
         if (groupData.mealEnabled ?? true) enabledCategoriesForRetry.push('meal');
@@ -15666,22 +15429,21 @@ export async function generateAndStoreActivities(groupId: string, groupData: any
           .filter(category => categoryCounts[category] < 3);
 
         if (underrepresentedCategories.length > 0) {
-          console.log(`[AI Generation] ⚠️ Underrepresented ENABLED categories (< 3 cards): ${underrepresentedCategories.join(', ')}`);
+
           // Set target categories for next attempt
           targetCategories = underrepresentedCategories;
-          console.log(`[AI Generation] 🎯 Next attempt will target: ${targetCategories.join(', ')}`);
+
         } else {
-          console.log(`[AI Generation] ✅ All ENABLED categories have at least 3 cards - balanced distribution achieved!`);
+
         }
       }
 
       const attemptEnd = Date.now();
-      console.log(`[AI Generation] 🏁 Attempt ${attempt} total time: ${((attemptEnd - attemptStart) / 1000).toFixed(1)}s`);
+
     }
 
     // Store the unique activities (up to 15)
     if (allUniqueActivities.length > 0) {
-      console.log(`[AI Generation] Categorizing ${allUniqueActivities.length} activities with AI...`);
 
       // Batch categorize any activities without categories
       const uncategorizedFinal = allUniqueActivities.filter((a: any) => !a.category);
@@ -15722,8 +15484,6 @@ export async function generateAndStoreActivities(groupId: string, groupData: any
         }
       }
 
-      console.log(`[AI Generation] Final category distribution:`, finalCategoryCounts);
-      console.log(`[AI Generation] Storing ${allUniqueActivities.length} unique activities`);
       await storage.createActivities(allUniqueActivities);
       
       // Mark venues as seen in the database to prevent repetitive suggestions
@@ -15733,29 +15493,18 @@ export async function generateAndStoreActivities(groupId: string, groupData: any
         category: a.category
       }));
       await storage.markVenuesAsSeen(groupId, venuesToMark);
-      console.log(`[AI Generation] Marked ${venuesToMark.length} venues as seen for group ${groupId}`);
+
     } else {
       console.warn(`[AI Generation] WARNING: No unique activities generated after ${maxAttempts} attempts`);
     }
 
-    console.log(`[AI Generation] Successfully stored activities for group ${groupId}`);
-    
     // Log cache stats to show optimization impact
     const cacheStats = getCacheStats();
-    console.log(`[API Optimization] ━━━ Cache Performance Summary ━━━`);
-    console.log(`[API Optimization] Total API calls: ${cacheStats.totalCalls}`);
-    console.log(`[API Optimization] Cache hits: ${cacheStats.totalHits} (${cacheStats.hitRate}%)`);
-    console.log(`[API Optimization] Cache misses: ${cacheStats.totalMisses}`);
-    console.log(`[API Optimization] ✅ API calls saved: ${cacheStats.apiCallsSaved}`);
-    console.log(`[API Optimization] Breakdown:`);
-    console.log(`[API Optimization]   - placeDetails: ${cacheStats.placeDetailsHits} hits / ${cacheStats.placeDetailsMisses} misses`);
-    console.log(`[API Optimization]   - textSearch: ${cacheStats.searchHits} hits / ${cacheStats.searchMisses} misses`);
-    console.log(`[API Optimization]   - nearbySearch: ${cacheStats.nearbyHits} hits / ${cacheStats.nearbyMisses} misses`);
 
     // Update status to completed
-    console.log(`[AI Generation] Updating group status to completed...`);
+
     await storage.updateGroupStatus(groupId, "completed");
-    console.log(`[AI Generation] ✅ Group status updated to completed`);
+
   } catch (error) {
     console.error("Error in generateAndStoreActivities:", error);
 

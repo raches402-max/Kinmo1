@@ -97,9 +97,9 @@ export function SidebarVenueCard({
 
           {/* Metadata */}
           <div className="flex items-center gap-2 mt-1">
-            {rating && (
+            {rating != null && (
               <span className="text-xs text-muted-foreground">
-                ⭐ {rating.toFixed(1)}
+                ⭐ {Number(rating).toFixed(1)}
               </span>
             )}
             {priceLevel && (

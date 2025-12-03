@@ -1,7 +1,7 @@
 import { Resend } from 'resend';
 
-// 🚫 EMAIL DISABLED - Set to true to enable email sending
-const EMAIL_ENABLED = false;
+// ✅ EMAIL ENABLED - kinmo.ai domain verified in Resend
+const EMAIL_ENABLED = true;
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -74,81 +74,138 @@ export async function sendItineraryInvite(
     
     const eventsUrl = getEventsUrl(data.rsvpLink);
 
-    await resend.emails.send({
-      from: 'Kinmo.ai <invites@kinmo.ai>',
+    // Format venue type for display (capitalize and clean up underscores)
+    const formatVenueType = (type: string) => {
+      return type
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, c => c.toUpperCase());
+    };
+
+    const result = await resend.emails.send({
+      from: 'Kinmo <invites@kinmo.ai>',
       to: recipient.email,
-      subject: `You're invited! ${data.groupName} - ${data.eventDate}`,
+      subject: `${data.organizerName} invited you · ${data.groupName}`,
       html: `
         <!DOCTYPE html>
         <html>
           <head>
-            <style>
-              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.6; color: #333; }
-              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-              .header { background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%); color: white; padding: 30px; border-radius: 8px; margin-bottom: 20px; }
-              .content { background: #f9fafb; padding: 30px; border-radius: 8px; }
-              .venue-list { background: white; padding: 20px; border-radius: 6px; margin: 20px 0; }
-              .venue-item { padding: 10px 0; border-bottom: 1px solid #e5e7eb; }
-              .venue-item:last-child { border-bottom: none; }
-              .button { display: inline-block; background: #7c3aed; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
-              .footer { text-align: center; color: #6b7280; font-size: 14px; margin-top: 30px; }
-              .deadline { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px; margin: 20px 0; border-radius: 4px; }
-            </style>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
           </head>
-          <body>
-            <div class="container">
-              <div class="header">
-                <h1 style="margin: 0;">🎉 You're Invited!</h1>
-                <p style="margin: 10px 0 0 0; font-size: 18px;">${data.groupName}</p>
-              </div>
-              
-              <div class="content">
-                <p>Hi ${recipient.name}!</p>
-                
-                <p>${data.organizerName} has planned an awesome outing and wants you to join!</p>
-                
-                <p><strong>📅 When:</strong> ${data.eventDate} at ${data.eventTime}</p>
-                
-                <div class="venue-list">
-                  <h3 style="margin-top: 0;">The Plan:</h3>
-                  ${data.venues.map((v, idx) => `
-                    <div class="venue-item">
-                      <strong>${idx + 1}. ${v.name}</strong><br>
-                      <span style="color: #6b7280;">${v.type}${v.address ? ` • ${v.address}` : ''}</span>
-                    </div>
-                  `).join('')}
-                </div>
-                
-                <div class="deadline">
-                  <strong>⏰ RSVP by ${data.rsvpDeadline}</strong><br>
-                  <span style="font-size: 14px;">Let us know if you can make it!</span>
-                </div>
-                
-                <center>
-                  <a href="${data.rsvpLink}" class="button">RSVP Now</a>
-                </center>
-                
-                <p style="font-size: 14px; color: #6b7280; margin-top: 30px;">
-                  Can't make it? No worries - just let us know through the RSVP link above.
-                </p>
-                
-                <p style="font-size: 14px; color: #6b7280; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 20px; margin-top: 20px;">
-                  💡 View all your upcoming events anytime at <a href="${eventsUrl}" style="color: #7c3aed;">kinmo.ai/events</a>
-                </p>
-              </div>
-              
-              <div class="footer">
-                <p>Powered by Kinmo.ai - Making group planning effortless</p>
-              </div>
-            </div>
+          <body style="margin: 0; padding: 0; background-color: #f5f0e8; font-family: 'DM Sans', -apple-system, sans-serif;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f0e8; padding: 40px 20px;">
+              <tr>
+                <td align="center">
+                  <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 520px; background-color: #fffdf9; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.06);">
+
+                    <!-- Header with warm accent -->
+                    <tr>
+                      <td style="background: linear-gradient(135deg, #e07a5f 0%, #d4a574 100%); padding: 32px 40px; text-align: center;">
+                        <p style="margin: 0 0 8px 0; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; color: rgba(255,255,255,0.85); font-weight: 500;">You're invited</p>
+                        <h1 style="margin: 0; font-family: 'Fraunces', Georgia, serif; font-size: 28px; font-weight: 500; color: #ffffff; line-height: 1.2;">${data.groupName}</h1>
+                      </td>
+                    </tr>
+
+                    <!-- Main content -->
+                    <tr>
+                      <td style="padding: 36px 40px 24px;">
+                        <p style="margin: 0 0 20px; font-size: 16px; color: #3d3d3d; line-height: 1.6;">
+                          Hey ${recipient.name},
+                        </p>
+                        <p style="margin: 0 0 28px; font-size: 16px; color: #3d3d3d; line-height: 1.6;">
+                          <strong style="color: #1a1a1a;">${data.organizerName}</strong> wants to hang out and hopes you can make it.
+                        </p>
+
+                        <!-- Date/Time card -->
+                        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #faf7f2; border-radius: 12px; margin-bottom: 24px;">
+                          <tr>
+                            <td style="padding: 20px 24px;">
+                              <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td width="48" valign="top">
+                                    <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #e07a5f 0%, #d4a574 100%); border-radius: 10px; text-align: center; line-height: 40px; font-size: 18px;">📅</div>
+                                  </td>
+                                  <td valign="top" style="padding-left: 12px;">
+                                    <p style="margin: 0 0 2px; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: #8b7355; font-weight: 500;">When</p>
+                                    <p style="margin: 0; font-family: 'Fraunces', Georgia, serif; font-size: 18px; color: #1a1a1a; font-weight: 500;">${data.eventDate}</p>
+                                    <p style="margin: 4px 0 0; font-size: 15px; color: #5c5c5c;">${data.eventTime}</p>
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                          </tr>
+                        </table>
+
+                        <!-- Venues -->
+                        <p style="margin: 0 0 16px; font-size: 13px; text-transform: uppercase; letter-spacing: 1.5px; color: #8b7355; font-weight: 500;">The Plan</p>
+
+                        ${data.venues.map((v, idx) => `
+                          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 12px;">
+                            <tr>
+                              <td width="32" valign="top">
+                                <div style="width: 24px; height: 24px; background-color: ${idx === 0 ? '#e07a5f' : '#d4a574'}; border-radius: 50%; text-align: center; line-height: 24px; font-size: 12px; color: white; font-weight: 600;">${idx + 1}</div>
+                              </td>
+                              <td valign="top" style="padding-left: 8px; border-bottom: 1px solid #f0ebe3; padding-bottom: 12px;">
+                                <p style="margin: 0 0 2px; font-size: 16px; color: #1a1a1a; font-weight: 500;">${v.name}</p>
+                                <p style="margin: 0; font-size: 13px; color: #8b8b8b;">${formatVenueType(v.type)}${v.address ? ` · ${v.address}` : ''}</p>
+                              </td>
+                            </tr>
+                          </table>
+                        `).join('')}
+                      </td>
+                    </tr>
+
+                    <!-- CTA Section -->
+                    <tr>
+                      <td style="padding: 8px 40px 36px;">
+                        <table width="100%" cellpadding="0" cellspacing="0">
+                          <tr>
+                            <td align="center">
+                              <a href="${data.rsvpLink}" style="display: inline-block; background: linear-gradient(135deg, #e07a5f 0%, #c96a50 100%); color: #ffffff; text-decoration: none; padding: 16px 48px; border-radius: 50px; font-size: 15px; font-weight: 500; letter-spacing: 0.5px; box-shadow: 0 4px 12px rgba(224,122,95,0.35);">RSVP Now</a>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td align="center" style="padding-top: 16px;">
+                              <p style="margin: 0; font-size: 13px; color: #a09080;">Please respond by <strong style="color: #5c5c5c;">${data.rsvpDeadline}</strong></p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                      <td style="background-color: #faf7f2; padding: 24px 40px; text-align: center; border-top: 1px solid #f0ebe3;">
+                        <p style="margin: 0 0 8px; font-size: 13px; color: #a09080;">
+                          Can't make it? No worries — just let us know.
+                        </p>
+                        <p style="margin: 0; font-size: 12px; color: #c0b0a0;">
+                          <a href="${eventsUrl}" style="color: #8b7355; text-decoration: none;">View all your events</a> · Sent via <a href="https://kinmo.ai" style="color: #8b7355; text-decoration: none;">Kinmo</a>
+                        </p>
+                      </td>
+                    </tr>
+
+                  </table>
+                </td>
+              </tr>
+            </table>
           </body>
         </html>
       `,
     });
 
+    console.log('[EMAIL] Resend response:', JSON.stringify(result, null, 2));
+
+    if (result.error) {
+      console.error('[EMAIL] Resend error:', result.error);
+      return { success: false, error: result.error.message };
+    }
+
+    console.log(`[EMAIL] Successfully sent invite to ${recipient.email}, id: ${result.data?.id}`);
     return { success: true };
   } catch (error) {
-    console.error('Error sending invite email:', error);
+    console.error('[EMAIL] Error sending invite email:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }

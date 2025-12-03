@@ -159,7 +159,7 @@ export async function processScheduledReminders(): Promise<void> {
   }
 }
 
-async function sendInitialInvites(itinerary: any, group: any): Promise<void> {
+export async function sendInitialInvites(itinerary: any, group: any): Promise<void> {
   try {
     // Get all group members with emails
     const groupMembers = await db
@@ -470,7 +470,6 @@ export async function processAutoScheduling(): Promise<void> {
 
         // Check if we got 3 itinerary options (new flow)
         if (selection.options && selection.options.length > 0) {
-          console.log(`[Auto-Schedule] Generated ${selection.options.length} itinerary options for ${group.name}`);
 
           // Use nextEventDueDate for the proposed date (AI time picker will be used after option selection)
           const proposedDate = group.nextEventDueDate
@@ -610,7 +609,7 @@ export async function processAutoScheduling(): Promise<void> {
           // Get itinerary items to understand venue types
           const itinerary = await storage.getItinerary(itineraryId);
           if (!itinerary) {
-            console.log(`[Auto-Schedule] Could not fetch itinerary ${itineraryId}`);
+
             continue;
           }
 
@@ -625,8 +624,6 @@ export async function processAutoScheduling(): Promise<void> {
           const { aggregateMemberAvailability, convertAvailabilityToText, calculateDayDensity } = await import('./availability-utils');
           const aggregatedAvailability = await aggregateMemberAvailability(group.id, storage);
 
-          console.log(`[Auto-Schedule] Using aggregated availability from ${aggregatedAvailability.memberCount} members`);
-
           // Convert to text format for AI
           const availabilityString = convertAvailabilityToText(
             aggregatedAvailability.grid,
@@ -636,7 +633,6 @@ export async function processAutoScheduling(): Promise<void> {
 
           // Calculate density scores for smart spacing
           const densityScores = calculateDayDensity(aggregatedAvailability.grid);
-          console.log(`[Auto-Schedule] Availability density:`, densityScores);
 
           // Get existing events to avoid time slot conflicts
           const existingEvents = await storage.getUserUpcomingEventsWithTimeSlots(
@@ -644,7 +640,6 @@ export async function processAutoScheduling(): Promise<void> {
             new Date(),
             addDays(new Date(), 90)
           );
-          console.log(`[Auto-Schedule] Found ${existingEvents.length} existing events for user ${group.userId}`);
 
           // Use AI to find optimal time
           const { suggestOptimalTime } = await import('./ai-time-picker');
@@ -661,7 +656,7 @@ export async function processAutoScheduling(): Promise<void> {
           });
 
           proposedDate = timeResult.eventDate;
-          console.log(`[Auto-Schedule] AI suggested optimal time: ${proposedDate.toISOString()}, reasoning: ${timeResult.reasoning}`);
+
         } catch (aiError) {
           console.error('[Auto-Schedule] AI time picker failed, falling back to nextEventDueDate:', aiError);
 
@@ -689,8 +684,6 @@ export async function processAutoScheduling(): Promise<void> {
           venuesForConfidence,
           proposedDate
         );
-
-        console.log(`[Confidence] Score: ${confidenceResult.score}, Summary: ${confidenceResult.plainLanguageSummary}`);
 
         // Determine if review is required based on automation level and confidence
         const { requiresReview, reason } = shouldRequireReview(

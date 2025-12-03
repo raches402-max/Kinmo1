@@ -506,66 +506,63 @@ export default function Preferences() {
       {/* Header */}
       <Header />
 
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8">
-        {/* Page Header */}
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4 sm:py-8 space-y-5 sm:space-y-8">
+        {/* Page Header - Simplified for mobile */}
         <div className="space-y-1">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Preferences</h1>
-              <p className="text-muted-foreground mt-1">
-                Customize how Kinmo plans events for you
-              </p>
+          <h1 className="text-xl sm:text-3xl font-bold tracking-tight">Preferences</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
+            Customize how Kinmo plans for you
+          </p>
+          {/* Desktop save button */}
+          {hasChanges && (
+            <div className="hidden sm:block pt-2">
+              <Button
+                onClick={handleSave}
+                disabled={updateMutation.isPending}
+                className="shadow-sm"
+              >
+                {updateMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save Changes"
+                )}
+              </Button>
             </div>
-            <div className="flex items-center gap-2">
-              {hasChanges && (
-                <Button
-                  onClick={handleSave}
-                  disabled={updateMutation.isPending}
-                  className="shadow-sm"
-                >
-                  {updateMutation.isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    "Save Changes"
-                  )}
-                </Button>
-              )}
-            </div>
-          </div>
+          )}
         </div>
 
         {/* AI Insights - Learned Constraints */}
         {memberId && constraintAnalysis && constraintAnalysis.suggestions.length > 0 && (
           <Card className="border-2 border-primary/20 bg-gradient-to-br from-primary/5 via-primary/3 to-transparent overflow-hidden">
-            <CardHeader className="pb-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
-                  <Sparkles className="h-5 w-5 text-primary" />
+            <CardHeader className="p-4 sm:p-6 pb-3">
+              <div className="flex items-center gap-2.5 sm:gap-3">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-primary/20 flex items-center justify-center shrink-0">
+                  <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                 </div>
-                <div>
-                  <CardTitle className="text-lg">Smart Insights</CardTitle>
-                  <CardDescription>
-                    Patterns we've noticed from your RSVPs
+                <div className="min-w-0">
+                  <CardTitle className="text-base sm:text-lg">Smart Insights</CardTitle>
+                  <CardDescription className="text-xs sm:text-sm">
+                    Patterns from your RSVPs
                   </CardDescription>
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="p-4 sm:p-6 pt-0 space-y-3">
               {constraintAnalysis.suggestions.map((suggestion, index) => (
                 <div
                   key={index}
-                  className="flex items-center justify-between gap-4 p-4 rounded-xl bg-background/80 backdrop-blur-sm border shadow-sm"
+                  className="p-3 sm:p-4 rounded-xl bg-background/80 backdrop-blur-sm border shadow-sm"
                 >
-                  <div className="flex-1 min-w-0">
+                  <div className="mb-3">
                     <h4 className="font-semibold text-sm">{suggestion.title}</h4>
-                    <p className="text-sm text-muted-foreground mt-0.5 line-clamp-2">
+                    <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 line-clamp-2">
                       {suggestion.description}
                     </p>
                   </div>
-                  <div className="flex gap-2 shrink-0">
+                  <div className="flex gap-2">
                     <Button
                       size="sm"
                       variant="default"
@@ -577,13 +574,13 @@ export default function Preferences() {
                         });
                       }}
                       disabled={constraintMutation.isPending}
-                      className="h-9 px-3"
+                      className="h-8 px-3 text-xs flex-1 sm:flex-none"
                     >
                       {constraintMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <Loader2 className="h-3 w-3 animate-spin" />
                       ) : (
                         <>
-                          <Check className="h-4 w-4 mr-1" />
+                          <Check className="h-3 w-3 mr-1" />
                           Apply
                         </>
                       )}
@@ -598,7 +595,7 @@ export default function Preferences() {
                         });
                       }}
                       disabled={constraintMutation.isPending}
-                      className="h-9 px-2 text-muted-foreground hover:text-foreground"
+                      className="h-8 px-2 text-muted-foreground hover:text-foreground"
                     >
                       <X className="h-4 w-4" />
                     </Button>
@@ -611,43 +608,43 @@ export default function Preferences() {
 
         {/* Budget Preference */}
         <Card className="overflow-hidden">
-          <CardHeader className="pb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                <DollarSign className="h-5 w-5 text-green-600 dark:text-green-400" />
+          <CardHeader className="p-4 sm:p-6 pb-3 sm:pb-4">
+            <div className="flex items-center gap-2.5 sm:gap-3">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center shrink-0">
+                <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-green-600 dark:text-green-400" />
               </div>
-              <div>
-                <CardTitle className="text-lg">Budget Range</CardTitle>
-                <CardDescription>
-                  How much you're comfortable spending per event
+              <div className="min-w-0">
+                <CardTitle className="text-base sm:text-lg">Budget Range</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">
+                  Per event spending comfort
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Visual budget indicator */}
-            <div className="flex items-center justify-center gap-4 py-4 px-6 bg-muted/50 rounded-xl">
+          <CardContent className="p-4 sm:p-6 pt-0 space-y-4 sm:space-y-6">
+            {/* Visual budget indicator - more compact on mobile */}
+            <div className="flex items-center justify-center gap-3 sm:gap-4 py-3 sm:py-4 px-4 sm:px-6 bg-muted/50 rounded-xl">
               <div className="text-center">
-                <span className="text-3xl font-bold text-primary">
+                <span className="text-2xl sm:text-3xl font-bold text-primary">
                   {budgetRange[0] >= 200 ? "$200+" : `$${budgetRange[0]}`}
                 </span>
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="text-2xs sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">
                   {getBudgetLevel(budgetRange[0]).label}
                 </p>
               </div>
-              <div className="text-2xl text-muted-foreground/50">—</div>
+              <div className="text-xl sm:text-2xl text-muted-foreground/50">—</div>
               <div className="text-center">
-                <span className="text-3xl font-bold text-primary">
+                <span className="text-2xl sm:text-3xl font-bold text-primary">
                   {budgetRange[1] >= 200 ? "$200+" : `$${budgetRange[1]}`}
                 </span>
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="text-2xs sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">
                   {getBudgetLevel(budgetRange[1]).label}
                 </p>
               </div>
             </div>
 
             {/* Slider */}
-            <div className="px-2">
+            <div className="px-1 sm:px-2">
               <Slider
                 min={0}
                 max={250}
@@ -660,7 +657,7 @@ export default function Preferences() {
                 className="w-full"
               />
               {/* Scale markers */}
-              <div className="flex justify-between mt-2 text-xs text-muted-foreground">
+              <div className="flex justify-between mt-2 text-2xs sm:text-xs text-muted-foreground">
                 <span>$0</span>
                 <span>$50</span>
                 <span>$100</span>
@@ -673,33 +670,33 @@ export default function Preferences() {
 
         {/* Activity Preferences */}
         <Card>
-          <CardHeader className="pb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-pink-100 dark:bg-pink-900/30 flex items-center justify-center">
-                <Heart className="h-5 w-5 text-pink-600 dark:text-pink-400" />
+          <CardHeader className="p-4 sm:p-6 pb-3 sm:pb-4">
+            <div className="flex items-center gap-2.5 sm:gap-3">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-pink-100 dark:bg-pink-900/30 flex items-center justify-center shrink-0">
+                <Heart className="h-4 w-4 sm:h-5 sm:w-5 text-pink-600 dark:text-pink-400" />
               </div>
-              <div className="flex-1">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg flex items-center">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <CardTitle className="text-base sm:text-lg flex items-center">
                     Activity Types
                     <HelpTooltip
-                      content="Your preferences help us suggest venues the whole group will enjoy. Selected categories appear more often in recommendations."
+                      content="Your preferences help us suggest venues the whole group will enjoy."
                     />
                   </CardTitle>
                   {selectedCategories.length > 0 && (
-                    <Badge variant="secondary" className="text-xs">
+                    <Badge variant="secondary" className="text-2xs sm:text-xs shrink-0">
                       {selectedCategories.length} selected
                     </Badge>
                   )}
                 </div>
-                <CardDescription>
-                  What kinds of activities do you enjoy?
+                <CardDescription className="text-xs sm:text-sm">
+                  What do you enjoy?
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <CardContent className="p-4 sm:p-6 pt-0">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
               {ACTIVITY_CATEGORIES.map((category) => {
                 const isSelected = selectedCategories.includes(category.value);
                 const activityColorMap = {
@@ -745,43 +742,41 @@ export default function Preferences() {
                     key={category.value}
                     onClick={() => toggleCategory(category.value)}
                     className={cn(
-                      "group relative flex items-start gap-3 p-4 rounded-xl border-2 transition-all duration-200 text-left",
+                      "group relative flex items-center gap-2.5 sm:gap-3 p-3 sm:p-4 rounded-xl border-2 transition-all duration-200 text-left",
                       isSelected
                         ? `${colors.border} ${colors.bg} shadow-sm`
                         : `border-transparent bg-muted/40 ${colors.bgHover} hover:border-muted-foreground/20`
                     )}
                   >
                     <span className={cn(
-                      "text-2xl transition-transform duration-200",
+                      "text-xl sm:text-2xl transition-transform duration-200",
                       isSelected && "scale-110"
                     )}>
                       {category.icon}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold text-sm">{category.shortLabel}</span>
-                        <div className={cn(
-                          "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200",
-                          isSelected
-                            ? `${colors.border} ${colors.bg}`
-                            : "border-muted-foreground/30"
-                        )}>
-                          {isSelected && (
-                            <Check className={`h-3 w-3 ${colors.text}`} />
-                          )}
-                        </div>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">
+                      <span className="font-semibold text-sm">{category.shortLabel}</span>
+                      <p className="text-xs text-muted-foreground mt-0.5 hidden sm:block">
                         {category.description}
                       </p>
+                    </div>
+                    <div className={cn(
+                      "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200 shrink-0",
+                      isSelected
+                        ? `${colors.border} ${colors.bg}`
+                        : "border-muted-foreground/30"
+                    )}>
+                      {isSelected && (
+                        <Check className={`h-3 w-3 ${colors.text}`} />
+                      )}
                     </div>
                   </button>
                 );
               })}
             </div>
             {selectedCategories.length === 0 && (
-              <p className="text-sm text-muted-foreground mt-4 text-center py-2 bg-muted/30 rounded-lg">
-                Select at least one activity type you enjoy
+              <p className="text-xs sm:text-sm text-muted-foreground mt-3 sm:mt-4 text-center py-2 bg-muted/30 rounded-lg">
+                Select at least one activity type
               </p>
             )}
           </CardContent>
@@ -789,20 +784,20 @@ export default function Preferences() {
 
         {/* Availability Grid */}
         <Card>
-          <CardHeader className="pb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+          <CardHeader className="p-4 sm:p-6 pb-3 sm:pb-4">
+            <div className="flex items-center gap-2.5 sm:gap-3">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
+                <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600 dark:text-blue-400" />
               </div>
-              <div>
-                <CardTitle className="text-lg">Your Availability</CardTitle>
-                <CardDescription>
-                  When are you typically free for group events?
+              <div className="min-w-0">
+                <CardTitle className="text-base sm:text-lg">Availability</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">
+                  When are you free?
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 sm:p-6 pt-0">
             <AvailabilityGrid
               value={toShortDayFormat(availability)}
               onChange={handleAvailabilityChange}
@@ -812,32 +807,32 @@ export default function Preferences() {
 
         {/* Notifications */}
         <Card>
-          <CardHeader className="pb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
-                <BellRing className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+          <CardHeader className="p-4 sm:p-6 pb-3 sm:pb-4">
+            <div className="flex items-center gap-2.5 sm:gap-3">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
+                <BellRing className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600 dark:text-amber-400" />
               </div>
-              <div>
-                <CardTitle className="text-lg">Notifications</CardTitle>
-                <CardDescription>
-                  How would you like to be notified?
+              <div className="min-w-0">
+                <CardTitle className="text-base sm:text-lg">Notifications</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">
+                  How to reach you
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="p-4 rounded-xl bg-muted/40 border border-transparent hover:border-muted-foreground/10 transition-colors">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-background flex items-center justify-center">
+          <CardContent className="p-4 sm:p-6 pt-0">
+            <div className="p-3 sm:p-4 rounded-xl bg-muted/40 border border-transparent hover:border-muted-foreground/10 transition-colors">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-background flex items-center justify-center shrink-0">
                     <Mail className="h-4 w-4 text-muted-foreground" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <Label htmlFor="email-notifications" className="text-sm font-semibold cursor-pointer">
                       Email notifications
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Event invites, RSVPs, and reminders
+                      Invites & reminders
                     </p>
                   </div>
                 </div>
@@ -857,20 +852,20 @@ export default function Preferences() {
         {/* Per-Group Budget Overrides */}
         {userGroups && userGroups.length > 0 && (
           <Card>
-            <CardHeader className="pb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-                  <Users className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+            <CardHeader className="p-4 sm:p-6 pb-3 sm:pb-4">
+              <div className="flex items-center gap-2.5 sm:gap-3">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center shrink-0">
+                  <Users className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600 dark:text-purple-400" />
                 </div>
-                <div>
-                  <CardTitle className="text-lg">Group Budgets</CardTitle>
-                  <CardDescription>
-                    Set your personal budget for each group
+                <div className="min-w-0">
+                  <CardTitle className="text-base sm:text-lg">Group Budgets</CardTitle>
+                  <CardDescription className="text-xs sm:text-sm">
+                    Personal budget per group
                   </CardDescription>
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-4 sm:p-6 pt-0">
               <div className="space-y-2">
                 {userGroups.map((group) => (
                   <GroupBudgetOverride
@@ -898,9 +893,9 @@ export default function Preferences() {
           />
         )}
 
-        {/* Save Button (mobile) - Sticky at bottom */}
+        {/* Save Button (mobile) - Sticky above BottomNav */}
         {hasChanges && (
-          <div className="md:hidden fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background via-background to-transparent pt-8 safe-area-pb">
+          <div className="md:hidden fixed bottom-16 left-0 right-0 p-4 bg-gradient-to-t from-background via-background to-transparent pt-8">
             <Button
               onClick={handleSave}
               disabled={updateMutation.isPending}

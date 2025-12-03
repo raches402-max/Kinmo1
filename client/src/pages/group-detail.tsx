@@ -71,6 +71,7 @@ import { CSS } from '@dnd-kit/utilities';
 import EmojiPicker from 'emoji-picker-react';
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { PlanningInsightBanner } from "@/components/PlanningInsightBanner";
+import { ProfileCompletionBanner } from "@/components/ProfileCompletionBanner";
 import { HelpTooltip } from "@/components/HelpTooltip";
 import { HomeTab, GroupDetailMobileNav, ActivitiesTab, SelectedVenuesCard, ItineraryCard, AddMoreStopsCard, TimeSelectionTabs, InlineSchedulingCard, SaveItineraryDialog, SendBackupDialog, InviteGuestDialog, AutoSchedulePreviewDialog, EditAvailabilityDialog, RsvpConstraintDialog, AddVenueDialog, EditGroupDialog } from "@/components/group-detail";
 import { useItineraryEditor } from "@/hooks/useItineraryEditor";
@@ -619,7 +620,8 @@ export default function GroupDetail() {
     cafeEnabled: true,
     drinksEnabled: true,
     dessertEnabled: true,
-    experiencesEnabled: true
+    experiencesEnabled: true,
+    defaultQuorumThreshold: 50
   });
   const [newMembers, setNewMembers] = useState<{ name: string; email: string }[]>([]);
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
@@ -958,26 +960,37 @@ export default function GroupDetail() {
     pendingGuestRsvps: [],
   } as UserEvent & { isAutoScheduled?: boolean; autoSendAt?: string; confidenceScore?: number; requiresReview?: boolean }));
 
-  // Merge auto-events with regular events, deduplicating by date
+  // Merge auto-events with regular events, deduplicating by itineraryId and date
   // Auto-events from the dedicated endpoint take priority (they have more complete data)
   const allGroupEvents = useMemo(() => {
+    // Build set of itinerary IDs from auto-events to avoid duplicates
+    const autoEventItineraryIds = new Set(
+      autoEventsAsUserEvents
+        .filter(e => e.itineraryId)
+        .map(e => e.itineraryId)
+    );
+
     const autoEventDates = new Set(
       autoEventsAsUserEvents.map(e =>
         e.eventDate ? new Date(e.eventDate).toISOString().split('T')[0] : null
       ).filter(Boolean)
     );
 
-    // Filter out groupEvents that are virtual events for dates that have real auto-events
+    // Filter out groupEvents that duplicate auto-events (by itineraryId or date for virtual)
     const filteredGroupEvents = groupEvents.filter(e => {
-      // Keep non-virtual events (real itineraries/invites)
-      if (!e.isVirtual) return true;
-
-      // For virtual events, check if there's an auto-event for the same date
-      const eventDate = e.eventDate ? new Date(e.eventDate).toISOString().split('T')[0] : null;
-      if (eventDate && autoEventDates.has(eventDate)) {
-        // Skip this virtual event - the auto-event version is better
+      // Skip if this itinerary is already covered by an auto-event
+      if (e.itineraryId && autoEventItineraryIds.has(e.itineraryId)) {
         return false;
       }
+
+      // For virtual events, check if there's an auto-event for the same date
+      if (e.isVirtual) {
+        const eventDate = e.eventDate ? new Date(e.eventDate).toISOString().split('T')[0] : null;
+        if (eventDate && autoEventDates.has(eventDate)) {
+          return false;
+        }
+      }
+
       return true;
     });
 
@@ -1040,6 +1053,23 @@ export default function GroupDetail() {
 
   // Check if user is group owner
   const isOwner = user?.id === group?.userId;
+
+  // Get current user's member record in this group
+  const currentUserMember = useMemo(() => {
+    return members.find(m => m.userId === user?.id) || null;
+  }, [members, user?.id]);
+
+  // Sort members: current user appears last so you see who else is in the group first
+  const sortedMembers = useMemo(() => {
+    if (!user?.id) return members;
+
+    // Separate current user from others
+    const currentUser = members.find(m => m.userId === user.id);
+    const otherMembers = members.filter(m => m.userId !== user.id);
+
+    // Return others first, then current user at the end
+    return currentUser ? [...otherMembers, currentUser] : otherMembers;
+  }, [members, user?.id]);
 
   // Track copied state for invite links
   const [copiedLinks, setCopiedLinks] = useState<Record<string, boolean>>({});
@@ -1337,13 +1367,14 @@ export default function GroupDetail() {
         cafeEnabled: group.cafeEnabled ?? true,
         drinksEnabled: group.drinksEnabled ?? true,
         dessertEnabled: group.dessertEnabled ?? true,
-        experiencesEnabled: group.experiencesEnabled ?? true
+        experiencesEnabled: group.experiencesEnabled ?? true,
+        defaultQuorumThreshold: group.defaultQuorumThreshold ?? 50
       });
       setEditBudgetRange([group.budgetMin, group.budgetMax]);
       setEditCloseness(group.closenessLevel);
       setEditNovelty(group.noveltyPreference);
       setEditCategories(group.activityCategories || []);
-      
+
       // Parse meeting frequency - handle both old ("1-week") and new ("1x week") formats
       const freq = group.meetingFrequency;
       if (freq === "weekly") {
@@ -2548,13 +2579,14 @@ export default function GroupDetail() {
         cafeEnabled: group.cafeEnabled ?? true,
         drinksEnabled: group.drinksEnabled ?? true,
         dessertEnabled: group.dessertEnabled ?? true,
-        experiencesEnabled: group.experiencesEnabled ?? true
+        experiencesEnabled: group.experiencesEnabled ?? true,
+        defaultQuorumThreshold: group.defaultQuorumThreshold ?? 50
       });
       setEditBudgetRange([group.budgetMin, group.budgetMax]);
       setEditCloseness(group.closenessLevel);
       setEditNovelty(group.noveltyPreference);
       setEditCategories(group.activityCategories || []);
-      
+
       // Parse meeting frequency - handle both old ("1-week") and new ("1x week") formats
       const freq = group.meetingFrequency;
       if (freq === "weekly") {
@@ -2631,7 +2663,8 @@ export default function GroupDetail() {
       dessertEnabled: editGroupData.dessertEnabled,
       experiencesEnabled: editGroupData.experiencesEnabled,
       pastPreferences: editGroupData.pastPreferences,
-      additionalInstructions: editGroupData.additionalInstructions
+      additionalInstructions: editGroupData.additionalInstructions,
+      defaultQuorumThreshold: editGroupData.defaultQuorumThreshold
     };
     
     // Filter out empty members (both name and email empty)
@@ -2761,7 +2794,15 @@ export default function GroupDetail() {
             <span className="text-2xl" data-testid="emoji-group-detail">{group.emoji || "🎉"}</span>
             <h1 className="text-xl font-semibold" data-testid="text-group-name">{group.name}</h1>
           </div>
-          <div className="w-20"></div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={openEditGroup}
+            data-testid="button-edit-group"
+          >
+            <Settings className="h-4 w-4 mr-2" />
+            <span className="hidden sm:inline">Settings</span>
+          </Button>
         </div>
       </header>
       <div className="max-w-7xl mx-auto px-6 py-6">
@@ -2776,6 +2817,24 @@ export default function GroupDetail() {
         {/* Planning Agent Insights Banner */}
         {groupId && isOwner && (
           <PlanningInsightBanner groupId={groupId} />
+        )}
+
+        {/* Profile completion prompt for members who haven't set preferences */}
+        {currentUserMember && !isOwner && (
+          <ProfileCompletionBanner
+            memberId={currentUserMember.id}
+            hasAvailability={!!myPreferencesAvailability}
+            hasBudget={!!myPreferencesBudget}
+            onSetAvailability={() => {
+              setActiveTab("preferences");
+              setGroupSubTab("details");
+            }}
+            onSetBudget={() => {
+              setActiveTab("preferences");
+              setGroupSubTab("details");
+            }}
+            className="mb-4"
+          />
         )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6 pb-20 sm:pb-0">
@@ -2906,32 +2965,92 @@ export default function GroupDetail() {
                     </div>
                   </div>
 
-                  {/* Group Color Picker */}
+                  {/* Group Color Palette */}
                   <div className="space-y-2">
-                    <Label htmlFor="group-color">Group Color</Label>
-                    <div className="flex items-center gap-3">
-                      <Input
-                        id="group-color"
-                        type="color"
-                        value={editGroupData.accentColor || group?.accentColor || "#60A5FA"}
-                        onChange={(e) => setEditGroupData({ ...editGroupData, accentColor: e.target.value })}
-                        className="w-20 h-10 cursor-pointer"
-                        data-testid="input-group-color"
-                      />
-                      <span className="text-sm text-muted-foreground font-mono">
-                        {editGroupData.accentColor || group?.accentColor || "#60A5FA"}
-                      </span>
-                      <div
-                        className="ml-auto px-3 py-1 rounded-md text-sm font-medium"
-                        style={{
-                          backgroundColor: `${editGroupData.accentColor || group?.accentColor || "#60A5FA"}20`,
-                          border: `1px solid ${editGroupData.accentColor || group?.accentColor || "#60A5FA"}`,
-                          color: editGroupData.accentColor || group?.accentColor || "#60A5FA"
-                        }}
-                      >
-                        Preview
-                      </div>
-                    </div>
+                    {(() => {
+                      // Curated palette with good variety - no duplicates
+                      const colorPalette = [
+                        // Row 1: Warm spectrum
+                        { hex: '#E07A5F', name: 'Terracotta' },
+                        { hex: '#E63946', name: 'Coral' },
+                        { hex: '#F72585', name: 'Magenta' },
+                        { hex: '#C9ADA7', name: 'Dusty Rose' },
+                        { hex: '#E6B89C', name: 'Peach' },
+                        { hex: '#F4A261', name: 'Marigold' },
+                        { hex: '#EAB308', name: 'Sunflower' },
+                        { hex: '#FACC15', name: 'Lemon' },
+                        // Row 2: Earth & greens
+                        { hex: '#BC6C25', name: 'Caramel' },
+                        { hex: '#9C6644', name: 'Copper' },
+                        { hex: '#78716C', name: 'Stone' },
+                        { hex: '#606C38', name: 'Olive' },
+                        { hex: '#84CC16', name: 'Lime' },
+                        { hex: '#22C55E', name: 'Emerald' },
+                        { hex: '#2A9D8F', name: 'Teal' },
+                        { hex: '#14B8A6', name: 'Mint' },
+                        // Row 3: Blues & purples
+                        { hex: '#06B6D4', name: 'Cyan' },
+                        { hex: '#0EA5E9', name: 'Sky' },
+                        { hex: '#3B82F6', name: 'Blue' },
+                        { hex: '#1D3557', name: 'Navy' },
+                        { hex: '#6366F1', name: 'Indigo' },
+                        { hex: '#8B5CF6', name: 'Violet' },
+                        { hex: '#A855F7', name: 'Purple' },
+                        { hex: '#7209B7', name: 'Grape' },
+                        // Row 4: Neutrals & darks
+                        { hex: '#EC4899', name: 'Pink' },
+                        { hex: '#6B5B6E', name: 'Plum' },
+                        { hex: '#64748B', name: 'Slate' },
+                        { hex: '#475569', name: 'Charcoal' },
+                        { hex: '#1F2937', name: 'Graphite' },
+                        { hex: '#0F172A', name: 'Midnight' },
+                        { hex: '#44403C', name: 'Espresso' },
+                        { hex: '#292524', name: 'Coal' },
+                      ];
+                      const currentColor = editGroupData.accentColor || group?.accentColor || "#6B5B6E";
+                      const currentColorName = colorPalette.find(c => c.hex.toUpperCase() === currentColor.toUpperCase())?.name || 'Custom';
+
+                      return (
+                        <Collapsible>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <Label>Group Color</Label>
+                              <div className="flex items-center gap-2">
+                                <div
+                                  className="w-6 h-6 rounded-full border-2 border-background shadow-sm"
+                                  style={{ backgroundColor: currentColor }}
+                                />
+                                <span className="text-sm text-muted-foreground">{currentColorName}</span>
+                              </div>
+                            </div>
+                            <CollapsibleTrigger asChild>
+                              <Button variant="ghost" size="sm" className="text-xs text-muted-foreground">
+                                Change
+                              </Button>
+                            </CollapsibleTrigger>
+                          </div>
+                          <CollapsibleContent className="pt-3">
+                            <div className="grid grid-cols-8 gap-2">
+                              {colorPalette.map((color) => (
+                                <button
+                                  key={color.hex}
+                                  type="button"
+                                  onClick={() => setEditGroupData({ ...editGroupData, accentColor: color.hex })}
+                                  className={`w-8 h-8 rounded-full transition-all duration-150 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary ${
+                                    currentColor.toUpperCase() === color.hex.toUpperCase()
+                                      ? 'ring-2 ring-offset-2 ring-foreground scale-110'
+                                      : ''
+                                  }`}
+                                  style={{ backgroundColor: color.hex }}
+                                  title={color.name}
+                                  data-testid={`color-swatch-${color.hex.slice(1)}`}
+                                />
+                              ))}
+                            </div>
+                          </CollapsibleContent>
+                        </Collapsible>
+                      );
+                    })()}
                   </div>
 
                   {/* Budget + Meeting Frequency - side by side on desktop */}
@@ -3052,10 +3171,53 @@ export default function GroupDetail() {
                   </div>
                   <div className="space-y-3">
                     <Label>Group Availability</Label>
-                    <AvailabilityGrid
-                      value={editAvailability as Record<string, {morning: boolean; afternoon: boolean; evening: boolean}>}
-                      onChange={setEditAvailability}
+                    {membersAvailabilityData && membersAvailabilityData.currentUserMemberId ? (
+                      <GroupAvailabilityHeatmap
+                        membersAvailability={membersAvailabilityData.membersAvailability.map(m => ({
+                          memberId: m.memberId,
+                          memberName: m.memberName,
+                          availability: m.availability || createEmptyAvailability(),
+                        }))}
+                        currentMemberId={membersAvailabilityData.currentUserMemberId}
+                        myAvailability={editAvailability as Record<string, {morning: boolean; afternoon: boolean; evening: boolean}>}
+                        onMyAvailabilityChange={(newAvailability) => {
+                          setEditAvailability(newAvailability);
+                        }}
+                        showMemberDetails={true}
+                        compact={true}
+                        mobileMode="compact-week"
+                      />
+                    ) : (
+                      <AvailabilityGrid
+                        value={editAvailability as Record<string, {morning: boolean; afternoon: boolean; evening: boolean}>}
+                        onChange={setEditAvailability}
+                      />
+                    )}
+                  </div>
+
+                  {/* Default Quorum Threshold */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label>Default Quorum for Events</Label>
+                      <span className="text-sm font-semibold text-primary">{editGroupData.defaultQuorumThreshold}%</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Minimum percentage of members needed to confirm an event. New events will use this as the default.
+                    </p>
+                    <input
+                      type="range"
+                      min="10"
+                      max="100"
+                      step="5"
+                      value={editGroupData.defaultQuorumThreshold}
+                      onChange={(e) => setEditGroupData({ ...editGroupData, defaultQuorumThreshold: parseInt(e.target.value) })}
+                      className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
                     />
+                    <div className="flex justify-between text-2xs text-muted-foreground">
+                      <span>10%</span>
+                      <span>50%</span>
+                      <span>100%</span>
+                    </div>
                   </div>
                           </CardContent>
                         </AccordionContent>
@@ -3519,7 +3681,7 @@ export default function GroupDetail() {
                         </Label>
                       </div>
                       <div className="space-y-2">
-                        {members.map((member) => (
+                        {sortedMembers.map((member) => (
                           <div key={member.id}>
                             {editingMemberId === member.id ? (
                               // Edit mode
@@ -3578,7 +3740,10 @@ export default function GroupDetail() {
                                 </Avatar>
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 flex-wrap">
-                                    <p className="text-sm font-medium truncate">{member.name || "Member"}</p>
+                                    <p className="text-sm font-medium truncate">
+                                      {member.name || "Member"}
+                                      {member.userId === user?.id && <span className="text-muted-foreground font-normal"> (you)</span>}
+                                    </p>
                                     {member.rsvpStatus && (
                                       <Badge 
                                         variant={member.rsvpStatus === "going" ? "default" : "secondary"}
@@ -4114,6 +4279,7 @@ export default function GroupDetail() {
                               queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "members-availability"] });
                             }}
                             showMemberDetails={true}
+                            mobileMode="compact-week"
                           />
                         ) : (
                           <div className="space-y-3">

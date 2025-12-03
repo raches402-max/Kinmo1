@@ -212,10 +212,10 @@ function VenueChip({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="font-medium text-sm truncate">{venue.name}</span>
-          {venue.rating && (
+          {venue.rating != null && (
             <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
               <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-              {venue.rating.toFixed(1)}
+              {Number(venue.rating).toFixed(1)}
             </span>
           )}
           {venue.priceLevel && (
@@ -326,7 +326,7 @@ function VenueSelectionSheet({
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="fixed inset-x-0 bottom-0 z-50 bg-background rounded-t-3xl max-h-[85vh] flex flex-col"
+            className="fixed inset-x-0 bottom-0 z-50 bg-background rounded-t-3xl h-[85vh] flex flex-col"
           >
             {/* Handle */}
             <div className="flex justify-center pt-3 pb-2">
@@ -392,7 +392,7 @@ function VenueSelectionSheet({
             </div>
 
             {/* Venue List */}
-            <div className="flex-1 overflow-y-auto px-4 pb-safe">
+            <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-6">
               <AnimatePresence mode="wait">
                 {activeTab === "favorites" && (
                   <motion.div
@@ -557,10 +557,10 @@ function VenueSelectCard({
           )}
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-          {venue.rating && (
+          {venue.rating != null && (
             <span className="flex items-center gap-0.5">
               <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-              {venue.rating.toFixed(1)}
+              {Number(venue.rating).toFixed(1)}
             </span>
           )}
           {venue.priceLevel && (
@@ -930,8 +930,8 @@ export function MobileEventBuilder({
         </AccordionSection>
       </main>
 
-      {/* Floating Action Bar */}
-      <div className="fixed bottom-0 inset-x-0 bg-background/95 backdrop-blur-sm border-t p-4 safe-area-pb">
+      {/* Floating Action Bar - positioned above BottomNav */}
+      <div className="fixed bottom-16 inset-x-0 bg-background/95 backdrop-blur-sm border-t p-4">
         {/* Progress indicator */}
         <div className="flex items-center justify-center gap-1.5 mb-3">
           {[1, 2, 3].map((step) => (

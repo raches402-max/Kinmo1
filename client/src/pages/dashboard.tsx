@@ -1,6 +1,6 @@
 // Reference: javascript_log_in_with_replit blueprint
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -228,6 +228,7 @@ export default function Dashboard() {
   const { user } = useAuth() as { user: User | undefined };
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const searchString = useSearch(); // Reactive hook for URL query params
   const isMobile = useIsMobile();
   
   const [createCollectionOpen, setCreateCollectionOpen] = useState(false);
@@ -265,19 +266,19 @@ export default function Dashboard() {
   // Event sort mode state
   const [eventSortMode, setEventSortMode] = useState<'date' | 'group'>('date');
 
-  // Tab state from URL query param
-  const urlParams = new URLSearchParams(window.location.search);
-  const initialTab = urlParams.get("tab") || "my-events";
-  const [activeTab, setActiveTab] = useState(initialTab);
+  // Tab state from URL query param (using reactive useSearch hook)
+  const urlParams = new URLSearchParams(searchString);
+  const tabFromUrl = urlParams.get("tab") || "my-events";
+  const [activeTab, setActiveTab] = useState(tabFromUrl);
 
-  // Sync tab state with URL when it changes
+  // Sync tab state with URL when it changes (searchString is reactive)
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const tabFromUrl = params.get("tab") || "my-events";
-    if (tabFromUrl !== activeTab) {
-      setActiveTab(tabFromUrl);
+    const params = new URLSearchParams(searchString);
+    const newTab = params.get("tab") || "my-events";
+    if (newTab !== activeTab) {
+      setActiveTab(newTab);
     }
-  }, [window.location.search]);
+  }, [searchString, activeTab]);
 
   // Listen for bottom nav FAB click to open event creation modal
   useEffect(() => {
@@ -292,7 +293,7 @@ export default function Dashboard() {
 
   // Check for ?action=create-event query param (from bottom nav on other pages)
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(searchString);
     if (params.get("action") === "create-event") {
       setShowCreateEventDialog(true);
       // Clean up the URL to remove the action param
@@ -301,7 +302,7 @@ export default function Dashboard() {
       const newUrl = newSearch ? `/?${newSearch}` : "/";
       window.history.replaceState({}, "", newUrl);
     }
-  }, [window.location.search]);
+  }, [searchString]);
 
   // Onboarding checklist state
   const [onboardingDismissed, setOnboardingDismissed] = useState(() => {

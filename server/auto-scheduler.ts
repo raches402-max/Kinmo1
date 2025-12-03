@@ -1022,14 +1022,13 @@ export async function shouldTriggerAutoSchedule(
 
   // Not yet within the 10-day window
   if (daysUntilDue > 10 || daysUntilDue < 0) {
-    console.log(`[Auto-Schedule] Group ${group.name} not within 10-day window (${daysUntilDue} days until due)`);
+
     return false;
   }
 
   // REMOVED: Old high-cadence limiter that blocked pipeline maintenance
   // The maintainEventPipeline() function now properly manages event counts
   // for all cadences using targetFutureEvents
-  console.log(`[Auto-Schedule] Group ${group.name} is within trigger window`);
 
   return true;
 }

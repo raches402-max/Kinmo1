@@ -132,6 +132,9 @@ export const groups = pgTable("groups", {
   targetFutureEvents: integer("target_future_events"), // Number of future events to maintain in pipeline (null = use smart default based on cadence)
   allowEarlyRsvp: boolean("allow_early_rsvp").default(true).notNull(), // Whether members can RSVP to approved events before they are fully scheduled
 
+  // Event defaults
+  defaultQuorumThreshold: integer("default_quorum_threshold").default(50).notNull(), // Default quorum percentage for new events (0-100)
+
   // Member permissions
   membersCanCreateEvents: boolean("members_can_create_events").default(true).notNull(), // Whether members (non-organizers) can create events and discover venues
 
