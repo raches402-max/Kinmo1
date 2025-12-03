@@ -24,6 +24,7 @@ interface DraggableGroupCardProps {
   isSelected?: boolean;
   onSelect?: (groupId: string, isMultiSelect: boolean) => void;
   isDragging?: boolean;
+  nextEventDate?: string | null;
 }
 
 export function DraggableGroupCard({
@@ -37,6 +38,7 @@ export function DraggableGroupCard({
   isSelected = false,
   onSelect,
   isDragging = false,
+  nextEventDate,
 }: DraggableGroupCardProps) {
   const {
     attributes,
@@ -87,6 +89,7 @@ export function DraggableGroupCard({
         onMoveToCollection={onMoveToCollection}
         onDeleteGroup={onDeleteGroup}
         onLeaveGroup={onLeaveGroup}
+        nextEventDate={nextEventDate}
       />
 
       {/* Selection indicator badge */}

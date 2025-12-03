@@ -238,7 +238,7 @@ export function GroupAvailabilityHeatmap({
                 {idx !== selectedDayIndex && maxCount > 0 && (
                   <span
                     className={cn(
-                      "absolute -top-1 -right-1 w-4 h-4 rounded-full text-[10px] flex items-center justify-center font-bold",
+                      "absolute -top-1 -right-1 w-4 h-4 rounded-full text-2xs flex items-center justify-center font-bold",
                       hasSweetSpot
                         ? "bg-primary text-primary-foreground"
                         : "bg-primary/40 text-primary-foreground/80"
@@ -306,7 +306,7 @@ export function GroupAvailabilityHeatmap({
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-sm">{TIME_DETAILS[time].label}</span>
                         {isPerfect && (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-primary/20 text-primary text-[10px] font-semibold">
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-primary/20 text-primary text-2xs font-semibold">
                             <Sparkles className="h-2.5 w-2.5" />
                             Everyone
                           </span>
@@ -346,7 +346,7 @@ export function GroupAvailabilityHeatmap({
                       </div>
                       {/* My toggle indicator */}
                       <span className={cn(
-                        "text-[10px] font-medium transition-colors",
+                        "text-2xs font-medium transition-colors",
                         isMySlot ? "text-primary" : "text-muted-foreground"
                       )}>
                         {isMySlot ? "I'm in" : "Tap to join"}
@@ -360,7 +360,7 @@ export function GroupAvailabilityHeatmap({
         </div>
 
         {/* Legend */}
-        <div className="flex items-center justify-center gap-4 pt-2 text-[11px] text-muted-foreground">
+        <div className="flex items-center justify-center gap-4 pt-2 text-2xs text-muted-foreground">
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded bg-primary/20" />
             <span>Few available</span>
@@ -521,20 +521,20 @@ export function GroupAvailabilityHeatmap({
                             <p className="text-xs font-semibold mb-1">
                               {DAY_LABELS[day].full} {TIME_DETAILS[time].label}
                             </p>
-                            <p className="text-[11px] text-muted-foreground mb-1.5">
+                            <p className="text-2xs text-muted-foreground mb-1.5">
                               {count} of {totalMembers} available
                             </p>
                             <div className="flex flex-wrap gap-1">
                               {members.slice(0, 5).map((name, i) => (
                                 <span
                                   key={i}
-                                  className="inline-block px-1.5 py-0.5 rounded bg-primary/10 text-[10px] font-medium"
+                                  className="inline-block px-1.5 py-0.5 rounded bg-primary/10 text-2xs font-medium"
                                 >
                                   {name.split(" ")[0]}
                                 </span>
                               ))}
                               {members.length > 5 && (
-                                <span className="text-[10px] text-muted-foreground">
+                                <span className="text-2xs text-muted-foreground">
                                   +{members.length - 5} more
                                 </span>
                               )}
@@ -558,7 +558,7 @@ export function GroupAvailabilityHeatmap({
       {/* Footer with legend and summary */}
       <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
         {/* Legend */}
-        <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+        <div className="flex items-center gap-3 text-2xs text-muted-foreground">
           <span className="font-medium">Availability:</span>
           <div className="flex items-center gap-1">
             <div className="w-4 h-4 rounded bg-muted/50" />

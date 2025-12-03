@@ -105,7 +105,22 @@
       "Bash(timeout 60 npx vite build:*)",
       "Bash(git push)",
       "Bash(git push:*)",
-      "Bash(/home/runner/workspace/setup-claude-plugins.sh)"
+      "Bash(/home/runner/workspace/setup-claude-plugins.sh)",
+      "WebFetch(domain:44512696-dbac-4dd3-bce3-5b36e27640e8-00-14jxlhpvi40bm.kirk.replit.dev)",
+      "Bash(/home/runner/workspace/setup-claude-plugins.sh:*)",
+      "Bash(timeout 30 npm run dev:*)",
+      "Bash(timeout 45 npm run dev:*)",
+      "Bash(timeout 50 npm run dev:*)",
+      "Bash(timeout 60 npx tsc:*)",
+      "Bash(timeout 30 npx tsc:*)",
+      "Bash(/home/runner/workspace/claude-backup.sh:*)",
+      "Bash(timeout 45 npx vite:*)",
+      "Bash(./claude-backup.sh)",
+      "Bash(./claude-backup.sh save:*)",
+      "Bash(./claude-backup.sh:*)",
+      "Bash(mkdir:*)",
+      "Bash(cp:*)",
+      "Bash(jq:*)"
     ],
     "deny": [],
     "ask": []

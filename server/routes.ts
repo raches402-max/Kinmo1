@@ -114,12 +114,78 @@ function isInNeighborhood(lat: number, lng: number, neighborhood: string): boole
  */
 function getAdminEmails(): string[] {
   const prodAdmins = ['raches402@gmail.com'];
-  
+
   if (process.env.NODE_ENV === 'development') {
     return [...prodAdmins, 'test-admin@example.com'];
   }
-  
+
   return prodAdmins;
+}
+
+/**
+ * Get group members including the organizer as an implicit member.
+ * The organizer is always first in the list with isOrganizer: true.
+ * Filters out any duplicate member entries where the organizer added themselves.
+ */
+async function getGroupMembersWithOrganizer(groupId: string, organizerUserId: string) {
+  // Get the organizer's info
+  const [organizerInfo] = await db
+    .select({
+      displayName: userProfiles.displayName,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      email: users.email,
+    })
+    .from(users)
+    .leftJoin(userProfiles, eq(userProfiles.userId, users.id))
+    .where(eq(users.id, organizerUserId));
+
+  const organizerName = organizerInfo?.displayName ||
+    (organizerInfo?.firstName && organizerInfo?.lastName
+      ? `${organizerInfo.firstName} ${organizerInfo.lastName}`
+      : organizerInfo?.firstName || organizerInfo?.email?.split('@')[0] || 'Organizer');
+  const organizerEmail = organizerInfo?.email || null;
+
+  // Get regular members
+  const regularMembers = await db
+    .select({
+      id: membersTable.id,
+      name: membersTable.name,
+      email: membersTable.email,
+      openToHosting: membersTable.openToHosting,
+      userId: membersTable.userId,
+    })
+    .from(membersTable)
+    .where(eq(membersTable.groupId, groupId));
+
+  // Filter out members where the organizer added themselves (by email match or userId match)
+  const filteredMembers = regularMembers.filter(m => {
+    // If member has userId and it matches organizer, exclude
+    if (m.userId === organizerUserId) return false;
+    // If member email matches organizer email (case insensitive), exclude
+    if (organizerEmail && m.email && m.email.toLowerCase() === organizerEmail.toLowerCase()) return false;
+    return true;
+  });
+
+  // Build the final members array with organizer first
+  const organizer = {
+    id: `organizer-${organizerUserId}`, // Virtual ID for organizer
+    name: organizerName,
+    email: organizerEmail,
+    openToHosting: false,
+    isOrganizer: true,
+  };
+
+  return [
+    organizer,
+    ...filteredMembers.map(m => ({
+      id: m.id,
+      name: m.name,
+      email: m.email,
+      openToHosting: m.openToHosting || false,
+      isOrganizer: false,
+    })),
+  ];
 }
 
 /**
@@ -561,6 +627,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching photo:", error);
       res.status(500).json({ message: "Failed to fetch photo" });
+    }
+  });
+
+  // Refresh stale photo URL for a venue (lazy refresh on image error)
+  app.post('/api/venues/:googlePlaceId/refresh-photo', async (req, res) => {
+    try {
+      const { googlePlaceId } = req.params;
+
+      if (!googlePlaceId) {
+        return res.status(400).json({ message: "Google Place ID is required" });
+      }
+
+      console.log(`[Photo Refresh] Refreshing photo for place: ${googlePlaceId}`);
+
+      // Fetch fresh place details from Google Places API
+      const placeDetails = await getPlaceDetails(googlePlaceId);
+
+      if (!placeDetails?.photoUrl) {
+        console.log(`[Photo Refresh] No photo available for ${googlePlaceId}`);
+        return res.status(404).json({ message: "No photo available for this place" });
+      }
+
+      console.log(`[Photo Refresh] Got fresh photo URL: ${placeDetails.photoUrl}`);
+
+      // Update all voting_events with this googlePlaceId
+      const updatedVotingEvents = await db
+        .update(votingEvents)
+        .set({ photoUrl: placeDetails.photoUrl })
+        .where(eq(votingEvents.googlePlaceId, googlePlaceId))
+        .returning({ id: votingEvents.id, title: votingEvents.title });
+
+      // Also update complementary place photos if they match
+      const updatedComplementary1 = await db
+        .update(votingEvents)
+        .set({ complementaryPlacePhotoUrl: placeDetails.photoUrl })
+        .where(eq(votingEvents.complementaryPlaceId, googlePlaceId))
+        .returning({ id: votingEvents.id });
+
+      const updatedComplementary2 = await db
+        .update(votingEvents)
+        .set({ complementaryPlacePhotoUrl2: placeDetails.photoUrl })
+        .where(eq(votingEvents.complementaryPlaceId2, googlePlaceId))
+        .returning({ id: votingEvents.id });
+
+      // Update curated_venues table if exists
+      await db
+        .update(curatedVenues)
+        .set({ photoUrl: placeDetails.photoUrl })
+        .where(eq(curatedVenues.googlePlaceId, googlePlaceId));
+
+      // Update user_saved_places table
+      await db
+        .update(userSavedPlaces)
+        .set({ photoUrl: placeDetails.photoUrl })
+        .where(eq(userSavedPlaces.googlePlaceId, googlePlaceId));
+
+      // Update group_saved_places table
+      await db
+        .update(groupSavedPlaces)
+        .set({ photoUrl: placeDetails.photoUrl })
+        .where(eq(groupSavedPlaces.googlePlaceId, googlePlaceId));
+
+      const totalUpdated = updatedVotingEvents.length + updatedComplementary1.length + updatedComplementary2.length;
+      console.log(`[Photo Refresh] Updated ${totalUpdated} venue records for ${googlePlaceId}`);
+
+      res.json({
+        success: true,
+        photoUrl: placeDetails.photoUrl,
+        updatedCount: totalUpdated,
+        venues: updatedVotingEvents.map(v => v.title)
+      });
+
+    } catch (error: any) {
+      console.error("[Photo Refresh] Error:", error);
+      res.status(500).json({ message: error.message || "Failed to refresh photo" });
     }
   });
 
@@ -1019,6 +1160,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get all contacts across user's groups (for standalone event invites)
+  app.get("/api/user/contacts", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = await getUserId(req);
+      const contacts = await storage.getUserContacts(userId);
+      res.json(contacts);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Export user groups as backup (downloadable JSON)
   app.get("/api/user/groups/backup", isAuthenticated, async (req: any, res) => {
     try {
@@ -1410,10 +1562,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get user's events (all itinerary invites for this user)
+  // Supports optional ?groupId= query param to filter events for a specific group
   app.get("/api/user/events", isAuthenticated, async (req: any, res) => {
     try {
       const userId = await getUserId(req);
-      console.log('[DEBUG] /api/user/events called for userId:', userId);
+      const filterGroupId = req.query.groupId as string | undefined;
+      console.log('[DEBUG] /api/user/events called for userId:', userId, 'filterGroupId:', filterGroupId);
+
+      // Build where conditions
+      const whereConditions = [isNull(groupsTable.deletedAt)];
+      if (filterGroupId) {
+        whereConditions.push(eq(itineraries.groupId, filterGroupId));
+      }
 
       // Find all itinerary invites for this user
       // This includes both member invites and organizer invites (memberId = null)
@@ -1436,7 +1596,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .from(itineraryInvites)
         .leftJoin(itineraries, eq(itineraryInvites.itineraryId, itineraries.id))
         .leftJoin(groupsTable, eq(itineraries.groupId, groupsTable.id))
-        .where(isNull(groupsTable.deletedAt));
+        .where(and(...whereConditions));
 
       // Filter to only invites relevant to this user
       const verifiedInvites = [];
@@ -1519,16 +1679,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           hostMemberName = hostMember?.name || null;
         }
 
-        // Get group members for hosting info
-        const groupMembers = await db
-          .select({
-            id: membersTable.id,
-            name: membersTable.name,
-            email: membersTable.email,
-            openToHosting: membersTable.openToHosting,
-          })
-          .from(membersTable)
-          .where(eq(membersTable.groupId, invite.groupId));
+        // Get group members including organizer (filters out duplicate self-adds)
+        const groupMembers = await getGroupMembersWithOrganizer(invite.groupId, invite.groupUserId);
 
         // Get current user's member ID and hosting status
         let currentUserMemberId = null;
@@ -1635,6 +1787,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
+        console.log('[DEBUG /api/user/events] Event:', invite.itineraryName, 'groupMembers count:', groupMembers.length, 'members:', groupMembers.map(m => m.name));
+
         return {
           inviteId: invite.inviteId,
           inviteToken: invite.inviteToken,
@@ -1653,12 +1807,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           hostMemberName,
           currentUserMemberId,
           currentUserOpenToHosting,
-          members: groupMembers.map(m => ({
-            id: m.id,
-            name: m.name,
-            email: m.email,
-            openToHosting: m.openToHosting || false,
-          })),
+          members: groupMembers, // Already includes organizer and filters duplicates
           rsvp: rsvp ? {
             response: rsvp.response,
             rsvpFeedback: rsvp.rsvpFeedback,
@@ -1694,6 +1843,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Add draft and proposed itineraries (auto-created for scheduled groups, or manually created but not yet sent)
       // Only include itineraries that don't already have invites (to avoid duplicates)
       const existingItineraryIds = verifiedInvites.map(inv => inv.itineraryId);
+
+      // Build draft where conditions
+      const draftWhereConditions = [
+        or(
+          eq(itineraries.status, 'draft'),
+          eq(itineraries.status, 'proposed')
+        ),
+        eq(itineraries.isSaved, false),
+        sql`${itineraries.groupId} IN (SELECT id FROM groups WHERE user_id = ${userId})`,
+        // Exclude itineraries that already have invites
+        existingItineraryIds.length > 0
+          ? sql`${itineraries.id} NOT IN (${sql.join(existingItineraryIds.map(id => sql`${id}`), sql`, `)})`
+          : sql`1=1`
+      ];
+
+      // Add groupId filter if provided
+      if (filterGroupId) {
+        draftWhereConditions.push(eq(itineraries.groupId, filterGroupId));
+      }
+
       const draftItineraries = await db
         .select({
           itineraryId: itineraries.id,
@@ -1707,20 +1876,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
         .from(itineraries)
         .leftJoin(groupsTable, eq(itineraries.groupId, groupsTable.id))
-        .where(
-          and(
-            or(
-              eq(itineraries.status, 'draft'),
-              eq(itineraries.status, 'proposed')
-            ),
-            eq(itineraries.isSaved, false),
-            sql`${itineraries.groupId} IN (SELECT id FROM groups WHERE user_id = ${userId})`,
-            // Exclude itineraries that already have invites
-            existingItineraryIds.length > 0
-              ? sql`${itineraries.id} NOT IN (${sql.join(existingItineraryIds.map(id => sql`${id}`), sql`, `)})`
-              : sql`1=1`
-          )
-        );
+        .where(and(...draftWhereConditions));
 
       // Convert draft itineraries to event format
       const draftEvents = await Promise.all(draftItineraries.map(async (draft) => {
@@ -1730,6 +1886,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .from(itineraryItems)
           .where(eq(itineraryItems.itineraryId, draft.itineraryId))
           .orderBy(itineraryItems.orderIndex);
+
+        // Get group members including organizer (current user is always the organizer for drafts)
+        const groupMembers = await getGroupMembersWithOrganizer(draft.groupId, userId);
+
+        // Get organizer's RSVP for draft events (userId-based, no memberId)
+        const organizerRsvps = await db
+          .select()
+          .from(rsvpsTable)
+          .where(
+            sql`itinerary_id = ${draft.itineraryId} AND user_id = ${userId} AND member_id IS NULL`
+          );
+        const organizerRsvp = organizerRsvps.length > 0 ? {
+          response: organizerRsvps[0].response,
+          rsvpFeedback: organizerRsvps[0].rsvpFeedback,
+        } : null;
 
         return {
           inviteId: `draft-${draft.itineraryId}`,
@@ -1747,8 +1918,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           hostMemberName: null,
           currentUserMemberId: null,
           currentUserOpenToHosting: false,
-          members: [],
-          rsvp: null,
+          members: groupMembers, // Already includes organizer and filters duplicates
+          rsvp: organizerRsvp,
           rsvpSummary: { yes: [], maybe: [], no: [] },
           detailedRsvps: [],
           pendingGuestRsvps: [],
@@ -1771,16 +1942,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }));
 
       // Add virtual future events for recurring groups with auto-schedule enabled
+      // Build userGroups where conditions
+      const userGroupsWhereConditions = [
+        eq(groupsTable.userId, userId),
+        eq(groupsTable.autoScheduleEnabled, true),
+        isNotNull(groupsTable.nextEventDueDate)
+      ];
+
+      // Add groupId filter if provided
+      if (filterGroupId) {
+        userGroupsWhereConditions.push(eq(groupsTable.id, filterGroupId));
+      }
+
       const userGroups = await db
         .select()
         .from(groupsTable)
-        .where(
-          and(
-            eq(groupsTable.userId, userId),
-            eq(groupsTable.autoScheduleEnabled, true),
-            isNotNull(groupsTable.nextEventDueDate)
-          )
-        );
+        .where(and(...userGroupsWhereConditions));
 
       const virtualEvents = [];
       for (const group of userGroups) {
@@ -3123,19 +3300,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get group members
+  // Get group members (includes organizer as implicit member)
   app.get("/api/groups/:id/members", publicEndpointLimiter, async (req, res) => {
     try {
-      const members = await storage.getGroupMembers(req.params.id);
+      const group = await storage.getGroup(req.params.id);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      // Get members including organizer (filters out duplicates)
+      const allMembers = await getGroupMembersWithOrganizer(req.params.id, group.userId);
 
       // Filter sensitive fields for public access
       // Only return data needed for social context (showing who's invited)
-      const safeMembers = members.map(m => ({
+      const safeMembers = allMembers.map(m => ({
         id: m.id,
         name: m.name,
-        rsvpStatus: m.rsvpStatus,
-        hasJoined: m.hasJoined,
-        isOrganizer: m.isOrganizer,
+        isOrganizer: m.isOrganizer || false,
+        // For organizer, these don't exist on member record
+        rsvpStatus: (m as any).rsvpStatus,
+        hasJoined: (m as any).hasJoined,
+        openToHosting: m.openToHosting || false,
         // Explicitly exclude: claimToken, email, userId, memberLocation,
         // memberBudgetMin/Max, memberAvailability, preferences
       }));
@@ -4368,6 +4553,328 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==================== Saved Places Routes ====================
+
+  // Get user's personal saved places
+  app.get("/api/user/saved-places", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = await getUserId(req);
+      const { category } = req.query;
+
+      const places = await storage.getUserSavedPlaces(
+        userId,
+        category && typeof category === 'string' ? category : undefined
+      );
+      res.json(places);
+    } catch (error: any) {
+      console.error('[Get User Saved Places] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Add a personal saved place
+  app.post("/api/user/saved-places", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = await getUserId(req);
+      const { googlePlaceId, name, address, latitude, longitude, category, rating, priceLevel, photoUrl, notes } = req.body;
+
+      if (!googlePlaceId || !name) {
+        return res.status(400).json({ message: "googlePlaceId and name are required" });
+      }
+
+      // Check if already saved
+      const alreadySaved = await storage.isUserSavedPlace(userId, googlePlaceId);
+      if (alreadySaved) {
+        return res.status(400).json({ message: "Place already saved" });
+      }
+
+      const place = await storage.addUserSavedPlace({
+        userId,
+        googlePlaceId,
+        name,
+        address,
+        latitude,
+        longitude,
+        category,
+        rating,
+        priceLevel,
+        photoUrl,
+        notes,
+      });
+
+      res.json(place);
+    } catch (error: any) {
+      console.error('[Add User Saved Place] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Remove a personal saved place
+  app.delete("/api/user/saved-places/:placeId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = await getUserId(req);
+      const { placeId } = req.params;
+
+      await storage.removeUserSavedPlace(userId, placeId);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('[Remove User Saved Place] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get group's saved places
+  app.get("/api/groups/:groupId/saved-places", isAuthenticated, requireGroupAccess, async (req: any, res) => {
+    try {
+      const { groupId } = req.params;
+      const { category } = req.query;
+
+      const places = await storage.getGroupSavedPlaces(
+        groupId,
+        category && typeof category === 'string' ? category : undefined
+      );
+      res.json(places);
+    } catch (error: any) {
+      console.error('[Get Group Saved Places] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Add a group saved place
+  app.post("/api/groups/:groupId/saved-places", isAuthenticated, requireGroupAccess, async (req: any, res) => {
+    try {
+      const userId = await getUserId(req);
+      const { groupId } = req.params;
+      const { googlePlaceId, name, address, latitude, longitude, category, rating, priceLevel, photoUrl, notes } = req.body;
+
+      if (!googlePlaceId || !name) {
+        return res.status(400).json({ message: "googlePlaceId and name are required" });
+      }
+
+      // Check if already saved in this group
+      const alreadySaved = await storage.isGroupSavedPlace(groupId, googlePlaceId);
+      if (alreadySaved) {
+        return res.status(400).json({ message: "Place already saved to this group" });
+      }
+
+      // Get user name for attribution
+      const user = await storage.getUser(userId);
+      const addedByName = user?.firstName && user?.lastName
+        ? `${user.firstName} ${user.lastName}`
+        : user?.firstName || user?.email || 'Someone';
+
+      const place = await storage.addGroupSavedPlace({
+        groupId,
+        addedByUserId: userId,
+        addedByName,
+        googlePlaceId,
+        name,
+        address,
+        latitude,
+        longitude,
+        category,
+        rating,
+        priceLevel,
+        photoUrl,
+        notes,
+      });
+
+      res.json(place);
+    } catch (error: any) {
+      console.error('[Add Group Saved Place] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Remove a group saved place
+  app.delete("/api/groups/:groupId/saved-places/:placeId", isAuthenticated, requireGroupAccess, async (req: any, res) => {
+    try {
+      const { groupId, placeId } = req.params;
+
+      await storage.removeGroupSavedPlace(groupId, placeId);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('[Remove Group Saved Place] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get all places for a user (personal + all their groups' venue libraries)
+  app.get("/api/user/all-places", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = await getUserId(req);
+      const { category } = req.query;
+      const categoryFilter = category && typeof category === 'string' ? category : undefined;
+
+      console.log(`[All Places] Fetching for user ${userId}, category filter: ${categoryFilter}`);
+
+      // Get personal places (manually saved)
+      const personalPlaces = await storage.getUserSavedPlaces(userId, categoryFilter);
+
+      // Get user's groups
+      const userGroups = await storage.getUserGroups(userId);
+
+      // Get venue library (voting_events) from each group
+      const venueLibraryPromises = userGroups.map(async (group) => {
+        const votingEvents = await storage.getGroupVotingEvents(group.id);
+
+        // Filter to only venues with place IDs and transform to place format
+        const places = votingEvents
+          .filter(ve => ve.googlePlaceId)
+          .filter(ve => !categoryFilter || ve.venueType === categoryFilter)
+          .map(ve => ({
+            id: ve.id,
+            googlePlaceId: ve.googlePlaceId!,
+            name: ve.title,
+            address: ve.venueAddress || null,
+            category: ve.venueType || null,
+            rating: ve.rating || null,
+            priceLevel: ve.priceLevel ? parseInt(ve.priceLevel) : null,
+            photoUrl: ve.photoUrl || null,
+            createdAt: ve.createdAt.toISOString(),
+            upvotes: ve.upvotes,
+            downvotes: ve.downvotes,
+          }));
+
+        return {
+          groupId: group.id,
+          groupName: group.name,
+          groupEmoji: group.emoji,
+          places,
+        };
+      });
+
+      const venueLibrary = await Promise.all(venueLibraryPromises);
+
+      console.log(`[All Places] Found ${userGroups.length} groups, venueLibrary totals: ${venueLibrary.map(g => `${g.groupName}:${g.places.length}`).join(', ')}`);
+
+      // Also get manually saved group places (if any)
+      const groupPlacesPromises = userGroups.map(async (group) => {
+        const places = await storage.getGroupSavedPlaces(group.id, categoryFilter);
+        return {
+          groupId: group.id,
+          groupName: group.name,
+          groupEmoji: group.emoji,
+          places,
+        };
+      });
+
+      const groupPlaces = await Promise.all(groupPlacesPromises);
+
+      res.json({
+        personal: personalPlaces,
+        groups: groupPlaces,
+        venueLibrary, // This is the main source - voting_events from each group
+      });
+    } catch (error: any) {
+      console.error('[Get All Places] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get unreviewed venues across all groups for Places swipe flow
+  app.get("/api/user/places-swipe-queue", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = await getUserId(req);
+
+      // Get user's groups
+      const userGroups = await storage.getUserGroups(userId);
+
+      // Get user's existing votes to filter out already-voted venues
+      const userVotes = await storage.getUserVotes(userId);
+      const votedEventIds = new Set(userVotes.map(v => v.eventId));
+
+      // Build queue for each group
+      const groupQueues = await Promise.all(
+        userGroups.map(async (group) => {
+          // Get voting events for this group
+          const votingEvents = await storage.getGroupVotingEvents(group.id);
+
+          // Filter to unvoted only
+          const unvotedEvents = votingEvents.filter(
+            (event) => !votedEventIds.has(event.id)
+          );
+
+          // Get member info for context
+          const members = await storage.getGroupMembers(group.id);
+          const memberNames = members
+            .filter((m) => m.userId !== userId) // Exclude current user
+            .slice(0, 5)
+            .map((m) => m.name || m.email?.split("@")[0] || "Member");
+
+          // Get who added each venue and who liked it
+          const venuesWithContext = await Promise.all(
+            unvotedEvents.map(async (event) => {
+              // Get who added this venue
+              const addedByUser = event.createdBy
+                ? await storage.getUser(event.createdBy)
+                : null;
+              const addedByName =
+                addedByUser?.firstName ||
+                addedByUser?.email?.split("@")[0] ||
+                "Someone";
+
+              // Get who liked this venue
+              const votes = await storage.getEventVotes(event.id);
+              const upvoters = votes.filter((v) => v.voteType === "upvote");
+              const likerNames = await Promise.all(
+                upvoters.slice(0, 3).map(async (vote) => {
+                  const user = await storage.getUser(vote.odooMemberId);
+                  return user?.firstName || "Someone";
+                })
+              );
+
+              return {
+                id: event.id,
+                title: event.title,
+                venueAddress: event.venueAddress,
+                venueType: event.venueType,
+                googlePlaceId: event.googlePlaceId,
+                rating: event.rating,
+                reviewCount: event.reviewCount,
+                priceLevel: event.priceLevel,
+                photoUrl: event.photoUrl,
+                addedBy: addedByName,
+                likedBy: likerNames,
+                likedByCount: upvoters.length,
+              };
+            })
+          );
+
+          return {
+            groupId: group.id,
+            groupName: group.name,
+            groupEmoji: group.emoji || "👥",
+            memberNames,
+            memberCount: members.length,
+            venues: venuesWithContext,
+            totalUnreviewed: venuesWithContext.length,
+          };
+        })
+      );
+
+      // Filter out groups with no unreviewed venues
+      const groupsWithVenues = groupQueues.filter((g) => g.venues.length > 0);
+
+      // Sort by most venues first (or could do most recently active)
+      groupsWithVenues.sort((a, b) => b.totalUnreviewed - a.totalUnreviewed);
+
+      const totalUnreviewed = groupsWithVenues.reduce(
+        (sum, g) => sum + g.totalUnreviewed,
+        0
+      );
+
+      res.json({
+        groups: groupsWithVenues,
+        totalUnreviewed,
+        totalGroups: groupsWithVenues.length,
+      });
+    } catch (error: any) {
+      console.error("[Places Swipe Queue] Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Get curated venues for browsing
   app.get("/api/curated-venues", isAuthenticated, async (req: any, res) => {
     try {
@@ -4406,12 +4913,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // AI-powered venue alternative suggestions
   app.post("/api/venues/suggest-alternatives", isAuthenticated, async (req: any, res) => {
     try {
-      // Validate request body
-      const parseResult = safeParse(suggestAlternativesSchema, req.body);
-      if (!parseResult.success) {
-        return res.status(400).json({ error: parseResult.error.errors[0]?.message || "Invalid request" });
-      }
-      const { currentVenue, itineraryId } = parseResult.data;
+      // Validate request body - safeParse returns the data or undefined (and sends 400)
+      const validatedData = safeParse(suggestAlternativesSchema, req.body, res);
+      if (!validatedData) return; // safeParse already sent 400 response
+      const { currentVenue, itineraryId } = validatedData;
 
       // Get itinerary context if provided
       let itinerary = null;
@@ -5210,6 +5715,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "This invite is not valid for this itinerary" });
       }
 
+      // Verify the claimedMemberId matches the invite's memberId (authorization check)
+      // This prevents someone with one invite token from RSVPing as a different member
+      if (claimedMemberId && invite.memberId && claimedMemberId !== invite.memberId) {
+        return res.status(403).json({ message: "This invite is not valid for this member" });
+      }
+
       // Fetch itinerary to verify it exists
       const itinerary = await storage.getItinerary(itineraryId);
       if (!itinerary) {
@@ -5369,14 +5880,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Organizer RSVP - allows authenticated group owners to RSVP to their own events
   app.post("/api/itineraries/:itineraryId/organizer-rsvp", isAuthenticated, async (req: any, res) => {
+    console.log('[Organizer RSVP] Request received:', { params: req.params, body: req.body });
     try {
       // Validate request body
       const validatedData = safeParse(organizerRsvpSchema, req.body, res);
-      if (!validatedData) return;
+      if (!validatedData) {
+        console.log('[Organizer RSVP] Validation failed for body:', req.body);
+        return;
+      }
 
       const userId = await getUserId(req);
       const { itineraryId } = req.params;
       const { response, rsvpFeedback } = validatedData;
+      console.log('[Organizer RSVP] Validated:', { userId, itineraryId, response });
 
       // Verify itinerary exists and user is the group owner
       const itinerary = await storage.getItinerary(itineraryId);
@@ -5403,6 +5919,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       let rsvp;
       if (existingRsvps.length > 0) {
+        console.log('[Organizer RSVP] Updating existing RSVP:', existingRsvps[0].id);
         // Update existing RSVP
         const updated = await db
           .update(rsvpsTable)
@@ -5415,6 +5932,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .returning();
         rsvp = updated[0];
       } else {
+        console.log('[Organizer RSVP] Creating new RSVP');
         // Create new organizer RSVP
         const inserted = await db
           .insert(rsvpsTable)
@@ -5429,6 +5947,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         rsvp = inserted[0];
       }
 
+      console.log('[Organizer RSVP] Success:', rsvp);
       res.json(rsvp);
     } catch (error: any) {
       console.error('[Organizer RSVP] Error:', error);
@@ -7902,6 +8421,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete a single activity from the library
+  app.delete("/api/activities/:activityId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { activityId } = req.params;
+      const userId = await getUserId(req);
+
+      // Get the activity to verify it exists and check ownership
+      const activity = await storage.getActivity(activityId);
+      if (!activity) {
+        return res.status(404).json({ message: "Activity not found" });
+      }
+
+      // Verify the user owns the group this activity belongs to
+      const group = await storage.getGroup(activity.groupId);
+      if (!group || group.createdBy !== userId) {
+        return res.status(403).json({ message: "Not authorized to delete this activity" });
+      }
+
+      await storage.deleteActivity(activityId);
+      res.json({ success: true, message: "Activity deleted" });
+    } catch (error: any) {
+      console.error("[Delete Activity] Error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Create voting event from category search result (when user hearts a venue)
   app.post("/api/groups/:id/activities/from-category-result", isAuthenticated, async (req: any, res) => {
     try {
@@ -8336,8 +8881,10 @@ Looking forward to planning great activities together!
       const userVotes = await storage.getUserVotes(userId);
       const votedEventIds = new Set(userVotes.map(v => v.eventId));
 
-      // Filter out venues user has already voted on
-      const unvotedEvents = votingEvents.filter(event => !votedEventIds.has(event.id));
+      // Filter out venues user has already voted on OR created (adding = implicit like)
+      const unvotedEvents = votingEvents.filter(event =>
+        !votedEventIds.has(event.id) && event.createdBy !== userId
+      );
 
       // Get who liked each event (for "Liked by X" badges)
       const eventsWithLikers = await Promise.all(
@@ -8825,21 +9372,29 @@ Looking forward to planning great activities together!
     }
   });
 
-  // Simple places search (for ad-hoc venue dialog)
+  // Simple places search (for ad-hoc venue dialog and "search near" feature)
   app.get("/api/places/search", async (req, res) => {
     try {
-      const { query } = req.query;
+      const { query, lat, lng, radius } = req.query;
 
       if (!query || typeof query !== 'string' || query.trim().length < 2) {
         return res.json({ results: [] });
       }
 
-      // Use a default location (Bay Area) for context
+      // Check if custom coordinates are provided (for "search near itinerary venue" feature)
+      const hasCustomCoords = lat && lng &&
+        !isNaN(parseFloat(lat as string)) &&
+        !isNaN(parseFloat(lng as string));
+
+      // Use custom coordinates if provided, otherwise default to Bay Area
       const searchQuery = query.trim();
       const defaultLocation = "San Francisco Bay Area";
-      const defaultRadius = 25; // miles
+      const searchRadius = radius ? parseFloat(radius as string) : (hasCustomCoords ? 0.5 : 25); // miles
+      const coordinates = hasCustomCoords
+        ? { lat: parseFloat(lat as string), lng: parseFloat(lng as string) }
+        : { lat: 37.7749, lng: -122.4194 }; // San Francisco center
 
-      const results = await searchPlaces(searchQuery, defaultLocation, defaultRadius, undefined, false, undefined, undefined, undefined, true, true);
+      const results = await searchPlaces(searchQuery, defaultLocation, searchRadius, coordinates, false, undefined, undefined, undefined, true, true);
 
       // Return top 10 results
       const limitedResults = results.slice(0, 10).map(place => ({
@@ -8937,6 +9492,28 @@ Looking forward to planning great activities together!
       // Get group information
       const group = await storage.getGroup(itinerary.groupId);
 
+      // Get group members including organizer (filters out duplicate self-adds)
+      const groupMembers = group?.userId
+        ? await getGroupMembersWithOrganizer(itinerary.groupId, group.userId)
+        : [];
+
+      // Get organizer's RSVP if exists (userId-based, no memberId)
+      let organizerRsvp = null;
+      if (group?.userId) {
+        const organizerRsvps = await db
+          .select()
+          .from(rsvpsTable)
+          .where(
+            sql`itinerary_id = ${req.params.id} AND user_id = ${group.userId} AND member_id IS NULL`
+          );
+        if (organizerRsvps.length > 0) {
+          organizerRsvp = {
+            response: organizerRsvps[0].response,
+            rsvpFeedback: organizerRsvps[0].rsvpFeedback,
+          };
+        }
+      }
+
       // Get proposed time slots if any
       const timeSlots = await storage.getItineraryTimeSlots(req.params.id);
 
@@ -8960,6 +9537,8 @@ Looking forward to planning great activities together!
       res.json({
         ...itinerary,
         group: group,
+        members: groupMembers, // Already includes organizer and filters duplicates
+        rsvp: organizerRsvp, // Include organizer's RSVP
         proposedTimeSlots: timeSlotsWithVotes,
       });
     } catch (error: any) {
@@ -9345,6 +9924,7 @@ Looking forward to planning great activities together!
             itineraryId,
             groupId: itinerary.groupId,
             eventName: itinerary.name || 'Upcoming Event',
+            groupName: group.name,
             memberIds,
             eventDate: itinerary.eventDate,
             venueName: firstVenueName
@@ -9367,9 +9947,20 @@ Looking forward to planning great activities together!
     try {
       const userId = await getUserId(req);
 
+      console.log('[Create Itinerary] Received request body:', JSON.stringify(req.body, null, 2));
+
+      // Convert eventDate string to Date object if provided (drizzle-zod expects Date objects)
+      const bodyWithDateConversion = { ...req.body };
+      if (bodyWithDateConversion.eventDate && typeof bodyWithDateConversion.eventDate === 'string') {
+        bodyWithDateConversion.eventDate = new Date(bodyWithDateConversion.eventDate);
+      }
+
       // Validate request body
-      const validatedData = safeParse(insertItinerarySchema, req.body, res);
-      if (!validatedData) return;
+      const validatedData = safeParse(insertItinerarySchema, bodyWithDateConversion, res);
+      if (!validatedData) {
+        console.log('[Create Itinerary] Validation failed for body:', JSON.stringify(req.body, null, 2));
+        return;
+      }
 
       console.log('[Create Itinerary] Creating new itinerary:', {
         groupId: validatedData.groupId,
@@ -11131,11 +11722,77 @@ Looking forward to planning great activities together!
 
       const group = await storage.getGroup(itinerary.groupId);
 
+      // Build flattened attendee list (no guest/member distinction for guest view)
+      const attendees: Array<{
+        name: string;
+        initials: string;
+        response: string;
+        isHost: boolean;
+      }> = [];
+
+      // Get group members
+      const groupMembers = await db
+        .select()
+        .from(membersTable)
+        .where(eq(membersTable.groupId, itinerary.groupId));
+
+      // Get member RSVPs for this itinerary
+      const memberRsvps = await db
+        .select()
+        .from(rsvpsTable)
+        .where(
+          and(
+            eq(rsvpsTable.itineraryId, guestInvite.itineraryId),
+            eq(rsvpsTable.isGuest, false)
+          )
+        );
+
+      // Map member ID to RSVP response
+      const memberRsvpMap = new Map(
+        memberRsvps.map(r => [r.memberId, r.response])
+      );
+
+      // Add members to attendee list
+      for (const member of groupMembers) {
+        const name = member.name ||
+          `${member.firstName || ''} ${member.lastName || ''}`.trim() ||
+          'Member';
+        const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+        const response = memberRsvpMap.get(member.id) || 'pending';
+
+        attendees.push({
+          name,
+          initials,
+          response,
+          isHost: member.id === itinerary.hostMemberId,
+        });
+      }
+
+      // Get guest RSVPs (other guests invited to this event)
+      const guestRsvps = await db
+        .select()
+        .from(guestInvites)
+        .where(eq(guestInvites.itineraryId, guestInvite.itineraryId));
+
+      // Add guests to attendee list (flattened - no distinction)
+      for (const guest of guestRsvps) {
+        const name = guest.guestName || 'Guest';
+        const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+
+        attendees.push({
+          name,
+          initials,
+          response: guest.rsvpStatus || 'pending',
+          isHost: false, // Guests can't be hosts
+        });
+      }
+
       res.json({
         guestInvite,
         itinerary,
         items,
         group: group ? { name: group.name, emoji: group.emoji } : null,
+        attendees,
       });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -11597,6 +12254,215 @@ Looking forward to planning great activities together!
       }
 
       res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ==================== Standalone Events ====================
+
+  // Get user's standalone events
+  app.get("/api/standalone-events", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = await getUserId(req);
+      const events = await storage.getUserStandaloneEvents(userId);
+      res.json(events);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Create a standalone event
+  app.post("/api/standalone-events", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = await getUserId(req);
+      const { name, eventDate, status = 'draft' } = req.body;
+
+      if (!name) {
+        return res.status(400).json({ message: "Event name is required" });
+      }
+
+      const event = await storage.createStandaloneEvent({
+        name,
+        eventDate: eventDate ? new Date(eventDate) : null,
+        status,
+        proposedOrder: [],
+      }, userId);
+
+      res.json(event);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get a standalone event by ID
+  app.get("/api/standalone-events/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = await getUserId(req);
+      const event = await storage.getStandaloneEvent(req.params.id);
+
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      // Only the organizer can view
+      if (event.organizerId !== userId) {
+        return res.status(403).json({ message: "Not authorized to view this event" });
+      }
+
+      res.json(event);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Update a standalone event
+  app.patch("/api/standalone-events/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = await getUserId(req);
+      const event = await storage.getStandaloneEvent(req.params.id);
+
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      if (event.organizerId !== userId) {
+        return res.status(403).json({ message: "Not authorized to update this event" });
+      }
+
+      const { name, eventDate, status } = req.body;
+      const updates: any = {};
+      if (name !== undefined) updates.name = name;
+      if (eventDate !== undefined) updates.eventDate = eventDate ? new Date(eventDate) : null;
+      if (status !== undefined) updates.status = status;
+
+      const updated = await storage.updateStandaloneEvent(req.params.id, updates);
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Delete a standalone event
+  app.delete("/api/standalone-events/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = await getUserId(req);
+      const event = await storage.getStandaloneEvent(req.params.id);
+
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      if (event.organizerId !== userId) {
+        return res.status(403).json({ message: "Not authorized to delete this event" });
+      }
+
+      await storage.deleteStandaloneEvent(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ==================== Standalone Event Invitees ====================
+
+  // Add invitees to a standalone event
+  app.post("/api/standalone-events/:id/invitees", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = await getUserId(req);
+      const event = await storage.getStandaloneEvent(req.params.id);
+
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      if (event.organizerId !== userId) {
+        return res.status(403).json({ message: "Not authorized to add invitees to this event" });
+      }
+
+      const { invitees } = req.body; // Array of { memberId, sourceGroupId, inviteeName, inviteeEmail, userId? }
+
+      if (!Array.isArray(invitees) || invitees.length === 0) {
+        return res.status(400).json({ message: "Invitees array is required" });
+      }
+
+      const added = [];
+      for (const inv of invitees) {
+        const invitee = await storage.addStandaloneEventInvitee({
+          itineraryId: req.params.id,
+          memberId: inv.memberId || null,
+          userId: inv.userId || null,
+          sourceGroupId: inv.sourceGroupId || null,
+          inviteeName: inv.inviteeName || inv.name || 'Guest',
+          inviteeEmail: inv.inviteeEmail || inv.email || null,
+        });
+        added.push(invitee);
+      }
+
+      res.json(added);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Remove an invitee from a standalone event
+  app.delete("/api/standalone-events/:id/invitees/:inviteeId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = await getUserId(req);
+      const event = await storage.getStandaloneEvent(req.params.id);
+
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      if (event.organizerId !== userId) {
+        return res.status(403).json({ message: "Not authorized to remove invitees from this event" });
+      }
+
+      await storage.removeStandaloneEventInvitee(req.params.inviteeId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Public: Get event details by invite token (for invitee RSVP page)
+  app.get("/api/standalone-invite/:inviteToken", async (req, res) => {
+    try {
+      const result = await storage.getStandaloneEventByInviteToken(req.params.inviteToken);
+
+      if (!result) {
+        return res.status(404).json({ message: "Invite not found" });
+      }
+
+      // Return limited info for public view
+      res.json({
+        eventName: result.event.name,
+        eventDate: result.event.eventDate,
+        inviteeName: result.invitee.inviteeName,
+        rsvpStatus: result.invitee.rsvpStatus,
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Public: RSVP via invite token
+  app.post("/api/standalone-invite/:inviteToken/rsvp", async (req, res) => {
+    try {
+      const { rsvpStatus } = req.body;
+
+      if (!['yes', 'maybe', 'no'].includes(rsvpStatus)) {
+        return res.status(400).json({ message: "Invalid RSVP status" });
+      }
+
+      const invitee = await storage.updateStandaloneEventInviteeRsvp(req.params.inviteToken, rsvpStatus);
+
+      if (!invitee) {
+        return res.status(404).json({ message: "Invite not found" });
+      }
+
+      res.json({ success: true, rsvpStatus: invitee.rsvpStatus });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }

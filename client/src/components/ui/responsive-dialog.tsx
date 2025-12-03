@@ -25,8 +25,9 @@ import {
 
 interface ResponsiveDialogProps {
   open: boolean;
-  onOpenChange: (open: boolean) => void;
+  onOpenChange?: (open: boolean) => void;
   children: React.ReactNode;
+  modal?: boolean;
 }
 
 interface ResponsiveDialogContentProps {
@@ -58,19 +59,20 @@ export function ResponsiveDialog({
   open,
   onOpenChange,
   children,
+  modal,
 }: ResponsiveDialogProps) {
   const isMobile = useIsMobile();
 
   if (isMobile) {
     return (
-      <Drawer open={open} onOpenChange={onOpenChange}>
+      <Drawer open={open} onOpenChange={onOpenChange} modal={modal}>
         {children}
       </Drawer>
     );
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange} modal={modal}>
       {children}
     </Dialog>
   );

@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Calendar, MapPin, Check, X, HelpCircle } from "lucide-react";
+import { Calendar, MapPin, Check, X, HelpCircle, Users, Crown, Clock } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { format } from "date-fns";
 
 type GuestRsvpData = {
@@ -36,6 +37,12 @@ type GuestRsvpData = {
     name: string;
     emoji: string;
   } | null;
+  attendees?: Array<{
+    name: string;
+    initials: string;
+    response: string;
+    isHost: boolean;
+  }>;
 };
 
 export default function GuestRsvpPage() {
@@ -100,8 +107,12 @@ export default function GuestRsvpPage() {
     );
   }
 
-  const { guestInvite, itinerary, items, group } = data;
+  const { guestInvite, itinerary, items, group, attendees = [] } = data;
   const currentResponse = selectedResponse || guestInvite.rsvpStatus || '';
+
+  // Count RSVPs
+  const goingCount = attendees.filter(a => a.response === 'yes').length;
+  const maybeCount = attendees.filter(a => a.response === 'maybe').length;
 
   return (
     <div className="min-h-screen bg-background p-4">
@@ -112,6 +123,7 @@ export default function GuestRsvpPage() {
           {group && <h1 className="text-3xl font-bold">{group.name}</h1>}
           <p className="text-muted-foreground">You're invited to join us!</p>
         </div>
+
 
         {/* Event Details Card */}
         <Card data-testid="card-event-details">
@@ -219,6 +231,70 @@ export default function GuestRsvpPage() {
             ) : null}
           </CardContent>
         </Card>
+
+        {/* Who's Coming Card */}
+        {attendees.length > 0 && (
+          <Card data-testid="card-whos-coming">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Who's Coming
+              </CardTitle>
+              <CardDescription>
+                {goingCount > 0 && `${goingCount} going`}
+                {goingCount > 0 && maybeCount > 0 && ' · '}
+                {maybeCount > 0 && `${maybeCount} maybe`}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {attendees.map((attendee, idx) => (
+                  <div key={idx} className="flex items-center gap-3">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                        {attendee.initials}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium truncate">{attendee.name}</span>
+                        {attendee.isHost && (
+                          <Crown className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex-shrink-0">
+                      {attendee.response === 'yes' && (
+                        <div className="flex items-center gap-1 text-green-600 text-sm">
+                          <Check className="h-4 w-4" />
+                          <span>Going</span>
+                        </div>
+                      )}
+                      {attendee.response === 'maybe' && (
+                        <div className="flex items-center gap-1 text-yellow-600 text-sm">
+                          <HelpCircle className="h-4 w-4" />
+                          <span>Maybe</span>
+                        </div>
+                      )}
+                      {attendee.response === 'no' && (
+                        <div className="flex items-center gap-1 text-red-600 text-sm">
+                          <X className="h-4 w-4" />
+                          <span>Can't go</span>
+                        </div>
+                      )}
+                      {!attendee.response && (
+                        <div className="flex items-center gap-1 text-muted-foreground text-sm">
+                          <Clock className="h-4 w-4" />
+                          <span>Pending</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

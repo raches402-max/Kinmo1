@@ -1,6 +1,4 @@
-import { useState } from "react";
 import { Link } from "wouter";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,11 +17,10 @@ import {
   MoreVertical,
   FolderOpen,
   Pencil,
-  ChevronDown,
-  ChevronUp,
-  Crown,
   Trash2,
-  LogOut
+  LogOut,
+  Clock,
+  Sparkles
 } from "lucide-react";
 import type { Group, GroupCollection } from "@shared/schema";
 
@@ -44,27 +41,29 @@ interface GroupCardProps {
   onMoveToCollection?: (groupId: string, collectionId: string | null) => void;
   onDeleteGroup?: (groupId: string) => void;
   onLeaveGroup?: (groupId: string, memberId: string) => void;
+  nextEventDate?: string | null;
 }
 
-function getFirstInitial(name: string | null): string {
-  if (!name) return "U";
+function getInitial(name: string | null): string {
+  if (!name) return "?";
   return name.charAt(0).toUpperCase();
 }
 
-function hexToRgba(hex: string, alpha: number): string {
-  // Remove # if present
-  const cleanHex = hex.replace('#', '');
+function formatNameWithInitial(name: string | null): string {
+  if (!name) return "?";
+  const parts = name.trim().split(' ');
+  if (parts.length < 2) return name;
+  const firstName = parts[0];
+  const lastInitial = parts[parts.length - 1][0];
+  return `${firstName} ${lastInitial}.`;
+}
 
-  // Parse hex to RGB
-  const r = parseInt(cleanHex.substring(0, 2), 16);
-  const g = parseInt(cleanHex.substring(2, 4), 16);
-  const b = parseInt(cleanHex.substring(4, 6), 16);
-
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+// Soften a hex color for backgrounds (returns hex with alpha)
+function softenColor(hex: string, amount: number = 0.08): string {
+  return `${hex}${Math.round(amount * 255).toString(16).padStart(2, '0')}`;
 }
 
 function formatMeetingFrequency(frequency: string): string {
-  // Parse format like "1-week", "2-month", etc.
   const parts = frequency.split("-");
   if (parts.length !== 2) return frequency;
 
@@ -73,7 +72,6 @@ function formatMeetingFrequency(frequency: string): string {
 
   if (isNaN(num)) return frequency;
 
-  // Common frequencies get simple labels
   if (num === 1) {
     if (unit === "week") return "Weekly";
     if (unit === "month") return "Monthly";
@@ -81,8 +79,20 @@ function formatMeetingFrequency(frequency: string): string {
     if (unit === "day") return "Daily";
   }
 
-  // Everything else: "2x/month", "3x/week", etc.
   return `${num}x/${unit}`;
+}
+
+function formatEventDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffDays = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Tomorrow";
+  if (diffDays < 7) {
+    return date.toLocaleDateString('en-US', { weekday: 'short' });
+  }
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 export function GroupCard({
@@ -92,128 +102,118 @@ export function GroupCard({
   currentUserMemberId,
   onMoveToCollection,
   onDeleteGroup,
-  onLeaveGroup
+  onLeaveGroup,
+  nextEventDate
 }: GroupCardProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  // Determine if current user is an organizer
   const currentMember = group.members.find(m => m.id === currentUserMemberId);
   const isOrganizer = currentMember?.isOrganizer || false;
 
+  // Use accent color or default to a warm neutral
+  const accentColor = group.accentColor || '#6B5B6E';
+
   return (
-    <Card
-      className="hover-elevate active-elevate-2 transition-all h-full relative group overflow-hidden"
-      style={{
-        borderLeft: group.accentColor ? `4px solid ${group.accentColor}` : undefined,
-      }}
+    <div
+      className="relative card-warm rounded-2xl overflow-hidden active:scale-[0.98] transition-all duration-200 h-full"
       data-testid={`card-group-${group.id}`}
     >
       <Link href={`/group/${group.id}`} className="block">
-        <CardHeader className="pb-2">
-          <CardTitle
-            className="flex items-start justify-between gap-2 text-base px-3 py-2 rounded-md -mx-3 mb-2"
+        {/* Floating date badge in corner */}
+        {nextEventDate && (
+          <div
+            className="absolute top-3 right-12 px-2.5 py-1.5 rounded-lg text-2xs font-bold text-white z-10 flex items-center gap-1"
             style={{
-              backgroundColor: group.accentColor ? hexToRgba(group.accentColor, 0.15) : undefined,
+              backgroundColor: accentColor,
+              boxShadow: `0 2px 8px ${softenColor(accentColor, 0.4)}`
             }}
           >
-            <div className="flex items-center gap-2">
-              <span className="text-2xl" data-testid={`emoji-group-${group.id}`}>
-                {group.emoji || "🎉"}
-              </span>
-              <span>{group.name}</span>
-            </div>
-            <span className="text-xs font-normal text-muted-foreground flex-shrink-0">
-              {formatMeetingFrequency(group.meetingFrequency)}
-            </span>
-          </CardTitle>
-          <CardDescription className="flex items-center gap-1.5 text-sm">
-            <MapPin className="h-3 w-3" />
-            {group.locationBase}
-          </CardDescription>
-        </CardHeader>
-
-        <CardContent className="space-y-2 pb-3">
-          {/* Budget Row */}
-          <div className="text-sm text-muted-foreground">
-            ${group.budgetMin}-${group.budgetMax}
+            <Sparkles className="w-3 h-3" />
+            {formatEventDate(nextEventDate)}
           </div>
+        )}
 
-          {/* Member Section */}
-          {group.members && group.members.length > 0 && (
-            <div className="pt-1">
-              <div
-                className="flex items-center gap-1.5 cursor-pointer hover:bg-muted/50 rounded p-1 -m-1 transition-colors"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setIsExpanded(!isExpanded);
-                }}
-              >
-                <div className="flex -space-x-2" data-testid={`members-preview-${group.id}`}>
-                  {group.members.slice(0, 3).map((member, idx) => (
-                    <Avatar key={member.id} className="h-6 w-6 border-2 border-background" data-testid={`avatar-member-${idx}`}>
-                      <AvatarFallback className="text-xs bg-muted">
-                        {getFirstInitial(member.name)}
-                      </AvatarFallback>
-                    </Avatar>
-                  ))}
-                  {group.members.length > 3 && (
-                    <div className="h-6 w-6 rounded-full border-2 border-background bg-muted flex items-center justify-center" data-testid="members-overflow">
-                      <span className="text-xs text-muted-foreground">+{group.members.length - 3}</span>
-                    </div>
-                  )}
-                </div>
-                <span className="text-xs text-muted-foreground">
-                  {group.members.length} {group.members.length === 1 ? 'friend' : 'friends'}
-                </span>
-                {isExpanded ? (
-                  <ChevronUp className="h-3 w-3 ml-auto text-muted-foreground" />
-                ) : (
-                  <ChevronDown className="h-3 w-3 ml-auto text-muted-foreground" />
-                )}
+        {/* Header */}
+        <div className={`p-4 ${nextEventDate ? 'pr-28' : 'pr-12'}`}>
+          <div className="flex items-center gap-3">
+            {/* Emoji with warm background */}
+            <div
+              className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0 shadow-sm"
+              style={{
+                backgroundColor: softenColor(accentColor, 0.1),
+                border: `1px solid ${softenColor(accentColor, 0.15)}`
+              }}
+              data-testid={`emoji-group-${group.id}`}
+            >
+              {group.emoji || "🎉"}
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-base text-card-foreground truncate leading-tight">
+                {group.name}
+              </h3>
+              <div className="flex items-center gap-1.5 mt-1 text-sm text-muted-foreground">
+                <Clock className="w-3.5 h-3.5 flex-shrink-0 opacity-60" />
+                <span>{formatMeetingFrequency(group.meetingFrequency)}</span>
+                <span className="opacity-40">·</span>
+                <MapPin className="w-3.5 h-3.5 flex-shrink-0 opacity-60" />
+                <span className="truncate">{group.locationBase}</span>
               </div>
+            </div>
+          </div>
+        </div>
 
-              {/* Expanded Member List */}
-              {isExpanded && (
-                <div
-                  className="mt-2 grid grid-cols-2 gap-2 p-2 bg-muted/30 rounded border border-border"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
-                >
-                  {group.members.map((member) => (
-                    <div key={member.id} className="flex items-center gap-1.5 text-xs">
-                      <Avatar className="h-5 w-5">
-                        <AvatarFallback className="text-[10px] bg-background">
-                          {getFirstInitial(member.name)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="truncate">{member.name || "Unknown"}</span>
-                      {member.isOrganizer && (
-                        <Crown className="h-3 w-3 text-primary flex-shrink-0" />
-                      )}
-                    </div>
-                  ))}
+        {/* Member strip with warm tint from accent color */}
+        {group.members && group.members.length > 0 && (
+          <div
+            className="px-4 py-3 border-t border-card-border"
+            style={{
+              background: `linear-gradient(180deg, ${softenColor(accentColor, 0.03)} 0%, ${softenColor(accentColor, 0.06)} 100%)`,
+            }}
+            data-testid={`members-preview-${group.id}`}
+          >
+            <div className="flex items-center gap-3 overflow-x-auto pb-0.5">
+              {group.members.slice(0, 5).map((member, idx) => (
+                <div key={member.id} className="flex items-center gap-1.5 flex-shrink-0">
+                  <Avatar className="w-7 h-7 ring-2 ring-card shadow-sm" data-testid={`avatar-member-${idx}`}>
+                    <AvatarFallback
+                      className="text-2xs font-bold"
+                      style={{
+                        backgroundColor: softenColor(accentColor, 0.18),
+                        color: accentColor
+                      }}
+                    >
+                      {getInitial(member.name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="text-2xs text-card-foreground font-medium">
+                    {formatNameWithInitial(member.name)}
+                  </span>
                 </div>
+              ))}
+              {group.members.length > 5 && (
+                <span
+                  className="text-2xs text-muted-foreground font-medium"
+                  data-testid="members-overflow"
+                >
+                  +{group.members.length - 5}
+                </span>
               )}
             </div>
-          )}
-        </CardContent>
+          </div>
+        )}
       </Link>
 
-      {/* Dropdown Menu */}
+      {/* Dropdown Menu - Always visible */}
       {showMenu && (
-        <div className="absolute top-2 right-6" onClick={(e) => e.stopPropagation()}>
+        <div className="absolute top-3 right-3 z-20" onClick={(e) => e.stopPropagation()}>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="h-8 w-8 bg-card/80 hover:bg-card backdrop-blur-sm rounded-xl border border-card-border"
                 data-testid={`button-group-menu-${group.id}`}
               >
-                <MoreVertical className="h-4 w-4" />
+                <MoreVertical className="h-4 w-4 text-muted-foreground" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -243,7 +243,7 @@ export function GroupCard({
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
               <DropdownMenuItem asChild>
-                <Link href={`/group/${group.id}`}>
+                <Link href={`/group/${group.id}?tab=preferences`}>
                   <Pencil className="mr-2 h-4 w-4" />
                   Edit Group
                 </Link>
@@ -286,6 +286,6 @@ export function GroupCard({
           </DropdownMenu>
         </div>
       )}
-    </Card>
+    </div>
   );
 }

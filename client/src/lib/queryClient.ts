@@ -4,15 +4,30 @@ import { retryOperation } from "./errorHandling";
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     let errorMessage: string;
+    let errorDetails: any = null;
+
+    // Clone response so we can read it multiple ways if needed
+    const text = await res.text();
+
     try {
-      const json = await res.json();
+      const json = JSON.parse(text);
       errorMessage = json.message || json.error || res.statusText;
+      // Capture validation details if present
+      if (json.details) {
+        errorDetails = json.details;
+        // Append first validation error to message for visibility
+        if (Array.isArray(json.details) && json.details.length > 0) {
+          const firstError = json.details[0];
+          errorMessage += ` (${firstError.field}: ${firstError.message})`;
+        }
+      }
     } catch {
-      errorMessage = (await res.text()) || res.statusText;
+      errorMessage = text || res.statusText;
     }
 
     const error: any = new Error(errorMessage);
     error.status = res.status;
+    error.details = errorDetails;
     throw error;
   }
 }

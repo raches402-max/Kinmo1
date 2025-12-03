@@ -3,7 +3,7 @@ import { useRoute, useLocation } from "wouter";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ResponsiveDialog as Dialog, ResponsiveDialogContent as DialogContent, ResponsiveDialogDescription as DialogDescription, ResponsiveDialogFooter as DialogFooter, ResponsiveDialogHeader as DialogHeader, ResponsiveDialogTitle as DialogTitle } from "@/components/ui/responsive-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sparkles, CheckCircle, UserPlus } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -115,7 +115,7 @@ export default function ClaimMemberPage() {
           <CardHeader>
             <CardTitle>Invalid Invitation</CardTitle>
             <CardDescription>
-              This invitation link is invalid or has expired. Please contact the group organizer for a new link.
+              This invitation link is invalid or has expired.
             </CardDescription>
           </CardHeader>
         </Card>

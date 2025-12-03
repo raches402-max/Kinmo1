@@ -12,8 +12,9 @@ import { Switch } from "@/components/ui/switch";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { getErrorToast } from "@/components/ErrorDisplay";
-import { Loader2, User, ArrowLeft } from "lucide-react";
+import { Loader2, User, ArrowLeft, Moon, Sun, Palette } from "lucide-react";
 import { Link } from "wouter";
+import { useTheme } from "@/components/theme-provider";
 
 const profileFormSchema = z.object({
   displayName: z.string().max(100).optional(),
@@ -25,6 +26,7 @@ type ProfileFormValues = z.infer<typeof profileFormSchema>;
 
 export default function Profile() {
   const { toast } = useToast();
+  const { theme, toggleTheme } = useTheme();
 
   const { data: profile, isLoading } = useQuery<UserProfile | null>({
     queryKey: ['/api/user/profile'],
@@ -185,6 +187,43 @@ export default function Profile() {
                 </div>
               </form>
             </Form>
+          </CardContent>
+        </Card>
+
+        {/* Appearance Settings */}
+        <Card data-testid="card-appearance">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Palette className="h-5 w-5" />
+              Appearance
+            </CardTitle>
+            <CardDescription>
+              Customize how Kinmo looks on your device
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-row items-center justify-between rounded-md border p-4">
+              <div className="space-y-0.5">
+                <div className="text-base font-medium">Dark Mode</div>
+                <p className="text-sm text-muted-foreground">
+                  Switch between light and dark themes
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={toggleTheme}
+                data-testid="button-theme-toggle"
+                className="h-10 w-10"
+              >
+                {theme === "light" ? (
+                  <Moon className="h-5 w-5" />
+                ) : (
+                  <Sun className="h-5 w-5" />
+                )}
+                <span className="sr-only">Toggle theme</span>
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>

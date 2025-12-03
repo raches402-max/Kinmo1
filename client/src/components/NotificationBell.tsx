@@ -29,10 +29,11 @@ export function NotificationBell({ darkMode = false }: NotificationBellProps) {
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
 
-  // Fetch unread count
+  // Fetch unread count - poll every 2 minutes, but only when tab is visible
   const { data: unreadData } = useQuery<{ count: number }>({
     queryKey: ["/api/notifications/unread-count"],
-    refetchInterval: 30000, // Poll every 30 seconds
+    refetchInterval: 2 * 60 * 1000, // Poll every 2 minutes (was 30 seconds)
+    refetchIntervalInBackground: false, // Don't poll when tab is hidden
   });
 
   const unreadCount = unreadData?.count || 0;

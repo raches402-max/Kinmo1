@@ -1,32 +1,59 @@
 # Mobile Optimization Plan
 
-**Status:** Ready to implement
-**Priority:** 🔴 High
-**Estimated Time:** 22-28 hours total
+**Status:** Phase 1 Complete, Phase 2-3 remaining
+**Priority:** 🟡 Medium (foundation done)
+**Estimated Time:** 8-12 hours remaining
 **Created:** 2025-11-23
+**Updated:** 2025-11-29
 
 ---
 
 ## Executive Summary
 
-**Current State:** Mobile readiness score **3/10**
+**Current State:** Mobile readiness score **7.5/10** ✅
 
-**Good Foundation:**
+**✅ Foundation Complete (2025-11-30):**
 - ✅ Tailwind CSS + proper viewport meta
 - ✅ shadcn/ui component library (42+ components)
-- ✅ Vaul drawer library already installed
-- ✅ useIsMobile hook exists (768px breakpoint)
-- ✅ SwipeSession already mobile-friendly with touch gestures
+- ✅ Vaul drawer library integrated
+- ✅ `useIsMobile()` hook (768px breakpoint)
+- ✅ `ResponsiveDialog` - All dialogs auto-switch to Drawer on mobile (12 files converted)
+- ✅ `AvailabilityGrid` - Day-at-a-time mobile view with swipeable tabs
+- ✅ `BottomNav` - 4-tab mobile navigation (Home, Groups, Alerts, Profile)
+- ✅ `Header` - Hamburger menu with slide-out drawer
+- ✅ `EventsTable` - Mobile card view with touch-friendly layout
+- ✅ `Create Group` - 3-step wizard already implemented
+- ✅ `Group Detail` - 5-tab mobile bottom nav (refactored to component)
+- ✅ SwipeSession - Native mobile experience with Framer Motion gestures
 
-**Critical Blockers:**
-- ❌ AvailabilityGrid (7×3 grid) forces horizontal scroll on mobile
-- ❌ Group Detail page (7,881 lines) needs mobile redesign
-- ❌ All dialogs use fixed max-widths (cramped on mobile)
-- ❌ EventsTable requires horizontal scroll
-- ❌ No mobile navigation pattern
-- ❌ Create Group form too long for mobile
+**✅ Refactoring Progress (2025-11-30 - 2025-12-01):**
+- ✅ `HomeTab` extracted to `client/src/components/group-detail/HomeTab.tsx`
+- ✅ `GroupDetailMobileNav` extracted with improved touch targets (48px min)
+- ✅ Touch targets fixed: VenueCard (40px), SearchBar (32px)
+- ✅ State hooks created and integrated:
+  - `useItineraryEditor` - Edit itinerary dialog state
+  - `useVenueSelection` - Venue cart state (migrated with setters)
+  - `useSchedulingFlow` - Scheduling dialog state (migrated with setters)
+- ✅ `TimeSelectionTabs` extracted - reusable scheduling UI with editable mode
+- ✅ `InlineSchedulingCard` extracted - scheduling section with availability display
+- ✅ group-detail.tsx reduced from 7,402 → 6,828 lines (-574 lines, -7.8%)
 
-**Recommended Approach:** Hybrid strategy using responsive CSS + existing component library + mobile-first refactors.
+**Extracted Components in `client/src/components/group-detail/`:**
+- `HomeTab.tsx`
+- `GroupDetailMobileNav.tsx`
+- `ActivitiesTab.tsx`
+- `SelectedVenuesCard.tsx`
+- `ItineraryCard.tsx`
+- `AddMoreStopsCard.tsx`
+- `TimeSelectionTabs.tsx` (with editable timezone-aware mode)
+- `InlineSchedulingCard.tsx`
+
+**⏳ Remaining Work:**
+- Touch gesture polish (swipe-to-delete, pull-to-refresh)
+- Container width audit for edge cases
+- Further dialog extractions (10 dialogs remain inline)
+
+**Recommended Approach:** Polish existing implementation, focus on maintainability refactoring.
 
 ---
 
@@ -34,17 +61,17 @@
 
 ### Current Mobile Readiness Analysis
 
-**Responsive Design Maturity: 3/10**
+**Responsive Design Maturity: 7/10** ✅ (Updated 2025-11-29)
 
 **Breakdown:**
-- ✓ Tailwind + proper viewport meta (2/10)
-- ✓ UI component library installed (1/10)
-- △ Some responsive classes used (1/10)
-- △ Mobile hook exists but underused (0.5/10)
-- ✗ No mobile navigation (0/10)
-- ✗ No adaptive layouts (0/10)
-- ✗ Critical blockers unresolved (0/10)
-- △ Touch gestures (SwipeCard only) (0.5/10)
+- ✅ Tailwind + proper viewport meta (2/10)
+- ✅ UI component library installed (1/10)
+- ✅ Responsive classes used throughout (1/10)
+- ✅ Mobile hook actively used (1/10)
+- ✅ Mobile navigation complete (1/10)
+- ✅ Adaptive layouts working (1/10)
+- ⏳ Critical blockers resolved (0.5/10) - Group Detail refactor remaining
+- ✅ Touch gestures (SwipeCard, drawers) (0.5/10)
 
 ### Technology Stack
 
@@ -64,29 +91,34 @@
 - xl: 1280px (large desktops)
 - 2xl: 1536px (extra large)
 
-### Biggest Mobile UX Blockers (Priority Order)
+### Mobile UX Blockers Status (Updated 2025-11-29)
 
-1. **AvailabilityGrid** - Breaks completely on mobile (7 columns × 64px = 448px minimum)
-2. **Group Detail Page** - 7,881 lines, monolithic component needs mobile redesign
-3. **Dialog sizing** - All modals use fixed max-widths (max-w-lg, max-w-2xl, max-w-4xl)
-4. **EventsTable** - Horizontal scroll nightmare, needs card view alternative
-5. **Create Group Form** - Too long (600+ lines), needs wizard/stepper pattern
-6. **Navigation** - No mobile-friendly nav pattern (hamburger or bottom nav)
-7. **Page containers** - max-w-7xl causes horizontal scroll on many pages
-8. **Drag & drop** - @dnd-kit touch support needs testing/optimization
+1. ✅ **AvailabilityGrid** - FIXED: Day-at-a-time mobile view with swipeable tabs
+2. ⏳ **Group Detail Page** - 7,533 lines, mobile nav works but needs maintainability refactor
+3. ✅ **Dialog sizing** - FIXED: All dialogs use ResponsiveDialog (Drawer on mobile)
+4. ✅ **EventsTable** - FIXED: Mobile card view implemented
+5. ✅ **Create Group Form** - Already has 3-step wizard pattern
+6. ✅ **Navigation** - FIXED: BottomNav (4 tabs) + Header hamburger menu
+7. ⏳ **Page containers** - May need audit for edge cases
+8. ⏳ **Drag & drop** - @dnd-kit touch support needs testing
 
-### What's Already Mobile-Friendly
+### What's Mobile-Friendly Now
 
-**✓ Works Well:**
+**✅ Works Well:**
 1. SwipeSession - Native mobile experience with Framer Motion gestures
-2. Basic UI components - Buttons, inputs, cards are touch-friendly
-3. Vaul drawer - Already installed for mobile bottom sheets
-4. Design system - Color scheme and typography work at any size
+2. ResponsiveDialog - Auto-switches to Drawer on mobile (12 files converted)
+3. AvailabilityGrid - Day-at-a-time with touch-friendly tabs
+4. BottomNav - 4-tab navigation with notification badge
+5. Header - Hamburger menu with slide-out drawer
+6. EventsTable - Card view on mobile, table on desktop
+7. Create Group - 3-step wizard
+8. Group Detail - 5-tab mobile bottom navigation
+9. Design system - Color scheme and typography work at any size
 
-**△ Partially Works:**
-1. Dashboard - Basic layout works but needs optimization
-2. Header - Functions but could be better
-3. Forms - Functional but not optimized
+**⏳ Needs Polish:**
+1. Touch gestures - Swipe-to-delete, pull-to-refresh
+2. Touch targets - Verify 44x44px minimum
+3. Container widths - Audit for edge cases
 
 ---
 

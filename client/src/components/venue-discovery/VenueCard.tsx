@@ -26,6 +26,8 @@ export interface VenueData {
   venueType?: string;
   badges?: string[];
   source?: 'favorite' | 'suggestion' | 'search';
+  likedBy?: string[];
+  likedByCount?: number;
 }
 
 // Category configuration with colors matching the warm palette
@@ -43,6 +45,7 @@ interface VenueCardProps {
   venue: VenueData;
   isSelected?: boolean;
   onToggle?: () => void;
+  onClick?: () => void;
   showSource?: boolean;
   selectionMode?: 'checkbox' | 'heart' | 'none';
   size?: 'sm' | 'md' | 'lg';
@@ -53,6 +56,7 @@ function VenueCardComponent({
   venue,
   isSelected = false,
   onToggle,
+  onClick,
   showSource = false,
   selectionMode = 'checkbox',
   size = 'md',
@@ -75,6 +79,30 @@ function VenueCardComponent({
     ? (typeof venue.priceLevel === 'string' ? parseInt(venue.priceLevel) : venue.priceLevel)
     : null;
 
+  // Parse review count
+  const reviewCountNum = venue.reviewCount
+    ? (typeof venue.reviewCount === 'string' ? parseInt(venue.reviewCount) : venue.reviewCount)
+    : null;
+
+  // Extract neighborhood/city from address for compact display
+  // Addresses typically look like: "123 Main St, Mission District, San Francisco, CA 94110"
+  // We want to show: "Mission District, San Francisco" or "San Francisco, CA"
+  const getCompactAddress = (address: string): string => {
+    const parts = address.split(',').map(p => p.trim());
+    if (parts.length >= 3) {
+      // Skip street address, take neighborhood/area and city
+      // Filter out zip codes (5 digits or 5+4 format)
+      const relevantParts = parts.slice(1).filter(p => !/^\d{5}(-\d{4})?$/.test(p) && !/^[A-Z]{2}\s*\d{5}/.test(p));
+      // Take up to 2 parts (neighborhood + city or city + state)
+      return relevantParts.slice(0, 2).join(', ');
+    } else if (parts.length === 2) {
+      return parts.join(', ');
+    }
+    return address;
+  };
+
+  const compactAddress = getCompactAddress(venue.address);
+
   // Get category emoji for placeholder
   const categoryEmoji = venue.category && CATEGORY_CONFIG[venue.category as CategoryId]
     ? CATEGORY_CONFIG[venue.category as CategoryId].emoji
@@ -83,7 +111,7 @@ function VenueCardComponent({
   // Size variants
   const sizeConfig = {
     sm: {
-      card: "w-36",
+      card: "w-28 sm:w-36",
       image: "aspect-[4/3]",
       padding: "p-2",
       title: "text-sm font-medium",
@@ -91,7 +119,7 @@ function VenueCardComponent({
       icon: "h-3 w-3",
     },
     md: {
-      card: "w-44",
+      card: "w-32 sm:w-44",
       image: "aspect-[4/3]",
       padding: "p-3",
       title: "text-sm font-semibold",
@@ -110,6 +138,21 @@ function VenueCardComponent({
 
   const config = sizeConfig[size];
 
+  // Handle card click - prefer onClick, fall back to onToggle
+  const handleCardClick = () => {
+    if (onClick) {
+      onClick();
+    } else if (onToggle) {
+      onToggle();
+    }
+  };
+
+  // Handle selection button click
+  const handleSelectionClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onToggle?.();
+  };
+
   return (
     <Card
       className={cn(
@@ -119,26 +162,30 @@ function VenueCardComponent({
         config.card,
         className
       )}
-      onClick={onToggle}
+      onClick={handleCardClick}
     >
       {/* Selection indicator */}
       {selectionMode !== 'none' && onToggle && (
-        <div
+        <button
+          type="button"
+          onClick={handleSelectionClick}
+          aria-label={isSelected ? "Remove from selection" : "Add to selection"}
           className={cn(
-            "absolute top-2 right-2 z-10 w-6 h-6 rounded-full flex items-center justify-center transition-all",
+            // Improved touch target: min 44x44px with visual indicator at 32px
+            "absolute top-1 right-1 z-10 w-10 h-10 rounded-full flex items-center justify-center transition-all",
             isSelected
               ? "bg-primary text-primary-foreground"
-              : "bg-background/80 backdrop-blur-sm border opacity-0 group-hover:opacity-100"
+              : "bg-background/80 backdrop-blur-sm border sm:opacity-0 sm:group-hover:opacity-100"
           )}
         >
           {selectionMode === 'heart' ? (
-            <Heart className={cn("h-3.5 w-3.5", isSelected && "fill-current")} />
+            <Heart className={cn("h-4 w-4", isSelected && "fill-current")} />
           ) : isSelected ? (
-            <Check className="h-3.5 w-3.5" />
+            <Check className="h-4 w-4" />
           ) : (
-            <Plus className="h-3.5 w-3.5" />
+            <Plus className="h-4 w-4" />
           )}
-        </div>
+        </button>
       )}
 
       {/* Image */}
@@ -170,36 +217,34 @@ function VenueCardComponent({
 
       {/* Content */}
       <CardContent className={cn(config.padding, "space-y-1")}>
-        <div className="flex items-start gap-1.5">
-          <h4 className={cn(config.title, "truncate flex-1")}>{venue.name}</h4>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              window.open(googleMapsUrl, "_blank");
-            }}
-            className="text-muted-foreground hover:text-primary transition-colors flex-shrink-0"
-            title="View on Google Maps"
-          >
-            <ExternalLink className={config.icon} />
-          </button>
-        </div>
+        <h4 className={cn(config.title, "truncate")}>{venue.name}</h4>
 
-        <p className={cn(config.subtitle, "text-muted-foreground truncate flex items-center gap-1")}>
+        {/* Address as clickable Google Maps link */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            window.open(googleMapsUrl, "_blank");
+          }}
+          className={cn(
+            config.subtitle,
+            "text-muted-foreground hover:text-primary transition-colors flex items-center gap-1 text-left w-full"
+          )}
+          title={`${venue.address} — Open in Google Maps`}
+        >
           <MapPin className={cn(config.icon, "flex-shrink-0")} />
-          <span className="truncate">{venue.address}</span>
-        </p>
+          <span className="truncate">{compactAddress}</span>
+          <ExternalLink className={cn(config.icon, "flex-shrink-0 opacity-50")} />
+        </button>
 
         <div className="flex items-center gap-2 flex-wrap">
           {ratingNum && (
             <span className="flex items-center text-xs gap-0.5">
               <Star className="h-3 w-3 text-amber-500 fill-amber-500" />
               <span className="font-medium">{ratingNum.toFixed(1)}</span>
-              {venue.reviewCount && (
+              {reviewCountNum && reviewCountNum > 0 && (
                 <span className="text-muted-foreground">
-                  ({typeof venue.reviewCount === 'string'
-                    ? parseInt(venue.reviewCount).toLocaleString()
-                    : venue.reviewCount.toLocaleString()})
+                  ({reviewCountNum.toLocaleString()})
                 </span>
               )}
             </span>
@@ -210,6 +255,21 @@ function VenueCardComponent({
             </span>
           )}
         </div>
+
+        {/* Liked by */}
+        {venue.likedBy && venue.likedBy.length > 0 && (
+          <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+            <Heart className="h-3 w-3 fill-rose-500 text-rose-500 flex-shrink-0" />
+            <span className="truncate">
+              {venue.likedBy.length === 1
+                ? venue.likedBy[0]
+                : venue.likedBy.length === 2
+                  ? `${venue.likedBy[0]} & ${venue.likedBy[1]}`
+                  : `${venue.likedBy[0]}, ${venue.likedBy[1]} +${venue.likedBy.length - 2}`
+              }
+            </span>
+          </div>
+        )}
 
         {/* Learning badges */}
         {venue.badges && venue.badges.length > 0 && size === 'lg' && (

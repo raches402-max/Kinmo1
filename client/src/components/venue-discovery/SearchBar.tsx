@@ -86,8 +86,13 @@ export function SearchBar({
         <span>{radius} mi</span>
         <Popover open={showLocationSettings} onOpenChange={setShowLocationSettings}>
           <PopoverTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-              <Settings2 className="h-3.5 w-3.5" />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 min-w-[32px]"
+              aria-label="Location settings"
+            >
+              <Settings2 className="h-4 w-4" />
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-72" align="end">
@@ -123,7 +128,7 @@ export function SearchBar({
 
       {/* Category chips */}
       {showCategoryChips && (
-        <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
           {(Object.entries(CATEGORY_CONFIG) as [CategoryId, typeof CATEGORY_CONFIG[CategoryId]][]).map(([id, config]) => (
             <Button
               key={id}

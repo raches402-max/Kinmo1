@@ -1,7 +1,7 @@
 // Reference: javascript_database blueprint
 // Reference: javascript_log_in_with_replit blueprint
 import {
-  users, groups, members, memberGroupPreferences, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, itineraryInvites, reminderLogs, autoScheduledEvents, itineraryOptions, frequencyFeedback, venueVisitHistory, userProfiles, proposedTimeSlots, timeSlotVotes, groupCollections, categorySearchHistory, hostAssignments, groupBackups, databaseBackups, scrapedVenuesImport, curatedVenues, seenActivities, memberFavoriteVenues,
+  users, groups, members, memberGroupPreferences, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, itineraryInvites, reminderLogs, autoScheduledEvents, itineraryOptions, frequencyFeedback, venueVisitHistory, userProfiles, proposedTimeSlots, timeSlotVotes, groupCollections, categorySearchHistory, hostAssignments, groupBackups, databaseBackups, scrapedVenuesImport, curatedVenues, seenActivities, memberFavoriteVenues, userSavedPlaces, groupSavedPlaces, standaloneEventInvitees,
   type User, type UpsertUser,
   type Group, type InsertGroup, type UpdateGroup,
   type Member, type InsertMember, type UpdateMember,
@@ -25,7 +25,10 @@ import {
   type GroupBackup, type InsertGroupBackup,
   type DatabaseBackup, type InsertDatabaseBackup,
   type MemberGroupPreferences, type InsertMemberGroupPreferences,
-  type MemberFavoriteVenue, type InsertMemberFavoriteVenue
+  type MemberFavoriteVenue, type InsertMemberFavoriteVenue,
+  type UserSavedPlace, type InsertUserSavedPlace,
+  type GroupSavedPlace, type InsertGroupSavedPlace,
+  type StandaloneEventInvitee, type InsertStandaloneEventInvitee
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, or, inArray, isNull, isNotNull, gte, asc, lt } from "drizzle-orm";
@@ -83,6 +86,8 @@ export interface IStorage {
   updateActivityFeedback(activityId: string, feedback: string): Promise<Activity>;
   archiveGroupActivities(groupId: string): Promise<void>;
   deleteAllGroupActivities(groupId: string): Promise<void>;
+  deleteActivity(activityId: string): Promise<void>;
+  getActivity(activityId: string): Promise<Activity | undefined>;
 
   // Voting Events
   createVotingEvent(event: InsertVotingEvent, userId: string): Promise<VotingEvent>;
@@ -445,6 +450,71 @@ export class DatabaseStorage implements IStorage {
     return groupsWithMembers;
   }
 
+  // Get all contacts across all groups the user belongs to (for standalone event invites)
+  async getUserContacts(userId: string): Promise<Array<{
+    id: string; // Composite key: memberId
+    name: string;
+    email: string | null;
+    userId: string | null;
+    memberId: string;
+    sourceGroupId: string;
+    sourceGroupName: string;
+    sourceGroupEmoji: string | null;
+  }>> {
+    // Get all groups user belongs to
+    const userGroups = await this.getUserGroups(userId);
+
+    // Collect all members from all groups
+    const allContacts: Array<{
+      id: string;
+      name: string;
+      email: string | null;
+      userId: string | null;
+      memberId: string;
+      sourceGroupId: string;
+      sourceGroupName: string;
+      sourceGroupEmoji: string | null;
+    }> = [];
+
+    for (const group of userGroups) {
+      const groupMembers = await this.getGroupMembers(group.id);
+      for (const member of groupMembers) {
+        // Skip the current user themselves
+        if (member.userId === userId) continue;
+
+        allContacts.push({
+          id: member.id, // Use memberId as unique identifier
+          name: member.name || member.email?.split('@')[0] || 'Unknown',
+          email: member.email,
+          userId: member.userId,
+          memberId: member.id,
+          sourceGroupId: group.id,
+          sourceGroupName: group.name,
+          sourceGroupEmoji: group.emoji,
+        });
+      }
+    }
+
+    // Deduplicate by email (prioritize contacts with userId set)
+    const contactsByEmail = new Map<string, typeof allContacts[0]>();
+    const contactsWithoutEmail: typeof allContacts = [];
+
+    for (const contact of allContacts) {
+      if (contact.email) {
+        const existing = contactsByEmail.get(contact.email.toLowerCase());
+        // Keep the one with userId, or the first one if neither has userId
+        if (!existing || (contact.userId && !existing.userId)) {
+          contactsByEmail.set(contact.email.toLowerCase(), contact);
+        }
+      } else {
+        // Contacts without email can't be deduplicated
+        contactsWithoutEmail.push(contact);
+      }
+    }
+
+    return [...contactsByEmail.values(), ...contactsWithoutEmail];
+  }
+
   async getAllGroups(): Promise<Group[]> {
     return await db.select().from(groups);
   }
@@ -497,6 +567,21 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(activities)
       .where(eq(activities.groupId, groupId));
+  }
+
+  async deleteActivity(activityId: string): Promise<void> {
+    await db
+      .delete(activities)
+      .where(eq(activities.id, activityId));
+  }
+
+  async getActivity(activityId: string): Promise<Activity | undefined> {
+    const [activity] = await db
+      .select()
+      .from(activities)
+      .where(eq(activities.id, activityId))
+      .limit(1);
+    return activity;
   }
 
   async createActivity(insertActivity: InsertActivity): Promise<Activity> {
@@ -985,6 +1070,12 @@ export class DatabaseStorage implements IStorage {
       .insert(votingEvents)
       .values({ ...insertEvent, createdBy: userId })
       .returning();
+
+    // Auto-upvote: Adding a venue implies the creator likes it
+    await db
+      .insert(votes)
+      .values({ eventId: event.id, userId, voteType: 'upvote' });
+
     return event;
   }
 
@@ -1482,8 +1573,14 @@ export class DatabaseStorage implements IStorage {
     updates: {
       venueName?: string;
       venueAddress?: string;
+      venueType?: string;
       notes?: string;
       googleMapsUrl?: string;
+      googlePlaceId?: string;
+      latitude?: string;
+      longitude?: string;
+      rating?: string;
+      photoUrl?: string;
       arrivalTime?: Date | null;
       departureTime?: Date | null;
       travelNotes?: string;
@@ -3275,6 +3372,38 @@ export class DatabaseStorage implements IStorage {
     return favorites;
   }
 
+  // Get all favorite venues for a user across all their group memberships
+  async getUserAllFavoriteVenues(userId: string, category?: string): Promise<Array<MemberFavoriteVenue & { groupId: string; groupName: string; groupEmoji: string | null; memberName: string | null }>> {
+    // Join member_favorite_venues with members and groups to get full context
+    const conditions = [eq(members.userId, userId)];
+    if (category) {
+      conditions.push(eq(memberFavoriteVenues.category, category));
+    }
+
+    const favorites = await db
+      .select({
+        id: memberFavoriteVenues.id,
+        memberId: memberFavoriteVenues.memberId,
+        venuePlaceId: memberFavoriteVenues.venuePlaceId,
+        venueName: memberFavoriteVenues.venueName,
+        venueAddress: memberFavoriteVenues.venueAddress,
+        venuePhotoUrl: memberFavoriteVenues.venuePhotoUrl,
+        category: memberFavoriteVenues.category,
+        addedAt: memberFavoriteVenues.addedAt,
+        groupId: groups.id,
+        groupName: groups.name,
+        groupEmoji: groups.emoji,
+        memberName: members.name,
+      })
+      .from(memberFavoriteVenues)
+      .innerJoin(members, eq(memberFavoriteVenues.memberId, members.id))
+      .innerJoin(groups, eq(members.groupId, groups.id))
+      .where(and(...conditions))
+      .orderBy(desc(memberFavoriteVenues.addedAt));
+
+    return favorites;
+  }
+
   async addMemberFavoriteVenue(
     memberId: string,
     venue: {
@@ -3324,6 +3453,250 @@ export class DatabaseStorage implements IStorage {
       .limit(1);
 
     return !!favorite;
+  }
+
+  // ==================== User Saved Places ====================
+
+  async getUserSavedPlaces(userId: string, category?: string): Promise<UserSavedPlace[]> {
+    if (category) {
+      return db
+        .select()
+        .from(userSavedPlaces)
+        .where(and(
+          eq(userSavedPlaces.userId, userId),
+          eq(userSavedPlaces.category, category)
+        ))
+        .orderBy(desc(userSavedPlaces.createdAt));
+    }
+    return db
+      .select()
+      .from(userSavedPlaces)
+      .where(eq(userSavedPlaces.userId, userId))
+      .orderBy(desc(userSavedPlaces.createdAt));
+  }
+
+  async addUserSavedPlace(data: InsertUserSavedPlace): Promise<UserSavedPlace> {
+    const [place] = await db
+      .insert(userSavedPlaces)
+      .values(data)
+      .returning();
+    return place;
+  }
+
+  async removeUserSavedPlace(userId: string, placeId: string): Promise<void> {
+    await db
+      .delete(userSavedPlaces)
+      .where(
+        and(
+          eq(userSavedPlaces.userId, userId),
+          eq(userSavedPlaces.id, placeId)
+        )
+      );
+  }
+
+  async isUserSavedPlace(userId: string, googlePlaceId: string): Promise<boolean> {
+    const [place] = await db
+      .select()
+      .from(userSavedPlaces)
+      .where(
+        and(
+          eq(userSavedPlaces.userId, userId),
+          eq(userSavedPlaces.googlePlaceId, googlePlaceId)
+        )
+      )
+      .limit(1);
+    return !!place;
+  }
+
+  // ==================== Group Saved Places ====================
+
+  async getGroupSavedPlaces(groupId: string, category?: string): Promise<GroupSavedPlace[]> {
+    if (category) {
+      return db
+        .select()
+        .from(groupSavedPlaces)
+        .where(and(
+          eq(groupSavedPlaces.groupId, groupId),
+          eq(groupSavedPlaces.category, category)
+        ))
+        .orderBy(desc(groupSavedPlaces.createdAt));
+    }
+    return db
+      .select()
+      .from(groupSavedPlaces)
+      .where(eq(groupSavedPlaces.groupId, groupId))
+      .orderBy(desc(groupSavedPlaces.createdAt));
+  }
+
+  async addGroupSavedPlace(data: InsertGroupSavedPlace): Promise<GroupSavedPlace> {
+    const [place] = await db
+      .insert(groupSavedPlaces)
+      .values(data)
+      .returning();
+    return place;
+  }
+
+  async removeGroupSavedPlace(groupId: string, placeId: string): Promise<void> {
+    await db
+      .delete(groupSavedPlaces)
+      .where(
+        and(
+          eq(groupSavedPlaces.groupId, groupId),
+          eq(groupSavedPlaces.id, placeId)
+        )
+      );
+  }
+
+  async isGroupSavedPlace(groupId: string, googlePlaceId: string): Promise<boolean> {
+    const [place] = await db
+      .select()
+      .from(groupSavedPlaces)
+      .where(
+        and(
+          eq(groupSavedPlaces.groupId, groupId),
+          eq(groupSavedPlaces.googlePlaceId, googlePlaceId)
+        )
+      )
+      .limit(1);
+    return !!place;
+  }
+
+  // ==================== Standalone Events ====================
+
+  async createStandaloneEvent(
+    eventData: Omit<InsertItinerary, 'groupId'> & { name: string },
+    userId: string
+  ): Promise<Itinerary> {
+    const [itinerary] = await db
+      .insert(itineraries)
+      .values({
+        ...eventData,
+        groupId: null, // Standalone events have no group
+        isStandalone: true,
+        organizerId: userId,
+        createdBy: userId,
+        proposedOrder: eventData.proposedOrder || [],
+      })
+      .returning();
+    return itinerary;
+  }
+
+  async getUserStandaloneEvents(userId: string): Promise<Itinerary[]> {
+    return await db
+      .select()
+      .from(itineraries)
+      .where(
+        and(
+          eq(itineraries.isStandalone, true),
+          eq(itineraries.organizerId, userId)
+        )
+      )
+      .orderBy(desc(itineraries.createdAt));
+  }
+
+  async getStandaloneEvent(id: string): Promise<(Itinerary & { items: ItineraryItem[], invitees: StandaloneEventInvitee[] }) | undefined> {
+    const [itinerary] = await db
+      .select()
+      .from(itineraries)
+      .where(
+        and(
+          eq(itineraries.id, id),
+          eq(itineraries.isStandalone, true)
+        )
+      );
+
+    if (!itinerary) return undefined;
+
+    const items = await db
+      .select()
+      .from(itineraryItems)
+      .where(eq(itineraryItems.itineraryId, id))
+      .orderBy(itineraryItems.orderIndex);
+
+    const invitees = await db
+      .select()
+      .from(standaloneEventInvitees)
+      .where(eq(standaloneEventInvitees.itineraryId, id))
+      .orderBy(standaloneEventInvitees.createdAt);
+
+    return { ...itinerary, items, invitees };
+  }
+
+  async updateStandaloneEvent(id: string, updates: Partial<UpdateItinerary>): Promise<Itinerary> {
+    const [itinerary] = await db
+      .update(itineraries)
+      .set(updates)
+      .where(
+        and(
+          eq(itineraries.id, id),
+          eq(itineraries.isStandalone, true)
+        )
+      )
+      .returning();
+    return itinerary;
+  }
+
+  async deleteStandaloneEvent(id: string): Promise<void> {
+    await db
+      .delete(itineraries)
+      .where(
+        and(
+          eq(itineraries.id, id),
+          eq(itineraries.isStandalone, true)
+        )
+      );
+  }
+
+  // ==================== Standalone Event Invitees ====================
+
+  async addStandaloneEventInvitee(data: InsertStandaloneEventInvitee): Promise<StandaloneEventInvitee> {
+    const inviteToken = randomBytes(16).toString('hex');
+    const [invitee] = await db
+      .insert(standaloneEventInvitees)
+      .values({ ...data, inviteToken })
+      .returning();
+    return invitee;
+  }
+
+  async getStandaloneEventInvitees(itineraryId: string): Promise<StandaloneEventInvitee[]> {
+    return await db
+      .select()
+      .from(standaloneEventInvitees)
+      .where(eq(standaloneEventInvitees.itineraryId, itineraryId))
+      .orderBy(standaloneEventInvitees.createdAt);
+  }
+
+  async removeStandaloneEventInvitee(inviteeId: string): Promise<void> {
+    await db
+      .delete(standaloneEventInvitees)
+      .where(eq(standaloneEventInvitees.id, inviteeId));
+  }
+
+  async updateStandaloneEventInviteeRsvp(inviteToken: string, rsvpStatus: 'yes' | 'maybe' | 'no'): Promise<StandaloneEventInvitee | undefined> {
+    const [invitee] = await db
+      .update(standaloneEventInvitees)
+      .set({ rsvpStatus })
+      .where(eq(standaloneEventInvitees.inviteToken, inviteToken))
+      .returning();
+    return invitee;
+  }
+
+  async getStandaloneEventByInviteToken(inviteToken: string): Promise<{ invitee: StandaloneEventInvitee; event: Itinerary } | undefined> {
+    const [invitee] = await db
+      .select()
+      .from(standaloneEventInvitees)
+      .where(eq(standaloneEventInvitees.inviteToken, inviteToken));
+
+    if (!invitee) return undefined;
+
+    const [event] = await db
+      .select()
+      .from(itineraries)
+      .where(eq(itineraries.id, invitee.itineraryId));
+
+    if (!event) return undefined;
+
+    return { invitee, event };
   }
 }
 

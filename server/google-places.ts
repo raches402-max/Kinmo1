@@ -848,19 +848,39 @@ async function searchCuratedVenues(
     }
 
     // Build category filter based on query
+    // IMPORTANT: Skip category filtering if query looks like a specific venue name
+    // e.g., "Tang Bar" should search for venues named "Tang Bar", not all bars
+    // A specific venue name typically has multiple words where the first word isn't a category keyword
     const queryLower = query.toLowerCase();
+    const queryWords = query.trim().split(/\s+/);
+    const firstWord = queryWords[0]?.toLowerCase() || '';
+
+    // Category keywords that when they START a query indicate a category search
+    const categoryKeywords = ['bar', 'bars', 'restaurant', 'restaurants', 'cafe', 'cafes',
+                              'coffee', 'drinks', 'food', 'dining', 'dessert', 'museum',
+                              'concert', 'theater', 'experience', 'brewery', 'wine', 'beer'];
+
+    // If query has multiple words and doesn't start with a category keyword,
+    // it's likely a specific venue name - skip category filtering
+    const looksLikeVenueName = queryWords.length >= 2 && !categoryKeywords.includes(firstWord);
+
     let categoryFilter: string | null = null;
-    
-    if (queryLower.includes('bar') || queryLower.includes('drink') || queryLower.includes('cocktail') || queryLower.includes('wine') || queryLower.includes('beer') || queryLower.includes('brewery')) {
-      categoryFilter = 'drinks';
-    } else if (queryLower.includes('restaurant') || queryLower.includes('food') || queryLower.includes('dining') || queryLower.includes('eat')) {
-      categoryFilter = 'meal';
-    } else if (queryLower.includes('cafe') || queryLower.includes('coffee')) {
-      categoryFilter = 'cafes';
-    } else if (queryLower.includes('dessert') || queryLower.includes('ice cream') || queryLower.includes('bakery')) {
-      categoryFilter = 'dessert';
-    } else if (queryLower.includes('museum') || queryLower.includes('concert') || queryLower.includes('theater') || queryLower.includes('experience')) {
-      categoryFilter = 'experiences';
+
+    if (!looksLikeVenueName) {
+      // Only apply category filtering for generic searches like "bars" or "restaurant"
+      if (queryLower.includes('bar') || queryLower.includes('drink') || queryLower.includes('cocktail') || queryLower.includes('wine') || queryLower.includes('beer') || queryLower.includes('brewery')) {
+        categoryFilter = 'drinks';
+      } else if (queryLower.includes('restaurant') || queryLower.includes('food') || queryLower.includes('dining') || queryLower.includes('eat')) {
+        categoryFilter = 'meal';
+      } else if (queryLower.includes('cafe') || queryLower.includes('coffee')) {
+        categoryFilter = 'cafes';
+      } else if (queryLower.includes('dessert') || queryLower.includes('ice cream') || queryLower.includes('bakery')) {
+        categoryFilter = 'dessert';
+      } else if (queryLower.includes('museum') || queryLower.includes('concert') || queryLower.includes('theater') || queryLower.includes('experience')) {
+        categoryFilter = 'experiences';
+      }
+    } else {
+      console.log(`[Curated Search] Skipping category filter - query "${query}" looks like a specific venue name`);
     }
 
     // Build SQL query
@@ -893,21 +913,31 @@ async function searchCuratedVenues(
     };
 
     // Split query into words and normalize each word
-    const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length >= 3);
-    if (queryWords.length > 0) {
-      const nameConditions: any[] = [];
-
-      for (const word of queryWords) {
-        const variants = normalizeWord(word);
-        // Add all variants for this word
-        for (const variant of variants) {
-          nameConditions.push(ilike(curatedVenues.name, `%${variant}%`));
+    const searchWords = query.toLowerCase().split(/\s+/).filter(w => w.length >= 3);
+    if (searchWords.length > 0) {
+      if (looksLikeVenueName && searchWords.length >= 2) {
+        // For specific venue names like "Tang Bar", use AND logic
+        // Each word must have at least one variant match
+        const wordConditions: any[] = [];
+        for (const word of searchWords) {
+          const variants = normalizeWord(word);
+          // Any variant of this word must match (OR within word variants)
+          wordConditions.push(or(...variants.map(v => ilike(curatedVenues.name, `%${v}%`))));
         }
+        // ALL words must match (AND between words)
+        conditions.push(and(...wordConditions));
+        console.log(`[Curated Search] Using AND logic for venue name: "${query}" (${searchWords.length} words)`);
+      } else {
+        // For category searches like "bars", use OR logic for flexibility
+        const nameConditions: any[] = [];
+        for (const word of searchWords) {
+          const variants = normalizeWord(word);
+          for (const variant of variants) {
+            nameConditions.push(ilike(curatedVenues.name, `%${variant}%`));
+          }
+        }
+        conditions.push(or(...nameConditions));
       }
-
-      // Use OR logic for flexibility - any matching word variant is sufficient
-      // Results are later sorted by name similarity, so better matches rank higher
-      conditions.push(or(...nameConditions));
     } else {
       // Fallback to exact matching for very short queries
       conditions.push(ilike(curatedVenues.name, `%${query}%`));
@@ -1586,12 +1616,14 @@ export async function searchPlaces(
     const endpoint = 'https://places.googleapis.com/v1/places:searchText';
     
     // Build request body
+    // When we have coordinates, use locationBias for geographic filtering
+    // This keeps the query clean for exact name matching (e.g., "Tang Bar" instead of "Tang Bar in San Francisco")
+    // Only append location text when coordinates are NOT available
     const requestBody: any = {
-      // Always include location context for better matching, even with coordinates
-      textQuery: `${query} in ${location}`,
+      textQuery: coordinates ? query : `${query} in ${location}`,
       maxResultCount: 20,
     };
-    
+
     if (coordinates) {
       requestBody.locationBias = {
         circle: {

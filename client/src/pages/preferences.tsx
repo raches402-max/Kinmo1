@@ -32,6 +32,7 @@ import {
   Mail,
   BellRing,
 } from "lucide-react";
+import { HelpTooltip } from "@/components/HelpTooltip";
 
 type ActivityCategory = "meal" | "cafes" | "drinks" | "dessert" | "experiences";
 
@@ -222,7 +223,7 @@ function GroupBudgetOverride({
           </div>
 
           {/* Scale labels */}
-          <div className="flex justify-between text-[10px] text-muted-foreground/60 px-1">
+          <div className="flex justify-between text-2xs text-muted-foreground/60 px-1">
             <span>$0</span>
             <span>$50</span>
             <span>$100</span>
@@ -679,7 +680,12 @@ export default function Preferences() {
               </div>
               <div className="flex-1">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">Activity Types</CardTitle>
+                  <CardTitle className="text-lg flex items-center">
+                    Activity Types
+                    <HelpTooltip
+                      content="Your preferences help us suggest venues the whole group will enjoy. Selected categories appear more often in recommendations."
+                    />
+                  </CardTitle>
                   {selectedCategories.length > 0 && (
                     <Badge variant="secondary" className="text-xs">
                       {selectedCategories.length} selected

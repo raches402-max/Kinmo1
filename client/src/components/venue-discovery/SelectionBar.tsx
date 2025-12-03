@@ -41,7 +41,7 @@ export function SelectionBar({
           exit={{ y: 100, opacity: 0 }}
           transition={{ type: "spring", damping: 25, stiffness: 300 }}
           className={cn(
-            "fixed bottom-0 left-0 right-0 p-4 bg-background/95 backdrop-blur-lg border-t z-50 safe-area-pb",
+            "fixed bottom-0 left-0 right-0 p-3 sm:p-4 bg-background/95 backdrop-blur-lg border-t z-50 safe-area-pb",
             className
           )}
         >

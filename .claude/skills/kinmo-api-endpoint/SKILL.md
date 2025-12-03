@@ -1,341 +1,582 @@
 ---
-name: kinmo-api-endpoint
-description: Create Express API endpoints for Kinmo with Zod validation, authorization middleware, and proper error handling. Use when adding new API routes to server/routes.ts.
+name: kinmo-api-endpoint-cskill
+description: Generate complete Express API endpoints for Kinmo with Zod validation, authorization middleware, storage functions, and proper error handling. Activates when user says "add endpoint", "create API route", "new route for", "add API for", "endpoint that", "POST/GET/PATCH/DELETE route", or describes needing to add backend functionality. This skill generates production-ready code, not just patterns.
 ---
 
-# Kinmo API Endpoint Patterns
+# Kinmo API Endpoint Generator
 
-When creating new API endpoints for Kinmo, follow these established patterns.
+**Version:** 2.0.0
+**Type:** Code Generation Skill
+**Created by:** Agent-Skill-Creator methodology
 
-## File Locations
+---
 
-- Routes: `server/routes.ts`
-- Validation schemas: `server/validation-schemas.ts`
-- Authorization middleware: `server/authorization.ts`
-- Storage layer: `server/storage.ts`
+## Overview
 
-## Standard Endpoint Template
+This skill **generates complete, production-ready API endpoints** for Kinmo. Unlike pattern documentation, this skill actively creates the code you need when you describe what an endpoint should do.
+
+### What This Skill Does
+
+When activated, this skill will:
+1. **Generate a Zod validation schema** with proper types and error messages
+2. **Select the correct authorization middleware** based on access requirements
+3. **Write the complete Express route** with error handling and logging
+4. **Create storage layer functions** if database operations are needed
+5. **Document query keys** for frontend cache invalidation
+
+### Key Features
+
+- Autonomous code generation (not just patterns)
+- Context-aware middleware selection
+- Consistent with existing Kinmo codebase patterns
+- Generates all layers: validation → route → storage
+
+---
+
+## Skill Activation
+
+This skill uses a **3-Layer Activation System** for reliable detection.
+
+### Phrases That Activate This Skill
+
+#### Primary Activation Phrases
+1. **"add an endpoint for..."**
+   - Example: "add an endpoint for updating member preferences"
+
+2. **"create API route for..."**
+   - Example: "create API route for deleting itineraries"
+
+3. **"new route that..."**
+   - Example: "new route that lets users save favorite venues"
+
+#### HTTP Method Activation
+4. **"POST route for..."**
+   - Example: "POST route for creating a new collection"
+
+5. **"PATCH route to..."**
+   - Example: "PATCH route to update group settings"
+
+6. **"DELETE endpoint for..."**
+   - Example: "DELETE endpoint for removing a member"
+
+7. **"GET endpoint that..."**
+   - Example: "GET endpoint that returns group analytics"
+
+#### Natural Language Activation
+8. **"I need an API that..."**
+   - Example: "I need an API that lets members vote on time slots"
+
+9. **"add backend for..."**
+   - Example: "add backend for the new feedback feature"
+
+10. **"create the server side for..."**
+    - Example: "create the server side for venue bookmarking"
+
+### Phrases That Do NOT Activate
+
+1. **General coding questions**
+   - Example: "how do API endpoints work?"
+   - Reason: Educational question, not endpoint creation
+
+2. **Frontend-only requests**
+   - Example: "add a button for submitting votes"
+   - Reason: UI task, use kinmo-mutation skill instead
+
+3. **Database-only requests**
+   - Example: "write a query to get all members"
+   - Reason: Use kinmo-drizzle-query skill instead
+
+---
+
+## Autonomous Generation Protocol
+
+When this skill activates, Claude will **autonomously**:
+
+### Phase 1: Requirement Analysis
+Extract from user request:
+- **Resource**: What entity is being operated on (group, member, itinerary, etc.)
+- **Operation**: CRUD action (create, read, update, delete)
+- **Authorization**: Who should access this (owner only, members, anyone authenticated)
+- **Data requirements**: What fields are needed in request/response
+
+### Phase 2: Authorization Decision
+Automatically select middleware based on patterns:
+
+| Access Level | Middleware | When to Use |
+|--------------|------------|-------------|
+| Owner only | `requireGroupOwnership()` | Group settings, dangerous operations |
+| Owner or member | `requireGroupAccess()` | Viewing group data, participating |
+| Itinerary access | `requireItineraryAccess()` | Itinerary modifications |
+| Authenticated user | `isAuthenticated` | User profile, cross-group |
+| Admin only | `requireAdmin()` | System administration |
+| Public | (none) | Public data, health checks |
+
+### Phase 3: Code Generation
+Generate complete code in this order:
+
+1. **Zod Schema** → `server/validation-schemas.ts`
+2. **Express Route** → `server/routes.ts`
+3. **Storage Function** → `server/storage.ts` (if needed)
+4. **Query Keys** → Document for frontend
+
+---
+
+## Code Generation Templates
+
+### Template 1: Standard CRUD Endpoint
 
 ```typescript
-// In server/routes.ts
-app.post("/api/groups/:groupId/my-endpoint", isAuthenticated, requireGroupAccess(), async (req: any, res) => {
+// ===== 1. VALIDATION SCHEMA (server/validation-schemas.ts) =====
+
+export const {{schemaName}}Schema = z.object({
+  {{#each fields}}
+  {{name}}: {{zodType}},
+  {{/each}}
+});
+
+// ===== 2. EXPRESS ROUTE (server/routes.ts) =====
+
+app.{{method}}("/api/{{resourcePath}}", isAuthenticated, {{middleware}}, async (req: any, res) => {
   try {
-    const { groupId } = req.params;
+    {{#if hasParams}}
+    const { {{params}} } = req.params;
+    {{/if}}
     const userId = await getUserId(req);
 
+    {{#if hasBody}}
     // Validate request body
-    const parseResult = safeParse(myEndpointSchema, req.body);
+    const parseResult = safeParse({{schemaName}}Schema, req.body);
     if (!parseResult.success) {
       return res.status(400).json({ error: parseResult.error.errors[0]?.message || "Invalid request" });
     }
     const data = parseResult.data;
+    {{/if}}
 
     // Business logic
-    const result = await storage.doSomething(groupId, data);
+    const result = await storage.{{storageMethod}}({{storageArgs}});
 
+    {{#if isCreate}}
+    res.status(201).json(result);
+    {{else if isDelete}}
+    res.status(204).send();
+    {{else}}
     res.json(result);
+    {{/if}}
   } catch (error: any) {
-    console.error("[My Endpoint] Error:", error);
-    res.status(500).json({ error: error.message || "Failed to process request" });
+    console.error("[{{endpointName}}] Error:", error);
+    res.status(500).json({ error: error.message || "{{errorMessage}}" });
   }
 });
-```
 
-## Authorization Middleware
+// ===== 3. STORAGE FUNCTION (server/storage.ts) =====
 
-Choose the appropriate middleware based on access level:
-
-```typescript
-// Public endpoints (no auth required)
-app.get("/api/public/endpoint", async (req, res) => { ... });
-
-// Authenticated user only
-app.get("/api/user/profile", isAuthenticated, async (req: any, res) => { ... });
-
-// User must be group owner
-app.patch("/api/groups/:groupId", isAuthenticated, requireGroupOwnership(), async (req: any, res) => { ... });
-
-// User must have access to group (owner or member)
-app.get("/api/groups/:groupId", isAuthenticated, requireGroupAccess(), async (req: any, res) => { ... });
-
-// User must have access to specific itinerary
-app.get("/api/itineraries/:itineraryId", isAuthenticated, requireItineraryAccess(), async (req: any, res) => { ... });
-
-// Admin only
-app.post("/api/admin/action", isAuthenticated, requireAdmin(), async (req: any, res) => { ... });
-```
-
-## Zod Validation Schemas
-
-Add to `server/validation-schemas.ts`:
-
-```typescript
-// Simple schema
-export const myEndpointSchema = z.object({
-  name: z.string().min(1, "Name is required").max(100, "Name too long"),
-  value: z.number().int().min(0).optional(),
-  enabled: z.boolean().default(false),
-});
-
-// With unions for enum-like values
-export const updateStatusSchema = z.object({
-  status: z.union([z.literal("active"), z.literal("paused"), z.literal("completed")]),
-});
-
-// With arrays
-export const batchUpdateSchema = z.object({
-  items: z.array(z.object({
-    id: z.string(),
-    value: z.number(),
-  })).min(1, "At least one item required"),
-});
-
-// With refinements
-export const dateRangeSchema = z.object({
-  startDate: z.string().datetime(),
-  endDate: z.string().datetime(),
-}).refine(
-  (data) => new Date(data.startDate) < new Date(data.endDate),
-  { message: "Start date must be before end date" }
-);
-```
-
-## Route Organization
-
-Group routes by resource type in `server/routes.ts`:
-
-```typescript
-// ========== USER ROUTES ==========
-app.get("/api/user/profile", ...);
-app.patch("/api/user/profile", ...);
-
-// ========== GROUP ROUTES ==========
-app.get("/api/groups/:groupId", ...);
-app.patch("/api/groups/:groupId", ...);
-
-// ========== MEMBER ROUTES ==========
-app.get("/api/groups/:groupId/members", ...);
-app.post("/api/groups/:groupId/members", ...);
-
-// ========== ITINERARY ROUTES ==========
-app.get("/api/itineraries/:itineraryId", ...);
-app.patch("/api/itineraries/:itineraryId", ...);
-```
-
-## HTTP Methods
-
-```typescript
-// GET - Read data
-app.get("/api/groups/:groupId", ...);
-
-// POST - Create new resource
-app.post("/api/groups", ...);
-
-// PATCH - Partial update
-app.patch("/api/groups/:groupId", ...);
-
-// DELETE - Remove resource
-app.delete("/api/groups/:groupId/members/:memberId", ...);
-```
-
-## Error Handling
-
-```typescript
-try {
-  // Validation errors
-  if (!parseResult.success) {
-    return res.status(400).json({ error: parseResult.error.errors[0]?.message || "Invalid request" });
-  }
-
-  // Not found
-  const item = await storage.getItem(id);
-  if (!item) {
-    return res.status(404).json({ error: "Item not found" });
-  }
-
-  // Authorization (handled by middleware, but for custom checks)
-  if (item.userId !== userId) {
-    return res.status(403).json({ error: "Not authorized" });
-  }
-
-  // Success
-  res.json(result);
-} catch (error: any) {
-  console.error("[Endpoint Name] Error:", error);
-  res.status(500).json({ error: error.message || "Failed to process request" });
+async {{storageMethod}}({{storageParams}}): Promise<{{returnType}}> {
+  {{#if isSelect}}
+  const [result] = await db
+    .select()
+    .from({{table}})
+    .where({{whereClause}});
+  return result;
+  {{/if}}
+  {{#if isInsert}}
+  const [result] = await db
+    .insert({{table}})
+    .values({{values}})
+    .returning();
+  return result;
+  {{/if}}
+  {{#if isUpdate}}
+  const [result] = await db
+    .update({{table}})
+    .set({{updates}})
+    .where({{whereClause}})
+    .returning();
+  return result;
+  {{/if}}
+  {{#if isDelete}}
+  await db
+    .delete({{table}})
+    .where({{whereClause}});
+  {{/if}}
 }
+
+// ===== 4. QUERY KEYS (for frontend invalidation) =====
+// Affected: {{queryKeys}}
 ```
 
-## Getting User ID
+---
+
+## Real-World Examples
+
+### Example 1: Create Endpoint for Member Preferences
+
+**User Query:**
+```
+"add an endpoint for updating a member's activity preferences"
+```
+
+**Generated Code:**
 
 ```typescript
-// Inside authenticated routes
-const userId = await getUserId(req);
-```
+// ===== server/validation-schemas.ts =====
 
-## Database Operations
-
-Use the storage layer (`server/storage.ts`) or direct Drizzle queries:
-
-```typescript
-// Via storage layer (preferred for complex operations)
-const group = await storage.getGroup(groupId);
-const members = await storage.getGroupMembers(groupId);
-
-// Direct Drizzle queries for simple operations
-const [result] = await db
-  .update(groupsTable)
-  .set({ name: data.name, updatedAt: new Date() })
-  .where(eq(groupsTable.id, groupId))
-  .returning();
-
-// With multiple conditions
-const items = await db
-  .select()
-  .from(itemsTable)
-  .where(and(
-    eq(itemsTable.groupId, groupId),
-    eq(itemsTable.status, "active"),
-    gte(itemsTable.createdAt, startDate)
-  ))
-  .orderBy(desc(itemsTable.createdAt));
-```
-
-## Common Query Keys (for frontend invalidation reference)
-
-When documenting what the endpoint affects:
-
-```
-/api/groups/:groupId - Main group data
-/api/groups/:groupId/members - Group members
-/api/groups/:groupId/activities - Saved activities/venues
-/api/groups/:groupId/voting-events - Favorites list
-/api/groups/:groupId/saved-itineraries - Saved plans
-/api/user/events - User's upcoming events
-```
-
-## Complete Endpoint Example with All Patterns
-
-```typescript
-// 1. Add validation schema to server/validation-schemas.ts
-export const createBookingSchema = z.object({
-  itineraryId: z.string().min(1, "Itinerary ID is required"),
-  timeSlot: z.string().datetime("Invalid datetime"),
-  notes: z.string().max(500, "Notes too long").optional(),
-  attendees: z.array(z.string()).min(1, "At least one attendee required"),
+export const updateMemberPreferencesSchema = z.object({
+  activityTypes: z.array(z.enum(["meal", "drinks", "dessert", "experience", "cafes"])).optional(),
+  budgetPreference: z.enum(["budget", "moderate", "upscale"]).optional(),
+  distanceWillingToTravel: z.number().min(1).max(50).optional(),
+  dietaryRestrictions: z.array(z.string()).optional(),
 });
 
-// 2. Add route to server/routes.ts
-app.post("/api/groups/:groupId/bookings", isAuthenticated, requireGroupAccess(), async (req: any, res) => {
+// ===== server/routes.ts =====
+
+app.patch("/api/groups/:groupId/members/:memberId/preferences", isAuthenticated, requireGroupAccess(), async (req: any, res) => {
   try {
-    const { groupId } = req.params;
+    const { groupId, memberId } = req.params;
     const userId = await getUserId(req);
 
     // Validate request body
-    const parseResult = safeParse(createBookingSchema, req.body);
+    const parseResult = safeParse(updateMemberPreferencesSchema, req.body);
     if (!parseResult.success) {
       return res.status(400).json({ error: parseResult.error.errors[0]?.message || "Invalid request" });
     }
     const data = parseResult.data;
 
-    // Verify itinerary belongs to group
-    const itinerary = await storage.getItinerary(data.itineraryId);
-    if (!itinerary || itinerary.groupId !== groupId) {
-      return res.status(404).json({ error: "Itinerary not found" });
+    // Verify member belongs to group and user has access
+    const member = await storage.getMember(memberId);
+    if (!member || member.groupId !== groupId) {
+      return res.status(404).json({ error: "Member not found" });
     }
 
-    // Business logic
-    const booking = await storage.createBooking({
-      ...data,
-      groupId,
-      createdBy: userId,
-      createdAt: new Date(),
-    });
+    // Only allow member to update their own preferences, or group owner
+    const group = await storage.getGroup(groupId);
+    if (member.userId !== userId && group?.userId !== userId) {
+      return res.status(403).json({ error: "Not authorized to update this member's preferences" });
+    }
 
-    // Optional: trigger side effects
-    await notifyBookingCreated(booking);
+    // Update preferences
+    const updated = await storage.updateMemberPreferences(memberId, data);
 
-    res.status(201).json(booking);
+    res.json(updated);
   } catch (error: any) {
-    console.error("[Create Booking] Error:", error);
-    res.status(500).json({ error: error.message || "Failed to create booking" });
+    console.error("[Update Member Preferences] Error:", error);
+    res.status(500).json({ error: error.message || "Failed to update preferences" });
   }
 });
+
+// ===== server/storage.ts =====
+
+async updateMemberPreferences(
+  memberId: string,
+  preferences: {
+    activityTypes?: string[];
+    budgetPreference?: string;
+    distanceWillingToTravel?: number;
+    dietaryRestrictions?: string[];
+  }
+): Promise<Member> {
+  const [member] = await db
+    .update(members)
+    .set({
+      ...preferences,
+      updatedAt: new Date(),
+    })
+    .where(eq(members.id, memberId))
+    .returning();
+  return member;
+}
+
+// ===== Query Keys =====
+// Invalidate: ["/api/groups", groupId, "members"]
 ```
 
-## Logging Best Practices
+---
+
+### Example 2: Create Endpoint for Batch Venue Import
+
+**User Query:**
+```
+"POST route for importing multiple venues to a group's library"
+```
+
+**Generated Code:**
 
 ```typescript
-// Use consistent log prefixes matching the endpoint
-console.log(`[Create Booking] Creating booking for group ${groupId}`);
-console.error("[Create Booking] Error:", error);
+// ===== server/validation-schemas.ts =====
 
-// Include relevant IDs for debugging
-console.log(`[Update Member] User ${userId} updating member ${memberId} in group ${groupId}`);
+export const importVenuesToGroupSchema = z.object({
+  venues: z.array(z.object({
+    name: z.string().min(1, "Venue name is required"),
+    placeId: z.string().optional(),
+    address: z.string().optional(),
+    category: z.enum(["meal", "drinks", "dessert", "experience", "cafes"]),
+    notes: z.string().max(500).optional(),
+  })).min(1, "At least one venue is required").max(50, "Maximum 50 venues per import"),
+});
 
-// Log important state changes
-console.log(`[Update Group] Cadence changed from ${oldCadence} to ${newCadence}, clearing ${count} events`);
+// ===== server/routes.ts =====
+
+app.post("/api/groups/:groupId/activities/import", isAuthenticated, requireGroupOwnership(), async (req: any, res) => {
+  try {
+    const { groupId } = req.params;
+    const userId = await getUserId(req);
+
+    // Validate request body
+    const parseResult = safeParse(importVenuesToGroupSchema, req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({ error: parseResult.error.errors[0]?.message || "Invalid request" });
+    }
+    const { venues } = parseResult.data;
+
+    // Batch create activities
+    const activitiesToCreate = venues.map(venue => ({
+      groupId,
+      name: venue.name,
+      placeId: venue.placeId || null,
+      address: venue.address || null,
+      category: venue.category,
+      notes: venue.notes || null,
+      addedBy: userId,
+      createdAt: new Date(),
+    }));
+
+    const created = await storage.createActivitiesBatch(groupId, activitiesToCreate);
+
+    console.log(`[Import Venues] Imported ${created.length} venues to group ${groupId}`);
+
+    res.status(201).json({
+      imported: created.length,
+      activities: created,
+    });
+  } catch (error: any) {
+    console.error("[Import Venues] Error:", error);
+    res.status(500).json({ error: error.message || "Failed to import venues" });
+  }
+});
+
+// ===== server/storage.ts =====
+
+async createActivitiesBatch(
+  groupId: string,
+  activitiesData: InsertActivity[]
+): Promise<Activity[]> {
+  if (activitiesData.length === 0) return [];
+
+  return await db
+    .insert(activities)
+    .values(activitiesData)
+    .returning();
+}
+
+// ===== Query Keys =====
+// Invalidate: ["/api/groups", groupId, "activities"]
 ```
 
-## Response Patterns
+---
+
+### Example 3: Delete Endpoint with Cascade
+
+**User Query:**
+```
+"DELETE endpoint for removing a voting event and all its votes"
+```
+
+**Generated Code:**
 
 ```typescript
-// Success with created resource (201)
-res.status(201).json(createdResource);
+// ===== server/routes.ts =====
+// (No validation schema needed for DELETE by ID)
 
-// Success with updated resource (200)
-res.json(updatedResource);
+app.delete("/api/groups/:groupId/voting-events/:eventId", isAuthenticated, requireGroupOwnership(), async (req: any, res) => {
+  try {
+    const { groupId, eventId } = req.params;
+    const userId = await getUserId(req);
 
-// Success with metadata
-res.json({
-  ...updatedGroup,
-  cadenceChange: {
-    oldCadence: "weekly",
-    newCadence: "biweekly",
-    eventsCleared: 3,
-    eventsCreated: 2,
-  },
+    // Verify event belongs to group
+    const event = await storage.getVotingEvent(eventId);
+    if (!event || event.groupId !== groupId) {
+      return res.status(404).json({ error: "Voting event not found" });
+    }
+
+    // Delete event and cascade to votes (handled in storage)
+    await storage.deleteVotingEventWithVotes(eventId);
+
+    console.log(`[Delete Voting Event] Deleted event ${eventId} from group ${groupId}`);
+
+    res.status(204).send();
+  } catch (error: any) {
+    console.error("[Delete Voting Event] Error:", error);
+    res.status(500).json({ error: error.message || "Failed to delete voting event" });
+  }
 });
 
-// Success with no content (204)
-res.status(204).send();
+// ===== server/storage.ts =====
 
-// Batch operation result
-res.json({
-  succeeded: successfulItems,
-  failed: failedItems,
-  message: `${successfulItems.length} of ${total} items processed`,
-});
+async deleteVotingEventWithVotes(eventId: string): Promise<void> {
+  await db.transaction(async (tx) => {
+    // Delete votes first (foreign key)
+    await tx
+      .delete(votes)
+      .where(eq(votes.eventId, eventId));
+
+    // Delete the event
+    await tx
+      .delete(votingEvents)
+      .where(eq(votingEvents.id, eventId));
+  });
+}
+
+// ===== Query Keys =====
+// Invalidate:
+//   ["/api/groups", groupId, "voting-events"]
+//   ["/api/groups", groupId, "my-votes"]
 ```
 
-## Rate Limiting (for expensive operations)
+---
+
+## Zod Schema Patterns Reference
+
+### Common Field Types
 
 ```typescript
-import rateLimit from 'express-rate-limit';
+// Required string
+name: z.string().min(1, "Name is required").max(100, "Name too long"),
 
-// Create limiter for AI endpoints
-const aiLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 10, // 10 requests per minute
-  message: { error: "Too many AI requests, please try again later" },
-});
+// Optional string
+notes: z.string().max(500).optional(),
 
-// Apply to specific routes
-app.post("/api/groups/:groupId/ai-suggestions", isAuthenticated, aiLimiter, async (req, res) => {
-  // ...
-});
+// Email
+email: z.string().email("Invalid email address"),
+
+// Number with range
+amount: z.number().min(0, "Must be positive").max(1000, "Too high"),
+
+// Integer
+count: z.number().int().min(1),
+
+// Enum
+status: z.enum(["draft", "active", "completed"], {
+  errorMap: () => ({ message: "Invalid status" }),
+}),
+
+// Boolean with default
+isActive: z.boolean().default(false),
+
+// Date string
+date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (YYYY-MM-DD)"),
+
+// DateTime (ISO)
+timestamp: z.string().datetime("Invalid datetime"),
+
+// Array with constraints
+tags: z.array(z.string()).min(1, "At least one tag").max(10, "Max 10 tags"),
+
+// Nested object
+address: z.object({
+  street: z.string().min(1),
+  city: z.string().min(1),
+  zip: z.string().regex(/^\d{5}$/, "Invalid ZIP"),
+}),
+
+// Union type
+value: z.union([z.string(), z.number()]),
+
+// Cross-field validation
+.refine(data => data.minValue <= data.maxValue, {
+  message: "Min must be less than max",
+  path: ["maxValue"],
+})
 ```
+
+---
+
+## Authorization Decision Matrix
+
+| Scenario | Middleware | Example Route |
+|----------|------------|---------------|
+| Modify group settings | `requireGroupOwnership()` | PATCH /api/groups/:groupId |
+| View group data | `requireGroupAccess()` | GET /api/groups/:groupId |
+| Member voting | `requireGroupAccess()` | POST /api/groups/:groupId/votes |
+| Delete member | `requireGroupOwnership()` | DELETE /api/members/:memberId |
+| Update own profile | `isAuthenticated` | PATCH /api/user/profile |
+| View own events | `isAuthenticated` | GET /api/user/events |
+| Modify itinerary | `requireItineraryAccess()` | PATCH /api/itineraries/:id |
+| Admin operations | `requireAdmin()` | POST /api/admin/... |
+| Public info | (none) | GET /api/health |
+
+---
+
+## Query Key Reference
+
+When documenting what to invalidate:
+
+| Resource Modified | Query Keys to Invalidate |
+|-------------------|-------------------------|
+| Group settings | `["/api/groups", groupId]` |
+| Group members | `["/api/groups", groupId, "members"]` |
+| Activities/Venues | `["/api/groups", groupId, "activities"]` |
+| Voting events | `["/api/groups", groupId, "voting-events"]` |
+| User votes | `["/api/groups", groupId, "my-votes"]` |
+| Saved itineraries | `["/api/groups", groupId, "saved-itineraries"]` |
+| Proposed itineraries | `["/api/groups", groupId, "proposed-itineraries"]` |
+| Auto-scheduled events | `["/api/groups", groupId, "auto-scheduled-events"]` |
+| User events | `["/api/user/events"]` |
+| Itinerary details | `["/api/itineraries", itineraryId]` |
+| RSVPs | `["/api/itineraries", itineraryId, "rsvps"]` |
+
+---
 
 ## Endpoint Checklist
 
-When creating a new endpoint:
+Before finalizing generated code, verify:
 
-- [ ] Choose correct HTTP method (GET/POST/PATCH/DELETE)
-- [ ] Add appropriate authorization middleware
-- [ ] Create Zod validation schema in `validation-schemas.ts`
-- [ ] Validate request body with `safeParse`
-- [ ] Verify resource ownership/access if using IDs from request
-- [ ] Use storage layer for database operations
-- [ ] Return appropriate status codes (200/201/204/400/403/404/500)
-- [ ] Add try/catch with consistent error logging
-- [ ] Document affected query keys for frontend team
+- [ ] HTTP method matches the operation (GET=read, POST=create, PATCH=update, DELETE=remove)
+- [ ] Authorization middleware matches access requirements
+- [ ] Zod schema validates all user inputs
+- [ ] Error messages are user-friendly
+- [ ] Logging uses consistent `[Endpoint Name]` format
+- [ ] Status codes are correct (200/201/204/400/403/404/500)
+- [ ] Storage function handles soft deletes if applicable
+- [ ] Query keys documented for frontend team
+
+---
+
+## Troubleshooting
+
+### Skill Not Activating
+
+**Solutions:**
+1. Use action verbs: "add", "create", "make", "build"
+2. Mention "endpoint", "route", "API"
+3. Specify HTTP method: "POST route", "PATCH endpoint"
+
+**Example Fix:**
+```
+❌ "I want users to update preferences"
+✅ "add an endpoint for updating user preferences"
+```
+
+### Wrong Authorization Selected
+
+**Solution:** Be explicit about who should access:
+```
+❌ "endpoint for editing group"
+✅ "endpoint for group owner to edit group settings"
+```
+
+---
+
+## File Locations
+
+| Purpose | File Path |
+|---------|-----------|
+| Validation schemas | `server/validation-schemas.ts` |
+| Routes | `server/routes.ts` |
+| Storage layer | `server/storage.ts` |
+| Authorization | `server/authorization.ts` |
+| Schema types | `shared/schema.ts` |
+
+---
+
+**Generated by:** Agent-Skill-Creator methodology
+**Last Updated:** 2024
+**Activation System:** 3-Layer (Keywords + Patterns + Description)

@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "web", "postgresql-16"]
+modules = ["nodejs-20", "web", "postgresql-16", "python-3.12"]
 run = "npm run dev"
 hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
@@ -95,8 +95,8 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npm run dev"
-waitForPort = 3000
+args = "chmod +x start-replit.sh && ./start-replit.sh"
+waitForPort = 5000
 
 [agent]
 integrations = ["javascript_openai:1.0.0", "javascript_database:1.0.0", "javascript_log_in_with_replit:1.0.0"]

@@ -79,7 +79,11 @@ function EventCard({
   onSendInvites?: () => void;
 }) {
   const isPastEvent = event.status === "past";
-  const config = STATUS_CONFIG[event.status];
+  // Safely get config with fallback for unknown statuses
+  const config = STATUS_CONFIG[event.status] || {
+    label: event.status || "Unknown",
+    color: "bg-slate-100 text-slate-700 border-slate-200",
+  };
 
   // Calculate days until event
   const daysUntil = useMemo(() => {
@@ -132,15 +136,15 @@ function EventCard({
           {/* Status badge + actions */}
           <div className="flex items-center gap-1 flex-shrink-0">
             {isNext && !isPastEvent && (
-              <Badge variant="default" className="text-[10px] px-1.5 py-0">
+              <Badge variant="default" className="text-2xs px-1.5 py-0">
                 Next
               </Badge>
             )}
             <Badge
               variant="outline"
-              className={cn("text-[10px] px-1.5 py-0 gap-0.5", config.color)}
+              className={cn("text-2xs px-1.5 py-0 gap-0.5", config.color)}
             >
-              {STATUS_ICONS[event.status]}
+              {STATUS_ICONS[event.status] || <Calendar className="h-3.5 w-3.5" />}
               {config.label}
             </Badge>
 

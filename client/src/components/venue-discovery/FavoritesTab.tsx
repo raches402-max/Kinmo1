@@ -2,6 +2,7 @@
  * FavoritesTab - Shows group's saved venues (voting_events)
  */
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Heart, Plus, Compass } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { apiRequest } from "@/lib/queryClient";
 import { VenueData, CATEGORY_CONFIG, CategoryId } from "./VenueCard";
 import { VenueGrid } from "./VenueGrid";
+import { VenueDetailSheet } from "./VenueDetailSheet";
 import { cn } from "@/lib/utils";
 
 // API response shape for voting events
@@ -26,6 +28,7 @@ interface VotingEvent {
   category?: string;
   upvotes?: number;
   downvotes?: number;
+  likedBy?: string[];
 }
 
 interface FavoritesTabProps {
@@ -51,6 +54,8 @@ function toVenueData(event: VotingEvent): VenueData {
     category: event.category,
     venueType: event.venueType,
     source: 'favorite',
+    likedBy: event.likedBy,
+    likedByCount: event.likedBy?.length,
   };
 }
 
@@ -62,6 +67,15 @@ export function FavoritesTab({
   mode,
   className,
 }: FavoritesTabProps) {
+  // Detail sheet state
+  const [selectedVenue, setSelectedVenue] = useState<VenueData | null>(null);
+  const [detailSheetOpen, setDetailSheetOpen] = useState(false);
+
+  const handleCardClick = (venue: VenueData) => {
+    setSelectedVenue(venue);
+    setDetailSheetOpen(true);
+  };
+
   // Fetch voting events (favorites)
   const { data: votingEvents = [], isLoading } = useQuery<VotingEvent[]>({
     queryKey: [`/api/groups/${groupId}/voting-events`],
@@ -156,6 +170,7 @@ export function FavoritesTab({
                 venues={categoryVenues}
                 selectedIds={selectedIds}
                 onToggle={onToggle}
+                onCardClick={handleCardClick}
                 layout="horizontal"
                 size="md"
                 selectionMode={mode === 'select' ? 'checkbox' : 'heart'}
@@ -169,6 +184,7 @@ export function FavoritesTab({
           venues={venues}
           selectedIds={selectedIds}
           onToggle={onToggle}
+          onCardClick={handleCardClick}
           layout="grid"
           size="md"
           selectionMode={mode === 'select' ? 'checkbox' : 'heart'}
@@ -189,12 +205,21 @@ export function FavoritesTab({
             venues={venuesByCategory['other']}
             selectedIds={selectedIds}
             onToggle={onToggle}
+            onCardClick={handleCardClick}
             layout="horizontal"
             size="md"
             selectionMode={mode === 'select' ? 'checkbox' : 'heart'}
           />
         </div>
       )}
+
+      {/* Venue Detail Sheet */}
+      <VenueDetailSheet
+        venue={selectedVenue}
+        open={detailSheetOpen}
+        onOpenChange={setDetailSheetOpen}
+        groupId={groupId}
+      />
     </div>
   );
 }

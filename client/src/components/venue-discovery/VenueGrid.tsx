@@ -15,6 +15,7 @@ interface VenueGridProps {
   venues: VenueData[];
   selectedIds: Set<string>;
   onToggle: (id: string) => void;
+  onCardClick?: (venue: VenueData) => void;
   isLoading?: boolean;
   layout?: 'grid' | 'horizontal';
   size?: 'sm' | 'md' | 'lg';
@@ -34,6 +35,7 @@ export function VenueGrid({
   venues,
   selectedIds,
   onToggle,
+  onCardClick,
   isLoading = false,
   layout = 'grid',
   size = 'md',
@@ -100,7 +102,7 @@ export function VenueGrid({
   if (layout === 'horizontal') {
     return (
       <div className={cn(
-        "flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide snap-x snap-mandatory",
+        "flex gap-3 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory",
         className
       )}>
         <AnimatePresence mode="popLayout">
@@ -118,6 +120,7 @@ export function VenueGrid({
                 venue={venue}
                 isSelected={selectedIds.has(venue.id)}
                 onToggle={() => onToggle(venue.id)}
+                onClick={onCardClick ? () => onCardClick(venue) : undefined}
                 size={size}
                 selectionMode={selectionMode}
                 showSource={showSource}
@@ -171,6 +174,7 @@ export function VenueGrid({
               venue={venue}
               isSelected={selectedIds.has(venue.id)}
               onToggle={() => onToggle(venue.id)}
+              onClick={onCardClick ? () => onCardClick(venue) : undefined}
               size={size}
               selectionMode={selectionMode}
               showSource={showSource}

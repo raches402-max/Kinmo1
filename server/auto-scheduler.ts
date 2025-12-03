@@ -229,6 +229,28 @@ export async function selectBestItineraryForAutoSchedule(
   const visitStats = await getVenueVisitStats(group.id);
   console.log(`[Selection] ${visitStats.length} venues have visit history`);
 
+  // Get venues already scheduled in upcoming events (to avoid duplicates)
+  const { itineraryItems } = await import('../shared/schema');
+  const upcomingItineraryVenues = await db
+    .select({
+      sourceId: itineraryItems.sourceId,
+      sourceType: itineraryItems.sourceType,
+      venueName: itineraryItems.venueName,
+    })
+    .from(itineraryItems)
+    .innerJoin(itineraries, eq(itineraryItems.itineraryId, itineraries.id))
+    .where(
+      and(
+        eq(itineraries.groupId, group.id),
+        gte(itineraries.eventDate, new Date()), // Future events only
+        sql`${itineraries.status} IN ('draft', 'proposed', 'scheduled')` // Active events
+      )
+    );
+
+  const scheduledVenueIds = new Set(upcomingItineraryVenues.map(v => v.sourceId).filter(Boolean));
+  console.log(`[Selection] ${scheduledVenueIds.size} venues already scheduled in upcoming events:`,
+    upcomingItineraryVenues.map(v => v.venueName).join(', ') || 'none');
+
   // Score all venues
   type ScoredVenue = {
     type: 'activity' | 'voting_event';
@@ -254,6 +276,12 @@ export async function selectBestItineraryForAutoSchedule(
 
   // Score activities
   for (const activity of activities) {
+    // Skip venues already scheduled in upcoming events
+    if (scheduledVenueIds.has(activity.id)) {
+      console.log(`[Selection] Skipping ${activity.venueName} - already scheduled in upcoming event`);
+      continue;
+    }
+
     // Skip downvoted or closed venues
     if (shouldSkipVenue(activity.businessStatus, activity.feedback)) {
       if (activity.businessStatus === 'CLOSED_PERMANENTLY' || activity.businessStatus === 'CLOSED_TEMPORARILY') {
@@ -304,6 +332,12 @@ export async function selectBestItineraryForAutoSchedule(
 
   // Score voting events
   for (const votingEvent of votingEvents) {
+    // Skip venues already scheduled in upcoming events
+    if (scheduledVenueIds.has(votingEvent.id)) {
+      console.log(`[Selection] Skipping ${votingEvent.title} - already scheduled in upcoming event`);
+      continue;
+    }
+
     const voteCount = voteCounts.find(vc => vc.id === votingEvent.id);
     const upvotes = voteCount?.upvotes || 0;
     const downvotes = voteCount?.downvotes || 0;
@@ -1071,6 +1105,8 @@ export async function maintainEventPipeline(
   // Get the starting date for new events
   // This should be the next due date after all existing events
   let startDate: Date;
+  const now = new Date();
+
   if (!group.nextEventDueDate) {
     // If no next event date, calculate from last event or use now
     if (group.lastEventDate) {
@@ -1088,21 +1124,35 @@ export async function maintainEventPipeline(
     }
   }
 
+  // CRITICAL: Ensure startDate is not in the past
+  // If it is, advance it until we get a future date
+  while (startDate < now) {
+    console.log(`[Event Pipeline] Start date ${startDate.toISOString().split('T')[0]} is in the past, advancing...`);
+    startDate = calculateNextEventDueDate(startDate, group.meetingFrequency);
+  }
+
   console.log(`[Event Pipeline] Creating ${eventsNeeded} events starting from ${startDate.toISOString()}`);
 
-  // Generate future event dates with smart time selection
-  const allFutureDates = calculateFutureEventDates(startDate, group.meetingFrequency, eventsNeeded * 2, group);
-
-  // Filter out rejected dates
+  // Filter out rejected dates (only future ones matter)
   const rejectedDates = await db
     .select()
     .from(rejectedEventDates)
     .where(eq(rejectedEventDates.groupId, groupId));
 
   const rejectedDateStrs = new Set(
-    rejectedDates.map(rd => new Date(rd.rejectedDate).toISOString().split('T')[0])
+    rejectedDates
+      .filter(rd => new Date(rd.rejectedDate) >= now) // Only consider future rejected dates
+      .map(rd => new Date(rd.rejectedDate).toISOString().split('T')[0])
   );
 
+  // Generate future event dates with smart time selection
+  // Generate extra candidates to account for rejected dates AND existing events
+  // We may need to skip several dates if they already have events
+  const candidateCount = eventsNeeded * 4 + rejectedDateStrs.size;
+  const allFutureDates = calculateFutureEventDates(startDate, group.meetingFrequency, candidateCount, group);
+
+  // Filter out rejected dates but don't slice yet - we need extra candidates
+  // in case some dates already have events (duplicates)
   const futureDates = allFutureDates
     .filter(date => {
       const dateStr = date.toISOString().split('T')[0];
@@ -1111,16 +1161,21 @@ export async function maintainEventPipeline(
         return false;
       }
       return true;
-    })
-    .slice(0, eventsNeeded);
+    });
 
-  console.log(`[Event Pipeline] After filtering rejected dates: ${futureDates.length} valid dates found`);
+  console.log(`[Event Pipeline] After filtering rejected dates: ${futureDates.length} candidate dates found (need ${eventsNeeded})`);
 
   // Create a full auto-scheduled event for each date
+  // Stop when we've created enough events (eventsNeeded)
   const { itineraryOptions: itineraryOptionsTable } = await import('../shared/schema');
 
   let createdCount = 0;
   for (const eventDate of futureDates) {
+    // Stop if we've created enough events
+    if (createdCount >= eventsNeeded) {
+      break;
+    }
+
     try {
       console.log(`[Event Pipeline] Generating full event for ${group.name} on ${eventDate.toISOString()}`);
 

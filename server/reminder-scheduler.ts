@@ -1,5 +1,5 @@
 import { db } from './db';
-import { itineraries, members, reminderLogs, groups, autoScheduledEvents, itineraryInvites } from '../shared/schema';
+import { itineraries, members, reminderLogs, groups, autoScheduledEvents, itineraryInvites, rejectedEventDates } from '../shared/schema';
 import { eq, and, isNull, sql, or, lt } from 'drizzle-orm';
 import { addDays } from 'date-fns';
 import {
@@ -1386,6 +1386,40 @@ export function startReminderScheduler(): void {
     });
   }, CLEANUP_INTERVAL_MS);
 
+  // Cleanup past rejected dates - runs daily alongside event cleanup
+  const cleanupPastRejectedDates = async () => {
+    try {
+      console.log('[Rejected Dates Cleanup] Cleaning up past rejected dates...');
+
+      const now = new Date();
+      // Delete rejected dates that are more than 7 days in the past
+      const sevenDaysAgo = new Date(now);
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+      const deletedDates = await db
+        .delete(rejectedEventDates)
+        .where(lt(rejectedEventDates.rejectedDate, sevenDaysAgo))
+        .returning();
+
+      if (deletedDates.length > 0) {
+        console.log(`[Rejected Dates Cleanup] Removed ${deletedDates.length} old rejected date(s)`);
+      } else {
+        console.log('[Rejected Dates Cleanup] No old rejected dates to clean up');
+      }
+    } catch (error) {
+      console.error('[Rejected Dates Cleanup] Error:', error);
+    }
+  };
+
+  cleanupPastRejectedDates().catch(err => {
+    console.error('Error in initial rejected dates cleanup:', err);
+  });
+  setInterval(() => {
+    cleanupPastRejectedDates().catch(err => {
+      console.error('Error in scheduled rejected dates cleanup:', err);
+    });
+  }, CLEANUP_INTERVAL_MS);
+
   // Post-Event Feedback Request - runs daily
   const FEEDBACK_REQUEST_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -1458,6 +1492,7 @@ export function startReminderScheduler(): void {
             itineraryId: itinerary.id,
             groupId: group.id,
             eventName: itinerary.name || 'Recent Event',
+            groupName: group.name,
             memberIds
           });
 

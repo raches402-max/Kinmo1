@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { ResponsiveDialog as Dialog, ResponsiveDialogContent as DialogContent, ResponsiveDialogDescription as DialogDescription, ResponsiveDialogHeader as DialogHeader, ResponsiveDialogTitle as DialogTitle, ResponsiveDialogTrigger as DialogTrigger, ResponsiveDialogFooter as DialogFooter } from "@/components/ui/responsive-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -24,7 +24,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, ChevronRight, ChevronLeft, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell, Edit2, Edit, Compass, Home, UserCheck, MessageCircle, TrendingUp, AlertCircle, Users, Loader2, Map as MapIcon, Info, MoreVertical, Zap, Brain } from "lucide-react";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Group, Activity, Member, VotingEvent, Vote } from "@shared/schema";
@@ -37,6 +37,7 @@ import { SwipeSession } from "@/components/SwipeSession";
 import { FavoritesMap } from "@/components/FavoritesMap";
 import { AddAdHocVenueDialog } from "@/components/AddAdHocVenueDialog";
 import { GroupInsights } from "@/components/GroupInsights";
+import { FeedbackTab } from "@/components/FeedbackTab";
 import { UnifiedEventCreationModal } from "@/components/UnifiedEventCreationModal";
 import { DiscoverVenuesModal } from "@/components/DiscoverVenuesModal";
 import { VenueDiscoveryModule, type VenueData } from "@/components/venue-discovery";
@@ -70,6 +71,11 @@ import { CSS } from '@dnd-kit/utilities';
 import EmojiPicker from 'emoji-picker-react';
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { PlanningInsightBanner } from "@/components/PlanningInsightBanner";
+import { HelpTooltip } from "@/components/HelpTooltip";
+import { HomeTab, GroupDetailMobileNav, ActivitiesTab, SelectedVenuesCard, ItineraryCard, AddMoreStopsCard, TimeSelectionTabs, InlineSchedulingCard, SaveItineraryDialog, SendBackupDialog, InviteGuestDialog, AutoSchedulePreviewDialog, EditAvailabilityDialog, RsvpConstraintDialog, AddVenueDialog, EditGroupDialog } from "@/components/group-detail";
+import { useItineraryEditor } from "@/hooks/useItineraryEditor";
+import { useVenueSelection } from "@/hooks/useVenueSelection";
+import { useSchedulingFlow } from "@/hooks/useSchedulingFlow";
 
 // Type definition for user events
 type SafeMember = {
@@ -581,6 +587,11 @@ export default function GroupDetail() {
   // Centralized mutations hook for simple mutations without local state callbacks
   const mutations = useGroupMutations({ groupId: groupId || '' });
 
+  // Custom hooks for organized state management
+  const itineraryEditor = useItineraryEditor();
+  const venueSelection = useVenueSelection();
+  const schedulingFlow = useSchedulingFlow();
+
   // Parse URL search params for auto-opening edit dialog
   const urlParams = new URLSearchParams(window.location.search);
   const editItineraryIdFromUrl = urlParams.get('edit');
@@ -617,7 +628,7 @@ export default function GroupDetail() {
   const [showSwipeSession, setShowSwipeSession] = useState(false);
   const [showEnrichmentConfirm, setShowEnrichmentConfirm] = useState(false);
   const [pendingEventTitle, setPendingEventTitle] = useState("");
-  const [selectedVenues, setSelectedVenues] = useState<Array<{sourceType: 'activity' | 'voting_event' | 'ad_hoc', sourceId: string, adHocData?: any}>>([]);
+  // selectedVenues state now managed by venueSelection hook (see legacy aliases below)
   const [regeneratingCategory, setRegeneratingCategory] = useState<string | null>(null);
   const [showAddAdHocDialog, setShowAddAdHocDialog] = useState(false);
   const [pendingAdHocItineraryId, setPendingAdHocItineraryId] = useState<string | null>(null);
@@ -654,7 +665,7 @@ export default function GroupDetail() {
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [duplicateEventData, setDuplicateEventData] = useState<any>(null);
   const [existingDuplicate, setExistingDuplicate] = useState<VotingEvent | null>(null);
-  const [addedSuggestionPlaceIds, setAddedSuggestionPlaceIds] = useState<Set<string>>(new Set());
+  // addedSuggestionPlaceIds state now managed by venueSelection hook (see legacy aliases below)
   const [venueSearchQuery, setVenueSearchQuery] = useState("");
   const [debouncedVenueSearchQuery, setDebouncedVenueSearchQuery] = useState("");
   const [addMoreStopsOpen, setAddMoreStopsOpen] = useState(false);
@@ -663,14 +674,7 @@ export default function GroupDetail() {
   const [savingItineraryId, setSavingItineraryId] = useState<string | null>(null);
   const [timingRecommendations, setTimingRecommendations] = useState("");
   const [timingNotesOpen, setTimingNotesOpen] = useState(false);
-  const [aiTimeOptions, setAiTimeOptions] = useState<Array<{ id: string; eventDate: string; dayLabel: string; timeLabel: string }>>([]);
-  const [selectedTimeOptionIds, setSelectedTimeOptionIds] = useState<string[]>([]);
-  const [editingOptionId, setEditingOptionId] = useState<string | null>(null);
-  const [aiTimeLoading, setAiTimeLoading] = useState(false);
-  const [selectedItineraryForScheduling, setSelectedItineraryForScheduling] = useState<any | null>(null);
-  const [scheduleMethod, setScheduleMethod] = useState<'manual' | 'ai'>('ai');
-  const [eventDate, setEventDate] = useState("");
-  const [eventTime, setEventTime] = useState("19:00");
+  // Scheduling flow state now managed by schedulingFlow hook (see legacy aliases below)
   const [rsvpConstraintOpen, setRsvpConstraintOpen] = useState(false);
   const [rsvpItineraryId, setRsvpItineraryId] = useState<string | null>(null);
   const [constraintText, setConstraintText] = useState("");
@@ -683,16 +687,53 @@ export default function GroupDetail() {
   const [editAvailabilityNotes, setEditAvailabilityNotes] = useState("");
   const [editMeetingFreqNumber, setEditMeetingFreqNumber] = useState(1);
   const [editMeetingFreqUnit, setEditMeetingFreqUnit] = useState("weeks");
-  const [editItineraryOpen, setEditItineraryOpen] = useState(false);
-  const [editingItinerary, setEditingItinerary] = useState<any | null>(null);
-  const [editItineraryName, setEditItineraryName] = useState("");
-  const [editItineraryItems, setEditItineraryItems] = useState<any[]>([]);
-  const [editTimingRecommendations, setEditTimingRecommendations] = useState("");
-  const [editProposedDate, setEditProposedDate] = useState("");
+  // Itinerary editor state now managed by itineraryEditor hook
+  // Legacy aliases for compatibility during migration:
+  const editItineraryOpen = itineraryEditor.isOpen;
+  const setEditItineraryOpen = itineraryEditor.setIsOpen;
+  const editingItinerary = itineraryEditor.editingItinerary;
+  const editItineraryName = itineraryEditor.name;
+  const setEditItineraryName = itineraryEditor.setName;
+  const editItineraryItems = itineraryEditor.items;
+  const setEditItineraryItems = itineraryEditor.setItems;
+  const editTimingRecommendations = itineraryEditor.timingRecommendations;
+  const setEditTimingRecommendations = itineraryEditor.setTimingRecommendations;
+  const editProposedDate = itineraryEditor.proposedDate;
+  const setEditProposedDate = itineraryEditor.setProposedDate;
+
+  // Venue selection state now managed by venueSelection hook
+  // Legacy aliases for compatibility during migration:
+  const selectedVenues = venueSelection.selectedVenues;
+  const setSelectedVenues = venueSelection.setVenues;
+  const addedSuggestionPlaceIds = venueSelection.addedSuggestionPlaceIds;
+  const setAddedSuggestionPlaceIds = venueSelection.setPlaceIds;
+
+  // Scheduling flow state now managed by schedulingFlow hook
+  // Legacy aliases for compatibility during migration:
+  const aiTimeOptions = schedulingFlow.aiTimeOptions;
+  const setAiTimeOptions = schedulingFlow.setAiTimeOptions;
+  const selectedTimeOptionIds = schedulingFlow.selectedTimeOptionIds;
+  const setSelectedTimeOptionIds = schedulingFlow.setSelectedTimeOptionIds;
+  const editingOptionId = schedulingFlow.editingOptionId;
+  const setEditingOptionId = schedulingFlow.setEditingOptionId;
+  const aiTimeLoading = schedulingFlow.isAiTimeLoading;
+  const setAiTimeLoading = schedulingFlow.setIsAiTimeLoading;
+  const selectedItineraryForScheduling = schedulingFlow.selectedItinerary;
+  const setSelectedItineraryForScheduling = (itinerary: any) => {
+    if (itinerary) {
+      schedulingFlow.openScheduling(itinerary);
+    } else {
+      schedulingFlow.closeScheduling();
+    }
+  };
+  const scheduleMethod = schedulingFlow.scheduleMethod;
+  const setScheduleMethod = schedulingFlow.setScheduleMethod;
+  const eventDate = schedulingFlow.eventDate;
+  const setEventDate = schedulingFlow.setEventDate;
+  const eventTime = schedulingFlow.eventTime;
+  const setEventTime = schedulingFlow.setEventTime;
+
   const [addVenueDialogOpen, setAddVenueDialogOpen] = useState(false);
-  const [venuesToAdd, setVenuesToAdd] = useState<Array<{sourceType: 'activity' | 'voting_event', sourceId: string}>>([]);
-  const [dialogVenueSearchQuery, setDialogVenueSearchQuery] = useState("");
-  const [debouncedDialogSearchQuery, setDebouncedDialogSearchQuery] = useState("");
   const [expandedNearbyVenueId, setExpandedNearbyVenueId] = useState<string | null>(null);
   const [venueNearbySuggestions, setVenueNearbySuggestions] = useState<Record<string, any[]>>({});
   
@@ -864,26 +905,20 @@ export default function GroupDetail() {
     enabled: !!groupId,
   });
 
-  // Fetch feedback summary
-  const { data: feedbackSummary, isLoading: feedbackLoading } = useQuery<any>({
-    queryKey: ["/api/groups", groupId, "feedback-summary"],
-    enabled: !!groupId && !!user,
+  // Fetch user events filtered by this group (server-side filtering for better performance)
+  const { data: groupEvents = [], isLoading: eventsLoading } = useQuery<UserEvent[]>({
+    queryKey: ["/api/user/events", { groupId }],
+    queryFn: async () => {
+      const response = await fetch(`/api/user/events?groupId=${groupId}`, {
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch events');
+      }
+      return response.json();
+    },
+    enabled: !!user && !!groupId,
   });
-
-  // Fetch post-event feedback summary
-  const { data: postEventFeedbackSummary, isLoading: postEventFeedbackLoading } = useQuery<any>({
-    queryKey: ["/api/groups", groupId, "post-event-feedback-summary"],
-    enabled: !!groupId && !!user,
-  });
-
-  // Fetch all user events and filter by group
-  const { data: allUserEvents = [], isLoading: eventsLoading } = useQuery<UserEvent[]>({
-    queryKey: ["/api/user/events"],
-    enabled: !!user,
-  });
-
-  // Filter events for this specific group
-  const groupEvents = allUserEvents.filter(event => event.groupId === groupId);
 
   // Transform pending auto-events into UserEvent format and merge with regular events
   const autoEventsAsUserEvents: UserEvent[] = pendingAutoEvents.map((autoEvent: any) => ({
@@ -968,20 +1003,30 @@ export default function GroupDetail() {
   }, [pendingAutoEvents]);
 
   // Categorize group events (including auto-events)
-  const now = new Date();
-  const pendingInvites = allGroupEvents.filter(e => !e.isOrganizer && !e.rsvp && (!e.eventDate || new Date(e.eventDate) > now));
-  const guestApprovalEvents = allGroupEvents.filter(e => e.isOrganizer && e.pendingGuestRsvps && e.pendingGuestRsvps.length > 0 && (!e.eventDate || new Date(e.eventDate) > now));
-  const upcomingEvents = allGroupEvents.filter(e => {
-    const isFutureOrTBD = !e.eventDate || new Date(e.eventDate) > now;
-    if (e.isOrganizer) return isFutureOrTBD;
-    return e.rsvp && e.rsvp.response !== 'no' && isFutureOrTBD;
-  });
-  const pastEvents = allGroupEvents.filter(e => e.eventDate && new Date(e.eventDate) <= now);
+  // Memoize event categorization to prevent recalculation on unrelated state changes
+  const { pendingInvites, guestApprovalEvents, upcomingEvents, pastEvents } = useMemo(() => {
+    const now = new Date();
+    return {
+      pendingInvites: allGroupEvents.filter(e => !e.isOrganizer && !e.rsvp && (!e.eventDate || new Date(e.eventDate) > now)),
+      guestApprovalEvents: allGroupEvents.filter(e => e.isOrganizer && e.pendingGuestRsvps && e.pendingGuestRsvps.length > 0 && (!e.eventDate || new Date(e.eventDate) > now)),
+      upcomingEvents: allGroupEvents.filter(e => {
+        const isFutureOrTBD = !e.eventDate || new Date(e.eventDate) > now;
+        if (e.isOrganizer) return isFutureOrTBD;
+        return e.rsvp && e.rsvp.response !== 'no' && isFutureOrTBD;
+      }),
+      pastEvents: allGroupEvents.filter(e => e.eventDate && new Date(e.eventDate) <= now)
+    };
+  }, [allGroupEvents]);
+
+  // Memoize grouped events to prevent recalculation on unrelated state changes
+  const groupedUpcomingEvents = useMemo(() => {
+    return groupEventsByTime(upcomingEvents);
+  }, [upcomingEvents]);
 
   // State for expanded events in the table
   const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
 
-  const toggleEventExpand = (eventId: string) => {
+  const toggleEventExpand = useCallback((eventId: string) => {
     setExpandedEvents(prev => {
       const newSet = new Set(prev);
       if (newSet.has(eventId)) {
@@ -991,7 +1036,7 @@ export default function GroupDetail() {
       }
       return newSet;
     });
-  };
+  }, []);
 
   // Check if user is group owner
   const isOwner = user?.id === group?.userId;
@@ -1047,22 +1092,6 @@ export default function GroupDetail() {
       return data.results || [];
     },
     enabled: !!groupId && debouncedVenueSearchQuery.trim().length >= 2,
-    staleTime: 30000, // Cache for 30 seconds
-  });
-
-  // Dialog venue search query
-  const { data: dialogVenueSearchResults = [] } = useQuery<any[]>({
-    queryKey: ["/api/groups", groupId, "search-venues-dialog", debouncedDialogSearchQuery.trim()],
-    queryFn: async () => {
-      if (!debouncedDialogSearchQuery.trim() || debouncedDialogSearchQuery.trim().length < 2) {
-        return [];
-      }
-      const response = await fetch(`/api/groups/${groupId}/search-venues?query=${encodeURIComponent(debouncedDialogSearchQuery.trim())}`);
-      if (!response.ok) throw new Error('Search failed');
-      const data = await response.json();
-      return data.results || [];
-    },
-    enabled: !!groupId && addVenueDialogOpen && debouncedDialogSearchQuery.trim().length >= 2,
     staleTime: 30000, // Cache for 30 seconds
   });
 
@@ -1128,15 +1157,6 @@ export default function GroupDetail() {
     return () => clearTimeout(timer);
   }, [venueSearchQuery]);
 
-  // Debounce dialog venue search query
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedDialogSearchQuery(dialogVenueSearchQuery);
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [dialogVenueSearchQuery]);
-
   // Auto-refresh countdowns every minute
   useEffect(() => {
     const interval = setInterval(() => {
@@ -1148,21 +1168,16 @@ export default function GroupDetail() {
 
   // Auto-open edit dialog when URL contains ?edit=<itineraryId>
   useEffect(() => {
-    if (editItineraryIdFromUrl && proposedItineraries.length > 0 && !editItineraryOpen) {
+    if (editItineraryIdFromUrl && proposedItineraries.length > 0 && !itineraryEditor.isOpen) {
       const itinerary = proposedItineraries.find((it: any) => it.id === editItineraryIdFromUrl);
       if (itinerary) {
-        setEditingItinerary(itinerary);
-        setEditItineraryName(itinerary.name || "");
-        setEditItineraryItems(itinerary.items || []);
-        setEditTimingRecommendations(itinerary.timingRecommendations || "");
-        setEditProposedDate(itinerary.eventDate || "");
-        setEditItineraryOpen(true);
-        
+        itineraryEditor.openEditor(itinerary);
+
         // Clear URL parameter after opening (optional - keeps URL cleaner)
         window.history.replaceState({}, '', window.location.pathname);
       }
     }
-  }, [editItineraryIdFromUrl, proposedItineraries, editItineraryOpen]);
+  }, [editItineraryIdFromUrl, proposedItineraries, itineraryEditor.isOpen]);
 
   // Fetch member group preferences
   const { data: memberPreferences } = useQuery({
@@ -2256,9 +2271,8 @@ export default function GroupDetail() {
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "saved-itineraries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "proposed-itineraries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/members/me/events"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
-      setEditItineraryOpen(false);
-      setEditingItinerary(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/user/events", { groupId }] });
+      itineraryEditor.reset();
       toast({
         title: "Plan updated",
         description: "Your changes have been saved",
@@ -2282,9 +2296,8 @@ export default function GroupDetail() {
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "proposed-itineraries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "itineraries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/members/me/events"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
-      setEditItineraryOpen(false);
-      setEditingItinerary(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/user/events", { groupId }] });
+      itineraryEditor.reset();
       toast({
         title: "Event deleted",
         description: "The event has been removed",
@@ -2307,7 +2320,6 @@ export default function GroupDetail() {
       // Add the new items to the local state
       setEditItineraryItems(prev => [...prev, ...newItems]);
       setAddVenueDialogOpen(false);
-      setVenuesToAdd([]);
       toast({
         title: "Venues added",
         description: `${newItems.length} venue(s) added to the plan`,
@@ -2350,7 +2362,7 @@ export default function GroupDetail() {
       // Only invalidate queries - state reset happens in button click handler
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "saved-itineraries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "proposed-itineraries"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/events", { groupId }] });
     },
     onError: (error: Error) => {
       toast({
@@ -2777,159 +2789,26 @@ export default function GroupDetail() {
           </TabsList>
 
           {/* Mobile bottom navigation */}
-          <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border z-50 sm:hidden safe-area-pb">
-            <div className="flex justify-around py-2">
-              <button
-                onClick={() => setActiveTab("home")}
-                className={`flex flex-col items-center px-3 py-1.5 rounded-lg transition-colors ${activeTab === "home" ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
-              >
-                <Home className="h-5 w-5" />
-                <span className="text-[10px] mt-0.5 font-medium">Home</span>
-              </button>
-              <button
-                onClick={() => setActiveTab("preferences")}
-                className={`flex flex-col items-center px-3 py-1.5 rounded-lg transition-colors ${activeTab === "preferences" ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
-              >
-                <Settings className="h-5 w-5" />
-                <span className="text-[10px] mt-0.5 font-medium">Group</span>
-              </button>
-              <button
-                onClick={() => setActiveTab("activities")}
-                className={`flex flex-col items-center px-3 py-1.5 rounded-lg transition-colors ${activeTab === "activities" ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
-              >
-                <Compass className="h-5 w-5" />
-                <span className="text-[10px] mt-0.5 font-medium">Explore</span>
-              </button>
-              <button
-                onClick={() => setActiveTab("build")}
-                className={`flex flex-col items-center px-3 py-1.5 rounded-lg transition-colors ${activeTab === "build" ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
-              >
-                <Calendar className="h-5 w-5" />
-                <span className="text-[10px] mt-0.5 font-medium">Create</span>
-              </button>
-              <button
-                onClick={() => setActiveTab("feedback")}
-                className={`flex flex-col items-center px-3 py-1.5 rounded-lg transition-colors ${activeTab === "feedback" ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
-              >
-                <TrendingUp className="h-5 w-5" />
-                <span className="text-[10px] mt-0.5 font-medium">Insights</span>
-              </button>
-            </div>
-          </nav>
+          <GroupDetailMobileNav
+            activeTab={activeTab as "home" | "preferences" | "activities" | "build" | "feedback"}
+            onTabChange={setActiveTab}
+          />
 
           {/* Home Tab */}
           <TabsContent value="home" className="space-y-6">
-            <div className="max-w-6xl mx-auto space-y-6">
-              {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <Button
-                  onClick={() => setEventCreationModalOpen(true)}
-                  size="lg"
-                  className="gap-2"
-                  data-testid="button-schedule-event"
-                >
-                  <Calendar className="h-5 w-5" />
-                  Schedule Event
-                </Button>
-                <Button
-                  onClick={() => setDiscoverVenuesModalOpen(true)}
-                  size="lg"
-                  variant="outline"
-                  className="gap-2"
-                  data-testid="button-discover-venues"
-                >
-                  <Compass className="h-5 w-5" />
-                  Discover Venues
-                </Button>
-              </div>
-
-              {/* Events Overview */}
-              {!eventsLoading && allGroupEvents.length === 0 && (
-                <Card>
-                  <CardContent className="py-12 text-center">
-                    <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                    <h3 className="text-lg font-semibold mb-2">No Events Yet</h3>
-                    <p className="text-muted-foreground mb-4">
-                      Get started by creating your first event for this group
-                    </p>
-                    <Button
-                      onClick={() => setEventCreationModalOpen(true)}
-                      data-testid="button-create-first-event"
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Create Event
-                    </Button>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Pending Invites Section */}
-              {!eventsLoading && pendingInvites.length > 0 && (
-                <div>
-                  <h3 className="text-xl font-bold mb-4">Pending Invites ({pendingInvites.length})</h3>
-                  <EventsTable
-                    events={pendingInvites}
-                    expandedEvents={expandedEvents}
-                    onToggleExpand={toggleEventExpand}
-                  />
-                </div>
-              )}
-
-              {/* Guest Approval Section */}
-              {!eventsLoading && guestApprovalEvents.length > 0 && (
-                <div>
-                  <h3 className="text-xl font-bold mb-4">Guest Approvals Needed ({guestApprovalEvents.length})</h3>
-                  <EventsTable
-                    events={guestApprovalEvents}
-                    expandedEvents={expandedEvents}
-                    onToggleExpand={toggleEventExpand}
-                  />
-                </div>
-              )}
-
-              {/* Upcoming Events Section */}
-              {!eventsLoading && upcomingEvents.length > 0 && (
-                <div>
-                  <h3 className="text-xl font-bold mb-6">Upcoming Events ({upcomingEvents.length})</h3>
-                  {(() => {
-                    const groupedEvents = groupEventsByTime(upcomingEvents);
-                    const categoryOrder: TimeCategory[] = ['Today', 'Tomorrow', 'This Week', 'Next Week', 'Later'];
-
-                    return categoryOrder.map(category => {
-                      const categoryEvents = groupedEvents.get(category) || [];
-                      if (categoryEvents.length === 0) return null;
-
-                      return (
-                        <div key={category} className="mb-6 last:mb-0">
-                          <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-3">
-                            {category}
-                          </h4>
-                          <EventsTable
-                            events={categoryEvents}
-                            expandedEvents={expandedEvents}
-                            onToggleExpand={toggleEventExpand}
-                          />
-                        </div>
-                      );
-                    });
-                  })()}
-                </div>
-              )}
-
-              {/* Past Events Section */}
-              {!eventsLoading && pastEvents.length > 0 && (
-                <div>
-                  <h3 className="text-xl font-bold mb-4">Past Events ({pastEvents.length})</h3>
-                  <div className="opacity-75">
-                    <EventsTable
-                      events={pastEvents}
-                      expandedEvents={expandedEvents}
-                      onToggleExpand={toggleEventExpand}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
+            <HomeTab
+              eventsLoading={eventsLoading}
+              allGroupEvents={allGroupEvents}
+              pendingInvites={pendingInvites}
+              guestApprovalEvents={guestApprovalEvents}
+              upcomingEvents={upcomingEvents}
+              pastEvents={pastEvents}
+              groupedUpcomingEvents={groupedUpcomingEvents}
+              expandedEvents={expandedEvents}
+              onToggleExpand={toggleEventExpand}
+              onOpenEventCreation={() => setEventCreationModalOpen(true)}
+              onOpenDiscoverVenues={() => setDiscoverVenuesModalOpen(true)}
+            />
           </TabsContent>
 
           {/* Tab 2: Group */}
@@ -3326,15 +3205,15 @@ export default function GroupDetail() {
                               <PopoverContent className="w-80 text-sm space-y-2">
                                 <div className="font-semibold">How it works:</div>
                                 <ul className="text-muted-foreground space-y-1 list-disc list-inside text-xs">
-                                  <li><strong>10 days before target:</strong> AI creates event</li>
-                                  <li><strong>48-hour window:</strong> Members can volunteer to host</li>
-                                  <li><strong>Auto-sends</strong> if no host volunteers</li>
+                                  <li><strong>10 days before target:</strong> AI creates a draft event</li>
+                                  <li><strong>48-hour window:</strong> Members marked "open to hosting" can volunteer</li>
+                                  <li><strong>Auto-sends:</strong> If no one volunteers, AI sends the event automatically</li>
                                 </ul>
                                 <p className="text-muted-foreground text-xs">
                                   <strong>Content:</strong> Saved plans → favorites → viable activities
                                 </p>
                                 <div className="text-xs text-muted-foreground pt-1 border-t">
-                                  <strong>Example:</strong> "Tue, March 5 at 7:00 PM using your saved 'Ramen Night' plan"
+                                  <strong>What does hosting mean?</strong> The host sends event details to the group and coordinates attendance.
                                 </div>
                               </PopoverContent>
                             </Popover>
@@ -3633,6 +3512,10 @@ export default function GroupDetail() {
                         <Label className="text-xs text-muted-foreground flex items-center gap-1">
                           <Home className="w-3 h-3" />
                           Volunteer to host events
+                          <HelpTooltip
+                            content="As a host, you'll send the event details to the group. If you check this, you may be asked to host when no one else volunteers (48 hours before an event)."
+                            examples={["You pick the final venue and send the invite", "You can always decline if asked"]}
+                          />
                         </Label>
                       </div>
                       <div className="space-y-2">
@@ -3759,7 +3642,14 @@ export default function GroupDetail() {
                                   {/* Show badges and controls */}
                                   <div className="flex items-center gap-1">
                                     {member.isOrganizer && (
-                                      <Badge variant="secondary" className="text-xs whitespace-nowrap">Organizer</Badge>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Badge variant="secondary" className="text-xs whitespace-nowrap cursor-help">Organizer</Badge>
+                                        </TooltipTrigger>
+                                        <TooltipContent className="max-w-xs">
+                                          <p className="text-sm">The organizer created this group and can manage settings, invite members, and configure automation features.</p>
+                                        </TooltipContent>
+                                      </Tooltip>
                                     )}
                                     
                                     {/* Show edit button if: 1) user is organizer, OR 2) it's their own member record */}
@@ -4336,14 +4226,10 @@ export default function GroupDetail() {
 
           {/* Tab 2: Explore (Venue Discovery) */}
           <TabsContent value="activities" className="space-y-6">
-            <VenueDiscoveryModule
+            <ActivitiesTab
               groupId={groupId || ""}
               groupLocation={group?.locationBase || ""}
-              mode="select"
-              inline={true}
-              defaultTab="discover"
               onCreateEvent={(venues: VenueData[]) => {
-                // Convert VenueData[] to the format expected by validateItineraryMutation
                 const venuesForValidation = venues.map((v, index) => ({
                   sourceType: 'ad_hoc' as const,
                   sourceId: `temp-${v.googlePlaceId || index}`,
@@ -4358,6 +4244,13 @@ export default function GroupDetail() {
                 validateItineraryMutation.mutate(venuesForValidation);
               }}
               onStartSwipe={() => setDiscoverVenuesModalOpen(true)}
+              showSummaryStrip={true}
+              groupContext={{
+                name: group?.name || "Group",
+                emoji: group?.emoji || "👥",
+                memberCount: group?.members?.length,
+              }}
+              timezone={group?.timezone}
             />
           </TabsContent>
 
@@ -4390,10 +4283,7 @@ export default function GroupDetail() {
               onEditItinerary={(id) => {
                 const itinerary = [...itineraries, ...proposedItineraries].find((it: any) => it.id === id);
                 if (itinerary) {
-                  setEditingItinerary(itinerary);
-                  setEditItineraryName(itinerary.name || "");
-                  setEditItineraryItems(itinerary.items || []);
-                  setEditItineraryOpen(true);
+                  itineraryEditor.openEditor(itinerary);
                 }
               }}
               onSendInvites={(id) => {
@@ -4443,19 +4333,13 @@ export default function GroupDetail() {
                     onEventClick={(event) => {
                       const itinerary = [...itineraries, ...proposedItineraries].find((it: any) => it.id === event.id);
                       if (itinerary) {
-                        setEditingItinerary(itinerary);
-                        setEditItineraryName(itinerary.name || "");
-                        setEditItineraryItems(itinerary.items || []);
-                        setEditItineraryOpen(true);
+                        itineraryEditor.openEditor(itinerary);
                       }
                     }}
                     onEditEvent={(event) => {
                       const itinerary = [...itineraries, ...proposedItineraries].find((it: any) => it.id === event.id);
                       if (itinerary) {
-                        setEditingItinerary(itinerary);
-                        setEditItineraryName(itinerary.name || "");
-                        setEditItineraryItems(itinerary.items || []);
-                        setEditItineraryOpen(true);
+                        itineraryEditor.openEditor(itinerary);
                       }
                     }}
                     onSendInvites={(event) => {
@@ -4489,589 +4373,191 @@ export default function GroupDetail() {
                   </div>
 
               {/* Selected Venues Display */}
-              {selectedVenues.length > 0 && (
-                <Card className="border-muted">
-                  <CardHeader className="pb-4">
-                    <div className="flex items-center justify-between gap-4">
-                      <div>
-                        <CardTitle className="text-sm font-medium">Selected Venues</CardTitle>
-                        <p className="text-xs text-muted-foreground mt-0.5">{selectedVenues.length} of 5 venues</p>
-                      </div>
-                      <div className="flex gap-2 flex-wrap justify-end">
-                        <Button
-                          onClick={() => setShowAddAdHocDialog(true)}
-                          disabled={selectedVenues.length >= 5}
-                          variant="outline"
-                          size="sm"
-                          className="gap-1.5 h-8"
-                        >
-                          <MapPin className="h-3.5 w-3.5" />
-                          Custom
-                        </Button>
-                        <Button
-                          onClick={() => {
-                            setSelectedVenues([]);
-                            setAddedSuggestionPlaceIds(new Set());
-                          }}
-                          variant="ghost"
-                          size="sm"
-                          className="h-8"
-                          data-testid="button-cancel-selection-build"
-                        >
-                          Clear
-                        </Button>
-                        <Button
-                          onClick={() => validateItineraryMutation.mutate(selectedVenues)}
-                          disabled={validateItineraryMutation.isPending || selectedVenues.length < 1}
-                          variant="default"
-                          size="sm"
-                          className="h-8"
-                          data-testid="button-validate-itinerary-build"
-                        >
-                          {validateItineraryMutation.isPending ? "Creating..." : "Create Itinerary"}
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    {selectedVenues.map((venue, index) => {
-                      let venueName = '';
-                      let venueType = '';
-                      let isAdHoc = false;
-
-                      if (venue.sourceType === 'activity') {
-                        const activity = activities.find(a => a.id === venue.sourceId);
-                        venueName = activity?.venueName || 'Unknown';
-                        venueType = activity?.venueType || '';
-                      } else if (venue.sourceType === 'voting_event') {
-                        const event = votingEvents.find(e => e.id === venue.sourceId);
-                        venueName = event?.title || 'Unknown';
-                        venueType = event?.venueType || '';
-                      } else if (venue.sourceType === 'ad_hoc') {
-                        venueName = venue.adHocData?.name || 'Custom Location';
-                        venueType = venue.adHocData?.address || '';
-                        isAdHoc = true;
-                      }
-
-                      return (
-                        <div
-                          key={`${venue.sourceType}-${venue.sourceId}`}
-                          className="flex items-center gap-2.5 p-2.5 rounded-lg border border-border/50 bg-background hover:border-border transition-colors"
-                          data-testid={`selected-venue-build-${venue.sourceId}`}
-                        >
-                          <div className="flex items-center justify-center w-5 h-5 rounded-full bg-muted text-muted-foreground font-medium text-xs">
-                            {index + 1}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <p className="text-sm font-medium truncate">{venueName}</p>
-                              {isAdHoc && (
-                                <Badge variant="secondary" className="text-[10px] h-4 px-1.5">Custom</Badge>
-                              )}
-                            </div>
-                            {venueType && (
-                              <p className="text-xs text-muted-foreground truncate mt-0.5">{venueType}</p>
-                            )}
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => toggleVenueSelection(venue.sourceType, venue.sourceId)}
-                            className="h-7 w-7 p-0 hover:bg-destructive/10 hover:text-destructive"
-                            data-testid={`button-remove-venue-build-${venue.sourceId}`}
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      );
-                    })}
-                  </CardContent>
-                </Card>
-              )}
+              <SelectedVenuesCard
+                selectedVenues={selectedVenues}
+                resolveVenue={(venue) => {
+                  if (venue.sourceType === 'activity') {
+                    const activity = activities.find(a => a.id === venue.sourceId);
+                    return { name: activity?.venueName || 'Unknown', type: activity?.venueType || '', isAdHoc: false };
+                  } else if (venue.sourceType === 'voting_event') {
+                    const event = votingEvents.find(e => e.id === venue.sourceId);
+                    return { name: event?.title || 'Unknown', type: event?.venueType || '', isAdHoc: false };
+                  } else {
+                    return { name: venue.adHocData?.name || 'Custom Location', type: venue.adHocData?.address || '', isAdHoc: true };
+                  }
+                }}
+                onAddCustomVenue={() => setShowAddAdHocDialog(true)}
+                onClearSelection={() => {
+                  setSelectedVenues([]);
+                  setAddedSuggestionPlaceIds(new Set());
+                }}
+                onCreateItinerary={() => validateItineraryMutation.mutate(selectedVenues)}
+                onRemoveVenue={toggleVenueSelection}
+                isCreating={validateItineraryMutation.isPending}
+              />
 
 
               {/* Itinerary Display */}
-              {itineraries.length > 0 && selectedVenues.length === 0 && (
-                <Card className="border-muted">
-                  <CardHeader className="pb-4">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="space-y-1">
-                        <CardTitle className="text-sm font-medium flex items-center gap-2">
-                          <CheckCircle2 className="h-4 w-4 text-primary" />
-                          Your Itinerary
-                        </CardTitle>
-                        <CardDescription className="text-xs">
-                          Drag to reorder venues
-                        </CardDescription>
-                      </div>
-                      {!showInlineScheduling && (
-                        <div className="flex gap-2 flex-wrap justify-end">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8"
-                            onClick={() => {
-                              if (itineraries.length > 0) {
-                                setSavingItineraryId(itineraries[0].id);
-                                setSaveItineraryOpen(true);
-                              }
-                            }}
-                            data-testid="button-save-itinerary"
-                          >
-                            <Save className="h-3.5 w-3.5 mr-1.5" />
-                            Save
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8"
-                            onClick={() => setAddMoreStopsOpen(!addMoreStopsOpen)}
-                            data-testid="button-add-more-stops"
-                          >
-                            {addMoreStopsOpen ? (
-                              <>
-                                <ChevronDown className="h-3.5 w-3.5 mr-1.5" />
-                                Hide
-                              </>
-                            ) : (
-                              <>
-                                <Plus className="h-3.5 w-3.5 mr-1.5" />
-                                Add Stops
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    {itineraries.map((itinerary: any) => (
-                      <ItineraryDisplay key={itinerary.id} itinerary={itinerary} groupId={groupId!} />
-                    ))}
-                  </CardContent>
-                </Card>
+              {selectedVenues.length === 0 && (
+                <ItineraryCard
+                  itineraries={itineraries}
+                  groupId={groupId!}
+                  showInlineScheduling={showInlineScheduling}
+                  addMoreStopsOpen={addMoreStopsOpen}
+                  onSaveItinerary={(id) => {
+                    setSavingItineraryId(id);
+                    setSaveItineraryOpen(true);
+                  }}
+                  onToggleAddMoreStops={() => setAddMoreStopsOpen(!addMoreStopsOpen)}
+                />
               )}
 
               {/* Inline Scheduling Section */}
               {showInlineScheduling && selectedItineraryForScheduling && (
-                <Card id="inline-schedule-section" className="mt-6" data-testid="card-inline-schedule">
-                  <CardHeader>
-                    <CardTitle className="text-lg">Schedule This Event</CardTitle>
-                    <CardDescription>Choose when to meet with your group</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    {/* When to Meet Section */}
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-sm font-medium">When to Meet</Label>
-                        {/* Compact Availability Reference */}
-                        <Collapsible>
-                          <CollapsibleTrigger asChild>
-                            <Button variant="ghost" size="sm" className="gap-1 h-7 text-xs text-muted-foreground" data-testid="button-view-availability-inline">
-                              <Calendar className="h-3 w-3" />
-                              View Availability
-                              <ChevronDown className="h-3 w-3" />
-                            </Button>
-                          </CollapsibleTrigger>
-                          <CollapsibleContent className="mt-2">
-                            <div className="p-3 bg-muted/30 rounded-md border space-y-3">
-                              {!!group?.availability && (
-                                <div className="space-y-1.5">
-                                  <p className="text-xs font-medium text-muted-foreground">Group Availability</p>
-                                  <ReadOnlyAvailabilityGrid
-                                    value={group.availability as Record<string, {morning: boolean; afternoon: boolean; evening: boolean}>}
-                                    compact={true}
-                                  />
-                                </div>
-                              )}
-                              {group?.generalAvailability && (
-                                <div className="space-y-1">
-                                  <p className="text-xs font-medium text-muted-foreground">Notes</p>
-                                  <p className="text-xs text-muted-foreground">{group.generalAvailability}</p>
-                                </div>
-                              )}
-                              {group?.meetingFrequency && (
-                                <div className="space-y-1">
-                                  <p className="text-xs font-medium text-muted-foreground">Frequency</p>
-                                  <p className="text-xs text-muted-foreground">{formatMeetingFrequency(group.meetingFrequency)}</p>
-                                </div>
-                              )}
-                            </div>
-                          </CollapsibleContent>
-                        </Collapsible>
-                      </div>
+                <InlineSchedulingCard
+                  group={group}
+                  formatMeetingFrequency={formatMeetingFrequency}
+                  scheduleMethod={scheduleMethod}
+                  onMethodChange={setScheduleMethod}
+                  eventDate={eventDate}
+                  onEventDateChange={setEventDate}
+                  eventTime={eventTime}
+                  onEventTimeChange={setEventTime}
+                  aiTimeOptions={aiTimeOptions}
+                  onAiTimeOptionsChange={setAiTimeOptions}
+                  selectedTimeOptionIds={selectedTimeOptionIds}
+                  onSelectedTimeOptionIdsChange={setSelectedTimeOptionIds}
+                  onToggleTimeOption={(optionId) => {
+                    setSelectedTimeOptionIds(prev =>
+                      prev.includes(optionId)
+                        ? prev.filter(id => id !== optionId)
+                        : [...prev, optionId]
+                    );
+                  }}
+                  onGetAiSuggestions={() => {
+                    if (!selectedItineraryForScheduling) return;
+                    const venues = selectedItineraryForScheduling.items?.map((item: any) => ({
+                      name: item.venueName,
+                      type: item.venueType,
+                    })) || [];
+                    getAiTimeSuggestionMutation.mutate({
+                      itineraryId: selectedItineraryForScheduling.id,
+                      venues
+                    });
+                  }}
+                  isLoadingAi={getAiTimeSuggestionMutation.isPending}
+                  onSaveForLater={() => {
+                    if (ephemeralItinerary) {
+                      setSavingItineraryId(ephemeralItinerary.id);
+                      setSaveItineraryOpen(true);
+                    }
+                  }}
+                  onSendToGroup={async () => {
+                    if (!selectedItineraryForScheduling) return;
 
-                      {/* Time Selection Tabs */}
-                      <Tabs value={scheduleMethod} onValueChange={(v) => {
-                        setScheduleMethod(v as 'manual' | 'ai');
-                        setAiTimeOptions([]);
-                        setSelectedTimeOptionIds([]);
-                      }} className="w-full">
-                        <TabsList className="grid w-full grid-cols-2 h-9">
-                          <TabsTrigger value="manual" className="text-xs" data-testid="tab-manual-time-inline">Pick Date/Time</TabsTrigger>
-                          <TabsTrigger value="ai" className="text-xs" data-testid="tab-ai-time-inline">AI Suggestions</TabsTrigger>
-                        </TabsList>
+                    const eventDates: string[] = [];
 
-                        <TabsContent value="manual" className="mt-4 space-y-3">
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="space-y-2">
-                              <Label htmlFor="event-date-inline" className="text-xs">Date</Label>
-                              <Input
-                                id="event-date-inline"
-                                type="date"
-                                min={new Date().toISOString().split('T')[0]}
-                                value={eventDate}
-                                onChange={(e) => setEventDate(e.target.value)}
-                                className="h-9"
-                                data-testid="input-event-date-inline"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="event-time-inline" className="text-xs">Time</Label>
-                              <Input
-                                id="event-time-inline"
-                                type="time"
-                                value={eventTime}
-                                onChange={(e) => setEventTime(e.target.value)}
-                                className="h-9"
-                                data-testid="input-event-time-inline"
-                              />
-                            </div>
-                          </div>
-                        </TabsContent>
+                    if (scheduleMethod === 'manual' && eventDate && eventTime) {
+                      eventDates.push(new Date(`${eventDate}T${eventTime}:00`).toISOString());
+                    } else if (scheduleMethod === 'ai' && selectedTimeOptionIds.length > 0) {
+                      const selectedOptions = aiTimeOptions.filter(opt =>
+                        selectedTimeOptionIds.includes(opt.id)
+                      );
+                      eventDates.push(...selectedOptions.map(opt => opt.eventDate));
+                    }
 
-                        <TabsContent value="ai" className="mt-4 space-y-3">
-                          {aiTimeOptions.length === 0 && !getAiTimeSuggestionMutation.isPending && (
-                            <Button
-                              onClick={() => {
-                                if (!selectedItineraryForScheduling) return;
-                                const venues = selectedItineraryForScheduling.items?.map((item: any) => ({
-                                  name: item.venueName,
-                                  type: item.venueType,
-                                })) || [];
-                                getAiTimeSuggestionMutation.mutate({
-                                  itineraryId: selectedItineraryForScheduling.id,
-                                  venues
-                                });
-                              }}
-                              className="w-full gap-2"
-                              data-testid="button-get-ai-suggestion-inline"
-                            >
-                              <Bot className="h-4 w-4" />
-                              Get AI Suggestions
-                            </Button>
-                          )}
+                    if (eventDates.length === 0) {
+                      toast({
+                        title: "Missing time selection",
+                        description: "Please select at least one time before sending",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
 
-                          {getAiTimeSuggestionMutation.isPending && (
-                            <div className="text-center py-4 text-sm text-muted-foreground">
-                              Analyzing group availability...
-                            </div>
-                          )}
+                    try {
+                      if (eventDates.length > 1) {
+                        await sendItineraryMutation.mutateAsync({
+                          itineraryId: selectedItineraryForScheduling.id,
+                          eventDates,
+                        });
+                      } else {
+                        await sendItineraryMutation.mutateAsync({
+                          itineraryId: selectedItineraryForScheduling.id,
+                          eventDate: eventDates[0],
+                        });
+                      }
 
-                          {aiTimeOptions.length > 0 && (
-                            <div className="space-y-3">
-                              <div className="space-y-2">
-                                <p className="text-sm font-medium">Select one or more times to send:</p>
-                                <div className="grid grid-cols-2 gap-2">
-                                  {aiTimeOptions.map((option) => (
-                                    <div
-                                      key={option.id}
-                                      onClick={() => {
-                                        setSelectedTimeOptionIds(prev =>
-                                          prev.includes(option.id)
-                                            ? prev.filter(id => id !== option.id)
-                                            : [...prev, option.id]
-                                        );
-                                      }}
-                                      className={`w-full p-3 rounded-lg border-2 cursor-pointer text-left transition-colors ${
-                                        selectedTimeOptionIds.includes(option.id)
-                                          ? 'border-primary bg-primary/15'
-                                          : 'border-border'
-                                      }`}
-                                      data-testid={`time-option-inline-${option.id}`}
-                                    >
-                                      <div className="flex items-start gap-2">
-                                        <input
-                                          type="checkbox"
-                                          checked={selectedTimeOptionIds.includes(option.id)}
-                                          onChange={() => {}}
-                                          className="mt-0.5"
-                                          data-testid={`checkbox-time-inline-${option.id}`}
-                                        />
-                                        <div className="flex-1">
-                                          <p className="font-medium text-sm">{option.dayLabel}</p>
-                                          <p className="text-sm text-muted-foreground">{option.timeLabel}</p>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                                {selectedTimeOptionIds.length > 0 && (
-                                  <p className="text-sm text-muted-foreground">
-                                    {selectedTimeOptionIds.length} time{selectedTimeOptionIds.length === 1 ? '' : 's'} selected
-                                  </p>
-                                )}
-                              </div>
-                              <Button
-                                variant="outline"
-                                onClick={async () => {
-                                  setAiTimeOptions([]);
-                                  setSelectedTimeOptionIds([]);
-                                  if (!selectedItineraryForScheduling) return;
-                                  const venues = selectedItineraryForScheduling.items?.map((item: any) => ({
-                                    name: item.venueName,
-                                    type: item.venueType,
-                                  })) || [];
-                                  await getAiTimeSuggestionMutation.mutateAsync({
-                                    itineraryId: selectedItineraryForScheduling.id,
-                                    venues
-                                  });
-                                }}
-                                className="w-full gap-2"
-                                disabled={getAiTimeSuggestionMutation.isPending}
-                                data-testid="button-try-different-times-inline"
-                              >
-                                <Bot className="h-4 w-4" />
-                                Get Different Options
-                              </Button>
-                            </div>
-                          )}
-                        </TabsContent>
-                      </Tabs>
+                      // Reset inline scheduling
+                      setShowInlineScheduling(false);
+                      setSelectedItineraryForScheduling(null);
+                      setEphemeralItinerary(null);
+                      setEventDate("");
+                      setEventTime("19:00");
+                      setAiTimeOptions([]);
+                      setSelectedTimeOptionIds([]);
 
-                      {/* Action Buttons */}
-                      <div className="flex gap-2 pt-4">
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            if (ephemeralItinerary) {
-                              setSavingItineraryId(ephemeralItinerary.id);
-                              setSaveItineraryOpen(true);
-                            }
-                          }}
-                          className="flex-1"
-                          data-testid="button-save-for-later-inline"
-                        >
-                          <Save className="h-4 w-4 mr-2" />
-                          Save for Later
-                        </Button>
-                        <Button
-                          onClick={async () => {
-                            if (!selectedItineraryForScheduling) return;
-
-                            const eventDates: string[] = [];
-
-                            if (scheduleMethod === 'manual' && eventDate && eventTime) {
-                              eventDates.push(new Date(`${eventDate}T${eventTime}:00`).toISOString());
-                            } else if (scheduleMethod === 'ai' && selectedTimeOptionIds.length > 0) {
-                              const selectedOptions = aiTimeOptions.filter(opt =>
-                                selectedTimeOptionIds.includes(opt.id)
-                              );
-                              eventDates.push(...selectedOptions.map(opt => opt.eventDate));
-                            }
-
-                            if (eventDates.length === 0) {
-                              toast({
-                                title: "Missing time selection",
-                                description: "Please select at least one time before sending",
-                                variant: "destructive",
-                              });
-                              return;
-                            }
-
-                            try {
-                              // If multiple dates, send as array; otherwise send single eventDate
-                              if (eventDates.length > 1) {
-                                await sendItineraryMutation.mutateAsync({
-                                  itineraryId: selectedItineraryForScheduling.id,
-                                  eventDates,
-                                });
-                              } else {
-                                await sendItineraryMutation.mutateAsync({
-                                  itineraryId: selectedItineraryForScheduling.id,
-                                  eventDate: eventDates[0],
-                                });
-                              }
-
-                              // Reset inline scheduling
-                              setShowInlineScheduling(false);
-                              setSelectedItineraryForScheduling(null);
-                              setEphemeralItinerary(null);
-                              setEventDate("");
-                              setEventTime("19:00");
-                              setAiTimeOptions([]);
-                              setSelectedTimeOptionIds([]);
-
-                              toast({
-                                title: eventDates.length === 1 ? "Plan sent to group" : "Plan sent to group",
-                                description: eventDates.length === 1
-                                  ? "Members can now RSVP to your itinerary"
-                                  : `Sent with ${eventDates.length} time options - members can vote on their preferred time`,
-                              });
-                            } catch (error) {
-                              // Error toast is handled by mutation
-                            }
-                          }}
-                          disabled={
-                            sendItineraryMutation.isPending ||
-                            (scheduleMethod === 'manual' && (!eventDate || !eventTime)) ||
-                            (scheduleMethod === 'ai' && selectedTimeOptionIds.length === 0)
-                          }
-                          className="flex-[2]"
-                          data-testid="button-send-to-group-inline"
-                        >
-                          <Send className="h-4 w-4 mr-2" />
-                          {sendItineraryMutation.isPending
-                            ? "Sending..."
-                            : scheduleMethod === 'ai' && selectedTimeOptionIds.length > 1
-                              ? `Send ${selectedTimeOptionIds.length} Time Options`
-                              : "Send to Group"}
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                      toast({
+                        title: "Plan sent to group",
+                        description: eventDates.length === 1
+                          ? "Members can now RSVP to your itinerary"
+                          : `Sent with ${eventDates.length} time options - members can vote on their preferred time`,
+                      });
+                    } catch (error) {
+                      // Error toast is handled by mutation
+                    }
+                  }}
+                  isSending={sendItineraryMutation.isPending}
+                  testIdPrefix="inline"
+                />
               )}
 
               {/* Add More Stops Search - Collapsible */}
               {itineraries.length > 0 && addMoreStopsOpen && (
-                <Card className="mt-4">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Search className="h-5 w-5" />
-                      Search for More Venues
-                    </CardTitle>
-                    <CardDescription>
-                      Find additional stops to add to your itinerary
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* Search Input */}
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        type="text"
-                        placeholder="Search for parks, restaurants, cafes, or any venue..."
-                        value={venueSearchQuery}
-                        onChange={(e) => setVenueSearchQuery(e.target.value)}
-                        className="pl-9"
-                        data-testid="input-add-more-stops-search"
-                      />
-                    </div>
-
-                    {/* Search Results */}
-                    {venueSearchQuery.trim() && venueSearchQuery.trim().length >= 2 && (
-                      <div className="space-y-3">
-                        <p className="text-sm text-muted-foreground">
-                          Search results for "{venueSearchQuery}"
-                        </p>
-                        {venueSearchResults.length > 0 ? (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {venueSearchResults.map((result: any) => {
-                              // Check if already added to itinerary
-                              const alreadyInItinerary = itineraries.some((itinerary: any) => 
-                                itinerary.items?.some((item: any) => {
-                                  if (item.sourceType === 'voting_event') {
-                                    const votingEvent = votingEvents.find(e => e.id === item.sourceId);
-                                    return votingEvent?.googlePlaceId === result.placeId;
-                                  } else if (item.sourceType === 'activity') {
-                                    const activity = activities.find(a => a.id === item.sourceId);
-                                    return activity?.googlePlaceId === result.placeId;
-                                  }
-                                  return false;
-                                })
-                              );
-
-                              const alreadyAdded = activities.some(a => !a.archivedAt && a.googlePlaceId === result.placeId) ||
-                                votingEvents.some(e => e.googlePlaceId === result.placeId) ||
-                                addedSuggestionPlaceIds.has(result.placeId);
-
-                              const disabled = alreadyInItinerary || alreadyAdded || addVotingEventMutation.isPending;
-
-                              return (
-                                <button
-                                  key={result.placeId}
-                                  onClick={() => {
-                                    if (disabled) return;
-
-                                    addVotingEventMutation.mutate({
-                                      title: result.name,
-                                      venueType: result.types?.[0] || 'venue',
-                                      venueAddress: result.address,
-                                      googlePlaceId: result.placeId,
-                                      photoUrl: result.photoUrl,
-                                      rating: result.rating,
-                                      reviewCount: result.reviewCount,
-                                      priceLevel: result.priceLevel,
-                                      latitude: result.location?.lat?.toString(),
-                                      longitude: result.location?.lng?.toString(),
-                                      city: result.city,
-                                    });
-                                  }}
-                                  disabled={disabled}
-                                  className={`flex gap-3 p-3 rounded-md border text-left transition-all ${
-                                    disabled ? 'opacity-50 cursor-not-allowed' : ''
-                                  }`}
-                                  data-testid={`search-result-add-more-${result.placeId}`}
-                                >
-                                  {result.photoUrl && (
-                                    <img 
-                                      src={result.photoUrl} 
-                                      alt={result.name}
-                                      className="w-16 h-16 rounded object-cover flex-shrink-0"
-                                    />
-                                  )}
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium truncate">{result.name}</p>
-                                    {result.rating && (
-                                      <div className="flex items-center gap-1 mt-1">
-                                        <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                                        <span className="text-xs font-medium">{result.rating}</span>
-                                      </div>
-                                    )}
-                                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                                      {result.address}
-                                    </p>
-                                    {(alreadyInItinerary || alreadyAdded) && (
-                                      <Badge variant="secondary" className="mt-1 text-xs">
-                                        <Check className="h-3 w-3 mr-1" />
-                                        Added
-                                      </Badge>
-                                    )}
-                                  </div>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <div className="text-center py-8">
-                            <p className="text-sm text-muted-foreground">No venues found. Try a different search.</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Or Browse Activities CTA */}
-                    {!venueSearchQuery.trim() && (
-                      <div className="pt-4 border-t text-center">
-                        <p className="text-sm text-muted-foreground mb-3">
-                          Or browse AI-generated suggestions
-                        </p>
-                        <Button 
-                          onClick={() => {
-                            setActiveTab("activities");
-                            setAddMoreStopsOpen(false);
-                          }} 
-                          variant="outline"
-                          data-testid="button-go-to-activities-from-add-more"
-                        >
-                          <Sparkles className="h-4 w-4 mr-2" />
-                          Browse Activities
-                        </Button>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                <AddMoreStopsCard
+                  venueSearchQuery={venueSearchQuery}
+                  onSearchQueryChange={setVenueSearchQuery}
+                  venueSearchResults={venueSearchResults}
+                  isVenueInItinerary={(placeId) =>
+                    itineraries.some((itinerary: any) =>
+                      itinerary.items?.some((item: any) => {
+                        if (item.sourceType === 'voting_event') {
+                          const votingEvent = votingEvents.find(e => e.id === item.sourceId);
+                          return votingEvent?.googlePlaceId === placeId;
+                        } else if (item.sourceType === 'activity') {
+                          const activity = activities.find(a => a.id === item.sourceId);
+                          return activity?.googlePlaceId === placeId;
+                        }
+                        return false;
+                      })
+                    )
+                  }
+                  isVenueAlreadyAdded={(placeId) =>
+                    activities.some(a => !a.archivedAt && a.googlePlaceId === placeId) ||
+                    votingEvents.some(e => e.googlePlaceId === placeId) ||
+                    addedSuggestionPlaceIds.has(placeId)
+                  }
+                  onAddVenue={(result) => {
+                    addVotingEventMutation.mutate({
+                      title: result.name,
+                      venueType: result.types?.[0] || 'venue',
+                      venueAddress: result.address,
+                      googlePlaceId: result.placeId,
+                      photoUrl: result.photoUrl,
+                      rating: result.rating,
+                      reviewCount: result.reviewCount,
+                      priceLevel: result.priceLevel,
+                      latitude: result.location?.lat?.toString(),
+                      longitude: result.location?.lng?.toString(),
+                      city: result.city,
+                    });
+                  }}
+                  isAddingVenue={addVotingEventMutation.isPending}
+                  onGoToActivities={() => {
+                    setActiveTab("activities");
+                    setAddMoreStopsOpen(false);
+                  }}
+                />
               )}
 
               {/* Venue Search - Empty State */}
@@ -5453,260 +4939,62 @@ export default function GroupDetail() {
                           </div>
 
                           {/* Time Selection Tabs */}
-                          <Tabs value={scheduleMethod} onValueChange={(v) => {
-                            setScheduleMethod(v as 'manual' | 'ai');
-                            setAiTimeOptions([]);
-                            setSelectedTimeOptionIds([]);
-                          }} className="w-full">
-                            <TabsList className="grid w-full grid-cols-2 h-9">
-                              <TabsTrigger value="manual" className="text-xs" data-testid="tab-manual-time">Pick Date/Time</TabsTrigger>
-                              <TabsTrigger value="ai" className="text-xs" data-testid="tab-ai-time">AI Suggestions</TabsTrigger>
-                            </TabsList>
-                            
-                            <TabsContent value="manual" className="mt-4 space-y-3">
-                              <div className="grid grid-cols-2 gap-3">
-                                <div className="space-y-2">
-                                  <Label htmlFor="event-date" className="text-xs">Date</Label>
-                                  <Input
-                                    id="event-date"
-                                    type="date"
-                                    min={new Date().toISOString().split('T')[0]}
-                                    value={eventDate}
-                                    onChange={(e) => setEventDate(e.target.value)}
-                                    className="h-9"
-                                    data-testid="input-event-date"
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  <Label htmlFor="event-time" className="text-xs">Time</Label>
-                                  <Input
-                                    id="event-time"
-                                    type="time"
-                                    value={eventTime}
-                                    onChange={(e) => setEventTime(e.target.value)}
-                                    className="h-9"
-                                    data-testid="input-event-time"
-                                  />
-                                </div>
-                              </div>
-                            </TabsContent>
-                            
-                            <TabsContent value="ai" className="mt-4 space-y-3">
-                              {aiTimeOptions.length === 0 && !getAiTimeSuggestionMutation.isPending && (
-                                      <Button
-                                        onClick={() => {
-                                          if (!selectedItineraryForScheduling) return;
-                                          const venues = selectedItineraryForScheduling.items?.map((item: any) => ({
-                                            name: item.venueName,
-                                            type: item.venueType,
-                                          })) || [];
-                                          getAiTimeSuggestionMutation.mutate({ 
-                                            itineraryId: selectedItineraryForScheduling.id, 
-                                            venues 
-                                          });
-                                        }}
-                                        className="w-full gap-2"
-                                        data-testid="button-get-ai-suggestion"
-                                      >
-                                        <Bot className="h-4 w-4" />
-                                        Get AI Suggestions
-                                      </Button>
-                                    )}
-
-                                    {getAiTimeSuggestionMutation.isPending && (
-                                      <div className="text-center py-4 text-sm text-muted-foreground">
-                                        Analyzing group availability...
-                                      </div>
-                                    )}
-
-                                    {aiTimeOptions.length > 0 && (
-                                      <div className="space-y-3">
-                                        <div className="space-y-2">
-                                          <p className="text-sm font-medium">Select one or more times to send:</p>
-                                          <div className="grid grid-cols-2 gap-2">
-                                            {aiTimeOptions.map((option) => {
-                                              const groupTz = group?.timezone || (group?.locationBase ? getTimezoneIdentifier(group.locationBase) : 'America/Los_Angeles');
-                                              const tzName = getTimezoneName(groupTz);
-                                              
-                                              return (
-                                              <div key={option.id} className="relative">
-                                                {editingOptionId === option.id ? (
-                                                  <div className="p-3 rounded-lg border-2 border-primary bg-primary/15 space-y-2">
-                                                    <div className="text-xs text-muted-foreground mb-1">
-                                                      Times shown in {tzName}
-                                                    </div>
-                                                    <Input
-                                                      type="date"
-                                                      value={(() => {
-                                                        const utcDate = new Date(option.eventDate);
-                                                        const localDate = toZonedTime(utcDate, groupTz);
-                                                        const year = localDate.getFullYear();
-                                                        const month = String(localDate.getMonth() + 1).padStart(2, '0');
-                                                        const day = String(localDate.getDate()).padStart(2, '0');
-                                                        return `${year}-${month}-${day}`;
-                                                      })()}
-                                                      onChange={(e) => {
-                                                        const utcDate = new Date(option.eventDate);
-                                                        const localDate = toZonedTime(utcDate, groupTz);
-                                                        const [year, month, day] = e.target.value.split('-').map(Number);
-                                                        const newLocalDate = new Date(year, month - 1, day, localDate.getHours(), localDate.getMinutes(), 0, 0);
-                                                        const newUtcDate = fromZonedTime(newLocalDate, groupTz);
-                                                        
-                                                        setAiTimeOptions(prev => prev.map(opt => 
-                                                          opt.id === option.id 
-                                                            ? {
-                                                                ...opt,
-                                                                eventDate: newUtcDate.toISOString(),
-                                                                dayLabel: toZonedTime(newUtcDate, groupTz).toLocaleDateString('en-US', { 
-                                                                  weekday: 'short', 
-                                                                  month: 'short', 
-                                                                  day: 'numeric',
-                                                                  timeZone: groupTz
-                                                                }),
-                                                              }
-                                                            : opt
-                                                        ));
-                                                      }}
-                                                      className="text-sm"
-                                                      data-testid={`edit-date-${option.id}`}
-                                                    />
-                                                    <Input
-                                                      type="time"
-                                                      value={(() => {
-                                                        const utcDate = new Date(option.eventDate);
-                                                        const localDate = toZonedTime(utcDate, groupTz);
-                                                        const hours = String(localDate.getHours()).padStart(2, '0');
-                                                        const minutes = String(localDate.getMinutes()).padStart(2, '0');
-                                                        return `${hours}:${minutes}`;
-                                                      })()}
-                                                      onChange={(e) => {
-                                                        const utcDate = new Date(option.eventDate);
-                                                        const localDate = toZonedTime(utcDate, groupTz);
-                                                        const [hours, minutes] = e.target.value.split(':').map(Number);
-                                                        const newLocalDate = new Date(
-                                                          localDate.getFullYear(),
-                                                          localDate.getMonth(),
-                                                          localDate.getDate(),
-                                                          hours,
-                                                          minutes,
-                                                          0,
-                                                          0
-                                                        );
-                                                        const newUtcDate = fromZonedTime(newLocalDate, groupTz);
-                                                        
-                                                        setAiTimeOptions(prev => prev.map(opt => 
-                                                          opt.id === option.id 
-                                                            ? {
-                                                                ...opt,
-                                                                eventDate: newUtcDate.toISOString(),
-                                                                timeLabel: toZonedTime(newUtcDate, groupTz).toLocaleTimeString('en-US', { 
-                                                                  hour: 'numeric', 
-                                                                  minute: '2-digit',
-                                                                  timeZone: groupTz
-                                                                }),
-                                                              }
-                                                            : opt
-                                                        ));
-                                                      }}
-                                                      className="text-sm"
-                                                      data-testid={`edit-time-${option.id}`}
-                                                    />
-                                                    <Button
-                                                      size="sm"
-                                                      onClick={() => setEditingOptionId(null)}
-                                                      className="w-full"
-                                                      data-testid={`done-edit-${option.id}`}
-                                                    >
-                                                      Done
-                                                    </Button>
-                                                  </div>
-                                                ) : (
-                                                  <div
-                                                    onClick={() => {
-                                                      setSelectedTimeOptionIds(prev => 
-                                                        prev.includes(option.id)
-                                                          ? prev.filter(id => id !== option.id)
-                                                          : [...prev, option.id]
-                                                      );
-                                                    }}
-                                                    className={`w-full p-3 rounded-lg border-2 cursor-pointer text-left transition-colors ${
-                                                      selectedTimeOptionIds.includes(option.id)
-                                                        ? 'border-primary bg-primary/15'
-                                                        : 'border-border'
-                                                    }`}
-                                                    data-testid={`time-option-${option.id}`}
-                                                  >
-                                                    <div className="flex items-start justify-between gap-2">
-                                                      <div className="flex items-start gap-2 flex-1">
-                                                        <input
-                                                          type="checkbox"
-                                                          checked={selectedTimeOptionIds.includes(option.id)}
-                                                          onChange={() => {}}
-                                                          className="mt-0.5"
-                                                          data-testid={`checkbox-time-${option.id}`}
-                                                        />
-                                                        <div className="flex-1">
-                                                          <p className="font-medium text-sm">{option.dayLabel}</p>
-                                                          <p className="text-sm text-muted-foreground">{option.timeLabel}</p>
-                                                        </div>
-                                                      </div>
-                                                      <Button
-                                                        size="icon"
-                                                        variant="ghost"
-                                                        onClick={(e) => {
-                                                          e.stopPropagation();
-                                                          setEditingOptionId(option.id);
-                                                        }}
-                                                        className="h-6 w-6 shrink-0"
-                                                        data-testid={`edit-button-${option.id}`}
-                                                      >
-                                                        <Edit2 className="w-3 h-3" />
-                                                      </Button>
-                                                    </div>
-                                                  </div>
-                                                )}
-                                              </div>
-                                            );
-                                            })}
-                                          </div>
-                                          {selectedTimeOptionIds.length > 0 && (
-                                            <p className="text-sm text-muted-foreground">
-                                              {selectedTimeOptionIds.length} time{selectedTimeOptionIds.length === 1 ? '' : 's'} selected
-                                            </p>
-                                          )}
-                                        </div>
-                                        <Button
-                                          variant="outline"
-                                          onClick={async () => {
-                                            setAiTimeOptions([]);
-                                            setSelectedTimeOptionIds([]);
-                                            if (!selectedItineraryForScheduling) return;
-                                            const venues = selectedItineraryForScheduling.items?.map((item: any) => ({
-                                              name: item.venueName,
-                                              type: item.venueType,
-                                            })) || [];
-                                            await getAiTimeSuggestionMutation.mutateAsync({ 
-                                              itineraryId: selectedItineraryForScheduling.id, 
-                                              venues 
-                                            });
-                                          }}
-                                          className="w-full gap-2"
-                                          disabled={getAiTimeSuggestionMutation.isPending}
-                                          data-testid="button-try-different-times"
-                                        >
-                                          <Bot className="h-4 w-4" />
-                                          Get Different Options
-                                        </Button>
-                                      </div>
-                                    )}
-
-                              {getAiTimeSuggestionMutation.isPending && (
-                                <div className="text-center py-4 text-sm text-muted-foreground">
-                                  Analyzing group availability...
-                                </div>
-                              )}
-                            </TabsContent>
-                          </Tabs>
+                          <TimeSelectionTabs
+                            scheduleMethod={scheduleMethod}
+                            onMethodChange={(method) => {
+                              setScheduleMethod(method);
+                              setAiTimeOptions([]);
+                              setSelectedTimeOptionIds([]);
+                            }}
+                            eventDate={eventDate}
+                            onEventDateChange={setEventDate}
+                            eventTime={eventTime}
+                            onEventTimeChange={setEventTime}
+                            aiTimeOptions={aiTimeOptions}
+                            selectedTimeOptionIds={selectedTimeOptionIds}
+                            onToggleTimeOption={(optionId) => {
+                              setSelectedTimeOptionIds(prev =>
+                                prev.includes(optionId)
+                                  ? prev.filter(id => id !== optionId)
+                                  : [...prev, optionId]
+                              );
+                            }}
+                            onGetAiSuggestions={() => {
+                              if (!selectedItineraryForScheduling) return;
+                              const venues = selectedItineraryForScheduling.items?.map((item: any) => ({
+                                name: item.venueName,
+                                type: item.venueType,
+                              })) || [];
+                              getAiTimeSuggestionMutation.mutate({
+                                itineraryId: selectedItineraryForScheduling.id,
+                                venues
+                              });
+                            }}
+                            onGetDifferentOptions={async () => {
+                              setAiTimeOptions([]);
+                              setSelectedTimeOptionIds([]);
+                              if (!selectedItineraryForScheduling) return;
+                              const venues = selectedItineraryForScheduling.items?.map((item: any) => ({
+                                name: item.venueName,
+                                type: item.venueType,
+                              })) || [];
+                              await getAiTimeSuggestionMutation.mutateAsync({
+                                itineraryId: selectedItineraryForScheduling.id,
+                                venues
+                              });
+                            }}
+                            isLoadingAi={getAiTimeSuggestionMutation.isPending}
+                            editable={true}
+                            editingOptionId={editingOptionId}
+                            onEditOption={setEditingOptionId}
+                            onUpdateOption={(optionId, updates) => {
+                              setAiTimeOptions(prev => prev.map(opt =>
+                                opt.id === optionId ? { ...opt, ...updates } : opt
+                              ));
+                            }}
+                            timezone={group?.timezone || (group?.locationBase ? getTimezoneIdentifier(group.locationBase) : 'America/Los_Angeles')}
+                            timezoneName={getTimezoneName(group?.timezone || (group?.locationBase ? getTimezoneIdentifier(group.locationBase) : 'America/Los_Angeles'))}
+                          />
                         </div>
 
                         {/* Send Button */}
@@ -6053,893 +5341,92 @@ export default function GroupDetail() {
           </TabsContent>
           {/* Tab 5: Feedback */}
           <TabsContent value="feedback" className="space-y-6">
-            {/* Learning Insights Card */}
-            {groupId && (
-              <Card className="bg-gradient-to-r from-primary/10 to-purple-500/10 border-primary/50">
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Brain className="h-6 w-6 text-primary" />
-                        <h3 className="text-lg font-bold">What We've Learned</h3>
-                      </div>
-                      <p className="text-sm text-muted-foreground mb-4">
-                        See how the AI learns from your group's feedback to improve future suggestions.
-                        View blacklisted venues, member preferences, and engagement patterns.
-                      </p>
-                      <Link href={`/groups/${groupId}/learning`}>
-                        <Button className="gap-2">
-                          <Brain className="h-4 w-4" />
-                          View Learning Insights
-                        </Button>
-                      </Link>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Automated Group Insights */}
-            {groupId && <GroupInsights groupId={groupId} />}
-
-            {/* Divider */}
-            <div className="border-t my-6" />
-
-            {/* RSVP Feedback Summary */}
-            <div>
-              <h3 className="text-lg font-semibold mb-4">RSVP Feedback</h3>
-            {feedbackLoading ? (
-              <div className="space-y-4">
-                <Skeleton className="h-32 w-full" />
-                <Skeleton className="h-48 w-full" />
-              </div>
-            ) : feedbackSummary && feedbackSummary.totalResponses > 0 ? (
-              <div className="space-y-6">
-                {/* Overview Card */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <TrendingUp className="h-5 w-5" />
-                      Feedback Overview
-                    </CardTitle>
-                    <CardDescription>
-                      Patterns from {feedbackSummary.totalResponses} member {feedbackSummary.totalResponses === 1 ? 'response' : 'responses'}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    {/* Budget Concerns */}
-                    {feedbackSummary.budgetConcerns > 0 && (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <DollarSign className="h-4 w-4 text-muted-foreground" />
-                            <Label className="font-medium">Budget concerns</Label>
-                          </div>
-                          <span className="text-sm text-muted-foreground">
-                            {feedbackSummary.budgetConcerns} {feedbackSummary.budgetConcerns === 1 ? 'mention' : 'mentions'}
-                          </span>
-                        </div>
-                        <Progress 
-                          value={(feedbackSummary.budgetConcerns / feedbackSummary.totalResponses) * 100} 
-                          className="h-2"
-                        />
-                      </div>
-                    )}
-
-                    {/* Time Concerns */}
-                    {feedbackSummary.timeConcerns > 0 && (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Clock className="h-4 w-4 text-muted-foreground" />
-                            <Label className="font-medium">Time doesn't work</Label>
-                          </div>
-                          <span className="text-sm text-muted-foreground">
-                            {feedbackSummary.timeConcerns} {feedbackSummary.timeConcerns === 1 ? 'mention' : 'mentions'}
-                          </span>
-                        </div>
-                        <Progress 
-                          value={(feedbackSummary.timeConcerns / feedbackSummary.totalResponses) * 100} 
-                          className="h-2"
-                        />
-                      </div>
-                    )}
-
-                    {/* Location Concerns */}
-                    {feedbackSummary.locationConcerns > 0 && (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <MapPin className="h-4 w-4 text-muted-foreground" />
-                            <Label className="font-medium">Location is inconvenient</Label>
-                          </div>
-                          <span className="text-sm text-muted-foreground">
-                            {feedbackSummary.locationConcerns} {feedbackSummary.locationConcerns === 1 ? 'mention' : 'mentions'}
-                          </span>
-                        </div>
-                        <Progress 
-                          value={(feedbackSummary.locationConcerns / feedbackSummary.totalResponses) * 100} 
-                          className="h-2"
-                        />
-                      </div>
-                    )}
-
-                    {/* Activity Type Concerns */}
-                    {feedbackSummary.activityTypeConcerns > 0 && (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Sparkles className="h-4 w-4 text-muted-foreground" />
-                            <Label className="font-medium">Not interested in these activities</Label>
-                          </div>
-                          <span className="text-sm text-muted-foreground">
-                            {feedbackSummary.activityTypeConcerns} {feedbackSummary.activityTypeConcerns === 1 ? 'mention' : 'mentions'}
-                          </span>
-                        </div>
-                        <Progress 
-                          value={(feedbackSummary.activityTypeConcerns / feedbackSummary.totalResponses) * 100} 
-                          className="h-2"
-                        />
-                      </div>
-                    )}
-
-                    {/* Other Concerns */}
-                    {feedbackSummary.otherConcerns > 0 && (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <AlertCircle className="h-4 w-4 text-muted-foreground" />
-                            <Label className="font-medium">Other reasons</Label>
-                          </div>
-                          <span className="text-sm text-muted-foreground">
-                            {feedbackSummary.otherConcerns} {feedbackSummary.otherConcerns === 1 ? 'mention' : 'mentions'}
-                          </span>
-                        </div>
-                        <Progress 
-                          value={(feedbackSummary.otherConcerns / feedbackSummary.totalResponses) * 100} 
-                          className="h-2"
-                        />
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Post-Event Feedback Card */}
-                {!postEventFeedbackLoading && postEventFeedbackSummary && postEventFeedbackSummary.totalResponses > 0 && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Star className="h-5 w-5" />
-                        Post-Event Feedback
-                      </CardTitle>
-                      <CardDescription>
-                        Insights from {postEventFeedbackSummary.totalResponses} event {postEventFeedbackSummary.totalResponses === 1 ? 'attendee' : 'attendees'}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                      {/* Average Venue Rating */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Star className="h-4 w-4 text-muted-foreground" />
-                            <Label className="font-medium">Average venue rating</Label>
-                          </div>
-                          <span className="text-lg font-semibold">
-                            {postEventFeedbackSummary.averageRating}/5
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Frequency Preferences */}
-                      <div className="space-y-2">
-                        <Label className="font-medium">Event frequency preferences</Label>
-                        <div className="space-y-2">
-                          {postEventFeedbackSummary.moreFrequent > 0 && (
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm">More often</span>
-                              <span className="text-sm text-muted-foreground">
-                                {postEventFeedbackSummary.moreFrequent} {postEventFeedbackSummary.moreFrequent === 1 ? 'vote' : 'votes'}
-                              </span>
-                            </div>
-                          )}
-                          {postEventFeedbackSummary.justRight > 0 && (
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm">This is perfect</span>
-                              <span className="text-sm text-muted-foreground">
-                                {postEventFeedbackSummary.justRight} {postEventFeedbackSummary.justRight === 1 ? 'vote' : 'votes'}
-                              </span>
-                            </div>
-                          )}
-                          {postEventFeedbackSummary.lessFrequent > 0 && (
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm">Less often</span>
-                              <span className="text-sm text-muted-foreground">
-                                {postEventFeedbackSummary.lessFrequent} {postEventFeedbackSummary.lessFrequent === 1 ? 'vote' : 'votes'}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Willingness to Repeat */}
-                      <div className="space-y-2">
-                        <Label className="font-medium">Would do this again?</Label>
-                        <div className="space-y-2">
-                          {postEventFeedbackSummary.wouldDoAgainYes > 0 && (
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm">Yes</span>
-                              <span className="text-sm text-muted-foreground">
-                                {postEventFeedbackSummary.wouldDoAgainYes} {postEventFeedbackSummary.wouldDoAgainYes === 1 ? 'response' : 'responses'}
-                              </span>
-                            </div>
-                          )}
-                          {postEventFeedbackSummary.wouldDoAgainMaybe > 0 && (
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm">Maybe</span>
-                              <span className="text-sm text-muted-foreground">
-                                {postEventFeedbackSummary.wouldDoAgainMaybe} {postEventFeedbackSummary.wouldDoAgainMaybe === 1 ? 'response' : 'responses'}
-                              </span>
-                            </div>
-                          )}
-                          {postEventFeedbackSummary.wouldDoAgainNo > 0 && (
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm">No</span>
-                              <span className="text-sm text-muted-foreground">
-                                {postEventFeedbackSummary.wouldDoAgainNo} {postEventFeedbackSummary.wouldDoAgainNo === 1 ? 'response' : 'responses'}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Recent Improvement Suggestions */}
-                      {postEventFeedbackSummary.recentComments && postEventFeedbackSummary.recentComments.length > 0 && (
-                        <div className="space-y-2">
-                          <Label className="font-medium">Recent improvement suggestions</Label>
-                          <div className="space-y-3">
-                            {postEventFeedbackSummary.recentComments.map((comment: any) => (
-                              <div key={comment.id} className="border-l-2 border-primary/20 pl-4 py-2 space-y-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm font-medium">{comment.itineraryName}</span>
-                                  <div className="flex items-center gap-1">
-                                    {[...Array(5)].map((_, i) => (
-                                      <Star 
-                                        key={i} 
-                                        className={`h-3 w-3 ${i < comment.rating ? 'fill-current text-primary' : 'text-muted-foreground'}`} 
-                                      />
-                                    ))}
-                                  </div>
-                                </div>
-                                <p className="text-sm text-muted-foreground italic">
-                                  "{comment.notes}"
-                                </p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Recent Feedback Comments */}
-                {feedbackSummary.recentFeedback && feedbackSummary.recentFeedback.length > 0 && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <MessageCircle className="h-5 w-5" />
-                        Recent Comments
-                      </CardTitle>
-                      <CardDescription>
-                        Latest feedback from your group members
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      {feedbackSummary.recentFeedback.map((item: any) => (
-                        <div key={item.id} className="border-l-2 border-primary/20 pl-4 py-2 space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium">{item.itineraryName}</span>
-                            <Badge variant={item.response === 'yes' ? 'default' : item.response === 'maybe' ? 'secondary' : 'outline'}>
-                              {item.response}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {format(new Date(item.createdAt), 'MMM d, yyyy')}
-                            </span>
-                          </div>
-                          {item.feedback.notes && (
-                            <p className="text-sm text-muted-foreground italic">
-                              "{item.feedback.notes}"
-                            </p>
-                          )}
-                        </div>
-                      ))}
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-            ) : (
-              <Card className="max-w-2xl mx-auto">
-                <CardHeader className="text-center">
-                  <CardTitle className="text-2xl">No Feedback Yet</CardTitle>
-                  <CardDescription className="text-base mt-2">
-                    Member feedback will appear here
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="text-center py-8">
-                  <MessageCircle className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-                  <p className="text-muted-foreground">
-                    When members RSVP with "maybe" or "can't make it" and provide feedback, you'll see patterns here to help plan better events.
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-            </div>
+            {groupId && <FeedbackTab groupId={groupId} />}
           </TabsContent>
         </Tabs>
       </div>
       {/* Edit Group Dialog */}
-      <Dialog open={editGroupOpen} onOpenChange={setEditGroupOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="dialog-edit-group">
-          <DialogHeader>
-            <DialogTitle>Edit Group Details</DialogTitle>
-            <DialogDescription>
-              Update your group's information and preferences
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-6 py-4">
-            {/* Group Details Section */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Group Details</h3>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-group-name">Group Name</Label>
-                  <Input
-                    id="edit-group-name"
-                    value={editGroupData.name}
-                    onChange={(e) => setEditGroupData({ ...editGroupData, name: e.target.value })}
-                    data-testid="input-edit-group-name"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-group-emoji">Group Icon</Label>
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <div className="text-4xl">{editGroupData.emoji || "🎉"}</div>
-                      <Input 
-                        id="edit-group-emoji"
-                        value={editGroupData.emoji} 
-                        onChange={(e) => setEditGroupData({ ...editGroupData, emoji: e.target.value })}
-                        placeholder="🎉" 
-                        className="w-20 text-center text-2xl"
-                        data-testid="input-edit-group-emoji"
-                      />
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {groupEmojis.map((emoji) => (
-                        <Button
-                          key={emoji}
-                          type="button"
-                          variant={editGroupData.emoji === emoji ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => setEditGroupData({ ...editGroupData, emoji })}
-                          className="text-xl h-10 w-10 p-0"
-                          data-testid={`button-edit-emoji-${emoji}`}
-                        >
-                          {emoji}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-location">Location Base</Label>
-                  <Input
-                    id="edit-location"
-                    value={editGroupData.locationBase}
-                    onChange={(e) => setEditGroupData({ ...editGroupData, locationBase: e.target.value })}
-                    data-testid="input-edit-location"
-                  />
-                </div>
-                <div className="space-y-3">
-                  <Label>Budget Range (per person)</Label>
-                  <div className="space-y-3">
-                    <Slider
-                      min={0}
-                      max={250}
-                      step={10}
-                      value={editBudgetRange}
-                      onValueChange={setEditBudgetRange}
-                      className="w-full"
-                      data-testid="slider-edit-budget"
-                    />
-                    <div className="flex justify-between text-sm">
-                      <span className="font-medium" data-testid="text-edit-budget-min">
-                        {editBudgetRange[0] >= 200 ? "$200+" : `$${editBudgetRange[0]}`}
-                      </span>
-                      <span className="font-medium" data-testid="text-edit-budget-max">
-                        {editBudgetRange[1] >= 200 ? "$200+" : `$${editBudgetRange[1]}`}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>How Often to Meet</Label>
-                  <div className="flex items-center gap-2">
-                    <div className="w-20">
-                      <Input
-                        type="number"
-                        min={1}
-                        max={99}
-                        value={editFrequencyNumber}
-                        onChange={(e) => setEditFrequencyNumber(parseInt(e.target.value) || 1)}
-                        data-testid="input-edit-frequency-number"
-                      />
-                    </div>
-                    <span className="text-sm text-muted-foreground">x each</span>
-                    <Select value={editFrequencyUnit} onValueChange={setEditFrequencyUnit}>
-                      <SelectTrigger className="flex-1" data-testid="select-edit-frequency-unit">
-                        <SelectValue placeholder="Select unit" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="day">day</SelectItem>
-                        <SelectItem value="week">week</SelectItem>
-                        <SelectItem value="month">month</SelectItem>
-                        <SelectItem value="year">year</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <Label>Group Availability</Label>
-                  <AvailabilityGrid 
-                    value={editAvailability} 
-                    onChange={setEditAvailability}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-general-availability">General Availability (Optional)</Label>
-                  <Input
-                    id="edit-general-availability"
-                    value={editGeneralAvailability}
-                    onChange={(e) => setEditGeneralAvailability(e.target.value)}
-                    placeholder="e.g., Weekday evenings, Weekends, Friday/Saturday nights"
-                    data-testid="input-edit-general-availability"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Simple description to help AI pick the best time for your group
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Preferences Section */}
-            <div className="space-y-4 pt-4 border-t">
-              <h3 className="text-sm font-semibold">Group Preferences</h3>
-              <div className="space-y-6">
-                <div className="space-y-4">
-                  <Label className="text-base">How willing is your group to try new things?</Label>
-                  <div className="space-y-3">
-                    <div className="text-center text-sm text-muted-foreground">
-                      Group Openness to New Experiences
-                    </div>
-                    <Slider
-                      min={1}
-                      max={5}
-                      step={1}
-                      value={[editNovelty]}
-                      onValueChange={(value) => setEditNovelty(value[0])}
-                      className="w-full"
-                      data-testid="slider-edit-novelty"
-                    />
-                    <div className="flex justify-between text-xs text-muted-foreground px-1">
-                      <span>We like our usual spots</span>
-                      <span>Open sometimes</span>
-                      <span>Always up for new things!</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <Label className="text-base">What types of activities interest your group?</Label>
-                  <p className="text-sm text-muted-foreground">Select all that apply (optional)</p>
-                  <div className="flex flex-wrap gap-2">
-                    {activityCategories.map((category) => {
-                      const Icon = category.icon;
-                      return (
-                        <Button
-                          key={category.id}
-                          type="button"
-                          variant={editCategories.includes(category.id) ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => toggleEditCategory(category.id)}
-                          className="gap-1.5"
-                          data-testid={`button-edit-category-${category.id}`}
-                        >
-                          <Icon className="h-4 w-4" />
-                          <span>{category.label}</span>
-                        </Button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="edit-past-preferences">What Has Your Group Enjoyed in the Past?</Label>
-                  <Textarea
-                    id="edit-past-preferences"
-                    value={editGroupData.pastPreferences}
-                    onChange={(e) => setEditGroupData({ ...editGroupData, pastPreferences: e.target.value })}
-                    placeholder="e.g., Trying new restaurants, outdoor activities, board game cafes, art museums..."
-                    className="resize-none h-24"
-                    data-testid="textarea-edit-past-preferences"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="edit-additional-instructions">Additional Instructions for AI (Optional)</Label>
-                  <Textarea
-                    id="edit-additional-instructions"
-                    value={editGroupData.additionalInstructions}
-                    onChange={(e) => setEditGroupData({ ...editGroupData, additionalInstructions: e.target.value })}
-                    placeholder="e.g., Must be accessible by public transit, prefer venues with outdoor seating, avoid crowded places..."
-                    className="resize-none h-24"
-                    data-testid="textarea-edit-additional-instructions"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Members Section */}
-            <div className="space-y-4 pt-4 border-t">
-              <h3 className="text-sm font-semibold">Members</h3>
-              
-              {/* Existing Members */}
-              {members.length > 0 && (
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Current Members</Label>
-                  <div className="space-y-2">
-                    {members.map((member) => (
-                      <div key={member.id} className="flex items-center gap-2 p-2 bg-muted/50 rounded-md">
-                        <Avatar className="h-7 w-7">
-                          <AvatarFallback className="bg-primary/25 text-primary text-xs">
-                            {member.name?.[0]?.toUpperCase() || member.email?.[0]?.toUpperCase() || "?"}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{member.name || "Member"}</p>
-                          {member.email && (
-                            <p className="text-xs text-muted-foreground truncate">{member.email}</p>
-                          )}
-                        </div>
-                        {member.isOrganizer ? (
-                          <Badge variant="secondary" className="text-xs">Organizer</Badge>
-                        ) : (
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-7 w-7"
-                              >
-                                <Trash2 className="h-3 w-3 text-muted-foreground" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Remove Member</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Are you sure you want to remove {member.name || member.email || "this member"} from the group?
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => mutations.deleteMember.mutate(member.id)}
-                                >
-                                  Remove
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Add New Members */}
-              {newMembers.length > 0 && (
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">New Members to Add</Label>
-                  {newMembers.map((member, index) => (
-                    <div key={index} className="flex gap-2 items-start">
-                      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
-                        <Input
-                          placeholder="Name (optional)"
-                          value={member.name}
-                          onChange={(e) => updateNewMember(index, "name", e.target.value)}
-                          data-testid={`input-new-member-name-${index}`}
-                        />
-                        <Input
-                          type="email"
-                          placeholder="Email (optional)"
-                          value={member.email}
-                          onChange={(e) => updateNewMember(index, "email", e.target.value)}
-                          data-testid={`input-new-member-email-${index}`}
-                        />
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9"
-                        onClick={() => removeNewMember(index)}
-                        data-testid={`button-remove-new-member-${index}`}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addNewMember}
-                className="w-full"
-                data-testid="button-add-new-member"
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Add Member
-              </Button>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditGroupOpen(false)} data-testid="button-cancel-edit">
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleUpdateGroup} 
-              disabled={updateGroupMutation.isPending}
-              data-testid="button-save-group"
-            >
-              {updateGroupMutation.isPending ? "Saving..." : "Save Changes"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <EditGroupDialog
+        open={editGroupOpen}
+        onOpenChange={setEditGroupOpen}
+        initialData={editGroupData}
+        initialBudgetRange={[editBudgetRange[0], editBudgetRange[1]]}
+        initialFrequencyNumber={editFrequencyNumber}
+        initialFrequencyUnit={editFrequencyUnit}
+        initialNovelty={editNovelty}
+        initialCategories={editCategories}
+        initialAvailability={editAvailability}
+        initialGeneralAvailability={editGeneralAvailability}
+        members={members}
+        onSave={({ updates, newMembers: validNewMembers }) => {
+          updateGroupMutation.mutate({ updates, newMembers: validNewMembers });
+        }}
+        onDeleteMember={(memberId) => mutations.deleteMember.mutate(memberId)}
+        isSaving={updateGroupMutation.isPending}
+      />
 
       {/* Save Itinerary Dialog */}
-      <Dialog open={saveItineraryOpen} onOpenChange={setSaveItineraryOpen}>
-        <DialogContent data-testid="dialog-save-itinerary">
-          <DialogHeader>
-            <DialogTitle>Save Itinerary</DialogTitle>
-            <DialogDescription>
-              Name it yourself or let AI create a name based on your venues
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="itinerary-name">Itinerary Name (optional)</Label>
-              <Input
-                id="itinerary-name"
-                placeholder="Leave blank for AI to name it (e.g., 'Dinner at Ryoko's - Oakland')"
-                value={itineraryName}
-                onChange={(e) => setItineraryName(e.target.value)}
-                data-testid="input-itinerary-name"
-              />
-            </div>
-            
-            <Collapsible open={timingNotesOpen} onOpenChange={setTimingNotesOpen}>
-              <CollapsibleTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full justify-start gap-2 px-0"
-                  data-testid="button-toggle-timing-notes"
-                >
-                  <ChevronRight className={`h-4 w-4 transition-transform ${timingNotesOpen ? 'rotate-90' : ''}`} />
-                  <span className="text-sm text-muted-foreground">Add timing notes (optional)</span>
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-2 pt-2">
-                <Label htmlFor="timing-recommendations" className="text-xs text-muted-foreground">
-                  When does this plan work best?
-                </Label>
-                <Textarea
-                  id="timing-recommendations"
-                  placeholder="e.g., 'Best for Saturday brunch' or 'Sunday when there's a Monday holiday'"
-                  value={timingRecommendations}
-                  onChange={(e) => setTimingRecommendations(e.target.value)}
-                  className="min-h-[80px]"
-                  data-testid="textarea-timing-recommendations"
-                />
-              </CollapsibleContent>
-            </Collapsible>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setSaveItineraryOpen(false);
-                setItineraryName("");
-                setTimingRecommendations("");
-                setTimingNotesOpen(false);
-                setSavingItineraryId(null);
-              }}
-              data-testid="button-cancel-save-itinerary"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                if (savingItineraryId) {
-                  saveItineraryMutation.mutate({
-                    itineraryId: savingItineraryId,
-                    name: itineraryName.trim(),
-                    timingRecommendations: timingRecommendations.trim() || undefined,
-                  });
-                }
-              }}
-              disabled={saveItineraryMutation.isPending}
-              data-testid="button-confirm-save-itinerary"
-            >
-              {saveItineraryMutation.isPending ? "Saving..." : "Save Itinerary"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <SaveItineraryDialog
+        open={saveItineraryOpen}
+        onOpenChange={(open) => {
+          setSaveItineraryOpen(open);
+          if (!open) setSavingItineraryId(null);
+        }}
+        onSave={(data) => {
+          if (savingItineraryId) {
+            saveItineraryMutation.mutate({
+              itineraryId: savingItineraryId,
+              name: data.name,
+              timingRecommendations: data.timingRecommendations,
+            });
+          }
+        }}
+        isSaving={saveItineraryMutation.isPending}
+      />
       {/* RSVP Constraint Dialog */}
-      <Dialog 
-        open={rsvpConstraintOpen} 
+      <RsvpConstraintDialog
+        open={rsvpConstraintOpen}
         onOpenChange={(open) => {
           setRsvpConstraintOpen(open);
-          if (!open) {
-            setRsvpItineraryId(null);
-            setConstraintText("");
+          if (!open) setRsvpItineraryId(null);
+        }}
+        onSubmit={(constraintText) => {
+          if (rsvpItineraryId) {
+            createRsvpMutation.mutate({
+              itineraryId: rsvpItineraryId,
+              response: 'yes_with_constraint',
+              constraintText
+            });
           }
         }}
-      >
-        <DialogContent data-testid="dialog-rsvp-constraint">
-          <DialogHeader>
-            <DialogTitle>Conditional RSVP</DialogTitle>
-            <DialogDescription>
-              Let the group know what would make this work for you
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="constraint-text">Your Constraint</Label>
-              <Input
-                id="constraint-text"
-                placeholder="e.g., only if we meet in Oakland, only if we start after 7pm"
-                value={constraintText}
-                onChange={(e) => setConstraintText(e.target.value)}
-                data-testid="input-constraint-text"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setRsvpConstraintOpen(false);
-                setRsvpItineraryId(null);
-                setConstraintText("");
-              }}
-              data-testid="button-cancel-constraint"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                if (rsvpItineraryId && constraintText.trim()) {
-                  createRsvpMutation.mutate({
-                    itineraryId: rsvpItineraryId,
-                    response: 'yes_with_constraint',
-                    constraintText: constraintText.trim()
-                  });
-                }
-              }}
-              disabled={!constraintText.trim() || createRsvpMutation.isPending}
-              data-testid="button-confirm-constraint"
-            >
-              {createRsvpMutation.isPending ? "Submitting..." : "Submit RSVP"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        isSubmitting={createRsvpMutation.isPending}
+      />
       {/* Send Backup Dialog */}
-      <Dialog 
-        open={sendBackupOpen} 
+      <SendBackupDialog
+        open={sendBackupOpen}
         onOpenChange={(open) => {
           setSendBackupOpen(open);
-          if (!open) {
-            setBackupForItineraryId(null);
-            setSelectedBackupId(null);
+          if (!open) setBackupForItineraryId(null);
+        }}
+        savedItineraries={savedItineraries}
+        onSend={(savedItineraryId) => {
+          if (backupForItineraryId) {
+            sendBackupMutation.mutate({
+              savedItineraryId,
+              originalItineraryId: backupForItineraryId
+            });
           }
         }}
-      >
-        <DialogContent data-testid="dialog-send-backup">
-          <DialogHeader>
-            <DialogTitle>Send Backup Plan</DialogTitle>
-            <DialogDescription>
-              Select an alternative plan to send to members with location constraints
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            {savedItineraries.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-sm text-muted-foreground">
-                  No saved plans available. Save a plan first to send it as a backup.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <Label>Select Backup Plan</Label>
-                <div className="space-y-2 max-h-80 overflow-y-auto">
-                  {savedItineraries.map((itinerary: any) => (
-                    <button
-                      key={itinerary.id}
-                      onClick={() => setSelectedBackupId(itinerary.id)}
-                      className={`w-full text-left p-3 rounded-md border transition-all ${
-                        selectedBackupId === itinerary.id ? 'border-primary bg-primary/25' : ''
-                      }`}
-                      data-testid={`backup-option-${itinerary.id}`}
-                    >
-                      <p className="text-sm font-medium">{itinerary.name}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {itinerary.items?.length || 0} stops
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setSendBackupOpen(false);
-                setBackupForItineraryId(null);
-                setSelectedBackupId(null);
-              }}
-              data-testid="button-cancel-backup"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                if (selectedBackupId && backupForItineraryId) {
-                  sendBackupMutation.mutate({
-                    savedItineraryId: selectedBackupId,
-                    originalItineraryId: backupForItineraryId
-                  });
-                }
-              }}
-              disabled={!selectedBackupId || sendBackupMutation.isPending}
-              data-testid="button-confirm-backup"
-            >
-              {sendBackupMutation.isPending ? "Sending..." : "Send Backup"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        isSending={sendBackupMutation.isPending}
+      />
       {/* Edit Itinerary Dialog */}
-      <Dialog 
-        open={editItineraryOpen} 
+      <Dialog
+        open={itineraryEditor.isOpen}
         onOpenChange={(open) => {
-          setEditItineraryOpen(open);
           if (!open) {
-            setEditingItinerary(null);
-            setEditItineraryName("");
-            setEditItineraryItems([]);
-            setEditTimingRecommendations("");
-            setEditProposedDate("");
+            itineraryEditor.reset();
+          } else {
+            itineraryEditor.setIsOpen(open);
           }
         }}
       >
@@ -7164,604 +5651,109 @@ export default function GroupDetail() {
         </DialogContent>
       </Dialog>
       {/* Add Venue to Itinerary Dialog */}
-      <Dialog open={addVenueDialogOpen} onOpenChange={(open) => {
-        setAddVenueDialogOpen(open);
-        if (!open) {
-          setDialogVenueSearchQuery("");
-          setVenuesToAdd([]);
-        }
-      }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="dialog-add-venue">
-          <DialogHeader>
-            <DialogTitle>Add Venues to Plan</DialogTitle>
-            <DialogDescription>
-              Search for venues or select from your activities and voting events
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-6">
-            {/* Search for Venues */}
-            <div className="space-y-3">
-              <Label>Search for Venues</Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Search for parks, restaurants, cafes, or any venue..."
-                  value={dialogVenueSearchQuery}
-                  onChange={(e) => setDialogVenueSearchQuery(e.target.value)}
-                  className="pl-9"
-                  data-testid="input-dialog-venue-search"
-                />
-              </div>
-
-              {/* Search Results */}
-              {dialogVenueSearchQuery.trim() && dialogVenueSearchQuery.trim().length >= 2 && (
-                <div className="space-y-2">
-                  {dialogVenueSearchResults.length > 0 ? (
-                    <div className="max-h-60 overflow-y-auto space-y-2">
-                      {dialogVenueSearchResults.map((result: any) => {
-                        const isAlreadyInPlan = editItineraryItems.some((item: any) => {
-                          if (item.sourceType === 'voting_event') {
-                            const event = votingEvents.find(e => e.id === item.sourceId);
-                            return event?.googlePlaceId === result.placeId;
-                          } else if (item.sourceType === 'activity') {
-                            const activity = activities.find(a => a.id === item.sourceId);
-                            return activity?.googlePlaceId === result.placeId;
-                          }
-                          return false;
-                        });
-
-                        return (
-                          <button
-                            key={result.placeId}
-                            onClick={async () => {
-                              if (isAlreadyInPlan || addVotingEventMutation.isPending) return;
-                              
-                              try {
-                                // Create voting event first
-                                const newEvent = await addVotingEventMutation.mutateAsync({
-                                  title: result.name,
-                                  venueType: result.types?.[0] || 'venue',
-                                  venueAddress: result.address,
-                                  googlePlaceId: result.placeId,
-                                });
-
-                                // Then add to itinerary
-                                if (editingItinerary && newEvent?.event?.id) {
-                                  await addItineraryItemsMutation.mutateAsync({
-                                    itineraryId: editingItinerary.id,
-                                    items: [{ sourceType: 'voting_event', sourceId: newEvent.event.id }]
-                                  });
-
-                                  toast({
-                                    title: "Venue added",
-                                    description: `${result.name} has been added to your plan`,
-                                  });
-
-                                  // Clear search after successful add
-                                  setDialogVenueSearchQuery("");
-                                }
-                              } catch (error) {
-                                toast({
-                                  title: "Error adding venue",
-                                  description: "Please try again",
-                                  variant: "destructive",
-                                });
-                              }
-                            }}
-                            disabled={isAlreadyInPlan || addVotingEventMutation.isPending}
-                            className={`flex gap-3 p-3 rounded-md border text-left transition-all w-full ${
-                              isAlreadyInPlan || addVotingEventMutation.isPending ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-                            }`}
-                            data-testid={`dialog-search-result-${result.placeId}`}
-                          >
-                            {result.photoUrl && (
-                              <img 
-                                src={result.photoUrl} 
-                                alt={result.name}
-                                className="w-12 h-12 rounded object-cover flex-shrink-0"
-                              />
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{result.name}</p>
-                              {result.rating && (
-                                <div className="flex items-center gap-1 mt-0.5">
-                                  <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                                  <span className="text-xs">{result.rating}</span>
-                                </div>
-                              )}
-                              <p className="text-xs text-muted-foreground truncate mt-0.5">
-                                {result.address}
-                              </p>
-                            </div>
-                            {isAlreadyInPlan && (
-                              <Badge variant="secondary" className="text-xs">Added</Badge>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground text-center py-4">
-                      No venues found. Try a different search.
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Activities */}
-            {activities.length > 0 && (
-              <div className="space-y-3">
-                <Label>AI Suggested Activities</Label>
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {activities.map((activity: Activity) => {
-                    const isAlreadyInPlan = editItineraryItems.some((item: any) => item.sourceType === 'activity' && item.sourceId === activity.id);
-                    const isSelected = venuesToAdd.some(v => v.sourceType === 'activity' && v.sourceId === activity.id);
-                    
-                    return (
-                      <div
-                        key={activity.id}
-                        className={`flex items-center gap-3 p-3 rounded-md border transition-all ${
-                          isAlreadyInPlan ? 'opacity-50 cursor-not-allowed' :
-                          isSelected ? 'border-primary bg-primary/25' : 'cursor-pointer'
-                        }`}
-                        onClick={() => {
-                          if (isAlreadyInPlan) return;
-                          if (isSelected) {
-                            setVenuesToAdd(prev => prev.filter(v => !(v.sourceType === 'activity' && v.sourceId === activity.id)));
-                          } else {
-                            setVenuesToAdd(prev => [...prev, { sourceType: 'activity', sourceId: activity.id }]);
-                          }
-                        }}
-                        data-testid={`add-venue-activity-${activity.id}`}
-                      >
-                        <Checkbox 
-                          checked={isSelected}
-                          disabled={isAlreadyInPlan}
-                          className="pointer-events-none"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{activity.venueName}</p>
-                          <p className="text-sm text-muted-foreground truncate">{activity.venueType}</p>
-                        </div>
-                        {isAlreadyInPlan && (
-                          <Badge variant="secondary" className="text-xs">Already added</Badge>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Voting Events */}
-            {votingEvents.length > 0 && (
-              <div className="space-y-3">
-                <Label>Member Suggested Venues</Label>
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {votingEvents.map((event: VotingEvent) => {
-                    const isAlreadyInPlan = editItineraryItems.some((item: any) => item.sourceType === 'voting_event' && item.sourceId === event.id);
-                    const isSelected = venuesToAdd.some(v => v.sourceType === 'voting_event' && v.sourceId === event.id);
-                    
-                    return (
-                      <div
-                        key={event.id}
-                        className={`flex items-center gap-3 p-3 rounded-md border transition-all ${
-                          isAlreadyInPlan ? 'opacity-50 cursor-not-allowed' :
-                          isSelected ? 'border-primary bg-primary/25' : 'cursor-pointer'
-                        }`}
-                        onClick={() => {
-                          if (isAlreadyInPlan) return;
-                          if (isSelected) {
-                            setVenuesToAdd(prev => prev.filter(v => !(v.sourceType === 'voting_event' && v.sourceId === event.id)));
-                          } else {
-                            setVenuesToAdd(prev => [...prev, { sourceType: 'voting_event', sourceId: event.id }]);
-                          }
-                        }}
-                        data-testid={`add-venue-event-${event.id}`}
-                      >
-                        <Checkbox 
-                          checked={isSelected}
-                          disabled={isAlreadyInPlan}
-                          className="pointer-events-none"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{event.title}</p>
-                          <p className="text-sm text-muted-foreground truncate">{event.venueType || 'Venue'}</p>
-                        </div>
-                        {isAlreadyInPlan && (
-                          <Badge variant="secondary" className="text-xs">Already added</Badge>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {activities.length === 0 && votingEvents.length === 0 && (
-              <div className="text-center py-8 text-sm text-muted-foreground">
-                No venues available to add
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setAddVenueDialogOpen(false);
-                setVenuesToAdd([]);
-              }}
-              data-testid="button-cancel-add-venue"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                if (!editingItinerary || venuesToAdd.length === 0) return;
-                addItineraryItemsMutation.mutate({
-                  itineraryId: editingItinerary.id,
-                  items: venuesToAdd
-                });
-              }}
-              disabled={venuesToAdd.length === 0 || addItineraryItemsMutation.isPending}
-              data-testid="button-confirm-add-venue"
-            >
-              {addItineraryItemsMutation.isPending ? "Adding..." : `Add ${venuesToAdd.length} Venue${venuesToAdd.length !== 1 ? 's' : ''}`}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <AddVenueDialog
+        open={addVenueDialogOpen}
+        onOpenChange={setAddVenueDialogOpen}
+        groupId={groupId || ""}
+        activities={activities}
+        votingEvents={votingEvents}
+        currentItineraryItems={editItineraryItems}
+        editingItineraryId={editingItinerary?.id || null}
+        onAddFromSearch={async (result) => {
+          try {
+            const newEvent = await addVotingEventMutation.mutateAsync({
+              title: result.name,
+              venueType: result.types?.[0] || 'venue',
+              venueAddress: result.address,
+              googlePlaceId: result.placeId,
+            });
+            if (editingItinerary && newEvent?.event?.id) {
+              await addItineraryItemsMutation.mutateAsync({
+                itineraryId: editingItinerary.id,
+                items: [{ sourceType: 'voting_event', sourceId: newEvent.event.id }]
+              });
+              toast({
+                title: "Venue added",
+                description: `${result.name} has been added to your plan`,
+              });
+            }
+          } catch (error) {
+            toast({
+              title: "Error adding venue",
+              description: "Please try again",
+              variant: "destructive",
+            });
+          }
+        }}
+        onAddSelected={(items) => {
+          if (!editingItinerary) return;
+          addItineraryItemsMutation.mutate({
+            itineraryId: editingItinerary.id,
+            items
+          });
+        }}
+        isAddingFromSearch={addVotingEventMutation.isPending}
+        isAddingSelected={addItineraryItemsMutation.isPending}
+      />
       {/* Edit Availability Dialog */}
-      <Dialog open={editAvailabilityOpen} onOpenChange={setEditAvailabilityOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="dialog-edit-availability">
-          <DialogHeader>
-            <DialogTitle>Edit Group Availability</DialogTitle>
-            <DialogDescription>
-              Update when the group is typically free to meet
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-6">
-            {/* Availability Grid */}
-            <div className="space-y-3">
-              <Label>When is the group free?</Label>
-              <AvailabilityGrid 
-                value={editAvailabilityData} 
-                onChange={setEditAvailabilityData}
-              />
-            </div>
-
-            {/* Meeting Frequency */}
-            <div className="space-y-3">
-              <Label>Meeting Frequency</Label>
-              <div className="flex gap-2 items-center">
-                <Input
-                  type="number"
-                  min="1"
-                  value={editMeetingFreqNumber}
-                  onChange={(e) => setEditMeetingFreqNumber(parseInt(e.target.value) || 1)}
-                  className="w-20"
-                  data-testid="input-frequency-number"
-                />
-                <Select
-                  value={editMeetingFreqUnit}
-                  onValueChange={setEditMeetingFreqUnit}
-                >
-                  <SelectTrigger className="flex-1" data-testid="select-frequency-unit">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="days">days</SelectItem>
-                    <SelectItem value="weeks">weeks</SelectItem>
-                    <SelectItem value="months">months</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Additional Notes */}
-            <div className="space-y-3">
-              <Label htmlFor="edit-availability-notes">Additional Notes (Optional)</Label>
-              <Input
-                id="edit-availability-notes"
-                value={editAvailabilityNotes}
-                onChange={(e) => setEditAvailabilityNotes(e.target.value)}
-                placeholder="e.g., Prefer evenings after 6pm"
-                data-testid="input-availability-notes"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setEditAvailabilityOpen(false)}
-              data-testid="button-cancel-edit-availability"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                const meetingFrequency = `${editMeetingFreqNumber}x ${editMeetingFreqUnit.replace(/s$/, '')}`;
-                updateGroupMutation.mutate({
-                  updates: {
-                    availability: editAvailabilityData,
-                    generalAvailability: editAvailabilityNotes.trim() || null,
-                    meetingFrequency
-                  },
-                  newMembers: []
-                });
-                setEditAvailabilityOpen(false);
-              }}
-              disabled={updateGroupMutation.isPending}
-              data-testid="button-save-availability"
-            >
-              {updateGroupMutation.isPending ? "Saving..." : "Save Changes"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <EditAvailabilityDialog
+        open={editAvailabilityOpen}
+        onOpenChange={setEditAvailabilityOpen}
+        initialAvailability={editAvailabilityData}
+        initialFrequencyNumber={editMeetingFreqNumber}
+        initialFrequencyUnit={editMeetingFreqUnit}
+        initialNotes={editAvailabilityNotes}
+        onSave={(data) => {
+          updateGroupMutation.mutate({
+            updates: data,
+            newMembers: []
+          });
+        }}
+        isSaving={updateGroupMutation.isPending}
+      />
       {/* Invite Guest Dialog */}
-      <Dialog open={inviteGuestDialogOpen} onOpenChange={setInviteGuestDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Invite Additional Guests</DialogTitle>
-            <DialogDescription>
-              Add guests to this event. Guests will be able to RSVP but won't affect the group's preferences.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="guest-name">Guest Name *</Label>
-              <Input
-                id="guest-name"
-                value={guestName}
-                onChange={(e) => setGuestName(e.target.value)}
-                placeholder="e.g., Sarah Johnson"
-                data-testid="input-guest-name"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="guest-email">Guest Email (Optional)</Label>
-              <Input
-                id="guest-email"
-                type="email"
-                value={guestEmail}
-                onChange={(e) => setGuestEmail(e.target.value)}
-                placeholder="e.g., sarah@example.com"
-                data-testid="input-guest-email"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Guest RSVP Response</Label>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    if (!guestName.trim()) {
-                      toast({
-                        title: "Name required",
-                        description: "Please enter the guest's name",
-                        variant: "destructive",
-                      });
-                      return;
-                    }
-                    inviteGuestMutation.mutate({
-                      itineraryId: inviteGuestItineraryId!,
-                      guestName: guestName.trim(),
-                      guestEmail: guestEmail.trim(),
-                      response: "yes",
-                    });
-                  }}
-                  disabled={inviteGuestMutation.isPending || !guestName.trim()}
-                  data-testid="button-guest-rsvp-yes"
-                  className="flex-1"
-                >
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Yes
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    if (!guestName.trim()) {
-                      toast({
-                        title: "Name required",
-                        description: "Please enter the guest's name",
-                        variant: "destructive",
-                      });
-                      return;
-                    }
-                    inviteGuestMutation.mutate({
-                      itineraryId: inviteGuestItineraryId!,
-                      guestName: guestName.trim(),
-                      guestEmail: guestEmail.trim(),
-                      response: "maybe",
-                    });
-                  }}
-                  disabled={inviteGuestMutation.isPending || !guestName.trim()}
-                  data-testid="button-guest-rsvp-maybe"
-                  className="flex-1"
-                >
-                  <Circle className="h-4 w-4 mr-2" />
-                  Maybe
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    if (!guestName.trim()) {
-                      toast({
-                        title: "Name required",
-                        description: "Please enter the guest's name",
-                        variant: "destructive",
-                      });
-                      return;
-                    }
-                    inviteGuestMutation.mutate({
-                      itineraryId: inviteGuestItineraryId!,
-                      guestName: guestName.trim(),
-                      guestEmail: guestEmail.trim(),
-                      response: "no",
-                    });
-                  }}
-                  disabled={inviteGuestMutation.isPending || !guestName.trim()}
-                  data-testid="button-guest-rsvp-no"
-                  className="flex-1"
-                >
-                  <XCircle className="h-4 w-4 mr-2" />
-                  No
-                </Button>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setInviteGuestDialogOpen(false);
-                setGuestName("");
-                setGuestEmail("");
-              }}
-              data-testid="button-cancel-invite-guest"
-            >
-              Cancel
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <InviteGuestDialog
+        open={inviteGuestDialogOpen}
+        onOpenChange={setInviteGuestDialogOpen}
+        onInvite={(data) => {
+          if (inviteGuestItineraryId) {
+            inviteGuestMutation.mutate({
+              itineraryId: inviteGuestItineraryId,
+              ...data,
+            });
+          }
+        }}
+        isInviting={inviteGuestMutation.isPending}
+        onValidationError={(message) => {
+          toast({
+            title: "Name required",
+            description: message,
+            variant: "destructive",
+          });
+        }}
+      />
 
       {/* Auto-schedule Preview Dialog */}
-      <Dialog open={autoSchedulePreviewOpen} onOpenChange={setAutoSchedulePreviewOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Bot className="h-5 w-5 text-primary" />
-              Enable Auto-scheduling?
-            </DialogTitle>
-            <DialogDescription>
-              Here's what will happen when you enable automation
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <Card className="bg-muted/30">
-              <CardContent className="pt-4 space-y-3">
-                <div className="space-y-1">
-                  <div className="text-sm font-semibold">Meeting Frequency</div>
-                  <div className="text-sm text-muted-foreground">
-                    Events every {editFrequencyNumber} {editFrequencyUnit}{editFrequencyNumber !== 1 ? 's' : ''}
-                  </div>
-                </div>
-
-                {/* Calculate and show next event date */}
-                {(() => {
-                  const lastEventDateStr = group?.lastEventDate ? (typeof group.lastEventDate === 'string' ? group.lastEventDate : new Date(group.lastEventDate).toISOString()) : null;
-                  const nextEventDate = calculateNextEventDate(lastEventDateStr, editFrequencyNumber, editFrequencyUnit);
-                  const now = new Date();
-                  const daysAway = Math.ceil((nextEventDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-                  const withinTriggerWindow = daysAway <= 10 && daysAway >= 0;
-
-                  return (
-                    <div className="space-y-1 pt-2 border-t">
-                      <div className="text-sm font-semibold flex items-center gap-2">
-                        <Calendar className="h-4 w-4" />
-                        Next Event Target
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        {nextEventDate.toLocaleDateString('en-US', {
-                          weekday: 'short',
-                          month: 'short',
-                          day: 'numeric',
-                          year: nextEventDate.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
-                        })}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={withinTriggerWindow ? "default" : "secondary"} className="text-xs">
-                          {daysAway === 0 ? 'Today' : daysAway === 1 ? 'Tomorrow' : `${daysAway} days away`}
-                        </Badge>
-                      </div>
-
-                      {withinTriggerWindow ? (
-                        <div className="flex items-start gap-2 mt-2 p-2 bg-primary/25 rounded-md">
-                          <Sparkles className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                          <div className="text-xs">
-                            <strong className="text-primary">Event will be created immediately</strong>
-                            <p className="text-muted-foreground mt-1">
-                              Within 10-day creation window. AI will create the pending event now and give members 48 hours to volunteer as host.
-                            </p>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="text-xs text-muted-foreground mt-2">
-                          AI will create event on {new Date(nextEventDate.getTime() - (10 * 24 * 60 * 60 * 1000)).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} (10 days before target)
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-
-                <div className="space-y-1 pt-2 border-t">
-                  <div className="text-sm font-semibold">Content Priority</div>
-                  <div className="text-xs text-muted-foreground">
-                    AI pulls from: <strong>Saved plans</strong> → <strong>Favorited venues</strong> → <strong>Viable activities</strong>
-                  </div>
-                </div>
-                {itineraries && itineraries.length > 0 && (
-                  <div className="pt-2 border-t text-xs">
-                    <span className="text-muted-foreground">Would likely use: </span>
-                    <span className="font-semibold">{itineraries[0].name}</span>
-                  </div>
-                )}
-                {(!itineraries || itineraries.length === 0) && activities && activities.filter((a: any) => a.feedback === 'love' || a.feedback === 'favorite').length > 0 && (
-                  <div className="pt-2 border-t text-xs">
-                    <span className="text-muted-foreground">Would create from: </span>
-                    <span className="font-semibold">{activities.filter((a: any) => a.feedback === 'love' || a.feedback === 'favorite').length} favorited venues</span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setAutoSchedulePreviewOpen(false)}
-              data-testid="button-cancel-auto-schedule"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={async () => {
-                // Calculate if within trigger window
-                const lastEventDateStr = group?.lastEventDate ? (typeof group.lastEventDate === 'string' ? group.lastEventDate : new Date(group.lastEventDate).toISOString()) : null;
-                const nextEventDate = calculateNextEventDate(lastEventDateStr, editFrequencyNumber, editFrequencyUnit);
-                const now = new Date();
-                const daysAway = Math.ceil((nextEventDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-                const withinTriggerWindow = daysAway <= 10 && daysAway >= 0;
-
-                // Enable automation first
-                await toggleAutomationMutation.mutateAsync({
-                  field: 'autoScheduleEnabled',
-                  value: true
-                });
-
-                // If within trigger window, create event immediately
-                if (withinTriggerWindow) {
-                  await triggerAutoScheduleMutation.mutateAsync();
-                }
-
-                setAutoSchedulePreviewOpen(false);
-              }}
-              disabled={toggleAutomationMutation.isPending || triggerAutoScheduleMutation.isPending}
-              data-testid="button-confirm-auto-schedule"
-            >
-              {toggleAutomationMutation.isPending || triggerAutoScheduleMutation.isPending
-                ? "Enabling..."
-                : "Enable Automation"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <AutoSchedulePreviewDialog
+        open={autoSchedulePreviewOpen}
+        onOpenChange={setAutoSchedulePreviewOpen}
+        frequencyNumber={editFrequencyNumber}
+        frequencyUnit={editFrequencyUnit}
+        lastEventDate={group?.lastEventDate || null}
+        calculateNextEventDate={calculateNextEventDate}
+        suggestedPlanName={itineraries && itineraries.length > 0 ? itineraries[0].name : undefined}
+        favoritedVenueCount={activities?.filter((a: any) => a.feedback === 'love' || a.feedback === 'favorite').length || 0}
+        onConfirm={async (withinTriggerWindow) => {
+          await toggleAutomationMutation.mutateAsync({
+            field: 'autoScheduleEnabled',
+            value: true
+          });
+          if (withinTriggerWindow) {
+            await triggerAutoScheduleMutation.mutateAsync();
+          }
+        }}
+        isEnabling={toggleAutomationMutation.isPending || triggerAutoScheduleMutation.isPending}
+      />
 
       {/* Event Creation Modal */}
       {groupId && (

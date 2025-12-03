@@ -25,15 +25,15 @@ This file tracks active tasks, deferred items, and improvement ideas for the pro
 
 **Top 5 immediate priorities to work on:**
 
-1. **📱 Mobile Critical Fixes** - Fix AvailabilityGrid responsiveness, convert large Dialogs to Drawers on mobile. (~5-6 hours)
+1. **🚀 Pre-Launch Tasks** - Work through [PRE_LAUNCH.md](./PRE_LAUNCH.md) checklist before going live on Kinmo.ai domain.
 
-2. **🚀 Pre-Launch Tasks** - Work through [PRE_LAUNCH.md](./PRE_LAUNCH.md) checklist before going live on Kinmo.ai domain.
+2. **⚡ Group Detail Refactor** - Break up group-detail.tsx (7,533 lines) into smaller components for maintainability. (~8-12 hours)
 
-3. **⚡ Performance Optimization** - Refactor group-detail.tsx (10,480 lines!), add code splitting, optimize re-renders. (~8-12 hours)
+3. **📱 Mobile Polish** - Touch gesture enhancements, container width audit, touch target verification. (~4-6 hours)
 
-4. **🎨 Onboarding Phase 2** - Refactor Create Group into multi-step wizard with validation and progress bar. (~4-6 hours)
+4. **🔄 Post-Event Feedback Loop Visibility** - Show impact of feedback, group event history with stats. (~4-5 hours)
 
-5. **🔄 Post-Event Feedback Loop Visibility** - Show impact of feedback, group event history with stats. (~4-5 hours)
+5. **🎨 Onboarding Phase 2** - Refactor Create Group into multi-step wizard with validation and progress bar. (~4-6 hours)
 
 ---
 
@@ -133,24 +133,29 @@ Member preferences system is comprehensive and well-architected. Full analysis c
 ---
 
 ### 📱 Mobile Experience Optimization
-**Priority:** 🔴 High | **Estimated Time:** 22-28 hours | **Status:** Plan ready
+**Priority:** 🟡 Medium | **Estimated Time:** 8-12 hours remaining | **Status:** Foundation complete
 
-**Mobile Readiness Score:** 3/10 (has foundation but critical blockers)
+**Mobile Readiness Score:** 7/10 (foundation done, polish needed)
 
-**Critical Blockers:**
-- AvailabilityGrid (7×3 grid) forces horizontal scroll
-- Group Detail page (7,881 lines) needs mobile redesign
-- All dialogs use fixed widths (cramped on mobile)
-- No mobile navigation pattern
+**✅ Foundation Complete (2025-11-29):**
+- ✅ `useIsMobile()` hook (768px breakpoint)
+- ✅ `ResponsiveDialog` - All dialogs auto-switch to Drawer on mobile
+- ✅ `AvailabilityGrid` - Day-at-a-time mobile view with swipeable tabs
+- ✅ `BottomNav` - 4-tab mobile navigation (Home, Groups, Alerts, Profile)
+- ✅ `Header` - Hamburger menu with slide-out drawer
+- ✅ `EventsTable` - Mobile card view with touch-friendly layout
+- ✅ `Create Group` - 3-step wizard already implemented
+- ✅ `Group Detail` - 5-tab mobile bottom nav working
 
-**3-Phase Approach:**
-1. Foundation (6-8h): Fix Dialog→Drawer, AvailabilityGrid, mobile nav
-2. Component Optimization (10-12h): EventsTable cards, Group Detail tabs, forms
-3. Advanced Features (6-8h): Bottom nav, touch gestures, mobile-specific features
+**⏳ Remaining Work (8-12 hours):**
+- Group Detail refactor for maintainability (7,533 lines → smaller components)
+- Touch gesture polish (swipe-to-delete, pull-to-refresh)
+- Container width audit for edge cases
+- Touch target size verification (44x44px minimum)
 
 **[📱 Full Mobile Optimization Plan →](./docs/mobile-optimization.md)**
 
-**Related files:** All page/component files, new `ResponsiveDialog.tsx`, `MobileNav.tsx`, `BottomNav.tsx`
+**Related files:** `responsive-dialog.tsx`, `AvailabilityGrid.tsx`, `BottomNav.tsx`, `Header.tsx`
 
 ---
 

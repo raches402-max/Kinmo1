@@ -8,6 +8,26 @@ import { notifications, users, itineraries, groups } from "@shared/schema";
 import type { InsertNotification, Notification } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 
+/**
+ * Clean up event names for user-facing display.
+ * Removes technical jargon like "Auto-scheduled event for" since users
+ * don't care HOW an event was created - it's just an event.
+ */
+function getDisplayEventName(eventName: string, groupName?: string): string {
+  // Remove "Auto-scheduled event for " prefix - users don't need to know implementation details
+  let cleanName = eventName
+    .replace(/^Auto-scheduled event for\s*/i, '')
+    .replace(/\s*\(Auto-Scheduled\)\s*/i, '')
+    .trim();
+
+  // If the name is now empty or was just the group name, use group name or fallback
+  if (!cleanName || cleanName === groupName) {
+    return groupName || 'Upcoming Event';
+  }
+
+  return cleanName;
+}
+
 export type NotificationType =
   | 'event_invite'
   | 'rsvp_reminder'
@@ -62,9 +82,11 @@ export async function notifyEventInvite(params: {
   itineraryId: string;
   groupId: string;
   eventName: string;
+  groupName?: string;
   memberIds: string[];
 }) {
-  const { itineraryId, groupId, eventName, memberIds } = params;
+  const { itineraryId, groupId, eventName, groupName, memberIds } = params;
+  const displayName = getDisplayEventName(eventName, groupName);
 
   // Get member user IDs
   const memberData = await db.query.members.findMany({
@@ -78,7 +100,7 @@ export async function notifyEventInvite(params: {
         userId: member.userId!,
         type: 'event_invite',
         title: 'New Event Invitation',
-        message: `You're invited to ${eventName}`,
+        message: `You're invited to ${displayName}`,
         actionUrl: `/rsvp/${itineraryId}`,
         actionLabel: 'RSVP Now',
         metadata: {
@@ -101,10 +123,12 @@ export async function notifyRSVPReminder(params: {
   itineraryId: string;
   groupId: string;
   eventName: string;
+  groupName?: string;
   memberIds: string[];
   hoursUntilDeadline: number;
 }) {
-  const { itineraryId, groupId, eventName, memberIds, hoursUntilDeadline } = params;
+  const { itineraryId, groupId, eventName, groupName, memberIds, hoursUntilDeadline } = params;
+  const displayName = getDisplayEventName(eventName, groupName);
 
   const memberData = await db.query.members.findMany({
     where: (members, { inArray }) => inArray(members.id, memberIds),
@@ -117,7 +141,7 @@ export async function notifyRSVPReminder(params: {
         userId: member.userId!,
         type: 'rsvp_reminder',
         title: 'RSVP Deadline Approaching',
-        message: `RSVP deadline for ${eventName} is in ${hoursUntilDeadline} hours`,
+        message: `RSVP deadline for ${displayName} is in ${hoursUntilDeadline} hours`,
         actionUrl: `/rsvp/${itineraryId}`,
         actionLabel: 'RSVP Now',
         metadata: {
@@ -141,10 +165,12 @@ export async function notifyTimeSelected(params: {
   itineraryId: string;
   groupId: string;
   eventName: string;
+  groupName?: string;
   selectedTime: string;
   memberIds: string[];
 }) {
-  const { itineraryId, groupId, eventName, selectedTime, memberIds } = params;
+  const { itineraryId, groupId, eventName, groupName, selectedTime, memberIds } = params;
+  const displayName = getDisplayEventName(eventName, groupName);
 
   const memberData = await db.query.members.findMany({
     where: (members, { inArray }) => inArray(members.id, memberIds),
@@ -157,7 +183,7 @@ export async function notifyTimeSelected(params: {
         userId: member.userId!,
         type: 'time_selected',
         title: 'Event Time Finalized',
-        message: `${eventName} is confirmed for ${selectedTime}`,
+        message: `${displayName} is confirmed for ${selectedTime}`,
         actionUrl: `/rsvp/${itineraryId}`,
         actionLabel: 'View Event',
         metadata: {
@@ -181,9 +207,11 @@ export async function notifyFeedbackRequest(params: {
   itineraryId: string;
   groupId: string;
   eventName: string;
+  groupName?: string;
   memberIds: string[];
 }) {
-  const { itineraryId, groupId, eventName, memberIds } = params;
+  const { itineraryId, groupId, eventName, groupName, memberIds } = params;
+  const displayName = getDisplayEventName(eventName, groupName);
 
   const memberData = await db.query.members.findMany({
     where: (members, { inArray }) => inArray(members.id, memberIds),
@@ -196,7 +224,7 @@ export async function notifyFeedbackRequest(params: {
         userId: member.userId!,
         type: 'feedback_request',
         title: 'How was the event?',
-        message: `Share your feedback for ${eventName}`,
+        message: `Share your feedback for ${displayName}`,
         actionUrl: `/event/${itineraryId}?feedback=true`,
         actionLabel: 'Give Feedback',
         metadata: {
@@ -309,18 +337,20 @@ export async function notifyEventCancelled(params: {
   itineraryId: string;
   groupId: string;
   eventName: string;
+  groupName?: string;
   memberIds: string[];
   eventDate?: Date | null;
   venueName?: string | null;
 }) {
-  const { itineraryId, groupId, eventName, memberIds, eventDate, venueName } = params;
+  const { itineraryId, groupId, eventName, groupName, memberIds, eventDate, venueName } = params;
+  const displayName = getDisplayEventName(eventName, groupName);
 
   const memberData = await db.query.members.findMany({
     where: (members, { inArray }) => inArray(members.id, memberIds),
   });
 
   // Build a descriptive message with date and location if available
-  let message = `${eventName} has been cancelled`;
+  let message = `${displayName} has been cancelled`;
   const details: string[] = [];
 
   if (eventDate) {
@@ -337,7 +367,7 @@ export async function notifyEventCancelled(params: {
   }
 
   if (details.length > 0) {
-    message = `${eventName} (${details.join(' • ')}) has been cancelled`;
+    message = `${displayName} (${details.join(' • ')}) has been cancelled`;
   }
 
   const notificationPromises = memberData
@@ -372,19 +402,21 @@ export async function notifyEventUpdate(params: {
   itineraryId: string;
   groupId: string;
   eventName: string;
+  groupName?: string;
   updateType: 'venue_change' | 'time_change' | 'general';
   memberIds: string[];
 }) {
-  const { itineraryId, groupId, eventName, updateType, memberIds } = params;
+  const { itineraryId, groupId, eventName, groupName, updateType, memberIds } = params;
+  const displayName = getDisplayEventName(eventName, groupName);
 
   const memberData = await db.query.members.findMany({
     where: (members, { inArray }) => inArray(members.id, memberIds),
   });
 
   const messages: Record<string, string> = {
-    venue_change: `The venues for ${eventName} have been updated`,
-    time_change: `The time for ${eventName} has been updated`,
-    general: `${eventName} has been updated`
+    venue_change: `The venues for ${displayName} have been updated`,
+    time_change: `The time for ${displayName} has been updated`,
+    general: `${displayName} has been updated`
   };
 
   const notificationPromises = memberData

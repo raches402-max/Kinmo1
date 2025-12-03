@@ -112,7 +112,7 @@ export default function InvitePage() {
       if (isAlreadyClaimed) {
         toast({
           title: "Already claimed",
-          description: "This member has already been claimed by someone else. Please choose a different name or contact the organizer.",
+          description: "This member has already been claimed by someone else. Please choose a different name.",
           variant: "destructive",
         });
       } else {

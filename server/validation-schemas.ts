@@ -381,9 +381,9 @@ export const createRsvpSchema = z.object({
 });
 
 export const organizerRsvpSchema = z.object({
-  response: z.enum(['yes', 'maybe', 'no'], {
+  response: z.enum(['yes', 'maybe', 'no', 'going'], {
     errorMap: () => ({ message: "Valid response required (yes, maybe, or no)" })
-  }),
+  }).transform(val => val === 'going' ? 'yes' : val),
   rsvpFeedback: z.any().optional(),
 });
 
@@ -489,8 +489,14 @@ export const addAdHocVenueSchema = z.object({
 export const updateItineraryItemSchema = z.object({
   venueName: z.string().min(1).optional(),
   venueAddress: z.string().optional(),
+  venueType: z.string().optional(),
   notes: z.string().optional(),
   googleMapsUrl: z.string().optional(),
+  googlePlaceId: z.string().optional(),
+  latitude: z.string().optional(),
+  longitude: z.string().optional(),
+  rating: z.string().optional(),
+  photoUrl: z.string().optional(),
   arrivalTime: z.string().datetime().optional().nullable(),
   departureTime: z.string().datetime().optional().nullable(),
   travelNotes: z.string().optional(),
@@ -512,6 +518,34 @@ export const suggestAlternativesSchema = z.object({
     placeId: z.string().optional(),
   }),
   itineraryId: z.string().optional(),
+});
+
+// ========== SAVED PLACES SCHEMAS ==========
+
+export const addUserSavedPlaceSchema = z.object({
+  googlePlaceId: z.string().min(1, "Google Place ID is required"),
+  name: z.string().min(1, "Name is required"),
+  address: z.string().optional(),
+  latitude: z.string().optional(),
+  longitude: z.string().optional(),
+  category: z.enum(['meal', 'cafes', 'drinks', 'dessert', 'experiences']).optional(),
+  rating: z.string().optional(),
+  priceLevel: z.number().min(1).max(4).optional(),
+  photoUrl: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+export const addGroupSavedPlaceSchema = z.object({
+  googlePlaceId: z.string().min(1, "Google Place ID is required"),
+  name: z.string().min(1, "Name is required"),
+  address: z.string().optional(),
+  latitude: z.string().optional(),
+  longitude: z.string().optional(),
+  category: z.enum(['meal', 'cafes', 'drinks', 'dessert', 'experiences']).optional(),
+  rating: z.string().optional(),
+  priceLevel: z.number().min(1).max(4).optional(),
+  photoUrl: z.string().optional(),
+  notes: z.string().optional(),
 });
 
 // Helper type exports for TypeScript inference

@@ -589,6 +589,19 @@ export function useGroupMutations({ groupId, callbacks = {} }: UseGroupMutations
     },
   });
 
+  const deleteActivityMutation = useMutation({
+    mutationFn: async (activityId: string) => {
+      return await apiRequest("DELETE", `/api/activities/${activityId}`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "activities"] });
+      toast({ title: "Venue removed", description: "The venue has been removed from your library" });
+    },
+    onError: (error: Error) => {
+      toast(getErrorToast(error));
+    },
+  });
+
   const createActivityFromCategoryResultMutation = useMutation({
     mutationFn: async (venue: any) => {
       return await apiRequest("POST", `/api/groups/${groupId}/activities/from-category-result`, venue);
@@ -728,6 +741,7 @@ export function useGroupMutations({ groupId, callbacks = {} }: UseGroupMutations
 
     // Activities/Venues
     clearActivities: clearActivitiesMutation,
+    deleteActivity: deleteActivityMutation,
     createActivityFromCategoryResult: createActivityFromCategoryResultMutation,
     feedback: feedbackMutation,
 

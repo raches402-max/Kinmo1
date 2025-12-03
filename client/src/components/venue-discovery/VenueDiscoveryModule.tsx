@@ -20,7 +20,23 @@ import { FavoritesTab } from "./FavoritesTab";
 import { SearchTab } from "./SearchTab";
 import { DiscoverTab } from "./DiscoverTab";
 import { SelectionBar } from "./SelectionBar";
+import { EventSummaryStrip } from "@/components/EventSummaryStrip";
 import { cn } from "@/lib/utils";
+
+/** Event context for the summary strip */
+export interface EventContext {
+  group: {
+    id: string;
+    name: string;
+    emoji: string;
+    memberCount?: number;
+  };
+  eventDate?: string | null;
+  timezone?: string;
+  occasionNote?: string;
+  onChangeDate?: () => void;
+  onEditNote?: (note: string) => void;
+}
 
 export interface VenueDiscoveryModuleProps {
   groupId: string;
@@ -37,6 +53,10 @@ export interface VenueDiscoveryModuleProps {
   defaultTab?: 'favorites' | 'search' | 'discover';
   inline?: boolean;
   className?: string;
+  /** Event context to show in summary strip (WHO/WHERE/WHEN) */
+  eventContext?: EventContext;
+  /** Whether to show the summary strip at the top */
+  showSummaryStrip?: boolean;
 }
 
 // Internal venue store to track venue data for selected IDs
@@ -55,6 +75,8 @@ export function VenueDiscoveryModule({
   defaultTab = 'favorites',
   inline = false,
   className,
+  eventContext,
+  showSummaryStrip = false,
 }: VenueDiscoveryModuleProps) {
   const { toast } = useToast();
 
@@ -145,12 +167,42 @@ export function VenueDiscoveryModule({
     handleToggle(venue.id);
   }, [handleToggle]);
 
+  // Convert selected venues to format needed by EventSummaryStrip
+  const stripVenues = useMemo(() => {
+    return selectedVenues.map(v => ({
+      name: v.name,
+      type: v.venueType || v.category || "Venue",
+    }));
+  }, [selectedVenues]);
+
   return (
     <div className={cn(
       "relative",
       inline ? "pb-24" : "", // Add padding for selection bar when inline
       className
     )}>
+      {/* Event Summary Strip - shows WHO/WHERE/WHEN context */}
+      {showSummaryStrip && eventContext && (
+        <div className="mb-4">
+          <EventSummaryStrip
+            groups={[eventContext.group]}
+            venues={stripVenues}
+            eventDate={eventContext.eventDate ?? null}
+            timezone={eventContext.timezone}
+            occasionNote={eventContext.occasionNote}
+            expandable={true}
+            defaultExpanded={false}
+            editable={true}
+            onSearchVenue={() => setActiveTab('search')}
+            onFavoritesVenue={() => setActiveTab('favorites')}
+            onAiPickVenue={() => setActiveTab('discover')}
+            onChangeDate={eventContext.onChangeDate}
+            onEditNote={eventContext.onEditNote}
+            variant="full"
+          />
+        </div>
+      )}
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full max-w-md mx-auto grid-cols-3 mb-6">
           <TabsTrigger value="favorites" className="gap-1.5">

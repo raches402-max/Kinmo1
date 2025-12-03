@@ -164,34 +164,36 @@ export function OnboardingChecklist({ groups, profile, userId, hasEvents = false
   return (
     <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
       <Card className="border-border/50 bg-muted/30" data-testid="onboarding-checklist">
-        <CardHeader className="py-3 px-4">
-          <div className="flex items-center gap-3">
+        <CardHeader className="py-3 px-3 sm:px-4">
+          <div className="flex items-center gap-2 sm:gap-3">
             {/* Collapsible trigger area */}
-            <CollapsibleTrigger className="flex items-center gap-3 flex-1 hover:opacity-80 transition-opacity" data-testid="toggle-onboarding">
-              <div className="flex items-center gap-2 flex-1">
+            <CollapsibleTrigger className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 hover:opacity-80 transition-opacity" data-testid="toggle-onboarding">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-1 min-w-0">
                 <ChevronDown className={cn(
-                  "h-4 w-4 text-muted-foreground transition-transform",
+                  "h-4 w-4 text-muted-foreground transition-transform flex-shrink-0",
                   !isExpanded && "-rotate-90"
                 )} />
-                <span className="text-sm font-medium">Getting Started</span>
-                <span className="text-xs text-muted-foreground">
+                <span className="text-sm font-medium truncate">Getting Started</span>
+                <span className="text-xs text-muted-foreground flex-shrink-0">
                   {completedCount}/{totalCount}
                 </span>
-                <Progress value={progressPercent} className="h-1.5 w-16 ml-1" />
+                <Progress value={progressPercent} className="h-1.5 w-12 sm:w-16 ml-1 flex-shrink-0" />
               </div>
             </CollapsibleTrigger>
 
-            {/* Next action button (always visible) */}
+            {/* Next action button (always visible) - hide text on small mobile */}
             {nextAction && (nextAction.href || nextAction.onClick) && (
               <div className="flex-shrink-0">
                 {nextAction.onClick ? (
-                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={nextAction.onClick} data-testid="quick-next-action">
-                    {nextAction.title}
+                  <Button size="sm" variant="outline" className="h-7 text-xs px-2 sm:px-3" onClick={nextAction.onClick} data-testid="quick-next-action">
+                    <span className="hidden sm:inline">{nextAction.title}</span>
+                    <ChevronRight className="h-3.5 w-3.5 sm:hidden" />
                   </Button>
                 ) : nextAction.href ? (
                   <Link href={nextAction.href}>
-                    <Button size="sm" variant="outline" className="h-7 text-xs" data-testid="quick-next-action">
-                      {nextAction.title}
+                    <Button size="sm" variant="outline" className="h-7 text-xs px-2 sm:px-3" data-testid="quick-next-action">
+                      <span className="hidden sm:inline">{nextAction.title}</span>
+                      <ChevronRight className="h-3.5 w-3.5 sm:hidden" />
                     </Button>
                   </Link>
                 ) : null}
@@ -203,7 +205,7 @@ export function OnboardingChecklist({ groups, profile, userId, hasEvents = false
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground flex-shrink-0"
                 onClick={onDismiss}
                 data-testid="dismiss-onboarding"
               >
@@ -214,7 +216,7 @@ export function OnboardingChecklist({ groups, profile, userId, hasEvents = false
         </CardHeader>
 
         <CollapsibleContent>
-          <CardContent className="pt-0 pb-3 px-4">
+          <CardContent className="pt-0 pb-3 px-3 sm:px-4">
             <div className="space-y-1.5">
               {sortedItems.map((item) => (
                 <div
@@ -235,7 +237,7 @@ export function OnboardingChecklist({ groups, profile, userId, hasEvents = false
                     {item.completed ? (
                       <Check className="h-3 w-3" />
                     ) : (
-                      <span className="text-[10px] text-muted-foreground">{item.priority}</span>
+                      <span className="text-2xs text-muted-foreground">{item.priority}</span>
                     )}
                   </div>
                   <div className="flex-1 min-w-0">

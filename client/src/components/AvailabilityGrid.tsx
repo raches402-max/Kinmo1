@@ -118,7 +118,7 @@ export function AvailabilityGrid({ value, onChange }: AvailabilityGridProps) {
               >
                 {day}
                 {daySlots > 0 && idx !== selectedDayIndex && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary text-[10px] text-primary-foreground flex items-center justify-center">
+                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary text-2xs text-primary-foreground flex items-center justify-center">
                     {daySlots}
                   </span>
                 )}

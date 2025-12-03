@@ -48,9 +48,6 @@ function ErrorFallback({ error, resetError }: FallbackProps) {
           </Button>
         </div>
 
-        <p className="text-xs text-muted-foreground">
-          If this problem persists, please contact support.
-        </p>
       </div>
     </div>
   );

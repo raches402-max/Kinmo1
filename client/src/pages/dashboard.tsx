@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ResponsiveDialog as Dialog, ResponsiveDialogContent as DialogContent, ResponsiveDialogDescription as DialogDescription, ResponsiveDialogFooter as DialogFooter, ResponsiveDialogHeader as DialogHeader, ResponsiveDialogTitle as DialogTitle } from "@/components/ui/responsive-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,12 +27,14 @@ import { getErrorToast, ErrorDisplay } from "@/components/ErrorDisplay";
 import { LoadingState, SkeletonCard } from "@/components/LoadingState";
 import type { Group, User, UserProfile, GroupCollection } from "@shared/schema";
 import { useState, useEffect, useMemo } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import EventsTable from "@/components/EventsTable";
 import { GroupCard } from "@/components/GroupCard";
 import { DraggableGroupCard } from "@/components/DraggableGroupCard";
 import { Header } from "@/components/Header";
 import { UnifiedEventCreationModal } from "@/components/UnifiedEventCreationModal";
 import { OnboardingChecklist } from "@/components/OnboardingChecklist";
+import { StandaloneEventCreationModal } from "@/components/StandaloneEventCreationModal";
 import {
   DndContext,
   closestCenter,
@@ -226,6 +228,7 @@ export default function Dashboard() {
   const { user } = useAuth() as { user: User | undefined };
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const isMobile = useIsMobile();
   
   const [createCollectionOpen, setCreateCollectionOpen] = useState(false);
   const [newCollectionName, setNewCollectionName] = useState("");
@@ -256,6 +259,7 @@ export default function Dashboard() {
 
   // Create event dialog state
   const [showCreateEventDialog, setShowCreateEventDialog] = useState(false);
+  const [showStandaloneEventModal, setShowStandaloneEventModal] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
 
   // Event sort mode state
@@ -272,6 +276,30 @@ export default function Dashboard() {
     const tabFromUrl = params.get("tab") || "my-events";
     if (tabFromUrl !== activeTab) {
       setActiveTab(tabFromUrl);
+    }
+  }, [window.location.search]);
+
+  // Listen for bottom nav FAB click to open event creation modal
+  useEffect(() => {
+    const handleCreateEvent = () => {
+      setShowCreateEventDialog(true);
+    };
+    window.addEventListener("kinmo:create-event", handleCreateEvent);
+    return () => {
+      window.removeEventListener("kinmo:create-event", handleCreateEvent);
+    };
+  }, []);
+
+  // Check for ?action=create-event query param (from bottom nav on other pages)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("action") === "create-event") {
+      setShowCreateEventDialog(true);
+      // Clean up the URL to remove the action param
+      params.delete("action");
+      const newSearch = params.toString();
+      const newUrl = newSearch ? `/?${newSearch}` : "/";
+      window.history.replaceState({}, "", newUrl);
     }
   }, [window.location.search]);
 
@@ -358,6 +386,30 @@ export default function Dashboard() {
 
     return deduplicated;
   }, [rawEvents]);
+
+  // Compute next event date for each group
+  const nextEventByGroup = useMemo(() => {
+    const now = new Date();
+    const map = new Map<string, string>();
+
+    // Filter to future events only and sort by date
+    const futureEvents = events
+      .filter(e => e.eventDate && new Date(e.eventDate) >= now)
+      .sort((a, b) => {
+        const dateA = a.eventDate ? new Date(a.eventDate).getTime() : 0;
+        const dateB = b.eventDate ? new Date(b.eventDate).getTime() : 0;
+        return dateA - dateB;
+      });
+
+    // For each group, find the earliest future event
+    for (const event of futureEvents) {
+      if (!map.has(event.groupId) && event.eventDate) {
+        map.set(event.groupId, event.eventDate);
+      }
+    }
+
+    return map;
+  }, [events]);
 
   // DEBUG: Log events query state
   console.log('[Dashboard] Events query state:', {
@@ -1170,6 +1222,7 @@ export default function Dashboard() {
       isSelected={selectedGroupIds.has(group.id)}
       onSelect={handleGroupSelect}
       isDragging={activeDragId === group.id}
+      nextEventDate={nextEventByGroup.get(group.id)}
     />
   );
 
@@ -1183,23 +1236,39 @@ export default function Dashboard() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        <div className="mb-8 flex items-center justify-between">
-          <h2 className="text-3xl font-bold">
+        <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-0 sm:justify-between">
+          <h2 className="text-2xl sm:text-3xl font-bold">
             Welcome back, {displayName.split(" ")[0]}!
           </h2>
-          <div className="flex items-center gap-4">
-            <Button
-              variant="default"
-              onClick={() => setShowCreateEventDialog(true)}
-              data-testid="button-create-event"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Create Event
-            </Button>
-            <Link href="/create-group">
-              <Button variant="outline" data-testid="button-create-group">
-                <Plus className="mr-2 h-4 w-4" />
-                New Group
+          <div className="flex items-center gap-2 sm:gap-4">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="flex-1 sm:flex-none sm:size-auto h-9 sm:h-10"
+                  data-testid="button-create-event"
+                >
+                  <Plus className="h-4 w-4 sm:mr-2" />
+                  <span className="sm:inline">Create Event</span>
+                  <ChevronDown className="h-3 w-3 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setShowCreateEventDialog(true)}>
+                  <Users className="h-4 w-4 mr-2" />
+                  Group Event
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowStandaloneEventModal(true)}>
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Standalone Event
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Link href="/create-group" className="flex-1 sm:flex-none">
+              <Button variant="outline" size="sm" className="w-full sm:w-auto h-9 sm:h-10" data-testid="button-create-group">
+                <Plus className="h-4 w-4 sm:mr-2" />
+                <span className="sm:inline">New Group</span>
               </Button>
             </Link>
           </div>
@@ -1220,23 +1289,27 @@ export default function Dashboard() {
         )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="mb-6">
-            <TabsTrigger value="my-events" data-testid="tab-my-events">My Events</TabsTrigger>
-            <TabsTrigger value="my-groups" data-testid="tab-my-groups">My Groups</TabsTrigger>
-          </TabsList>
+          {/* Hide tabs on mobile - bottom nav handles navigation there */}
+          {!isMobile && (
+            <TabsList className="mb-6">
+              <TabsTrigger value="my-events" data-testid="tab-my-events">My Events</TabsTrigger>
+              <TabsTrigger value="my-groups" data-testid="tab-my-groups">My Groups</TabsTrigger>
+            </TabsList>
+          )}
 
           <TabsContent value="my-events" data-testid="content-my-events">
             {/* Global Delete Button - Floating */}
             {selectedEvents.size > 0 && (
-              <div className="fixed bottom-8 right-8 z-50">
+              <div className="fixed bottom-4 right-4 sm:bottom-8 sm:right-8 z-50">
                 <Button
                   variant="destructive"
-                  size="lg"
+                  size="default"
                   onClick={() => setDeleteConfirmOpen(true)}
-                  className="shadow-lg"
+                  className="shadow-lg h-10 sm:h-11"
                 >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete {selectedEvents.size} Event{selectedEvents.size > 1 ? 's' : ''}
+                  <Trash2 className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Delete {selectedEvents.size} Event{selectedEvents.size > 1 ? 's' : ''}</span>
+                  <span className="sm:hidden">{selectedEvents.size}</span>
                 </Button>
               </div>
             )}
@@ -1554,7 +1627,7 @@ export default function Dashboard() {
                       </Button>
                     </div>
 
-                    {/* Collection Sections */}
+                    {/* Collection Sections - Minimal Style */}
                     {collectionGroups.map(({ collection, groups: collectionGroupsList }) => (
                     <Collapsible
                       key={collection.id}
@@ -1562,135 +1635,127 @@ export default function Dashboard() {
                       onOpenChange={() => toggleCollection(collection.id)}
                       data-testid={`collapsible-collection-${collection.id}`}
                     >
-                      <div className="border border-border/50 rounded-softer p-5 bg-gradient-to-br from-card to-muted/20 shadow-warm">
-                        <div className="flex items-center justify-between gap-4 mb-3">
-                          <CollapsibleTrigger className="flex items-center gap-2 hover-elevate rounded-md px-2 py-1 -ml-2 flex-1" data-testid={`trigger-collection-${collection.id}`}>
-                            {openCollections.has(collection.id) ? (
-                              <ChevronRight className="h-4 w-4" />
-                            ) : (
-                              <ChevronDown className="h-4 w-4" />
-                            )}
-                            <h3 className="text-lg font-semibold">
-                              {renamingCollectionId === collection.id ? (
-                                <Input
-                                  value={renameCollectionName}
-                                  onChange={(e) => setRenameCollectionName(e.target.value)}
-                                  onClick={(e) => e.stopPropagation()}
-                                  onKeyDown={(e) => {
-                                    e.stopPropagation();
-                                    if (e.key === 'Enter') {
-                                      updateCollectionMutation.mutate({ id: collection.id, name: renameCollectionName });
-                                    } else if (e.key === 'Escape') {
-                                      setRenamingCollectionId(null);
-                                      setRenameCollectionName("");
-                                    }
-                                  }}
-                                  onBlur={() => {
-                                    if (renameCollectionName && renameCollectionName !== collection.name) {
-                                      updateCollectionMutation.mutate({ id: collection.id, name: renameCollectionName });
-                                    } else {
-                                      setRenamingCollectionId(null);
-                                      setRenameCollectionName("");
-                                    }
-                                  }}
-                                  autoFocus
-                                  className="h-7"
-                                  data-testid={`input-rename-collection-${collection.id}`}
-                                />
-                              ) : (
-                                collection.name
-                              )}
-                            </h3>
-                            <span className="text-sm text-muted-foreground ml-1">
-                              ({collectionGroupsList.length})
-                            </span>
-                          </CollapsibleTrigger>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={(e) => {
+                      <CollapsibleTrigger className="flex items-center gap-3 w-full py-2 group" data-testid={`trigger-collection-${collection.id}`}>
+                        <div className="flex items-center gap-2">
+                          {openCollections.has(collection.id) ? (
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          )}
+                          {renamingCollectionId === collection.id ? (
+                            <Input
+                              value={renameCollectionName}
+                              onChange={(e) => setRenameCollectionName(e.target.value)}
+                              onClick={(e) => e.stopPropagation()}
+                              onKeyDown={(e) => {
                                 e.stopPropagation();
-                                setRenamingCollectionId(collection.id);
-                                setRenameCollectionName(collection.name);
-                              }}
-                              data-testid={`button-rename-collection-${collection.id}`}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-destructive hover:text-destructive"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (confirm(`Delete "${collection.name}" collection? Groups will be moved to All Groups.`)) {
-                                  deleteCollectionMutation.mutate(collection.id);
+                                if (e.key === 'Enter') {
+                                  updateCollectionMutation.mutate({ id: collection.id, name: renameCollectionName });
+                                } else if (e.key === 'Escape') {
+                                  setRenamingCollectionId(null);
+                                  setRenameCollectionName("");
                                 }
                               }}
-                              data-testid={`button-delete-collection-${collection.id}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                        <CollapsibleContent>
-                          {collectionGroupsList.length === 0 ? (
-                            <p className="text-sm text-muted-foreground text-center py-6">
-                              No groups in this collection yet
-                            </p>
+                              onBlur={() => {
+                                if (renameCollectionName && renameCollectionName !== collection.name) {
+                                  updateCollectionMutation.mutate({ id: collection.id, name: renameCollectionName });
+                                } else {
+                                  setRenamingCollectionId(null);
+                                  setRenameCollectionName("");
+                                }
+                              }}
+                              autoFocus
+                              className="h-7 w-40"
+                              data-testid={`input-rename-collection-${collection.id}`}
+                            />
                           ) : (
-                            <SortableContext
-                              items={collectionGroupsList.map(g => g.id)}
-                              strategy={verticalListSortingStrategy}
-                            >
-                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {collectionGroupsList.map((group) => (
-                                  <GroupCardWrapper key={group.id} group={group} />
-                                ))}
-                              </div>
-                            </SortableContext>
+                            <span className="font-semibold text-foreground">{collection.name}</span>
                           )}
-                        </CollapsibleContent>
-                      </div>
+                          <span className="text-sm text-muted-foreground">({collectionGroupsList.length})</span>
+                        </div>
+                        <div className="flex-1 h-px bg-border/50" />
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setRenamingCollectionId(collection.id);
+                              setRenameCollectionName(collection.name);
+                            }}
+                            data-testid={`button-rename-collection-${collection.id}`}
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-destructive hover:text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm(`Delete "${collection.name}" collection? Groups will be moved to All Groups.`)) {
+                                deleteCollectionMutation.mutate(collection.id);
+                              }
+                            }}
+                            data-testid={`button-delete-collection-${collection.id}`}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        {collectionGroupsList.length === 0 ? (
+                          <p className="text-sm text-muted-foreground text-center py-6">
+                            No groups in this collection yet
+                          </p>
+                        ) : (
+                          <SortableContext
+                            items={collectionGroupsList.map(g => g.id)}
+                            strategy={verticalListSortingStrategy}
+                          >
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
+                              {collectionGroupsList.map((group) => (
+                                <GroupCardWrapper key={group.id} group={group} />
+                              ))}
+                            </div>
+                          </SortableContext>
+                        )}
+                      </CollapsibleContent>
                     </Collapsible>
                   ))}
 
-                  {/* All Groups (Uncategorized) Section */}
+                  {/* All Groups (Uncategorized) Section - Minimal Style */}
                   {uncategorizedGroups.length > 0 && (
                     <Collapsible
                       open={!openCollections.has('uncategorized')}
                       onOpenChange={() => toggleCollection('uncategorized')}
                       data-testid="collapsible-all-groups"
                     >
-                      <div className="border border-border/50 rounded-softer p-5 bg-gradient-to-br from-card to-muted/20 shadow-warm">
-                        <div className="flex items-center gap-2 mb-3">
-                          <CollapsibleTrigger className="flex items-center gap-2 hover-elevate rounded-md px-2 py-1 -ml-2 flex-1" data-testid="trigger-all-groups">
-                            {openCollections.has('uncategorized') ? (
-                              <ChevronRight className="h-4 w-4" />
-                            ) : (
-                              <ChevronDown className="h-4 w-4" />
-                            )}
-                            <h3 className="text-lg font-semibold">All Groups</h3>
-                            <span className="text-sm text-muted-foreground ml-1">
-                              ({uncategorizedGroups.length})
-                            </span>
-                          </CollapsibleTrigger>
+                      <CollapsibleTrigger className="flex items-center gap-3 w-full py-2 group" data-testid="trigger-all-groups">
+                        <div className="flex items-center gap-2">
+                          {openCollections.has('uncategorized') ? (
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          )}
+                          <span className="font-semibold text-foreground">All Groups</span>
+                          <span className="text-sm text-muted-foreground">({uncategorizedGroups.length})</span>
                         </div>
-                        <CollapsibleContent>
-                          <SortableContext
-                            items={uncategorizedGroups.map(g => g.id)}
-                            strategy={verticalListSortingStrategy}
-                          >
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                              {uncategorizedGroups.map((group) => (
-                                <GroupCardWrapper key={group.id} group={group} />
-                              ))}
-                            </div>
-                          </SortableContext>
-                        </CollapsibleContent>
-                      </div>
+                        <div className="flex-1 h-px bg-border/50" />
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <SortableContext
+                          items={uncategorizedGroups.map(g => g.id)}
+                          strategy={verticalListSortingStrategy}
+                        >
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
+                            {uncategorizedGroups.map((group) => (
+                              <GroupCardWrapper key={group.id} group={group} />
+                            ))}
+                          </div>
+                        </SortableContext>
+                      </CollapsibleContent>
                     </Collapsible>
                   )}
                   </div>
@@ -2082,6 +2147,12 @@ export default function Dashboard() {
         onOpenDiscoverVenues={(groupId) => {
           setLocation(`/group/${groupId}`);
         }}
+      />
+
+      {/* Standalone Event Creation Modal */}
+      <StandaloneEventCreationModal
+        open={showStandaloneEventModal}
+        onOpenChange={setShowStandaloneEventModal}
       />
 
       {/* Test Account Switcher Dialog */}

@@ -1,39 +1,52 @@
 // Reference: javascript_log_in_with_replit blueprint
 import { Switch, Route } from "wouter";
+import { lazy, Suspense } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { BottomNav } from "@/components/BottomNav";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { PageLoader } from "@/components/PageLoader";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
+
+// Lightweight pages - keep as static imports
 import Landing from "@/pages/landing";
-import Dashboard from "@/pages/dashboard";
-import CreateGroup from "@/pages/create-group";
-import GroupDetail from "@/pages/group-detail";
-import JoinEntry from "@/pages/join-entry";
-import JoinGroup from "@/pages/join-group";
-import InvitePage from "@/pages/invite";
-import RsvpItineraryPage from "@/pages/rsvp-itinerary";
-import EventInvitePage from "@/pages/event-invite";
-import GuestEventInvitePage from "@/pages/guest-event-invite";
-import GuestRsvpPage from "@/pages/guest-rsvp";
-import ClaimMemberPage from "@/pages/claim-member";
-import LinkMemberAccountPage from "@/pages/link-member-account";
-import MemberEventsPage from "@/pages/member-events";
-import Profile from "@/pages/profile";
-import MemberProfileSetup from "@/pages/member-profile-setup";
-import EventDetailsPage from "@/pages/event-details";
-import Admin from "@/pages/admin";
-import LearningInsights from "@/pages/learning-insights";
-import Preferences from "@/pages/preferences";
-import NotificationsPage from "@/pages/notifications";
 import Privacy from "@/pages/privacy";
 import Terms from "@/pages/terms";
 import NotFound from "@/pages/not-found";
+
+// Heavy pages - lazy load for better initial bundle size
+const Dashboard = lazy(() => import("@/pages/dashboard"));
+const CreateGroup = lazy(() => import("@/pages/create-group"));
+const GroupDetail = lazy(() => import("@/pages/group-detail"));
+const JoinEntry = lazy(() => import("@/pages/join-entry"));
+const JoinGroup = lazy(() => import("@/pages/join-group"));
+const InvitePage = lazy(() => import("@/pages/invite"));
+const RsvpItineraryPage = lazy(() => import("@/pages/rsvp-itinerary"));
+const EventInvitePage = lazy(() => import("@/pages/event-invite"));
+const GuestEventInvitePage = lazy(() => import("@/pages/guest-event-invite"));
+const GuestRsvpPage = lazy(() => import("@/pages/guest-rsvp"));
+const ClaimMemberPage = lazy(() => import("@/pages/claim-member"));
+const LinkMemberAccountPage = lazy(() => import("@/pages/link-member-account"));
+const MemberEventsPage = lazy(() => import("@/pages/member-events"));
+const Profile = lazy(() => import("@/pages/profile"));
+const MemberProfileSetup = lazy(() => import("@/pages/member-profile-setup"));
+const EventDetailsPage = lazy(() => import("@/pages/event-details"));
+const Admin = lazy(() => import("@/pages/admin"));
+const LearningInsights = lazy(() => import("@/pages/learning-insights"));
+const Preferences = lazy(() => import("@/pages/preferences"));
+const NotificationsPage = lazy(() => import("@/pages/notifications"));
+const PrototypeGroupTiles = lazy(() => import("@/pages/prototype-group-tiles"));
+const PrototypeGroupCards = lazy(() => import("@/pages/prototype-group-cards"));
+const PrototypeGroupCardsMobile = lazy(() => import("@/pages/prototype-group-cards-mobile"));
+const PrototypeEventCards = lazy(() => import("@/pages/prototype-event-cards"));
+const PrototypeEventDetailsMobile = lazy(() => import("@/pages/prototype-event-details-mobile"));
+const PrototypePlaces = lazy(() => import("@/pages/prototype-places"));
+const BottomNavConcepts = lazy(() => import("@/components/BottomNavConcepts"));
+const Places = lazy(() => import("@/pages/places"));
 
 function Router() {
   const { isAuthenticated, isLoading, error } = useAuth();
@@ -79,50 +92,60 @@ function Router() {
     <>
       {/* Add bottom padding on mobile to prevent content from being hidden by bottom nav */}
       <div className="pb-20 md:pb-0">
-        <Switch>
-          {!isAuthenticated ? (
-            <>
-              <Route path="/" component={Landing} />
-              <Route path="/join-entry" component={JoinEntry} />
-              <Route path="/join/:shareableLink" component={JoinGroup} />
-              <Route path="/invite/:token" component={InvitePage} />
-              <Route path="/event/:eventId/invite" component={EventInvitePage} />
-              <Route path="/event/:eventId/guest" component={GuestEventInvitePage} />
-              <Route path="/rsvp/:itineraryId/:inviteToken" component={RsvpItineraryPage} />
-              <Route path="/guest-rsvp/:guestToken" component={GuestRsvpPage} />
-              <Route path="/claim/:claimToken" component={ClaimMemberPage} />
-              <Route path="/events" component={MemberEventsPage} />
-              <Route path="/privacy" component={Privacy} />
-              <Route path="/terms" component={Terms} />
-            </>
-          ) : (
-            <>
-              <Route path="/" component={Dashboard} />
-              <Route path="/preferences" component={Preferences} />
-              <Route path="/notifications" component={NotificationsPage} />
-              <Route path="/create-group" component={CreateGroup} />
-              <Route path="/group/:id" component={GroupDetail} />
-              <Route path="/groups/:id/learning" component={LearningInsights} />
-              <Route path="/join-entry" component={JoinEntry} />
-              <Route path="/join/:shareableLink" component={JoinGroup} />
-              <Route path="/invite/:token" component={InvitePage} />
-              <Route path="/event/:eventId/invite" component={EventInvitePage} />
-              <Route path="/event/:eventId/guest" component={GuestEventInvitePage} />
-              <Route path="/rsvp/:itineraryId/:inviteToken" component={RsvpItineraryPage} />
-              <Route path="/guest-rsvp/:guestToken" component={GuestRsvpPage} />
-              <Route path="/claim/:claimToken" component={ClaimMemberPage} />
-              <Route path="/link-member-account" component={LinkMemberAccountPage} />
-              <Route path="/events" component={MemberEventsPage} />
-              <Route path="/profile" component={Profile} />
-              <Route path="/member-profile-setup/:memberId" component={MemberProfileSetup} />
-              <Route path="/event/:id" component={EventDetailsPage} />
-              <Route path="/admin" component={Admin} />
-              <Route path="/privacy" component={Privacy} />
-              <Route path="/terms" component={Terms} />
-            </>
-          )}
-          <Route component={NotFound} />
-        </Switch>
+        <Suspense fallback={<PageLoader />}>
+          <Switch>
+            {!isAuthenticated ? (
+              <>
+                <Route path="/" component={Landing} />
+                <Route path="/join-entry" component={JoinEntry} />
+                <Route path="/join/:shareableLink" component={JoinGroup} />
+                <Route path="/invite/:token" component={InvitePage} />
+                <Route path="/event/:eventId/invite" component={EventInvitePage} />
+                <Route path="/event/:eventId/guest" component={GuestEventInvitePage} />
+                <Route path="/rsvp/:itineraryId/:inviteToken" component={RsvpItineraryPage} />
+                <Route path="/guest-rsvp/:guestToken" component={GuestRsvpPage} />
+                <Route path="/claim/:claimToken" component={ClaimMemberPage} />
+                <Route path="/events" component={MemberEventsPage} />
+                <Route path="/privacy" component={Privacy} />
+                <Route path="/terms" component={Terms} />
+              </>
+            ) : (
+              <>
+                <Route path="/" component={Dashboard} />
+                <Route path="/preferences" component={Preferences} />
+                <Route path="/notifications" component={NotificationsPage} />
+                <Route path="/create-group" component={CreateGroup} />
+                <Route path="/group/:id" component={GroupDetail} />
+                <Route path="/groups/:id/learning" component={LearningInsights} />
+                <Route path="/join-entry" component={JoinEntry} />
+                <Route path="/join/:shareableLink" component={JoinGroup} />
+                <Route path="/invite/:token" component={InvitePage} />
+                <Route path="/event/:eventId/invite" component={EventInvitePage} />
+                <Route path="/event/:eventId/guest" component={GuestEventInvitePage} />
+                <Route path="/rsvp/:itineraryId/:inviteToken" component={RsvpItineraryPage} />
+                <Route path="/guest-rsvp/:guestToken" component={GuestRsvpPage} />
+                <Route path="/claim/:claimToken" component={ClaimMemberPage} />
+                <Route path="/link-member-account" component={LinkMemberAccountPage} />
+                <Route path="/events" component={MemberEventsPage} />
+                <Route path="/profile" component={Profile} />
+                <Route path="/member-profile-setup/:memberId" component={MemberProfileSetup} />
+                <Route path="/event/:id" component={EventDetailsPage} />
+                <Route path="/admin" component={Admin} />
+                <Route path="/places" component={Places} />
+                <Route path="/prototype/group-tiles" component={PrototypeGroupTiles} />
+                <Route path="/prototype/group-cards" component={PrototypeGroupCards} />
+                <Route path="/prototype/group-cards-mobile" component={PrototypeGroupCardsMobile} />
+                <Route path="/prototype/event-cards" component={PrototypeEventCards} />
+                <Route path="/prototype/event-details-mobile" component={PrototypeEventDetailsMobile} />
+                <Route path="/prototype/places" component={PrototypePlaces} />
+                <Route path="/prototype/nav" component={BottomNavConcepts} />
+                <Route path="/privacy" component={Privacy} />
+                <Route path="/terms" component={Terms} />
+              </>
+            )}
+            <Route component={NotFound} />
+          </Switch>
+        </Suspense>
       </div>
 
       {/* Show bottom nav only for authenticated users */}
@@ -137,9 +160,6 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <ThemeProvider defaultTheme="light">
           <TooltipProvider>
-            <div className="fixed top-4 right-4 z-50">
-              <ThemeToggle />
-            </div>
             <Toaster />
             <Router />
           </TooltipProvider>

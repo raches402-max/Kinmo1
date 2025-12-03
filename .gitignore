@@ -24,3 +24,10 @@ test-*.js
 DIAGNOSIS.md
 *_TEST_RESULTS.md
 attached_assets/
+
+# Backup folders
+claude_backups/
+.claude-backup/
+
+# Design mockups
+client/public/mockups/

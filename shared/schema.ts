@@ -367,7 +367,9 @@ export const swipeSessions = pgTable("swipe_sessions", {
 // Itineraries table - validated combinations of venues for an evening
 export const itineraries = pgTable("itineraries", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  groupId: varchar("group_id").notNull().references(() => groups.id, { onDelete: "cascade" }),
+  groupId: varchar("group_id").references(() => groups.id, { onDelete: "cascade" }), // Nullable for standalone events
+  isStandalone: boolean("is_standalone").default(false).notNull(), // True for events not tied to a group
+  organizerId: varchar("organizer_id").references(() => users.id, { onDelete: "cascade" }), // Event owner (for standalone events)
   name: text("name"), // Optional name for saved itineraries (e.g., "SF Waterfront Day")
   status: text("status").notNull().default("draft"), // draft, saved, proposed, scheduled, rejected
   isSaved: boolean("is_saved").default(false).notNull(), // Is this a saved template for reuse
@@ -455,6 +457,30 @@ export const guestInvites = pgTable("guest_invites", {
   guestToken: varchar("guest_token").notNull().unique(), // Unique token for shareable link
   rsvpStatus: text("rsvp_status"), // 'yes', 'maybe', 'no' - null if not yet responded
   createdBy: varchar("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Standalone event invitees - cross-group invitees for standalone events
+export const standaloneEventInvitees = pgTable("standalone_event_invitees", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  itineraryId: varchar("itinerary_id").notNull().references(() => itineraries.id, { onDelete: "cascade" }),
+
+  // Person being invited - can be linked to existing user/member or just contact info
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }), // If they have an account
+  memberId: varchar("member_id").references(() => members.id, { onDelete: "cascade" }), // Source member record
+
+  // Which group this contact came from (for context)
+  sourceGroupId: varchar("source_group_id").references(() => groups.id, { onDelete: "set null" }),
+
+  // Cached contact info (denormalized for display even if source member is deleted)
+  inviteeName: text("invitee_name").notNull(),
+  inviteeEmail: text("invitee_email"),
+
+  // Invite mechanics
+  inviteToken: varchar("invite_token").notNull().unique(),
+  inviteSentAt: timestamp("invite_sent_at"),
+  rsvpStatus: text("rsvp_status"), // 'yes', 'maybe', 'no' - null if not yet responded
+
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -767,6 +793,48 @@ export const apiCallLogs = pgTable("api_call_logs", {
   index("api_call_logs_cache_status_idx").on(table.cacheStatus),
 ]);
 
+// User saved places - personal favorites not tied to any group
+export const userSavedPlaces = pgTable("user_saved_places", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  googlePlaceId: text("google_place_id").notNull(), // Google Place ID for refreshing data
+  name: text("name").notNull(), // Venue name
+  address: text("address"), // Full address
+  latitude: numeric("latitude"), // For distance calculations
+  longitude: numeric("longitude"), // For distance calculations
+  category: text("category"), // meal, cafes, drinks, dessert, experiences
+  rating: numeric("rating"), // Google rating (1.0-5.0)
+  priceLevel: integer("price_level"), // 1-4 ($, $$, $$$, $$$$)
+  photoUrl: text("photo_url"), // Primary photo URL
+  notes: text("notes"), // Personal notes about the place
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_user_saved_places_user").on(table.userId),
+  index("idx_user_saved_places_category").on(table.userId, table.category),
+]);
+
+// Group saved places - favorites shared within a group with attribution
+export const groupSavedPlaces = pgTable("group_saved_places", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  groupId: varchar("group_id").notNull().references(() => groups.id, { onDelete: "cascade" }),
+  addedByUserId: varchar("added_by_user_id").references(() => users.id, { onDelete: "set null" }), // Who added it
+  addedByName: text("added_by_name"), // Cached name in case user is deleted
+  googlePlaceId: text("google_place_id").notNull(), // Google Place ID for refreshing data
+  name: text("name").notNull(), // Venue name
+  address: text("address"), // Full address
+  latitude: numeric("latitude"), // For distance calculations
+  longitude: numeric("longitude"), // For distance calculations
+  category: text("category"), // meal, cafes, drinks, dessert, experiences
+  rating: numeric("rating"), // Google rating (1.0-5.0)
+  priceLevel: integer("price_level"), // 1-4 ($, $$, $$$, $$$$)
+  photoUrl: text("photo_url"), // Primary photo URL
+  notes: text("notes"), // Notes about the place
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_group_saved_places_group").on(table.groupId),
+  index("idx_group_saved_places_category").on(table.groupId, table.category),
+]);
+
 // Host assignments - track rotating host requests and responses
 export const hostAssignments = pgTable("host_assignments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -1071,6 +1139,12 @@ export const insertGuestInviteSchema = createInsertSchema(guestInvites).omit({
   createdAt: true,
 });
 
+export const insertStandaloneEventInviteeSchema = createInsertSchema(standaloneEventInvitees).omit({
+  id: true,
+  inviteToken: true,
+  createdAt: true,
+});
+
 export const insertReminderLogSchema = createInsertSchema(reminderLogs).omit({
   id: true,
   sentAt: true,
@@ -1212,6 +1286,9 @@ export type Rsvp = typeof rsvps.$inferSelect;
 export type InsertGuestInvite = z.infer<typeof insertGuestInviteSchema>;
 export type GuestInvite = typeof guestInvites.$inferSelect;
 
+export type InsertStandaloneEventInvitee = z.infer<typeof insertStandaloneEventInviteeSchema>;
+export type StandaloneEventInvitee = typeof standaloneEventInvitees.$inferSelect;
+
 export type InsertReminderLog = z.infer<typeof insertReminderLogSchema>;
 export type ReminderLog = typeof reminderLogs.$inferSelect;
 
@@ -1255,6 +1332,25 @@ export type AiCategorizationCache = typeof aiCategorizationCache.$inferSelect;
 
 export type InsertHostAssignment = z.infer<typeof insertHostAssignmentSchema>;
 export type HostAssignment = typeof hostAssignments.$inferSelect;
+
+export const insertUserSavedPlaceSchema = createInsertSchema(userSavedPlaces).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertUserSavedPlace = z.infer<typeof insertUserSavedPlaceSchema>;
+export type UserSavedPlace = typeof userSavedPlaces.$inferSelect;
+
+export const insertGroupSavedPlaceSchema = createInsertSchema(groupSavedPlaces).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertGroupSavedPlace = z.infer<typeof insertGroupSavedPlaceSchema>;
+export type GroupSavedPlace = typeof groupSavedPlaces.$inferSelect;
+
+export type MemberFavoriteVenue = typeof memberFavoriteVenues.$inferSelect;
+export type InsertMemberFavoriteVenue = typeof memberFavoriteVenues.$inferInsert;
 
 export type InsertCuratedVenue = z.infer<typeof insertCuratedVenueSchema>;
 export type CuratedVenue = typeof curatedVenues.$inferSelect;

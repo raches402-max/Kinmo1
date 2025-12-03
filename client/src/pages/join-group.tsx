@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { getErrorToast } from "@/components/ErrorDisplay";
 import { Users, ArrowRight } from "lucide-react";
+import { HelpTooltip } from "@/components/HelpTooltip";
 import type { Group } from "@shared/schema";
 
 const formSchema = z.object({
@@ -189,8 +190,12 @@ export default function JoinGroup() {
                       />
                     </FormControl>
                     <div className="space-y-1 leading-none">
-                      <FormLabel className="cursor-pointer">
+                      <FormLabel className="cursor-pointer flex items-center">
                         I'm open to hosting events
+                        <HelpTooltip
+                          content="As a host, you'll send the event details to the group. If you check this, you may be asked to host when no one else volunteers (48 hours before an event)."
+                          examples={["You pick the final venue and send the invite", "You can always decline if asked"]}
+                        />
                       </FormLabel>
                       <p className="text-sm text-muted-foreground">
                         Volunteer to coordinate and host group events when available

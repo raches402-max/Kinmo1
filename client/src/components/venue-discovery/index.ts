@@ -6,7 +6,7 @@
  */
 
 export { VenueDiscoveryModule } from "./VenueDiscoveryModule";
-export type { VenueDiscoveryModuleProps } from "./VenueDiscoveryModule";
+export type { VenueDiscoveryModuleProps, EventContext } from "./VenueDiscoveryModule";
 
 export { VenueCard, CATEGORY_CONFIG } from "./VenueCard";
 export type { VenueData, CategoryId } from "./VenueCard";
@@ -17,3 +17,4 @@ export { SelectionBar } from "./SelectionBar";
 export { FavoritesTab } from "./FavoritesTab";
 export { SearchTab } from "./SearchTab";
 export { DiscoverTab } from "./DiscoverTab";
+export { VenueDetailSheet } from "./VenueDetailSheet";

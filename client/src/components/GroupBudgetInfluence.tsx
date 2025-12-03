@@ -174,7 +174,7 @@ export function GroupBudgetInfluence({
                       />
                     ))}
                     {count > 4 && (
-                      <span className="text-[9px] text-muted-foreground font-medium">
+                      <span className="text-2xs text-muted-foreground font-medium">
                         +{count - 4}
                       </span>
                     )}
@@ -278,7 +278,7 @@ export function GroupBudgetInfluence({
       </div>
 
       {/* Legend */}
-      <div className="flex items-center justify-center gap-4 text-[11px] text-muted-foreground">
+      <div className="flex items-center justify-center gap-4 text-2xs text-muted-foreground">
         <div className="flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-full bg-muted-foreground/40" />
           <span>Other members</span>

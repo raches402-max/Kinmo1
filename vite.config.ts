@@ -32,11 +32,13 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
+    host: '0.0.0.0',
     port: 5000,
+    allowedHosts: ['.replit.dev'],
     proxy: {
       '/api': {
         target: 'http://localhost:3000',
-        changeOrigin: true,
+        changeOrigin: false,
       },
     },
     fs: {

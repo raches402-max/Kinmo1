@@ -432,7 +432,12 @@ export default function CreateGroup() {
                 </CardHeader>
                 <CardContent className="space-y-8">
                   <div className="space-y-3">
-                    <Label className="text-base">What types of activities?</Label>
+                    <Label className="text-base flex items-center">
+                      What types of activities?
+                      <HelpTooltip
+                        content="Selected categories appear more often in venue recommendations. Your group's combined preferences help us suggest places everyone will enjoy."
+                      />
+                    </Label>
                     <div className="flex flex-wrap gap-2">
                       <Button
                         type="button"

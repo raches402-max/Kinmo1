@@ -1,11 +1,13 @@
 import { format, differenceInHours, differenceInDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
-import { ChevronDown, ChevronUp, MapPin, ExternalLink, Bot, Check, X, HelpCircle, Loader2, Trash2, Sparkles } from "lucide-react";
+import { ChevronDown, ChevronUp, MapPin, ExternalLink, Bot, Check, X, HelpCircle, Loader2, Trash2, Sparkles, Plus } from "lucide-react";
+import { EventCard } from "@/components/EventCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { EventSummaryStrip } from "@/components/EventSummaryStrip";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -147,6 +149,7 @@ export default function EventsTable({
 }: EventsTableProps) {
   const { toast } = useToast();
   const [rsvpDropdownOpen, setRsvpDropdownOpen] = useState<string | null>(null);
+  const [mobileRsvpTrayOpen, setMobileRsvpTrayOpen] = useState<string | null>(null);
   const [feedbackDialogOpen, setFeedbackDialogOpen] = useState<string | null>(null);
   const [pendingResponse, setPendingResponse] = useState<string>("");
   const [feedbackNote, setFeedbackNote] = useState("");
@@ -179,7 +182,7 @@ export default function EventsTable({
       queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
       toast({
         title: "RSVP updated",
-        description: variables.response === "going" ? "See you there!" :
+        description: variables.response === "yes" ? "See you there!" :
                      variables.response === "maybe" ? "Thanks for letting us know" :
                      "Thanks for the update"
       });
@@ -275,8 +278,39 @@ export default function EventsTable({
   });
 
   // Decide Now mutation - populates venues for an existing TBD event using AI
+  // For virtual events without an itineraryId, we first create an itinerary then decide
   const decideNowMutation = useMutation({
-    mutationFn: async (itineraryId: string) => {
+    mutationFn: async (params: { itineraryId: string | null; groupId: string; eventDate: string | null; eventName?: string }) => {
+      let itineraryId = params.itineraryId;
+
+      // If no itineraryId exists (virtual event), create one first
+      if (!itineraryId) {
+        console.log('[DecideNow] No itineraryId - creating itinerary first');
+        console.log('[DecideNow] Params:', JSON.stringify(params, null, 2));
+
+        const requestBody = {
+          groupId: params.groupId,
+          name: params.eventName || "Upcoming Event",
+          eventDate: params.eventDate,
+          status: "draft",
+          proposedOrder: [] // Required field - empty array for new itinerary
+        };
+        console.log('[DecideNow] Request body:', JSON.stringify(requestBody, null, 2));
+
+        try {
+          const createResponse = await apiRequest("POST", "/api/itineraries", requestBody);
+          itineraryId = createResponse.id;
+          console.log('[DecideNow] Created itinerary:', itineraryId);
+        } catch (createError: any) {
+          console.error('[DecideNow] Failed to create itinerary:', createError);
+          // Re-throw with more context
+          const errorDetails = createError.details ? `: ${JSON.stringify(createError.details)}` : '';
+          throw new Error(`Failed to create event${errorDetails}`);
+        }
+      }
+
+      // Now run decide-now on the itinerary
+      console.log('[DecideNow] Calling decide-now for itinerary:', itineraryId);
       return await apiRequest("POST", `/api/itineraries/${itineraryId}/decide-now`, {});
     },
     onSuccess: (data: any) => {
@@ -289,6 +323,7 @@ export default function EventsTable({
       });
     },
     onError: (error: any) => {
+      console.error('[DecideNow] Error:', error);
       toast({
         title: "Couldn't select venues",
         description: error.message || "Try adding more favorites or activities first",
@@ -414,7 +449,7 @@ export default function EventsTable({
       return;
     }
 
-    // For "going", save immediately
+    // For "yes" (going), save immediately
     rsvpMutation.mutate({ itineraryId, response });
   };
 
@@ -514,13 +549,13 @@ export default function EventsTable({
           <DropdownMenuItem
             onClick={(e) => {
               e.stopPropagation();
-              handleRsvpResponse(event, "going");
+              handleRsvpResponse(event, "yes");
             }}
-            className={currentResponse === "going" ? "bg-muted" : ""}
+            className={currentResponse === "yes" || currentResponse === "going" ? "bg-muted" : ""}
           >
             <Check className="h-4 w-4 mr-2 text-green-600" />
             <span>Going</span>
-            {currentResponse === "going" && <span className="ml-auto">✓</span>}
+            {(currentResponse === "yes" || currentResponse === "going") && <span className="ml-auto">✓</span>}
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={(e) => {
@@ -581,7 +616,7 @@ export default function EventsTable({
         </div>
       )}
 
-      <div className="space-y-3 sm:space-y-1">
+      <div className="space-y-4 sm:space-y-0 fade-in-stagger">
         {/* Table Header - hidden on mobile, shown on sm+ */}
       <div className="hidden sm:grid grid-cols-[120px_minmax(150px,1fr)_150px_80px_60px] md:grid-cols-[150px_minmax(180px,1fr)_180px_100px_80px] lg:grid-cols-[40px_180px_minmax(200px,1fr)_250px_120px_280px_80px] gap-2 lg:gap-4 px-3 py-2 text-xs font-semibold text-muted-foreground border-b">
         <div className="hidden lg:flex items-center justify-center">
@@ -649,68 +684,90 @@ export default function EventsTable({
 
         const rsvpStyle = getRsvpPillStyle();
 
-        // Mobile card view (shown on xs screens only) - Warm & Friendly redesign
+        // Color utilities for warm card styling (matching GroupCard)
+        const accentColor = event.groupAccentColor || '#6B5B6E';
+        const lightenColor = (hex: string, percent: number): string => {
+          const cleanHex = hex.replace('#', '');
+          let r = parseInt(cleanHex.substring(0, 2), 16);
+          let g = parseInt(cleanHex.substring(2, 4), 16);
+          let b = parseInt(cleanHex.substring(4, 6), 16);
+          r = Math.min(255, Math.floor(r + (255 - r) * percent));
+          g = Math.min(255, Math.floor(g + (255 - g) * percent));
+          b = Math.min(255, Math.floor(b + (255 - b) * percent));
+          return `rgb(${r}, ${g}, ${b})`;
+        };
+        const darkenColor = (hex: string, percent: number): string => {
+          const cleanHex = hex.replace('#', '');
+          let r = parseInt(cleanHex.substring(0, 2), 16);
+          let g = parseInt(cleanHex.substring(2, 4), 16);
+          let b = parseInt(cleanHex.substring(4, 6), 16);
+          r = Math.max(0, Math.floor(r * (1 - percent)));
+          g = Math.max(0, Math.floor(g * (1 - percent)));
+          b = Math.max(0, Math.floor(b * (1 - percent)));
+          return `rgb(${r}, ${g}, ${b})`;
+        };
+        const isLightColor = (hex: string): boolean => {
+          const cleanHex = hex.replace('#', '');
+          const r = parseInt(cleanHex.substring(0, 2), 16);
+          const g = parseInt(cleanHex.substring(2, 4), 16);
+          const b = parseInt(cleanHex.substring(4, 6), 16);
+          return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6;
+        };
+        const textColor = isLightColor(accentColor) ? darkenColor(accentColor, 0.55) : accentColor;
+        const textColorMuted = isLightColor(accentColor) ? darkenColor(accentColor, 0.35) : hexToRgba(accentColor, 0.7);
+
+        // RSVP indicator dot color and border color
+        const getRsvpDotColor = () => {
+          const response = event.rsvp?.response;
+          switch (response) {
+            case 'going':
+            case 'yes':
+              return '#22c55e'; // green-500
+            case 'maybe':
+              return '#eab308'; // yellow-500
+            case 'no':
+              return '#9ca3af'; // gray-400
+            default:
+              return '#d1d5db'; // gray-300
+          }
+        };
+
+        // Get RSVP border color for the card outline
+        const getRsvpBorderStyle = () => {
+          const response = event.rsvp?.response;
+          switch (response) {
+            case 'going':
+            case 'yes':
+              return { borderColor: '#22c55e', borderWidth: '3px' }; // green-500
+            case 'maybe':
+              return { borderColor: '#eab308', borderWidth: '3px' }; // yellow-500
+            case 'no':
+              return { borderColor: '#9ca3af', borderWidth: '3px' }; // gray-400
+            default:
+              return { borderColor: 'transparent', borderWidth: '0px' };
+          }
+        };
+
+        const rsvpBorder = getRsvpBorderStyle();
+        const hasRsvpStatus = !!event.rsvp?.response;
+
+        // Mobile card view - uses new EventCard component with date-first layout
         const mobileCardContent = (
-          <div
-            className="sm:hidden p-4 bg-card rounded-soft shadow-warm hover:shadow-warm-hover transition-all cursor-pointer"
-            style={{
-              borderLeft: `4px solid ${borderStyle.borderColor}`,
-              backgroundColor: borderStyle.backgroundColor || 'hsl(var(--card))'
-            }}
-          >
-            {/* Top row: Group emoji/name + RSVP status */}
-            <div className="flex items-start justify-between gap-3 mb-3">
-              <div className="flex items-center gap-3 min-w-0 flex-1">
-                <span className="text-3xl flex-shrink-0">
-                  {event.isAutoScheduled ? '🤖' : event.groupEmoji}
-                </span>
-                <div className="min-w-0">
-                  <div className="font-semibold text-foreground truncate">
-                    {event.groupName}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    {getRelativeDateLabel(event.eventDate, event.groupTimezone)}
-                    {event.eventDate && (
-                      <span className="ml-1">
-                        · {event.groupTimezone
-                          ? formatInTimeZone(new Date(event.eventDate), event.groupTimezone, "h:mm a")
-                          : format(new Date(event.eventDate), "h:mm a")}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <Badge
-                variant="secondary"
-                className={`rounded-pill px-3 py-1 text-xs font-medium ${rsvpStyle.bg} ${rsvpStyle.text} border-0`}
-              >
-                {rsvpStyle.label}
-              </Badge>
-            </div>
-
-            {/* Venue info */}
-            {event.items && event.items.length > 0 && !event.isVirtual && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                <MapPin className="h-4 w-4 flex-shrink-0" />
-                <span className="truncate">
-                  {event.items.length === 1
-                    ? event.items[0].venueName
-                    : `${event.items[0].venueName} + ${event.items.length - 1} more`}
-                </span>
-              </div>
-            )}
-
-            {/* Bottom row: host info + countdown */}
-            {(getHostInfo(event) || countdown) && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t border-border/50">
-                {getHostInfo(event)}
-                {countdown && (
-                  <span className="text-amber-600 dark:text-amber-400 font-medium ml-auto">
-                    {countdown}
-                  </span>
-                )}
-              </div>
-            )}
+          <div className="sm:hidden">
+            <EventCard
+              event={event}
+              index={events.indexOf(event)}
+              isPastEvent={isPastEvents}
+              onRsvpChange={event.itineraryId && !isPastEvents ? (response) => {
+                if (response === "maybe" || response === "no") {
+                  setPendingResponse(response);
+                  setFeedbackDialogOpen(event.itineraryId!);
+                } else {
+                  rsvpMutation.mutate({ itineraryId: event.itineraryId!, response });
+                }
+              } : undefined}
+              isRsvpLoading={rsvpMutation.isPending && rsvpMutation.variables?.itineraryId === event.itineraryId}
+            />
           </div>
         );
 
@@ -764,7 +821,7 @@ export default function EventsTable({
                           : format(new Date(event.eventDate), "EEEE")}
                       </div>
                       {event.groupTimezone && (
-                        <div className="text-[10px] text-muted-foreground/70 mt-0.5">
+                        <div className="text-2xs text-muted-foreground/70 mt-0.5">
                           {formatInTimeZone(new Date(event.eventDate), event.groupTimezone, "zzz")}
                         </div>
                       )}
@@ -832,9 +889,12 @@ export default function EventsTable({
                       <DropdownMenuContent align="start">
                         <DropdownMenuItem
                           onClick={() => {
-                            if (event.itineraryId) {
-                              decideNowMutation.mutate(event.itineraryId);
-                            }
+                            decideNowMutation.mutate({
+                              itineraryId: event.itineraryId,
+                              groupId: event.groupId,
+                              eventDate: event.eventDate,
+                              eventName: event.groupName
+                            });
                           }}
                           disabled={decideNowMutation.isPending}
                           className="flex items-center cursor-pointer"
@@ -861,9 +921,12 @@ export default function EventsTable({
                       <DropdownMenuContent align="start">
                         <DropdownMenuItem
                           onClick={() => {
-                            if (event.itineraryId) {
-                              decideNowMutation.mutate(event.itineraryId);
-                            }
+                            decideNowMutation.mutate({
+                              itineraryId: event.itineraryId,
+                              groupId: event.groupId,
+                              eventDate: event.eventDate,
+                              eventName: event.groupName
+                            });
                           }}
                           disabled={decideNowMutation.isPending}
                           className="flex items-center cursor-pointer"
@@ -1062,10 +1125,12 @@ export default function EventsTable({
         );
 
         return (
-          <div key={eventId} className="border-b last:border-b-0">
-            {/* Main Row - Mobile card + Desktop grid */}
+          <div key={eventId} className="sm:border-b sm:last:border-b-0">
+            {/* Mobile card - EventCard handles its own Link */}
+            {mobileCardContent}
+
+            {/* Desktop grid - wrapped in Link */}
             <Link href={event.itineraryId ? `/event/${event.itineraryId}` : `/group/${event.groupId}`}>
-              {mobileCardContent}
               {rowContent}
             </Link>
 
@@ -1096,6 +1161,99 @@ export default function EventsTable({
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {/* Mobile RSVP Slide-up Tray */}
+            {mobileRsvpTrayOpen === eventId && event.itineraryId && (
+              <div
+                className="sm:hidden fixed inset-0 z-50"
+                onClick={() => setMobileRsvpTrayOpen(null)}
+              >
+                {/* Backdrop */}
+                <div className="absolute inset-0 bg-black/20" />
+
+                {/* Tray */}
+                <div
+                  className="absolute inset-x-0 bottom-0 bg-white dark:bg-gray-900 rounded-t-2xl shadow-2xl p-4 animate-in slide-in-from-bottom duration-200"
+                  style={{ boxShadow: '0 -8px 30px rgba(0,0,0,0.15)' }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-semibold text-foreground">
+                      RSVP for {event.groupName}
+                    </span>
+                    <button
+                      onClick={() => setMobileRsvpTrayOpen(null)}
+                      className="p-1 rounded-full hover:bg-muted"
+                    >
+                      <X className="h-4 w-4 text-muted-foreground" />
+                    </button>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        if (event.itineraryId) {
+                          rsvpMutation.mutate({ itineraryId: event.itineraryId, response: 'going' });
+                          setMobileRsvpTrayOpen(null);
+                        }
+                      }}
+                      disabled={rsvpMutation.isPending}
+                      className={`flex-1 flex flex-col items-center gap-1.5 py-3 rounded-xl text-xs font-semibold transition-all ${
+                        event.rsvp?.response === 'going' || event.rsvp?.response === 'yes'
+                          ? "bg-green-500 text-white shadow-md"
+                          : "bg-muted/60 text-muted-foreground hover:bg-green-50 hover:text-green-700"
+                      }`}
+                    >
+                      <Check className="h-5 w-5" />
+                      Going
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (event.itineraryId) {
+                          setPendingResponse('maybe');
+                          setFeedbackDialogOpen(event.itineraryId);
+                          setMobileRsvpTrayOpen(null);
+                        }
+                      }}
+                      disabled={rsvpMutation.isPending}
+                      className={`flex-1 flex flex-col items-center gap-1.5 py-3 rounded-xl text-xs font-semibold transition-all ${
+                        event.rsvp?.response === 'maybe'
+                          ? "bg-yellow-500 text-white shadow-md"
+                          : "bg-muted/60 text-muted-foreground hover:bg-yellow-50 hover:text-yellow-700"
+                      }`}
+                    >
+                      <HelpCircle className="h-5 w-5" />
+                      Maybe
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (event.itineraryId) {
+                          setPendingResponse('no');
+                          setFeedbackDialogOpen(event.itineraryId);
+                          setMobileRsvpTrayOpen(null);
+                        }
+                      }}
+                      disabled={rsvpMutation.isPending}
+                      className={`flex-1 flex flex-col items-center gap-1.5 py-3 rounded-xl text-xs font-semibold transition-all ${
+                        event.rsvp?.response === 'no'
+                          ? "bg-gray-500 text-white shadow-md"
+                          : "bg-muted/60 text-muted-foreground hover:bg-gray-100 hover:text-gray-700"
+                      }`}
+                    >
+                      <X className="h-5 w-5" />
+                      Can't
+                    </button>
+                  </div>
+
+                  {rsvpMutation.isPending && (
+                    <div className="flex items-center justify-center gap-2 mt-3 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Updating...
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>

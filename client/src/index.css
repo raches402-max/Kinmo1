@@ -93,14 +93,15 @@
   --font-serif: Georgia, serif;
   --font-mono: 'JetBrains Mono', Menlo, monospace;
 
-  /* Typography Scale */
+  /* Typography Scale - Optimized for mobile readability */
   --text-display: 2.5rem; /* 40px */
   --text-h1: 2rem; /* 32px */
   --text-h2: 1.5rem; /* 24px */
-  --text-h3: 1.125rem; /* 18px */
+  --text-h3: 1.25rem; /* 20px */
   --text-base: 1rem; /* 16px */
-  --text-sm: 0.875rem; /* 14px */
-  --text-xs: 0.75rem; /* 12px */
+  --text-sm: 1rem; /* 16px - same as base for better mobile readability */
+  --text-xs: 0.875rem; /* 14px - minimum readable size on mobile */
+  --text-2xs: 0.8125rem; /* 13px - for truly compact UI only */
 
   /* Line Heights */
   --leading-tight: 1.1; /* For large headings */
@@ -272,12 +273,39 @@
 
   body {
     @apply font-sans antialiased bg-background text-foreground;
+    font-size: 16px; /* Ensure base is 16px */
+  }
+
+  /* Custom tiny text class for compact UI */
+  .text-2xs {
+    font-size: 0.75rem; /* 12px default */
+    line-height: 1.35;
+  }
+
+  /* Override Tailwind's text sizes for better mobile readability - MOBILE ONLY */
+  @media (max-width: 767px) {
+    .text-2xs {
+      font-size: 0.8125rem; /* 13px on mobile */
+    }
+    .text-xs {
+      font-size: 0.875rem !important; /* 14px on mobile instead of 12px */
+      line-height: 1.4;
+    }
+    .text-sm {
+      font-size: 1rem !important; /* 16px on mobile instead of 14px */
+      line-height: 1.45;
+    }
   }
 
   /* Outfit for headings - friendly, geometric sans */
   h1, h2, h3, h4, h5, h6 {
     @apply font-heading;
     letter-spacing: -0.01em; /* Slight tightening for Outfit at larger sizes */
+  }
+
+  /* Bump up h3 for better hierarchy */
+  h3 {
+    font-size: 1.25rem; /* 20px instead of 18px */
   }
 
   /* Smooth transitions for interactive elements */

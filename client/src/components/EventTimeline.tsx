@@ -277,7 +277,7 @@ export function EventTimeline({
                     {getTimeString(itinerary.eventDate)}
                   </span>
                 )}
-                <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${statusConfig.color}`}>
+                <Badge variant="outline" className={`text-2xs px-1.5 py-0 ${statusConfig.color}`}>
                   {statusConfig.icon}
                   <span className="ml-1">{statusConfig.label}</span>
                 </Badge>
@@ -325,7 +325,7 @@ export function EventTimeline({
                 {itinerary.confidenceScore !== undefined && (
                   <Badge
                     variant="outline"
-                    className={`text-[10px] ${
+                    className={`text-2xs ${
                       itinerary.confidenceScore >= 80
                         ? "bg-green-50 text-green-700 border-green-200"
                         : itinerary.confidenceScore >= 60
@@ -422,7 +422,7 @@ export function EventTimeline({
           <Calendar className="h-5 w-5 text-primary" />
           <CardTitle className="text-lg">Event Timeline</CardTitle>
           {isAutoScheduleEnabled && (
-            <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200">
+            <Badge variant="outline" className="text-2xs bg-amber-50 text-amber-700 border-amber-200">
               <Zap className="h-2.5 w-2.5 mr-0.5" />
               Auto-scheduling on
             </Badge>

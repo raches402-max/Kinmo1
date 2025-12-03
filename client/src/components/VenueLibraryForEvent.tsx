@@ -8,8 +8,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { MapPin, Star, DollarSign, Plus, Check, Search, Filter, Heart, Clock, Globe, Loader2, Info } from "lucide-react";
+import { MapPin, Star, DollarSign, Plus, Check, Search, Filter, Heart, Clock, Globe, Loader2, Info, Trash2, X } from "lucide-react";
 import { useDebounce } from "use-debounce";
+import { AnimatePresence, motion } from "framer-motion";
 
 interface VenueResult {
   id?: string;
@@ -36,6 +37,8 @@ interface VenueLibraryForEventProps {
   maxVenues?: number;
   isLoading?: boolean;
   groupId?: string;
+  onDeleteVenue?: (venueId: string) => Promise<void>;
+  deletingVenueId?: string | null;
 }
 
 const CATEGORY_LABELS: Record<string, { label: string; icon: string }> = {
@@ -51,16 +54,90 @@ function VenueCardForEvent({
   isSelected,
   onToggle,
   isFavorite,
-  disabled
+  disabled,
+  onDelete,
+  isDeleting,
 }: {
   venue: VenueResult;
   isSelected: boolean;
   onToggle: () => void;
   isFavorite?: boolean;
   disabled?: boolean;
+  onDelete?: () => void;
+  isDeleting?: boolean;
 }) {
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowDeleteConfirm(true);
+  };
+
+  const handleConfirmDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDelete?.();
+  };
+
+  const handleCancelDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowDeleteConfirm(false);
+  };
+
   return (
-    <Card className={`overflow-hidden transition-all ${isSelected ? 'ring-2 ring-primary' : 'hover:shadow-lg'}`}>
+    <Card
+      className={`overflow-hidden transition-all relative ${isSelected ? 'ring-2 ring-primary' : 'hover:shadow-lg'}`}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => {
+        setIsHovered(false);
+        if (!isDeleting) setShowDeleteConfirm(false);
+      }}
+    >
+      {/* Delete confirmation overlay */}
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="absolute inset-0 z-20 bg-background/95 backdrop-blur-sm flex flex-col items-center justify-center p-4"
+          >
+            <p className="text-sm font-medium text-center mb-3">
+              Remove from library?
+            </p>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleCancelDelete}
+                disabled={isDeleting}
+                className="h-8 px-3"
+              >
+                <X className="h-3.5 w-3.5 mr-1" />
+                Keep
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="h-8 px-3"
+              >
+                {isDeleting ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <>
+                    <Trash2 className="h-3.5 w-3.5 mr-1" />
+                    Remove
+                  </>
+                )}
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="aspect-video w-full bg-muted relative">
         {venue.photoUrl ? (
           <img
@@ -73,6 +150,26 @@ function VenueCardForEvent({
             <MapPin className="h-12 w-12 text-muted-foreground" />
           </div>
         )}
+
+        {/* Subtle delete button - appears on hover in top-left */}
+        {onDelete && !showDeleteConfirm && (
+          <AnimatePresence>
+            {isHovered && (
+              <motion.button
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.1 }}
+                onClick={handleDeleteClick}
+                className="absolute top-2 left-2 p-1.5 rounded-full bg-black/60 hover:bg-destructive text-white/70 hover:text-white transition-colors z-10"
+                title="Remove from library"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </motion.button>
+            )}
+          </AnimatePresence>
+        )}
+
         {isFavorite && (
           <div className="absolute top-2 right-2">
             <Badge variant="secondary" className="gap-1">
@@ -115,7 +212,7 @@ function VenueCardForEvent({
         {venue.badges && venue.badges.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {venue.badges.slice(0, 3).map((badge, index) => (
-              <Badge key={index} variant="outline" className="text-[10px] py-0 h-5">
+              <Badge key={index} variant="outline" className="text-2xs py-0 h-5">
                 {badge}
               </Badge>
             ))}
@@ -153,7 +250,9 @@ export function VenueLibraryForEvent({
   onToggleVenue,
   maxVenues = 5,
   isLoading = false,
-  groupId
+  groupId,
+  onDeleteVenue,
+  deletingVenueId,
 }: VenueLibraryForEventProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -476,6 +575,8 @@ export function VenueLibraryForEvent({
                     onToggleVenue(sourceType, sourceId);
                   }}
                   disabled={!canAddMore && !isVenueSelected(venue)}
+                  onDelete={venue.id && venue.sourceType === 'activity' && onDeleteVenue ? () => onDeleteVenue(venue.id!) : undefined}
+                  isDeleting={deletingVenueId === venue.id}
                 />
               ))}
               {displayVenues.length === 0 && (
@@ -566,6 +667,8 @@ export function VenueLibraryForEvent({
                       onToggleVenue(sourceType, sourceId);
                     }}
                     disabled={!canAddMore && !isVenueSelected(venue)}
+                    onDelete={venue.id && venue.sourceType === 'activity' && onDeleteVenue ? () => onDeleteVenue(venue.id!) : undefined}
+                    isDeleting={deletingVenueId === venue.id}
                   />
                 ))}
             </div>
