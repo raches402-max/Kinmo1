@@ -10,7 +10,7 @@
 
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useRoute, useLocation, useSearch } from "wouter";
+import { useRoute, useLocation, useSearch, Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { getErrorToast } from "@/components/ErrorDisplay";
 import { Button } from "@/components/ui/button";

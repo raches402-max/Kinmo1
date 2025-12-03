@@ -33,6 +33,7 @@ import {
 import { db } from "./db";
 import { eq, desc, sql, and, or, inArray, isNull, isNotNull, gte, asc, lt } from "drizzle-orm";
 import { randomBytes } from "crypto";
+import { geocodeLocation } from "./google-places";
 
 export interface IStorage {
   // User operations (required for Replit Auth)

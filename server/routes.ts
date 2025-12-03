@@ -2,8 +2,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, updateUserProfileSchema, activities as activitiesTable, groups as groupsTable, members as membersTable, itineraryInvites, guestInvites, rsvps as rsvpsTable, itineraries, itineraryItems, proposedTimeSlots, users, userProfiles, photosCache, geocodingCache, hostAssignments, curatedVenues, votingEvents as votingEventsTable, activitySwipes, activities, votingEvents, swipeSessions, venueVisitHistory, autoScheduledEvents, rejectedEventDates, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
-import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue, categorizeVenuesBatch, analyzePreferencePatterns, parseSchedulingPrompt, parseSchedulingPromptWithHistory, detectCategory, getPromptCacheStats, validateVenueForCategory } from "./openai";
+import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, updateUserProfileSchema, activities as activitiesTable, groups as groupsTable, members as membersTable, itineraryInvites, guestInvites, rsvps as rsvpsTable, itineraries, itineraryItems, proposedTimeSlots, users, userProfiles, photosCache, geocodingCache, hostAssignments, curatedVenues, votingEvents as votingEventsTable, activitySwipes, activities, votingEvents, swipeSessions, venueVisitHistory, autoScheduledEvents, rejectedEventDates, userSavedPlaces, groupSavedPlaces, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
+import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue, categorizeVenuesBatch, analyzePreferencePatterns, parseSchedulingPrompt, parseSchedulingPromptWithHistory, detectCategory, getPromptCacheStats, validateVenueForCategory, type SchedulingParams } from "./openai";
 import { searchPlaces, searchNearbyPlaces, geocodeLocation, clearPlacesCache, getCacheStats, getPlaceDetails, detectAndParseGoogleMapsUrl } from "./google-places";
 import { planEventWithAgent, type VenueForAgent } from "./ai-event-agent";
 import { setupAuth, isAuthenticated } from "./replitAuth";
@@ -35,6 +35,7 @@ import { eq, sql, and, or, gte, desc, isNotNull, isNull } from "drizzle-orm";
 import { format } from 'date-fns';
 import pLimit from 'p-limit';
 import { validate, safeParse } from './validation-middleware';
+import { z } from 'zod';
 import rateLimit from 'express-rate-limit';
 import {
   createGroupSchema,
@@ -8383,7 +8384,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           gpt4o: 0,
           mini: 0,
         },
-        currentABTestPercentage: AB_TEST_GPT4O_PERCENTAGE,
+        currentABTestPercentage: 100, // GPT-4o always used for parsing
       };
 
       // This would analyze the recent API calls if we have access to them
