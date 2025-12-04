@@ -179,7 +179,8 @@
       "Bash(npm --version:*)",
       "Bash(timeout 5 NODE_ENV=production node:*)",
       "Bash(NODE_ENV=production timeout 5 node dist/index.js)",
-      "Bash(NODE_ENV=production timeout 10 node dist/index.js)"
+      "Bash(NODE_ENV=production timeout 10 node dist/index.js)",
+      "Bash(NODE_ENV=production PORT=3333 timeout:*)"
     ],
     "deny": [],
     "ask": []

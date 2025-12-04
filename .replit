@@ -1,6 +1,6 @@
 modules = ["nodejs-20", "web", "postgresql-16", "python-3.12"]
 run = "npm run dev"
-hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
+hidden = [".config", ".git", "generated-icon.png", "node_modules"]
 
 [nix]
 channel = "stable-24_05"
@@ -13,66 +13,6 @@ run = ["npm", "run", "start"]
 [[ports]]
 localPort = 5000
 externalPort = 80
-
-[[ports]]
-localPort = 33145
-externalPort = 8099
-
-[[ports]]
-localPort = 35035
-externalPort = 5173
-
-[[ports]]
-localPort = 35037
-externalPort = 8081
-
-[[ports]]
-localPort = 35447
-externalPort = 8000
-
-[[ports]]
-localPort = 36795
-externalPort = 3001
-
-[[ports]]
-localPort = 37053
-externalPort = 3003
-
-[[ports]]
-localPort = 38749
-externalPort = 3000
-
-[[ports]]
-localPort = 39257
-externalPort = 8080
-
-[[ports]]
-localPort = 41329
-externalPort = 5000
-
-[[ports]]
-localPort = 42389
-externalPort = 4200
-
-[[ports]]
-localPort = 42637
-externalPort = 6800
-
-[[ports]]
-localPort = 43953
-externalPort = 3002
-
-[[ports]]
-localPort = 44413
-externalPort = 6000
-
-[[ports]]
-localPort = 45873
-externalPort = 9000
-
-[[ports]]
-localPort = 46589
-externalPort = 8008
 
 [env]
 PORT = "5000"
