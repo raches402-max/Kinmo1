@@ -76,6 +76,7 @@ externalPort = 8008
 
 [env]
 PORT = "3000"
+VITE_GOOGLE_MAPS_API_KEY = "AIzaSyDzkwNd09iNQ5dwEYR_-CJfzUTQqRDiw2g"
 
 [workflows]
 runButton = "Project"
