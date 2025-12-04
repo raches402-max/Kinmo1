@@ -22,3 +22,4 @@ export { ActivityPreferencesAccordion } from './ActivityPreferencesAccordion';
 export { MyPreferencesTab } from './MyPreferencesTab';
 export { BasicInfoAccordion } from './BasicInfoAccordion';
 export { VenueSearchEmptyState } from './VenueSearchEmptyState';
+export { NearbySuggestionsCard } from './NearbySuggestionsCard';

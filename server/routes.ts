@@ -9558,9 +9558,9 @@ Looking forward to planning great activities together!
       const itineraryId = req.params.id;
       let { name, address, googlePlaceId, googleMapsUrl, notes, venueType } = validatedData;
 
-      // Verify itinerary exists
+      // Verify itinerary exists (allow both group events and standalone events)
       const itinerary = await storage.getItinerary(itineraryId);
-      if (!itinerary || !itinerary.groupId) {
+      if (!itinerary || (!itinerary.groupId && !itinerary.isStandalone)) {
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
