@@ -213,6 +213,7 @@ export async function selectBestItineraryForAutoSchedule(
       badges: string[];
     }>;
     description: string;
+    nearbySuggestions?: any[];
   }>;
   itineraryOptions?: Array<any>; // For backwards compatibility
 }> {

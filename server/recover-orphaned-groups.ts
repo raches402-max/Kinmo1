@@ -90,9 +90,9 @@ async function recoverOrphanedGroups(): Promise<RecoveryResult[]> {
       if (!organizerMemberId) {
         console.log(`  ⚠️  Organizer member has null userId. Trying to find by email...`);
 
-        // Strategy 2: Try to find user by member's userName (which might be email)
+        // Strategy 2: Try to find user by member's name (which might be email)
         // This is a fallback if the member.userId is also null
-        const memberUserName = organizers[0].userName;
+        const memberUserName = organizers[0].memberName;
 
         // Check if userName looks like an email
         if (memberUserName && memberUserName.includes('@')) {

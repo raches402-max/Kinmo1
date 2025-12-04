@@ -3363,7 +3363,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Forbidden: You don't have access to this activity" });
       }
 
-      const updatedActivity = await storage.updateActivityFeedback(req.params.activityId, feedback);
+      const updatedActivity = await storage.updateActivityFeedback(req.params.activityId, feedback || '');
 
       if (updatedActivity.groupId) {
         await trackFeedbackAndMaybeAnalyze(updatedActivity.groupId);
@@ -6078,25 +6078,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Invite not found" });
       }
 
-      // Get the member to verify it belongs to the current user
-      const [member] = await db
-        .select()
-        .from(membersTable)
-        .where(eq(membersTable.id, invite.memberId));
-
-      if (!member) {
-        return res.status(404).json({ message: "Member not found" });
-      }
-
-      // Check if user is either the invite owner OR the group organizer
-      const isInviteOwner = member.userId === userId;
+      // Check if user is group organizer (can delete any invite)
       let isOrganizer = false;
-
       if (invite.itineraryId) {
         const itinerary = await storage.getItinerary(invite.itineraryId);
-        if (itinerary) {
+        if (itinerary && itinerary.groupId) {
           const group = await storage.getGroup(itinerary.groupId);
-          isOrganizer = group && group.userId === userId;
+          isOrganizer = !!(group && group.userId === userId);
+        }
+      }
+
+      // Get the member to verify invite ownership (if memberId exists)
+      let isInviteOwner = false;
+      if (invite.memberId) {
+        const [member] = await db
+          .select()
+          .from(membersTable)
+          .where(eq(membersTable.id, invite.memberId));
+
+        if (member) {
+          isInviteOwner = member.userId === userId;
         }
       }
 
@@ -7980,7 +7981,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Create activities from the top venues
-      const createdActivities = [];
+      const createdActivities: Array<{ id: string }> = [];
       for (const place of topVenues) {
         const venueType = await getBestVenueType(place.types || [], place.placeId);
         const activityCategory = await categorizeVenue(place.name, venueType);
@@ -8031,7 +8032,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           groupId: req.params.id,
           name: eventName,
           status: 'proposed',
-          inviteToken: null,
           timingRecommendations: timeOptions.length > 1 ? 'Vote for your preferred time' : null,
           proposedOrder,
           eventDate: proposedEventDate, // Set default to first time option
@@ -8165,7 +8165,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const groupHistory = {
-        preferenceInsights: group.preferenceInsights,
+        preferenceInsights: group.preferenceInsights as string | null | undefined,
         schedulingPreferences: group.schedulingPreferences,
         closenessLevel: group.closenessLevel
       };
@@ -8480,7 +8480,8 @@ Looking forward to planning great activities together!
       const validatedData = safeParse(discoverSchema, req.body, res);
       if (!validatedData) return;
 
-      const { category, count } = validatedData;
+      const { category } = validatedData;
+      const count = validatedData.count ?? 15;
 
       // Create a discovery swipe session
       const { createSwipeSession } = await import('./swipe-session-manager');
@@ -8494,7 +8495,7 @@ Looking forward to planning great activities together!
       });
 
       const COOLDOWN_DAYS = 30;
-      const deck: any[] = [];
+      let deck: any[] = [];
 
       // TIER 1: Popular cached venues (group favorites with cooldown)
 
@@ -8509,8 +8510,7 @@ Looking forward to planning great activities together!
         price_level: string;
         photo_url: string;
         upvote_count: number;
-      }>(
-        `
+      }>(sql`
         SELECT DISTINCT
           ve.id,
           ve.title,
@@ -8524,20 +8524,18 @@ Looking forward to planning great activities together!
           COUNT(DISTINCT v.id) FILTER (WHERE v.vote_type = 'upvote') as upvote_count
         FROM voting_events ve
         LEFT JOIN votes v ON ve.id = v.event_id
-        LEFT JOIN activity_swipes swipe ON ve.id = swipe.voting_event_id AND swipe.user_id = $1
-        WHERE ve.group_id = $2
+        LEFT JOIN activity_swipes swipe ON ve.id = swipe.voting_event_id AND swipe.user_id = ${userId}
+        WHERE ve.group_id = ${groupId}
           AND (
             swipe.id IS NULL
             OR swipe.created_at < NOW() - INTERVAL '${COOLDOWN_DAYS} days'
           )
-          ${category ? `AND LOWER(ve.venue_type) LIKE LOWER('%${category}%')` : ''}
+          ${category ? sql`AND LOWER(ve.venue_type) LIKE LOWER(${'%' + category + '%'})` : sql``}
         GROUP BY ve.id
         HAVING COUNT(DISTINCT v.id) FILTER (WHERE v.vote_type = 'upvote') > 0
         ORDER BY upvote_count DESC
-        LIMIT $3
-        `,
-        [userId, groupId, count]
-      );
+        LIMIT ${count || 10}
+      `);
 
       const popularVenues = popularVenuesQuery.rows || [];
       deck.push(...popularVenues.map(v => ({
@@ -8570,8 +8568,7 @@ Looking forward to planning great activities together!
           rating: string;
           price_level: string;
           photo_url: string;
-        }>(
-          `
+        }>(sql`
           SELECT DISTINCT
             a.id,
             a.venue_name,
@@ -8583,15 +8580,13 @@ Looking forward to planning great activities together!
             a.price_level,
             a.photo_url
           FROM activities a
-          LEFT JOIN activity_swipes swipe ON a.id = swipe.activity_id AND swipe.user_id = $1
-          WHERE a.group_id = $2
+          LEFT JOIN activity_swipes swipe ON a.id = swipe.activity_id AND swipe.user_id = ${userId}
+          WHERE a.group_id = ${groupId}
             AND a.archived_at IS NULL
             AND swipe.id IS NULL
-            ${category ? `AND a.category = '${category}'` : ''}
-          LIMIT $3
-          `,
-          [userId, groupId, remaining]
-        );
+            ${category ? sql`AND a.category = ${category}` : sql``}
+          LIMIT ${remaining}
+        `);
 
         const activities = activitiesQuery.rows || [];
         deck.push(...activities.map(a => ({
@@ -8646,14 +8641,19 @@ Looking forward to planning great activities together!
 
           const venuePromises = limitedConcepts.map(async (concept) => {
             try {
-              const venues = await searchPlaces({
-                query: concept.searchQuery,
-                location: `${group.latitude},${group.longitude}`,
-                radius: (group.searchRadius || 5) * 1609,
-                budgetMin: group.budgetMin,
-                budgetMax: group.budgetMax,
-                forceComprehensiveSearch: false,
-              });
+              const venues = await searchPlaces(
+                concept.searchQuery,
+                `${group.latitude || ''},${group.longitude || ''}`,
+                group.searchRadius || 5,
+                group.latitude && group.longitude
+                  ? { lat: parseFloat(group.latitude), lng: parseFloat(group.longitude) }
+                  : undefined,
+                false, // skipCurated
+                undefined, // venueType
+                group.budgetMax,
+                [], // seenVenues
+                false // forceComprehensiveSearch
+              );
 
               return venues.slice(0, Math.ceil(stillNeeded / limitedConcepts.length));
             } catch (error) {
@@ -8941,7 +8941,7 @@ Looking forward to planning great activities together!
 
         // Filter out nulls and add to deck
         const validConcepts = enrichedConcepts.filter((c): c is NonNullable<typeof c> => c !== null);
-        deck = [...deck, ...validConcepts];
+        deck.push(...(validConcepts as any[]));
       }
 
       // Shuffle the deck to mix voting events and new suggestions
@@ -9048,14 +9048,14 @@ Looking forward to planning great activities together!
         })
       );
 
-      const validVenues = venuesWithDetails.filter(Boolean);
+      const validVenues = venuesWithDetails.filter((v): v is NonNullable<typeof v> => v !== null);
 
       if (validVenues.length === 0) {
         return res.status(400).json({ message: "No valid venues found" });
       }
 
       // Validate itinerary with AI
-      const validation = await validateItinerary(validVenues);
+      const validation = await validateItinerary(validVenues as any);
 
       if (!validation.isValid) {
         return res.status(400).json({
@@ -9534,7 +9534,9 @@ Looking forward to planning great activities together!
             console.log(`[Add Ad-hoc Venue] Searching for venue "${parsedPlace.placeName}" at coordinates ${parsedPlace.lat}, ${parsedPlace.lng}`);
             const places = await searchPlaces(
               parsedPlace.placeName,
-              { latitude: parsedPlace.lat!, longitude: parsedPlace.lng! }
+              '', // location string
+              2, // radius miles
+              { lat: parsedPlace.lat!, lng: parsedPlace.lng! } // coordinates
             );
 
             if (places.length > 0) {
@@ -9549,7 +9551,7 @@ Looking forward to planning great activities together!
           } else if (parsedPlace?.type === 'text_search' && parsedPlace.placeName) {
             // Text search needed
             console.log(`[Add Ad-hoc Venue] Searching for venue "${parsedPlace.placeName}"`);
-            const places = await searchPlaces(parsedPlace.placeName);
+            const places = await searchPlaces(parsedPlace.placeName, '');
 
             if (places.length > 0) {
               const topResult = places[0];
@@ -9620,8 +9622,8 @@ Looking forward to planning great activities together!
         try {
           const geocoded = await geocodeLocation(address);
           if (geocoded) {
-            latitude = geocoded.lat.toString();
-            longitude = geocoded.lng.toString();
+            latitude = geocoded.latitude.toString();
+            longitude = geocoded.longitude.toString();
           }
         } catch (error) {
           console.error('[Add Ad-hoc Venue] Error geocoding address:', error);
@@ -9841,13 +9843,17 @@ Looking forward to planning great activities together!
       });
 
       // Verify user has access to the group
-      const group = await storage.getGroup(validatedData.groupId);
+      const groupId = validatedData.groupId;
+      if (!groupId) {
+        return res.status(400).json({ message: "Group ID is required" });
+      }
+      const group = await storage.getGroup(groupId);
       if (!group) {
         return res.status(404).json({ message: "Group not found" });
       }
 
       // Check if user is member of the group
-      const groupMembers = await storage.getGroupMembers(validatedData.groupId);
+      const groupMembers = await storage.getGroupMembers(groupId);
       const isMember = groupMembers.some(m => m.userId === userId);
       const isOwner = group.userId === userId;
 
@@ -9970,7 +9976,8 @@ Looking forward to planning great activities together!
       await db.insert(itineraryItems).values(items);
 
       // Update itinerary name if it's generic
-      if (itinerary.name.includes('Auto-scheduled') || itinerary.name.includes('TBD')) {
+      const itineraryName = itinerary.name || '';
+      if (itineraryName.includes('Auto-scheduled') || itineraryName.includes('TBD')) {
         const venueSummary = items.map((v: any) => v.venueName).join(', ');
         const newName = items.length === 1
           ? items[0].venueName
@@ -10013,8 +10020,7 @@ Looking forward to planning great activities together!
       console.error('[Decide Now] Error stack:', error.stack);
       console.error('[Decide Now] Error details:', {
         message: error.message,
-        itineraryId,
-        userId,
+        itineraryId: req.params.id,
         errorType: error.constructor.name
       });
       res.status(500).json({
@@ -10129,20 +10135,20 @@ Looking forward to planning great activities together!
   app.delete("/api/time-slots/:timeSlotId/vote", async (req: any, res) => {
     try {
       const { timeSlotId } = req.params;
-      
-      let userId = null;
-      let memberId = null;
-      
+
+      let userId: string | undefined = undefined;
+      let memberId: string | undefined = undefined;
+
       if (req.user) {
         userId = await getUserId(req);
       } else if (req.body.memberId) {
         memberId = req.body.memberId;
       }
-      
+
       if (!userId && !memberId) {
         return res.status(400).json({ message: "Either userId or memberId is required" });
       }
-      
+
       await storage.removeTimeSlotVote(timeSlotId, userId, memberId);
       res.json({ message: "Vote removed" });
     } catch (error: any) {
@@ -10219,7 +10225,7 @@ Looking forward to planning great activities together!
       
       // Get the original itinerary with items
       const original = await storage.getItinerary(req.params.id);
-      if (!original) {
+      if (!original || !original.groupId) {
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
@@ -10242,10 +10248,12 @@ Looking forward to planning great activities together!
       }
 
       // Create a duplicate itinerary marked as saved
-      const itemsData = original.items.map((item: ItineraryItem) => ({
-        sourceType: item.sourceType as 'activity' | 'voting_event',
-        sourceId: item.sourceId
-      }));
+      const itemsData = original.items
+        .filter((item: ItineraryItem) => item.sourceId)
+        .map((item: ItineraryItem) => ({
+          sourceType: item.sourceType as 'activity' | 'voting_event',
+          sourceId: item.sourceId!
+        }));
 
       const savedItinerary = await storage.createItinerary(
         {
@@ -10254,8 +10262,8 @@ Looking forward to planning great activities together!
           status: 'saved',
           isSaved: true,
           aiValidationNotes: original.aiValidationNotes,
-          timingRecommendations: timingRecommendations || null,
-          proposedOrder: original.proposedOrder,
+          timingRecommendations: (timingRecommendations || null) as any,
+          proposedOrder: original.proposedOrder as any,
         },
         userId,
         itemsData
@@ -10277,7 +10285,7 @@ Looking forward to planning great activities together!
       
       // Get the original itinerary with items
       const original = await storage.getItinerary(req.params.id);
-      if (!original) {
+      if (!original || !original.groupId) {
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
@@ -10293,19 +10301,21 @@ Looking forward to planning great activities together!
       }
 
       // Create a duplicate as a draft
-      const itemsData = original.items.map((item: ItineraryItem) => ({
-        sourceType: item.sourceType as 'activity' | 'voting_event',
-        sourceId: item.sourceId
-      }));
+      const itemsData = original.items
+        .filter((item: ItineraryItem) => item.sourceId)
+        .map((item: ItineraryItem) => ({
+          sourceType: item.sourceType as 'activity' | 'voting_event',
+          sourceId: item.sourceId!
+        }));
 
       const duplicatedItinerary = await storage.createItinerary(
         {
           groupId: original.groupId,
-          name: `${original.name} (Copy)`,
+          name: `${original.name || 'Itinerary'} (Copy)`,
           status: 'draft',
           isSaved: false,
           aiValidationNotes: original.aiValidationNotes,
-          proposedOrder: original.proposedOrder,
+          proposedOrder: original.proposedOrder as any,
         },
         userId,
         itemsData
@@ -10477,16 +10487,21 @@ Looking forward to planning great activities together!
         const date = new Date(eventDate);
 
         // Use adaptive timeline if no config provided
-        let scheduleConfig;
+        let scheduleConfig: import('./adaptive-timeline').AdaptiveScheduleConfig;
         if (autoScheduleConfig) {
-          // Use provided config if specified
-          scheduleConfig = autoScheduleConfig;
+          // Use provided config if specified - add defaults for required fields
+          const { calculateAdaptiveTimeline } = await import('./adaptive-timeline');
+          const defaultConfig = calculateAdaptiveTimeline(date, new Date());
+          scheduleConfig = {
+            ...defaultConfig,
+            ...autoScheduleConfig,
+          };
         } else {
           // Calculate adaptive timeline based on event date
           const { calculateAdaptiveTimeline } = await import('./adaptive-timeline');
           scheduleConfig = calculateAdaptiveTimeline(date, new Date());
-          console.log(`[Send Itinerary] Using ${scheduleConfig.timelineType} timeline: ${scheduleConfig.reasoning}`);
         }
+        console.log(`[Send Itinerary] Using ${scheduleConfig.timelineType} timeline: ${scheduleConfig.reasoning}`);
 
         // Calculate RSVP deadline based on timeline config
         const { calculateRsvpDeadline } = await import('./adaptive-timeline');
@@ -10560,7 +10575,7 @@ Looking forward to planning great activities together!
         }
         
         // If no members have emails, send to the group creator/organizer
-        if (recipients.length === 0) {
+        if (recipients.length === 0 && group.userId) {
           const user = await storage.getUser(group.userId);
           if (user?.email) {
             recipients.push(user.email);
@@ -10571,8 +10586,8 @@ Looking forward to planning great activities together!
         console.log(`[Send Itinerary] Sending to ${recipients.length} recipients`);
 
         // Get organizer info for email
-        const organizerUser = await storage.getUser(group.userId);
-        const organizerName = organizerUser?.firstName || organizerUser?.username || 'Your friend';
+        const organizerUser = group.userId ? await storage.getUser(group.userId) : null;
+        const organizerName = organizerUser?.firstName || (organizerUser as any)?.username || 'Your friend';
 
         // Format date/time in Pacific timezone
         const pacificFormatter = new Intl.DateTimeFormat('en-US', {
@@ -10658,7 +10673,7 @@ Looking forward to planning great activities together!
 
       // Get itinerary
       const itinerary = await storage.getItinerary(itineraryId);
-      if (!itinerary || !itinerary.eventDate) {
+      if (!itinerary || !itinerary.eventDate || !itinerary.groupId) {
 
         return;
       }
@@ -10723,9 +10738,15 @@ Looking forward to planning great activities together!
       }
 
       // Analyze feedback patterns
+      interface RsvpFeedback {
+        tryEarlier?: boolean;
+        tryLater?: boolean;
+        notThisWeek?: boolean;
+        unavailableOn?: string[];
+      }
       const feedback = rsvps
-        .map(r => r.rsvpFeedback)
-        .filter((f): f is NonNullable<typeof f> => f != null);
+        .map(r => r.rsvpFeedback as RsvpFeedback | null)
+        .filter((f): f is RsvpFeedback => f != null);
 
       const constraints = {
         avoidDays: [] as string[],
@@ -10735,10 +10756,10 @@ Looking forward to planning great activities together!
       };
 
       for (const f of feedback) {
-        if (f?.tryEarlier) constraints.preferEarlier++;
-        if (f?.tryLater) constraints.preferLater++;
-        if (f?.notThisWeek) constraints.avoidThisWeek = true;
-        if (f?.unavailableOn && Array.isArray(f.unavailableOn)) {
+        if (f.tryEarlier) constraints.preferEarlier++;
+        if (f.tryLater) constraints.preferLater++;
+        if (f.notThisWeek) constraints.avoidThisWeek = true;
+        if (f.unavailableOn && Array.isArray(f.unavailableOn)) {
           constraints.avoidDays.push(...f.unavailableOn);
         }
       }
@@ -11146,7 +11167,7 @@ Looking forward to planning great activities together!
       const group = await storage.getGroup(groupId);
       const itineraryName = await generateItineraryName(
         queueEvent.venues.map((v: any) => ({ name: v.venueName, type: v.venueType })),
-        group?.location || 'San Francisco'
+        group?.locationBase || 'San Francisco'
       );
 
       // DEDUPLICATION: Check for existing proposed itineraries on the same date
@@ -11343,7 +11364,7 @@ Looking forward to planning great activities together!
         rsvp = updated[0];
       } else {
         // Create new guest RSVP
-        const newGuestToken = guestToken || crypto.randomBytes(32).toString('hex');
+        const newGuestToken = guestToken || crypto.randomUUID() + crypto.randomUUID();
 
         const inserted = await db
           .insert(rsvpsTable)
@@ -11628,9 +11649,7 @@ Looking forward to planning great activities together!
 
       // Add members to attendee list
       for (const member of groupMembers) {
-        const name = member.name ||
-          `${member.firstName || ''} ${member.lastName || ''}`.trim() ||
-          'Member';
+        const name = member.name || 'Member';
         const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
         const response = memberRsvpMap.get(member.id) || 'pending';
 
@@ -11793,9 +11812,12 @@ Looking forward to planning great activities together!
       if (venueRating !== undefined && venueRating !== null && (venueRating <= 2 || wouldDoAgain === 'no')) {
         try {
           // Get itinerary items to extract venue info
-          const itineraryItems = itinerary.items as any[] || [];
+          const fetchedItems = await db
+            .select()
+            .from(itineraryItems)
+            .where(eq(itineraryItems.itineraryId, itineraryId));
 
-          for (const item of itineraryItems) {
+          for (const item of fetchedItems) {
             if (item.venueName) {
               console.log(`🚫 Auto-blacklisting venue "${item.venueName}" (rating: ${venueRating}, wouldDoAgain: ${wouldDoAgain})`);
               await storage.addRejectedVenue(itinerary.groupId, item.venueName);
@@ -12053,9 +12075,7 @@ Looking forward to planning great activities together!
       }
 
       // Mark event as approved (will be sent immediately)
-      await storage.updateAutoScheduledEvent(req.params.id, {
-        approvedByOrganizer: true,
-      });
+      await storage.updateAutoScheduledEventStatus(req.params.id, 'approved');
 
       res.json({ success: true, message: "Event approved and will be sent to group" });
     } catch (error: any) {
@@ -12532,7 +12552,7 @@ Looking forward to planning great activities together!
 
       // Verify user is the group organizer
       const group = await storage.getGroup(groupId);
-      if (!group || group.organizerId !== userId) {
+      if (!group || group.userId !== userId) {
         return res.status(403).json({ message: "Only the organizer can trigger calibration" });
       }
 
@@ -12673,7 +12693,7 @@ Looking forward to planning great activities together!
       // Store the 3 options
       const { itineraryOptions: itineraryOptionsTable } = await import('../shared/schema');
       const savedOptions = await Promise.all(
-        result.options.map(async (option) => {
+        result.options.map(async (option: any) => {
           const [saved] = await db.insert(itineraryOptionsTable).values({
             autoEventId: autoEvent.id,
             optionNumber: option.optionNumber,
@@ -12917,7 +12937,7 @@ Looking forward to planning great activities together!
 
       // Save new options
       const savedOptions = await Promise.all(
-        result.options.map(async (option) => {
+        result.options.map(async (option: any) => {
           const [saved] = await db.insert(itineraryOptionsTable).values({
             autoEventId: eventId,
             optionNumber: option.optionNumber,
@@ -14271,11 +14291,9 @@ Looking forward to planning great activities together!
 
       // Query the API logs table
       const apiCallLogsTable = (await import('@shared/schema')).apiCallLogs;
-      
-      let query = db.select().from(apiCallLogsTable);
-      
+
       // Apply filters
-      const conditions = [];
+      const conditions: any[] = [];
       if (service) {
         conditions.push(eq(apiCallLogsTable.service, service as string));
       }
@@ -14288,27 +14306,22 @@ Looking forward to planning great activities together!
       if (status) {
         conditions.push(eq(apiCallLogsTable.status, status as string));
       }
-      
-      if (conditions.length > 0) {
-        query = query.where(and(...conditions));
-      }
-      
-      // Order by most recent first
-      query = query.orderBy(desc(apiCallLogsTable.createdAt));
-      
+
       // Apply pagination
       const limitNum = parseInt(limit as string, 10);
       const offsetNum = parseInt(offset as string, 10);
-      query = query.limit(limitNum).offset(offsetNum);
-      
-      const logs = await query;
-      
+
+      // Build and execute the query
+      const baseQuery = db.select().from(apiCallLogsTable);
+      const logs = await (conditions.length > 0
+        ? baseQuery.where(and(...conditions)).orderBy(desc(apiCallLogsTable.createdAt)).limit(limitNum).offset(offsetNum)
+        : baseQuery.orderBy(desc(apiCallLogsTable.createdAt)).limit(limitNum).offset(offsetNum));
+
       // Get total count for pagination
-      let countQuery = db.select({ count: sql<number>`count(*)` }).from(apiCallLogsTable);
-      if (conditions.length > 0) {
-        countQuery = countQuery.where(and(...conditions));
-      }
-      const totalResult = await countQuery;
+      const countBaseQuery = db.select({ count: sql<number>`count(*)` }).from(apiCallLogsTable);
+      const totalResult = await (conditions.length > 0
+        ? countBaseQuery.where(and(...conditions))
+        : countBaseQuery);
       const total = Number(totalResult[0]?.count) || 0;
 
       res.json({
@@ -14420,14 +14433,12 @@ Looking forward to planning great activities together!
 
       // Get actual API call counts from logs (if available) or fall back to estimates
       const apiCallLogsTable = (await import('@shared/schema')).apiCallLogs;
-      
+
       // Query actual API call logs filtered by period
-      let logQuery = db.select().from(apiCallLogsTable);
-      if (dateThreshold) {
-        logQuery = logQuery.where(gte(apiCallLogsTable.createdAt, dateThreshold));
-      }
-      
-      const apiLogs = await logQuery;
+      const baseLogQuery = db.select().from(apiCallLogsTable);
+      const apiLogs = await (dateThreshold
+        ? baseLogQuery.where(gte(apiCallLogsTable.createdAt, dateThreshold))
+        : baseLogQuery);
       
       // Count actual calls by method and cache status
       let actualTextSearchCalls = 0;
