@@ -18,3 +18,5 @@ export { MembersSection, type MemberData, type NewMember, type MemberConstraints
 export { AIPreferenceLearning, type PreferenceInsight } from './AIPreferenceLearning';
 export { ColorPaletteSelector, COLOR_PALETTE } from './ColorPaletteSelector';
 export { AutomationSettings } from './AutomationSettings';
+export { ActivityPreferencesAccordion } from './ActivityPreferencesAccordion';
+export { MyPreferencesTab } from './MyPreferencesTab';
