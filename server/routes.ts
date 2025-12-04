@@ -2074,8 +2074,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Merge real events, draft itineraries, and virtual events
-      const allEvents = [...events, ...draftEvents, ...virtualEvents];
+      // Fetch standalone events created by this user
+      const standaloneItineraries = await db
+        .select()
+        .from(itineraries)
+        .where(
+          and(
+            eq(itineraries.createdBy, userId),
+            eq(itineraries.isStandalone, true)
+          )
+        );
+
+      const standaloneEvents = await Promise.all(standaloneItineraries.map(async (itinerary) => {
+        // Get itinerary items
+        const items = await db
+          .select()
+          .from(itineraryItems)
+          .where(eq(itineraryItems.itineraryId, itinerary.id))
+          .orderBy(itineraryItems.orderIndex);
+
+        // Get invitees
+        const invitees = await db
+          .select()
+          .from(standaloneInvitees)
+          .where(eq(standaloneInvitees.itineraryId, itinerary.id));
+
+        // Get organizer RSVP
+        const [organizerRsvp] = await db
+          .select()
+          .from(rsvpsTable)
+          .where(
+            sql`itinerary_id = ${itinerary.id} AND user_id = ${userId} AND member_id IS NULL`
+          );
+
+        return {
+          inviteId: null,
+          inviteToken: null,
+          itineraryId: itinerary.id,
+          itineraryName: itinerary.name,
+          eventDate: itinerary.eventDate,
+          eventEndTime: itinerary.eventEndTime,
+          status: itinerary.status,
+          inviteSentAt: itinerary.inviteSentAt,
+          groupId: null,
+          groupName: null,
+          groupEmoji: null,
+          groupAccentColor: null,
+          groupTimezone: null,
+          isOrganizer: true,
+          hostMemberId: null,
+          hostMemberName: null,
+          currentUserMemberId: null,
+          currentUserOpenToHosting: false,
+          members: [],
+          rsvp: organizerRsvp ? {
+            response: organizerRsvp.response,
+            rsvpFeedback: organizerRsvp.rsvpFeedback,
+            postEventFeedback: organizerRsvp.postEventFeedback,
+          } : null,
+          organizerRsvp: organizerRsvp?.response || null,
+          rsvpSummary: { yes: [], maybe: [], no: [] },
+          detailedRsvps: [],
+          pendingGuestRsvps: [],
+          items: items.map(item => ({
+            id: item.id,
+            venueName: item.venueName,
+            venueType: item.venueType,
+            venueAddress: item.venueAddress,
+            photoUrl: item.photoUrl,
+            rating: item.rating,
+            googlePlaceId: item.googlePlaceId,
+            orderIndex: item.orderIndex,
+            arrivalTime: item.arrivalTime,
+            departureTime: item.departureTime,
+            travelNotes: item.travelNotes,
+            notes: item.notes,
+            googleMapsUrl: item.googleMapsUrl,
+            sourceType: item.sourceType,
+            sourceId: item.sourceId,
+          })),
+          isStandalone: true,
+          invitees: invitees.map(inv => ({
+            id: inv.id,
+            inviteeName: inv.inviteeName,
+            inviteeEmail: inv.inviteeEmail,
+            rsvpStatus: inv.rsvpStatus,
+            memberId: inv.memberId,
+            sourceGroupId: inv.sourceGroupId,
+          })),
+          note: itinerary.note,
+          quorumThreshold: itinerary.quorumThreshold,
+          rsvpDeadline: itinerary.rsvpDeadline,
+          autoScheduleConfig: itinerary.autoScheduleConfig,
+        };
+      }));
+
+      // Merge real events, draft itineraries, virtual events, and standalone events
+      const allEvents = [...events, ...draftEvents, ...virtualEvents, ...standaloneEvents];
 
       // Debug: Log event counts and any potential duplicates
 
