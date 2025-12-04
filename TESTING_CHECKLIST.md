@@ -80,10 +80,10 @@
 - [ x] Save → Event appears in Events list
 
 ### Standalone Event (New Feature)
-- [ ] On dashboard, click "Create Event" dropdown
-- [ ] Select "Standalone Event"
-- [ ] Enter event name
-- [ ] Select contacts from multiple groups
+- [ x] On dashboard, click "Create Event" dropdown
+- [x ] Select "Standalone Event"
+- [ x] Enter event name
+- [x ] Select contacts from multiple groups
 - [ ] Create → Event appears in Events list
 - [ ] Event shows "Standalone" indicator
 

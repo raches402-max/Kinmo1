@@ -13,7 +13,7 @@ import { Search, MapPin, Star, Check, Sparkles } from "lucide-react";
 
 // ========== TYPES ==========
 
-interface VenueSearchResult {
+export interface VenueSearchResult {
   placeId: string;
   name: string;
   address: string;
@@ -25,7 +25,7 @@ interface VenueSearchResult {
   location?: {
     lat: number;
     lng: number;
-  };
+  } | null;
   city?: string | null;
 }
 

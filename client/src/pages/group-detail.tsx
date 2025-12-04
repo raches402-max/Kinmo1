@@ -73,7 +73,7 @@ import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { PlanningInsightBanner } from "@/components/PlanningInsightBanner";
 import { ProfileCompletionBanner } from "@/components/ProfileCompletionBanner";
 import { HelpTooltip } from "@/components/HelpTooltip";
-import { HomeTab, GroupDetailMobileNav, ActivitiesTab, SelectedVenuesCard, ItineraryCard, AddMoreStopsCard, TimeSelectionTabs, InlineSchedulingCard, SaveItineraryDialog, SendBackupDialog, InviteGuestDialog, AutoSchedulePreviewDialog, EditAvailabilityDialog, RsvpConstraintDialog, AddVenueDialog, EditGroupDialog, MembersSection, AIPreferenceLearning, ColorPaletteSelector, AutomationSettings, ActivityPreferencesAccordion, MyPreferencesTab, BasicInfoAccordion } from "@/components/group-detail";
+import { HomeTab, GroupDetailMobileNav, ActivitiesTab, SelectedVenuesCard, ItineraryCard, AddMoreStopsCard, TimeSelectionTabs, InlineSchedulingCard, SaveItineraryDialog, SendBackupDialog, InviteGuestDialog, AutoSchedulePreviewDialog, EditAvailabilityDialog, RsvpConstraintDialog, AddVenueDialog, EditGroupDialog, MembersSection, AIPreferenceLearning, ColorPaletteSelector, AutomationSettings, ActivityPreferencesAccordion, MyPreferencesTab, BasicInfoAccordion, VenueSearchEmptyState } from "@/components/group-detail";
 import { useItineraryEditor } from "@/hooks/useItineraryEditor";
 import { useVenueSelection } from "@/hooks/useVenueSelection";
 import { useSchedulingFlow } from "@/hooks/useSchedulingFlow";
@@ -3368,146 +3368,42 @@ export default function GroupDetail() {
 
               {/* Venue Search - Empty State */}
               {selectedVenues.length === 0 && itineraries.length === 0 && (
-                <Card>
-                  <CardHeader>
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <CardTitle className="flex items-center gap-2">
-                          <Search className="h-5 w-5" />
-                          Search for Venues
-                        </CardTitle>
-                        <CardDescription>
-                          Search for restaurants, cafes, parks, or any venue to add to your itinerary
-                        </CardDescription>
-                      </div>
-                      <Button
-                        onClick={() => setShowAddAdHocDialog(true)}
-                        variant="outline"
-                        size="sm"
-                        className="gap-2 shrink-0"
-                      >
-                        <MapPin className="h-4 w-4" />
-                        Add Custom
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* Search Input */}
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        type="text"
-                        placeholder="Search for parks, restaurants, cafes, or any venue..."
-                        value={venueSearchQuery}
-                        onChange={(e) => setVenueSearchQuery(e.target.value)}
-                        className="pl-9"
-                        data-testid="input-venue-search-build"
-                      />
-                    </div>
-
-                    {/* Search Results */}
-                    {venueSearchQuery.trim() && venueSearchQuery.trim().length >= 2 && (
-                      <div className="space-y-3">
-                        <p className="text-sm text-muted-foreground">
-                          Search results for "{venueSearchQuery}"
-                        </p>
-                        {venueSearchResults.length > 0 ? (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {venueSearchResults.map((result: any) => {
-                              // Check if already added to cart or favorited
-                              const alreadyAdded = activities.some(a => !a.archivedAt && a.googlePlaceId === result.placeId) ||
-                                votingEvents.some(e => e.googlePlaceId === result.placeId) ||
-                                addedSuggestionPlaceIds.has(result.placeId);
-
-                              return (
-                                <button
-                                  key={result.placeId}
-                                  onClick={() => {
-                                    if (alreadyAdded || addVotingEventMutation.isPending) return;
-                                    if (selectedVenues.length >= 5) {
-                                      toast({
-                                        title: "Maximum reached",
-                                        description: "You can select up to 5 venues",
-                                        variant: "destructive"
-                                      });
-                                      return;
-                                    }
-
-                                    addVotingEventMutation.mutate({
-                                      title: result.name,
-                                      venueType: result.types?.[0] || 'venue',
-                                      venueAddress: result.address,
-                                      googlePlaceId: result.placeId,
-                                      photoUrl: result.photoUrl,
-                                      rating: result.rating,
-                                      reviewCount: result.reviewCount,
-                                      priceLevel: result.priceLevel,
-                                      latitude: result.location?.lat?.toString(),
-                                      longitude: result.location?.lng?.toString(),
-                                      city: result.city,
-                                    });
-                                  }}
-                                  disabled={alreadyAdded || addVotingEventMutation.isPending}
-                                  className={`flex gap-3 p-3 rounded-md border text-left transition-all ${
-                                    alreadyAdded || addVotingEventMutation.isPending ? 'opacity-50 cursor-not-allowed' : ''
-                                  }`}
-                                  data-testid={`search-result-build-${result.placeId}`}
-                                >
-                                  {result.photoUrl && (
-                                    <img 
-                                      src={result.photoUrl} 
-                                      alt={result.name}
-                                      className="w-16 h-16 rounded object-cover flex-shrink-0"
-                                    />
-                                  )}
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium truncate">{result.name}</p>
-                                    {result.rating && (
-                                      <div className="flex items-center gap-1 mt-1">
-                                        <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                                        <span className="text-xs font-medium">{result.rating}</span>
-                                      </div>
-                                    )}
-                                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                                      {result.address}
-                                    </p>
-                                    {alreadyAdded && (
-                                      <Badge variant="secondary" className="mt-1 text-xs">
-                                        <Check className="h-3 w-3 mr-1" />
-                                        Added
-                                      </Badge>
-                                    )}
-                                  </div>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <div className="text-center py-8">
-                            <p className="text-sm text-muted-foreground">No venues found. Try a different search.</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Or Browse Activities CTA */}
-                    {!venueSearchQuery.trim() && (
-                      <div className="pt-4 border-t text-center">
-                        <p className="text-sm text-muted-foreground mb-3">
-                          Or browse AI-generated suggestions
-                        </p>
-                        <Button 
-                          onClick={() => setActiveTab("activities")} 
-                          variant="outline"
-                          data-testid="button-go-to-activities"
-                        >
-                          <Sparkles className="h-4 w-4 mr-2" />
-                          Browse Activities
-                        </Button>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                <VenueSearchEmptyState
+                  searchQuery={venueSearchQuery}
+                  onSearchQueryChange={setVenueSearchQuery}
+                  searchResults={venueSearchResults}
+                  onAddVenue={(result) => {
+                    addVotingEventMutation.mutate({
+                      title: result.name,
+                      venueType: result.types?.[0] || 'venue',
+                      venueAddress: result.address,
+                      googlePlaceId: result.placeId,
+                      photoUrl: result.photoUrl || undefined,
+                      rating: result.rating?.toString() || undefined,
+                      reviewCount: result.reviewCount || undefined,
+                      priceLevel: result.priceLevel?.toString() || undefined,
+                      latitude: result.location?.lat?.toString() || undefined,
+                      longitude: result.location?.lng?.toString() || undefined,
+                      city: result.city || undefined,
+                    });
+                  }}
+                  isVenueAlreadyAdded={(placeId) =>
+                    activities.some(a => !a.archivedAt && a.googlePlaceId === placeId) ||
+                    votingEvents.some(e => e.googlePlaceId === placeId) ||
+                    addedSuggestionPlaceIds.has(placeId)
+                  }
+                  isAddingVenue={addVotingEventMutation.isPending}
+                  onGoToActivities={() => setActiveTab("activities")}
+                  onAddCustomVenue={() => setShowAddAdHocDialog(true)}
+                  selectedVenuesCount={selectedVenues.length}
+                  onMaxVenuesReached={() => {
+                    toast({
+                      title: "Maximum reached",
+                      description: "You can select up to 5 venues",
+                      variant: "destructive"
+                    });
+                  }}
+                />
               )}
 
               {/* Nearby Add-on Suggestions - Bottom Checkout Style */}
