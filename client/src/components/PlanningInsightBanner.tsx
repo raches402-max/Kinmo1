@@ -95,7 +95,7 @@ export function PlanningInsightBanner({ groupId }: PlanningInsightBannerProps) {
   });
 
   const handleDismiss = (insightId: string) => {
-    setDismissedIds((prev) => new Set([...prev, insightId]));
+    setDismissedIds((prev) => new Set([...Array.from(prev), insightId]));
     dismissMutation.mutate(insightId);
   };
 
@@ -195,7 +195,7 @@ export function PlanningInsightInline({ groupId }: PlanningInsightBannerProps) {
       <span className="truncate">{insight.message}</span>
       {insight.actionUrl && (
         <Link href={insight.actionUrl}>
-          <Button variant="link" size="sm" className="h-auto p-0 text-xs">
+          <Button variant="ghost" size="sm" className="h-auto p-0 text-xs">
             {insight.actionLabel || "Learn more"}
           </Button>
         </Link>

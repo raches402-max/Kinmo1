@@ -119,7 +119,7 @@ export function validateVenueDiversity<T extends DiversifiableVenue>(venues: T[]
   }
 
   // Warn about other duplicates (less critical, but still worth noting)
-  for (const [category, count] of categoryCounts.entries()) {
+  for (const [category, count] of Array.from(categoryCounts.entries())) {
     if (count > 1 && category !== 'meal') {
       issues.push(`Has ${count} ${category} venues - consider more variety`);
     }

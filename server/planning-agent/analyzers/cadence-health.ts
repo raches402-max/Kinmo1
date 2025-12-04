@@ -219,21 +219,21 @@ export class CadenceHealthAnalyzer implements Analyzer {
 
         if (feedbackResults && feedbackResults.length >= 3) {
           const counts = {
-            too_frequent: 0,
-            just_right: 0,
-            not_enough: 0,
+            tooFrequent: 0,
+            justRight: 0,
+            notEnough: 0,
           };
 
           for (const f of feedbackResults) {
-            if (f.feedback === 'less_often') counts.too_frequent++;
-            else if (f.feedback === 'just_right') counts.just_right++;
-            else if (f.feedback === 'more_often') counts.not_enough++;
+            if (f.feedback === 'less_often') counts.tooFrequent++;
+            else if (f.feedback === 'just_right') counts.justRight++;
+            else if (f.feedback === 'more_often') counts.notEnough++;
           }
 
-          const total = counts.too_frequent + counts.just_right + counts.not_enough;
+          const total = counts.tooFrequent + counts.justRight + counts.notEnough;
 
           // If majority says not enough, suggest more frequent meetings
-          if (total > 0 && counts.not_enough / total > 0.5) {
+          if (total > 0 && counts.notEnough / total > 0.5) {
             const analysis: CadenceHealthAnalysis = {
               statedFrequency: group.meetingFrequency,
               expectedDaysBetween: expectedDays,
@@ -266,7 +266,7 @@ export class CadenceHealthAnalyzer implements Analyzer {
           }
 
           // If majority says too frequent, suggest less frequent meetings
-          if (total > 0 && counts.too_frequent / total > 0.5) {
+          if (total > 0 && counts.tooFrequent / total > 0.5) {
             const analysis: CadenceHealthAnalysis = {
               statedFrequency: group.meetingFrequency,
               expectedDaysBetween: expectedDays,

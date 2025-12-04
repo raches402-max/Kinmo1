@@ -352,7 +352,7 @@ export class DatabaseStorage implements IStorage {
       groupId: group.id,
       name: organizer?.firstName && organizer?.lastName
         ? `${organizer.firstName} ${organizer.lastName}`.trim()
-        : organizer?.firstName || organizer?.username || 'Organizer',
+        : organizer?.firstName || organizer?.email?.split('@')[0] || 'Organizer',
       email: organizer?.email || null,
       claimToken: randomBytes(16).toString('hex'),
       isOrganizer: true,
@@ -1353,8 +1353,8 @@ export class DatabaseStorage implements IStorage {
             try {
               const geocoded = await geocodeLocation(venueAddress);
               if (geocoded) {
-                latitude = geocoded.lat.toString();
-                longitude = geocoded.lng.toString();
+                latitude = geocoded.latitude.toString();
+                longitude = geocoded.longitude.toString();
               }
             } catch (error) {
               console.error('[Create Itinerary] Error geocoding ad-hoc venue:', error);
@@ -1646,10 +1646,16 @@ export class DatabaseStorage implements IStorage {
       return;
     }
 
+    // Skip visit logging for standalone events (no groupId)
+    if (!itinerary.groupId) {
+      console.log(`[Visit Tracking] Standalone event ${itineraryId}, skipping visit logging`);
+      return;
+    }
+
     const visits: InsertVenueVisitHistory[] = itinerary.items
       .filter(item => item.sourceType !== 'ad_hoc') // Only track actual activities/voting events
       .map(item => ({
-        groupId: itinerary.groupId,
+        groupId: itinerary.groupId!,
         activityId: item.sourceType === 'activity' ? item.sourceId : null,
         votingEventId: item.sourceType === 'voting_event' ? item.sourceId : null,
         venueName: item.venueName,
@@ -2149,7 +2155,7 @@ export class DatabaseStorage implements IStorage {
       id: string;
       optionNumber: number;
       venues: any;
-      description?: string;
+      description?: string | null;
     }>;
     itinerary?: Itinerary & { items: ItineraryItem[] };
   }>> {

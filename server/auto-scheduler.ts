@@ -480,9 +480,6 @@ export async function selectBestItineraryForAutoSchedule(
               isFavorite ? '⭐ From Favorites' : '🤖 Agent Selected',
               ...generateVenueBadges(primaryVenue.qualityScore, primaryVenue.visitCount, primaryVenue.daysSinceLastVisit, primaryVenue.feedback)
             ],
-            rating: primaryVenue.rating,
-            venueAddress: primaryVenue.venueAddress,
-            googleMapsUrl: generateGoogleMapsUrl(primaryVenue.googlePlaceId, primaryVenue.name, primaryVenue.venueAddress),
           }],
           description: agentResult.flow || `${isFavorite ? 'From your Favorites' : 'Perfect for tonight'}`,
           nearbySuggestions: complementaryVenues.map(v => ({
@@ -1250,20 +1247,21 @@ export async function maintainEventPipeline(
             requiresReview: false,
             reviewReason: null,
             autoSendAt: autoSendDate,
-            timelineConfig: adaptiveTimeline, // Store the timeline config for later use
           });
 
           // Store the itinerary options within the same transaction
-          await Promise.all(
-            selection.options.map(async (option) => {
-              await tx.insert(itineraryOptionsTable).values({
-                autoEventId: autoEvent.id,
-                optionNumber: option.optionNumber,
-                venues: option.venues,
-                description: option.description,
-              });
-            })
-          );
+          if (selection.options) {
+            await Promise.all(
+              selection.options.map(async (option) => {
+                await tx.insert(itineraryOptionsTable).values({
+                  autoEventId: autoEvent.id,
+                  optionNumber: option.optionNumber,
+                  venues: option.venues,
+                  description: option.description,
+                });
+              })
+            );
+          }
 
           console.log(`[Event Pipeline] Created full event for ${group.name} on ${eventDate.toISOString()}`);
         });

@@ -620,7 +620,7 @@ function DiscoverSheet({
   };
 
   const handleSave = (place: GooglePlaceResult, groupId: string) => {
-    setSavedPlaces((prev) => new Set([...prev, `${place.placeId}-${groupId}`]));
+    setSavedPlaces((prev) => new Set([...Array.from(prev), `${place.placeId}-${groupId}`]));
     setShowSavePicker(null);
   };
 

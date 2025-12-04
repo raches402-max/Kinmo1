@@ -61,7 +61,7 @@ export function ErrorBoundary({ children }: ErrorBoundaryProps) {
   return (
     <Sentry.ErrorBoundary
       fallback={({ error, resetError }) => (
-        <ErrorFallback error={error} resetError={resetError} />
+        <ErrorFallback error={error instanceof Error ? error : new Error(String(error))} resetError={resetError} />
       )}
       onError={(error, componentStack) => {
         console.error('React Error Boundary caught an error:', error, componentStack);

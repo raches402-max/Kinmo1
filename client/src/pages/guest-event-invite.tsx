@@ -75,7 +75,7 @@ export default function GuestEventInvitePage() {
   });
 
   // Check if guest has already RSVP'd (using guestToken)
-  const { data: existingRsvp } = useQuery({
+  const { data: existingRsvp } = useQuery<{ guestName: string; guestEmail: string; response: string } | null>({
     queryKey: [`/api/guest-rsvp/${guestToken}`],
     enabled: !!guestToken && guestInfoComplete,
   });
@@ -85,7 +85,7 @@ export default function GuestEventInvitePage() {
     if (existingRsvp) {
       setGuestName(existingRsvp.guestName || "");
       setGuestEmail(existingRsvp.guestEmail || "");
-      setRsvpResponse(existingRsvp.response);
+      setRsvpResponse(existingRsvp.response as "going" | "maybe" | "not_going");
       setGuestInfoComplete(true);
     }
   }, [existingRsvp]);

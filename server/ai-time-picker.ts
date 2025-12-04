@@ -878,7 +878,8 @@ Return ONLY a JSON object with this exact structure:
     }
 
       // Validate time-of-day matches activity type
-      const timeValidation = validateTimeForActivity(input.activityType, hours);
+      const activityType = input.venues[0]?.type || 'restaurant';
+      const timeValidation = validateTimeForActivity(activityType, hours);
       if (!timeValidation.isValid && timeValidation.correctedHour !== undefined) {
         console.log(`[AI Time Picker] INVALID TIME: ${timeValidation.reason}`);
         console.log(`[AI Time Picker] Correcting ${hours}:00 to ${timeValidation.correctedHour}:00`);

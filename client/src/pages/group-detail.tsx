@@ -4422,9 +4422,9 @@ export default function GroupDetail() {
               groupContext={{
                 name: group?.name || "Group",
                 emoji: group?.emoji || "👥",
-                memberCount: group?.members?.length,
+                memberCount: members?.length,
               }}
-              timezone={group?.timezone}
+              timezone={group?.timezone ?? undefined}
             />
           </TabsContent>
 
@@ -4718,9 +4718,9 @@ export default function GroupDetail() {
                       venueAddress: result.address,
                       googlePlaceId: result.placeId,
                       photoUrl: result.photoUrl,
-                      rating: result.rating,
+                      rating: result.rating?.toString(),
                       reviewCount: result.reviewCount,
-                      priceLevel: result.priceLevel,
+                      priceLevel: result.priceLevel?.toString(),
                       latitude: result.location?.lat?.toString(),
                       longitude: result.location?.lng?.toString(),
                       city: result.city,

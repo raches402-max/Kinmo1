@@ -748,7 +748,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
 
           // Build full address
-          const address = `${venue.street}, ${venue.city}, ${venue.state} ${venue.countryCode}`;
+          const address = `${venue.street || ''}, ${venue.city || ''}, ${venue.state || ''} ${venue.countryCode || ''}`.trim();
 
           // Try to geocode the address (if geocodingCache has it)
           let latitude = "0";
@@ -782,14 +782,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             address,
             latitude,
             longitude,
-            category: mapCategory(venue.categoryName),
+            category: mapCategory(venue.categoryName || 'other'),
             rating: venue.totalScore?.toString() || null,
             reviewCount: venue.reviewsCount || null,
             priceLevel: null, // Not in source data
             photoUrl: null, // Will be populated on first use
             googlePlaceId: placeId,
             description: null,
-            tags: [venue.categoryName], // Store original category as tag
+            tags: venue.categoryName ? [venue.categoryName] : [], // Store original category as tag
             region: 'san_francisco',
             isActive: true,
             source: 'api_scrape',
@@ -1664,7 +1664,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Get group members including organizer (filters out duplicate self-adds)
-        const groupMembers = await getGroupMembersWithOrganizer(invite.groupId, invite.groupUserId);
+        const groupMembers = invite.groupId && invite.groupUserId
+          ? await getGroupMembersWithOrganizer(invite.groupId, invite.groupUserId)
+          : [];
 
         // Get current user's member ID and hosting status
         let currentUserMemberId = null;
@@ -1872,7 +1874,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .orderBy(itineraryItems.orderIndex);
 
         // Get group members including organizer (current user is always the organizer for drafts)
-        const groupMembers = await getGroupMembersWithOrganizer(draft.groupId, userId);
+        const groupMembers = draft.groupId
+          ? await getGroupMembersWithOrganizer(draft.groupId, userId)
+          : [];
 
         // Get organizer's RSVP for draft events (userId-based, no memberId)
         const organizerRsvps = await db
@@ -2575,7 +2579,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const itinerary = await storage.getItinerary(event.itineraryId);
-      if (!itinerary) {
+      if (!itinerary || !itinerary.groupId) {
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
@@ -2828,12 +2832,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
             groupId: group.id,
             name: `${originalItinerary.name} (Auto-Scheduled)`,
             status: "draft",
+            proposedOrder: [],
           },
           group.userId,
-          originalItems.map(item => ({
-            sourceType: item.sourceType,
-            sourceId: item.sourceId
-          }))
+          originalItems
+            .filter(item => item.sourceId !== null)
+            .map(item => ({
+              sourceType: item.sourceType as 'activity' | 'voting_event' | 'ad_hoc',
+              sourceId: item.sourceId!
+            }))
         );
         itineraryId = duplicatedItinerary.id;
       } else if ('selectedVenues' in selection && selection.selectedVenues) {
@@ -2916,18 +2923,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const itineraryItems = itineraryWithItems.items;
 
           // Prepare venues for validation
-          const venuesForValidation = itineraryItems.map(item => ({
-            sourceType: item.sourceType,
-            sourceId: item.sourceId,
-            venueName: item.venueName,
-            venueType: item.venueType,
-            venueAddress: item.venueAddress,
-            googlePlaceId: item.googlePlaceId,
-            location: item.latitude && item.longitude ? {
-              lat: parseFloat(item.latitude),
-              lng: parseFloat(item.longitude)
-            } : undefined
-          }));
+          const venuesForValidation = itineraryItems
+            .filter(item => item.sourceId !== null)
+            .map(item => ({
+              sourceType: item.sourceType as 'activity' | 'voting_event' | 'ad_hoc',
+              sourceId: item.sourceId!,
+              venueName: item.venueName,
+              venueType: item.venueType,
+              venueAddress: item.venueAddress,
+              googlePlaceId: item.googlePlaceId,
+              location: item.latitude && item.longitude ? {
+                lat: parseFloat(item.latitude),
+                lng: parseFloat(item.longitude)
+              } : undefined
+            }));
 
           // Get AI-validated order
           const validation = await validateItinerary(venuesForValidation);
@@ -2955,7 +2964,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get venue information (either from itinerary or from options)
       if (itineraryId) {
         const itinerary = await storage.getItinerary(itineraryId);
-        if (!itinerary) {
+        if (!itinerary || !itinerary.groupId) {
           return res.status(404).json({ message: "Created itinerary not found" });
         }
         venues = itinerary.items.map((item: any) => ({
@@ -3070,9 +3079,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const dayOfWeek = proposedDate.getDay();
       const hour = proposedDate.getHours();
       const timePeriod = hour < 12 ? 'morning' : (hour < 17 ? 'afternoon' : 'evening');
-      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      const slotKey = `${dayNames[dayOfWeek]}-${timePeriod}`;
-      const membersAvailable = availability.grid[slotKey] || 0;
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
+      const slotKey = `${dayNames[dayOfWeek]}-${timePeriod}` as keyof typeof availability.grid;
+      const membersAvailable = (availability.grid as Record<string, number>)[slotKey] || 0;
       const totalMembers = availability.memberCount;
 
       const confidenceResult = await calculateEventConfidence(
@@ -3122,7 +3131,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             optionNumber: option.optionNumber,
             venues: option.venues, // Already in correct format from selectBestItineraryForAutoSchedule
             description: option.description,
-            nearbySuggestions: option.nearbySuggestions || null,
+            // nearbySuggestions not included in selectBestItineraryForAutoSchedule return type
           });
         }
 
@@ -3271,7 +3280,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get members including organizer (filters out duplicates)
-      const allMembers = await getGroupMembersWithOrganizer(req.params.id, group.userId);
+      const allMembers = group.userId
+        ? await getGroupMembersWithOrganizer(req.params.id, group.userId)
+        : await storage.getGroupMembers(req.params.id);
 
       // Filter sensitive fields for public access
       // Only return data needed for social context (showing who's invited)
@@ -3318,8 +3329,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         suggestedDate: a.suggestedDate,
         suggestedTime: a.suggestedTime,
         priceEstimate: a.priceEstimate,
-        source: a.source,
-        quality: a.quality,
         createdAt: a.createdAt,
       }));
 
@@ -3342,7 +3351,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const activities = await storage.getAllGroupActivities(''); // We'll use a workaround
       const activity = activities.find(a => a.id === req.params.activityId);
 
-      if (!activity) {
+      if (!activity || !activity.groupId) {
         return res.status(404).json({ message: "Activity not found" });
       }
 
@@ -3397,7 +3406,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { createSwipeSession } = await import('./swipe-session-manager');
       const sessionId = await createSwipeSession({
         groupId,
-        ...validatedData,
+        sessionType: validatedData.sessionType,
+        triggeredBy: validatedData.triggeredBy || 'manual',
+        isBlocking: validatedData.isBlocking,
+        targetSwipeCount: validatedData.targetSwipeCount,
+        expiresInHours: validatedData.expiresInHours,
+        autoEventId: validatedData.autoEventId,
       });
 
       res.json({ sessionId });
@@ -3484,9 +3498,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Session not found" });
       }
 
-      // Verify user is organizer
+      // Verify user is organizer (group owner)
       const group = await storage.getGroup(sessionData[0].groupId);
-      if (!group || group.organizerId !== userId) {
+      if (!group || group.userId !== userId) {
         return res.status(403).json({ message: "Only organizers can manually complete sessions" });
       }
 
@@ -3859,14 +3873,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = safeParse(joinGroupSchema, req.body, res);
       if (!validatedData) return;
 
-      const { name, email, availability, preferences } = validatedData;
+      const { name, email } = validatedData;
 
       const memberData = {
         groupId: req.params.id,
         name: name || null,
         email: email || null,
-        availability: availability || null,
-        preferences: preferences || null,
         isOrganizer: false,
         invitationSent: false,
         hasJoined: true,
@@ -4098,17 +4110,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Handle organizer invites (no member yet - memberId is null)
       if (!invite.memberId) {
         // Get itinerary to find the group
+        if (!invite.itineraryId) {
+          return res.status(404).json({ message: "Invalid invite - missing itinerary" });
+        }
         const itinerary = await storage.getItinerary(invite.itineraryId);
-        if (!itinerary) {
+        if (!itinerary || !itinerary.groupId) {
           return res.status(404).json({ message: "Itinerary not found" });
         }
-        
+
         // Get group to find organizer
         const group = await storage.getGroup(itinerary.groupId);
-        if (!group) {
+        if (!group || !group.userId) {
           return res.status(404).json({ message: "Group not found" });
         }
-        
+
         // Get organizer user data
         const organizer = await storage.getUser(group.userId);
         if (!organizer) {
@@ -4390,7 +4405,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Fetch full venue details from Google Places
           const placeDetails = await getPlaceDetails(venuePlaceId);
 
-          if (placeDetails) {
+          if (placeDetails && placeDetails.location) {
             // Map category to curated venue categories
             const categoryMap: Record<string, string> = {
               'restaurant': 'meal',
@@ -4410,9 +4425,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
               latitude: placeDetails.location.lat.toString(),
               longitude: placeDetails.location.lng.toString(),
               category: mappedCategory,
-              rating: placeDetails.rating || null,
+              rating: placeDetails.rating?.toString() || null,
               reviewCount: placeDetails.reviewCount || null,
-              priceLevel: placeDetails.priceLevel || null,
+              priceLevel: typeof placeDetails.priceLevel === 'number' ? placeDetails.priceLevel : null,
               photoUrl: placeDetails.photoUrl || null,
               googlePlaceId: venuePlaceId,
               description: null, // Could add AI-generated description later
@@ -4779,7 +4794,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const upvoters = votes.filter((v) => v.voteType === "upvote");
               const likerNames = await Promise.all(
                 upvoters.slice(0, 3).map(async (vote) => {
-                  const user = await storage.getUser(vote.odooMemberId);
+                  const user = await storage.getUser(vote.userId);
                   return user?.firstName || "Someone";
                 })
               );
@@ -4884,8 +4899,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (itineraryId) {
         itinerary = await storage.getItinerary(itineraryId);
-        if (itinerary?.group) {
-          groupLocation = itinerary.group.locationBase || groupLocation;
+        if (itinerary?.groupId) {
+          const group = await storage.getGroup(itinerary.groupId);
+          if (group?.locationBase) {
+            groupLocation = group.locationBase;
+          }
         }
       }
 
@@ -4901,7 +4919,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         false,
         venueType,
         undefined,
-        new Set([currentVenue.placeId]), // Exclude current venue
+        currentVenue.placeId ? [currentVenue.placeId] : [], // Exclude current venue
         false,
         true
       );
@@ -4910,27 +4928,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const suggestions = alternatives.slice(0, 5).map((alt: any) => {
         const reasons: string[] = [];
 
-        // Compare ratings
-        if (currentVenue.rating && alt.rating) {
-          const currentRating = parseFloat(currentVenue.rating);
-          const altRating = parseFloat(alt.rating);
-          if (altRating > currentRating) {
-            reasons.push(`Higher rated (${alt.rating} vs ${currentVenue.rating})`);
-          }
+        // Check review count and rating
+        if (alt.rating && parseFloat(alt.rating) >= 4.0) {
+          reasons.push(`Highly rated (${alt.rating})`);
         }
-
-        // Compare price levels
-        if (currentVenue.priceLevel && alt.priceLevel) {
-          const currentPrice = currentVenue.priceLevel.length;
-          const altPrice = alt.priceLevel.length;
-          if (altPrice < currentPrice) {
-            reasons.push(`More affordable (${alt.priceLevel} vs ${currentVenue.priceLevel})`);
-          }
-        }
-
-        // Check review count
         if (alt.reviewCount && alt.reviewCount > 100) {
           reasons.push(`Well-reviewed (${alt.reviewCount} reviews)`);
+        }
+        if (alt.priceLevel) {
+          const priceLen = alt.priceLevel.length;
+          if (priceLen <= 2) {
+            reasons.push(`Affordable (${alt.priceLevel})`);
+          }
         }
 
         return {
@@ -4998,7 +5007,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get the itinerary to find the group
       const itinerary = await storage.getItinerary(req.params.id);
-      if (!itinerary) {
+      if (!itinerary || !itinerary.groupId) {
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
@@ -5058,7 +5067,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get the itinerary
       const itinerary = await storage.getItinerary(req.params.id);
-      if (!itinerary) {
+      if (!itinerary || !itinerary.groupId) {
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
@@ -5575,7 +5584,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       itinerariesData.forEach(itinerary => {
         const invite = invitesByItinerary.get(itinerary.id);
         const rsvp = rsvpsByItinerary.get(itinerary.id);
-        const group = groupsById.get(itinerary.groupId);
+        const group = itinerary.groupId ? groupsById.get(itinerary.groupId) : undefined;
         const items = itemsByItinerary.get(itinerary.id) || [];
 
         const eventData = {
@@ -5683,7 +5692,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Fetch itinerary to verify it exists
       const itinerary = await storage.getItinerary(itineraryId);
-      if (!itinerary) {
+      if (!itinerary || !itinerary.groupId) {
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
@@ -5752,7 +5761,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // 🤖 LEARNING LOOP #3: Auto-update member constraints from RSVP patterns
       // Only analyze patterns if this is a member RSVP (not guest) with feedback
-      if (memberId && rsvpFeedback) {
+      if (memberId && rsvpFeedback && itinerary.groupId) {
         autoUpdateMemberConstraints(memberId, itinerary.groupId).catch(err => {
           console.error(`[RSVP] Pattern analysis failed:`, err);
         });
@@ -5800,7 +5809,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Fetch itinerary to verify it exists
       const itinerary = await storage.getItinerary(itineraryId);
-      if (!itinerary) {
+      if (!itinerary || !itinerary.groupId) {
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
@@ -5856,7 +5865,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Verify itinerary exists and user is the group owner
       const itinerary = await storage.getItinerary(itineraryId);
-      if (!itinerary) {
+      if (!itinerary || !itinerary.groupId) {
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
@@ -5935,7 +5944,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get the itinerary
       const itinerary = await storage.getItinerary(rsvp.itineraryId);
-      if (!itinerary) {
+      if (!itinerary || !itinerary.groupId) {
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
@@ -5986,7 +5995,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get the itinerary
       const itinerary = await storage.getItinerary(rsvp.itineraryId);
-      if (!itinerary) {
+      if (!itinerary || !itinerary.groupId) {
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
@@ -6035,7 +6044,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get the itinerary and verify the user is the organizer
       const itinerary = await storage.getItinerary(existingRsvp.itineraryId);
-      if (!itinerary) {
+      if (!itinerary || !itinerary.groupId) {
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
@@ -6849,14 +6858,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userProfile = await storage.getUserProfile(userId);
 
       // Implement preference fallback chain for all preferences:
-      // 1. Member group preferences (budgetOverride, categoryPreferencesOverride, availabilityOverride)
-      // 2. Global user profile (budget, activityPreferences, personalAvailability)
+      // 1. Member group preferences (budgetOverrideMax, categoryPreferencesOverride, availabilityOverride)
+      // 2. Global user profile (budgetMax, activityPreferences, personalAvailability)
       // 3. Group defaults (budgetMax, enabled categories, availability)
-      const effectiveBudget = memberPreferences?.budgetOverride ?? userProfile?.budget ?? group.budgetMax;
+      const effectiveBudget = memberPreferences?.budgetOverrideMax ?? userProfile?.budgetMax ?? group.budgetMax;
       const effectiveCategories = memberPreferences?.categoryPreferencesOverride ?? userProfile?.activityPreferences ?? null;
       const effectiveAvailability = memberPreferences?.availabilityOverride ?? userProfile?.personalAvailability ?? group.availability;
 
-      console.log(`  Budget: ${effectiveBudget} (member: ${memberPreferences?.budgetOverride}, profile: ${userProfile?.budget}, group: ${group.budgetMax})`);
+      console.log(`  Budget: ${effectiveBudget} (member: ${memberPreferences?.budgetOverrideMax}, profile: ${userProfile?.budgetMax}, group: ${group.budgetMax})`);
       console.log(`  Categories: ${effectiveCategories ? JSON.stringify(effectiveCategories) : 'null'} (member: ${memberPreferences?.categoryPreferencesOverride ? 'set' : 'null'}, profile: ${userProfile?.activityPreferences ? 'set' : 'null'})`);
       console.log(`  Availability: ${effectiveAvailability ? 'set' : 'null'} (member: ${memberPreferences?.availabilityOverride ? 'set' : 'null'}, profile: ${userProfile?.personalAvailability ? 'set' : 'null'}, group: ${group.availability ? 'set' : 'null'})`);
 
@@ -6948,15 +6957,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // 1. Get venue visit history for rotation and proven winners
       const visitStats = await db.select({
-        googlePlaceId: venueVisitHistory.googlePlaceId,
+        venueName: venueVisitHistory.venueName,
         count: sql<number>`count(*)`.as('count'),
         lastVisit: sql<Date>`max(visited_at)`.as('last_visit'),
       })
       .from(venueVisitHistory)
       .where(eq(venueVisitHistory.groupId, req.params.id))
-      .groupBy(venueVisitHistory.googlePlaceId);
+      .groupBy(venueVisitHistory.venueName);
 
-      const visitMap = new Map(visitStats.map(v => [v.googlePlaceId, {
+      const visitMap = new Map(visitStats.map(v => [v.venueName, {
         count: Number(v.count),
         lastVisit: v.lastVisit,
         daysSinceVisit: v.lastVisit ? Math.floor((Date.now() - new Date(v.lastVisit).getTime()) / (1000 * 60 * 60 * 24)) : 999
@@ -7766,7 +7775,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Cost: ~5-7x more than mini, but provides significantly better context understanding
       // Trade-off: Worth it for personalized, history-aware event creation
       const groupHistory = {
-        preferenceInsights: group.preferenceInsights,
+        preferenceInsights: group.preferenceInsights as string | null | undefined,
         schedulingPreferences: group.schedulingPreferences,
         closenessLevel: group.closenessLevel
       };
@@ -7938,6 +7947,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             maxDistanceMiles: group.searchRadius || 2,
           },
         });
+
+        if (!agentResult) {
+          throw new Error('Agent returned null result');
+        }
 
         selectedVenuesData = agentResult.selectedVenues.map(v => ({
           name: v.name,
@@ -8243,12 +8256,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get Google Places cache stats for comparison
       const placesStats = getCacheStats();
 
-      // Get API call logs (last 100) for A/B test analysis
-      const recentCalls = await db
-        .select()
-        .from(storage.apiCallLogs || [] as any) // Access storage layer for logs if available
-        .orderBy(sql`created_at DESC`)
-        .limit(100);
+      // API call logs not available - would need a separate logging table
+      const recentCalls: any[] = [];
 
       // Analyze A/B test results
       const abTestMetrics = {
@@ -8316,7 +8325,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Verify the user owns the group this activity belongs to
       const group = await storage.getGroup(activity.groupId);
-      if (!group || group.createdBy !== userId) {
+      if (!group || group.userId !== userId) {
         return res.status(403).json({ message: "Not authorized to delete this activity" });
       }
 
@@ -8661,17 +8670,17 @@ Looking forward to planning great activities together!
           const rejectedIds = new Set(group.rejectedVenues || []);
 
           const filteredNewVenues = newVenues.filter(venue =>
-            !existingIds.has(venue.googlePlaceId) &&
-            !rejectedIds.has(venue.googlePlaceId || venue.venueName)
+            !existingIds.has(venue.placeId) &&
+            !rejectedIds.has(venue.placeId || venue.name)
           );
 
           deck.push(...filteredNewVenues.slice(0, stillNeeded).map(venue => ({
-            id: venue.id,
-            title: venue.venueName,
-            description: venue.description || `${venue.venueType || 'Venue'} in ${group.locationBase}`,
-            venueAddress: venue.venueAddress,
-            venueType: venue.venueType,
-            googlePlaceId: venue.googlePlaceId,
+            id: venue.placeId,
+            title: venue.name,
+            description: `${venue.types?.[0] || 'Venue'} in ${group.locationBase}`,
+            venueAddress: venue.address,
+            venueType: venue.types?.[0] || 'place',
+            googlePlaceId: venue.placeId,
             rating: venue.rating,
             reviewCount: venue.reviewCount,
             priceLevel: venue.priceLevel,
@@ -9017,7 +9026,7 @@ Looking forward to planning great activities together!
               try {
                 const geocoded = await geocodeLocation(address);
                 if (geocoded) {
-                  location = { lat: geocoded.lat, lng: geocoded.lng };
+                  location = { lat: geocoded.latitude, lng: geocoded.longitude };
                 }
               } catch (error) {
                 console.error('[Validate Itinerary] Error geocoding ad-hoc venue:', error);
@@ -9348,7 +9357,7 @@ Looking forward to planning great activities together!
   app.get("/api/itineraries/:id", async (req, res) => {
     try {
       const itinerary = await storage.getItinerary(req.params.id);
-      if (!itinerary) {
+      if (!itinerary || !itinerary.groupId) {
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
@@ -9476,7 +9485,7 @@ Looking forward to planning great activities together!
 
       // Verify itinerary exists
       const itinerary = await storage.getItinerary(itineraryId);
-      if (!itinerary) {
+      if (!itinerary || !itinerary.groupId) {
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
@@ -9502,7 +9511,7 @@ Looking forward to planning great activities together!
 
       // Verify itinerary exists
       const itinerary = await storage.getItinerary(itineraryId);
-      if (!itinerary) {
+      if (!itinerary || !itinerary.groupId) {
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
@@ -9517,9 +9526,8 @@ Looking forward to planning great activities together!
           const parsedPlace = await detectAndParseGoogleMapsUrl(googleMapsUrl);
           if (parsedPlace?.placeId) {
             googlePlaceId = parsedPlace.placeId;
-            // Override name and address if parsed from URL
-            if (parsedPlace.name) name = parsedPlace.name;
-            if (parsedPlace.address) address = parsedPlace.address;
+            // Override name if parsed from URL (address not available from URL parsing)
+            if (parsedPlace.placeName) name = parsedPlace.placeName;
           } else if (parsedPlace?.type === 'coordinates' && parsedPlace.placeName) {
             // No direct Place ID found, but we have coordinates + name
             // Search for the venue using the name and coordinates
@@ -9739,7 +9747,7 @@ Looking forward to planning great activities together!
       
       // Get the itinerary and verify authorization
       const itinerary = await storage.getItinerary(itineraryId);
-      if (!itinerary) {
+      if (!itinerary || !itinerary.groupId) {
         return res.status(404).json({ message: "Itinerary not found" });
       }
       
@@ -9882,7 +9890,7 @@ Looking forward to planning great activities together!
 
       // Get the itinerary
       const itinerary = await storage.getItinerary(itineraryId);
-      if (!itinerary) {
+      if (!itinerary || !itinerary.groupId) {
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
@@ -10060,7 +10068,7 @@ Looking forward to planning great activities together!
       const userId = await getUserId(req);
       
       const itinerary = await storage.getItinerary(itineraryId);
-      if (!itinerary) {
+      if (!itinerary || !itinerary.groupId) {
         return res.status(404).json({ message: "Itinerary not found" });
       }
       
@@ -10154,7 +10162,7 @@ Looking forward to planning great activities together!
       }
       
       const itinerary = await storage.getItinerary(timeSlot.itineraryId);
-      if (!itinerary) {
+      if (!itinerary || !itinerary.groupId) {
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
@@ -10313,7 +10321,7 @@ Looking forward to planning great activities together!
   app.post("/api/itineraries/:id/suggest-time", isAuthenticated, async (req, res) => {
     try {
       const itinerary = await storage.getItinerary(req.params.id);
-      if (!itinerary) {
+      if (!itinerary || !itinerary.groupId) {
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
@@ -10385,7 +10393,7 @@ Looking forward to planning great activities together!
       const userId = await getUserId(req);
       
       const itinerary = await storage.getItinerary(req.params.id);
-      if (!itinerary) {
+      if (!itinerary || !itinerary.groupId) {
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
@@ -10886,7 +10894,7 @@ Looking forward to planning great activities together!
   app.get("/api/itineraries/:id/suggested-schedule", isAuthenticated, async (req, res) => {
     try {
       const itinerary = await storage.getItinerary(req.params.id);
-      if (!itinerary) {
+      if (!itinerary || !itinerary.groupId) {
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
@@ -10920,7 +10928,7 @@ Looking forward to planning great activities together!
   app.post("/api/itineraries/:id/finalize", isAuthenticated, requireItineraryAccess(), async (req: any, res) => {
     try {
       const itinerary = await storage.getItinerary(req.params.id);
-      if (!itinerary) {
+      if (!itinerary || !itinerary.groupId) {
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
@@ -11227,7 +11235,7 @@ Looking forward to planning great activities together!
 
       // Verify itinerary exists
       const itinerary = await storage.getItinerary(itineraryId);
-      if (!itinerary) {
+      if (!itinerary || !itinerary.groupId) {
         return res.status(404).json({ message: "Event not found" });
       }
 
@@ -11301,7 +11309,7 @@ Looking forward to planning great activities together!
 
       // Verify itinerary exists
       const itinerary = await storage.getItinerary(itineraryId);
-      if (!itinerary) {
+      if (!itinerary || !itinerary.groupId) {
         return res.status(404).json({ message: "Event not found" });
       }
 
@@ -11385,7 +11393,7 @@ Looking forward to planning great activities together!
 
       // Get the itinerary with items
       const itinerary = await storage.getItinerary(guestRsvp.itineraryId);
-      if (!itinerary) {
+      if (!itinerary || !itinerary.groupId) {
         return res.status(404).json({ message: "Event not found" });
       }
 
@@ -11449,7 +11457,7 @@ Looking forward to planning great activities together!
   app.get("/api/itineraries/:id/invite-summary", isAuthenticated, async (req, res) => {
     try {
       const itinerary = await storage.getItinerary(req.params.id);
-      if (!itinerary) {
+      if (!itinerary || !itinerary.groupId) {
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
@@ -11500,7 +11508,7 @@ Looking forward to planning great activities together!
 
       // Verify itinerary exists and user is authorized (group owner)
       const itinerary = await storage.getItinerary(itineraryId);
-      if (!itinerary) {
+      if (!itinerary || !itinerary.groupId) {
         return res.status(404).json({ message: "Event not found" });
       }
 
@@ -11537,7 +11545,7 @@ Looking forward to planning great activities together!
 
       // Verify itinerary exists and user is authorized
       const itinerary = await storage.getItinerary(itineraryId);
-      if (!itinerary) {
+      if (!itinerary || !itinerary.groupId) {
         return res.status(404).json({ message: "Event not found" });
       }
 
@@ -11576,7 +11584,7 @@ Looking forward to planning great activities together!
 
       // Get itinerary details with items
       const itinerary = await storage.getItinerary(guestInvite.itineraryId);
-      if (!itinerary) {
+      if (!itinerary || !itinerary.groupId) {
         return res.status(404).json({ message: "Event not found" });
       }
 
@@ -11721,7 +11729,7 @@ Looking forward to planning great activities together!
         .where(eq(itineraries.id, itineraryId))
         .limit(1);
 
-      if (!itinerary) {
+      if (!itinerary || !itinerary.groupId) {
         return res.status(404).json({ message: "Event not found" });
       }
 

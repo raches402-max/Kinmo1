@@ -66,7 +66,7 @@ async function recoverOrphanedGroups(): Promise<RecoveryResult[]> {
         .select({
           memberId: members.id,
           userId: members.userId,
-          userName: members.userName,
+          memberName: members.name,
           isOrganizer: members.isOrganizer,
         })
         .from(members)

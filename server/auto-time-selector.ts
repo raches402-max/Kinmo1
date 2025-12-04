@@ -142,30 +142,32 @@ export async function selectBestTimeSlot(itineraryId: string): Promise<TimeSelec
 
       if (itinerary) {
         const { members } = await import('../shared/schema');
-        const groupMembers = await db
-          .select()
-          .from(members)
-          .where(eq(members.groupId, itinerary.groupId));
+        if (itinerary.groupId) {
+          const groupMembers = await db
+            .select()
+            .from(members)
+            .where(eq(members.groupId, itinerary.groupId));
 
-        const memberIds = groupMembers.map(m => m.id);
+          const memberIds = groupMembers.map(m => m.id);
 
-        // Format the selected time nicely
-        const selectedTime = winner.proposedDateTime.toLocaleDateString('en-US', {
-          weekday: 'long',
-          month: 'long',
-          day: 'numeric',
-          hour: 'numeric',
-          minute: '2-digit'
-        });
+          // Format the selected time nicely
+          const selectedTime = winner.proposedDateTime.toLocaleDateString('en-US', {
+            weekday: 'long',
+            month: 'long',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit'
+          });
 
-        const { notifyTimeSelected } = await import('./notifications');
-        await notifyTimeSelected({
-          itineraryId,
-          groupId: itinerary.groupId,
-          eventName: itinerary.name || 'Upcoming Event',
-          selectedTime,
-          memberIds
-        });
+          const { notifyTimeSelected } = await import('./notifications');
+          await notifyTimeSelected({
+            itineraryId,
+            groupId: itinerary.groupId,
+            eventName: itinerary.name || 'Upcoming Event',
+            selectedTime,
+            memberIds
+          });
+        }
       }
     } catch (notifyError) {
       console.error('[Time Selector] Error sending time selected notifications:', notifyError);

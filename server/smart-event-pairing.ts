@@ -132,6 +132,7 @@ async function inferPreferredTimeOfDay(group: Group, storage: IStorage): Promise
             const periodCounts = { morning: 0, afternoon: 0, evening: 0 };
 
             for (const event of pastEvents) {
+              if (!event.eventDate) continue;
               const hour = new Date(event.eventDate).getHours();
               const period = inferTimePeriod(hour);
               periodCounts[period as keyof typeof periodCounts]++;
@@ -265,15 +266,15 @@ export async function regenerateQueueEvent(
         type: 'voting_event',
         id: fav.id,
         name: fav.title,
-        score: (fav.upvotes || 0) * 10, // Higher score for upvoted favorites
+        score: 10, // Base score for favorites
         visitCount: recentlyVisited ? 1 : 0,
         daysSinceLastVisit: recentlyVisited ? 30 : 999,
-        qualityScore: fav.upvotes || 0,
-        feedback: (fav.upvotes || 0) >= 3 ? 'favorite' : null,
-        category: fav.category,
+        qualityScore: 5, // Base quality for favorites
+        feedback: 'favorite',
+        category: fav.venueType || null,
         venueType: fav.venueType || 'restaurant',
         rating: fav.rating,
-        venueAddress: fav.location,
+        venueAddress: fav.venueAddress,
         googlePlaceId: fav.googlePlaceId,
         latitude: null,
         longitude: null,
@@ -396,9 +397,9 @@ export async function regenerateQueueEvent(
 
     const timeResult = await suggestOptimalTime({
       venues: venuesForScheduling,
-      generalAvailability: group.generalAvailability,
+      generalAvailability: group.generalAvailability ?? undefined,
       meetingFrequency: group.meetingFrequency || '1x month',
-      location: group.location,
+      location: group.locationBase,
       currentGroupId: groupId,
     });
 
@@ -481,7 +482,7 @@ export async function generateAutoScheduleQueue(
           venues,
           sourceType: 'itinerary',
           sourceItineraryId: itinerary.id,
-          sourceItineraryName: itinerary.name,
+          sourceItineraryName: itinerary.name ?? undefined,
           aiValidationScore: 0, // Will be set by AI validation (Session 3)
           aiValidationReasoning: '',
           aiValidationConcerns: [],
@@ -507,15 +508,15 @@ export async function generateAutoScheduleQueue(
             type: 'voting_event',
             id: fav.id,
             name: fav.title,
-            score: (fav.upvotes || 0) * 10,
+            score: 10,
             visitCount: 0,
             daysSinceLastVisit: 999,
-            qualityScore: fav.upvotes || 0,
-            feedback: (fav.upvotes || 0) >= 3 ? 'favorite' : null,
-            category: fav.category,
+            qualityScore: 5,
+            feedback: 'favorite',
+            category: fav.venueType || null,
             venueType: fav.venueType || 'restaurant',
             rating: fav.rating,
-            venueAddress: fav.location,
+            venueAddress: fav.venueAddress,
             googlePlaceId: fav.googlePlaceId,
             latitude: null,
             longitude: null,
@@ -623,9 +624,9 @@ export async function generateAutoScheduleQueue(
             const [timeResult, validation] = await Promise.all([
               suggestOptimalTime({
                 venues: venuesForScheduling,
-                generalAvailability: group.generalAvailability,
+                generalAvailability: group.generalAvailability ?? undefined,
                 meetingFrequency: group.meetingFrequency || '1x month',
-                location: group.location,
+                location: group.locationBase,
                 currentGroupId: groupId,
               }),
               validateQueueEvent(event, {
@@ -644,9 +645,9 @@ export async function generateAutoScheduleQueue(
             // Agent-selected event, only need time picker
             const timeResult = await suggestOptimalTime({
               venues: venuesForScheduling,
-              generalAvailability: group.generalAvailability,
+              generalAvailability: group.generalAvailability ?? undefined,
               meetingFrequency: group.meetingFrequency || '1x month',
-              location: group.location,
+              location: group.locationBase,
               currentGroupId: groupId,
             });
 

@@ -95,7 +95,7 @@ export default function EventInvitePage() {
   });
 
   // Fetch existing RSVP to check if already responded
-  const { data: existingRsvp } = useQuery({
+  const { data: existingRsvp } = useQuery<{ response: string } | null>({
     queryKey: [`/api/rsvps/itinerary/${eventId}/member/${selectedMemberId}`],
     enabled: !!eventId && !!selectedMemberId && memberSelectionComplete,
   });
@@ -103,7 +103,7 @@ export default function EventInvitePage() {
   // Initialize response from existing RSVP
   useEffect(() => {
     if (existingRsvp?.response) {
-      setRsvpResponse(existingRsvp.response);
+      setRsvpResponse(existingRsvp.response as "going" | "maybe" | "not_going");
     }
   }, [existingRsvp]);
 

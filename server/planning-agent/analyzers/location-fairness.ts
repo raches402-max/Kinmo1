@@ -157,7 +157,7 @@ export class LocationFairnessAnalyzer implements Analyzer {
           if (venueCount > 0) {
             memberDistances.push({
               memberId: member.id,
-              memberName: member.name,
+              memberName: member.name || 'Unknown',
               homeLocation: member.memberLocation
                 ? {
                     name: member.memberLocation,

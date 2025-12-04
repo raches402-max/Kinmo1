@@ -1,7 +1,7 @@
 // Auto-adjust group meeting frequency based on post-event feedback
 import { db } from "./db";
 import { rsvps, groups } from "@shared/schema";
-import { eq, desc, and, isNotNull } from "drizzle-orm";
+import { eq, desc, and, isNotNull, sql } from "drizzle-orm";
 
 /**
  * Analyzes frequency feedback from recent post-event surveys
@@ -32,50 +32,22 @@ export async function analyzeAndAdjustFrequency(groupId: string): Promise<{
 
   const currentFrequency = group[0].meetingFrequency;
 
-  // Get recent post-event feedback with frequency preferences
-  // We'll look at RSVPs tied to the group's itineraries
-  const recentFeedback = await db
-    .select({
-      postEventFeedback: rsvps.postEventFeedback,
-      createdAt: rsvps.createdAt,
-    })
-    .from(rsvps)
-    .innerJoin(
-      db.$with('group_itineraries').as(
-        db.select({ id: groups.id })
-          .from(groups)
-          .where(eq(groups.id, groupId))
-      ),
-      // This is a simplified join - in practice we'd join through itineraries
-      // For now, we'll use a different approach
-    )
-    .where(
-      and(
-        isNotNull(rsvps.postEventFeedback)
-      )
-    )
-    .orderBy(desc(rsvps.createdAt))
-    .limit(10);
-
-  // Actually, let's simplify - we need to query through the itineraries table
-  // Let me rewrite this more directly:
+  // Get recent post-event feedback with frequency preferences via raw SQL
+  // (joining through itineraries to get feedback for this group's events)
 
   const feedbackQuery = await db.execute<{
     frequency_preference: string;
-  }>(
-    `
+  }>(sql`
     SELECT
       (r.post_event_feedback->>'frequencyPreference') as frequency_preference
     FROM rsvps r
     INNER JOIN itineraries i ON r.itinerary_id = i.id
-    WHERE i.group_id = $1
+    WHERE i.group_id = ${groupId}
       AND r.post_event_feedback IS NOT NULL
       AND r.post_event_feedback->>'frequencyPreference' IS NOT NULL
     ORDER BY r.created_at DESC
     LIMIT 10
-    `,
-    [groupId]
-  );
+  `);
 
   const feedbackRows = feedbackQuery.rows || [];
 
@@ -176,21 +148,18 @@ export async function getFrequencyFeedbackSummary(groupId: string): Promise<{
   const feedbackQuery = await db.execute<{
     frequency_preference: string;
     created_at: string;
-  }>(
-    `
+  }>(sql`
     SELECT
       (r.post_event_feedback->>'frequencyPreference') as frequency_preference,
       r.created_at
     FROM rsvps r
     INNER JOIN itineraries i ON r.itinerary_id = i.id
-    WHERE i.group_id = $1
+    WHERE i.group_id = ${groupId}
       AND r.post_event_feedback IS NOT NULL
       AND r.post_event_feedback->>'frequencyPreference' IS NOT NULL
     ORDER BY r.created_at DESC
     LIMIT 20
-    `,
-    [groupId]
-  );
+  `);
 
   const feedbackRows = feedbackQuery.rows || [];
 

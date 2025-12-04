@@ -219,20 +219,22 @@ export function checkVenueHours(
 
   for (const item of items) {
     const venueName = item.venueName || 'Unknown venue';
+    // Note: businessStatus and openingHours may come from extended venue data
+    const extendedItem = item as ItineraryItem & { businessStatus?: string; openingHours?: { weekdayDescriptions?: string[] } };
 
     // Check business status
-    if (item.businessStatus === 'CLOSED_PERMANENTLY') {
+    if (extendedItem.businessStatus === 'CLOSED_PERMANENTLY') {
       errors.push(`${venueName} is permanently closed`);
       continue;
     }
-    if (item.businessStatus === 'CLOSED_TEMPORARILY') {
+    if (extendedItem.businessStatus === 'CLOSED_TEMPORARILY') {
       warnings.push(`${venueName} is temporarily closed`);
       continue;
     }
 
     // Check opening hours if available
-    if (item.openingHours?.weekdayDescriptions) {
-      const hours = item.openingHours.weekdayDescriptions as string[];
+    if (extendedItem.openingHours?.weekdayDescriptions) {
+      const hours = extendedItem.openingHours.weekdayDescriptions as string[];
       const todayHours = hours[dayOfWeek];
 
       if (todayHours) {

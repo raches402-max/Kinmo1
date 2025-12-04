@@ -6,8 +6,8 @@
  */
 
 export interface GeoLocation {
-  latitude: number | string | null;
-  longitude: number | string | null;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
 }
 
 /**
@@ -53,8 +53,8 @@ function toRadians(degrees: number): number {
 /**
  * Parse latitude/longitude to number (handles string values)
  */
-function parseCoordinate(coord: number | string | null): number | null {
-  if (coord === null) return null;
+function parseCoordinate(coord: number | string | null | undefined): number | null {
+  if (coord === null || coord === undefined) return null;
   if (typeof coord === 'number') return coord;
 
   const parsed = parseFloat(coord);

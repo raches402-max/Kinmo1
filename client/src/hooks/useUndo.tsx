@@ -6,6 +6,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 
 interface UseUndoOptions {
   /**
@@ -59,27 +60,31 @@ export function useUndo() {
       const { id: toastId } = toast({
         title: message,
         description: description || "Click undo to reverse this action",
-        action: {
-          label: "Undo",
-          onClick: async () => {
-            // Cancel the pending action
-            if (pendingAction) {
-              clearTimeout(pendingAction.timeoutId);
-              setPendingAction(null);
-            }
+        action: (
+          <ToastAction
+            altText="Undo"
+            onClick={async () => {
+              // Cancel the pending action
+              if (pendingAction) {
+                clearTimeout(pendingAction.timeoutId);
+                setPendingAction(null);
+              }
 
-            // Execute rollback
-            if (rollbackRef.current) {
-              await rollbackRef.current();
-            }
+              // Execute rollback
+              if (rollbackRef.current) {
+                await rollbackRef.current();
+              }
 
-            // Show confirmation
-            toast({
-              title: "Action undone",
-              description: "The action has been cancelled",
-            });
-          },
-        },
+              // Show confirmation
+              toast({
+                title: "Action undone",
+                description: "The action has been cancelled",
+              });
+            }}
+          >
+            Undo
+          </ToastAction>
+        ),
         duration: delay,
       });
 
