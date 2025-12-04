@@ -16,3 +16,5 @@ export { AddVenueDialog } from './AddVenueDialog';
 export { EditGroupDialog } from './EditGroupDialog';
 export { MembersSection, type MemberData, type NewMember, type MemberConstraints } from './MembersSection';
 export { AIPreferenceLearning, type PreferenceInsight } from './AIPreferenceLearning';
+export { ColorPaletteSelector, COLOR_PALETTE } from './ColorPaletteSelector';
+export { AutomationSettings } from './AutomationSettings';

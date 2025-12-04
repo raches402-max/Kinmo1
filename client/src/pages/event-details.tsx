@@ -369,9 +369,9 @@ export default function EventDetailsPage() {
     },
   });
 
-  // Fallback: If event not found in user events (e.g., proposed itinerary without invites),
+  // Fallback: If event not found in user events (e.g., proposed itinerary without invites, or standalone events),
   // fetch directly from itinerary endpoint
-  const { data: fallbackItinerary } = useQuery<any>({
+  const { data: fallbackItinerary, isLoading: fallbackLoading } = useQuery<any>({
     queryKey: ["/api/itineraries/:id", eventId],
     enabled: !!eventId && !eventFromList && !isLoading,
     queryFn: async () => {
@@ -381,19 +381,23 @@ export default function EventDetailsPage() {
 
       if (itinerary) {
         // Transform itinerary to match event structure
+        // Handle both group-based and standalone events
         return {
           itineraryId: itinerary.id,
           itineraryName: itinerary.name,
           eventDate: itinerary.eventDate,
-          groupId: itinerary.groupId,
-          groupName: itinerary.group?.name,
-          groupEmoji: itinerary.group?.emoji,
-          groupTimezone: itinerary.group?.timezone,
-          groupAccentColor: itinerary.group?.accentColor,
+          groupId: itinerary.groupId || null,
+          groupName: itinerary.group?.name || null,
+          groupEmoji: itinerary.group?.emoji || (itinerary.isStandalone ? "📅" : null),
+          groupTimezone: itinerary.group?.timezone || null,
+          groupAccentColor: itinerary.group?.accentColor || "#6366f1",
           items: itinerary.items || [],
-          isOrganizer: true, // Assume organizer for proposed itineraries
-          members: itinerary.members || [], // Use members from API response
-          rsvp: itinerary.rsvp || null, // Include organizer's RSVP
+          isOrganizer: true, // Assume organizer for proposed/standalone itineraries
+          members: itinerary.members || [],
+          rsvp: itinerary.rsvp || null,
+          invitees: itinerary.invitees || [], // For standalone events
+          isStandalone: itinerary.isStandalone || false,
+          status: itinerary.status || 'draft',
         };
       }
       return null;
@@ -807,7 +811,8 @@ export default function EventDetailsPage() {
     return { yes, maybe, pending };
   }, [event, itineraryDetails?.rsvps]);
 
-  if (isLoading) {
+  // Show loading state while either query is loading
+  if (isLoading || (fallbackLoading && !eventFromList)) {
     return (
       <div className="min-h-screen bg-background p-4">
         <div className="max-w-4xl mx-auto space-y-6">

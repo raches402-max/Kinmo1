@@ -73,7 +73,7 @@ import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { PlanningInsightBanner } from "@/components/PlanningInsightBanner";
 import { ProfileCompletionBanner } from "@/components/ProfileCompletionBanner";
 import { HelpTooltip } from "@/components/HelpTooltip";
-import { HomeTab, GroupDetailMobileNav, ActivitiesTab, SelectedVenuesCard, ItineraryCard, AddMoreStopsCard, TimeSelectionTabs, InlineSchedulingCard, SaveItineraryDialog, SendBackupDialog, InviteGuestDialog, AutoSchedulePreviewDialog, EditAvailabilityDialog, RsvpConstraintDialog, AddVenueDialog, EditGroupDialog, MembersSection, AIPreferenceLearning } from "@/components/group-detail";
+import { HomeTab, GroupDetailMobileNav, ActivitiesTab, SelectedVenuesCard, ItineraryCard, AddMoreStopsCard, TimeSelectionTabs, InlineSchedulingCard, SaveItineraryDialog, SendBackupDialog, InviteGuestDialog, AutoSchedulePreviewDialog, EditAvailabilityDialog, RsvpConstraintDialog, AddVenueDialog, EditGroupDialog, MembersSection, AIPreferenceLearning, ColorPaletteSelector, AutomationSettings } from "@/components/group-detail";
 import { useItineraryEditor } from "@/hooks/useItineraryEditor";
 import { useVenueSelection } from "@/hooks/useVenueSelection";
 import { useSchedulingFlow } from "@/hooks/useSchedulingFlow";
@@ -2974,92 +2974,10 @@ export default function GroupDetail() {
                   </div>
 
                   {/* Group Color Palette */}
-                  <div className="space-y-2">
-                    {(() => {
-                      // Curated palette with good variety - no duplicates
-                      const colorPalette = [
-                        // Row 1: Warm spectrum
-                        { hex: '#E07A5F', name: 'Terracotta' },
-                        { hex: '#E63946', name: 'Coral' },
-                        { hex: '#F72585', name: 'Magenta' },
-                        { hex: '#C9ADA7', name: 'Dusty Rose' },
-                        { hex: '#E6B89C', name: 'Peach' },
-                        { hex: '#F4A261', name: 'Marigold' },
-                        { hex: '#EAB308', name: 'Sunflower' },
-                        { hex: '#FACC15', name: 'Lemon' },
-                        // Row 2: Earth & greens
-                        { hex: '#BC6C25', name: 'Caramel' },
-                        { hex: '#9C6644', name: 'Copper' },
-                        { hex: '#78716C', name: 'Stone' },
-                        { hex: '#606C38', name: 'Olive' },
-                        { hex: '#84CC16', name: 'Lime' },
-                        { hex: '#22C55E', name: 'Emerald' },
-                        { hex: '#2A9D8F', name: 'Teal' },
-                        { hex: '#14B8A6', name: 'Mint' },
-                        // Row 3: Blues & purples
-                        { hex: '#06B6D4', name: 'Cyan' },
-                        { hex: '#0EA5E9', name: 'Sky' },
-                        { hex: '#3B82F6', name: 'Blue' },
-                        { hex: '#1D3557', name: 'Navy' },
-                        { hex: '#6366F1', name: 'Indigo' },
-                        { hex: '#8B5CF6', name: 'Violet' },
-                        { hex: '#A855F7', name: 'Purple' },
-                        { hex: '#7209B7', name: 'Grape' },
-                        // Row 4: Neutrals & darks
-                        { hex: '#EC4899', name: 'Pink' },
-                        { hex: '#6B5B6E', name: 'Plum' },
-                        { hex: '#64748B', name: 'Slate' },
-                        { hex: '#475569', name: 'Charcoal' },
-                        { hex: '#1F2937', name: 'Graphite' },
-                        { hex: '#0F172A', name: 'Midnight' },
-                        { hex: '#44403C', name: 'Espresso' },
-                        { hex: '#292524', name: 'Coal' },
-                      ];
-                      const currentColor = editGroupData.accentColor || group?.accentColor || "#6B5B6E";
-                      const currentColorName = colorPalette.find(c => c.hex.toUpperCase() === currentColor.toUpperCase())?.name || 'Custom';
-
-                      return (
-                        <Collapsible>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <Label>Group Color</Label>
-                              <div className="flex items-center gap-2">
-                                <div
-                                  className="w-6 h-6 rounded-full border-2 border-background shadow-sm"
-                                  style={{ backgroundColor: currentColor }}
-                                />
-                                <span className="text-sm text-muted-foreground">{currentColorName}</span>
-                              </div>
-                            </div>
-                            <CollapsibleTrigger asChild>
-                              <Button variant="ghost" size="sm" className="text-xs text-muted-foreground">
-                                Change
-                              </Button>
-                            </CollapsibleTrigger>
-                          </div>
-                          <CollapsibleContent className="pt-3">
-                            <div className="grid grid-cols-8 gap-2">
-                              {colorPalette.map((color) => (
-                                <button
-                                  key={color.hex}
-                                  type="button"
-                                  onClick={() => setEditGroupData({ ...editGroupData, accentColor: color.hex })}
-                                  className={`w-8 h-8 rounded-full transition-all duration-150 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary ${
-                                    currentColor.toUpperCase() === color.hex.toUpperCase()
-                                      ? 'ring-2 ring-offset-2 ring-foreground scale-110'
-                                      : ''
-                                  }`}
-                                  style={{ backgroundColor: color.hex }}
-                                  title={color.name}
-                                  data-testid={`color-swatch-${color.hex.slice(1)}`}
-                                />
-                              ))}
-                            </div>
-                          </CollapsibleContent>
-                        </Collapsible>
-                      );
-                    })()}
-                  </div>
+                  <ColorPaletteSelector
+                    value={editGroupData.accentColor || group?.accentColor || "#6B5B6E"}
+                    onChange={(color) => setEditGroupData({ ...editGroupData, accentColor: color })}
+                  />
 
                   {/* Budget + Meeting Frequency - side by side on desktop */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -3234,195 +3152,17 @@ export default function GroupDetail() {
 
               {/* Section 2: Automation & Smart Features (Promoted to top, owner-only) */}
               {isOwner && (
-                <AccordionItem value="automation" className="border rounded-lg">
-                  <Card className="border-0 bg-primary/5">
-                    <AccordionTrigger className="px-6 pt-6 pb-2 hover:no-underline">
-                      <div className="flex items-center gap-3 text-left">
-                        <div className="p-2 bg-primary/25 rounded-md">
-                          <Bot className="h-5 w-5 text-primary" />
-                        </div>
-                        <div className="flex-1">
-                          <CardTitle className="flex items-center gap-2 text-base">
-                            <span>Automation & Smart Features</span>
-                            <Badge className="bg-primary/20 text-primary border-primary/30 text-xs">
-                              ✨ AI-Powered
-                            </Badge>
-                          </CardTitle>
-                          <CardDescription className="text-xs">
-                            {[
-                              group?.autoActivitiesEnabled && "Auto-activities",
-                              group?.autoItineraryEnabled && "Auto-itineraries",
-                              group?.autoScheduleEnabled && "Auto-schedule"
-                            ].filter(Boolean).join(" • ") || "Let AI handle planning"}
-                          </CardDescription>
-                        </div>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      <CardContent className="space-y-4 pt-2">
-                      {/* Auto-generate Activities */}
-                      <div className="flex items-start gap-3 p-3 bg-background rounded-md">
-                        <Switch
-                          id="auto-activities"
-                          checked={group?.autoActivitiesEnabled || false}
-                          onCheckedChange={(checked) => {
-                            toggleAutomationMutation.mutate({ 
-                              field: 'autoActivitiesEnabled', 
-                              value: checked 
-                            });
-                          }}
-                          data-testid="switch-auto-activities"
-                          className="mt-0.5"
-                        />
-                        <div className="flex-1 space-y-1">
-                          <div className="flex items-center gap-1.5">
-                            <Sparkles className="h-4 w-4 text-primary" />
-                            <Label htmlFor="auto-activities" className="cursor-pointer font-medium">
-                              Auto-generate Activities
-                            </Label>
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-4 w-4 p-0">
-                                  <Info className="h-3.5 w-3.5 text-muted-foreground" />
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-80 text-sm space-y-2">
-                                <div className="font-semibold">How it works:</div>
-                                <p className="text-muted-foreground">
-                                  AI discovers new venues weekly matching your group's taste. It analyzes your feedback → finds similar places → adds them to your Activities tab.
-                                </p>
-                                <div className="text-xs text-muted-foreground pt-1 border-t">
-                                  <strong>Example:</strong> Based on your ❤️ for Marufuku Ramen, AI might suggest Ippudo and Mensho Tokyo
-                                </div>
-                              </PopoverContent>
-                            </Popover>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Auto-create Itinerary Drafts */}
-                      <div className="flex items-start gap-3 p-3 bg-background rounded-md">
-                        <Switch
-                          id="auto-itinerary"
-                          checked={group?.autoItineraryEnabled || false}
-                          onCheckedChange={(checked) => {
-                            toggleAutomationMutation.mutate({ 
-                              field: 'autoItineraryEnabled', 
-                              value: checked 
-                            });
-                          }}
-                          data-testid="switch-auto-itinerary"
-                          className="mt-0.5"
-                        />
-                        <div className="flex-1 space-y-1">
-                          <div className="flex items-center gap-1.5">
-                            <Sparkles className="h-4 w-4 text-primary" />
-                            <Label htmlFor="auto-itinerary" className="cursor-pointer font-medium">
-                              Auto-create Itinerary Drafts
-                            </Label>
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-4 w-4 p-0">
-                                  <Info className="h-3.5 w-3.5 text-muted-foreground" />
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-80 text-sm space-y-2">
-                                <div className="font-semibold">How it works:</div>
-                                <p className="text-muted-foreground">
-                                  AI builds 2-3 venue itineraries you can review and schedule. Priority: <strong>Saved plans</strong> → <strong>favorited venues</strong> → <strong>AI suggestions</strong>
-                                </p>
-                                <div className="text-xs text-muted-foreground pt-1 border-t">
-                                  <strong>Example:</strong> Creates "Dinner at Ryoko's & Dessert at Bi-Rite" from your favorited venues
-                                </div>
-                              </PopoverContent>
-                            </Popover>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Auto-schedule Events */}
-                      <div className="flex items-start gap-3 p-3 bg-background rounded-md">
-                        <Switch
-                          id="auto-schedule"
-                          checked={group?.autoScheduleEnabled || false}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              // Show preview dialog before enabling
-                              setAutoSchedulePreviewOpen(true);
-                            } else {
-                              // Disable immediately without preview
-                              toggleAutomationMutation.mutate({
-                                field: 'autoScheduleEnabled',
-                                value: false
-                              });
-                            }
-                          }}
-                          data-testid="switch-auto-schedule"
-                          className="mt-0.5"
-                        />
-                        <div className="flex-1 space-y-1">
-                          <div className="flex items-center gap-1.5">
-                            <Sparkles className="h-4 w-4 text-primary" />
-                            <Label htmlFor="auto-schedule" className="cursor-pointer font-medium">
-                              Auto-schedule Events
-                            </Label>
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-4 w-4 p-0">
-                                  <Info className="h-3.5 w-3.5 text-muted-foreground" />
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-80 text-sm space-y-2">
-                                <div className="font-semibold">How it works:</div>
-                                <ul className="text-muted-foreground space-y-1 list-disc list-inside text-xs">
-                                  <li><strong>10 days before target:</strong> AI creates a draft event</li>
-                                  <li><strong>48-hour window:</strong> Members marked "open to hosting" can volunteer</li>
-                                  <li><strong>Auto-sends:</strong> If no one volunteers, AI sends the event automatically</li>
-                                </ul>
-                                <p className="text-muted-foreground text-xs">
-                                  <strong>Content:</strong> Saved plans → favorites → viable activities
-                                </p>
-                                <div className="text-xs text-muted-foreground pt-1 border-t">
-                                  <strong>What does hosting mean?</strong> The host sends event details to the group and coordinates attendance.
-                                </div>
-                              </PopoverContent>
-                            </Popover>
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            Creates and sends an event every {editFrequencyNumber} {editFrequencyUnit}{editFrequencyNumber !== 1 ? 's' : ''} automatically
-                          </p>
-                          {group?.autoScheduleEnabled && (
-                            <div className="text-xs mt-1.5">
-                              {group?.nextEventDueDate ? (
-                                <span className="text-muted-foreground">
-                                  → Next auto-event: {new Date(group.nextEventDueDate).toLocaleDateString('en-US', { 
-                                    month: 'short', 
-                                    day: 'numeric' 
-                                  })}
-                                </span>
-                              ) : (
-                                <span className="text-muted-foreground">
-                                  → Auto-scheduling active
-                                </span>
-                              )}
-                              {' '}
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="h-auto p-0 text-xs text-primary hover:underline"
-                                onClick={() => setActiveTab('home')}
-                                data-testid="link-view-home-tab"
-                              >
-                                (view on Home tab)
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      </CardContent>
-                    </AccordionContent>
-                  </Card>
-                </AccordionItem>
+                <AutomationSettings
+                  autoActivitiesEnabled={group?.autoActivitiesEnabled || false}
+                  autoItineraryEnabled={group?.autoItineraryEnabled || false}
+                  autoScheduleEnabled={group?.autoScheduleEnabled || false}
+                  nextEventDueDate={group?.nextEventDueDate}
+                  frequencyNumber={editFrequencyNumber}
+                  frequencyUnit={editFrequencyUnit}
+                  onToggle={(field, value) => toggleAutomationMutation.mutate({ field, value })}
+                  onOpenAutoSchedulePreview={() => setAutoSchedulePreviewOpen(true)}
+                  onNavigateToHome={() => setActiveTab('home')}
+                />
               )}
 
               {/* Section 3: Activity Preferences (Collapsed by default) */}
