@@ -176,7 +176,10 @@
       "Skill(kinmo-extract-component)",
       "WebFetch(domain:kinmoai-v-1--rach0oo.replit.app)",
       "Bash(NODE_ENV=production npm run build:*)",
-      "Bash(npm --version:*)"
+      "Bash(npm --version:*)",
+      "Bash(timeout 5 NODE_ENV=production node:*)",
+      "Bash(NODE_ENV=production timeout 5 node dist/index.js)",
+      "Bash(NODE_ENV=production timeout 10 node dist/index.js)"
     ],
     "deny": [],
     "ask": []
