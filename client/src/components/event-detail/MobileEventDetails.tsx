@@ -467,10 +467,13 @@ export function MobileEventDetails({
 
       {/* Event Meta */}
       <div className="px-4 py-4 border-b border-border bg-card/50">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-lg">{event.groupEmoji || "📅"}</span>
-          <span className="font-medium text-foreground">{event.groupName}</span>
-        </div>
+        {/* Only show group name for group events, not standalone */}
+        {event.groupId && event.groupName && (
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-lg">{event.groupEmoji || "📅"}</span>
+            <span className="font-medium text-foreground">{event.groupName}</span>
+          </div>
+        )}
         <div className="flex items-center gap-2 flex-wrap mb-3">
           <Badge variant="outline" className={cn("text-xs", statusBadge.className)}>
             {statusBadge.label}

@@ -941,7 +941,7 @@ export default function EventDetailsPage() {
             eventDate: event.eventDate,
             eventEndTime: event.eventEndTime,
             groupId: event.groupId,
-            groupName: event.groupName || (event.isStandalone ? "Personal Event" : null),
+            groupName: event.groupName || null,
             groupEmoji: event.groupEmoji,
             groupTimezone: event.groupTimezone,
             groupAccentColor: event.groupAccentColor,
