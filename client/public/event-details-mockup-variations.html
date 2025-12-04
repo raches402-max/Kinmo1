@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Event Details Design Variations</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      /* Color palette from your app */
+      --primary: hsl(44, 87%, 63%);
+      --primary-foreground: hsl(0, 0%, 0%);
+      --muted: hsl(35, 25%, 93%);
+      --muted-foreground: hsl(25, 15%, 45%);
+      --foreground: hsl(25, 30%, 14%);
+      --background: hsl(38, 50%, 98%);
+      --card: hsl(0, 0%, 100%);
+      --card-border: hsl(32, 20%, 88%);
+      --secondary: hsl(110, 25%, 65%);
+      --accent: hsl(350, 45%, 75%);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: var(--background);
+      color: var(--foreground);
+      padding: 20px;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 28px;
+      margin-bottom: 32px;
+      text-align: center;
+      color: var(--foreground);
+    }
+
+    .design-grid {
+      display: grid;
+      gap: 32px;
+      margin-bottom: 40px;
+    }
+
+    .design-option {
+      background: white;
+      padding: 24px;
+      border-radius: 16px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    }
+
+    .design-label {
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+
+    .design-description {
+      font-size: 12px;
+      color: var(--muted-foreground);
+      text-align: center;
+      margin-bottom: 20px;
+      font-style: italic;
+    }
+
+    /* Base accordion styles */
+    .accordion-section {
+      border-radius: 16px;
+      border: 1px solid var(--card-border);
+      background: var(--card);
+      overflow: hidden;
+      margin-bottom: 16px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .accordion-header {
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+    }
+
+    .accordion-header .icon-wrapper {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 12px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      background: var(--muted);
+      color: var(--muted-foreground);
+    }
+
+    .accordion-header .title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      transition: all 0.3s;
+      color: var(--muted-foreground);
+    }
+
+    .accordion-body {
+      padding: 20px;
+      padding-top: 16px;
+      background: white;
+    }
+
+    /* OPTION 1: SUBTLE REFINED (Original Improved) */
+    .option1.expanded {
+      border-color: hsl(44, 70%, 75%);
+      box-shadow: 0 4px 16px rgba(242, 201, 76, 0.12);
+    }
+
+    .option1 .accordion-header.expanded {
+      background: hsl(35, 40%, 95%);
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .option1 .accordion-header.expanded::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg,
+        hsla(44, 87%, 63%, 0.06) 0%,
+        hsla(44, 87%, 63%, 0.02) 50%,
+        transparent 100%);
+    }
+
+    .option1 .accordion-header.expanded .icon-wrapper {
+      background: var(--primary);
+      color: var(--primary-foreground);
+      box-shadow: 0 2px 8px rgba(242, 201, 76, 0.3);
+      transform: scale(1.05);
+    }
+
+    .option1 .accordion-header.expanded .title {
+      color: var(--foreground);
+    }
+
+    /* OPTION 2: VIBRANT GOLD */
+    .option2.expanded {
+      border-color: hsl(44, 87%, 63%);
+      box-shadow: 0 4px 20px rgba(242, 201, 76, 0.25);
+    }
+
+    .option2 .accordion-header.expanded {
+      background: linear-gradient(135deg,
+        hsl(44, 87%, 63%) 0%,
+        hsl(44, 87%, 68%) 100%);
+      border-bottom: 1px solid hsl(44, 87%, 55%);
+    }
+
+    .option2 .accordion-header.expanded .icon-wrapper {
+      background: white;
+      color: hsl(44, 87%, 40%);
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+      transform: scale(1.1);
+    }
+
+    .option2 .accordion-header.expanded .title {
+      color: hsl(25, 30%, 14%);
+      font-weight: 800;
+    }
+
+    .option2 .chevron {
+      color: hsl(25, 30%, 14%) !important;
+    }
+
+    /* OPTION 3: SAGE GREEN ACCENT */
+    .option3.expanded {
+      border-color: hsl(110, 35%, 60%);
+      box-shadow: 0 4px 20px rgba(152, 195, 152, 0.2);
+    }
+
+    .option3 .accordion-header.expanded {
+      background: linear-gradient(to right,
+        hsl(110, 35%, 93%) 0%,
+        hsl(110, 30%, 95%) 100%);
+      border-bottom: 1px solid hsl(110, 30%, 80%);
+    }
+
+    .option3 .accordion-header.expanded .icon-wrapper {
+      background: hsl(110, 35%, 55%);
+      color: white;
+      box-shadow: 0 2px 12px rgba(152, 195, 152, 0.4);
+      transform: scale(1.08);
+    }
+
+    .option3 .accordion-header.expanded .title {
+      color: hsl(110, 40%, 30%);
+      font-weight: 800;
+    }
+
+    /* OPTION 4: WARM TERRACOTTA */
+    .option4.expanded {
+      border-color: hsl(15, 70%, 65%);
+      box-shadow: 0 4px 20px rgba(226, 135, 98, 0.2);
+    }
+
+    .option4 .accordion-header.expanded {
+      background: linear-gradient(135deg,
+        hsl(15, 60%, 88%) 0%,
+        hsl(15, 55%, 92%) 100%);
+      border-bottom: 1px solid hsl(15, 50%, 75%);
+    }
+
+    .option4 .accordion-header.expanded .icon-wrapper {
+      background: hsl(15, 70%, 60%);
+      color: white;
+      box-shadow: 0 2px 12px rgba(226, 135, 98, 0.4);
+      transform: scale(1.08);
+    }
+
+    .option4 .accordion-header.expanded .title {
+      color: hsl(15, 50%, 30%);
+      font-weight: 800;
+    }
+
+    /* OPTION 5: DUSKY ROSE */
+    .option5.expanded {
+      border-color: hsl(350, 50%, 70%);
+      box-shadow: 0 4px 20px rgba(219, 159, 168, 0.2);
+    }
+
+    .option5 .accordion-header.expanded {
+      background: linear-gradient(to right,
+        hsl(350, 50%, 92%) 0%,
+        hsl(350, 45%, 94%) 100%);
+      border-bottom: 1px solid hsl(350, 40%, 80%);
+    }
+
+    .option5 .accordion-header.expanded .icon-wrapper {
+      background: hsl(350, 50%, 65%);
+      color: white;
+      box-shadow: 0 2px 12px rgba(219, 159, 168, 0.4);
+      transform: scale(1.08);
+    }
+
+    .option5 .accordion-header.expanded .title {
+      color: hsl(350, 45%, 35%);
+      font-weight: 800;
+    }
+
+    /* OPTION 6: BOLD CONTRAST */
+    .option6.expanded {
+      border-color: hsl(44, 87%, 63%);
+      box-shadow: 0 6px 24px rgba(242, 201, 76, 0.3);
+      transform: translateY(-2px);
+    }
+
+    .option6 .accordion-header.expanded {
+      background: hsl(25, 30%, 14%);
+      border-bottom: 2px solid hsl(44, 87%, 63%);
+    }
+
+    .option6 .accordion-header.expanded .icon-wrapper {
+      background: hsl(44, 87%, 63%);
+      color: hsl(25, 30%, 14%);
+      box-shadow: 0 4px 16px rgba(242, 201, 76, 0.6);
+      transform: scale(1.15);
+    }
+
+    .option6 .accordion-header.expanded .title {
+      color: hsl(44, 87%, 63%);
+      font-weight: 800;
+      text-shadow: 0 0 20px rgba(242, 201, 76, 0.3);
+    }
+
+    .option6 .accordion-header.expanded .chevron {
+      color: hsl(44, 87%, 63%) !important;
+    }
+
+    /* Content styles */
+    .venue-card, .date-info {
+      padding: 12px;
+      background: var(--background);
+      border-radius: 12px;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .venue-name {
+      font-weight: 600;
+      color: var(--foreground);
+      margin-bottom: 4px;
+    }
+
+    .venue-details {
+      font-size: 13px;
+      color: var(--muted-foreground);
+    }
+
+    .date-info {
+      font-size: 15px;
+    }
+
+    .date-main {
+      font-weight: 600;
+      color: var(--foreground);
+      margin-bottom: 4px;
+    }
+
+    .date-time {
+      font-size: 13px;
+      color: var(--muted-foreground);
+    }
+
+    .chevron {
+      width: 20px;
+      height: 20px;
+      color: var(--muted-foreground);
+      transition: transform 0.3s;
+      transform: rotate(180deg);
+    }
+
+    .badge {
+      font-size: 10px;
+      color: var(--muted-foreground);
+      margin-left: 8px;
+    }
+
+    .icon {
+      width: 16px;
+      height: 16px;
+    }
+
+    @media (min-width: 768px) {
+      .design-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (min-width: 1200px) {
+      .design-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎨 Event Details Color Variations</h1>
+
+    <div class="design-grid">
+      <!-- OPTION 1: Subtle Refined -->
+      <div class="design-option">
+        <div class="design-label" style="color: hsl(44, 87%, 50%);">✨ Option 1: Subtle Refined</div>
+        <div class="design-description">Elegant warm tones, gentle separation</div>
+
+        <div class="accordion-section option1 expanded">
+          <div class="accordion-header expanded">
+            <div style="display: flex; align-items: center; position: relative; z-index: 1;">
+              <div class="icon-wrapper">
+                <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="16" y1="2" x2="16" y2="6"></line>
+                  <line x1="8" y1="2" x2="8" y2="6"></line>
+                  <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+              </div>
+              <span class="title">When</span>
+              <span class="badge">in 5 days</span>
+            </div>
+            <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </div>
+          <div class="accordion-body">
+            <div class="date-info">
+              <div class="date-main">Saturday, December 14</div>
+              <div class="date-time">7:00 PM – 11:00 PM PST</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="accordion-section option1 expanded">
+          <div class="accordion-header expanded">
+            <div style="display: flex; align-items: center; position: relative; z-index: 1;">
+              <div class="icon-wrapper">
+                <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                  <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+              </div>
+              <span class="title">Where</span>
+              <span class="badge">2 stops</span>
+            </div>
+            <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </div>
+          <div class="accordion-body">
+            <div class="venue-card">
+              <div class="venue-name">Flour + Water</div>
+              <div class="venue-details">Italian Restaurant • 4.5★</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- OPTION 2: Vibrant Gold -->
+      <div class="design-option">
+        <div class="design-label" style="color: hsl(44, 87%, 40%);">🌟 Option 2: Vibrant Gold</div>
+        <div class="design-description">Bold sunflower header, strong presence</div>
+
+        <div class="accordion-section option2 expanded">
+          <div class="accordion-header expanded">
+            <div style="display: flex; align-items: center;">
+              <div class="icon-wrapper">
+                <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="16" y1="2" x2="16" y2="6"></line>
+                  <line x1="8" y1="2" x2="8" y2="6"></line>
+                  <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+              </div>
+              <span class="title">When</span>
+              <span class="badge">in 5 days</span>
+            </div>
+            <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </div>
+          <div class="accordion-body">
+            <div class="date-info">
+              <div class="date-main">Saturday, December 14</div>
+              <div class="date-time">7:00 PM – 11:00 PM PST</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="accordion-section option2 expanded">
+          <div class="accordion-header expanded">
+            <div style="display: flex; align-items: center;">
+              <div class="icon-wrapper">
+                <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                  <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+              </div>
+              <span class="title">Where</span>
+              <span class="badge">2 stops</span>
+            </div>
+            <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </div>
+          <div class="accordion-body">
+            <div class="venue-card">
+              <div class="venue-name">Flour + Water</div>
+              <div class="venue-details">Italian Restaurant • 4.5★</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- OPTION 3: Sage Green -->
+      <div class="design-option">
+        <div class="design-label" style="color: hsl(110, 40%, 40%);">🌿 Option 3: Sage Garden</div>
+        <div class="design-description">Natural green tones, organic feel</div>
+
+        <div class="accordion-section option3 expanded">
+          <div class="accordion-header expanded">
+            <div style="display: flex; align-items: center;">
+              <div class="icon-wrapper">
+                <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="16" y1="2" x2="16" y2="6"></line>
+                  <line x1="8" y1="2" x2="8" y2="6"></line>
+                  <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+              </div>
+              <span class="title">When</span>
+              <span class="badge">in 5 days</span>
+            </div>
+            <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </div>
+          <div class="accordion-body">
+            <div class="date-info">
+              <div class="date-main">Saturday, December 14</div>
+              <div class="date-time">7:00 PM – 11:00 PM PST</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="accordion-section option3 expanded">
+          <div class="accordion-header expanded">
+            <div style="display: flex; align-items: center;">
+              <div class="icon-wrapper">
+                <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                  <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+              </div>
+              <span class="title">Where</span>
+              <span class="badge">2 stops</span>
+            </div>
+            <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </div>
+          <div class="accordion-body">
+            <div class="venue-card">
+              <div class="venue-name">Flour + Water</div>
+              <div class="venue-details">Italian Restaurant • 4.5★</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- OPTION 4: Warm Terracotta -->
+      <div class="design-option">
+        <div class="design-label" style="color: hsl(15, 60%, 45%);">🔥 Option 4: Warm Terracotta</div>
+        <div class="design-description">Earthy warmth, inviting atmosphere</div>
+
+        <div class="accordion-section option4 expanded">
+          <div class="accordion-header expanded">
+            <div style="display: flex; align-items: center;">
+              <div class="icon-wrapper">
+                <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="16" y1="2" x2="16" y2="6"></line>
+                  <line x1="8" y1="2" x2="8" y2="6"></line>
+                  <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+              </div>
+              <span class="title">When</span>
+              <span class="badge">in 5 days</span>
+            </div>
+            <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </div>
+          <div class="accordion-body">
+            <div class="date-info">
+              <div class="date-main">Saturday, December 14</div>
+              <div class="date-time">7:00 PM – 11:00 PM PST</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="accordion-section option4 expanded">
+          <div class="accordion-header expanded">
+            <div style="display: flex; align-items: center;">
+              <div class="icon-wrapper">
+                <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                  <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+              </div>
+              <span class="title">Where</span>
+              <span class="badge">2 stops</span>
+            </div>
+            <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </div>
+          <div class="accordion-body">
+            <div class="venue-card">
+              <div class="venue-name">Flour + Water</div>
+              <div class="venue-details">Italian Restaurant • 4.5★</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- OPTION 5: Dusky Rose -->
+      <div class="design-option">
+        <div class="design-label" style="color: hsl(350, 50%, 50%);">🌸 Option 5: Dusky Rose</div>
+        <div class="design-description">Soft romantic tones, elegant touch</div>
+
+        <div class="accordion-section option5 expanded">
+          <div class="accordion-header expanded">
+            <div style="display: flex; align-items: center;">
+              <div class="icon-wrapper">
+                <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="16" y1="2" x2="16" y2="6"></line>
+                  <line x1="8" y1="2" x2="8" y2="6"></line>
+                  <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+              </div>
+              <span class="title">When</span>
+              <span class="badge">in 5 days</span>
+            </div>
+            <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </div>
+          <div class="accordion-body">
+            <div class="date-info">
+              <div class="date-main">Saturday, December 14</div>
+              <div class="date-time">7:00 PM – 11:00 PM PST</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="accordion-section option5 expanded">
+          <div class="accordion-header expanded">
+            <div style="display: flex; align-items: center;">
+              <div class="icon-wrapper">
+                <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                  <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+              </div>
+              <span class="title">Where</span>
+              <span class="badge">2 stops</span>
+            </div>
+            <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </div>
+          <div class="accordion-body">
+            <div class="venue-card">
+              <div class="venue-name">Flour + Water</div>
+              <div class="venue-details">Italian Restaurant • 4.5★</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- OPTION 6: Bold Contrast -->
+      <div class="design-option">
+        <div class="design-label" style="color: hsl(25, 30%, 14%);">⚡ Option 6: Bold Contrast</div>
+        <div class="design-description">Dark mode energy, dramatic impact</div>
+
+        <div class="accordion-section option6 expanded">
+          <div class="accordion-header expanded">
+            <div style="display: flex; align-items: center;">
+              <div class="icon-wrapper">
+                <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="16" y1="2" x2="16" y2="6"></line>
+                  <line x1="8" y1="2" x2="8" y2="6"></line>
+                  <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+              </div>
+              <span class="title">When</span>
+              <span class="badge" style="color: hsl(44, 70%, 70%);">in 5 days</span>
+            </div>
+            <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </div>
+          <div class="accordion-body">
+            <div class="date-info">
+              <div class="date-main">Saturday, December 14</div>
+              <div class="date-time">7:00 PM – 11:00 PM PST</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="accordion-section option6 expanded">
+          <div class="accordion-header expanded">
+            <div style="display: flex; align-items: center;">
+              <div class="icon-wrapper">
+                <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                  <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+              </div>
+              <span class="title">Where</span>
+              <span class="badge" style="color: hsl(44, 70%, 70%);">2 stops</span>
+            </div>
+            <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </div>
+          <div class="accordion-body">
+            <div class="venue-card">
+              <div class="venue-name">Flour + Water</div>
+              <div class="venue-details">Italian Restaurant • 4.5★</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
