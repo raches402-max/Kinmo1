@@ -3407,120 +3407,32 @@ export default function GroupDetail() {
               )}
 
               {/* Nearby Add-on Suggestions - Bottom Checkout Style */}
-              {(selectedVenues.length > 0 || itineraries.length > 0) && nearbySuggestions.length > 0 && (() => {
-                // Determine contextual message based on venue types (from selected or itinerary)
-                let venueTypes: string[] = [];
-                
-                if (selectedVenues.length > 0) {
-                  // Get types from selected venues
-                  venueTypes = selectedVenues.map(venue => {
-                    if (venue.sourceType === 'activity') {
-                      const activity = activities.find(a => a.id === venue.sourceId);
-                      return activity?.venueType?.toLowerCase() || '';
-                    } else {
-                      const event = votingEvents.find(e => e.id === venue.sourceId);
-                      return event?.venueType?.toLowerCase() || '';
-                    }
-                  }).filter(Boolean);
-                } else if (itineraries.length > 0) {
-                  // Get types from itinerary items
-                  venueTypes = itineraries[0].items?.map((item: any) => 
-                    item.venueType?.toLowerCase() || ''
-                  ).filter(Boolean) || [];
-                }
-
-                const hasMeal = venueTypes.some(type => 
-                  type.includes('restaurant') || type.includes('food') || type.includes('meal') || 
-                  type.includes('dining') || type.includes('breakfast') || type.includes('lunch') || type.includes('dinner')
-                );
-                const hasDrinksDessert = venueTypes.some(type => 
-                  type.includes('bar') || type.includes('drink') || type.includes('cocktail') || 
-                  type.includes('dessert') || type.includes('ice cream') || type.includes('boba') || type.includes('cafe')
-                );
-
-                let contextualMessage = "Round it out with these nearby spots?";
-                if (hasMeal && !hasDrinksDessert) {
-                  contextualMessage = "Feeling like dessert or drinks after?";
-                } else if (hasDrinksDessert && !hasMeal) {
-                  contextualMessage = "Want to add a meal stop?";
-                }
-
-                return (
-                  <Card className="mt-8 border-2 border-primary/20 bg-primary/15" data-testid="enhanced-nearby-suggestions">
-                    <CardHeader className="pb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-full bg-primary/25 flex items-center justify-center flex-shrink-0">
-                          <Compass className="h-5 w-5 text-primary" />
-                        </div>
-                        <div className="flex-1">
-                          <CardTitle className="text-lg">{contextualMessage}</CardTitle>
-                          <CardDescription>
-                            High-rated spots within 0.5 miles • Click to add to your itinerary
-                          </CardDescription>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      {nearbySuggestions.map((suggestion: any) => {
-                        const alreadySelected = activities.some(a => !a.archivedAt && a.googlePlaceId === suggestion.placeId) ||
-                          votingEvents.some(e => e.googlePlaceId === suggestion.placeId) ||
-                          addedSuggestionPlaceIds.has(suggestion.placeId);
-
-                        return (
-                          <button
-                            key={suggestion.placeId}
-                            onClick={() => {
-                              if (alreadySelected || addVotingEventMutation.isPending) return;
-                              if (selectedVenues.length >= 5) {
-                                toast({
-                                  title: "Maximum reached",
-                                  description: "You can select up to 5 venues",
-                                  variant: "destructive"
-                                });
-                                return;
-                              }
-                              
-                              addVotingEventMutation.mutate({
-                                title: suggestion.name,
-                                venueType: suggestion.types?.[0] || 'venue',
-                                venueAddress: suggestion.address,
-                                googlePlaceId: suggestion.placeId,
-                              });
-                            }}
-                            disabled={alreadySelected || addVotingEventMutation.isPending}
-                            className={`flex gap-3 p-3 rounded-md border text-left transition-all ${
-                              alreadySelected || addVotingEventMutation.isPending ? 'opacity-50 cursor-not-allowed' : ''
-                            }`}
-                            data-testid={`suggestion-${suggestion.placeId}`}
-                          >
-                            {suggestion.photoUrl && (
-                              <img 
-                                src={suggestion.photoUrl} 
-                                alt={suggestion.name}
-                                className="w-16 h-16 rounded object-cover flex-shrink-0"
-                              />
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{suggestion.name}</p>
-                              {suggestion.rating && (
-                                <div className="flex items-center gap-1 mt-1">
-                                  <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                                  <span className="text-xs font-medium">{suggestion.rating}</span>
-                                </div>
-                              )}
-                              <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
-                                {suggestion.address}
-                              </p>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                    </CardContent>
-                  </Card>
-                );
-              })()}
+              {(selectedVenues.length > 0 || itineraries.length > 0) && nearbySuggestions.length > 0 && (
+                <NearbySuggestionsCard
+                  suggestions={nearbySuggestions}
+                  selectedVenues={selectedVenues}
+                  itineraries={itineraries}
+                  activities={activities}
+                  votingEvents={votingEvents}
+                  addedSuggestionPlaceIds={addedSuggestionPlaceIds}
+                  onAddSuggestion={(suggestion) => {
+                    addVotingEventMutation.mutate({
+                      title: suggestion.name,
+                      venueType: suggestion.types?.[0] || 'venue',
+                      venueAddress: suggestion.address,
+                      googlePlaceId: suggestion.placeId,
+                    });
+                  }}
+                  isAdding={addVotingEventMutation.isPending}
+                  onMaxVenuesReached={() => {
+                    toast({
+                      title: "Maximum reached",
+                      description: "You can select up to 5 venues",
+                      variant: "destructive"
+                    });
+                  }}
+                />
+              )}
 
               {/* Scheduling Section */}
               <div className="mt-12 pt-8 border-t" id="schedule-section">
