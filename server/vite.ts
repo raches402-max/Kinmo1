@@ -76,11 +76,20 @@ export function serveStatic(app: Express) {
     );
   }
 
-  // Serve static files with CORS headers (needed for crossorigin attribute)
+  // Serve static files with proper headers for production
   app.use(express.static(distPath, {
-    setHeaders: (res, path) => {
+    maxAge: '1y',
+    immutable: true,
+    setHeaders: (res, filePath) => {
+      // CORS headers for cross-origin requests
       res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Access-Control-Allow-Methods', 'GET');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+
+      // Don't cache HTML
+      if (filePath.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      }
     }
   }));
 
