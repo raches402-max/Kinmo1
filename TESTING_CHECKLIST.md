@@ -105,10 +105,10 @@
 - [ ] Can remove venue from Favorites
 
 ### Search Venues
-- [ ] Go to Edit Venue dialog → Find tab
-- [ ] Search for a venue (e.g., "coffee")
-- [ ] Results appear
-- [ ] Can select a result
+- [ x] Go to Edit Venue dialog → Find tab
+- [ x] Search for a venue (e.g., "coffee")
+- [ x] Results appear
+- [x ] Can select a result
 - [ ] "Search near" dropdown appears if itinerary has venues
 
 ---
@@ -116,23 +116,23 @@
 ## 5. Event Management
 
 ### View Event Details
-- [ ] Click on an event
-- [ ] Shows event name, date, time
-- [ ] Shows venue itinerary with addresses
-- [ ] Shows member list / RSVPs
-- [ ] Shows map or venue locations
+- [ x] Click on an event
+- [ x] Shows event name, date, time
+- [ x] Shows venue itinerary with addresses
+- [ x] Shows member list / RSVPs
+- [ x] Shows map or venue locations
 
 ### Edit Event
-- [ ] Open event → Click Edit (pencil icon)
-- [ ] Can change event name
-- [ ] Can change date/time
+- [ x] Open event → Click Edit (pencil icon)
+- [ x] Can change event name
+- [ x] Can change date/time
 - [ ] Can reorder venues (drag and drop)
-- [ ] Save → Changes persist
+- [ x] Save → Changes persist
 
 ### RSVP Flow (as organizer)
-- [ ] Open event you created
-- [ ] Set your RSVP (Yes/Maybe/No)
-- [ ] RSVP status updates immediately
+- [ x] Open event you created
+- [ x] Set your RSVP (Yes/Maybe/No)
+- [ x] RSVP status updates immediately
 
 ---
 
