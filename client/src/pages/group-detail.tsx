@@ -73,7 +73,7 @@ import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { PlanningInsightBanner } from "@/components/PlanningInsightBanner";
 import { ProfileCompletionBanner } from "@/components/ProfileCompletionBanner";
 import { HelpTooltip } from "@/components/HelpTooltip";
-import { HomeTab, GroupDetailMobileNav, ActivitiesTab, SelectedVenuesCard, ItineraryCard, AddMoreStopsCard, TimeSelectionTabs, InlineSchedulingCard, SaveItineraryDialog, SendBackupDialog, InviteGuestDialog, AutoSchedulePreviewDialog, EditAvailabilityDialog, RsvpConstraintDialog, AddVenueDialog, EditGroupDialog, MembersSection } from "@/components/group-detail";
+import { HomeTab, GroupDetailMobileNav, ActivitiesTab, SelectedVenuesCard, ItineraryCard, AddMoreStopsCard, TimeSelectionTabs, InlineSchedulingCard, SaveItineraryDialog, SendBackupDialog, InviteGuestDialog, AutoSchedulePreviewDialog, EditAvailabilityDialog, RsvpConstraintDialog, AddVenueDialog, EditGroupDialog, MembersSection, AIPreferenceLearning } from "@/components/group-detail";
 import { useItineraryEditor } from "@/hooks/useItineraryEditor";
 import { useVenueSelection } from "@/hooks/useVenueSelection";
 import { useSchedulingFlow } from "@/hooks/useSchedulingFlow";
@@ -3613,79 +3613,12 @@ export default function GroupDetail() {
                 isSendingInvitations={sendInvitationsMutation.isPending}
               />
 
-              {/* AI Preference Actions */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Sparkles className="h-5 w-5 text-primary" />
-                    AI Preference Learning
-                  </CardTitle>
-                  <CardDescription>Refine AI understanding of your group's preferences</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button
-                    onClick={() => setShowSwipeSession(true)}
-                    variant="outline"
-                    data-testid="button-refine-ideas"
-                  >
-                    <Target className="mr-2 h-4 w-4" />
-                    Refine Ideas
-                  </Button>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Swipe through activity concepts to help AI learn your group's taste
-                  </p>
-                </CardContent>
-              </Card>
-
-              {/* AI Preference Insights Section */}
-              {group.preferenceInsights && Array.isArray(group.preferenceInsights) && group.preferenceInsights.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="flex items-center gap-2">
-                          <Sparkles className="w-5 h-5 text-purple-500" />
-                          Your Group's Patterns
-                        </CardTitle>
-                        <CardDescription>AI-discovered preferences based on {group.feedbackCount || 0} feedback actions</CardDescription>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={async () => {
-                          try {
-                            await apiRequest("POST", `/api/groups/${group.id}/analyze-patterns`, {});
-                            queryClient.invalidateQueries({ queryKey: ["/api/groups", group.id] });
-                            toast({ title: "Insights refreshed successfully" });
-                          } catch (error: any) {
-                            toast({ 
-                              title: "Failed to refresh insights", 
-                              description: error.message,
-                              variant: "destructive" 
-                            });
-                          }
-                        }}
-                        className="gap-2"
-                        data-testid="button-refresh-insights"
-                      >
-                        <Sparkles className="w-4 h-4" />
-                        Refresh
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {Array.isArray(group.preferenceInsights) && group.preferenceInsights.map((insight: {icon: string; pattern: string; description: string}, index: number) => (
-                      <div key={index} className="flex gap-3 p-3 bg-muted/50 rounded-md">
-                        <div className="text-2xl flex-shrink-0">{insight.icon}</div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium">{insight.pattern}</p>
-                          <p className="text-sm text-muted-foreground">{insight.description}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
-              )}
+              <AIPreferenceLearning
+                groupId={group.id}
+                preferenceInsights={group.preferenceInsights as any}
+                feedbackCount={group.feedbackCount}
+                onOpenSwipeSession={() => setShowSwipeSession(true)}
+              />
               </>
 
                   {/* Save Button for Group Settings - Primary CTA */}
