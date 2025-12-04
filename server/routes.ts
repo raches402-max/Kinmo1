@@ -5975,19 +5975,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { response, rsvpFeedback } = validatedData;
       console.log('[Organizer RSVP] Validated:', { userId, itineraryId, response });
 
-      // Verify itinerary exists and user is the group owner
+      // Verify itinerary exists and user is the organizer
       const itinerary = await storage.getItinerary(itineraryId);
-      if (!itinerary || !itinerary.groupId) {
+      if (!itinerary) {
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
-      const group = await storage.getGroup(itinerary.groupId);
-      if (!group) {
-        return res.status(404).json({ message: "Group not found" });
-      }
+      // For standalone events, check if user is the creator
+      if (itinerary.isStandalone) {
+        if (itinerary.createdBy !== userId) {
+          return res.status(403).json({ message: "Only the event creator can use this endpoint" });
+        }
+      } else {
+        // For group events, check if user is the group owner
+        if (!itinerary.groupId) {
+          return res.status(404).json({ message: "Group not found for this itinerary" });
+        }
 
-      if (group.userId !== userId) {
-        return res.status(403).json({ message: "Only the group organizer can use this endpoint" });
+        const group = await storage.getGroup(itinerary.groupId);
+        if (!group) {
+          return res.status(404).json({ message: "Group not found" });
+        }
+
+        if (group.userId !== userId) {
+          return res.status(403).json({ message: "Only the group organizer can use this endpoint" });
+        }
       }
 
       // Check if organizer RSVP already exists (using userId, no memberId)
