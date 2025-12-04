@@ -57,6 +57,7 @@ interface MobileEventDetailsProps {
   onUpdateNote?: (note: string) => void;
   onBack?: () => void;
   isSending?: boolean;
+  onSendInvites?: () => void;
 }
 
 // Status badge config
@@ -151,6 +152,7 @@ export function MobileEventDetails({
   onRemindAll,
   onMakeHost,
   onRemoveAttendee,
+  onSendInvites,
   onDeleteEvent,
   onDuplicateEvent,
   onUpdateName,
@@ -646,8 +648,10 @@ export function MobileEventDetails({
           hasMinorChanges={false}
           isOrganizer={isOrganizer}
           isSending={isSending}
+          isStandalone={event.isStandalone}
           timelineInfo={timelineInfo}
           onSendToGroup={onSendToGroup}
+          onSendInvites={onSendInvites}
           onShare={onShare}
           onInviteGuest={onInviteGuest}
         />

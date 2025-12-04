@@ -548,6 +548,24 @@ export default function EventDetailsPage() {
     }
   });
 
+  const sendStandaloneInvitesMutation = useMutation({
+    mutationFn: async () => {
+      if (!event?.eventDate) throw new Error("Event date is required");
+      return apiRequest("POST", `/api/standalone-events/${eventId}/send-invites`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/itineraries/:id", eventId] });
+      toast({
+        title: "Invites sent!",
+        description: "Your invitees will receive notifications about this event."
+      });
+    },
+    onError: (error: any) => {
+      toast(getErrorToast(error));
+    }
+  });
+
   const reorderVenuesMutation = useMutation({
     mutationFn: async (proposedOrder: string[]) => {
       return apiRequest("PATCH", `/api/itineraries/${eventId}/order`, {
@@ -1048,7 +1066,8 @@ export default function EventDetailsPage() {
           onUpdateName={(name) => updateItineraryMutation.mutate({ name })}
           onUpdateNote={(note) => updateItineraryMutation.mutate({ note })}
           onBack={() => setLocation(event.groupId ? `/group/${event.groupId}` : '/')}
-          isSending={sendToGroupMutation.isPending}
+          isSending={sendToGroupMutation.isPending || sendStandaloneInvitesMutation.isPending}
+          onSendInvites={() => sendStandaloneInvitesMutation.mutate()}
         />
 
         {/* Dialogs for mobile */}

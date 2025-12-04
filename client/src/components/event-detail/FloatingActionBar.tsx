@@ -27,8 +27,10 @@ interface FloatingActionBarProps {
   hasMinorChanges?: boolean;
   isOrganizer: boolean;
   isSending?: boolean;
+  isStandalone?: boolean;
   timelineInfo?: TimelineInfo;
   onSendToGroup?: () => void;
+  onSendInvites?: () => void;
   onSendUpdate?: () => void;
   onShare?: () => void;
   onInviteGuest?: () => void;
@@ -121,8 +123,10 @@ export function FloatingActionBar({
   hasMinorChanges,
   isOrganizer,
   isSending,
+  isStandalone,
   timelineInfo,
   onSendToGroup,
+  onSendInvites,
   onSendUpdate,
   onShare,
   onInviteGuest,
@@ -145,11 +149,15 @@ export function FloatingActionBar({
   }
 
   if (status === "draft") {
+    // For standalone events, show "Send Invites" instead of "Send to Group"
+    const handleSend = isStandalone ? onSendInvites : onSendToGroup;
+    const buttonText = isStandalone ? "Send Invites" : "Send to Group";
+
     return (
       <div className="flex gap-3 p-4">
         <Button
           className="flex-1 h-12 gap-2 text-sm font-semibold"
-          onClick={onSendToGroup}
+          onClick={handleSend}
           disabled={isSending}
         >
           {isSending ? (
@@ -160,7 +168,7 @@ export function FloatingActionBar({
           ) : (
             <>
               <Send className="h-4 w-4" />
-              Send to Group
+              {buttonText}
             </>
           )}
         </Button>

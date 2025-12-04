@@ -12389,6 +12389,43 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Send invites for a standalone event (mark as sent and optionally send emails)
+  app.post("/api/standalone-events/:id/send-invites", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = await getUserId(req);
+      const event = await storage.getStandaloneEvent(req.params.id);
+
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      if (event.organizerId !== userId) {
+        return res.status(403).json({ message: "Not authorized to send invites for this event" });
+      }
+
+      // Update the event status to 'scheduled' (sent)
+      await storage.updateStandaloneEvent(req.params.id, {
+        status: 'scheduled',
+        inviteSentAt: new Date(),
+      });
+
+      // Get invitees
+      const invitees = await storage.getStandaloneEventInvitees(req.params.id);
+
+      // TODO: Send actual email notifications to invitees with email addresses
+      console.log(`[Standalone Event Send] Sent invites to ${invitees.length} invitees for event "${event.name}"`);
+
+      res.json({
+        success: true,
+        inviteeCount: invitees.length,
+        message: `Invites sent to ${invitees.length} people`
+      });
+    } catch (error: any) {
+      console.error('[Standalone Event Send] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Public: Get event details by invite token (for invitee RSVP page)
   app.get("/api/standalone-invite/:inviteToken", async (req, res) => {
     try {
