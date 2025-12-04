@@ -1,20 +1,30 @@
-// ULTRA MINIMAL TEST - No React, no imports at all
-console.log('[TEST] Script is executing');
+import { createRoot } from "react-dom/client";
+import * as Sentry from "@sentry/react";
+import App from "./App";
+import "./index.css";
 
-document.addEventListener('DOMContentLoaded', function() {
-  console.log('[TEST] DOM loaded');
-  var root = document.getElementById('root');
-  if (root) {
-    root.innerHTML = '<h1 style="color: green; padding: 40px; text-align: center;">✅ JavaScript Works!</h1><p style="text-align: center;">No React - just vanilla JS</p>';
-    console.log('[TEST] Content rendered');
-  } else {
-    document.body.innerHTML = '<h1 style="color: red;">No root element</h1>';
-  }
-});
+// Initialize Sentry for error monitoring (only if DSN is configured)
+const sentryDsn = import.meta.env.VITE_SENTRY_DSN;
+if (sentryDsn) {
+  Sentry.init({
+    dsn: sentryDsn,
+    environment: import.meta.env.MODE,
+    integrations: [
+      Sentry.browserTracingIntegration(),
+      Sentry.replayIntegration({
+        maskAllText: false,
+        blockAllMedia: false,
+      }),
+    ],
+    tracesSampleRate: import.meta.env.PROD ? 0.1 : 1.0,
+    replaysSessionSampleRate: 0.1,
+    replaysOnErrorSampleRate: 1.0,
+    enabled: import.meta.env.PROD || import.meta.env.VITE_SENTRY_ENABLED === 'true',
+  });
+  console.log('✅ Sentry error monitoring initialized');
+}
 
-// Also try immediate execution
-try {
-  console.log('[TEST] Immediate execution works');
-} catch (e) {
-  // silent
+const rootElement = document.getElementById("root");
+if (rootElement) {
+  createRoot(rootElement).render(<App />);
 }
