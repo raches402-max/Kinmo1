@@ -84,8 +84,8 @@
 - [x ] Select "Standalone Event"
 - [ x] Enter event name
 - [x ] Select contacts from multiple groups
-- [ ] Create → Event appears in Events list
-- [ ] Event shows "Standalone" indicator
+- [x ] Create → Event appears in Events list
+- [-] Event shows "Standalone" indicator- it does not have stand alone, but I prefer that. 
 
 ---
 
@@ -96,20 +96,21 @@
 - [ x] Venue cards appear with photos
 - [x] Swipe right (or click like) → Adds to Favorites
 - [ x] Swipe left (or click skip) → Moves to next card
-- [ ] After swiping several, check Favorites has new venues
+- [x ] After swiping several, check Favorites has new venues
 
 ### Venue Library/Favorites
 - [ x] Open group → Go to Favorites/Library tab
 - [x ] Shows venues that were liked
 - [ x] Can view venue details
-- [ ] Can remove venue from Favorites
+- [x ] Can remove venue from Favorites
 
 ### Search Venues
 - [ x] Go to Edit Venue dialog → Find tab
 - [ x] Search for a venue (e.g., "coffee")
 - [ x] Results appear
 - [x ] Can select a result
-- [ ] "Search near" dropdown appears if itinerary has venues
+- [-] "Search near" dropdown appears if itinerary has venues - I dont see this but we can add on after deployment
+
 
 ---
 
