@@ -4,6 +4,9 @@ import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
 export default defineConfig({
+  define: {
+    'import.meta.env.VITE_GOOGLE_MAPS_API_KEY': JSON.stringify(process.env.VITE_GOOGLE_MAPS_API_KEY || 'AIzaSyDzkwNd09iNQ5dwEYR_-CJfzUTQqRDiw2g'),
+  },
   plugins: [
     react(),
     runtimeErrorOverlay(),

@@ -174,7 +174,8 @@
       "Bash(TYPESCRIPT_FIX_SESSION_SUMMARY.md )",
       "Bash(VENUE_QUALITY_IMPROVEMENTS.md )",
       "Skill(kinmo-extract-component)",
-      "WebFetch(domain:kinmoai-v-1--rach0oo.replit.app)"
+      "WebFetch(domain:kinmoai-v-1--rach0oo.replit.app)",
+      "Bash(NODE_ENV=production npm run build:*)"
     ],
     "deny": [],
     "ask": []
