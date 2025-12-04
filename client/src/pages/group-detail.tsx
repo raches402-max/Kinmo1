@@ -3086,7 +3086,7 @@ export default function GroupDetail() {
                                   acc[budget] = (acc[budget] || 0) + 1;
                                   return acc;
                                 }, {});
-                                const uniqueBudgets = Object.keys(budgetCounts).map(Number);
+                                const uniqueBudgets: number[] = Object.keys(budgetCounts).map(Number);
                                 const averagePosition = (stats.average / 250) * 100;
                                 
                                 return (
@@ -3591,6 +3591,7 @@ export default function GroupDetail() {
             </Accordion>
 
               {/* Members Section (Always visible, outside accordion) */}
+              <>
               <Card>
                 <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
                   <div className="space-y-1">
@@ -3598,7 +3599,7 @@ export default function GroupDetail() {
                     <CardDescription>Manage group members and invitations</CardDescription>
                   </div>
                   {/* Button to edit user's own profile (availability, preferences, etc.) */}
-                  {(() => {
+                  {((): React.ReactNode => {
                     const userMember = members.find(m => m.userId === user?.id);
                     return userMember ? (
                       <Link href={`/member-profile-setup/${userMember.id}`}>
@@ -3633,7 +3634,7 @@ export default function GroupDetail() {
                   )}
 
                   {/* Group Constraint Insights */}
-                  {(() => {
+                  {((): React.ReactNode => {
                     const scheduleConflicts = new Set<string>();
                     const budgetConcernCount = members.filter(m => (m.memberConstraints as MemberConstraints)?.budgetConcern).length;
                     const distanceConcernCount = members.filter(m => (m.memberConstraints as MemberConstraints)?.distanceConcern).length;
@@ -3771,7 +3772,7 @@ export default function GroupDetail() {
                                       <MapPin className="w-3 h-3" /> {member.memberLocation}
                                     </p>
                                   )}
-                                  {(() => {
+                                  {((): React.ReactNode => {
                                     const constraints = member.memberConstraints as MemberConstraints | null;
                                     if (!constraints) return null;
                                     return (
@@ -4023,6 +4024,7 @@ export default function GroupDetail() {
                   </CardContent>
                 </Card>
               )}
+              </>
 
                   {/* Save Button for Group Settings - Primary CTA */}
                   <div className="flex justify-end pt-2">
