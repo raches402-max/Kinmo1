@@ -9357,11 +9357,60 @@ Looking forward to planning great activities together!
   app.get("/api/itineraries/:id", async (req, res) => {
     try {
       const itinerary = await storage.getItinerary(req.params.id);
-      if (!itinerary || !itinerary.groupId) {
+      if (!itinerary) {
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
-      // Get group information
+      // Handle standalone events (no group)
+      if (itinerary.isStandalone || !itinerary.groupId) {
+        // For standalone events, get items and invitees
+        const items = await db
+          .select()
+          .from(itineraryItems)
+          .where(eq(itineraryItems.itineraryId, itinerary.id))
+          .orderBy(itineraryItems.orderIndex);
+
+        const invitees = await storage.getStandaloneEventInvitees(itinerary.id);
+
+        // Get proposed time slots if any
+        const timeSlots = await storage.getItineraryTimeSlots(req.params.id);
+        const voteCounts = await storage.getItineraryTimeSlotVoteCounts(req.params.id);
+        const timeSlotsWithVotes = timeSlots.map((slot) => {
+          const counts = voteCounts.find(vc => vc.timeSlotId === slot.id);
+          return {
+            ...slot,
+            yesCount: counts?.yesCount || 0,
+            maybeCount: counts?.maybeCount || 0,
+            noCount: counts?.noCount || 0,
+            yesVoters: counts?.yesVoters || [],
+            maybeVoters: counts?.maybeVoters || [],
+            noVoters: counts?.noVoters || [],
+          };
+        });
+
+        return res.json({
+          ...itinerary,
+          items: items.map(item => ({
+            id: item.id,
+            venueName: item.venueName,
+            venueType: item.venueType,
+            venueAddress: item.venueAddress,
+            photoUrl: item.photoUrl,
+            rating: item.rating,
+            googlePlaceId: item.googlePlaceId,
+            sourceType: item.sourceType,
+            sourceId: item.sourceId,
+            orderIndex: item.orderIndex,
+          })),
+          invitees,
+          isStandalone: true,
+          group: null,
+          members: [],
+          proposedTimeSlots: timeSlotsWithVotes,
+        });
+      }
+
+      // Get group information (for group-based events)
       const group = await storage.getGroup(itinerary.groupId);
 
       // Get group members including organizer (filters out duplicate self-adds)

@@ -982,7 +982,7 @@ export default function EventDetailsPage() {
           }}
           onUpdateName={(name) => updateItineraryMutation.mutate({ name })}
           onUpdateNote={(note) => updateItineraryMutation.mutate({ note })}
-          onBack={() => setLocation(`/group/${event.groupId}`)}
+          onBack={() => setLocation(event.groupId ? `/group/${event.groupId}` : '/')}
           isSending={sendToGroupMutation.isPending}
         />
 
@@ -1160,8 +1160,11 @@ export default function EventDetailsPage() {
       )}>
         {/* Breadcrumbs */}
         <Breadcrumbs
-          items={[
+          items={event.groupId ? [
             { label: event.groupName || "Group", href: `/group/${event.groupId}` },
+            { label: event.itineraryName || "Event" }
+          ] : [
+            { label: "Dashboard", href: "/" },
             { label: event.itineraryName || "Event" }
           ]}
           className="mb-2"
@@ -1169,11 +1172,16 @@ export default function EventDetailsPage() {
 
         {/* WHO / WHERE / WHEN Summary Strip */}
         <EventSummaryStrip
-          groups={[{
+          groups={event.groupId ? [{
             id: event.groupId,
             name: event.groupName || "Group",
             emoji: event.groupEmoji || "👥",
             memberCount: event.members?.length,
+          }] : [{
+            id: "standalone",
+            name: event.itineraryName || "Event",
+            emoji: "📅",
+            memberCount: itineraryDetails?.invitees?.length || 0,
           }]}
           venues={(event.items || []).map((item: any) => ({
             name: item.venueName || item.adHocVenue?.name || "Venue",
@@ -1195,12 +1203,14 @@ export default function EventDetailsPage() {
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
               <div className="flex-1 min-w-0">
                 <CardTitle className="text-xl sm:text-2xl flex items-center gap-2 sm:gap-3">
-                  <span className="text-2xl sm:text-3xl flex-shrink-0">{event.groupEmoji}</span>
+                  <span className="text-2xl sm:text-3xl flex-shrink-0">{event.groupEmoji || "📅"}</span>
                   <span className="truncate">{event.itineraryName}</span>
                 </CardTitle>
-                <CardDescription className="mt-1 sm:mt-2 text-sm sm:text-base">
-                  {event.groupName}
-                </CardDescription>
+                {event.groupName && (
+                  <CardDescription className="mt-1 sm:mt-2 text-sm sm:text-base">
+                    {event.groupName}
+                  </CardDescription>
+                )}
                 {event.eventDate && (
                   <div className="flex items-center gap-2 mt-2 sm:mt-3">
                     {isOrganizer ? (
@@ -1325,8 +1335,8 @@ export default function EventDetailsPage() {
                     )}
                   </div>
                 )}
-                {/* Scheduling Preferences (organizer only, hidden on mobile) */}
-                {isOrganizer && (
+                {/* Scheduling Preferences (organizer only, hidden on mobile, not for standalone events) */}
+                {isOrganizer && event.groupId && (
                   <div className="hidden sm:flex items-center gap-2 mt-2">
                     <Popover>
                       <PopoverTrigger asChild>

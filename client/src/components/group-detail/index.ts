@@ -14,3 +14,4 @@ export { EditAvailabilityDialog } from './EditAvailabilityDialog';
 export { RsvpConstraintDialog } from './RsvpConstraintDialog';
 export { AddVenueDialog } from './AddVenueDialog';
 export { EditGroupDialog } from './EditGroupDialog';
+export { MembersSection, type MemberData, type NewMember, type MemberConstraints } from './MembersSection';

@@ -172,7 +172,8 @@
       "Bash(TEST_PREFERENCES_PAGE.md )",
       "Bash(TODAY_SUMMARY.md )",
       "Bash(TYPESCRIPT_FIX_SESSION_SUMMARY.md )",
-      "Bash(VENUE_QUALITY_IMPROVEMENTS.md )"
+      "Bash(VENUE_QUALITY_IMPROVEMENTS.md )",
+      "Skill(kinmo-extract-component)"
     ],
     "deny": [],
     "ask": []

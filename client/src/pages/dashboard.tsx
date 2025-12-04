@@ -401,7 +401,7 @@ export default function Dashboard() {
           status: standalone.status || 'draft',
           inviteSentAt: null,
           groupId: '',
-          groupName: 'Personal Event',
+          groupName: standalone.name || 'Untitled Event',
           groupEmoji: '📅',
           groupAccentColor: '#6366f1',
           groupTimezone: null,
