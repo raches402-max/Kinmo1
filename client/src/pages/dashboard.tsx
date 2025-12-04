@@ -187,9 +187,13 @@ type GroupedByGroup = {
 };
 
 function groupEventsByGroup(events: UserEvent[]): GroupedByGroup[] {
+  // Filter out standalone events (they have groupId = 'standalone' or empty)
+  // Standalone events should only appear in the "By Date" view on the main dashboard
+  const groupEvents = events.filter(e => e.groupId && e.groupId !== '' && e.groupId !== 'standalone');
+
   // Group events by groupId
   const grouped = new Map<string, UserEvent[]>();
-  events.forEach(event => {
+  groupEvents.forEach(event => {
     if (!grouped.has(event.groupId)) {
       grouped.set(event.groupId, []);
     }
@@ -396,12 +400,12 @@ export default function Dashboard() {
           inviteId: `standalone-${standalone.id}`,
           inviteToken: '',
           itineraryId: standalone.id,
-          itineraryName: standalone.name || 'Untitled Event',
+          itineraryName: standalone.name?.trim() || 'Untitled Event',
           eventDate: standalone.eventDate ? standalone.eventDate.toString() : null,
           status: standalone.status || 'draft',
           inviteSentAt: null,
-          groupId: '',
-          groupName: standalone.name || 'Untitled Event',
+          groupId: 'standalone', // Special ID to identify standalone events
+          groupName: standalone.name?.trim() || 'Untitled Event',
           groupEmoji: '📅',
           groupAccentColor: '#6366f1',
           groupTimezone: null,

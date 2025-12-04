@@ -850,7 +850,7 @@ export default function EventsTable({
                         color: event.groupAccentColor || 'inherit'
                       }}
                     >
-                      {event.groupName}
+                      {event.groupName?.trim() || 'Untitled Event'}
                     </Badge>
                     <div className="flex gap-2 mt-1 items-center flex-wrap">
                       {getRoleBadge(event)}
@@ -1181,7 +1181,7 @@ export default function EventsTable({
                 >
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-sm font-semibold text-foreground">
-                      RSVP for {event.groupName}
+                      RSVP for {event.groupName?.trim() || 'Untitled Event'}
                     </span>
                     <button
                       onClick={() => setMobileRsvpTrayOpen(null)}
