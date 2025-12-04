@@ -76,6 +76,13 @@ export function serveStatic(app: Express) {
     );
   }
 
+  // Add CORS headers for static assets (needed for crossorigin attribute)
+  app.use((req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET');
+    next();
+  });
+
   app.use(express.static(distPath));
 
   // fall through to index.html if the file doesn't exist
