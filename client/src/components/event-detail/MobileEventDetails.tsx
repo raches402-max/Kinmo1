@@ -50,6 +50,7 @@ interface MobileEventDetailsProps {
   onInviteGuest?: () => void;
   onRemindAll?: () => void;
   onMakeHost?: (attendee: EventAttendee) => void;
+  onRemoveAttendee?: (attendee: EventAttendee) => void;
   onDeleteEvent?: () => void;
   onDuplicateEvent?: () => void;
   onUpdateName?: (name: string) => void;
@@ -149,6 +150,7 @@ export function MobileEventDetails({
   onInviteGuest,
   onRemindAll,
   onMakeHost,
+  onRemoveAttendee,
   onDeleteEvent,
   onDuplicateEvent,
   onUpdateName,
@@ -180,6 +182,34 @@ export function MobileEventDetails({
   // Build attendees list
   const attendees: EventAttendee[] = useMemo(() => {
     const result: EventAttendee[] = [];
+
+    // For standalone events, use invitees instead of members
+    if (event.isStandalone && event.invitees && event.invitees.length > 0) {
+      event.invitees.forEach((invitee: any) => {
+        const baseName = invitee.inviteeName || invitee.inviteeEmail || "Guest";
+        const initials = baseName
+          .split(" ")
+          .map((n: string) => n[0])
+          .join("")
+          .toUpperCase()
+          .slice(0, 2);
+
+        result.push({
+          id: invitee.id,
+          name: baseName,
+          email: invitee.inviteeEmail || undefined,
+          initials,
+          response: (invitee.rsvpStatus || "pending") as RsvpStatus,
+          isGuest: false,
+          isOrganizer: false,
+          isHost: false,
+          memberId: invitee.memberId,
+        });
+      });
+      return result;
+    }
+
+    // For group events, use members
     const members = event.members || itineraryDetails?.members || [];
     const rsvps = event.detailedRsvps || itineraryDetails?.rsvps || [];
 
@@ -522,6 +552,7 @@ export function MobileEventDetails({
           onInviteGuest={onInviteGuest}
           onRemindAll={onRemindAll}
           onMakeHost={onMakeHost}
+          onRemoveAttendee={onRemoveAttendee}
         />
 
         {/* Event Note/Description - at the bottom */}

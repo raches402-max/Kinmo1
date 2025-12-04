@@ -41,13 +41,22 @@ export interface AutoScheduleConfig {
   reasoning?: string;
 }
 
+export interface StandaloneInvitee {
+  id: string;
+  inviteeName: string;
+  inviteeEmail?: string | null;
+  rsvpStatus?: RsvpStatus | null;
+  memberId?: string;
+  sourceGroupId?: string;
+}
+
 export interface EventData {
   itineraryId: string;
   itineraryName: string;
   eventDate?: string | null;
   eventEndTime?: string | null;
-  groupId: string;
-  groupName: string;
+  groupId: string | null;
+  groupName: string | null;
   groupEmoji?: string;
   groupTimezone?: string;
   groupAccentColor?: string;
@@ -65,6 +74,8 @@ export interface EventData {
   note?: string;
   quorumThreshold?: number;
   autoScheduleConfig?: AutoScheduleConfig | null;
+  isStandalone?: boolean;
+  invitees?: StandaloneInvitee[];
 }
 
 export interface RsvpCounts {

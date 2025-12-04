@@ -348,6 +348,8 @@ export default function EventDetailsPage() {
   const [isTimeSlotExpanded, setIsTimeSlotExpanded] = useState(false);
   const [showMobileDatePicker, setShowMobileDatePicker] = useState(false);
   const [mobileDatePickerDate, setMobileDatePickerDate] = useState<Date | null>(null);
+  const [showAddInviteeDialog, setShowAddInviteeDialog] = useState(false);
+  const [newInviteeName, setNewInviteeName] = useState("");
 
   // Drag-and-drop sensors
   const sensors = useSensors(
@@ -745,6 +747,47 @@ export default function EventDetailsPage() {
     },
   });
 
+  // Add invitee to standalone event
+  const addStandaloneInviteeMutation = useMutation({
+    mutationFn: async (invitees: { memberId?: string; name?: string; email?: string }[]) => {
+      return apiRequest("POST", `/api/standalone-events/${eventId}/invitees`, { invitees });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/itineraries/:id", eventId] });
+      toast({
+        title: "Invitee added",
+        description: "The person has been added to this event",
+      });
+    },
+    onError: (error: any) => {
+      toast(getErrorToast(error));
+    },
+  });
+
+  // Remove invitee from standalone event
+  const removeStandaloneInviteeMutation = useMutation({
+    mutationFn: async (inviteeId: string) => {
+      const response = await fetch(`/api/standalone-events/${eventId}/invitees/${inviteeId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Failed to remove invitee");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/itineraries/:id", eventId] });
+      toast({
+        title: "Invitee removed",
+        description: "The person has been removed from this event",
+      });
+    },
+    onError: (error: any) => {
+      toast(getErrorToast(error));
+    },
+  });
+
   const copyInviteLink = () => {
     if (!event) return;
     const link = `${window.location.origin}/rsvp/${event.itineraryId}/${event.inviteToken}`;
@@ -898,7 +941,7 @@ export default function EventDetailsPage() {
             eventDate: event.eventDate,
             eventEndTime: event.eventEndTime,
             groupId: event.groupId,
-            groupName: event.groupName,
+            groupName: event.groupName || (event.isStandalone ? "Personal Event" : null),
             groupEmoji: event.groupEmoji,
             groupTimezone: event.groupTimezone,
             groupAccentColor: event.groupAccentColor,
@@ -914,6 +957,8 @@ export default function EventDetailsPage() {
             note: event.note,
             quorumThreshold: event.quorumThreshold,
             rsvpDeadline: event.rsvpDeadline,
+            isStandalone: event.isStandalone || false,
+            invitees: event.invitees || itineraryDetails?.invitees || [],
           }}
           itineraryDetails={itineraryDetails}
           user={user}
@@ -963,8 +1008,13 @@ export default function EventDetailsPage() {
             }
           }}
           onInviteGuest={() => {
-            // Open guest invite - for now copy link
-            copyInviteLink();
+            if (event.isStandalone) {
+              // Open add invitee dialog for standalone events
+              setShowAddInviteeDialog(true);
+            } else {
+              // Copy link for group events
+              copyInviteLink();
+            }
           }}
           onRemindAll={() => {
             toast({
@@ -975,6 +1025,17 @@ export default function EventDetailsPage() {
           onMakeHost={(attendee) => {
             if (attendee.memberId) {
               handOffHostMutation.mutate(attendee.memberId);
+            }
+          }}
+          onRemoveAttendee={(attendee) => {
+            if (event.isStandalone) {
+              // Remove invitee from standalone event
+              if (confirm(`Remove "${attendee.name}" from this event?`)) {
+                removeStandaloneInviteeMutation.mutate(attendee.id);
+              }
+            } else if (attendee.memberId) {
+              // For group events, use the existing remove invite mutation
+              removeInviteMutation.mutate(attendee.memberId);
             }
           }}
           onDeleteEvent={() => setShowDeleteConfirm(true)}
@@ -1146,6 +1207,47 @@ export default function EventDetailsPage() {
               </Button>
               <DrawerClose asChild>
                 <Button variant="outline">Cancel</Button>
+              </DrawerClose>
+            </DrawerFooter>
+          </DrawerContent>
+        </Drawer>
+
+        {/* Add Invitee Drawer for Standalone Events */}
+        <Drawer open={showAddInviteeDialog} onOpenChange={setShowAddInviteeDialog}>
+          <DrawerContent>
+            <DrawerHeader>
+              <DrawerTitle>Add Guest</DrawerTitle>
+              <DrawerDescription>
+                Add someone to this event
+              </DrawerDescription>
+            </DrawerHeader>
+            <div className="px-4 pb-4 space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="invitee-name">Name</Label>
+                <Input
+                  id="invitee-name"
+                  placeholder="Enter guest name"
+                  value={newInviteeName}
+                  onChange={(e) => setNewInviteeName(e.target.value)}
+                  autoFocus
+                />
+              </div>
+            </div>
+            <DrawerFooter>
+              <Button
+                onClick={() => {
+                  if (newInviteeName.trim()) {
+                    addStandaloneInviteeMutation.mutate([{ name: newInviteeName.trim() }]);
+                    setNewInviteeName("");
+                    setShowAddInviteeDialog(false);
+                  }
+                }}
+                disabled={!newInviteeName.trim() || addStandaloneInviteeMutation.isPending}
+              >
+                {addStandaloneInviteeMutation.isPending ? "Adding..." : "Add Guest"}
+              </Button>
+              <DrawerClose asChild>
+                <Button variant="outline" onClick={() => setNewInviteeName("")}>Cancel</Button>
               </DrawerClose>
             </DrawerFooter>
           </DrawerContent>
