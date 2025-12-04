@@ -40,7 +40,7 @@ export function EventAccordionSection({
           <span
             className={cn(
               "text-xs font-semibold uppercase tracking-wider transition-colors",
-              isExpanded ? "text-primary" : "text-muted-foreground"
+              isExpanded ? "text-foreground" : "text-muted-foreground"
             )}
           >
             {title}
