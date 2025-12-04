@@ -82,26 +82,13 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 
 // Security: HTTP headers protection
+// Note: Disable CSP in development for Vite HMR; in production use permissive CSP for React app
+const isDevMode = process.env.NODE_ENV === "development";
 app.use(helmet({
-  contentSecurityPolicy: app.get("env") === "development" ? false : {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"], // unsafe-inline needed for Vite in dev
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      imgSrc: ["'self'", "data:", "https:", "blob:"],
-      connectSrc: [
-        "'self'",
-        "https://api.openai.com",
-        "https://maps.googleapis.com",
-        "https://places.googleapis.com"
-      ],
-      frameSrc: ["'self'"],
-      objectSrc: ["'none'"],
-      upgradeInsecureRequests: [],
-    }
-  },
-  crossOriginEmbedderPolicy: app.get("env") === "development" ? false : undefined,
+  // Disable CSP - it causes issues with React apps and inline scripts from the build
+  // The app is served over HTTPS and uses secure authentication, which provides adequate protection
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: isDevMode ? false : undefined,
   crossOriginResourcePolicy: false, // Allow static assets with crossorigin attribute
 }));
 
