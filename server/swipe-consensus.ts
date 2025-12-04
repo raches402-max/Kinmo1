@@ -306,18 +306,9 @@ export async function performActivityAutoActions(activityId: string): Promise<{
   }
 
   // Auto-promote if consensus >= 70%
-  if (stats.shouldAutoApprove && !activity.isSaved) {
-    // Auto-upvote the activity
-    await db
-      .update(activities)
-      .set({
-        upvotes: sql`${activities.upvotes} + 1`,
-        isSaved: true, // Mark as saved (added to Favorites)
-      })
-      .where(eq(activities.id, activityId));
-
+  if (stats.shouldAutoApprove) {
     console.log(
-      `[SwipeConsensus] Auto-promoted activity ${activityId} ` +
+      `[SwipeConsensus] Activity ${activityId} reached promotion threshold ` +
       `(${stats.consensus}% approval from ${stats.totalSwipes} swipes)`
     );
 
@@ -328,17 +319,9 @@ export async function performActivityAutoActions(activityId: string): Promise<{
   }
 
   // Auto-reject if consensus <= 30%
-  if (stats.shouldAutoReject && !activity.isRejected) {
-    await db
-      .update(activities)
-      .set({
-        isRejected: true,
-        downvotes: sql`${activities.downvotes} + 1`,
-      })
-      .where(eq(activities.id, activityId));
-
+  if (stats.shouldAutoReject) {
     console.log(
-      `[SwipeConsensus] Auto-rejected activity ${activityId} ` +
+      `[SwipeConsensus] Activity ${activityId} reached rejection threshold ` +
       `(${stats.consensus}% approval from ${stats.totalSwipes} swipes)`
     );
 
@@ -378,15 +361,8 @@ export async function performVotingEventAutoActions(votingEventId: string): Prom
 
   // Auto-boost if consensus >= 70% (increase priority in Favorites)
   if (stats.shouldAutoApprove) {
-    await db
-      .update(votingEvents)
-      .set({
-        upvotes: sql`${votingEvents.upvotes} + 1`, // Boost visibility
-      })
-      .where(eq(votingEvents.id, votingEventId));
-
     console.log(
-      `[SwipeConsensus] Auto-boosted favorite ${votingEventId} ` +
+      `[SwipeConsensus] Favorite ${votingEventId} reached boost threshold ` +
       `(${stats.consensus}% approval from ${stats.totalSwipes} swipes)`
     );
 
@@ -398,15 +374,8 @@ export async function performVotingEventAutoActions(votingEventId: string): Prom
 
   // Auto-demote if consensus <= 30%
   if (stats.shouldAutoReject) {
-    await db
-      .update(votingEvents)
-      .set({
-        downvotes: sql`${votingEvents.downvotes} + 1`,
-      })
-      .where(eq(votingEvents.id, votingEventId));
-
     console.log(
-      `[SwipeConsensus] Auto-demoted favorite ${votingEventId} ` +
+      `[SwipeConsensus] Favorite ${votingEventId} reached demotion threshold ` +
       `(${stats.consensus}% approval from ${stats.totalSwipes} swipes)`
     );
 

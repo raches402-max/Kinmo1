@@ -121,15 +121,8 @@ async function calculateVenueQuality(
         else if (rating >= 4.0) venueScore += 10;
         else if (rating >= 3.5) venueScore += 5;
 
-        // Upvote/downvote ratio
-        const totalVotes = (activity.upvotes || 0) + (activity.downvotes || 0);
-        if (totalVotes > 0) {
-          const upvoteRatio = (activity.upvotes || 0) / totalVotes;
-          venueScore += Math.round(upvoteRatio * 20);
-        }
-
-        // Saved status (favorite)
-        if (activity.isSaved) venueScore += 15;
+        // Bonus for liked activities (via swipe feedback)
+        if (activity.feedback === 'love') venueScore += 15;
       }
     }
 
@@ -186,7 +179,7 @@ async function calculateTimeConsensus(
 
   // Check for existing nearby events (avoid over-scheduling)
   const group = await storage.getGroup(groupId);
-  if (group) {
+  if (group && group.userId) {
     const existingEvents = await storage.getUserUpcomingEventsWithTimeSlots(group.userId);
 
     // Count events within 7 days of proposed date
@@ -225,43 +218,17 @@ async function calculateGroupEngagement(
   storage: Storage,
   groupId: string
 ): Promise<number> {
-  const members = await storage.getMembers(groupId);
+  const members = await storage.getGroupMembers(groupId);
 
   if (members.length === 0) return 50; // Neutral for new groups
 
-  let totalResponseRate = 0;
-  let totalAttendanceRate = 0;
-  let membersWithData = 0;
+  // For now, return a base score based on group size
+  // This can be enhanced later when RSVP querying by member is added
+  // Groups with more active members get slightly higher scores
+  const baseScore = 60;
+  const memberBonus = Math.min(members.length * 2, 20); // Up to +20 for member count
 
-  for (const member of members) {
-    const rsvps = await storage.getMemberRSVPs(member.id);
-
-    if (rsvps.length > 0) {
-      membersWithData++;
-
-      // Response rate: how often they respond to invites
-      const responseRate = rsvps.length > 0 ? 100 : 0;
-      totalResponseRate += responseRate;
-
-      // Attendance rate: how often "yes" RSVPs result in actual attendance
-      const yesRsvps = rsvps.filter((r: any) => r.response === 'yes');
-      const attended = yesRsvps.filter((r: any) => r.attended === true);
-      const attendanceRate = yesRsvps.length > 0
-        ? (attended.length / yesRsvps.length) * 100
-        : 50;
-      totalAttendanceRate += attendanceRate;
-    }
-  }
-
-  if (membersWithData === 0) return 50; // Neutral for no historical data
-
-  const avgResponseRate = totalResponseRate / membersWithData;
-  const avgAttendanceRate = totalAttendanceRate / membersWithData;
-
-  // Weight: 40% response rate, 60% attendance rate
-  const score = Math.round(avgResponseRate * 0.4 + avgAttendanceRate * 0.6);
-
-  return Math.max(0, Math.min(100, score));
+  return Math.min(100, baseScore + memberBonus);
 }
 
 /**
@@ -321,7 +288,7 @@ async function calculatePatternMatch(
   }
 
   // Check if venues match group location preferences
-  const members = await storage.getMembers(groupId);
+  const members = await storage.getGroupMembers(groupId);
   const locationPrefs = members
     .map((m: any) => m.memberLocation)
     .filter(Boolean);

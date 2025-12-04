@@ -175,7 +175,7 @@ export function requireItineraryAccess() {
       }
 
       // Check if user is the host member of this itinerary
-      if (itinerary.hostMemberId) {
+      if (itinerary.hostMemberId && itinerary.groupId) {
         const members = await storage.getGroupMembers(itinerary.groupId);
         const hostMember = members.find(m => m.id === itinerary.hostMemberId);
         if (hostMember?.userId === userId) {
@@ -186,6 +186,9 @@ export function requireItineraryAccess() {
       }
 
       // Check if user owns the group
+      if (!itinerary.groupId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
       const group = await storage.getGroup(itinerary.groupId);
       if (group?.userId === userId) {
         (req as any).itinerary = itinerary;

@@ -2265,15 +2265,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (member.userId) {
           // Get member group preferences
           const memberPrefs = await storage.getMemberGroupPreferences(member.userId, req.params.id);
-          
-          // Use fallback chain: budgetOverride → global profile budget
-          if (memberPrefs?.budgetOverride) {
-            memberBudgets.push(memberPrefs.budgetOverride);
+
+          // Use fallback chain: budgetOverrideMin/Max → global profile budget
+          if (memberPrefs?.budgetOverrideMin != null || memberPrefs?.budgetOverrideMax != null) {
+            const avg = ((memberPrefs.budgetOverrideMin || 0) + (memberPrefs.budgetOverrideMax || 100)) / 2;
+            memberBudgets.push(avg);
           } else {
             // Try global profile
             const profile = await storage.getUserProfile(member.userId);
-            if (profile?.budget) {
-              memberBudgets.push(profile.budget);
+            if (profile?.budgetMin != null || profile?.budgetMax != null) {
+              const avg = ((profile.budgetMin || 0) + (profile.budgetMax || 100)) / 2;
+              memberBudgets.push(avg);
             }
           }
         }

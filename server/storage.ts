@@ -188,7 +188,7 @@ export interface IStorage {
   }>>;
 
   // Group Collections
-  createGroupCollection(userId: string, collection: InsertGroupCollection): Promise<GroupCollection>;
+  createGroupCollection(userId: string, collection: Omit<InsertGroupCollection, 'userId'>): Promise<GroupCollection>;
   getUserGroupCollections(userId: string): Promise<GroupCollection[]>;
   updateGroupCollection(id: string, updates: UpdateGroupCollection): Promise<GroupCollection>;
   deleteGroupCollection(id: string): Promise<void>;
@@ -2451,7 +2451,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Group Collections
-  async createGroupCollection(userId: string, collection: InsertGroupCollection): Promise<GroupCollection> {
+  async createGroupCollection(userId: string, collection: Omit<InsertGroupCollection, 'userId'>): Promise<GroupCollection> {
     const [result] = await db.insert(groupCollections).values({
       ...collection,
       userId,
