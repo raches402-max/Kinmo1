@@ -2124,7 +2124,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           itineraryId: itinerary.id,
           itineraryName: itinerary.name,
           eventDate: itinerary.eventDate,
-          eventEndTime: itinerary.eventEndTime,
+          eventEndTime: null, // Not stored in itineraries table
           status: itinerary.status,
           inviteSentAt: itinerary.inviteSentAt,
           groupId: null,
@@ -2173,8 +2173,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             memberId: inv.memberId,
             sourceGroupId: inv.sourceGroupId,
           })),
-          note: itinerary.note,
-          quorumThreshold: itinerary.quorumThreshold,
+          note: null, // Not stored in itineraries table
+          quorumThreshold: null, // Not stored in itineraries table
           rsvpDeadline: itinerary.rsvpDeadline,
           autoScheduleConfig: itinerary.autoScheduleConfig,
         };

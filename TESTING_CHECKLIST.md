@@ -184,7 +184,7 @@ Open Chrome DevTools → Toggle device mode → Select "iPhone 12 Pro" or simila
 - [ ] Shows error message (not blank screen)
 - [ ] Re-enable network → Can retry/recover
 
-### Invalid Input
+### I   nvalid Input
 - [ ] Try submitting empty required fields
 - [ ] Shows validation errors
 - [ ] Try very long input (1000+ chars)
