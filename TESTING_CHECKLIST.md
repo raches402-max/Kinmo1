@@ -158,10 +158,10 @@
 Open Chrome DevTools → Toggle device mode → Select "iPhone 12 Pro" or similar
 
 ### Navigation
-- [ ] Bottom nav bar appears (Events, Groups, Places, Profile)
-- [ ] Tapping each icon navigates correctly
-- [ ] + button (center) opens event creation modal
-- [ ] + button works on ALL pages (not just dashboard)
+- [ x] Bottom nav bar appears (Events, Groups, Places, Profile)
+- [ x] Tapping each icon navigates correctly
+- [ x] + button (center) opens event creation modal
+- [ x] + button works on ALL pages (not just dashboard)
 
 ### Touch Interactions
 - [x ] Swipe cards respond to touch/drag
@@ -172,7 +172,7 @@ Open Chrome DevTools → Toggle device mode → Select "iPhone 12 Pro" or simila
 ### Responsive Layout
 - [ ] No horizontal scrolling
 - [ x] Text is readable (not too small)
-- [ ] Buttons are tappable (adequate touch targets)
+- [ x] Buttons are tappable (adequate touch targets)
 - [ x] Forms are usable on mobile keyboard
 
 ---
