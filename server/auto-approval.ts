@@ -8,6 +8,8 @@ import { db } from './db';
 import { eq, and } from 'drizzle-orm';
 import { autoScheduledEvents, itineraryInvites, itineraries } from '../shared/schema';
 import crypto from 'crypto';
+import { calculateAdaptiveTimeline, calculateRsvpDeadline } from './adaptive-timeline';
+import { sendInitialInvites } from './reminder-scheduler';
 
 export interface ApprovalResult {
   success: boolean;
@@ -52,11 +54,21 @@ export async function approveAndCreateItinerary(
     if (event.itineraryId) {
       console.log(`[Auto-Approval] Itinerary already exists (${event.itineraryId}), updating status to approved`);
 
-      // Update existing itinerary status to approved
+      // Calculate adaptive timeline for auto-send configuration
+      const eventDate = new Date(event.proposedDate);
+      const now = new Date();
+      const adaptiveConfig = calculateAdaptiveTimeline(eventDate, now);
+      const rsvpDeadline = calculateRsvpDeadline(eventDate, adaptiveConfig);
+
+      console.log(`[Auto-Approval] Using ${adaptiveConfig.timelineType} timeline: ${adaptiveConfig.reasoning}`);
+
+      // Update existing itinerary status to approved with autoScheduleConfig
       await db
         .update(itineraries)
         .set({
           status: source === 'auto' ? 'auto_approved' : 'approved',
+          autoScheduleConfig: adaptiveConfig,
+          rsvpDeadline,
         })
         .where(eq(itineraries.id, event.itineraryId));
 
@@ -71,8 +83,13 @@ export async function approveAndCreateItinerary(
       // Fetch the updated itinerary
       itinerary = await storage.getItinerary(event.itineraryId);
 
-      // Invites already exist from initial creation, no need to recreate
-      console.log(`[Auto-Approval] Using existing itinerary and invites`);
+      // Send invites if not already sent
+      if (!itinerary.inviteSentAt) {
+        console.log(`[Auto-Approval] Sending invites for ${group.name}`);
+        await sendInitialInvites(itinerary, group);
+      } else {
+        console.log(`[Auto-Approval] Invites already sent, skipping`);
+      }
     } else {
       // Old flow: Need to use options to create itinerary
       console.log(`[Auto-Approval] Creating new itinerary from options (legacy flow)`);
@@ -167,6 +184,26 @@ export async function approveAndCreateItinerary(
           inviteToken,
         });
       }
+
+      // Calculate adaptive timeline and update itinerary with config
+      const eventDate = new Date(event.proposedDate);
+      const now = new Date();
+      const adaptiveConfig = calculateAdaptiveTimeline(eventDate, now);
+      const rsvpDeadline = calculateRsvpDeadline(eventDate, adaptiveConfig);
+
+      console.log(`[Auto-Approval] Using ${adaptiveConfig.timelineType} timeline: ${adaptiveConfig.reasoning}`);
+
+      await db
+        .update(itineraries)
+        .set({
+          autoScheduleConfig: adaptiveConfig,
+          rsvpDeadline,
+        })
+        .where(eq(itineraries.id, itinerary.id));
+
+      // Send initial invites
+      itinerary = await storage.getItinerary(itinerary.id); // Refresh to get updated data
+      await sendInitialInvites(itinerary, group);
     }
 
     console.log(`[Auto-Approval] ${source === 'auto' ? '🤖 AUTO' : '👤 MANUAL'} approval for event ${eventId}:`, {

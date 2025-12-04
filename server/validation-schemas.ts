@@ -375,10 +375,10 @@ export const createRsvpSchema = z.object({
     notThisWeek: z.boolean().optional(),
     unavailableOn: z.array(z.string()).optional(),
   }).optional(),
-  claimedMemberId: z.string().optional(),
-  guestName: z.string().optional(),
-  additionalAttendees: z.array(z.string()).optional(),
-  numberOfKids: z.number().int().min(0).optional(),
+  claimedMemberId: z.string().nullish(),
+  guestName: z.string().nullish(),
+  additionalAttendees: z.array(z.string()).nullish(),
+  numberOfKids: z.number().int().min(0).nullish(),
 });
 
 export const organizerRsvpSchema = z.object({

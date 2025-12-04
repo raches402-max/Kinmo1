@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { formatVenueTypeForDisplay } from "@/lib/event-utils";
 import {
   ChevronLeft,
   MoreVertical,
@@ -264,7 +265,9 @@ function TimelineVenueCard({
                       </span>
                     )}
                   </div>
-                  <div className="text-xs text-muted-foreground mt-0.5">{venue.type}</div>
+                  {formatVenueTypeForDisplay(venue.type) && (
+                  <div className="text-xs text-muted-foreground mt-0.5">{formatVenueTypeForDisplay(venue.type)}</div>
+                )}
                 </div>
                 {isOrganizer && (
                   <button

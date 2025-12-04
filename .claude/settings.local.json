@@ -123,9 +123,71 @@
       "Bash(jq:*)",
       "Bash(timeout 20 npx vite build:*)",
       "Bash(esbuild:*)",
-      "Bash(sort:*)"
+      "Bash(sort:*)",
+      "Bash(gh auth status:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(ls:*)",
+      "Bash(du:*)",
+      "Bash(git ls-tree:*)",
+      "Bash(ACTIVITY_SEARCH_ARCHITECTURE.md )",
+      "Bash(AI-AGENT-LOGIC.md )",
+      "Bash(AI_MODEL_UPGRADE_SUMMARY.md )",
+      "Bash(AUTH_BUG_FIX_SUMMARY.md )",
+      "Bash(BUG_FIX_SUMMARY.md )",
+      "Bash(COMPLETED.md )",
+      "Bash(CRITICAL_FIXES.md )",
+      "Bash(CRON_SETUP.md )",
+      "Bash(DEPENDENCY_AUDIT.md )",
+      "Bash(DEPLOYMENT_GUIDE.md )",
+      "Bash(ERROR_HANDLING_COMPLETE.md )",
+      "Bash(ERROR_HANDLING_FINAL_SUMMARY.md )",
+      "Bash(ERROR_HANDLING_IMPROVEMENTS.md )",
+      "Bash(ERROR_HANDLING_OPPORTUNITIES.md )",
+      "Bash(ERROR_HANDLING_TOP5_COMPLETE.md )",
+      "Bash(EVENT_CREATION_CONSOLIDATION_COMPLETE.md )",
+      "Bash(EVENT_CREATION_CONSOLIDATION_PLAN.md )",
+      "Bash(FINAL_AI_MODEL_STRATEGY.md )",
+      "Bash(FINAL_STATUS.md )",
+      "Bash(GOOGLE_MAPS_ACTIVITY_SEARCH_IMPLEMENTATION.md )",
+      "Bash(GOOGLE_MAPS_IMPLEMENTATION_INDEX.md )",
+      "Bash(GOOGLE_MAPS_INTEGRATION_RESEARCH.md )",
+      "Bash(GOOGLE_MAPS_URL_PARSING_REFERENCE.md )",
+      "Bash(IMPLEMENTATION_SUMMARY.md )",
+      "Bash(LOGGING_GUIDE.md )",
+      "Bash(MOBILE_TESTING_GUIDE.md )",
+      "Bash(PHASE1_IMPLEMENTATION_SUMMARY.md )",
+      "Bash(PHASE2_IMPLEMENTATION_SUMMARY.md )",
+      "Bash(PHASE3_IMPLEMENTATION_SUMMARY.md )",
+      "Bash(PLAN-navigation-improvements.md )",
+      "Bash(PRODUCTION_DEPLOYMENT_GUIDE.md )",
+      "Bash(QUICK_REFERENCE.md )",
+      "Bash(QUICK_START.md )",
+      "Bash(README_GOOGLE_MAPS_SEARCH.md )",
+      "Bash(REMAINING_TYPESCRIPT_FIXES.md )",
+      "Bash(REPLIT_TROUBLESHOOTING.md )",
+      "Bash(RSVP_ONBOARDING_SPEC.md )",
+      "Bash(SECURITY_AUDIT.md )",
+      "Bash(SWIPE_ENGAGEMENT_SYSTEM.md )",
+      "Bash(SWIPE_INTEGRATION_IMPACT.md )",
+      "Bash(TEST_PREFERENCES_PAGE.md )",
+      "Bash(TODAY_SUMMARY.md )",
+      "Bash(TYPESCRIPT_FIX_SESSION_SUMMARY.md )",
+      "Bash(VENUE_QUALITY_IMPROVEMENTS.md )"
     ],
     "deny": [],
     "ask": []
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /home/runner/workspace && git add -A && git diff --cached --quiet || (git commit -m \"Auto-save: $(date '+%Y-%m-%d %H:%M')\" && git push gitsafe-backup main 2>/dev/null || true)"
+          }
+        ]
+      }
+    ]
   }
 }

@@ -10,6 +10,8 @@ import { storage } from './storage';
 import { eq, isNull, and } from 'drizzle-orm';
 import { autoScheduledEvents, itineraryOptions, itineraries, itineraryInvites } from '../shared/schema';
 import crypto from 'crypto';
+import { calculateAdaptiveTimeline, calculateRsvpDeadline } from './adaptive-timeline';
+import { sendInitialInvites } from './reminder-scheduler';
 
 async function backfillItineraries() {
   console.log('🔄 Starting backfill of auto-event itineraries...\n');
@@ -118,11 +120,34 @@ async function backfillItineraries() {
           });
         }
 
+        // Calculate adaptive timeline and update itinerary with config
+        const eventDate = new Date(event.proposedDate);
+        const now = new Date();
+        const adaptiveConfig = calculateAdaptiveTimeline(eventDate, now);
+        const rsvpDeadline = calculateRsvpDeadline(eventDate, adaptiveConfig);
+
+        console.log(`  ⏰ Using ${adaptiveConfig.timelineType} timeline: ${adaptiveConfig.reasoning}`);
+
+        await db
+          .update(itineraries)
+          .set({
+            autoScheduleConfig: adaptiveConfig,
+            rsvpDeadline,
+          })
+          .where(eq(itineraries.id, newItinerary.id));
+
         // Update the auto-scheduled event with the itinerary ID
         await db
           .update(autoScheduledEvents)
           .set({ itineraryId: newItinerary.id })
           .where(eq(autoScheduledEvents.id, event.id));
+
+        // Send initial invites
+        const updatedItinerary = await storage.getItinerary(newItinerary.id);
+        if (updatedItinerary) {
+          console.log(`  📧 Sending invites to group...`);
+          await sendInitialInvites(updatedItinerary, group);
+        }
 
         console.log(`  ✅ Updated event with itineraryId and created ${members.length} invites`);
         console.log(`  📍 Venues: ${venues.map(v => v.venueName).join(' → ')}`);

@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
+import { formatVenueTypeForDisplay } from "@/lib/event-utils";
 import {
   Users,
   MapPin,
@@ -428,7 +429,9 @@ export function EventSummaryStrip({
                           {i + 1}
                         </span>
                         <span className="font-medium">{venue.name}</span>
-                        <span className="text-xs text-muted-foreground">{venue.type}</span>
+                        {formatVenueTypeForDisplay(venue.type) && (
+                          <span className="text-xs text-muted-foreground">{formatVenueTypeForDisplay(venue.type)}</span>
+                        )}
                       </div>
                     ))}
                     {editable && onAddVenue && (

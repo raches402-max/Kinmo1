@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { SwipeCard } from './SwipeCard';
 import { useMutation } from '@tanstack/react-query';
 import { apiRequest, queryClient } from '@/lib/queryClient';
@@ -47,17 +47,51 @@ export function SwipeSessionWithDeck({
   const [addedCount, setAddedCount] = useState(0);
   const { toast } = useToast();
 
-  // Update deck when initialDeck changes
+  // Use ref to always have current groupId in mutation callbacks (avoids stale closure)
+  const groupIdRef = useRef(groupId);
+  useEffect(() => {
+    groupIdRef.current = groupId;
+  }, [groupId]);
+
+  // Reset state when groupId changes to prevent cross-group data bleed
+  useEffect(() => {
+    setDeck([]);
+    setCurrentIndex(0);
+    setAddedCount(0);
+  }, [groupId]);
+
+  // Update deck when initialDeck changes (or when groupId changes with new deck)
   useEffect(() => {
     if (initialDeck && initialDeck.length > 0) {
-      setDeck(initialDeck);
-      setCurrentIndex(0);
-      setAddedCount(0);
+      // CRITICAL: Filter deck to only include venues that belong to current group
+      // This prevents cross-group data contamination if old deck data persists
+      const filteredDeck = initialDeck.filter(venue => {
+        // If venue has groupId, verify it matches current group
+        if (venue.groupId && venue.groupId !== groupId) {
+          console.log(`[SwipeSessionWithDeck] Filtering out venue ${venue.title} - belongs to group ${venue.groupId}, current group is ${groupId}`);
+          return false;
+        }
+        return true;
+      });
+
+      if (filteredDeck.length > 0) {
+        setDeck(filteredDeck);
+        setCurrentIndex(0);
+        setAddedCount(0);
+      } else {
+        // All venues were filtered out - clear the deck
+        setDeck([]);
+        setCurrentIndex(0);
+        setAddedCount(0);
+      }
     }
-  }, [initialDeck]);
+  }, [initialDeck, groupId]);
 
   const upvoteMutation = useMutation({
     mutationFn: async (venue: SwipeVenue) => {
+      // Use ref to get current groupId (avoids stale closure)
+      const currentGroupId = groupIdRef.current;
+
       // If it's a voting event, upvote it
       if (venue.sourceType === 'voting_event') {
         return apiRequest('POST', `/api/voting-events/${venue.id}/vote`, { voteType: 'upvote' });
@@ -66,7 +100,7 @@ export function SwipeSessionWithDeck({
       // If it's an AI suggestion, create a voting event first, then upvote
       if (venue.sourceType === 'ai_suggestion') {
         const result = await apiRequest('POST', `/api/voting-events`, {
-          groupId: groupId,
+          groupId: currentGroupId,
           title: venue.title,
           description: venue.description || '',
           venueAddress: venue.venueAddress || '',
@@ -83,14 +117,27 @@ export function SwipeSessionWithDeck({
       }
     },
     onSuccess: () => {
-      // Invalidate voting events cache to refresh Favorites tab
-      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "voting-events"] });
+      // Use ref to get current groupId for cache invalidation
+      const currentGroupId = groupIdRef.current;
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", currentGroupId, "voting-events"] });
       setAddedCount((prev) => prev + 1);
     },
   });
 
   const handleSwipe = async (direction: 'like' | 'pass') => {
     const currentVenue = deck[currentIndex];
+
+    // Safety check: verify venue belongs to current group before processing
+    if (currentVenue.groupId && currentVenue.groupId !== groupId) {
+      console.warn(`[SwipeSessionWithDeck] Skipping venue ${currentVenue.title} - wrong group (${currentVenue.groupId} vs ${groupId})`);
+      // Skip to next card without processing
+      if (currentIndex < deck.length - 1) {
+        setCurrentIndex(currentIndex + 1);
+      } else {
+        handleComplete();
+      }
+      return;
+    }
 
     if (direction === 'like') {
       // Add to favorites

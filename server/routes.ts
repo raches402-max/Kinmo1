@@ -6289,6 +6289,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete a voting event (authenticated)
+  // Any member of the group can delete a voting event (venue from favorites)
   app.delete("/api/voting-events/:id", isAuthenticated, requireVotingEventAccess(), async (req: any, res) => {
     try {
       const event = await storage.getVotingEvent(req.params.id);
@@ -6297,7 +6298,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const userId = await getUserId(req);
-      if (event.createdBy !== userId) {
+
+      // Allow deletion if:
+      // 1. User is the creator, OR
+      // 2. User is a member of the group (verified by requireVotingEventAccess middleware)
+      // The middleware already verified the user has access to this event's group
+      const member = await storage.getGroupMemberByUserId(event.groupId, userId);
+      if (event.createdBy !== userId && !member) {
         return res.status(403).json({ message: "Unauthorized to delete this event" });
       }
 

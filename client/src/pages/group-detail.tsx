@@ -47,7 +47,7 @@ import EventsTable from "@/components/EventsTable";
 import { EventTimeline } from "@/components/EventTimeline";
 import { DateFirstEventCreator } from "@/components/DateFirstEventCreator";
 import { UnifiedEventSidebar } from "@/components/UnifiedEventSidebar";
-import { mergeAndDeduplicateEvents, UnifiedEvent } from "@/lib/event-utils";
+import { mergeAndDeduplicateEvents, UnifiedEvent, formatVenueTypeForDisplay } from "@/lib/event-utils";
 import { calculateDistance, getDistanceCategory, formatDistance } from "@/lib/distance";
 import { format } from 'date-fns';
 import { toZonedTime, fromZonedTime, formatInTimeZone } from 'date-fns-tz';
@@ -430,8 +430,8 @@ function SortableCartVenue({ id, index, venueName, venueType, photoUrl, onRemove
         )}
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium truncate">{venueName}</p>
-          {venueType && (
-            <p className="text-xs text-muted-foreground truncate">{venueType}</p>
+          {formatVenueTypeForDisplay(venueType) && (
+            <p className="text-xs text-muted-foreground truncate">{formatVenueTypeForDisplay(venueType)}</p>
           )}
         </div>
         {lat && lng && (
@@ -802,6 +802,14 @@ export default function GroupDetail() {
 
   // Automation sidebar state
   const [automationSidebarCollapsed, setAutomationSidebarCollapsed] = useState(false);
+
+  // Reset modal states when groupId changes to prevent cross-group state bleed
+  useEffect(() => {
+    setDiscoverVenuesModalOpen(false);
+    setAiAssistantModalOpen(false);
+    setAutoSchedulePreviewOpen(false);
+    setEventCreationModalOpen(false);
+  }, [groupId]);
 
   // Auto-refresh state for countdowns
   const [, forceUpdate] = useState(0);

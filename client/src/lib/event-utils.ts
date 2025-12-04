@@ -315,6 +315,44 @@ export function needsAction(event: UnifiedEvent): boolean {
   return false;
 }
 
+/**
+ * Format venue type for display, filtering out generic/unhelpful terms
+ * Returns null if the type shouldn't be displayed
+ */
+export function formatVenueTypeForDisplay(venueType?: string | null): string | null {
+  if (!venueType) return null;
+
+  // Normalize the type
+  const normalized = venueType.toLowerCase().replace(/_/g, ' ').trim();
+
+  // Generic terms that aren't helpful to show
+  const genericTerms = [
+    'venue',
+    'place',
+    'establishment',
+    'point of interest',
+    'meal',
+    'food',
+    'store',
+    'shop',
+    'business',
+    'local business',
+    'premise',
+    'general contractor',
+    'subpremise',
+  ];
+
+  if (genericTerms.includes(normalized)) {
+    return null;
+  }
+
+  // Format nicely for display (title case)
+  return normalized
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
 // Status badge configuration (for consistent styling)
 export const STATUS_CONFIG: Record<EventStatus, { label: string; color: string }> = {
   draft: {

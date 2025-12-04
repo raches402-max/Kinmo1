@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   ResponsiveDialog as Dialog,
@@ -117,6 +117,25 @@ export function DiscoverVenuesModal({
   const [swipeSessionId, setSwipeSessionId] = useState<string>("");
   const [swipeMode, setSwipeMode] = useState<'favorites' | 'discover' | null>(null);
 
+  // Track current groupId to prevent stale responses from being used
+  const groupIdRef = useRef(groupId);
+  useEffect(() => {
+    groupIdRef.current = groupId;
+  }, [groupId]);
+
+  // Reset swipe session state when groupId changes to prevent cross-group data bleed
+  useEffect(() => {
+    setSwipeSessionOpen(false);
+    setSwipeDeck([]);
+    setSwipeSessionId("");
+    setSwipeMode(null);
+    setGeneratedVenues([]);
+    setSearchQuery("");
+    setSearchResults([]);
+    setError(null);
+    setIsGenerating(false); // Also cancel any in-progress generation
+  }, [groupId]);
+
   // Preview modal state
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
   const [generatedVenues, setGeneratedVenues] = useState<any[]>([]);
@@ -187,6 +206,9 @@ export function DiscoverVenuesModal({
       return;
     }
 
+    // Capture the groupId at the start of the request
+    const requestGroupId = groupId;
+
     setIsGenerating(true);
     setError(null);
     setLoadingStartTime(Date.now());
@@ -213,10 +235,17 @@ export function DiscoverVenuesModal({
 
       const venues = await apiRequest(
         "POST",
-        `/api/groups/${groupId}/generate-category`,
+        `/api/groups/${requestGroupId}/generate-category`,
         requestBody,
         { retry: true, maxRetries: 2, timeout: 30000 }
       );
+
+      // CRITICAL: Check if groupId changed while we were waiting for the response
+      // If it did, discard this response to prevent cross-group data contamination
+      if (groupIdRef.current !== requestGroupId) {
+        console.log(`[DiscoverVenuesModal] Discarding stale category response for group ${requestGroupId}, current group is ${groupIdRef.current}`);
+        return;
+      }
 
       setGeneratedVenues(venues);
       setPreviewSearchLocation(location.trim() || "Default location");
@@ -228,14 +257,23 @@ export function DiscoverVenuesModal({
         description: `Found ${venues.length} great venues for you`,
       });
     } catch (error: any) {
-      setError(error);
-      toast(getErrorToast(error));
+      // Only show error if we're still on the same group
+      if (groupIdRef.current === requestGroupId) {
+        setError(error);
+        toast(getErrorToast(error));
+      }
     } finally {
-      setIsGenerating(false);
+      // Only reset loading state if we're still on the same group
+      if (groupIdRef.current === requestGroupId) {
+        setIsGenerating(false);
+      }
     }
   };
 
   const handleStartSwipe = async (mode: 'favorites' | 'discover') => {
+    // Capture the groupId at the start of the request
+    const requestGroupId = groupId;
+
     setIsGenerating(true);
     setError(null);
     setLoadingStartTime(Date.now());
@@ -244,13 +282,20 @@ export function DiscoverVenuesModal({
     try {
       const response = await apiRequest(
         "POST",
-        `/api/groups/${groupId}/discover-venues`,
+        `/api/groups/${requestGroupId}/discover-venues`,
         {
           count: 15,
           includeExisting: mode === 'favorites', // Include group favorites in the deck
         },
         { retry: true, maxRetries: 2, timeout: 30000 }
       );
+
+      // CRITICAL: Check if groupId changed while we were waiting for the response
+      // If it did, discard this response to prevent cross-group data contamination
+      if (groupIdRef.current !== requestGroupId) {
+        console.log(`[DiscoverVenuesModal] Discarding stale response for group ${requestGroupId}, current group is ${groupIdRef.current}`);
+        return;
+      }
 
       setSwipeDeck(response.deck || []);
       setSwipeSessionId(response.sessionId);
@@ -262,25 +307,40 @@ export function DiscoverVenuesModal({
         description: `${response.totalVenues} venues to discover`,
       });
     } catch (error: any) {
-      setError(error);
-      toast(getErrorToast(error));
+      // Only show error if we're still on the same group
+      if (groupIdRef.current === requestGroupId) {
+        setError(error);
+        toast(getErrorToast(error));
+      }
     } finally {
-      setIsGenerating(false);
+      // Only reset loading state if we're still on the same group
+      if (groupIdRef.current === requestGroupId) {
+        setIsGenerating(false);
+      }
     }
   };
 
   const handleAddFromSearch = async (result: SearchResult) => {
+    // Capture the groupId at the start of the request
+    const requestGroupId = groupId;
+
     try {
       // Add the venue as a voting event
       await apiRequest("POST", "/api/voting-events", {
-        groupId,
+        groupId: requestGroupId,
         title: result.name,
         venueAddress: result.address,
         googlePlaceId: result.placeId,
         skipEnrichmentCheck: false,
       });
 
-      queryClient.invalidateQueries({ queryKey: [`/api/groups/${groupId}/voting-events`] });
+      // Only update UI if we're still on the same group
+      if (groupIdRef.current !== requestGroupId) {
+        console.log(`[DiscoverVenuesModal] Discarding stale search add for group ${requestGroupId}, current group is ${groupIdRef.current}`);
+        return;
+      }
+
+      queryClient.invalidateQueries({ queryKey: [`/api/groups/${requestGroupId}/voting-events`] });
 
       toast({
         title: "Venue Added!",
@@ -290,7 +350,10 @@ export function DiscoverVenuesModal({
       setSearchQuery("");
       setShowSearchDropdown(false);
     } catch (error: any) {
-      toast(getErrorToast(error));
+      // Only show error if we're still on the same group
+      if (groupIdRef.current === requestGroupId) {
+        toast(getErrorToast(error));
+      }
     }
   };
 

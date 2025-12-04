@@ -8,6 +8,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, X, ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { formatVenueTypeForDisplay } from "@/lib/event-utils";
 
 interface SidebarVenueCardProps {
   id: string;
@@ -79,8 +80,8 @@ export function SidebarVenueCard({
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
               <h4 className="font-medium text-sm truncate">{venueName}</h4>
-              {venueType && (
-                <p className="text-xs text-muted-foreground">{venueType}</p>
+              {formatVenueTypeForDisplay(venueType) && (
+                <p className="text-xs text-muted-foreground">{formatVenueTypeForDisplay(venueType)}</p>
               )}
             </div>
 

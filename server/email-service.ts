@@ -74,11 +74,23 @@ export async function sendItineraryInvite(
     
     const eventsUrl = getEventsUrl(data.rsvpLink);
 
-    // Format venue type for display (capitalize and clean up underscores)
-    const formatVenueType = (type: string) => {
-      return type
-        .replace(/_/g, ' ')
-        .replace(/\b\w/g, c => c.toUpperCase());
+    // Format venue type for display, filtering out generic terms
+    const formatVenueType = (type: string): string => {
+      const normalized = type.toLowerCase().replace(/_/g, ' ').trim();
+
+      // Generic terms that aren't helpful to show
+      const genericTerms = [
+        'venue', 'place', 'establishment', 'point of interest',
+        'meal', 'food', 'store', 'shop', 'business', 'local business',
+        'premise', 'general contractor', 'subpremise'
+      ];
+
+      if (genericTerms.includes(normalized)) {
+        return ''; // Return empty so it won't display
+      }
+
+      // Title case the result
+      return normalized.replace(/\b\w/g, c => c.toUpperCase());
     };
 
     const result = await resend.emails.send({
@@ -148,7 +160,7 @@ export async function sendItineraryInvite(
                               </td>
                               <td valign="top" style="padding-left: 8px; border-bottom: 1px solid #f0ebe3; padding-bottom: 12px;">
                                 <p style="margin: 0 0 2px; font-size: 16px; color: #1a1a1a; font-weight: 500;">${v.name}</p>
-                                <p style="margin: 0; font-size: 13px; color: #8b8b8b;">${formatVenueType(v.type)}${v.address ? ` · ${v.address}` : ''}</p>
+                                <p style="margin: 0; font-size: 13px; color: #8b8b8b;">${formatVenueType(v.type) ? `${formatVenueType(v.type)}${v.address ? ' · ' : ''}` : ''}${v.address || ''}</p>
                               </td>
                             </tr>
                           </table>

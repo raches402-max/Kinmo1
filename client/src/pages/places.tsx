@@ -299,7 +299,7 @@ export default function PlacesPage() {
     },
   });
 
-  // Remove group place
+  // Remove group place (from saved_places table)
   const removeGroupMutation = useMutation({
     mutationFn: async ({ groupId, placeId }: { groupId: string; placeId: string }) => {
       return apiRequest("DELETE", `/api/groups/${groupId}/saved-places/${placeId}`);
@@ -307,6 +307,20 @@ export default function PlacesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/user/all-places"] });
       toast({ title: "Removed", description: "Place removed from group" });
+    },
+  });
+
+  // Remove voting event (from voting_events table - this is the main favorites source)
+  const removeVotingEventMutation = useMutation({
+    mutationFn: async (eventId: string) => {
+      return apiRequest("DELETE", `/api/voting-events/${eventId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/all-places"] });
+      toast({ title: "Removed", description: "Place removed from favorites" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to remove place", variant: "destructive" });
     },
   });
 
@@ -352,8 +366,9 @@ export default function PlacesPage() {
   }, [allPlaces]);
 
   // Filter places based on selection - include venue library
+  // sourceType tracks where the place came from for proper deletion
   const filteredPlaces = useMemo(() => {
-    const result: Array<SavedPlace & { source: string; groupId?: string }> = [];
+    const result: Array<SavedPlace & { source: string; groupId?: string; sourceType: 'personal' | 'voting_event' | 'saved_place' }> = [];
     const seenVenues = new Set<string>(); // Track by googlePlaceId to avoid duplicates
 
     if (!allPlaces) return result;
@@ -362,7 +377,7 @@ export default function PlacesPage() {
     if (selectedGroupId === "all" || selectedGroupId === "personal") {
       allPlaces.personal.forEach((p) => {
         seenVenues.add(p.googlePlaceId);
-        result.push({ ...p, source: "My Favorites" });
+        result.push({ ...p, source: "My Favorites", sourceType: 'personal' });
       });
     }
 
@@ -377,6 +392,7 @@ export default function PlacesPage() {
                 ...p,
                 source: g.groupName,
                 groupId: g.groupId,
+                sourceType: 'voting_event',
               });
             }
           });
@@ -391,6 +407,7 @@ export default function PlacesPage() {
                 ...p,
                 source: group.groupName,
                 groupId: group.groupId,
+                sourceType: 'voting_event',
               });
             }
           });
@@ -404,7 +421,7 @@ export default function PlacesPage() {
         g.places.forEach((p) => {
           if (!seenVenues.has(p.googlePlaceId)) {
             seenVenues.add(p.googlePlaceId);
-            result.push({ ...p, source: g.groupName, groupId: g.groupId });
+            result.push({ ...p, source: g.groupName, groupId: g.groupId, sourceType: 'saved_place' });
           }
         });
       });
@@ -414,7 +431,7 @@ export default function PlacesPage() {
         group.places.forEach((p) => {
           if (!seenVenues.has(p.googlePlaceId)) {
             seenVenues.add(p.googlePlaceId);
-            result.push({ ...p, source: group.groupName, groupId: group.groupId });
+            result.push({ ...p, source: group.groupName, groupId: group.groupId, sourceType: 'saved_place' });
           }
         });
       }
@@ -648,7 +665,10 @@ export default function PlacesPage() {
                       size="icon"
                       className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 h-7 w-7 sm:h-8 sm:w-8 opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity bg-white/80 hover:bg-white"
                       onClick={() => {
-                        if (place.groupId) {
+                        // Use the correct mutation based on where the place came from
+                        if (place.sourceType === 'voting_event') {
+                          removeVotingEventMutation.mutate(place.id);
+                        } else if (place.sourceType === 'saved_place' && place.groupId) {
                           removeGroupMutation.mutate({ groupId: place.groupId, placeId: place.id });
                         } else {
                           removePersonalMutation.mutate(place.id);
@@ -755,7 +775,10 @@ export default function PlacesPage() {
                     size="icon"
                     className="h-8 w-8 shrink-0 opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity"
                     onClick={() => {
-                      if (place.groupId) {
+                      // Use the correct mutation based on where the place came from
+                      if (place.sourceType === 'voting_event') {
+                        removeVotingEventMutation.mutate(place.id);
+                      } else if (place.sourceType === 'saved_place' && place.groupId) {
                         removeGroupMutation.mutate({ groupId: place.groupId, placeId: place.id });
                       } else {
                         removePersonalMutation.mutate(place.id);

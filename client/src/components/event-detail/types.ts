@@ -33,6 +33,14 @@ export interface EventAttendee {
   memberId?: string;
 }
 
+export interface AutoScheduleConfig {
+  inviteAdvanceDays: number;
+  rsvpWindowDays: number;
+  timelineType: string;
+  reminders?: any[];
+  reasoning?: string;
+}
+
 export interface EventData {
   itineraryId: string;
   itineraryName: string;
@@ -56,6 +64,7 @@ export interface EventData {
   rsvpDeadline?: string | null;
   note?: string;
   quorumThreshold?: number;
+  autoScheduleConfig?: AutoScheduleConfig | null;
 }
 
 export interface RsvpCounts {

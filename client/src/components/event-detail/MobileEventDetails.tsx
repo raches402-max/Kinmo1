@@ -11,10 +11,20 @@ import {
   HelpCircle,
   X,
   PenLine,
+  Info,
+  CalendarDays,
+  Mail,
+  Clock,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { format, subDays } from "date-fns";
 
 import { WhenSection } from "./WhenSection";
 import { WhereSection } from "./WhereTimeline";
@@ -54,6 +64,73 @@ const statusConfig = {
   sent: { label: "Sent", className: "bg-success/10 text-success border-success/30" },
   finalized: { label: "Confirmed", className: "bg-primary/10 text-primary border-primary/30" },
 };
+
+interface TimelineInfoProps {
+  eventDate: Date;
+  inviteSentAt: Date | null;
+  rsvpDeadline: Date | null;
+  autoScheduleConfig: {
+    inviteAdvanceDays: number;
+    rsvpWindowDays: number;
+    timelineType: string;
+  } | null;
+}
+
+function TimelineInfoTooltip({ info }: { info: TimelineInfoProps }) {
+  const { eventDate, inviteSentAt, rsvpDeadline, autoScheduleConfig } = info;
+  const now = new Date();
+  const isPastDeadline = rsvpDeadline ? rsvpDeadline < now : false;
+  const inviteSendDate = inviteSentAt ||
+    (autoScheduleConfig ? subDays(eventDate, autoScheduleConfig.inviteAdvanceDays) : null);
+
+  return (
+    <Tooltip delayDuration={200}>
+      <TooltipTrigger asChild>
+        <button className="inline-flex items-center justify-center rounded-full p-0.5 hover:bg-muted/50 transition-colors cursor-help">
+          <Info className="h-3 w-3 text-muted-foreground/60 hover:text-muted-foreground" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" align="start" className="max-w-[280px] p-3">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-xs">
+            <CalendarDays className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+            <span>
+              <span className="text-muted-foreground">Event:</span>{" "}
+              <span className="font-medium">{format(eventDate, "EEE, MMM d")}</span>
+            </span>
+          </div>
+
+          {inviteSendDate && (
+            <div className="flex items-center gap-2 text-xs">
+              <Mail className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" />
+              <span>
+                <span className="text-muted-foreground">
+                  {inviteSentAt ? "Invites sent:" : "Invites send:"}
+                </span>{" "}
+                <span className="font-medium">{format(inviteSendDate, "EEE, MMM d")}</span>
+              </span>
+            </div>
+          )}
+
+          {rsvpDeadline && (
+            <div className="flex items-center gap-2 text-xs">
+              <Clock className={`h-3.5 w-3.5 flex-shrink-0 ${isPastDeadline ? "text-muted-foreground" : "text-amber-500"}`} />
+              <span>
+                <span className="text-muted-foreground">RSVPs due:</span>{" "}
+                <span className={`font-medium ${isPastDeadline ? "line-through text-muted-foreground" : ""}`}>
+                  {format(rsvpDeadline, "EEE, MMM d")}
+                </span>
+                {isPastDeadline && (
+                  <span className="text-muted-foreground/70 ml-1">(closed)</span>
+                )}
+              </span>
+            </div>
+          )}
+        </div>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 export function MobileEventDetails({
   event,
@@ -161,6 +238,23 @@ export function MobileEventDetails({
       { yes: 0, maybe: 0, pending: 0, no: 0 } as RsvpCounts
     );
   }, [attendees]);
+
+  // Build timeline info for FloatingActionBar tooltip
+  const timelineInfo = useMemo(() => {
+    if (!event.eventDate) return undefined;
+
+    const eventDate = new Date(event.eventDate);
+    const inviteSentAt = event.inviteSentAt ? new Date(event.inviteSentAt) : null;
+    const rsvpDeadline = event.rsvpDeadline ? new Date(event.rsvpDeadline) : null;
+    const autoScheduleConfig = itineraryDetails?.autoScheduleConfig || event.autoScheduleConfig || null;
+
+    return {
+      eventDate,
+      inviteSentAt,
+      rsvpDeadline,
+      autoScheduleConfig,
+    };
+  }, [event.eventDate, event.inviteSentAt, event.rsvpDeadline, event.autoScheduleConfig, itineraryDetails?.autoScheduleConfig]);
 
   // Transform venues for the WhereSection
   const venues: EventVenue[] = useMemo(() => {
@@ -323,6 +417,10 @@ export function MobileEventDetails({
           <Badge variant="outline" className={cn("text-xs", statusBadge.className)}>
             {statusBadge.label}
           </Badge>
+          {/* Show timeline info tooltip next to Draft badge when invites not sent */}
+          {eventStatus === "draft" && timelineInfo && (
+            <TimelineInfoTooltip info={timelineInfo} />
+          )}
           <span className="text-xs text-muted-foreground">
             <span className="text-success font-medium">{rsvpCounts.yes} going</span>
             {rsvpCounts.maybe > 0 && <span> • {rsvpCounts.maybe} maybe</span>}
@@ -486,6 +584,7 @@ export function MobileEventDetails({
           hasMinorChanges={false}
           isOrganizer={isOrganizer}
           isSending={isSending}
+          timelineInfo={timelineInfo}
           onSendToGroup={onSendToGroup}
           onShare={onShare}
           onInviteGuest={onInviteGuest}

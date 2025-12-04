@@ -6,7 +6,6 @@ import { useToast } from "@/hooks/use-toast";
 import { getErrorToast } from "@/components/ErrorDisplay";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -16,6 +15,7 @@ import { Calendar, MapPin, Clock, Check, X, HelpCircle, User, Users, Baby, Calen
 import { format } from "date-fns";
 import { TimeSlotVoting } from "@/components/TimeSlotVoting";
 import { generateCalendarUrlFromItinerary } from "@/lib/calendar";
+import { AvailabilityGrid } from "@/components/AvailabilityGrid";
 
 type Member = {
   id: string;
@@ -81,6 +81,7 @@ export default function RsvpItineraryPage() {
   const [claimedIdentity, setClaimedIdentity] = useState<'member' | 'guest'>('member');
   const [guestName, setGuestName] = useState("");
   const [tempGuestName, setTempGuestName] = useState("");
+  const [inviteMemberLocked, setInviteMemberLocked] = useState(false);
 
   // RSVP state
   const [selectedResponse, setSelectedResponse] = useState<string | null>(null);
@@ -92,12 +93,16 @@ export default function RsvpItineraryPage() {
   const [additionalGuestName, setAdditionalGuestName] = useState("");
   const [numberOfKids, setNumberOfKids] = useState(0);
 
-  // Feedback form state
-  const [tryDifferentDay, setTryDifferentDay] = useState(false);
-  const [tryEarlier, setTryEarlier] = useState(false);
-  const [tryLater, setTryLater] = useState(false);
-  const [notThisWeek, setNotThisWeek] = useState(false);
-  const [unavailableDays, setUnavailableDays] = useState("");
+  // Feedback form state - availability grid
+  const [feedbackAvailability, setFeedbackAvailability] = useState<Record<string, {morning: boolean; afternoon: boolean; evening: boolean}>>({
+    Mon: { morning: false, afternoon: false, evening: false },
+    Tue: { morning: false, afternoon: false, evening: false },
+    Wed: { morning: false, afternoon: false, evening: false },
+    Thu: { morning: false, afternoon: false, evening: false },
+    Fri: { morning: false, afternoon: false, evening: false },
+    Sat: { morning: false, afternoon: false, evening: false },
+    Sun: { morning: false, afternoon: false, evening: false },
+  });
   const [freeformFeedback, setFreeformFeedback] = useState("");
 
   // Fetch itinerary
@@ -117,6 +122,31 @@ export default function RsvpItineraryPage() {
     queryKey: ["/api/groups", itinerary?.groupId, "members"],
     enabled: !!itinerary?.groupId,
   });
+
+  // Fetch invite info to check if it's tied to a specific member
+  const { data: inviteInfo, isLoading: inviteLoading } = useQuery<{ id: string | null; name: string; email: string | null; isOrganizer?: boolean }>({
+    queryKey: ["/api/members/verify-claim", inviteToken],
+    queryFn: async () => {
+      const response = await fetch(`/api/members/verify-claim/${inviteToken}`);
+      if (!response.ok) {
+        throw new Error("Invalid invite");
+      }
+      return response.json();
+    },
+    enabled: !!inviteToken,
+  });
+
+  // Auto-select member if invite is for a specific person
+  useEffect(() => {
+    if (inviteInfo?.id && !identityClaimed) {
+      // Personal invite - auto-select the member and lock the selection
+      setClaimedMemberId(inviteInfo.id);
+      setClaimedIdentity('member');
+      setInviteMemberLocked(true);
+      // Auto-continue to RSVP step
+      setIdentityClaimed(true);
+    }
+  }, [inviteInfo, identityClaimed]);
 
   // Fetch existing RSVP - only if identity is claimed
   const { data: existingRsvp } = useQuery<RsvpData>({
@@ -247,21 +277,22 @@ export default function RsvpItineraryPage() {
 
   const handleSubmitFeedback = () => {
     const feedback: any = {};
-    
-    if (tryDifferentDay) feedback.tryDifferentDay = true;
-    if (tryEarlier) feedback.tryEarlier = true;
-    if (tryLater) feedback.tryLater = true;
-    if (notThisWeek) feedback.notThisWeek = true;
-    if (unavailableDays.trim()) {
-      feedback.unavailableOn = unavailableDays.split(',').map(s => s.trim()).filter(Boolean);
+
+    // Include availability grid data
+    const hasAnyAvailability = Object.values(feedbackAvailability).some(
+      day => day.morning || day.afternoon || day.evening
+    );
+    if (hasAnyAvailability) {
+      feedback.availability = feedbackAvailability;
     }
+
     if (freeformFeedback.trim()) {
       feedback.freeformFeedback = freeformFeedback.trim();
     }
 
-    rsvpMutation.mutate({ 
-      response: selectedResponse!, 
-      feedback: Object.keys(feedback).length > 0 ? feedback : undefined 
+    rsvpMutation.mutate({
+      response: selectedResponse!,
+      feedback: Object.keys(feedback).length > 0 ? feedback : undefined
     });
   };
 
@@ -270,6 +301,10 @@ export default function RsvpItineraryPage() {
     if (claimedIdentity === 'guest') {
       return guestName;
     } else if (claimedMemberId) {
+      // Use inviteInfo name if available (more reliable for personal invites)
+      if (inviteMemberLocked && inviteInfo?.name) {
+        return inviteInfo.name;
+      }
       const member = groupMembers?.find(m => m.id === claimedMemberId);
       return member?.name || member?.email || 'Unknown';
     }
@@ -280,7 +315,7 @@ export default function RsvpItineraryPage() {
   const availableMembers = groupMembers?.filter(m => m.id !== claimedMemberId) || [];
 
   // Loading state
-  if (itineraryLoading || groupLoading || membersLoading) {
+  if (itineraryLoading || groupLoading || membersLoading || inviteLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -500,59 +535,18 @@ export default function RsvpItineraryPage() {
         {showFeedbackForm ? (
           <Card>
             <CardHeader>
-              <CardTitle>Help us reschedule</CardTitle>
+              <CardTitle>When works for you?</CardTitle>
               <CardDescription>
-                Let us know your constraints so we can find a better time
+                Tap the times you're available to help us find a better time
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-3">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="try-different-day"
-                    checked={tryDifferentDay}
-                    onCheckedChange={(checked) => setTryDifferentDay(checked as boolean)}
-                    data-testid="checkbox-try-different-day"
-                  />
-                  <Label htmlFor="try-different-day">Try a different day of the week</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="try-earlier"
-                    checked={tryEarlier}
-                    onCheckedChange={(checked) => setTryEarlier(checked as boolean)}
-                    data-testid="checkbox-try-earlier"
-                  />
-                  <Label htmlFor="try-earlier">Try an earlier time</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="try-later"
-                    checked={tryLater}
-                    onCheckedChange={(checked) => setTryLater(checked as boolean)}
-                    data-testid="checkbox-try-later"
-                  />
-                  <Label htmlFor="try-later">Try a later time</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="not-this-week"
-                    checked={notThisWeek}
-                    onCheckedChange={(checked) => setNotThisWeek(checked as boolean)}
-                    data-testid="checkbox-not-this-week"
-                  />
-                  <Label htmlFor="not-this-week">Not this week</Label>
-                </div>
-              </div>
-
+              {/* Availability Grid */}
               <div className="space-y-2">
-                <Label htmlFor="unavailable-days">Days I'm unavailable (optional)</Label>
-                <Input
-                  id="unavailable-days"
-                  placeholder="e.g., Monday, Thursday"
-                  value={unavailableDays}
-                  onChange={(e) => setUnavailableDays(e.target.value)}
-                  data-testid="input-unavailable-days"
+                <Label>Your availability</Label>
+                <AvailabilityGrid
+                  value={feedbackAvailability}
+                  onChange={setFeedbackAvailability}
                 />
               </div>
 
@@ -564,7 +558,7 @@ export default function RsvpItineraryPage() {
                   value={freeformFeedback}
                   onChange={(e) => setFreeformFeedback(e.target.value)}
                   data-testid="textarea-feedback"
-                  rows={3}
+                  rows={2}
                 />
               </div>
 

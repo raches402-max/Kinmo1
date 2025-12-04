@@ -57,14 +57,14 @@
 - [x] Open a group → Click "Invite"
 - [x] Enter name and email
 - [x] Submit → Member appears in members list (as pending)
-- [ ] Check: Invite email sent? (check spam folder) - email doesnt work yet (as expected - not set up yet)
+- [ x] Check: Invite email sent? (check spam folder) 
 
 ---
 
 ## 3. Event Creation
 
 ### Quick Create (AI-Powered)
-- [ ] Open a group with some Favorites
+- [x] Open a group with some Favorites
 - [ ] Click "Schedule Now" or equivalent
 - [ ] AI generates itinerary options
 - [ ] Options show venues with details
@@ -92,16 +92,16 @@
 ## 4. Venue Discovery & Swiping
 
 ### Discover Venues
-- [ ] Open a group → Go to swipe/discover section
-- [ ] Venue cards appear with photos
-- [ ] Swipe right (or click like) → Adds to Favorites
-- [ ] Swipe left (or click skip) → Moves to next card
+- [x] Open a group → Go to swipe/discover section
+- [ x] Venue cards appear with photos
+- [x] Swipe right (or click like) → Adds to Favorites
+- [ x] Swipe left (or click skip) → Moves to next card
 - [ ] After swiping several, check Favorites has new venues
 
 ### Venue Library/Favorites
-- [ ] Open group → Go to Favorites/Library tab
-- [ ] Shows venues that were liked
-- [ ] Can view venue details
+- [ x] Open group → Go to Favorites/Library tab
+- [x ] Shows venues that were liked
+- [ x] Can view venue details
 - [ ] Can remove venue from Favorites
 
 ### Search Venues
