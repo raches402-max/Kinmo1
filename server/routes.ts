@@ -15,7 +15,9 @@ import {
   requireCollectionOwnership,
   requireMemberAccess,
   requireAdmin,
-  getUserId
+  getUserId,
+  userOwnsGroup,
+  userIsMemberOfGroup
 } from "./authorization";
 import { validateItinerary } from "./itinerary-validation";
 import { sendMemberWelcome, type EmailRecipient, type MemberWelcomeData } from "./email-service";
@@ -866,11 +868,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = await getUserId(req);
 
       // Validate request body
-      const parseResult = safeParse(updateUserPreferencesSchema, req.body);
-      if (!parseResult.success) {
-        return res.status(400).json({ error: parseResult.error.errors[0]?.message || "Invalid request" });
-      }
-      const { budgetMin, budgetMax, activityPreferences, personalAvailability, emailNotifications } = parseResult.data;
+      const validatedData = safeParse(updateUserPreferencesSchema, req.body, res);
+      if (!validatedData) return;
+      const { budgetMin, budgetMax, activityPreferences, personalAvailability, emailNotifications } = validatedData;
       const updateData: any = {};
 
       if (budgetMin !== undefined) updateData.budgetMin = budgetMin;
@@ -902,7 +902,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { groupId } = req.params;
 
       // Verify user has access to this group
-      await requireGroupAccess(userId, groupId);
+      const hasAccess = await userOwnsGroup(userId, groupId) || await userIsMemberOfGroup(userId, groupId);
+      if (!hasAccess) {
+        return res.status(403).json({ message: "Access denied" });
+      }
 
       const preferences = await storage.getMemberGroupPreferences(userId, groupId);
       res.json(preferences || {
@@ -928,20 +931,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { groupId } = req.params;
 
       // Verify user has access to this group
-      await requireGroupAccess(userId, groupId);
+      const hasAccess = await userOwnsGroup(userId, groupId) || await userIsMemberOfGroup(userId, groupId);
+      if (!hasAccess) {
+        return res.status(403).json({ message: "Access denied" });
+      }
 
       // Validate request body
-      const parseResult = safeParse(updateMemberGroupPreferencesSchema, req.body);
-      if (!parseResult.success) {
-        return res.status(400).json({ error: parseResult.error.errors[0]?.message || "Invalid request" });
-      }
+      const validatedData = safeParse(updateMemberGroupPreferencesSchema, req.body, res);
+      if (!validatedData) return;
       const {
         budgetOverrideMin,
         budgetOverrideMax,
         categoryPreferencesOverride,
         availabilityOverride,
         meetingFrequencyOverride,
-      } = parseResult.data;
+      } = validatedData;
 
       const updateData: any = {};
       if (budgetOverrideMin !== undefined) updateData.budgetOverrideMin = budgetOverrideMin;
@@ -967,9 +971,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = await getUserId(req);
       const { memberId } = req.params;
 
-      // Verify user has access to this member profile
-      await requireMemberAccess(userId, memberId);
-
       // Get member's current constraints
       const member = await db.select()
         .from(membersTable)
@@ -978,6 +979,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (member.length === 0) {
         return res.status(404).json({ message: "Member not found" });
+      }
+
+      // Verify user has access to this member's group
+      const hasAccess = await userOwnsGroup(userId, member[0].groupId) || await userIsMemberOfGroup(userId, member[0].groupId);
+      if (!hasAccess) {
+        return res.status(403).json({ message: "Access denied" });
       }
 
       const currentConstraints = member[0].memberConstraints as any || {};
@@ -1081,14 +1088,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { memberId } = req.params;
 
       // Validate request body
-      const parseResult = safeParse(updateMemberConstraintsActionSchema, req.body);
-      if (!parseResult.success) {
-        return res.status(400).json({ error: parseResult.error.errors[0]?.message || "Invalid request" });
-      }
-      const { action, constraintType, data } = parseResult.data;
-
-      // Verify user has access to this member profile
-      await requireMemberAccess(userId, memberId);
+      const validatedData = safeParse(updateMemberConstraintsActionSchema, req.body, res);
+      if (!validatedData) return;
+      const { action, constraintType, data } = validatedData;
 
       // Get current member data
       const member = await db.select()
@@ -1098,6 +1100,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (member.length === 0) {
         return res.status(404).json({ message: "Member not found" });
+      }
+
+      // Verify user has access to this member's group
+      const hasAccess = await userOwnsGroup(userId, member[0].groupId) || await userIsMemberOfGroup(userId, member[0].groupId);
+      if (!hasAccess) {
+        return res.status(403).json({ message: "Access denied" });
       }
 
       const currentConstraints = member[0].memberConstraints as any || {};
@@ -1405,11 +1413,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = await getUserId(req);
 
       // Validate request body
-      const parseResult = safeParse(createCollectionSchema, req.body);
-      if (!parseResult.success) {
-        return res.status(400).json({ error: parseResult.error.errors[0]?.message || "Invalid request" });
-      }
-      const { name, orderIndex } = parseResult.data;
+      const validatedData = safeParse(createCollectionSchema, req.body, res);
+      if (!validatedData) return;
+      const { name, orderIndex } = validatedData;
 
       const collection = await storage.createGroupCollection(userId, { name, orderIndex });
       res.json(collection);
@@ -1426,11 +1432,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = await getUserId(req);
 
       // Validate request body
-      const parseResult = safeParse(updateCollectionSchema, req.body);
-      if (!parseResult.success) {
-        return res.status(400).json({ error: parseResult.error.errors[0]?.message || "Invalid request" });
-      }
-      const { name } = parseResult.data;
+      const validatedData = safeParse(updateCollectionSchema, req.body, res);
+      if (!validatedData) return;
+      const { name } = validatedData;
 
       // Verify ownership
       const collections = await storage.getUserGroupCollections(userId);
@@ -1472,11 +1476,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = await getUserId(req);
 
       // Validate request body
-      const parseResult = safeParse(reorderCollectionsSchema, req.body);
-      if (!parseResult.success) {
-        return res.status(400).json({ error: parseResult.error.errors[0]?.message || "Invalid request" });
-      }
-      const { collectionOrders } = parseResult.data;
+      const validatedData = safeParse(reorderCollectionsSchema, req.body, res);
+      if (!validatedData) return;
+      const { collectionOrders } = validatedData;
 
       // Verify all collections belong to this user
       const userCollections = await storage.getUserGroupCollections(userId);
@@ -2500,11 +2502,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Validate request body
-      const parseResult = safeParse(pauseAutomationSchema, req.body);
-      if (!parseResult.success) {
-        return res.status(400).json({ error: parseResult.error.errors[0]?.message || "Invalid pause parameters" });
-      }
-      const { pauseType, value } = parseResult.data;
+      const validatedData = safeParse(pauseAutomationSchema, req.body, res);
+      if (!validatedData) return;
+      const { pauseType, value } = validatedData;
 
       const updates: any = {
         automationPaused: true,
@@ -3345,7 +3345,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Verify user owns the group
-      const userId = getUserId(req);
+      const userId = await getUserId(req);
       const group = await storage.getGroup(activity.groupId);
 
       if (!group || group.userId !== userId) {
@@ -3370,7 +3370,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/groups/:groupId/swipe-sessions", isAuthenticated, async (req: any, res) => {
     try {
       const { groupId } = req.params;
-      const userId = getUserId(req);
+      const userId = await getUserId(req);
 
       // Verify user is a member or organizer
       const member = await storage.getGroupMemberByUserId(groupId, userId);
@@ -3409,7 +3409,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/groups/:groupId/swipe-sessions", isAuthenticated, async (req: any, res) => {
     try {
       const { groupId } = req.params;
-      const userId = getUserId(req);
+      const userId = await getUserId(req);
 
       // Verify user is a member
       const member = await storage.getGroupMemberByUserId(groupId, userId);
@@ -3432,7 +3432,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/swipe-sessions/:sessionId", isAuthenticated, async (req: any, res) => {
     try {
       const { sessionId } = req.params;
-      const userId = getUserId(req);
+      const userId = await getUserId(req);
 
       // Get session
       const { getSwipeSessionResult } = await import('./swipe-session-manager');
@@ -3469,7 +3469,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/swipe-sessions/:sessionId/complete", isAuthenticated, async (req: any, res) => {
     try {
       const { sessionId } = req.params;
-      const userId = getUserId(req);
+      const userId = await getUserId(req);
 
       // Get session to verify group membership
       const sessionData = await db
@@ -3508,7 +3508,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/groups/:groupId/activities/:activityId/swipe", isAuthenticated, async (req: any, res) => {
     try {
       const { groupId, activityId } = req.params;
-      const userId = getUserId(req);
+      const userId = await getUserId(req);
 
       // Validate request body
       const swipeSchema = z.object({
@@ -3606,7 +3606,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/groups/:groupId/favorites/:votingEventId/swipe", isAuthenticated, async (req: any, res) => {
     try {
       const { groupId, votingEventId } = req.params;
-      const userId = getUserId(req);
+      const userId = await getUserId(req);
 
       // Validate request body
       const swipeSchema = z.object({
@@ -3687,7 +3687,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/groups/:groupId/swipe-progress", isAuthenticated, async (req: any, res) => {
     try {
       const { groupId } = req.params;
-      const userId = getUserId(req);
+      const userId = await getUserId(req);
 
       // Verify user has access to this group
       const group = await storage.getGroup(groupId);
@@ -3715,7 +3715,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/groups/:groupId/swipe-triggers/status", isAuthenticated, async (req: any, res) => {
     try {
       const { groupId } = req.params;
-      const userId = getUserId(req);
+      const userId = await getUserId(req);
 
       // Verify user has access to this group
       const group = await storage.getGroup(groupId);
@@ -3743,7 +3743,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/groups/:groupId/swipe-triggers/manual", isAuthenticated, async (req: any, res) => {
     try {
       const { groupId } = req.params;
-      const userId = getUserId(req);
+      const userId = await getUserId(req);
 
       // Verify user is organizer
       const group = await storage.getGroup(groupId);
@@ -3795,7 +3795,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/groups/:groupId/swipe-triggers/weekly-digest", isAuthenticated, async (req: any, res) => {
     try {
       const { groupId } = req.params;
-      const userId = getUserId(req);
+      const userId = await getUserId(req);
 
       // Verify user is organizer
       const group = await storage.getGroup(groupId);
@@ -3927,7 +3927,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete member
   app.delete("/api/members/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = getUserId(req);
+      const userId = await getUserId(req);
       const member = await storage.getMember(req.params.id);
 
       if (!member) {
@@ -6017,11 +6017,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
 
       // Validate request body
-      const parseResult = safeParse(updateRsvpResponseSchema, req.body);
-      if (!parseResult.success) {
-        return res.status(400).json({ error: parseResult.error.errors[0]?.message || "Invalid response value" });
-      }
-      const { response } = parseResult.data;
+      const validatedData = safeParse(updateRsvpResponseSchema, req.body, res);
+      if (!validatedData) return;
+      const { response } = validatedData;
 
       // Get the RSVP
       const [existingRsvp] = await db
@@ -8449,7 +8447,7 @@ Looking forward to planning great activities together!
   app.post("/api/groups/:groupId/discover-venues", isAuthenticated, async (req: any, res) => {
     try {
       const { groupId } = req.params;
-      const userId = getUserId(req);
+      const userId = await getUserId(req);
 
       // Verify user has access to this group
       const group = await storage.getGroup(groupId);
@@ -12121,12 +12119,38 @@ Looking forward to planning great activities together!
 
   // ==================== Standalone Events ====================
 
-  // Get user's standalone events
+  // Get user's standalone events (with items and invitees for dashboard display)
   app.get("/api/standalone-events", isAuthenticated, async (req: any, res) => {
     try {
       const userId = await getUserId(req);
       const events = await storage.getUserStandaloneEvents(userId);
-      res.json(events);
+
+      // Fetch items and invitees for each event
+      const eventsWithDetails = await Promise.all(events.map(async (event) => {
+        const items = await db
+          .select()
+          .from(itineraryItems)
+          .where(eq(itineraryItems.itineraryId, event.id))
+          .orderBy(itineraryItems.orderIndex);
+
+        const invitees = await storage.getStandaloneEventInvitees(event.id);
+
+        return {
+          ...event,
+          items: items.map(item => ({
+            id: item.id,
+            venueName: item.venueName,
+            venueType: item.venueType,
+            venueAddress: item.venueAddress,
+            photoUrl: item.photoUrl,
+            rating: item.rating,
+            googlePlaceId: item.googlePlaceId,
+          })),
+          invitees,
+        };
+      }));
+
+      res.json(eventsWithDetails);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -12428,7 +12452,7 @@ Looking forward to planning great activities together!
   app.get("/api/groups/:groupId/confidence-weights", isAuthenticated, async (req: any, res) => {
     try {
       const { groupId } = req.params;
-      const userId = getUserId(req);
+      const userId = await getUserId(req);
 
       // Verify user is a member
       const member = await storage.getGroupMemberByUserId(groupId, userId);
@@ -12494,7 +12518,7 @@ Looking forward to planning great activities together!
   app.post("/api/groups/:groupId/calibrate", isAuthenticated, async (req: any, res) => {
     try {
       const { groupId } = req.params;
-      const userId = getUserId(req);
+      const userId = await getUserId(req);
 
       // Verify user is the group organizer
       const group = await storage.getGroup(groupId);

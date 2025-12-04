@@ -25,7 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { getErrorToast, ErrorDisplay } from "@/components/ErrorDisplay";
 import { LoadingState, SkeletonCard } from "@/components/LoadingState";
-import type { Group, User, UserProfile, GroupCollection } from "@shared/schema";
+import type { Group, User, UserProfile, GroupCollection, Itinerary, StandaloneEventInvitee } from "@shared/schema";
 import { useState, useEffect, useMemo } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import EventsTable from "@/components/EventsTable";
@@ -360,33 +360,83 @@ export default function Dashboard() {
     retryDelay: 1000,
   });
 
-  // Deduplicate events by itineraryId (client-side safety check)
+  // Fetch standalone events (events created outside of groups)
+  type StandaloneEventResponse = Itinerary & {
+    items: Array<{ id: string; venueName: string; venueType: string; venueAddress: string; photoUrl: string | null; rating: string | null; googlePlaceId: string | null; }>;
+    invitees: StandaloneEventInvitee[];
+  };
+  const { data: standaloneEvents = [], isLoading: standaloneEventsLoading, refetch: refetchStandaloneEvents } = useQuery<StandaloneEventResponse[]>({
+    queryKey: ["/api/standalone-events"],
+    enabled: !!user,
+    retry: 1,
+    retryDelay: 1000,
+  });
+
+  // Merge group events with standalone events
   const events = useMemo(() => {
     const seen = new Map<string, UserEvent>();
 
+    // Process group events
     for (const event of rawEvents) {
       if (event.itineraryId) {
-        // Only keep first occurrence of each itineraryId
         if (!seen.has(event.itineraryId)) {
           seen.set(event.itineraryId, event);
         }
       } else {
-        // Virtual events without itineraryId - always include
-        // Use inviteId as unique key for these
         if (!seen.has(event.inviteId)) {
           seen.set(event.inviteId, event);
         }
       }
     }
 
-    const deduplicated = Array.from(seen.values());
-
-    if (deduplicated.length < rawEvents.length) {
-      console.log(`[Dashboard] Removed ${rawEvents.length - deduplicated.length} duplicate events`);
+    // Convert standalone events to UserEvent format and add them
+    for (const standalone of standaloneEvents) {
+      if (!seen.has(standalone.id)) {
+        const standaloneAsUserEvent: UserEvent = {
+          inviteId: `standalone-${standalone.id}`,
+          inviteToken: '',
+          itineraryId: standalone.id,
+          itineraryName: standalone.name,
+          eventDate: standalone.eventDate,
+          status: standalone.status || 'draft',
+          inviteSentAt: null,
+          groupId: '',
+          groupName: 'Personal Event',
+          groupEmoji: '📅',
+          groupAccentColor: '#6366f1',
+          groupTimezone: null,
+          isOrganizer: true,
+          isVirtual: false,
+          meetingFrequency: undefined,
+          hostMemberId: null,
+          hostMemberName: null,
+          currentUserMemberId: null,
+          currentUserOpenToHosting: false,
+          members: [],
+          rsvp: null,
+          rsvpSummary: { yes: [], maybe: [], no: [] },
+          detailedRsvps: standalone.invitees?.map(inv => ({
+            name: inv.inviteeName || inv.inviteeEmail || 'Guest',
+            response: inv.rsvpStatus || 'pending',
+            additionalAttendees: [],
+            numberOfKids: 0,
+            isGuest: true,
+          })) || [],
+          items: standalone.items || [],
+          pendingGuestRsvps: [],
+        };
+        seen.set(standalone.id, standaloneAsUserEvent);
+      }
     }
 
-    return deduplicated;
-  }, [rawEvents]);
+    const merged = Array.from(seen.values());
+
+    if (merged.length !== rawEvents.length + standaloneEvents.length) {
+      console.log(`[Dashboard] Merged ${rawEvents.length} group events + ${standaloneEvents.length} standalone events = ${merged.length} total`);
+    }
+
+    return merged;
+  }, [rawEvents, standaloneEvents]);
 
   // Compute next event date for each group
   const nextEventByGroup = useMemo(() => {
