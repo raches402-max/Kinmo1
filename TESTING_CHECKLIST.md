@@ -139,17 +139,17 @@
 ## 6. Invite & RSVP Flow (as Guest)
 
 ### Send Invite
-- [ ] Open an event
-- [ ] Click "Send Invites" or similar
-- [ ] Confirm sending
-- [ ] "Invite sent" status appears on event
+- [ x] Open an event
+- [ x] Click "Send Invites" or similar
+- [ x] Confirm sending
+- [ x] "Invite sent" status appears on event
 
 ### Receive & Respond (use incognito or second browser)
-- [ ] Open invite link from email
-- [ ] Page shows event details without login required
-- [ ] Select RSVP response (Yes/Maybe/No)
-- [ ] Submit → Confirmation shown
-- [ ] Back on main account: RSVP appears on event
+- [ x] Open invite link from email
+- [x ] Page shows event details without login required
+- [ x] Select RSVP response (Yes/Maybe/No)
+- [ x] Submit → Confirmation shown
+- [ x] Back on main account: RSVP appears on event
 
 ---
 
@@ -164,16 +164,16 @@ Open Chrome DevTools → Toggle device mode → Select "iPhone 12 Pro" or simila
 - [ ] + button works on ALL pages (not just dashboard)
 
 ### Touch Interactions
-- [ ] Swipe cards respond to touch/drag
+- [x ] Swipe cards respond to touch/drag
 - [ ] Pull-to-refresh works on lists (if implemented)
-- [ ] Modals/dialogs fit on screen
-- [ ] Can scroll long content
+- [ x] Modals/dialogs fit on screen
+- [x ] Can scroll long content
 
 ### Responsive Layout
 - [ ] No horizontal scrolling
-- [ ] Text is readable (not too small)
+- [ x] Text is readable (not too small)
 - [ ] Buttons are tappable (adequate touch targets)
-- [ ] Forms are usable on mobile keyboard
+- [ x] Forms are usable on mobile keyboard
 
 ---
 
@@ -200,11 +200,11 @@ Open Chrome DevTools → Toggle device mode → Select "iPhone 12 Pro" or simila
 ## 9. Notifications
 
 - [ ] Perform an action that triggers notification (e.g., RSVP)
-- [ ] Bell icon shows unread count
-- [ ] Click bell → Notification panel opens
-- [ ] Shows recent notifications
-- [ ] Click notification → Marks as read
-- [ ] "Mark all read" works
+- [ x] Bell icon shows unread count
+- [ x] Click bell → Notification panel opens
+- [x ] Shows recent notifications
+- [ x] Click notification → Marks as read
+- [ x] "Mark all read" works
 
 ---
 
