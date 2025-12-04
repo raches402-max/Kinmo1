@@ -102,6 +102,7 @@ app.use(helmet({
     }
   },
   crossOriginEmbedderPolicy: app.get("env") === "development" ? false : undefined,
+  crossOriginResourcePolicy: false, // Allow static assets with crossorigin attribute
 }));
 
 // Security: CORS protection
