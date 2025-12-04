@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { KinmoIcon } from "@/components/KinmoLogo";
 import { useState, useEffect } from "react";
-import { useIsMobile } from "@/hooks/use-mobile";
 
 // Niche words organized by specificity - will be sprinkled in
 const nicheWords = {
@@ -49,7 +48,6 @@ function generateRotation(rotationIndex: number): string[] {
 }
 
 function RotatingHeadline() {
-  const isMobile = useIsMobile();
   const [rotationIndex, setRotationIndex] = useState(0);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -127,62 +125,41 @@ function RotatingHeadline() {
     return () => clearTimeout(timeout);
   }, [phase, rotationIndex]);
 
-  // Kinmo finale phase - centered, no stagger needed
+  // Kinmo finale phase - uses same stacked layout
   if (phase === "kinmo") {
     return (
-      <span className="animate-hero-finale-glow">
+      <span className="flex flex-col items-center gap-1 sm:gap-2 animate-hero-finale-glow">
+        <span className="self-start text-foreground">See your</span>
         <span className="text-primary font-medium">Kinmo</span>
+        <span className="self-end text-foreground invisible">more.</span>
       </span>
     );
   }
 
-  // "kin" phase - staggered on mobile
+  // "kin" phase - staggered diagonal layout (same for mobile and desktop)
   if (phase === "kin") {
-    if (isMobile) {
-      return (
-        <span className="flex flex-col items-start gap-0.5 animate-kin-reveal">
-          <span className="self-start">See your</span>
-          <span className="text-primary font-medium self-center">kin</span>
-          <span className="self-end">more.</span>
-        </span>
-      );
-    }
     return (
-      <span className="whitespace-nowrap animate-kin-reveal">
-        See your <span className="text-primary font-medium">kin</span> more.
+      <span className="flex flex-col items-center gap-1 sm:gap-2 animate-kin-reveal">
+        <span className="self-start text-foreground">See your</span>
+        <span className="text-primary font-medium">kin</span>
+        <span className="self-end text-foreground">more.</span>
       </span>
     );
   }
 
-  // Rotating phase - staggered on mobile
-  if (isMobile) {
-    return (
-      <span className="flex flex-col items-start gap-0.5">
-        <span className="self-start">See your</span>
-        <span
-          className={`self-center transition-all duration-300 text-primary font-medium ${
-            isAnimating ? "opacity-0 translate-y-2" : "opacity-100 translate-y-0"
-          }`}
-        >
-          {currentWords[currentIndex]}
-        </span>
-        <span className="self-end">more.</span>
-      </span>
-    );
-  }
-
-  // Desktop: single line
+  // Rotating phase - staggered diagonal layout (same for mobile and desktop)
+  // The rotating word has a fixed min-width so surrounding text stays put
   return (
-    <span className="whitespace-nowrap">
-      See your{" "}
+    <span className="flex flex-col items-center gap-1 sm:gap-2">
+      <span className="self-start text-foreground">See your</span>
       <span
-        className={`inline-block transition-all duration-300 text-primary font-medium ${
-          isAnimating ? "opacity-0 translate-y-3" : "opacity-100 translate-y-0"
+        className={`min-w-[180px] sm:min-w-[220px] md:min-w-[280px] text-center transition-all duration-300 text-primary font-medium ${
+          isAnimating ? "opacity-0 translate-y-2" : "opacity-100 translate-y-0"
         }`}
       >
         {currentWords[currentIndex]}
-      </span>{" "}
-      more.
+      </span>
+      <span className="self-end text-foreground">more.</span>
     </span>
   );
 }
