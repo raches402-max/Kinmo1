@@ -186,7 +186,16 @@ app.use((req, res, next) => {
   const mockupsPath = path.resolve(import.meta.dirname, "..", "client", "src", "components", "mockups");
   app.use("/mockups", express.static(mockupsPath));
 
-  // Sentry error handler - must be before other error handlers
+  // importantly only setup vite in development and after
+  // setting up all the other routes so the catch-all route
+  // doesn't interfere with the other routes
+  if (process.env.NODE_ENV === "development") {
+    await setupVite(app, server);
+  } else {
+    serveStatic(app);
+  }
+
+  // Sentry error handler - must be AFTER static file serving
   app.use(Sentry.expressErrorHandler());
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -200,15 +209,6 @@ app.use((req, res, next) => {
 
     res.status(status).json({ message });
   });
-
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
-    await setupVite(app, server);
-  } else {
-    serveStatic(app);
-  }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
   // For Replit: Backend uses 3000, Frontend (preview) uses 5000

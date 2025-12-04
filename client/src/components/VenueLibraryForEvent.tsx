@@ -414,7 +414,7 @@ export function VenueLibraryForEvent({
           reviewCount: place.user_ratings_total,
           priceLevel: place.price_level,
           photoUrl: place.photoUrl || (place.photos?.[0]?.photo_reference
-            ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${place.photos[0].photo_reference}&key=${process.env.VITE_GOOGLE_PLACES_API_KEY}`
+            ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${place.photos[0].photo_reference}&key=${import.meta.env.VITE_GOOGLE_PLACES_API_KEY}`
             : null),
           venueType: place.types?.[0]?.replace(/_/g, ' '),
           googleMapsUrl: `https://www.google.com/maps/place/?q=place_id:${place.place_id}`,
