@@ -184,10 +184,13 @@ export function MobileEventDetails({
     const result: EventAttendee[] = [];
 
     // For standalone events, use invitees instead of members
-    if (event.isStandalone && event.invitees && event.invitees.length > 0) {
-      event.invitees.forEach((invitee: any) => {
-        const baseName = invitee.inviteeName || invitee.inviteeEmail || "Guest";
-        const initials = baseName
+    if (event.isStandalone) {
+      // Add organizer first for standalone events
+      if (user && isOrganizer) {
+        const organizerName = user.firstName
+          ? `${user.firstName} ${user.lastName || ""}`.trim()
+          : user.email || "You";
+        const initials = organizerName
           .split(" ")
           .map((n: string) => n[0])
           .join("")
@@ -195,17 +198,42 @@ export function MobileEventDetails({
           .slice(0, 2);
 
         result.push({
-          id: invitee.id,
-          name: baseName,
-          email: invitee.inviteeEmail || undefined,
+          id: `organizer-${user.id}`,
+          name: `${organizerName} (You)`,
+          email: user.email,
           initials,
-          response: (invitee.rsvpStatus || "pending") as RsvpStatus,
+          response: (event.rsvp?.response || event.organizerRsvp || "pending") as RsvpStatus,
           isGuest: false,
-          isOrganizer: false,
-          isHost: false,
-          memberId: invitee.memberId,
+          isOrganizer: true,
+          isHost: true,
+          memberId: undefined,
         });
-      });
+      }
+
+      // Add invitees
+      if (event.invitees && event.invitees.length > 0) {
+        event.invitees.forEach((invitee: any) => {
+          const baseName = invitee.inviteeName || invitee.inviteeEmail || "Guest";
+          const initials = baseName
+            .split(" ")
+            .map((n: string) => n[0])
+            .join("")
+            .toUpperCase()
+            .slice(0, 2);
+
+          result.push({
+            id: invitee.id,
+            name: baseName,
+            email: invitee.inviteeEmail || undefined,
+            initials,
+            response: (invitee.rsvpStatus || "pending") as RsvpStatus,
+            isGuest: false,
+            isOrganizer: false,
+            isHost: false,
+            memberId: invitee.memberId,
+          });
+        });
+      }
       return result;
     }
 
