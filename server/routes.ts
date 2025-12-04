@@ -1618,6 +1618,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Fetch RSVP status and itinerary items for each invite
       const events = await Promise.all(verifiedInvites.map(async (invite) => {
+        try {
         // Get RSVP if it exists
         let rsvp = null;
         if (invite.isOrganizer) {
@@ -1824,6 +1825,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             travelNotes: item.travelNotes,
           })),
         };
+        } catch (error: any) {
+          console.error('[User Events] Error processing invite:', {
+            itineraryId: invite.itineraryId,
+            itineraryName: invite.itineraryName,
+            groupId: invite.groupId,
+            error: error.message,
+            stack: error.stack
+          });
+          throw error; // Re-throw to be caught by outer catch
+        }
       }));
 
       // Add draft and proposed itineraries (auto-created for scheduled groups, or manually created but not yet sent)
@@ -2229,6 +2240,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(deduplicatedEvents);
     } catch (error: any) {
       console.error('[User Events] Error:', error);
+      console.error('[User Events] Error stack:', error.stack);
+      console.error('[User Events] Error details:', {
+        message: error.message,
+        name: error.name,
+        userId: req.user?.id
+      });
       res.status(500).json({ message: error.message });
     }
   });
