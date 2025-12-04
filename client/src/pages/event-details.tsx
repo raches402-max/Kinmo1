@@ -80,7 +80,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { TimeSlotVoting } from "@/components/TimeSlotVoting";
-import { AddAdHocVenueDialog } from "@/components/AddAdHocVenueDialog";
 import { EditVenueDialog } from "@/components/EditVenueDialog";
 import { Header } from "@/components/Header";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
@@ -992,13 +991,14 @@ export default function EventDetailsPage() {
         />
 
         {/* Dialogs for mobile */}
-        <AddAdHocVenueDialog
+        <EditVenueDialog
           open={showAddVenueDialog}
           onOpenChange={setShowAddVenueDialog}
+          venue={null}
           itineraryId={event.itineraryId}
-          onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
-          }}
+          groupId={event.groupId || undefined}
+          itineraryItems={event.items || []}
+          mode="add"
         />
 
         {venueToEdit && (
@@ -2146,15 +2146,16 @@ export default function EventDetailsPage() {
         </Card>
       </div>
 
-      {/* Add Ad-hoc Venue Dialog */}
+      {/* Add Venue Dialog */}
       {event?.itineraryId && (
-        <AddAdHocVenueDialog
+        <EditVenueDialog
           open={showAddVenueDialog}
           onOpenChange={setShowAddVenueDialog}
+          venue={null}
           itineraryId={event.itineraryId}
-          onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ["/api/user/events", eventId] });
-          }}
+          groupId={event.groupId || undefined}
+          itineraryItems={event.items || []}
+          mode="add"
         />
       )}
 

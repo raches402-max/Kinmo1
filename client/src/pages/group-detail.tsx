@@ -73,7 +73,7 @@ import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { PlanningInsightBanner } from "@/components/PlanningInsightBanner";
 import { ProfileCompletionBanner } from "@/components/ProfileCompletionBanner";
 import { HelpTooltip } from "@/components/HelpTooltip";
-import { HomeTab, GroupDetailMobileNav, ActivitiesTab, SelectedVenuesCard, ItineraryCard, AddMoreStopsCard, TimeSelectionTabs, InlineSchedulingCard, SaveItineraryDialog, SendBackupDialog, InviteGuestDialog, AutoSchedulePreviewDialog, EditAvailabilityDialog, RsvpConstraintDialog, AddVenueDialog, EditGroupDialog, MembersSection, AIPreferenceLearning, ColorPaletteSelector, AutomationSettings, ActivityPreferencesAccordion, MyPreferencesTab } from "@/components/group-detail";
+import { HomeTab, GroupDetailMobileNav, ActivitiesTab, SelectedVenuesCard, ItineraryCard, AddMoreStopsCard, TimeSelectionTabs, InlineSchedulingCard, SaveItineraryDialog, SendBackupDialog, InviteGuestDialog, AutoSchedulePreviewDialog, EditAvailabilityDialog, RsvpConstraintDialog, AddVenueDialog, EditGroupDialog, MembersSection, AIPreferenceLearning, ColorPaletteSelector, AutomationSettings, ActivityPreferencesAccordion, MyPreferencesTab, BasicInfoAccordion } from "@/components/group-detail";
 import { useItineraryEditor } from "@/hooks/useItineraryEditor";
 import { useVenueSelection } from "@/hooks/useVenueSelection";
 import { useSchedulingFlow } from "@/hooks/useSchedulingFlow";
@@ -2899,256 +2899,23 @@ export default function GroupDetail() {
                   <Accordion type="multiple" defaultValue={[]} className="space-y-6">
 
                     {/* Section 1: Basic Info (Always visible by default) */}
-                    <AccordionItem value="basic-info" className="border rounded-lg">
-                      <Card className="border-0">
-                        <AccordionTrigger className="px-6 pt-6 pb-2 hover:no-underline">
-                          <div className="flex items-center gap-3 text-left">
-                            <div className="p-2 bg-primary/25 rounded-md">
-                              <Settings className="h-5 w-5 text-primary" />
-                            </div>
-                            <div className="flex-1">
-                              <CardTitle className="flex items-center gap-2 text-base">
-                                Basic Info
-                                <Badge variant="outline" className="text-xs font-normal">
-                                  For Everyone
-                                </Badge>
-                              </CardTitle>
-                              <CardDescription className="text-xs">
-                                {editGroupData.name} • ${editBudgetRange[0]}-${editBudgetRange[1]} • {formatMeetingFrequency(`${editFrequencyNumber}x ${editFrequencyUnit}`)}
-                              </CardDescription>
-                            </div>
-                          </div>
-                        </AccordionTrigger>
-                        <AccordionContent>
-                          <CardContent className="space-y-4 pt-2">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="edit-group-name">Group Name</Label>
-                      <Input
-                        id="edit-group-name"
-                        value={editGroupData.name}
-                        onChange={(e) => setEditGroupData({ ...editGroupData, name: e.target.value })}
-                        data-testid="input-edit-group-name"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="edit-location">Location Base</Label>
-                      <Input
-                        id="edit-location"
-                        value={editGroupData.locationBase}
-                        onChange={(e) => setEditGroupData({ ...editGroupData, locationBase: e.target.value })}
-                        data-testid="input-edit-location"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="inline-group-emoji">Group Icon</Label>
-                    <div className="flex items-center gap-3">
-                      <div className="text-5xl" data-testid="text-selected-emoji">{editGroupData.emoji || "🎉"}</div>
-                      <Popover open={emojiPickerOpen} onOpenChange={setEmojiPickerOpen} modal={true}>
-                        <PopoverTrigger asChild>
-                          <Button 
-                            type="button"
-                            variant="outline" 
-                            size="sm"
-                            data-testid="button-choose-emoji"
-                          >
-                            Choose emoji 🙂
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
-                          <div className="overflow-hidden rounded-lg">
-                            <EmojiPicker
-                              onEmojiClick={(emojiData) => {
-                                setEditGroupData({ ...editGroupData, emoji: emojiData.emoji });
-                                setEmojiPickerOpen(false);
-                              }}
-                              width={350}
-                              height={400}
-                            />
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                  </div>
-
-                  {/* Group Color Palette */}
-                  <ColorPaletteSelector
-                    value={editGroupData.accentColor || group?.accentColor || "#6B5B6E"}
-                    onChange={(color) => setEditGroupData({ ...editGroupData, accentColor: color })}
-                  />
-
-                  {/* Budget + Meeting Frequency - side by side on desktop */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-3">
-                      <Label>Budget Range (per person)</Label>
-                      <div className="space-y-3">
-                        <div className="relative">
-                          <Slider
-                            min={0}
-                            max={250}
-                            step={10}
-                            value={editBudgetRange}
-                            onValueChange={setEditBudgetRange}
-                            className="w-full"
-                            data-testid="slider-edit-budget"
-                          />
-                          {/* Member budget dots overlay */}
-                          {group && (group as any).memberBudgetStats && (
-                            <div className="absolute inset-0 pointer-events-none">
-                              {(() => {
-                                const stats = (group as any).memberBudgetStats;
-                                // Group budgets by value to show count on hover
-                                const budgetCounts = stats.budgets.reduce((acc: Record<number, number>, budget: number) => {
-                                  acc[budget] = (acc[budget] || 0) + 1;
-                                  return acc;
-                                }, {});
-                                const uniqueBudgets: number[] = Object.keys(budgetCounts).map(Number);
-                                const averagePosition = (stats.average / 250) * 100;
-                                
-                                return (
-                                  <>
-                                    {/* Show all member budget dots as small grey dots */}
-                                    {uniqueBudgets.map((budget) => {
-                                      const position = (budget / 250) * 100;
-                                      const count = budgetCounts[budget];
-                                      
-                                      return (
-                                        <Tooltip key={`member-${budget}`}>
-                                          <TooltipTrigger asChild>
-                                            <div
-                                              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 pointer-events-auto cursor-help"
-                                              style={{ left: `${position}%` }}
-                                              data-testid={`budget-dot-${budget}`}
-                                            >
-                                              <div className="w-2 h-2 rounded-full bg-muted-foreground/40" />
-                                            </div>
-                                          </TooltipTrigger>
-                                          <TooltipContent>
-                                            <p className="text-xs">
-                                              ${budget} ({count} {count === 1 ? 'member' : 'members'})
-                                            </p>
-                                          </TooltipContent>
-                                        </Tooltip>
-                                      );
-                                    })}
-                                    
-                                    {/* Show average as a larger, distinct dot */}
-                                    <Tooltip key="average">
-                                      <TooltipTrigger asChild>
-                                        <div
-                                          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 pointer-events-auto cursor-help"
-                                          style={{ left: `${averagePosition}%` }}
-                                          data-testid="budget-dot-average"
-                                        >
-                                          <div className="w-3 h-3 rounded-full bg-primary/60 ring-2 ring-primary/30" />
-                                        </div>
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        <p className="text-xs font-medium">
-                                          Group Avg: ${stats.average}
-                                        </p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  </>
-                                );
-                              })()}
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="font-medium" data-testid="text-edit-budget-min">
-                            {editBudgetRange[0] >= 200 ? "$200+" : `$${editBudgetRange[0]}`}
-                          </span>
-                          <span className="font-medium" data-testid="text-edit-budget-max">
-                            {editBudgetRange[1] >= 200 ? "$200+" : `$${editBudgetRange[1]}`}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>How Often to Meet</Label>
-                      <div className="flex items-center gap-2">
-                        <div className="w-20">
-                          <Input
-                            type="number"
-                            min={1}
-                            max={99}
-                            value={editFrequencyNumber}
-                            onChange={(e) => setEditFrequencyNumber(parseInt(e.target.value) || 1)}
-                            data-testid="input-edit-frequency-number"
-                          />
-                        </div>
-                        <span className="text-sm text-muted-foreground">x each</span>
-                        <Select value={editFrequencyUnit} onValueChange={setEditFrequencyUnit}>
-                          <SelectTrigger className="flex-1" data-testid="select-edit-frequency-unit">
-                            <SelectValue placeholder="Select unit" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="day">day</SelectItem>
-                            <SelectItem value="week">week</SelectItem>
-                            <SelectItem value="month">month</SelectItem>
-                            <SelectItem value="year">year</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="space-y-3">
-                    <Label>Group Availability</Label>
-                    {membersAvailabilityData && membersAvailabilityData.currentUserMemberId ? (
-                      <GroupAvailabilityHeatmap
-                        membersAvailability={membersAvailabilityData.membersAvailability.map(m => ({
-                          memberId: m.memberId,
-                          memberName: m.memberName,
-                          availability: m.availability || createEmptyAvailability(),
-                        }))}
-                        currentMemberId={membersAvailabilityData.currentUserMemberId}
-                        myAvailability={editAvailability as Record<string, {morning: boolean; afternoon: boolean; evening: boolean}>}
-                        onMyAvailabilityChange={(newAvailability) => {
-                          setEditAvailability(newAvailability);
-                        }}
-                        showMemberDetails={true}
-                        compact={true}
-                        mobileMode="compact-week"
-                      />
-                    ) : (
-                      <AvailabilityGrid
-                        value={editAvailability as Record<string, {morning: boolean; afternoon: boolean; evening: boolean}>}
-                        onChange={setEditAvailability}
-                      />
-                    )}
-                  </div>
-
-                  {/* Default Quorum Threshold */}
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Label>Default Quorum for Events</Label>
-                      <span className="text-sm font-semibold text-primary">{editGroupData.defaultQuorumThreshold}%</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Minimum percentage of members needed to confirm an event. New events will use this as the default.
-                    </p>
-                    <input
-                      type="range"
-                      min="10"
-                      max="100"
-                      step="5"
-                      value={editGroupData.defaultQuorumThreshold}
-                      onChange={(e) => setEditGroupData({ ...editGroupData, defaultQuorumThreshold: parseInt(e.target.value) })}
-                      className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
+                    <BasicInfoAccordion
+                      group={group}
+                      editGroupData={editGroupData}
+                      setEditGroupData={setEditGroupData}
+                      editBudgetRange={editBudgetRange}
+                      setEditBudgetRange={setEditBudgetRange}
+                      editFrequencyNumber={editFrequencyNumber}
+                      setEditFrequencyNumber={setEditFrequencyNumber}
+                      editFrequencyUnit={editFrequencyUnit}
+                      setEditFrequencyUnit={setEditFrequencyUnit}
+                      editAvailability={editAvailability as Record<string, {morning: boolean; afternoon: boolean; evening: boolean}>}
+                      setEditAvailability={setEditAvailability}
+                      membersAvailabilityData={membersAvailabilityData}
+                      emojiPickerOpen={emojiPickerOpen}
+                      setEmojiPickerOpen={setEmojiPickerOpen}
+                      formatMeetingFrequency={formatMeetingFrequency}
                     />
-                    <div className="flex justify-between text-2xs text-muted-foreground">
-                      <span>10%</span>
-                      <span>50%</span>
-                      <span>100%</span>
-                    </div>
-                  </div>
-                          </CardContent>
-                        </AccordionContent>
-                      </Card>
-                    </AccordionItem>
 
               {/* Section 2: Automation & Smart Features (Promoted to top, owner-only) */}
               {isOwner && (

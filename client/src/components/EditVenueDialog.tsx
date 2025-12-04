@@ -29,15 +29,19 @@ interface EditVenueDialogProps {
   itineraryId?: string;
   groupId?: string;
   itineraryItems?: ItineraryItem[];  // All items in the itinerary for "search near" feature
+  mode?: 'edit' | 'add';  // 'add' for adding new venues, 'edit' for editing existing
 }
 
-export function EditVenueDialog({ open, onOpenChange, venue, itineraryId, groupId, itineraryItems = [] }: EditVenueDialogProps) {
+export function EditVenueDialog({ open, onOpenChange, venue, itineraryId, groupId, itineraryItems = [], mode = 'edit' }: EditVenueDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
 
-  // Tab state - Library is default since users often want to swap to a known favorite
-  const [activeTab, setActiveTab] = useState("library");
+  // Determine if we have group context (affects which tabs are shown)
+  const hasGroupContext = !!groupId;
+
+  // Tab state - Library is default for group context, Find is default otherwise
+  const [activeTab, setActiveTab] = useState(hasGroupContext ? "library" : "find");
 
   // Collapsible states
   const [showUrlInput, setShowUrlInput] = useState(false);
@@ -95,6 +99,13 @@ export function EditVenueDialog({ open, onOpenChange, venue, itineraryId, groupI
       }
     }
   }, [open, venue?.id]);
+
+  // Reset active tab when dialog opens based on context
+  useEffect(() => {
+    if (open) {
+      setActiveTab(hasGroupContext ? "library" : "find");
+    }
+  }, [open, hasGroupContext]);
 
   // AI suggestions state
   const [aiSuggestions, setAiSuggestions] = useState<any[]>([]);
@@ -371,6 +382,63 @@ export function EditVenueDialog({ open, onOpenChange, venue, itineraryId, groupI
     },
   });
 
+  // Add venue mutation (for mode='add')
+  const addVenueMutation = useMutation({
+    mutationFn: async (data: {
+      name: string;
+      address?: string;
+      venueType?: string;
+      notes?: string;
+      googleMapsUrl?: string;
+      googlePlaceId?: string;
+      latitude?: string;
+      longitude?: string;
+      rating?: string;
+      photoUrl?: string;
+      arrivalTime?: string | null;
+      departureTime?: string | null;
+      travelNotes?: string;
+    }) => {
+      if (!itineraryId) throw new Error("No itinerary to add venue to");
+
+      const response = await fetch(`/api/itineraries/${itineraryId}/items/ad-hoc`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to add venue");
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      // Invalidate to refresh data
+      if (itineraryId) {
+        queryClient.invalidateQueries({ queryKey: ["/api/itineraries/:id", itineraryId] });
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
+
+      toast({
+        title: "Venue added!",
+        description: "The venue has been added to your event",
+      });
+
+      onOpenChange(false);
+      resetForm();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSearch = () => {
     if (searchQuery.trim()) {
       searchMutation.mutate(searchQuery);
@@ -488,7 +556,29 @@ export function EditVenueDialog({ open, onOpenChange, venue, itineraryId, groupI
       updateData.departureTime = departureTime || null;
     }
 
-    // Only update if there are actual changes
+    // For add mode, use addVenueMutation
+    if (mode === 'add') {
+      // Ensure we have a name for adding
+      const addData = {
+        name: updateData.venueName || venueName,
+        address: updateData.venueAddress || venueAddress || undefined,
+        venueType: updateData.venueType,
+        notes: updateData.notes || notes || undefined,
+        googleMapsUrl: updateData.googleMapsUrl || googleMapsUrl || undefined,
+        googlePlaceId: updateData.googlePlaceId,
+        latitude: updateData.latitude,
+        longitude: updateData.longitude,
+        rating: updateData.rating,
+        photoUrl: updateData.photoUrl,
+        arrivalTime: updateData.arrivalTime,
+        departureTime: updateData.departureTime,
+        travelNotes: updateData.travelNotes || travelNotes || undefined,
+      };
+      addVenueMutation.mutate(addData);
+      return;
+    }
+
+    // For edit mode, only update if there are actual changes
     if (Object.keys(updateData).length === 0) {
       toast({
         title: "No changes",
@@ -518,34 +608,40 @@ export function EditVenueDialog({ open, onOpenChange, venue, itineraryId, groupI
     >
       <DialogContent className={isMobile ? "max-h-[85vh] overflow-y-auto pb-2" : "sm:max-w-[650px] max-h-[90vh] overflow-y-auto"}>
         <DialogHeader>
-          <DialogTitle>Edit Venue</DialogTitle>
+          <DialogTitle>{mode === 'add' ? 'Add Venue' : 'Edit Venue'}</DialogTitle>
           <DialogDescription>
-            Update venue details, search for alternatives, or browse suggestions
+            {mode === 'add'
+              ? 'Search for a venue or enter details manually'
+              : 'Update venue details, search for alternatives, or browse suggestions'}
           </DialogDescription>
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="library">
-              <Library className="h-4 w-4 mr-1" />
-              Library
-            </TabsTrigger>
+          <TabsList className={`grid w-full ${hasGroupContext ? 'grid-cols-4' : 'grid-cols-2'}`}>
+            {hasGroupContext && (
+              <TabsTrigger value="library">
+                <Library className="h-4 w-4 mr-1" />
+                Library
+              </TabsTrigger>
+            )}
             <TabsTrigger value="find">
               <Search className="h-4 w-4 mr-1" />
               Find
             </TabsTrigger>
-            <TabsTrigger value="ai">
-              <Sparkles className="h-4 w-4 mr-1" />
-              AI
-            </TabsTrigger>
+            {hasGroupContext && (
+              <TabsTrigger value="ai">
+                <Sparkles className="h-4 w-4 mr-1" />
+                AI
+              </TabsTrigger>
+            )}
             <TabsTrigger value="details">
               <Edit className="h-4 w-4 mr-1" />
               Details
             </TabsTrigger>
           </TabsList>
 
-          {/* Library Tab (default) - Group's favorited venues */}
-          <TabsContent value="library" className="space-y-4 mt-4">
+          {/* Library Tab (default) - Group's favorited venues - only shown with group context */}
+          {hasGroupContext && <TabsContent value="library" className="space-y-4 mt-4">
             <div className="flex gap-2">
               <select
                 className="border rounded px-2 py-1 text-sm"
@@ -646,7 +742,7 @@ export function EditVenueDialog({ open, onOpenChange, venue, itineraryId, groupI
                 <p className="text-center text-muted-foreground py-8 text-sm">No favorites in this group yet</p>
               )}
             </div>
-          </TabsContent>
+          </TabsContent>}
 
           {/* Find Tab (Search + URL combined) */}
           <TabsContent value="find" className="space-y-4 mt-4">
@@ -749,8 +845,8 @@ export function EditVenueDialog({ open, onOpenChange, venue, itineraryId, groupI
             </div>
           </TabsContent>
 
-          {/* AI Suggestions Tab */}
-          <TabsContent value="ai" className="space-y-4 mt-4">
+          {/* AI Suggestions Tab - only shown with group context */}
+          {hasGroupContext && <TabsContent value="ai" className="space-y-4 mt-4">
             {aiSuggestionsMutation.isPending && (
               <div className="text-center py-8">
                 <Sparkles className="h-8 w-8 animate-pulse mx-auto mb-2" />
@@ -824,7 +920,7 @@ export function EditVenueDialog({ open, onOpenChange, venue, itineraryId, groupI
                 <p className="text-center text-muted-foreground py-8">No alternative suggestions available</p>
               )}
             </div>
-          </TabsContent>
+          </TabsContent>}
 
           {/* Details Tab (Manual edit with collapsible timing) */}
           <TabsContent value="details" className="space-y-4 mt-4">
@@ -910,17 +1006,19 @@ export function EditVenueDialog({ open, onOpenChange, venue, itineraryId, groupI
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
-            disabled={updateVenueMutation.isPending}
+            disabled={updateVenueMutation.isPending || addVenueMutation.isPending}
             className={isMobile ? "flex-1" : ""}
           >
             Cancel
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={updateVenueMutation.isPending}
+            disabled={updateVenueMutation.isPending || addVenueMutation.isPending}
             className={isMobile ? "flex-1" : ""}
           >
-            {updateVenueMutation.isPending ? "Saving..." : "Save Changes"}
+            {updateVenueMutation.isPending || addVenueMutation.isPending
+              ? (mode === 'add' ? "Adding..." : "Saving...")
+              : (mode === 'add' ? "Add Venue" : "Save Changes")}
           </Button>
         </DialogFooter>
       </DialogContent>

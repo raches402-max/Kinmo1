@@ -20,3 +20,4 @@ export { ColorPaletteSelector, COLOR_PALETTE } from './ColorPaletteSelector';
 export { AutomationSettings } from './AutomationSettings';
 export { ActivityPreferencesAccordion } from './ActivityPreferencesAccordion';
 export { MyPreferencesTab } from './MyPreferencesTab';
+export { BasicInfoAccordion } from './BasicInfoAccordion';
