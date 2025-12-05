@@ -47,6 +47,7 @@ const PrototypeEventDetailsMobile = lazy(() => import("@/pages/prototype-event-d
 const PrototypePlaces = lazy(() => import("@/pages/prototype-places"));
 const PrototypeAvailabilityGrid = lazy(() => import("@/pages/prototype-availability-grid"));
 const PrototypeTimelineInfo = lazy(() => import("@/pages/prototype-timeline-info"));
+const PrototypeKinmoText = lazy(() => import("@/pages/prototype-kinmo-text"));
 const BottomNavConcepts = lazy(() => import("@/components/BottomNavConcepts"));
 const Places = lazy(() => import("@/pages/places"));
 
@@ -142,6 +143,7 @@ function Router() {
                 <Route path="/prototype/places" component={PrototypePlaces} />
                 <Route path="/prototype/availability-grid" component={PrototypeAvailabilityGrid} />
                 <Route path="/prototype/timeline-info" component={PrototypeTimelineInfo} />
+                <Route path="/prototype/kinmo-text" component={PrototypeKinmoText} />
                 <Route path="/prototype/nav" component={BottomNavConcepts} />
                 <Route path="/privacy" component={Privacy} />
                 <Route path="/terms" component={Terms} />
