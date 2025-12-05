@@ -91,6 +91,7 @@ interface DesktopEventDetailsProps {
   onDeleteEvent: () => void;
   onAddVenue: () => void;
   onEditVenue: (venue: any) => void;
+  onDeleteVenue: (venue: any) => void;
   onReorderVenues: (newOrder: string[]) => void;
   // State
   isPending: {
@@ -114,11 +115,13 @@ function SortableVenueCard({
   idx,
   isOrganizer,
   onEdit,
+  onDelete,
 }: {
   venue: any;
   idx: number;
   isOrganizer: boolean;
   onEdit: (venue: any) => void;
+  onDelete: (venue: any) => void;
 }) {
   const {
     attributes,
@@ -179,16 +182,26 @@ function SortableVenueCard({
                 </div>
               </div>
 
-              {/* Edit Button */}
+              {/* Edit/Delete Actions */}
               {isOrganizer && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => onEdit(venue)}
-                  className="h-8 w-8 text-[hsl(25,15%,45%)] hover:text-[hsl(25,30%,14%)] hover:bg-[hsl(35,25%,90%)]"
-                >
-                  <Edit2 className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => onEdit(venue)}
+                    className="h-8 w-8 text-[hsl(25,15%,45%)] hover:text-[hsl(25,30%,14%)] hover:bg-[hsl(35,25%,90%)]"
+                  >
+                    <Edit2 className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => onDelete(venue)}
+                    className="h-8 w-8 text-[hsl(350,65%,50%)] hover:text-[hsl(350,65%,40%)] hover:bg-[hsl(350,50%,95%)]"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               )}
             </div>
 
@@ -237,6 +250,7 @@ export function DesktopEventDetails({
   onDeleteEvent,
   onAddVenue,
   onEditVenue,
+  onDeleteVenue,
   onReorderVenues,
   isPending,
   canVolunteerToHost,
@@ -548,6 +562,7 @@ export function DesktopEventDetails({
                           idx={idx}
                           isOrganizer={isOrganizer}
                           onEdit={onEditVenue}
+                          onDelete={onDeleteVenue}
                         />
                       ))}
                     </SortableContext>

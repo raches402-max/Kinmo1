@@ -1302,6 +1302,21 @@ export default function EventDetailsPage() {
           setVenueToEdit(venue);
           setShowEditVenueDialog(true);
         }}
+        onDeleteVenue={async (venue) => {
+          if (confirm(`Remove "${venue.venueName}" from itinerary?`)) {
+            try {
+              const response = await fetch(`/api/itinerary-items/${venue.id}`, {
+                method: "DELETE",
+                credentials: "include",
+              });
+              if (!response.ok) throw new Error("Failed to delete");
+              queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
+              toast({ title: "Removed", description: `${venue.venueName} has been removed` });
+            } catch {
+              toast({ title: "Error", description: "Failed to remove venue", variant: "destructive" });
+            }
+          }
+        }}
         onReorderVenues={(newOrder) => reorderVenuesMutation.mutate(newOrder)}
         isPending={{
           organizerRsvp: organizerRsvpMutation.isPending,
