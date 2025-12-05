@@ -134,12 +134,12 @@ function RotatingHeadline() {
   // fadeToKinmo phase - fade out entire phrase
   if (phase === "fadeToKinmo") {
     return (
-      <span className="flex flex-col items-center gap-1 sm:gap-2 animate-fade-out-phrase">
-        <span className="self-start text-foreground">See your</span>
-        <span className="min-w-[180px] sm:min-w-[220px] md:min-w-[280px] text-center text-primary font-medium">
+      <span className="relative block w-[280px] sm:w-[340px] md:w-[420px] lg:w-[500px] h-[90px] sm:h-[110px] md:h-[130px] lg:h-[150px] animate-fade-out-phrase">
+        <span className="absolute top-0 left-0 text-foreground">See your</span>
+        <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-primary font-medium whitespace-nowrap">
           kin
         </span>
-        <span className="self-end text-foreground">more.</span>
+        <span className="absolute bottom-0 right-0 text-foreground">more.</span>
       </span>
     );
   }
@@ -165,29 +165,29 @@ function RotatingHeadline() {
   // fadeIn phase - fade in the full phrase to restart
   if (phase === "fadeIn") {
     return (
-      <span className="flex flex-col items-center gap-1 sm:gap-2 animate-fade-in-phrase">
-        <span className="self-start text-foreground">See your</span>
-        <span className="min-w-[180px] sm:min-w-[220px] md:min-w-[280px] text-center text-primary font-medium">
+      <span className="relative block w-[280px] sm:w-[340px] md:w-[420px] lg:w-[500px] h-[90px] sm:h-[110px] md:h-[130px] lg:h-[150px] animate-fade-in-phrase">
+        <span className="absolute top-0 left-0 text-foreground">See your</span>
+        <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-primary font-medium whitespace-nowrap">
           {currentWords[0]}
         </span>
-        <span className="self-end text-foreground">more.</span>
+        <span className="absolute bottom-0 right-0 text-foreground">more.</span>
       </span>
     );
   }
 
-  // Rotating phase - staggered diagonal layout (same for mobile and desktop)
-  // The rotating word has a fixed min-width so surrounding text stays put
+  // Rotating phase - fixed diagonal layout with absolute positioning
+  // "See your" top-left, rotating word centered, "more." bottom-right
   return (
-    <span className="flex flex-col items-center gap-1 sm:gap-2">
-      <span className="self-start text-foreground">See your</span>
+    <span className="relative block w-[280px] sm:w-[340px] md:w-[420px] lg:w-[500px] h-[90px] sm:h-[110px] md:h-[130px] lg:h-[150px]">
+      <span className="absolute top-0 left-0 text-foreground">See your</span>
       <span
-        className={`min-w-[180px] sm:min-w-[220px] md:min-w-[280px] text-center transition-all duration-300 text-primary font-medium ${
+        className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-all duration-300 text-primary font-medium whitespace-nowrap ${
           isAnimating ? "opacity-0 translate-y-2" : "opacity-100 translate-y-0"
         }`}
       >
         {currentWords[currentIndex]}
       </span>
-      <span className="self-end text-foreground">more.</span>
+      <span className="absolute bottom-0 right-0 text-foreground">more.</span>
     </span>
   );
 }
@@ -237,7 +237,7 @@ export default function Landing() {
 
           <p className="text-sm tracking-wide uppercase text-muted-foreground mb-3">Using AI to help you</p>
           {/* Fixed height container to prevent layout shift when "Kinmo" displays */}
-          <div className="min-h-[140px] sm:min-h-[170px] md:min-h-[200px] lg:min-h-[240px] flex items-center justify-center mb-8 sm:mb-12">
+          <div className="min-h-[90px] sm:min-h-[110px] md:min-h-[130px] lg:min-h-[150px] flex items-center justify-center mb-8 sm:mb-12">
             <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.15]">
               <RotatingHeadline />
             </h1>
