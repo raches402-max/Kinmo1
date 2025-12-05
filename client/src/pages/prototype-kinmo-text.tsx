@@ -54,7 +54,7 @@ const kinmoOptions = [
     className: "font-bold",
     style: {
       color: "#F2C94C",
-      textShadow: "0 2px 8px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3)"
+      textShadow: "0 2px 8px rgba(0, 0, 0, 0.2), 0 1px 2px rgba(0, 0, 0, 0.15)"
     },
   },
   {
@@ -63,8 +63,8 @@ const kinmoOptions = [
     description: "Bold + golden glow behind text",
     className: "font-bold",
     style: {
-      color: "#F2C94C",
-      textShadow: "0 0 20px rgba(242, 201, 76, 0.6), 0 0 40px rgba(242, 201, 76, 0.3)"
+      color: "#E5A91A",
+      textShadow: "0 0 20px rgba(229, 169, 26, 0.4), 0 0 40px rgba(229, 169, 26, 0.2)"
     },
   },
   {
@@ -74,7 +74,7 @@ const kinmoOptions = [
     className: "font-bold",
     style: {
       color: "#FFB800",
-      textShadow: "0 0 24px rgba(255, 184, 0, 0.5), 0 0 48px rgba(255, 184, 0, 0.25)"
+      textShadow: "0 0 24px rgba(255, 184, 0, 0.4), 0 0 48px rgba(255, 184, 0, 0.2)"
     },
   },
   {
@@ -104,13 +104,13 @@ export default function PrototypeKinmoText() {
   const [selected, setSelected] = useState<string | null>(null);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f]">
+    <div className="min-h-screen bg-[#fafafa]">
       {/* Custom styles for special effects */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
         .kinmo-outline-dark {
-          -webkit-text-stroke: 1px rgba(0, 0, 0, 0.3);
+          -webkit-text-stroke: 1px rgba(0, 0, 0, 0.25);
           paint-order: stroke fill;
         }
 
@@ -134,34 +134,34 @@ export default function PrototypeKinmoText() {
 
         .option-card:hover {
           transform: translateY(-2px);
-          box-shadow: 0 8px 32px rgba(242, 201, 76, 0.15);
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
         }
 
         .option-card.selected {
-          box-shadow: 0 0 0 2px #F2C94C, 0 8px 32px rgba(242, 201, 76, 0.2);
+          box-shadow: 0 0 0 2px #E5A91A, 0 8px 32px rgba(0, 0, 0, 0.1);
         }
       `}</style>
 
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-[#0a0a0f]/90 backdrop-blur-sm border-b border-white/10">
+      <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-sm border-b border-black/5">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/">
-            <Button variant="ghost" size="sm" className="text-white/70 hover:text-white hover:bg-white/10">
+            <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-900 hover:bg-black/5">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Landing
             </Button>
           </Link>
-          <div className="flex items-center gap-2 text-white/50 text-sm">
-            <Sparkles className="w-4 h-4 text-[#F2C94C]" />
+          <div className="flex items-center gap-2 text-gray-500 text-sm">
+            <Sparkles className="w-4 h-4 text-[#E5A91A]" />
             <span>Kinmo Text Preview</span>
           </div>
         </div>
       </header>
 
       {/* Hero section showing selected option large */}
-      <section className="py-16 px-4 border-b border-white/5">
+      <section className="py-16 px-4 border-b border-black/5">
         <div className="max-w-4xl mx-auto text-center">
-          <p className="text-white/40 text-sm uppercase tracking-widest mb-8">Preview at Full Size</p>
+          <p className="text-gray-400 text-sm uppercase tracking-widest mb-8">Preview at Full Size</p>
           <div className="min-h-[120px] flex items-center justify-center">
             {selected ? (
               <h1
@@ -173,12 +173,12 @@ export default function PrototypeKinmoText() {
             ) : (
               <h1 className="text-6xl sm:text-7xl md:text-8xl font-['Plus_Jakarta_Sans'] text-[#F2C94C] font-medium">
                 Kinmo
-                <span className="block text-lg text-white/30 font-normal mt-4">Click an option below to preview</span>
+                <span className="block text-lg text-gray-400 font-normal mt-4">Click an option below to preview</span>
               </h1>
             )}
           </div>
           {selected && (
-            <p className="text-white/50 mt-6">
+            <p className="text-gray-500 mt-6">
               {kinmoOptions.find(o => o.id === selected)?.name}: {kinmoOptions.find(o => o.id === selected)?.description}
             </p>
           )}
@@ -188,21 +188,21 @@ export default function PrototypeKinmoText() {
       {/* Options Grid */}
       <section className="py-12 px-4">
         <div className="max-w-6xl mx-auto">
-          <h2 className="text-white/60 text-sm uppercase tracking-widest mb-8 text-center">Select a Style Option</h2>
+          <h2 className="text-gray-400 text-sm uppercase tracking-widest mb-8 text-center">Select a Style Option</h2>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {kinmoOptions.map((option) => (
               <button
                 key={option.id}
                 onClick={() => setSelected(option.id)}
-                className={`option-card relative p-6 rounded-xl bg-white/5 border border-white/10 text-left group ${
+                className={`option-card relative p-6 rounded-xl bg-white border border-black/10 text-left group ${
                   selected === option.id ? 'selected' : ''
                 }`}
               >
                 {/* Selection indicator */}
                 {selected === option.id && (
-                  <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-[#F2C94C] flex items-center justify-center">
-                    <Check className="w-4 h-4 text-black" />
+                  <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-[#E5A91A] flex items-center justify-center">
+                    <Check className="w-4 h-4 text-white" />
                   </div>
                 )}
 
@@ -217,9 +217,9 @@ export default function PrototypeKinmoText() {
                 </div>
 
                 {/* Label */}
-                <div className="border-t border-white/10 pt-3">
-                  <h3 className="text-white font-medium text-sm">{option.name}</h3>
-                  <p className="text-white/40 text-xs mt-1 line-clamp-2">{option.description}</p>
+                <div className="border-t border-black/5 pt-3">
+                  <h3 className="text-gray-800 font-medium text-sm">{option.name}</h3>
+                  <p className="text-gray-400 text-xs mt-1 line-clamp-2">{option.description}</p>
                 </div>
               </button>
             ))}
@@ -227,59 +227,12 @@ export default function PrototypeKinmoText() {
         </div>
       </section>
 
-      {/* Comparison section - dark vs light backgrounds */}
-      <section className="py-12 px-4 border-t border-white/5">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-white/60 text-sm uppercase tracking-widest mb-8 text-center">Background Comparison</h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Dark background */}
-            <div className="rounded-2xl bg-[#0f0f14] p-8 border border-white/10">
-              <p className="text-white/40 text-xs uppercase tracking-wider mb-4">Dark Background</p>
-              <div className="flex items-center justify-center h-24">
-                {selected ? (
-                  <span
-                    className={`text-4xl font-['Plus_Jakarta_Sans'] ${kinmoOptions.find(o => o.id === selected)?.className}`}
-                    style={kinmoOptions.find(o => o.id === selected)?.style}
-                  >
-                    Kinmo
-                  </span>
-                ) : (
-                  <span className="text-4xl font-['Plus_Jakarta_Sans'] text-[#F2C94C] font-medium">
-                    Kinmo
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Light background */}
-            <div className="rounded-2xl bg-[#fafafa] p-8 border border-black/10">
-              <p className="text-black/40 text-xs uppercase tracking-wider mb-4">Light Background</p>
-              <div className="flex items-center justify-center h-24">
-                {selected ? (
-                  <span
-                    className={`text-4xl font-['Plus_Jakarta_Sans'] ${kinmoOptions.find(o => o.id === selected)?.className}`}
-                    style={kinmoOptions.find(o => o.id === selected)?.style}
-                  >
-                    Kinmo
-                  </span>
-                ) : (
-                  <span className="text-4xl font-['Plus_Jakarta_Sans'] text-[#F2C94C] font-medium">
-                    Kinmo
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* In-context preview */}
-      <section className="py-12 px-4 border-t border-white/5">
+      <section className="py-12 px-4 border-t border-black/5">
         <div className="max-w-4xl mx-auto">
-          <h2 className="text-white/60 text-sm uppercase tracking-widest mb-8 text-center">In Animation Context</h2>
+          <h2 className="text-gray-400 text-sm uppercase tracking-widest mb-8 text-center">In Animation Context</h2>
 
-          <div className="rounded-2xl bg-gradient-to-b from-[#fafafa] to-[#f0f0f0] p-8 md:p-12">
+          <div className="rounded-2xl bg-white p-8 md:p-12 border border-black/5 shadow-sm">
             <div className="text-center space-y-6">
               {/* Simulated "See your kin more" faded state */}
               <p className="text-3xl md:text-4xl font-['Plus_Jakarta_Sans'] text-gray-300">
@@ -287,7 +240,7 @@ export default function PrototypeKinmoText() {
               </p>
 
               {/* Arrow */}
-              <div className="text-gray-400 text-2xl">↓</div>
+              <div className="text-gray-300 text-2xl">↓</div>
 
               {/* Kinmo appears */}
               <div className="py-4">
@@ -311,16 +264,16 @@ export default function PrototypeKinmoText() {
 
       {/* Footer with selection summary */}
       {selected && (
-        <section className="sticky bottom-0 py-4 px-4 bg-[#0a0a0f]/95 backdrop-blur-sm border-t border-white/10">
+        <section className="sticky bottom-0 py-4 px-4 bg-white/95 backdrop-blur-sm border-t border-black/5">
           <div className="max-w-4xl mx-auto flex items-center justify-between">
             <div>
-              <p className="text-white font-medium">{kinmoOptions.find(o => o.id === selected)?.name}</p>
-              <p className="text-white/50 text-sm">{kinmoOptions.find(o => o.id === selected)?.description}</p>
+              <p className="text-gray-800 font-medium">{kinmoOptions.find(o => o.id === selected)?.name}</p>
+              <p className="text-gray-500 text-sm">{kinmoOptions.find(o => o.id === selected)?.description}</p>
             </div>
             <Button
               onClick={() => setSelected(null)}
               variant="ghost"
-              className="text-white/50 hover:text-white"
+              className="text-gray-500 hover:text-gray-800"
             >
               Clear
             </Button>
