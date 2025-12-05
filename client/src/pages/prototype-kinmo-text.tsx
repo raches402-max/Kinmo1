@@ -191,6 +191,204 @@ function MiniPreview({ gradient, startColor, endColor }: { gradient: string; sta
 
 // Live animated preview with full rotation animation
 type AnimationPhase = "rotating" | "fadeToKinmo" | "kinmo" | "fadeOut" | "fadeIn";
+type TextColorApproach = "hero-pop" | "unified-bright" | "gradient-text";
+
+// Compact animated preview for side-by-side comparison
+function CompactAnimatedPreview({
+  gradient,
+  startColor,
+  endColor,
+  textApproach,
+  label,
+  description
+}: {
+  gradient: string;
+  startColor: string;
+  endColor: string;
+  textApproach: TextColorApproach;
+  label: string;
+  description: string;
+}) {
+  const gradientId = `compact-sun-${textApproach}-${startColor.replace('#', '')}`;
+  const words = ["friends", "family", "loved ones", "crew"];
+
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [phase, setPhase] = useState<AnimationPhase>("rotating");
+  const [cycleCount, setCycleCount] = useState(0);
+
+  // Get text style based on approach
+  const getTextStyle = () => {
+    switch (textApproach) {
+      case "hero-pop":
+        return { color: '#FFB800' };
+      case "unified-bright":
+        return { color: '#F8BE30' };
+      case "gradient-text":
+        return {
+          backgroundImage: gradient,
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          backgroundClip: 'text'
+        } as React.CSSProperties;
+    }
+  };
+
+  // Animation timing
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+
+    if (phase === "rotating") {
+      timer = setInterval(() => {
+        setIsAnimating(true);
+        setTimeout(() => {
+          setCurrentIndex((prev) => {
+            const nextIndex = (prev + 1) % words.length;
+            if (nextIndex === 0) {
+              setCycleCount(c => c + 1);
+            }
+            return nextIndex;
+          });
+          setIsAnimating(false);
+        }, 300);
+      }, 1800); // Slightly faster for compact view
+    }
+
+    return () => clearInterval(timer);
+  }, [phase, words.length]);
+
+  // After one cycle, fade to "kin" then "Kinmo"
+  useEffect(() => {
+    if (cycleCount > 0 && phase === "rotating") {
+      setPhase("fadeToKinmo");
+
+      const kinTimer = setTimeout(() => setPhase("kinmo"), 500);
+      const holdTimer = setTimeout(() => setPhase("fadeOut"), 2500);
+      const restartTimer = setTimeout(() => {
+        setPhase("fadeIn");
+        setCurrentIndex(0);
+      }, 2900);
+      const finalTimer = setTimeout(() => {
+        setPhase("rotating");
+        setCycleCount(0);
+      }, 3200);
+
+      return () => {
+        clearTimeout(kinTimer);
+        clearTimeout(holdTimer);
+        clearTimeout(restartTimer);
+        clearTimeout(finalTimer);
+      };
+    }
+  }, [cycleCount, phase]);
+
+  return (
+    <div className="bg-background rounded-xl border-2 border-border overflow-hidden">
+      {/* Label header */}
+      <div className="px-3 py-2 border-b border-border/50 bg-muted/30">
+        <p className="font-semibold text-sm text-center">{label}</p>
+        <p className="text-[10px] text-muted-foreground text-center">{description}</p>
+      </div>
+
+      {/* Animated preview */}
+      <div className="px-4 py-6 text-center">
+        {/* Gradient sun */}
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none" className="mx-auto mb-4 animate-slow-spin">
+          <defs>
+            <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor={startColor} />
+              <stop offset="100%" stopColor={endColor} />
+            </linearGradient>
+          </defs>
+          <circle cx="24" cy="24" r="14" fill={`url(#${gradientId})`} />
+          <path d="M19 5 A4 4 0 0 1 29 5 L24 5 Z" fill={`url(#${gradientId})`} />
+          <path d="M38 10 A4 4 0 0 1 43 19 L40 14 Z" fill={`url(#${gradientId})`} />
+          <path d="M43 29 A4 4 0 0 1 38 38 L40 34 Z" fill={`url(#${gradientId})`} />
+          <path d="M29 43 A4 4 0 0 1 19 43 L24 43 Z" fill={`url(#${gradientId})`} />
+          <path d="M10 38 A4 4 0 0 1 5 29 L8 34 Z" fill={`url(#${gradientId})`} />
+          <path d="M5 19 A4 4 0 0 1 10 10 L8 14 Z" fill={`url(#${gradientId})`} />
+        </svg>
+
+        {/* Animated headline */}
+        <div className="relative h-10 flex items-center justify-center">
+          <p className="text-base font-bold text-foreground">
+            See your{" "}
+            <span className="relative inline-block w-[90px] h-[1.2em] align-bottom">
+              {phase === "fadeToKinmo" && (
+                <span
+                  className="absolute top-[38%] left-1/2 -translate-x-1/2 font-bold whitespace-nowrap animate-pulse"
+                  style={getTextStyle()}
+                >
+                  kin
+                </span>
+              )}
+
+              {phase === "kinmo" && (
+                <span
+                  className="absolute top-[38%] left-1/2 -translate-x-1/2 font-bold whitespace-nowrap"
+                  style={getTextStyle()}
+                >
+                  Kinmo
+                </span>
+              )}
+
+              {phase === "fadeOut" && (
+                <span
+                  className="absolute top-[38%] left-1/2 -translate-x-1/2 font-bold whitespace-nowrap opacity-0 transition-opacity duration-300"
+                  style={getTextStyle()}
+                >
+                  Kinmo
+                </span>
+              )}
+
+              {phase === "fadeIn" && (
+                <span
+                  className="absolute top-[38%] left-1/2 -translate-x-1/2 font-bold whitespace-nowrap opacity-0 transition-opacity duration-300"
+                  style={getTextStyle()}
+                >
+                  {words[0]}
+                </span>
+              )}
+
+              {phase === "rotating" && (
+                <span
+                  className={`absolute top-[38%] left-1/2 -translate-x-1/2 transition-opacity duration-300 font-bold whitespace-nowrap ${
+                    isAnimating ? "opacity-0" : "opacity-100"
+                  }`}
+                  style={getTextStyle()}
+                >
+                  {words[currentIndex]}
+                </span>
+              )}
+            </span>{" "}
+            more.
+          </p>
+        </div>
+
+        {/* CTA button */}
+        <button
+          className="mt-4 px-4 py-1.5 rounded-lg text-xs font-semibold text-black"
+          style={{ background: gradient }}
+        >
+          Get Started →
+        </button>
+      </div>
+
+      {/* Color indicator */}
+      <div className="px-3 py-2 border-t border-border/50 bg-muted/20">
+        <div className="flex items-center justify-center gap-2">
+          <div
+            className="w-4 h-4 rounded-full border border-black/10"
+            style={{ background: textApproach === "gradient-text" ? gradient : (textApproach === "hero-pop" ? "#FFB800" : "#F8BE30") }}
+          />
+          <code className="text-[10px] text-muted-foreground">
+            {textApproach === "hero-pop" ? "#FFB800" : textApproach === "unified-bright" ? "#F8BE30" : "gradient"}
+          </code>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function LiveAnimatedPreview({ gradient, startColor, endColor }: { gradient: string; startColor: string; endColor: string }) {
   const gradientId = `live-sun-${startColor.replace('#', '')}`;
@@ -503,20 +701,49 @@ export default function PrototypeKinmoText() {
         </div>
       </section>
 
-      {/* LIVE ANIMATED PREVIEW - Main feature */}
+      {/* TEXT COLOR COMPARISON - Three approaches side by side */}
       <section className="py-8 px-4 bg-gradient-to-b from-white to-gray-50 border-b border-black/5">
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           <h2 className="text-sm uppercase tracking-widest text-gray-400 mb-2 text-center">
-            Live Preview
+            Text Color Approaches
           </h2>
           <p className="text-center text-gray-500 text-sm mb-6">
-            Watch the full rotation animation with the gradient sun (using your selected gradient)
+            Compare three ways to style the rotating text with the Ultra Subtle gradient sun
           </p>
-          <LiveAnimatedPreview
-            gradient={selectedOption.gradient}
-            startColor={selectedOption.startColor}
-            endColor={selectedOption.endColor}
-          />
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <CompactAnimatedPreview
+              gradient={selectedOption.gradient}
+              startColor={selectedOption.startColor}
+              endColor={selectedOption.endColor}
+              textApproach="hero-pop"
+              label="Hero Pop"
+              description="Brightest gold for max impact"
+            />
+            <CompactAnimatedPreview
+              gradient={selectedOption.gradient}
+              startColor={selectedOption.startColor}
+              endColor={selectedOption.endColor}
+              textApproach="unified-bright"
+              label="Unified Bright"
+              description="Matches gradient's bright end"
+            />
+            <CompactAnimatedPreview
+              gradient={selectedOption.gradient}
+              startColor={selectedOption.startColor}
+              endColor={selectedOption.endColor}
+              textApproach="gradient-text"
+              label="Gradient Text"
+              description="Full gradient on text"
+            />
+          </div>
+
+          {/* Quick recommendation */}
+          <div className="mt-6 p-4 bg-green-50 rounded-xl border border-green-200 max-w-2xl mx-auto">
+            <p className="text-sm text-green-800">
+              <strong>Recommendation:</strong> Hero Pop (#FFB800) gives the text the prominence it needs while letting the subtle gradient sun support without competing.
+            </p>
+          </div>
         </div>
       </section>
 
