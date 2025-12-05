@@ -1364,6 +1364,39 @@ function RefinedEventsSection({
   );
 }
 
+function RefinedHeroActions() {
+  return (
+    <div className="flex items-center justify-between gap-4 p-4 mb-6 bg-white rounded-2xl border border-[hsl(32,20%,88%)] shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
+      <button
+        className={cn(
+          "flex items-center gap-2 px-6 py-3 rounded-xl",
+          "text-sm font-semibold transition-all duration-200",
+          "bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)] hover:bg-[hsl(44,87%,55%)]",
+          "shadow-[0_4px_12px_rgba(242,201,76,0.3)]",
+          "active:scale-[0.98]"
+        )}
+      >
+        <Plus className="h-4 w-4" />
+        Create Event
+      </button>
+      <a href="/places">
+        <button
+          className={cn(
+            "flex items-center gap-2 px-6 py-3 rounded-xl",
+            "text-sm font-semibold transition-all duration-200",
+            "bg-white border border-[hsl(32,20%,88%)] text-[hsl(25,30%,14%)]",
+            "hover:border-[hsl(44,70%,75%)] hover:bg-[hsl(35,40%,97%)]",
+            "active:scale-[0.98]"
+          )}
+        >
+          <Compass className="h-4 w-4" />
+          Discover Venues
+        </button>
+      </a>
+    </div>
+  );
+}
+
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
@@ -1452,10 +1485,14 @@ export default function PrototypeGroupDetailsDesktop() {
 
           {/* Home Tab Content */}
           {activeTab === "home" && (
-            <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
-              {/* Main Content Column */}
-              <div className="space-y-5">
-                {/* Upcoming Events */}
+            <>
+              {/* Hero Action Bar */}
+              <RefinedHeroActions />
+
+              <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
+                {/* Main Content Column */}
+                <div className="space-y-5">
+                  {/* Upcoming Events */}
                 <RefinedEventsSection
                   title="Upcoming Events"
                   icon={Calendar}
@@ -1541,21 +1578,9 @@ export default function PrototypeGroupDetailsDesktop() {
                     View Details
                   </RefinedActionButton>
                 </SidebarCard>
-
-                <SidebarCard title="Quick Actions">
-                  <div className="space-y-2">
-                    <RefinedActionButton icon={Plus} variant="primary">
-                      Create Event
-                    </RefinedActionButton>
-                    <a href="/places" className="block">
-                      <RefinedActionButton icon={Compass} variant="outline">
-                        Discover Venues
-                      </RefinedActionButton>
-                    </a>
-                  </div>
-                </SidebarCard>
               </div>
             </div>
+            </>
           )}
 
           {/* Settings Tab Content */}
@@ -1871,19 +1896,6 @@ export default function PrototypeGroupDetailsDesktop() {
                       <RefinedActionButton icon={Calendar} variant="primary">
                         View Details
                       </RefinedActionButton>
-                    </SidebarCard>
-
-                    <SidebarCard title="Quick Actions">
-                      <div className="space-y-2">
-                        <RefinedActionButton icon={Plus} variant="primary">
-                          Create Event
-                        </RefinedActionButton>
-                        <a href="/places" className="block">
-                          <RefinedActionButton icon={Compass} variant="outline">
-                            Discover Venues
-                          </RefinedActionButton>
-                        </a>
-                      </div>
                     </SidebarCard>
                   </div>
                 </div>
