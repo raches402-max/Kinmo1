@@ -44,6 +44,7 @@ const PrototypeGroupCards = lazy(() => import("@/pages/prototype-group-cards"));
 const PrototypeGroupCardsMobile = lazy(() => import("@/pages/prototype-group-cards-mobile"));
 const PrototypeEventCards = lazy(() => import("@/pages/prototype-event-cards"));
 const PrototypeEventDetailsMobile = lazy(() => import("@/pages/prototype-event-details-mobile"));
+const PrototypeEventDetailsDesktop = lazy(() => import("@/pages/prototype-event-details-desktop"));
 const PrototypePlaces = lazy(() => import("@/pages/prototype-places"));
 const PrototypeAvailabilityGrid = lazy(() => import("@/pages/prototype-availability-grid"));
 const PrototypeTimelineInfo = lazy(() => import("@/pages/prototype-timeline-info"));
@@ -141,6 +142,7 @@ function Router() {
                 <Route path="/prototype/group-cards-mobile" component={PrototypeGroupCardsMobile} />
                 <Route path="/prototype/event-cards" component={PrototypeEventCards} />
                 <Route path="/prototype/event-details-mobile" component={PrototypeEventDetailsMobile} />
+                <Route path="/prototype/event-details-desktop" component={PrototypeEventDetailsDesktop} />
                 <Route path="/prototype/places" component={PrototypePlaces} />
                 <Route path="/prototype/availability-grid" component={PrototypeAvailabilityGrid} />
                 <Route path="/prototype/timeline-info" component={PrototypeTimelineInfo} />
