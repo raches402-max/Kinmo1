@@ -236,16 +236,16 @@ export function AutoScheduleQueue({ groupId, isOrganizer, onNavigateToTab }: Aut
   // Empty state with smart messaging based on Favorites count
   if (!events || events.length === 0) {
     let emptyStateTitle = "No auto-scheduled events yet";
-    let emptyStateMessage = "Build your Favorites for smarter suggestions!";
+    let emptyStateMessage = "Build your Places for smarter suggestions!";
     let emptyStateIcon = Calendar;
 
     if (favoritesCount === 0) {
-      emptyStateTitle = "Your Favorites is empty";
+      emptyStateTitle = "Your Places is empty";
       emptyStateMessage = "Discover venues first to unlock smart auto-scheduling! The AI will create personalized events from places your group loves.";
       emptyStateIcon = Search;
     } else if (favoritesCount < 3) {
-      emptyStateTitle = `You have ${favoritesCount} Favorite${favoritesCount === 1 ? '' : 's'}`;
-      emptyStateMessage = "Add more Favorites (3+ recommended) for better auto-scheduling variety and smarter event suggestions.";
+      emptyStateTitle = `You have ${favoritesCount} saved place${favoritesCount === 1 ? '' : 's'}`;
+      emptyStateMessage = "Add more places (3+ recommended) for better auto-scheduling variety and smarter event suggestions.";
     }
 
     const EmptyIcon = emptyStateIcon;

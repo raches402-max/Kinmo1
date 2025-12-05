@@ -207,7 +207,7 @@ export function VenueDiscoveryModule({
         <TabsList className="grid w-full max-w-md mx-auto grid-cols-3 mb-6">
           <TabsTrigger value="favorites" className="gap-1.5">
             <Heart className="h-4 w-4" />
-            <span className="hidden sm:inline">Favorites</span>
+            <span className="hidden sm:inline">Places</span>
           </TabsTrigger>
           <TabsTrigger value="search" className="gap-1.5">
             <Search className="h-4 w-4" />

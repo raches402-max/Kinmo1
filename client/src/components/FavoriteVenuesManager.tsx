@@ -153,7 +153,7 @@ export function FavoriteVenuesManager({
         <CardHeader>
           <div className="flex items-center gap-2">
             <Search className="h-5 w-5 text-primary" />
-            <CardTitle>Favorite Places</CardTitle>
+            <CardTitle>Saved Places</CardTitle>
           </div>
           {showDescription && (
             <CardDescription>
@@ -209,7 +209,7 @@ export function FavoriteVenuesManager({
           </div>
         ) : favorites.length > 0 ? (
           <div className="space-y-2">
-            <Label>Your favorite places ({favorites.length})</Label>
+            <Label>Your saved places ({favorites.length})</Label>
             <div className="space-y-2">
               {favorites.map((favorite) => (
                 <div
@@ -237,7 +237,7 @@ export function FavoriteVenuesManager({
           </div>
         ) : (
           <p className="text-sm text-muted-foreground text-center py-4">
-            No favorite places added yet. Search to add some!
+            No saved places added yet. Search to add some!
           </p>
         )}
       </CardContent>

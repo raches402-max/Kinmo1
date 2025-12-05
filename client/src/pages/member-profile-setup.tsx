@@ -515,7 +515,7 @@ export default function MemberProfileSetup() {
           <CardHeader>
             <div className="flex items-center gap-2">
               <Search className="h-5 w-5 text-primary" />
-              <CardTitle>Add your favorite places (optional)</CardTitle>
+              <CardTitle>Add your saved places (optional)</CardTitle>
             </div>
             <CardDescription>
               Search for specific venues or restaurants you love
@@ -563,7 +563,7 @@ export default function MemberProfileSetup() {
             {/* Display selected favorites */}
             {favoriteVenues.length > 0 && (
               <div className="space-y-2">
-                <Label>Your favorite places ({favoriteVenues.length})</Label>
+                <Label>Your saved places ({favoriteVenues.length})</Label>
                 <div className="space-y-2">
                   {favoriteVenues.map((venue) => (
                     <div
@@ -590,7 +590,7 @@ export default function MemberProfileSetup() {
 
             {favoriteVenues.length === 0 && !venueSearchQuery && (
               <p className="text-sm text-muted-foreground text-center py-4">
-                No favorite places added yet. Search to add some!
+                No saved places added yet. Search to add some!
               </p>
             )}
           </CardContent>

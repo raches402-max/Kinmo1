@@ -295,7 +295,7 @@ export default function PlacesPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/user/all-places"] });
-      toast({ title: "Removed", description: "Place removed from your favorites" });
+      toast({ title: "Removed", description: "Place removed from your places" });
     },
   });
 
@@ -317,7 +317,7 @@ export default function PlacesPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/user/all-places"] });
-      toast({ title: "Removed", description: "Place removed from favorites" });
+      toast({ title: "Removed", description: "Place removed" });
     },
     onError: (err: any) => {
       toast({ title: "Error", description: err.message || "Failed to remove place", variant: "destructive" });
@@ -328,7 +328,7 @@ export default function PlacesPage() {
   const groupOptions = useMemo(() => {
     const options = [
       { id: "all", name: "All Places", emoji: "🌍" },
-      { id: "personal", name: "My Favorites", emoji: "❤️" },
+      { id: "personal", name: "My Places", emoji: "❤️" },
     ];
 
     // Track seen groups to avoid duplicates
@@ -377,7 +377,7 @@ export default function PlacesPage() {
     if (selectedGroupId === "all" || selectedGroupId === "personal") {
       allPlaces.personal.forEach((p) => {
         seenVenues.add(p.googlePlaceId);
-        result.push({ ...p, source: "My Favorites", sourceType: 'personal' });
+        result.push({ ...p, source: "My Places", sourceType: 'personal' });
       });
     }
 
@@ -800,7 +800,7 @@ export default function PlacesPage() {
           <SheetHeader className="mb-4">
             <SheetTitle className="text-left">Add a Place</SheetTitle>
             <SheetDescription className="text-left">
-              Search for a place to add to your favorites
+              Search for a place to add to your saved places
             </SheetDescription>
           </SheetHeader>
 
@@ -916,7 +916,7 @@ export default function PlacesPage() {
               onClick={() => setSaveToGroupId("personal")}
             >
               <span className="text-xl shrink-0">❤️</span>
-              <span className="font-medium text-sm sm:text-base truncate">My Favorites</span>
+              <span className="font-medium text-sm sm:text-base truncate">My Places</span>
               {saveToGroupId === "personal" && <Check className="ml-auto h-4 w-4 text-primary shrink-0" />}
             </Card>
 

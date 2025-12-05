@@ -363,7 +363,7 @@ function VenueSelectionSheet({
             {/* Tabs */}
             <div className="flex gap-2 px-4 pb-3">
               {[
-                { id: "favorites" as const, icon: Heart, label: "Favorites", count: favorites.length },
+                { id: "favorites" as const, icon: Heart, label: "Places", count: favorites.length },
                 { id: "recent" as const, icon: History, label: "Recent", count: recentVenues.length },
                 { id: "search" as const, icon: Globe, label: "Search" },
               ].map((tab) => (
@@ -405,8 +405,8 @@ function VenueSelectionSheet({
                     {favorites.length === 0 ? (
                       <div className="text-center py-8 text-muted-foreground">
                         <Heart className="h-10 w-10 mx-auto mb-3 opacity-50" />
-                        <p className="text-sm">No favorites yet</p>
-                        <p className="text-xs mt-1">Swipe on venues to add favorites</p>
+                        <p className="text-sm">No saved places yet</p>
+                        <p className="text-xs mt-1">Swipe on venues to add places</p>
                       </div>
                     ) : (
                       favorites.map((venue) => (

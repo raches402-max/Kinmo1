@@ -17,7 +17,7 @@ import {
   DrawerTitle,
   DrawerClose,
 } from "@/components/ui/drawer";
-import { Sparkles, Settings, LogOut, Users, Menu, Home, Calendar, X } from "lucide-react";
+import { Sparkles, Settings, LogOut, Users, Menu, Home, Calendar, X, Heart } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { NotificationBell } from "@/components/NotificationBell";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -79,6 +79,11 @@ export function Header({ testAccounts = [], onShowTestAccountDialog }: HeaderPro
             <Link href="/?tab=my-groups">
               <a className="px-4 py-2 rounded-md text-sm font-medium transition-colors text-white/70 hover:text-white hover:bg-white/10">
                 Groups
+              </a>
+            </Link>
+            <Link href="/places">
+              <a className="px-4 py-2 rounded-md text-sm font-medium transition-colors text-white/70 hover:text-white hover:bg-white/10">
+                Places
               </a>
             </Link>
           </div>
@@ -200,6 +205,19 @@ export function Header({ testAccounts = [], onShowTestAccountDialog }: HeaderPro
               >
                 <Calendar className="mr-3 h-5 w-5" />
                 My Events
+              </Button>
+            </a>
+          </Link>
+
+          <Link href="/places">
+            <a onClick={() => setMobileMenuOpen(false)}>
+              <Button
+                variant="ghost"
+                className="w-full justify-start h-12 text-base"
+                data-testid="mobile-nav-places"
+              >
+                <Heart className="mr-3 h-5 w-5" />
+                Places
               </Button>
             </a>
           </Link>

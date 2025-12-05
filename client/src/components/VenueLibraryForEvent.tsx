@@ -540,7 +540,7 @@ export function VenueLibraryForEvent({
           {favorites.length > 0 && (
             <TabsTrigger value="favorites" className="whitespace-nowrap">
               <Heart className="h-3 w-3 mr-1" />
-              Favorites
+              Saved Places
             </TabsTrigger>
           )}
           {availableCategories.map(category => {
@@ -606,7 +606,7 @@ export function VenueLibraryForEvent({
             ))}
             {favorites.length === 0 && (
               <div className="col-span-full text-center py-8 text-muted-foreground">
-                No favorite venues yet. Mark venues as favorites to see them here.
+                No saved places yet. Save venues to see them here.
               </div>
             )}
           </div>

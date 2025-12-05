@@ -472,7 +472,7 @@ export function DiscoverVenuesModal({
                 <div className="p-2">
                   <div className="text-xs font-medium text-muted-foreground px-2 py-1 flex items-center gap-1">
                     <Heart className="h-3 w-3" />
-                    From Your Favorites
+                    From Your Places
                   </div>
                   {filteredFavorites.slice(0, 3).map((fav) => (
                     <button
@@ -572,7 +572,7 @@ export function DiscoverVenuesModal({
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="favorites" className="gap-2">
               <Heart className="h-4 w-4" />
-              Group Favorites
+              Group Places
             </TabsTrigger>
             <TabsTrigger value="discover" className="gap-2">
               <Sparkles className="h-4 w-4" />
@@ -593,7 +593,7 @@ export function DiscoverVenuesModal({
                   <div className="mx-auto w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
                     <Heart className="h-6 w-6 text-muted-foreground" />
                   </div>
-                  <h3 className="font-medium mb-2">No favorites yet</h3>
+                  <h3 className="font-medium mb-2">No saved places yet</h3>
                   <p className="text-sm text-muted-foreground mb-4 max-w-sm mx-auto">
                     Start discovering venues your group will love. Use the search bar above or generate suggestions below.
                   </p>
