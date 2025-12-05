@@ -17,6 +17,7 @@ const envSchema = z.object({
   // Authentication (Replit)
   SESSION_SECRET: z.string().min(32, 'SESSION_SECRET must be at least 32 characters'),
   REPLIT_DOMAINS: z.string().min(1, 'REPLIT_DOMAINS is required'),
+  CUSTOM_DOMAINS: z.string().optional(), // Custom domains like kinmo.ai (comma-separated)
   REPL_ID: z.string().min(1, 'REPL_ID is required'),
   ISSUER_URL: z.string().url().optional().default('https://replit.com/oidc'),
 

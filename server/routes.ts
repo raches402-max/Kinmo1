@@ -11039,7 +11039,9 @@ Looking forward to planning great activities together!
         if (!inviteToken) continue;
 
         try {
-          const rsvpLink = `${process.env.REPLIT_DOMAINS?.split(',')[0] || 'http://localhost:5000'}/rsvp/${itineraryId}/${inviteToken}`;
+          // Use CUSTOM_DOMAINS first (kinmo.ai), fall back to REPLIT_DOMAINS
+          const primaryDomain = process.env.CUSTOM_DOMAINS?.split(',')[0] || process.env.REPLIT_DOMAINS?.split(',')[0] || 'http://localhost:5000';
+          const rsvpLink = `https://${primaryDomain}/rsvp/${itineraryId}/${inviteToken}`;
           
           const { sendItineraryReschedule } = await import('./email-service');
           

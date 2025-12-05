@@ -13,6 +13,15 @@ if (!process.env.REPLIT_DOMAINS) {
   throw new Error("Environment variable REPLIT_DOMAINS not provided");
 }
 
+// Combine Replit-managed domains with custom domains (like kinmo.ai)
+// CUSTOM_DOMAINS is a comma-separated list that YOU control
+function getAllDomains(): string[] {
+  const replitDomains = process.env.REPLIT_DOMAINS!.split(",").map(d => d.trim());
+  const customDomains = process.env.CUSTOM_DOMAINS?.split(",").map(d => d.trim()) || [];
+  // Deduplicate and return all domains
+  return [...new Set([...customDomains, ...replitDomains])];
+}
+
 const getOidcConfig = memoize(
   async () => {
     return await client.discovery(
@@ -111,8 +120,7 @@ export async function setupAuth(app: Express) {
     verified(null, user);
   };
 
-  for (const domain of process.env
-    .REPLIT_DOMAINS!.split(",")) {
+  for (const domain of getAllDomains()) {
     const strategy = new Strategy(
       {
         name: `replitauth:${domain}`,
