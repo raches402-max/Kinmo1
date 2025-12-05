@@ -1,10 +1,13 @@
 /**
  * FavoritesTab - Shows group's saved venues (voting_events)
+ *
+ * Desktop: Editorial grid layout with generous spacing
+ * Mobile: Compact horizontal scroll
  */
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Heart, Plus, Compass } from "lucide-react";
+import { Heart, Plus, Compass, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { apiRequest } from "@/lib/queryClient";
@@ -12,6 +15,7 @@ import { VenueData, CATEGORY_CONFIG, CategoryId } from "./VenueCard";
 import { VenueGrid } from "./VenueGrid";
 import { VenueDetailSheet } from "./VenueDetailSheet";
 import { cn } from "@/lib/utils";
+import { motion } from "framer-motion";
 
 // API response shape for voting events
 interface VotingEvent {
@@ -107,35 +111,73 @@ export function FavoritesTab({
     cat => venuesByCategory[cat]?.length > 0
   ) as CategoryId[];
 
-  // Empty state
+  // Empty state - warm, inviting design
   if (!isLoading && venues.length === 0) {
     return (
-      <div className={cn("text-center py-12", className)}>
-        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-rose-100 dark:bg-rose-900/30 flex items-center justify-center">
-          <Heart className="h-8 w-8 text-rose-500" />
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        className={cn(
+          "text-center py-16 sm:py-24 px-6",
+          "bg-gradient-to-b from-accent/5 via-transparent to-transparent",
+          "rounded-2xl border border-dashed border-accent/20",
+          className
+        )}
+      >
+        {/* Decorative icon cluster */}
+        <div className="relative w-24 h-24 mx-auto mb-6">
+          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-accent/20 to-primary/10 animate-pulse" />
+          <div className="absolute inset-2 rounded-full bg-background flex items-center justify-center">
+            <Heart className="h-10 w-10 text-accent" />
+          </div>
+          <Sparkles className="absolute -top-1 -right-1 h-5 w-5 text-primary animate-pulse" />
         </div>
-        <h3 className="text-lg font-semibold mb-2">No Favorites Yet</h3>
-        <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
-          Start discovering venues to build your group's collection of favorite spots
+
+        <h3 className="text-xl sm:text-2xl font-semibold mb-3 text-foreground">
+          Your collection awaits
+        </h3>
+        <p className="text-muted-foreground mb-8 max-w-md mx-auto leading-relaxed">
+          Discover and save spots your group will love. Build a library of favorites to make planning effortless.
         </p>
-        <Button onClick={onStartDiscover} className="gap-2">
+        <Button
+          onClick={onStartDiscover}
+          size="lg"
+          className="gap-2 shadow-gold hover:shadow-gold-lg transition-shadow"
+        >
           <Compass className="h-4 w-4" />
           Start Discovering
         </Button>
-      </div>
+      </motion.div>
     );
   }
 
   return (
-    <div className={cn("space-y-8", className)}>
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Heart className="h-5 w-5 text-rose-500" />
-          <h3 className="font-semibold">Your Favorites</h3>
-          <Badge variant="secondary">{venues.length}</Badge>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
+      className={cn("space-y-6 sm:space-y-10", className)}
+    >
+      {/* Header - Editorial style on desktop */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-4 sm:pb-6 border-b border-border/50">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 text-accent">
+            <Heart className="h-4 w-4 fill-current" />
+            <span className="text-xs font-medium uppercase tracking-wider">Your Collection</span>
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">
+            Saved Places
+            <span className="ml-3 text-muted-foreground font-normal text-lg sm:text-xl">
+              {venues.length}
+            </span>
+          </h2>
         </div>
-        <Button variant="outline" size="sm" onClick={onStartDiscover} className="gap-1.5">
+        <Button
+          variant="outline"
+          onClick={onStartDiscover}
+          className="gap-2 self-start sm:self-auto hover:bg-primary hover:text-primary-foreground hover:border-primary transition-colors"
+        >
           <Plus className="h-4 w-4" />
           Add More
         </Button>
@@ -143,41 +185,82 @@ export function FavoritesTab({
 
       {/* Loading state */}
       {isLoading ? (
-        <VenueGrid
-          venues={[]}
-          selectedIds={selectedIds}
-          onToggle={onToggle}
-          isLoading={true}
-          layout="grid"
-          size="md"
-        />
-      ) : categoriesWithVenues.length > 0 ? (
-        /* Grouped by category */
-        categoriesWithVenues.map(categoryId => {
-          const categoryConfig = CATEGORY_CONFIG[categoryId];
-          const categoryVenues = venuesByCategory[categoryId] || [];
-
-          return (
-            <div key={categoryId} className="space-y-3">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">{categoryConfig.emoji}</span>
-                <span className="font-medium">{categoryConfig.label}</span>
-                <Badge variant="outline" className="text-xs">
-                  {categoryVenues.length}
-                </Badge>
-              </div>
-              <VenueGrid
-                venues={categoryVenues}
-                selectedIds={selectedIds}
-                onToggle={onToggle}
-                onCardClick={handleCardClick}
-                layout="horizontal"
-                size="md"
-                selectionMode={mode === 'select' ? 'checkbox' : 'heart'}
-              />
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6">
+          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+            <div key={i} className="space-y-3 animate-pulse">
+              <div className="aspect-[4/3] rounded-xl bg-muted" />
+              <div className="h-4 w-3/4 rounded bg-muted" />
+              <div className="h-3 w-1/2 rounded bg-muted" />
             </div>
-          );
-        })
+          ))}
+        </div>
+      ) : categoriesWithVenues.length > 0 ? (
+        /* Grouped by category - Desktop: grid, Mobile: horizontal scroll */
+        <div className="space-y-8 sm:space-y-12">
+          {categoriesWithVenues.map((categoryId, categoryIndex) => {
+            const categoryConfig = CATEGORY_CONFIG[categoryId];
+            const categoryVenues = venuesByCategory[categoryId] || [];
+
+            return (
+              <motion.section
+                key={categoryId}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  duration: 0.4,
+                  delay: categoryIndex * 0.1,
+                  ease: [0.22, 1, 0.36, 1]
+                }}
+                className="space-y-4 sm:space-y-5"
+              >
+                {/* Category header - editorial style */}
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center text-xl sm:text-2xl"
+                    style={{
+                      backgroundColor: `${categoryConfig.color}15`,
+                      color: categoryConfig.color
+                    }}
+                  >
+                    {categoryConfig.emoji}
+                  </div>
+                  <div>
+                    <h3 className="text-lg sm:text-xl font-semibold">{categoryConfig.label}</h3>
+                    <p className="text-xs sm:text-sm text-muted-foreground">
+                      {categoryVenues.length} {categoryVenues.length === 1 ? 'spot' : 'spots'} saved
+                    </p>
+                  </div>
+                </div>
+
+                {/* Mobile: Horizontal scroll */}
+                <div className="sm:hidden">
+                  <VenueGrid
+                    venues={categoryVenues}
+                    selectedIds={selectedIds}
+                    onToggle={onToggle}
+                    onCardClick={handleCardClick}
+                    layout="horizontal"
+                    size="md"
+                    selectionMode={mode === 'select' ? 'checkbox' : 'heart'}
+                  />
+                </div>
+
+                {/* Desktop: Proper grid with larger cards */}
+                <div className="hidden sm:block">
+                  <VenueGrid
+                    venues={categoryVenues}
+                    selectedIds={selectedIds}
+                    onToggle={onToggle}
+                    onCardClick={handleCardClick}
+                    layout="grid"
+                    size="lg"
+                    selectionMode={mode === 'select' ? 'checkbox' : 'heart'}
+                  />
+                </div>
+              </motion.section>
+            );
+          })}
+        </div>
       ) : (
         /* Flat list for uncategorized */
         <VenueGrid
@@ -186,31 +269,61 @@ export function FavoritesTab({
           onToggle={onToggle}
           onCardClick={handleCardClick}
           layout="grid"
-          size="md"
+          size="lg"
           selectionMode={mode === 'select' ? 'checkbox' : 'heart'}
         />
       )}
 
-      {/* Other/uncategorized */}
-      {venuesByCategory['other']?.length > 0 && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <span className="text-lg">📍</span>
-            <span className="font-medium">Other</span>
-            <Badge variant="outline" className="text-xs">
-              {venuesByCategory['other'].length}
-            </Badge>
+      {/* Other/uncategorized section */}
+      {categoriesWithVenues.length > 0 && venuesByCategory['other']?.length > 0 && (
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{
+            duration: 0.4,
+            delay: categoriesWithVenues.length * 0.1,
+            ease: [0.22, 1, 0.36, 1]
+          }}
+          className="space-y-4 sm:space-y-5"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-muted flex items-center justify-center text-xl sm:text-2xl">
+              📍
+            </div>
+            <div>
+              <h3 className="text-lg sm:text-xl font-semibold">Other Places</h3>
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                {venuesByCategory['other'].length} {venuesByCategory['other'].length === 1 ? 'spot' : 'spots'} saved
+              </p>
+            </div>
           </div>
-          <VenueGrid
-            venues={venuesByCategory['other']}
-            selectedIds={selectedIds}
-            onToggle={onToggle}
-            onCardClick={handleCardClick}
-            layout="horizontal"
-            size="md"
-            selectionMode={mode === 'select' ? 'checkbox' : 'heart'}
-          />
-        </div>
+
+          {/* Mobile: Horizontal scroll */}
+          <div className="sm:hidden">
+            <VenueGrid
+              venues={venuesByCategory['other']}
+              selectedIds={selectedIds}
+              onToggle={onToggle}
+              onCardClick={handleCardClick}
+              layout="horizontal"
+              size="md"
+              selectionMode={mode === 'select' ? 'checkbox' : 'heart'}
+            />
+          </div>
+
+          {/* Desktop: Grid */}
+          <div className="hidden sm:block">
+            <VenueGrid
+              venues={venuesByCategory['other']}
+              selectedIds={selectedIds}
+              onToggle={onToggle}
+              onCardClick={handleCardClick}
+              layout="grid"
+              size="lg"
+              selectionMode={mode === 'select' ? 'checkbox' : 'heart'}
+            />
+          </div>
+        </motion.section>
       )}
 
       {/* Venue Detail Sheet */}
@@ -220,7 +333,7 @@ export function FavoritesTab({
         onOpenChange={setDetailSheetOpen}
         groupId={groupId}
       />
-    </div>
+    </motion.div>
   );
 }
 

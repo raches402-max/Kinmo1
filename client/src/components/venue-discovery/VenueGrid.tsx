@@ -68,15 +68,17 @@ export function VenueGrid({
 
     return (
       <div className={cn(
-        "grid gap-4",
-        size === 'lg' ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4",
+        "grid",
+        size === 'lg'
+          ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5 lg:gap-6"
+          : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4",
         className
       )}>
-        {[1, 2, 3, 4, 5, 6].map((i) => (
-          <div key={i}>
-            <Skeleton className={size === 'lg' ? "aspect-video rounded-lg" : "aspect-[4/3] rounded-lg"} />
-            <Skeleton className="h-4 w-3/4 mt-2" />
-            <Skeleton className="h-3 w-1/2 mt-1" />
+        {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+          <div key={i} className="space-y-2">
+            <Skeleton className="aspect-[4/3] rounded-xl" />
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-3 w-1/2" />
           </div>
         ))}
       </div>
@@ -152,12 +154,12 @@ export function VenueGrid({
   // Grid layout
   return (
     <div className={cn(
-      "grid gap-4",
+      "grid",
       size === 'lg'
-        ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+        ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5 lg:gap-6"
         : size === 'sm'
-          ? "grid-cols-3 sm:grid-cols-4 lg:grid-cols-5"
-          : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4",
+          ? "grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-3"
+          : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4",
       className
     )}>
       <AnimatePresence mode="popLayout">

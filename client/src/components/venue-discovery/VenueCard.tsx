@@ -127,10 +127,10 @@ function VenueCardComponent({
       icon: "h-3.5 w-3.5",
     },
     lg: {
-      card: "",
-      image: "aspect-video",
+      card: "w-full",
+      image: "aspect-[4/3]",
       padding: "p-4",
-      title: "text-base font-semibold",
+      title: "text-base font-semibold leading-tight",
       subtitle: "text-sm",
       icon: "h-4 w-4",
     },
@@ -157,8 +157,10 @@ function VenueCardComponent({
     <Card
       className={cn(
         "relative overflow-hidden transition-all duration-200 group cursor-pointer",
-        "hover:shadow-md hover:-translate-y-0.5",
-        isSelected && "ring-2 ring-primary shadow-md",
+        "hover:shadow-warm-lg hover:-translate-y-1",
+        "border-border/50 hover:border-border",
+        isSelected && "ring-2 ring-primary shadow-warm-lg",
+        size === 'lg' && "rounded-xl",
         config.card,
         className
       )}
@@ -198,8 +200,13 @@ function VenueCardComponent({
             loading="lazy"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-3xl bg-gradient-to-br from-muted to-muted/50">
-            {categoryEmoji}
+          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-secondary/20 via-muted to-accent/10">
+            <span className={cn(
+              "transition-transform duration-300 group-hover:scale-110",
+              size === 'lg' ? "text-5xl" : size === 'md' ? "text-3xl" : "text-2xl"
+            )}>
+              {categoryEmoji}
+            </span>
           </div>
         )}
 
