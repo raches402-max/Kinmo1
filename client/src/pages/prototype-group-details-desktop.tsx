@@ -325,14 +325,51 @@ const mockMyPreferences = {
 };
 
 // ============================================================================
+// MOCK EVENTS DATA
+// ============================================================================
+
+type EventStatus = "confirmed" | "planning" | "draft";
+
+interface UpcomingEvent {
+  id: string;
+  title: string;
+  date: string;
+  month: string;
+  day: number;
+  venue: string;
+  status: EventStatus;
+  attendees: number;
+}
+
+interface PastEvent {
+  id: string;
+  title: string;
+  date: string;
+  venue: string;
+  attendees: number;
+}
+
+const mockUpcomingEvents: UpcomingEvent[] = [
+  { id: "1", title: "Holiday Dinner", date: "Dec 14", month: "Dec", day: 14, venue: "Flour + Water", status: "confirmed", attendees: 5 },
+  { id: "2", title: "New Year's Brunch", date: "Jan 1", month: "Jan", day: 1, venue: "TBD", status: "planning", attendees: 3 },
+  { id: "3", title: "Game Night", date: "Jan 15", month: "Jan", day: 15, venue: "TBD", status: "draft", attendees: 0 },
+];
+
+const mockPastEvents: PastEvent[] = [
+  { id: "4", title: "Thanksgiving Feast", date: "Nov 23", venue: "Foreign Cinema", attendees: 5 },
+  { id: "5", title: "Halloween Party", date: "Oct 31", venue: "Trick Dog", attendees: 6 },
+  { id: "6", title: "Summer BBQ", date: "Aug 15", venue: "Dolores Park", attendees: 4 },
+  { id: "7", title: "Birthday Celebration", date: "Jul 20", venue: "Lazy Bear", attendees: 5 },
+  { id: "8", title: "Spring Picnic", date: "Apr 10", venue: "Golden Gate Park", attendees: 6 },
+];
+
+// ============================================================================
 // TABS DATA
 // ============================================================================
 
 const mainTabs = [
   { id: "home", label: "Home", icon: Home },
   { id: "settings", label: "Settings", icon: Settings },
-  { id: "explore", label: "Explore", icon: Compass },
-  { id: "build", label: "Build", icon: Hammer },
 ];
 
 const settingsSubTabs = [
@@ -1185,11 +1222,154 @@ function SidebarCard({ title, children }: { title?: string; children: React.Reac
 }
 
 // ============================================================================
+// EVENT COMPONENTS (for Home tab)
+// ============================================================================
+
+function RefinedEventCard({ event }: { event: UpcomingEvent }) {
+  const statusConfig: Record<EventStatus, { label: string; className: string }> = {
+    confirmed: {
+      label: "Confirmed",
+      className: "bg-[hsl(145,40%,92%)] text-[hsl(145,50%,30%)] border-[hsl(145,35%,80%)]",
+    },
+    planning: {
+      label: "Planning",
+      className: "bg-[hsl(44,70%,92%)] text-[hsl(44,70%,30%)] border-[hsl(44,60%,75%)]",
+    },
+    draft: {
+      label: "Draft",
+      className: "bg-[hsl(35,25%,93%)] text-[hsl(25,15%,45%)] border-[hsl(32,20%,85%)]",
+    },
+  };
+
+  const status = statusConfig[event.status];
+
+  return (
+    <motion.div
+      whileHover={{ scale: 1.01 }}
+      className={cn(
+        "flex items-stretch gap-4 p-4 bg-white rounded-xl border border-[hsl(32,20%,88%)]",
+        "transition-all duration-200 cursor-pointer",
+        "hover:border-[hsl(44,70%,75%)] hover:shadow-[0_4px_12px_rgba(242,201,76,0.15)]"
+      )}
+    >
+      {/* Date Badge */}
+      <div className="flex flex-col items-center justify-center min-w-[60px] px-3 py-2 bg-[hsl(44,87%,63%)] rounded-xl text-[hsl(25,30%,14%)]">
+        <span className="text-xs font-semibold uppercase">{event.month}</span>
+        <span className="text-2xl font-bold leading-none">{event.day}</span>
+      </div>
+
+      {/* Event Info */}
+      <div className="flex-1 flex flex-col justify-center">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="font-semibold text-[hsl(25,30%,14%)]">{event.title}</span>
+          <Badge className={cn("text-[10px] px-1.5 py-0", status.className)} variant="outline">
+            {status.label}
+          </Badge>
+        </div>
+        <div className="flex items-center gap-3 text-sm text-[hsl(25,15%,45%)]">
+          <span className="flex items-center gap-1">
+            <MapPin className="h-3.5 w-3.5" />
+            {event.venue}
+          </span>
+          {event.attendees > 0 && (
+            <span className="flex items-center gap-1">
+              <Users className="h-3.5 w-3.5" />
+              {event.attendees} going
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Arrow */}
+      <div className="flex items-center text-[hsl(25,15%,55%)]">
+        <ChevronDown className="h-5 w-5 -rotate-90" />
+      </div>
+    </motion.div>
+  );
+}
+
+function RefinedPastEventRow({ event }: { event: PastEvent }) {
+  return (
+    <div className="flex items-center gap-4 py-3 px-4 rounded-lg hover:bg-[hsl(38,50%,98%)] transition-colors cursor-pointer group">
+      <div className="text-sm font-medium text-[hsl(25,15%,45%)] min-w-[60px]">{event.date}</div>
+      <div className="flex-1">
+        <span className="font-medium text-[hsl(25,30%,14%)] group-hover:text-[hsl(44,70%,40%)] transition-colors">
+          {event.title}
+        </span>
+      </div>
+      <div className="flex items-center gap-1 text-sm text-[hsl(25,15%,50%)]">
+        <MapPin className="h-3.5 w-3.5" />
+        <span>{event.venue}</span>
+      </div>
+      <div className="flex items-center gap-1 text-sm text-[hsl(25,15%,50%)] min-w-[60px]">
+        <Users className="h-3.5 w-3.5" />
+        <span>{event.attendees}</span>
+      </div>
+    </div>
+  );
+}
+
+function RefinedEventsSection({
+  title,
+  icon: Icon,
+  children,
+  defaultExpanded = true,
+  action,
+}: {
+  title: string;
+  icon: React.ElementType;
+  children: React.ReactNode;
+  defaultExpanded?: boolean;
+  action?: React.ReactNode;
+}) {
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+
+  return (
+    <div className="bg-white rounded-2xl border border-[hsl(32,20%,88%)] overflow-hidden">
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-[hsl(38,50%,99%)] transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center w-9 h-9 rounded-full bg-[hsl(35,25%,93%)] text-[hsl(25,15%,45%)]">
+            <Icon className="h-4 w-4" />
+          </div>
+          <span className="text-[13px] font-bold uppercase tracking-[0.08em] text-[hsl(25,30%,14%)]">
+            {title}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {action}
+          <ChevronDown
+            className={cn(
+              "h-5 w-5 text-[hsl(25,15%,45%)] transition-transform duration-200",
+              isExpanded && "rotate-180"
+            )}
+          />
+        </div>
+      </button>
+      <AnimatePresence initial={false}>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+          >
+            <div className="px-5 pb-5 border-t border-[hsl(32,20%,90%)]">{children}</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
 export default function PrototypeGroupDetailsDesktop() {
-  const [activeTab, setActiveTab] = useState("settings");
+  const [activeTab, setActiveTab] = useState("home");
   const [settingsTab, setSettingsTab] = useState("group");
   const [group, setGroup] = useState(mockGroup);
   const [members, setMembers] = useState(mockMembers);
@@ -1269,6 +1449,114 @@ export default function PrototypeGroupDetailsDesktop() {
 
           {/* Main Tabs */}
           <RefinedTabs tabs={mainTabs} activeTab={activeTab} onTabChange={setActiveTab} />
+
+          {/* Home Tab Content */}
+          {activeTab === "home" && (
+            <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
+              {/* Main Content Column */}
+              <div className="space-y-5">
+                {/* Upcoming Events */}
+                <RefinedEventsSection
+                  title="Upcoming Events"
+                  icon={Calendar}
+                  defaultExpanded={true}
+                  action={
+                    <span className="text-xs font-medium text-[hsl(44,70%,45%)] hover:text-[hsl(44,70%,35%)] transition-colors">
+                      View All →
+                    </span>
+                  }
+                >
+                  <div className="space-y-3 pt-4">
+                    {mockUpcomingEvents.map((event) => (
+                      <RefinedEventCard key={event.id} event={event} />
+                    ))}
+                    {mockUpcomingEvents.length === 0 && (
+                      <div className="text-center py-8 text-[hsl(25,15%,50%)]">
+                        <Calendar className="h-10 w-10 mx-auto mb-3 opacity-40" />
+                        <p className="text-sm font-medium">No upcoming events</p>
+                        <p className="text-xs mt-1">Create an event to get started!</p>
+                      </div>
+                    )}
+                  </div>
+                </RefinedEventsSection>
+
+                {/* Past Events */}
+                <RefinedEventsSection
+                  title="Past Events"
+                  icon={Clock}
+                  defaultExpanded={false}
+                  action={
+                    <Badge className="bg-[hsl(35,25%,93%)] text-[hsl(25,15%,45%)] border-[hsl(32,20%,88%)]" variant="outline">
+                      {mockPastEvents.length} events
+                    </Badge>
+                  }
+                >
+                  <div className="divide-y divide-[hsl(32,20%,92%)] pt-2">
+                    {mockPastEvents.map((event) => (
+                      <RefinedPastEventRow key={event.id} event={event} />
+                    ))}
+                  </div>
+                </RefinedEventsSection>
+              </div>
+
+              {/* Sidebar Column */}
+              <div className="space-y-4">
+                <SidebarCard title="Quick Stats">
+                  <div className="space-y-2">
+                    <RefinedStatCard
+                      icon={Calendar}
+                      value={mockStats.eventsThisYear}
+                      label="Events this year"
+                      iconBg="bg-[hsl(44,87%,63%)]"
+                    />
+                    <RefinedStatCard
+                      icon={Users}
+                      value={mockStats.activeMembers}
+                      label="Active members"
+                      iconBg="bg-[hsl(110,50%,50%)]"
+                    />
+                    <RefinedStatCard
+                      icon={MapPin}
+                      value={mockStats.venuesExplored}
+                      label="Venues explored"
+                      iconBg="bg-[hsl(280,60%,60%)]"
+                    />
+                  </div>
+                </SidebarCard>
+
+                <SidebarCard title="Next Event">
+                  <div className="flex gap-4 p-4 bg-white border border-[hsl(32,20%,88%)] rounded-xl mb-3">
+                    <div className="text-center px-3 py-2 bg-[hsl(38,50%,98%)] rounded-lg border border-[hsl(32,20%,88%)]">
+                      <div className="text-[11px] uppercase font-semibold text-[hsl(25,15%,45%)]">
+                        {mockNextEvent.month}
+                      </div>
+                      <div className="text-2xl font-bold text-[hsl(25,30%,14%)]">{mockNextEvent.day}</div>
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-semibold text-[hsl(25,30%,14%)]">{mockNextEvent.title}</div>
+                      <div className="text-sm text-[hsl(25,15%,45%)]">In {mockNextEvent.daysUntil} days</div>
+                    </div>
+                  </div>
+                  <RefinedActionButton icon={Calendar} variant="primary">
+                    View Details
+                  </RefinedActionButton>
+                </SidebarCard>
+
+                <SidebarCard title="Quick Actions">
+                  <div className="space-y-2">
+                    <RefinedActionButton icon={Plus} variant="primary">
+                      Create Event
+                    </RefinedActionButton>
+                    <a href="/places" className="block">
+                      <RefinedActionButton icon={Compass} variant="outline">
+                        Discover Venues
+                      </RefinedActionButton>
+                    </a>
+                  </div>
+                </SidebarCard>
+              </div>
+            </div>
+          )}
 
           {/* Settings Tab Content */}
           {activeTab === "settings" && (
@@ -1585,14 +1873,16 @@ export default function PrototypeGroupDetailsDesktop() {
                       </RefinedActionButton>
                     </SidebarCard>
 
-                    <SidebarCard title="Create Event">
+                    <SidebarCard title="Quick Actions">
                       <div className="space-y-2">
                         <RefinedActionButton icon={Plus} variant="primary">
-                          New Event
+                          Create Event
                         </RefinedActionButton>
-                        <RefinedActionButton icon={Search} variant="secondary">
-                          Discover Venues
-                        </RefinedActionButton>
+                        <a href="/places" className="block">
+                          <RefinedActionButton icon={Compass} variant="outline">
+                            Discover Venues
+                          </RefinedActionButton>
+                        </a>
                       </div>
                     </SidebarCard>
                   </div>
