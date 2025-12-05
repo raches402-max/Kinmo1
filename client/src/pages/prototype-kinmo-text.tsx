@@ -1,276 +1,374 @@
+import { useState } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, ArrowLeft } from "lucide-react";
+import { ArrowRight, Check, Sun, Sparkles } from "lucide-react";
 import { KinmoIcon } from "@/components/KinmoLogo";
 
-// Full landing page mockup with new Saturated Gold (#FFB800) applied to all yellow elements
-export default function PrototypeKinmoText() {
-  return (
-    <div className="min-h-screen bg-background">
-      {/* Override primary color to #FFB800 for this page */}
-      <style>{`
-        :root {
-          --primary-preview: 45 100% 50%;
-        }
-        .preview-primary {
-          color: #FFB800 !important;
-        }
-        .preview-primary-bg {
-          background-color: #FFB800 !important;
-        }
-        .preview-primary-fill {
-          fill: #FFB800 !important;
-        }
-        .preview-primary-bg-10 {
-          background-color: rgba(255, 184, 0, 0.1) !important;
-        }
-        .preview-primary-bg-60 {
-          background-color: rgba(255, 184, 0, 0.6) !important;
-        }
-        .preview-btn-primary {
-          background-color: #FFB800 !important;
-          color: #000 !important;
-        }
-        .preview-btn-primary:hover {
-          background-color: #E5A500 !important;
-        }
-        @keyframes slow-spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        .animate-slow-spin {
-          animation: slow-spin 20s linear infinite;
-        }
-      `}</style>
+/*
+ * Color Strategy Exploration
+ *
+ * Problem: User likes brighter #FFB800 for sun/hero text, but:
+ * - Full #FFB800 on buttons feels too intense
+ * - Current #F2C94C and #FFB800 don't harmonize well
+ *
+ * Goal: Brighter feel without changing the calm, friendly app vibe
+ */
 
-      {/* Floating "Preview Mode" banner */}
-      <div className="fixed top-0 left-0 right-0 z-[100] bg-[#FFB800] text-black py-2 px-4 text-center text-sm font-medium">
-        Preview Mode: Saturated Gold (#FFB800) applied to all yellow elements
-        <Link href="/" className="ml-4 underline hover:no-underline">
-          ← Back to actual landing page
-        </Link>
+interface ColorStrategy {
+  id: string;
+  name: string;
+  description: string;
+  philosophy: string;
+  hero: string;      // Sun, rotating text, "Kinmo" reveal
+  buttons: string;   // Primary button background
+  buttonText: string;
+  accents: string;   // Badges, decorative elements
+  buttonStyle: "filled" | "outline" | "soft";
+}
+
+const strategies: ColorStrategy[] = [
+  {
+    id: "current-mix",
+    name: "Current (Mixed)",
+    description: "Bright hero #FFB800 + original buttons #F2C94C",
+    philosophy: "Shows the clash you're feeling - two yellows fighting",
+    hero: "#FFB800",
+    buttons: "#F2C94C",
+    buttonText: "#000",
+    accents: "#F2C94C",
+    buttonStyle: "filled",
+  },
+  {
+    id: "unified-warm",
+    name: "Unified Warm Gold",
+    description: "Single harmonious gold #F5B000 everywhere",
+    philosophy: "One color, no clash. Warmer than original, calmer than bright.",
+    hero: "#F5B000",
+    buttons: "#F5B000",
+    buttonText: "#000",
+    accents: "#F5B000",
+    buttonStyle: "filled",
+  },
+  {
+    id: "hero-pop",
+    name: "Hero Pop Strategy",
+    description: "Bright #FFB800 for hero only, soft #F2C94C for UI",
+    philosophy: "Intentional hierarchy: hero elements demand attention, buttons stay calm and inviting.",
+    hero: "#FFB800",
+    buttons: "#F2C94C",
+    buttonText: "#000",
+    accents: "#F2C94C",
+    buttonStyle: "soft",
+  },
+  {
+    id: "outline-bright",
+    name: "Bright but Light Touch",
+    description: "Use #FFB800 everywhere but with outline buttons",
+    philosophy: "The bright gold appears but doesn't overwhelm. Buttons feel lighter, less 'loud'.",
+    hero: "#FFB800",
+    buttons: "#FFB800",
+    buttonText: "#FFB800",
+    accents: "#FFB800",
+    buttonStyle: "outline",
+  },
+  {
+    id: "amber-system",
+    name: "Amber Harmony",
+    description: "Deeper amber #E9A800 unifies everything",
+    philosophy: "Rich, warm, sophisticated. Less 'sunny', more 'golden hour'.",
+    hero: "#E9A800",
+    buttons: "#E9A800",
+    buttonText: "#000",
+    accents: "#E9A800",
+    buttonStyle: "filled",
+  },
+  {
+    id: "graduated",
+    name: "Graduated Warmth",
+    description: "Hero #FFBA00, buttons #F0B000, accents #E5A800",
+    philosophy: "Subtle gradation creates depth. Same family, different intensities.",
+    hero: "#FFBA00",
+    buttons: "#F0B000",
+    buttonText: "#000",
+    accents: "#E5A800",
+    buttonStyle: "filled",
+  },
+];
+
+function MiniLandingPreview({ strategy }: { strategy: ColorStrategy }) {
+  const buttonClasses = strategy.buttonStyle === "outline"
+    ? "border-2 bg-transparent hover:bg-opacity-10"
+    : strategy.buttonStyle === "soft"
+    ? "bg-opacity-90 hover:bg-opacity-100"
+    : "";
+
+  return (
+    <div className="bg-background rounded-xl border border-border overflow-hidden">
+      {/* Mini header */}
+      <div className="px-4 py-3 border-b border-border/50 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <KinmoIcon size={18} color={strategy.hero} />
+          <span className="font-medium text-sm">Kinmo</span>
+        </div>
+        <span className="text-xs text-muted-foreground">Sign In</span>
       </div>
 
+      {/* Mini hero */}
+      <div className="px-4 py-6 text-center">
+        {/* Sun */}
+        <div className="mb-3">
+          <svg width="36" height="36" viewBox="0 0 48 48" fill="none" className="mx-auto">
+            <circle cx="24" cy="24" r="14" fill={strategy.hero} />
+            <path d="M19 5 A4 4 0 0 1 29 5 L24 5 Z" fill={strategy.hero} />
+            <path d="M38 10 A4 4 0 0 1 43 19 L40 14 Z" fill={strategy.hero} />
+            <path d="M43 29 A4 4 0 0 1 38 38 L40 34 Z" fill={strategy.hero} />
+            <path d="M29 43 A4 4 0 0 1 19 43 L24 43 Z" fill={strategy.hero} />
+            <path d="M10 38 A4 4 0 0 1 5 29 L8 34 Z" fill={strategy.hero} />
+            <path d="M5 19 A4 4 0 0 1 10 10 L8 14 Z" fill={strategy.hero} />
+          </svg>
+        </div>
+
+        {/* Headline */}
+        <p className="text-[10px] uppercase text-muted-foreground mb-1">Using AI to help you</p>
+        <p className="text-sm font-bold mb-1">
+          See your <span style={{ color: strategy.hero }}>friends</span> more.
+        </p>
+
+        {/* Buttons */}
+        <div className="flex gap-2 justify-center mt-3">
+          <button
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${buttonClasses}`}
+            style={{
+              backgroundColor: strategy.buttonStyle === "outline" ? "transparent" : strategy.buttons,
+              color: strategy.buttonText,
+              borderColor: strategy.buttonStyle === "outline" ? strategy.buttons : "transparent",
+            }}
+          >
+            Get Started
+          </button>
+          <button className="px-3 py-1.5 rounded-md text-xs border border-border text-muted-foreground">
+            Learn More
+          </button>
+        </div>
+      </div>
+
+      {/* Mini "How it works" section */}
+      <div className="px-4 py-4 bg-muted/30 border-t border-border/50">
+        <div className="flex justify-center gap-4">
+          {[1, 2, 3].map((n) => (
+            <div
+              key={n}
+              className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold"
+              style={{
+                backgroundColor: `${strategy.accents}15`,
+                color: strategy.accents,
+              }}
+            >
+              {n}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function PrototypeKinmoText() {
+  const [selected, setSelected] = useState<string>("hero-pop");
+
+  const selectedStrategy = strategies.find(s => s.id === selected)!;
+
+  return (
+    <div className="min-h-screen bg-[#fafafa]">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+      `}</style>
+
       {/* Header */}
-      <header className="fixed top-10 left-0 right-0 z-50 bg-background/90 backdrop-blur-sm border-b border-border/40">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <KinmoIcon size={26} color="#FFB800" />
-            <span className="font-semibold text-lg">Kinmo</span>
+      <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-sm border-b border-black/5">
+        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+          <Link href="/">
+            <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-900">
+              ← Back to Landing
+            </Button>
+          </Link>
+          <div className="flex items-center gap-2 text-gray-500 text-sm">
+            <Sparkles className="w-4 h-4 text-amber-500" />
+            <span>Color Strategy Explorer</span>
           </div>
-          <Button variant="ghost" size="sm">
-            Sign In
-          </Button>
         </div>
       </header>
 
-      {/* Hero */}
-      <section className="pt-32 sm:pt-40 md:pt-48 pb-14 sm:pb-24 px-6">
+      {/* Problem Statement */}
+      <section className="py-8 px-4 border-b border-black/5">
+        <div className="max-w-4xl mx-auto">
+          <h1 className="text-2xl font-bold text-center mb-3">Finding the Right Gold</h1>
+          <p className="text-center text-gray-600 max-w-2xl mx-auto">
+            You want the sun and hero text to <span className="font-medium">pop with energy</span>,
+            but the buttons shouldn't <span className="font-medium">overwhelm the calm, friendly vibe</span>.
+            Here are strategies to achieve both.
+          </p>
+        </div>
+      </section>
+
+      {/* Strategy Grid */}
+      <section className="py-8 px-4">
+        <div className="max-w-6xl mx-auto">
+          <h2 className="text-sm uppercase tracking-widest text-gray-400 mb-6 text-center">
+            Select a Strategy
+          </h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {strategies.map((strategy) => (
+              <button
+                key={strategy.id}
+                onClick={() => setSelected(strategy.id)}
+                className={`text-left p-4 rounded-xl border-2 transition-all ${
+                  selected === strategy.id
+                    ? "border-amber-400 bg-amber-50/50 shadow-lg shadow-amber-100"
+                    : "border-gray-200 bg-white hover:border-gray-300"
+                }`}
+              >
+                {/* Color swatches */}
+                <div className="flex gap-1.5 mb-3">
+                  <div
+                    className="w-8 h-8 rounded-full border border-black/10"
+                    style={{ backgroundColor: strategy.hero }}
+                    title="Hero color"
+                  />
+                  <div
+                    className="w-8 h-8 rounded-full border border-black/10"
+                    style={{ backgroundColor: strategy.buttons }}
+                    title="Button color"
+                  />
+                  {strategy.buttonStyle === "outline" && (
+                    <div className="w-8 h-8 rounded-full border-2 flex items-center justify-center text-[8px]"
+                      style={{ borderColor: strategy.buttons, color: strategy.buttons }}
+                    >
+                      outline
+                    </div>
+                  )}
+                </div>
+
+                <h3 className="font-semibold text-gray-900 mb-1">{strategy.name}</h3>
+                <p className="text-sm text-gray-500 mb-2">{strategy.description}</p>
+
+                {selected === strategy.id && (
+                  <div className="flex items-center gap-1 text-amber-600 text-xs font-medium mt-2">
+                    <Check className="w-3 h-3" />
+                    Selected
+                  </div>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Selected Strategy Detail */}
+      <section className="py-8 px-4 bg-white border-y border-black/5">
+        <div className="max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-8 items-start">
+            {/* Preview */}
+            <div>
+              <h3 className="text-sm uppercase tracking-widest text-gray-400 mb-4">Preview</h3>
+              <MiniLandingPreview strategy={selectedStrategy} />
+            </div>
+
+            {/* Philosophy */}
+            <div>
+              <h3 className="text-sm uppercase tracking-widest text-gray-400 mb-4">Design Philosophy</h3>
+              <div className="bg-gray-50 rounded-xl p-6 border border-gray-100">
+                <h4 className="font-semibold text-lg mb-2">{selectedStrategy.name}</h4>
+                <p className="text-gray-600 leading-relaxed mb-4">{selectedStrategy.philosophy}</p>
+
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-center gap-3">
+                    <Sun className="w-4 h-4 text-gray-400" />
+                    <span className="text-gray-500">Hero elements:</span>
+                    <div
+                      className="w-5 h-5 rounded border border-black/10"
+                      style={{ backgroundColor: selectedStrategy.hero }}
+                    />
+                    <code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">{selectedStrategy.hero}</code>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <ArrowRight className="w-4 h-4 text-gray-400" />
+                    <span className="text-gray-500">Buttons:</span>
+                    <div
+                      className={`w-5 h-5 rounded border ${selectedStrategy.buttonStyle === "outline" ? "border-2 bg-transparent" : "border-black/10"}`}
+                      style={{
+                        backgroundColor: selectedStrategy.buttonStyle === "outline" ? "transparent" : selectedStrategy.buttons,
+                        borderColor: selectedStrategy.buttonStyle === "outline" ? selectedStrategy.buttons : undefined
+                      }}
+                    />
+                    <code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">
+                      {selectedStrategy.buttons} {selectedStrategy.buttonStyle !== "filled" && `(${selectedStrategy.buttonStyle})`}
+                    </code>
+                  </div>
+                </div>
+              </div>
+
+              {/* Recommendation */}
+              {selectedStrategy.id === "hero-pop" && (
+                <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                  <p className="text-sm text-amber-800">
+                    <strong>Recommended:</strong> This approach lets the sun and headline text shine bright
+                    while keeping buttons approachable. The intentional contrast creates hierarchy without clash.
+                  </p>
+                </div>
+              )}
+
+              {selectedStrategy.id === "graduated" && (
+                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                  <p className="text-sm text-blue-800">
+                    <strong>Sophisticated choice:</strong> Using related but distinct golds creates
+                    visual depth. Hero pops, buttons invite, accents ground. Same family, clear roles.
+                  </p>
+                </div>
+              )}
+
+              {selectedStrategy.id === "outline-bright" && (
+                <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-xl">
+                  <p className="text-sm text-green-800">
+                    <strong>Light touch:</strong> Outline buttons let you use the bright gold everywhere
+                    without it feeling heavy. The color appears but doesn't fill the space.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* My Recommendation */}
+      <section className="py-10 px-4">
         <div className="max-w-3xl mx-auto text-center">
-          <div className="mb-6">
-            <svg
-              width="72"
-              height="72"
-              viewBox="0 0 48 48"
-              fill="none"
-              className="mx-auto animate-slow-spin"
-              aria-hidden="true"
-            >
-              <circle cx="24" cy="24" r="14" className="preview-primary-fill" />
-              <path d="M19 5 A4 4 0 0 1 29 5 L24 5 Z" className="preview-primary-fill" />
-              <path d="M38 10 A4 4 0 0 1 43 19 L40 14 Z" className="preview-primary-fill" />
-              <path d="M43 29 A4 4 0 0 1 38 38 L40 34 Z" className="preview-primary-fill" />
-              <path d="M29 43 A4 4 0 0 1 19 43 L24 43 Z" className="preview-primary-fill" />
-              <path d="M10 38 A4 4 0 0 1 5 29 L8 34 Z" className="preview-primary-fill" />
-              <path d="M5 19 A4 4 0 0 1 10 10 L8 14 Z" className="preview-primary-fill" />
-            </svg>
-          </div>
-
-          <p className="text-sm tracking-wide uppercase text-muted-foreground mb-3">Using AI to help you</p>
-
-          {/* Static headline for mockup */}
-          <div className="min-h-[110px] sm:min-h-[140px] md:min-h-[170px] lg:min-h-[200px] flex items-center justify-center mb-8 sm:mb-12">
-            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.15]">
-              <span className="relative block w-[280px] sm:w-[340px] md:w-[420px] lg:w-[500px] h-[110px] sm:h-[140px] md:h-[170px] lg:h-[200px]">
-                <span className="absolute top-0 -left-8 sm:-left-12 md:-left-16 lg:-left-20 text-foreground">See your</span>
-                <span className="absolute top-[38%] left-1/2 -translate-x-1/2 font-bold whitespace-nowrap" style={{ color: '#FFB800' }}>
-                  friends
-                </span>
-                <span className="absolute bottom-0 -right-6 sm:-right-8 md:-right-10 lg:-right-12 text-foreground">more.</span>
-              </span>
-            </h1>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button
-              size="lg"
-              className="preview-btn-primary px-10 h-12 text-base font-semibold"
-            >
-              Get Started
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              className="h-12 text-base"
-            >
-              See How It Works
-            </Button>
+          <h2 className="text-xl font-bold mb-4">My Recommendation</h2>
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+            <p className="text-gray-600 leading-relaxed mb-4">
+              Based on your feedback, I'd suggest the <strong>"Hero Pop Strategy"</strong> or <strong>"Graduated Warmth"</strong>:
+            </p>
+            <ul className="text-left text-gray-600 space-y-2 max-w-lg mx-auto">
+              <li className="flex items-start gap-2">
+                <span className="text-amber-500 mt-1">•</span>
+                <span><strong>Sun & rotating text:</strong> Keep the bright #FFB800 — it grabs attention</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-amber-500 mt-1">•</span>
+                <span><strong>Buttons:</strong> Use the calmer #F2C94C or a middle-ground #F0B000</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-amber-500 mt-1">•</span>
+                <span><strong>Result:</strong> Hero elements pop, UI stays warm and inviting</span>
+              </li>
+            </ul>
+            <p className="text-sm text-gray-500 mt-4">
+              This maintains the "friendly planning app" vibe while giving the landing page more visual punch.
+            </p>
           </div>
         </div>
       </section>
-
-      {/* The Problem */}
-      <section className="py-14 sm:py-24 px-6 bg-muted/30">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-center mb-4 sm:mb-5">
-            Life gets busy. We get it.
-          </h2>
-          <p className="text-center text-muted-foreground mb-8 sm:mb-14 max-w-2xl mx-auto text-sm sm:text-base md:text-lg leading-relaxed">
-            Between work, family, and everything else — staying connected takes real effort. Kinmo handles the logistics so you can focus on the fun part.
-          </p>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-8 md:gap-10">
-            <div className="text-center sm:text-left">
-              <h3 className="font-semibold text-lg mb-2">"We should hang!"</h3>
-              <p className="text-muted-foreground leading-relaxed text-sm sm:text-base">
-                Turning good intentions into actual plans
-              </p>
-            </div>
-            <div className="text-center sm:text-left">
-              <h3 className="font-semibold text-lg mb-2">"Who's planning this?"</h3>
-              <p className="text-muted-foreground leading-relaxed text-sm sm:text-base">
-                When everyone assumes someone else will do it
-              </p>
-            </div>
-            <div className="text-center sm:text-left">
-              <h3 className="font-semibold text-lg mb-2">"Works for me!"</h3>
-              <p className="text-muted-foreground leading-relaxed text-sm sm:text-base">
-                Finding times that actually work for everyone
-              </p>
-            </div>
-            <div className="text-center sm:text-left">
-              <h3 className="font-semibold text-lg mb-2">"Same place again?"</h3>
-              <p className="text-muted-foreground leading-relaxed text-sm sm:text-base">
-                Discovering spots you'll all love
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* How Kinmo's AI Works */}
-      <section className="py-14 sm:py-24 px-6">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-center mb-4 sm:mb-5">
-            How it works
-          </h2>
-          <p className="text-center text-muted-foreground mb-10 sm:mb-16 max-w-2xl mx-auto text-sm sm:text-base md:text-lg leading-relaxed">
-            Kinmo learns the rhythm of your friendships.
-          </p>
-
-          <div className="grid md:grid-cols-3 gap-6 sm:gap-8 md:gap-10 lg:gap-12">
-            <div>
-              <div className="inline-flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full preview-primary-bg-10 preview-primary text-base sm:text-lg font-semibold mb-3 sm:mb-4">1</div>
-              <h3 className="font-semibold text-lg mb-3">Learns what you love</h3>
-              <p className="text-muted-foreground leading-relaxed">
-                Swipe on places, share what you liked. Our tool learns your group's preferences.
-              </p>
-            </div>
-            <div>
-              <div className="inline-flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full preview-primary-bg-10 preview-primary text-base sm:text-lg font-semibold mb-3 sm:mb-4">2</div>
-              <h3 className="font-semibold text-lg mb-3">Finds when you're free</h3>
-              <p className="text-muted-foreground leading-relaxed">
-                Everyone shares when they're free. It finds times that work.
-              </p>
-            </div>
-            <div>
-              <div className="inline-flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full preview-primary-bg-10 preview-primary text-base sm:text-lg font-semibold mb-3 sm:mb-4">3</div>
-              <h3 className="font-semibold text-lg mb-3">Picks up on the vibes</h3>
-              <p className="text-muted-foreground leading-relaxed">
-                Too pricey? Too far? Too often? It picks up on the subtle stuff people might not say out loud.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Why Kinmo */}
-      <section className="py-14 sm:py-24 md:py-32 px-6 bg-muted/30 overflow-hidden">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-center mb-12 sm:mb-20">
-            Why Kinmo?
-          </h2>
-
-          <div className="relative">
-            <div className="space-y-4 sm:space-y-8 md:space-y-10">
-              <div className="flex justify-center sm:justify-start sm:pl-4">
-                <p className="text-muted-foreground text-sm sm:text-base md:text-lg tracking-wide text-center sm:text-left">
-                  Reduce the weight of planning
-                </p>
-              </div>
-
-              <div className="flex justify-center sm:justify-start sm:pl-16">
-                <p className="text-muted-foreground text-sm sm:text-base md:text-lg tracking-wide text-center sm:text-left">
-                  Increase the number of planners
-                </p>
-              </div>
-
-              <div className="flex justify-center">
-                <p className="text-muted-foreground/90 text-sm sm:text-base md:text-lg tracking-wide text-center">
-                  Share feedback that loops into future events
-                </p>
-              </div>
-
-              <div className="flex justify-center sm:justify-end sm:pr-16">
-                <p className="text-foreground/70 text-sm sm:text-base md:text-lg tracking-wide text-center sm:text-right">
-                  Improve the quality of your events
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-10 sm:mt-16 md:mt-20 text-center">
-              <p className="text-foreground text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight">
-                See your people more
-              </p>
-              <div className="mt-4 mx-auto w-12 h-1 preview-primary-bg-60 rounded-full" />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="py-14 sm:py-20 md:py-28 px-6">
-        <div className="max-w-2xl mx-auto text-center">
-          <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold mb-4 sm:mb-5 leading-snug">
-            Is there anyone you want to see more?
-          </h2>
-          <p className="text-muted-foreground mb-8 sm:mb-10 text-sm sm:text-base md:text-lg leading-relaxed max-w-lg mx-auto">
-            Free to start. See how it feels. No commitment.
-          </p>
-          <Button
-            size="lg"
-            className="preview-btn-primary px-10 h-12 text-base font-semibold"
-          >
-            Get Started
-            <ArrowRight className="w-4 h-4 ml-2" />
-          </Button>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="py-10 px-6 border-t border-border/30">
-        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2.5 text-muted-foreground">
-            <KinmoIcon size={18} color="currentColor" />
-            <span className="text-sm">© {new Date().getFullYear()} Kinmo</span>
-          </div>
-          <div className="flex gap-8">
-            <span className="text-sm text-muted-foreground">Privacy</span>
-            <span className="text-sm text-muted-foreground">Terms</span>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }
