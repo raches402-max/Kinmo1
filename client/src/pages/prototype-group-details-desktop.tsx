@@ -9,7 +9,7 @@
  * - My Preferences: personal overrides tab
  */
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -921,52 +921,219 @@ function RefinedQuorumSlider({ value, onChange }: { value: number; onChange: (va
   );
 }
 
-function RefinedAvailabilityGrid({
-  availability,
+// Heatmap constants
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+const TIMES = ["morning", "afternoon", "evening"] as const;
+type Day = typeof DAYS[number];
+type TimeSlot = typeof TIMES[number];
+
+const TIME_ICONS: Record<TimeSlot, React.ElementType> = {
+  morning: Sun,
+  afternoon: Sunset,
+  evening: Moon,
+};
+
+const TIME_LABELS: Record<TimeSlot, { label: string; range: string }> = {
+  morning: { label: "Morning", range: "6am–12pm" },
+  afternoon: { label: "Afternoon", range: "12pm–6pm" },
+  evening: { label: "Evening", range: "6pm–12am" },
+};
+
+function RefinedAvailabilityHeatmap({
+  membersAvailability,
+  myAvailability,
   onChange,
+  currentMemberId = "1",
 }: {
-  availability: typeof mockAvailability;
+  membersAvailability: typeof mockMembersAvailability;
+  myAvailability: typeof mockMyAvailability;
   onChange: (day: string, period: string) => void;
+  currentMemberId?: string;
 }) {
-  const days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
-  const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  const periods = ["morning", "afternoon", "evening"];
-  const periodLabels = ["Morning", "Afternoon", "Evening"];
+  const [hoveredCell, setHoveredCell] = useState<{ day: Day; time: TimeSlot } | null>(null);
+  const totalMembers = membersAvailability.length;
+
+  // Calculate aggregate availability for each cell
+  const aggregateAvailability = useMemo(() => {
+    const aggregate: Record<string, Record<TimeSlot, { count: number; members: string[] }>> = {};
+
+    DAYS.forEach((day) => {
+      aggregate[day] = {
+        morning: { count: 0, members: [] },
+        afternoon: { count: 0, members: [] },
+        evening: { count: 0, members: [] },
+      };
+    });
+
+    membersAvailability.forEach(({ memberName, availability }) => {
+      DAYS.forEach((day) => {
+        TIMES.forEach((time) => {
+          if (availability[day]?.[time]) {
+            aggregate[day][time].count++;
+            aggregate[day][time].members.push(memberName);
+          }
+        });
+      });
+    });
+
+    return aggregate;
+  }, [membersAvailability]);
+
+  // Find sweet spots - times when everyone is available
+  const sweetSpots = useMemo(() => {
+    const spots: { day: Day; time: TimeSlot }[] = [];
+    DAYS.forEach((day) => {
+      TIMES.forEach((time) => {
+        if (aggregateAvailability[day][time].count === totalMembers && totalMembers > 0) {
+          spots.push({ day, time });
+        }
+      });
+    });
+    return spots;
+  }, [aggregateAvailability, totalMembers]);
+
+  // Get heat background color based on availability ratio (amber tones matching Kinmo style)
+  const getHeatBg = (count: number) => {
+    const ratio = totalMembers > 0 ? count / totalMembers : 0;
+    if (ratio === 0) return "bg-[hsl(35,25%,93%)]";
+    if (ratio <= 0.2) return "bg-amber-50";
+    if (ratio <= 0.4) return "bg-amber-100";
+    if (ratio <= 0.6) return "bg-amber-200";
+    if (ratio <= 0.8) return "bg-amber-300";
+    return "bg-amber-400";
+  };
+
+  // Get text color based on ratio for better contrast
+  const getHeatText = (count: number) => {
+    const ratio = totalMembers > 0 ? count / totalMembers : 0;
+    if (ratio <= 0.4) return "text-[hsl(25,30%,30%)]";
+    return "text-white";
+  };
 
   return (
     <div className="p-4 bg-[hsl(38,50%,98%)] rounded-xl">
-      <div className="text-sm font-semibold text-[hsl(25,30%,14%)] mb-3">Group Availability</div>
-      <div className="grid grid-cols-8 gap-1">
-        {/* Header */}
-        <div />
-        {dayLabels.map((day) => (
-          <div key={day} className="text-center text-xs font-medium text-[hsl(25,15%,45%)] py-1">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Users className="h-4 w-4 text-[hsl(44,87%,50%)]" />
+          <span className="text-sm font-semibold text-[hsl(25,30%,14%)]">Group Availability</span>
+          <span className="text-xs text-[hsl(25,15%,45%)]">({totalMembers} members)</span>
+        </div>
+        {sweetSpots.length > 0 && (
+          <div className="flex items-center gap-1.5 text-xs font-medium text-[hsl(44,80%,45%)]">
+            <Sparkles className="h-3.5 w-3.5" />
+            <span>{sweetSpots.length} perfect time{sweetSpots.length !== 1 ? "s" : ""}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Heatmap Grid */}
+      <div className="grid gap-1.5" style={{ gridTemplateColumns: "80px repeat(7, 1fr)" }}>
+        {/* Day headers */}
+        <div /> {/* Empty corner */}
+        {DAYS.map((day) => (
+          <div key={day} className="text-center text-xs font-semibold text-[hsl(25,15%,45%)] py-1">
             {day}
           </div>
         ))}
-        {/* Rows */}
-        {periods.map((period, pi) => (
-          <>
-            <div key={period} className="text-xs font-medium text-[hsl(25,15%,45%)] py-2 pr-2 text-right">
-              {periodLabels[pi]}
+
+        {/* Time rows */}
+        {TIMES.map((time) => {
+          const TimeIcon = TIME_ICONS[time];
+          return (
+            <div key={time} className="contents">
+              {/* Time label */}
+              <div className="flex items-center gap-2 pr-2">
+                <TimeIcon className="h-4 w-4 text-[hsl(25,15%,55%)]" />
+                <span className="text-xs font-medium text-[hsl(25,15%,45%)]">
+                  {TIME_LABELS[time].label}
+                </span>
+              </div>
+
+              {/* Day cells */}
+              {DAYS.map((day) => {
+                const { count, members } = aggregateAvailability[day][time];
+                const isMySlot = myAvailability[day]?.[time];
+                const isSweetSpot = count === totalMembers && totalMembers > 0;
+                const isHovered = hoveredCell?.day === day && hoveredCell?.time === time;
+
+                return (
+                  <TooltipProvider key={`${day}-${time}`}>
+                    <Tooltip delayDuration={0}>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={() => onChange(day, time)}
+                          onMouseEnter={() => setHoveredCell({ day, time })}
+                          onMouseLeave={() => setHoveredCell(null)}
+                          className={cn(
+                            "h-12 rounded-lg transition-all duration-200 flex items-center justify-center relative",
+                            getHeatBg(count),
+                            isMySlot && "ring-2 ring-violet-500 ring-inset",
+                            isSweetSpot && "ring-2 ring-[hsl(44,87%,55%)] ring-offset-1",
+                            isHovered && "scale-105 shadow-md z-10"
+                          )}
+                        >
+                          <span className={cn("text-sm font-bold", getHeatText(count))}>
+                            {count}
+                          </span>
+                          {isSweetSpot && (
+                            <Sparkles className="absolute top-1 right-1 h-3 w-3 text-[hsl(44,87%,50%)]" />
+                          )}
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side="top"
+                        className="bg-white border border-[hsl(32,20%,88%)] shadow-lg max-w-[200px]"
+                      >
+                        <div className="text-xs">
+                          <div className="font-semibold text-[hsl(25,30%,14%)] mb-1">
+                            {day} {TIME_LABELS[time].label}
+                          </div>
+                          <div className="text-[hsl(25,15%,45%)] mb-1">
+                            {TIME_LABELS[time].range}
+                          </div>
+                          <div className="font-medium text-[hsl(25,30%,20%)]">
+                            {count} of {totalMembers} available
+                          </div>
+                          {members.length > 0 && (
+                            <div className="mt-1 pt-1 border-t border-[hsl(32,20%,90%)]">
+                              <div className="text-[hsl(25,15%,45%)]">
+                                {members.join(", ")}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                );
+              })}
             </div>
-            {days.map((day) => {
-              const isAvailable = availability[day as keyof typeof availability][period as keyof typeof availability.monday];
-              return (
-                <button
-                  key={`${day}-${period}`}
-                  onClick={() => onChange(day, period)}
-                  className={cn(
-                    "h-8 rounded-md transition-all duration-200",
-                    isAvailable
-                      ? "bg-[hsl(44,87%,63%)] hover:bg-[hsl(44,87%,55%)]"
-                      : "bg-[hsl(35,25%,90%)] hover:bg-[hsl(35,25%,85%)]"
-                  )}
-                />
-              );
-            })}
-          </>
-        ))}
+          );
+        })}
+      </div>
+
+      {/* Legend */}
+      <div className="flex items-center justify-center gap-6 mt-4 pt-3 border-t border-[hsl(32,20%,90%)]">
+        <div className="flex items-center gap-2 text-xs text-[hsl(25,15%,45%)]">
+          <span className="font-medium">Heat:</span>
+          <div className="flex gap-0.5">
+            <div className="w-4 h-4 rounded bg-[hsl(35,25%,93%)] border border-[hsl(32,20%,88%)]" title="0" />
+            <div className="w-4 h-4 rounded bg-amber-100" title="Low" />
+            <div className="w-4 h-4 rounded bg-amber-200" title="Medium" />
+            <div className="w-4 h-4 rounded bg-amber-400" title="High" />
+          </div>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-[hsl(25,15%,45%)]">
+          <span className="font-medium">You:</span>
+          <div className="w-4 h-4 rounded bg-amber-200 ring-2 ring-violet-500 ring-inset" />
+        </div>
+        <div className="flex items-center gap-2 text-xs text-[hsl(25,15%,45%)]">
+          <span className="font-medium">Perfect:</span>
+          <div className="w-4 h-4 rounded bg-amber-400 ring-2 ring-[hsl(44,87%,55%)] ring-offset-1 flex items-center justify-center">
+            <Sparkles className="h-2.5 w-2.5 text-[hsl(44,87%,50%)]" />
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -1028,19 +1195,20 @@ export default function PrototypeGroupDetailsDesktop() {
   const [members, setMembers] = useState(mockMembers);
   const [categories, setCategories] = useState(mockCategories);
   const [automation, setAutomation] = useState(mockAutomation);
-  const [availability, setAvailability] = useState(mockAvailability);
+  const [myAvailability, setMyAvailability] = useState(mockMyAvailability);
+  const [membersAvailability] = useState(mockMembersAvailability);
   const [myPreferences, setMyPreferences] = useState(mockMyPreferences);
 
   const toggleCategory = (id: string) => {
     setCategories((prev) => prev.map((cat) => (cat.id === id ? { ...cat, enabled: !cat.enabled } : cat)));
   };
 
-  const toggleAvailability = (day: string, period: string) => {
-    setAvailability((prev) => ({
+  const toggleMyAvailability = (day: string, period: string) => {
+    setMyAvailability((prev) => ({
       ...prev,
       [day]: {
         ...prev[day as keyof typeof prev],
-        [period]: !prev[day as keyof typeof prev][period as keyof typeof prev.monday],
+        [period]: !prev[day as keyof typeof prev][period as keyof typeof prev.Mon],
       },
     }));
   };
@@ -1205,7 +1373,12 @@ export default function PrototypeGroupDetailsDesktop() {
                           onChange={(value) => setGroup({ ...group, defaultQuorumThreshold: value })}
                         />
 
-                        <RefinedAvailabilityGrid availability={availability} onChange={toggleAvailability} />
+                        <RefinedAvailabilityHeatmap
+                          membersAvailability={membersAvailability}
+                          myAvailability={myAvailability}
+                          onChange={toggleMyAvailability}
+                          currentMemberId="1"
+                        />
                       </div>
                     </RefinedCollapsibleCard>
 

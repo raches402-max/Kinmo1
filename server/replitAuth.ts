@@ -13,13 +13,18 @@ if (!process.env.REPLIT_DOMAINS) {
   throw new Error("Environment variable REPLIT_DOMAINS not provided");
 }
 
-// Combine Replit-managed domains with custom domains (like kinmo.ai)
-// CUSTOM_DOMAINS is a comma-separated list that YOU control
+// Custom domains for authentication (hardcoded because Replit keeps deleting env vars)
+// Add your custom domains here - these will be combined with REPLIT_DOMAINS
+const HARDCODED_CUSTOM_DOMAINS = [
+  'kinmo.ai',
+];
+
 function getAllDomains(): string[] {
   const replitDomains = process.env.REPLIT_DOMAINS!.split(",").map(d => d.trim());
-  const customDomains = process.env.CUSTOM_DOMAINS?.split(",").map(d => d.trim()) || [];
-  // Deduplicate and return all domains
-  return [...new Set([...customDomains, ...replitDomains])];
+  // Also check env var as fallback, but primarily use hardcoded list
+  const envCustomDomains = process.env.CUSTOM_DOMAINS?.split(",").map(d => d.trim()) || [];
+  // Deduplicate: custom domains first, then Replit domains
+  return [...new Set([...HARDCODED_CUSTOM_DOMAINS, ...envCustomDomains, ...replitDomains])];
 }
 
 const getOidcConfig = memoize(
