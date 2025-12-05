@@ -1,238 +1,204 @@
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Check, Sparkles, ThumbsUp, ThumbsDown, Play, Pause } from "lucide-react";
-import { KinmoIcon } from "@/components/KinmoLogo";
+import { ArrowRight, Check, Star } from "lucide-react";
 
 /*
- * Gradient Button Exploration
+ * Kinmo Landing Page Color Exploration
  *
- * Goal: Bridge the muted gold (#F2C94C) and bright gold (#FFB800)
- * with subtle gradients that feel sophisticated, not corny.
- *
- * Key principle: Subtlety. The gradient should feel like natural
- * light hitting the button, not a "Web 2.0" effect.
+ * Taking a step back to explore fundamentally different color directions
+ * for the landing page. Each direction maintains the warm, human-connection
+ * feel but approaches it differently.
  */
 
-interface GradientOption {
+interface ColorDirection {
   id: string;
   name: string;
+  tagline: string;
   description: string;
-  gradient: string;
-  startColor: string;
-  endColor: string;
-  verdict: "recommended" | "subtle" | "bold" | "experimental";
-  notes: string;
+  // Colors
+  accent: string;        // Primary accent (sun, rotating text)
+  accentHover: string;   // Hover state
+  buttonBg: string;      // CTA button background
+  buttonText: string;    // CTA button text
+  pageBg: string;        // Page background
+  cardBg: string;        // Card/section background
+  textPrimary: string;   // Main text
+  textMuted: string;     // Secondary text
+  border: string;        // Borders
+  // Gradient option for sun (optional)
+  sunGradient?: { start: string; end: string };
+  // Mood/reasoning
+  mood: string;
+  pros: string[];
+  cons: string[];
 }
 
-const gradientOptions: GradientOption[] = [
+const colorDirections: ColorDirection[] = [
   {
-    id: "very-subtle",
-    name: "Ultra Subtle",
-    description: "Almost imperceptible shift",
-    gradient: "linear-gradient(135deg, #F4C74C 0%, #F8BE30 100%)",
-    startColor: "#F4C74C",
-    endColor: "#F8BE30",
-    verdict: "recommended",
-    notes: "If you want the gradient to be felt more than seen. Extremely refined. The warmth comes through without being obvious.",
+    id: "current",
+    name: "Current Muted Gold",
+    tagline: "Soft and approachable",
+    description: "Your existing palette. Calm, friendly, but may lack punch.",
+    accent: "#F2C94C",
+    accentHover: "#E5B93D",
+    buttonBg: "#F2C94C",
+    buttonText: "#1a1a1a",
+    pageBg: "#FFFFFF",
+    cardBg: "#FAFAFA",
+    textPrimary: "#1a1a1a",
+    textMuted: "#6b7280",
+    border: "#e5e7eb",
+    mood: "Gentle, unassuming, easy on the eyes",
+    pros: ["Calming", "Not aggressive", "Works with white"],
+    cons: ["Can feel faint", "Low contrast", "May not grab attention"],
   },
   {
-    id: "subtle-horizontal",
-    name: "Subtle Horizontal",
-    description: "Muted → Bright (left to right)",
-    gradient: "linear-gradient(90deg, #F2C94C 0%, #FFB800 100%)",
-    startColor: "#F2C94C",
-    endColor: "#FFB800",
-    verdict: "subtle",
-    notes: "Clean and modern. The eye naturally follows left-to-right, ending on the brighter, more energetic tone.",
+    id: "bright-gold",
+    name: "Bright Gold",
+    tagline: "Bold and energetic",
+    description: "The #FFB800 you explored. More vibrant and attention-grabbing.",
+    accent: "#FFB800",
+    accentHover: "#E6A600",
+    buttonBg: "#FFB800",
+    buttonText: "#1a1a1a",
+    pageBg: "#FFFFFF",
+    cardBg: "#FFFBF0",
+    textPrimary: "#1a1a1a",
+    textMuted: "#6b7280",
+    border: "#f0e6d3",
+    mood: "Confident, warm, sunshine",
+    pros: ["High visibility", "Energetic", "Memorable"],
+    cons: ["Can be overwhelming", "Bright on buttons"],
   },
   {
-    id: "subtle-horizontal-reverse",
-    name: "Subtle Horizontal (Reverse)",
-    description: "Bright → Muted (left to right)",
-    gradient: "linear-gradient(90deg, #FFB800 0%, #F2C94C 100%)",
-    startColor: "#FFB800",
-    endColor: "#F2C94C",
-    verdict: "subtle",
-    notes: "Starts bright near the text, fades to softer. Good if you want the button to feel grounded.",
+    id: "amber-rich",
+    name: "Rich Amber",
+    tagline: "Sophisticated warmth",
+    description: "Deeper, more refined gold with hints of orange. Feels premium.",
+    accent: "#E5A000",
+    accentHover: "#CC8F00",
+    buttonBg: "#E5A000",
+    buttonText: "#FFFFFF",
+    pageBg: "#FEFCF8",
+    cardBg: "#FFF9F0",
+    textPrimary: "#2d2418",
+    textMuted: "#7a6f5c",
+    border: "#e8dfd0",
+    sunGradient: { start: "#F0B800", end: "#D49000" },
+    mood: "Warm honey, autumnal, established",
+    pros: ["Sophisticated", "Easier to read", "Feels premium"],
+    cons: ["Less playful", "Slightly heavier"],
   },
   {
-    id: "diagonal-warm",
-    name: "Diagonal Warm",
-    description: "Top-left to bottom-right sweep",
-    gradient: "linear-gradient(135deg, #F2C94C 0%, #FFB800 100%)",
-    startColor: "#F2C94C",
-    endColor: "#FFB800",
-    verdict: "subtle",
-    notes: "Diagonal adds dynamism without being flashy. Feels like natural light catching the surface.",
+    id: "sunset-coral",
+    name: "Sunset Coral",
+    tagline: "Warm and human",
+    description: "A coral/peach direction. Still warm but distinctly different.",
+    accent: "#F28B66",
+    accentHover: "#E07850",
+    buttonBg: "#F28B66",
+    buttonText: "#FFFFFF",
+    pageBg: "#FFFBF9",
+    cardBg: "#FFF5F2",
+    textPrimary: "#3d2c24",
+    textMuted: "#8a7068",
+    border: "#f0ddd6",
+    sunGradient: { start: "#F5A070", end: "#E86F4C" },
+    mood: "Approachable, organic, human skin tone",
+    pros: ["Very human/warm", "Unique", "Soft but visible"],
+    cons: ["Departure from gold", "Different brand feel"],
   },
   {
-    id: "diagonal-reverse",
-    name: "Diagonal (Reverse)",
-    description: "Bottom-left to top-right",
-    gradient: "linear-gradient(45deg, #F2C94C 0%, #FFB800 100%)",
-    startColor: "#F2C94C",
-    endColor: "#FFB800",
-    verdict: "subtle",
-    notes: "Upward diagonal can feel uplifting. Subtle energy lift.",
+    id: "earthy-sage",
+    name: "Earthy Sage",
+    tagline: "Grounded and calm",
+    description: "A sage green direction. Connotes growth, nature, groundedness.",
+    accent: "#7BA05B",
+    accentHover: "#6A8F4A",
+    buttonBg: "#7BA05B",
+    buttonText: "#FFFFFF",
+    pageBg: "#FAFCF8",
+    cardBg: "#F4F7F0",
+    textPrimary: "#2a3324",
+    textMuted: "#5c6b52",
+    border: "#d4e0c8",
+    mood: "Rooted, trustworthy, organic growth",
+    pros: ["Calming", "Nature connection", "Trustworthy"],
+    cons: ["Less warmth", "Very different direction"],
   },
   {
-    id: "center-glow",
-    name: "Center Glow",
-    description: "Bright center, muted edges",
-    gradient: "linear-gradient(90deg, #F2C94C 0%, #FFB800 50%, #F2C94C 100%)",
-    startColor: "#F2C94C",
-    endColor: "#FFB800",
-    verdict: "bold",
-    notes: "Creates a subtle 'glow' or highlight in the center. More noticeable but can feel premium.",
+    id: "warm-terracotta",
+    name: "Warm Terracotta",
+    tagline: "Earthy and inviting",
+    description: "Terra cotta/rust. Grounded, warm, like gathering around a fire.",
+    accent: "#C67B5C",
+    accentHover: "#B56A4B",
+    buttonBg: "#C67B5C",
+    buttonText: "#FFFFFF",
+    pageBg: "#FEFAF8",
+    cardBg: "#FFF7F3",
+    textPrimary: "#3a2820",
+    textMuted: "#8a7265",
+    border: "#e8d5cb",
+    sunGradient: { start: "#D4896A", end: "#B86548" },
+    mood: "Hearth, home, comfortable gathering",
+    pros: ["Very grounded", "Cozy feel", "Mature"],
+    cons: ["Less bright/energetic", "Earthy over sunny"],
   },
   {
-    id: "soft-shine",
-    name: "Soft Shine",
-    description: "Diagonal with soft highlight",
-    gradient: "linear-gradient(135deg, #F2C94C 0%, #FFBE00 40%, #FFB800 100%)",
-    startColor: "#F2C94C",
-    endColor: "#FFB800",
-    verdict: "subtle",
-    notes: "Three-stop gradient creates depth like light reflecting off metal. Sophisticated.",
+    id: "soft-peach",
+    name: "Soft Peach",
+    tagline: "Gentle and friendly",
+    description: "A softer, peachy direction. Friendly without being intense.",
+    accent: "#FFAB8C",
+    accentHover: "#F59A78",
+    buttonBg: "#FF9E7A",
+    buttonText: "#3d2420",
+    pageBg: "#FFFCFA",
+    cardBg: "#FFF8F4",
+    textPrimary: "#3d2c28",
+    textMuted: "#8a756e",
+    border: "#f5e0d8",
+    sunGradient: { start: "#FFB898", end: "#FF9470" },
+    mood: "Soft, approachable, gentle energy",
+    pros: ["Very friendly", "Soft but present", "Modern"],
+    cons: ["May feel too soft", "Less authority"],
   },
   {
-    id: "warm-to-golden",
-    name: "Warm to Golden",
-    description: "Using the graduated warmth colors",
-    gradient: "linear-gradient(90deg, #E5A800 0%, #F0B000 50%, #FFBA00 100%)",
-    startColor: "#E5A800",
-    endColor: "#FFBA00",
-    verdict: "experimental",
-    notes: "Uses your graduated warmth palette in a single button. Rich and cohesive.",
-  },
-  {
-    id: "vertical-subtle",
-    name: "Vertical Subtle",
-    description: "Top to bottom, muted → bright",
-    gradient: "linear-gradient(180deg, #F2C94C 0%, #FFB800 100%)",
-    startColor: "#F2C94C",
-    endColor: "#FFB800",
-    verdict: "subtle",
-    notes: "Vertical gradients can feel like the button has depth/dimension. Classic approach.",
-  },
-  {
-    id: "vertical-highlight",
-    name: "Vertical Highlight",
-    description: "Bright top edge, muted body",
-    gradient: "linear-gradient(180deg, #FFB800 0%, #F2C94C 30%, #F2C94C 100%)",
-    startColor: "#FFB800",
-    endColor: "#F2C94C",
-    verdict: "bold",
-    notes: "Simulates top lighting. Can look like a real 3D button if done right.",
+    id: "deep-marigold",
+    name: "Deep Marigold",
+    tagline: "Vibrant yet grounded",
+    description: "A deeper marigold/saffron. The warmth of gold with more depth.",
+    accent: "#E8A020",
+    accentHover: "#D49018",
+    buttonBg: "#E8A020",
+    buttonText: "#FFFFFF",
+    pageBg: "#FEFBF5",
+    cardBg: "#FFF8ED",
+    textPrimary: "#2e2512",
+    textMuted: "#7a6c4a",
+    border: "#e8dcc4",
+    sunGradient: { start: "#F4B030", end: "#DC9010" },
+    mood: "Festival, celebration, gathered together",
+    pros: ["Warm and rich", "Good contrast", "Festive"],
+    cons: ["Bolder than current", "Stronger personality"],
   },
 ];
 
-function GradientButton({ gradient, children }: { gradient: string; children: React.ReactNode }) {
-  return (
-    <button
-      className="px-6 py-2.5 rounded-lg text-sm font-semibold text-black shadow-sm hover:shadow-md transition-all hover:scale-[1.02] active:scale-[0.98]"
-      style={{ background: gradient }}
-    >
-      {children}
-    </button>
-  );
-}
-
-function MiniPreview({ gradient, startColor, endColor }: { gradient: string; startColor: string; endColor: string }) {
-  const gradientId = `sun-gradient-${startColor.replace('#', '')}`;
-
-  return (
-    <div className="bg-background rounded-lg border border-border overflow-hidden">
-      {/* Mini header */}
-      <div className="px-3 py-2 border-b border-border/50 flex items-center gap-1.5">
-        <svg width="14" height="14" viewBox="0 0 48 48" fill="none">
-          <defs>
-            <linearGradient id={`header-${gradientId}`} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor={startColor} />
-              <stop offset="100%" stopColor={endColor} />
-            </linearGradient>
-          </defs>
-          <circle cx="24" cy="24" r="20" fill={`url(#header-${gradientId})`} />
-        </svg>
-        <span className="font-medium text-xs">Kinmo</span>
-      </div>
-
-      {/* Mini hero */}
-      <div className="px-3 py-4 text-center">
-        <svg width="28" height="28" viewBox="0 0 48 48" fill="none" className="mx-auto mb-2">
-          <defs>
-            <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor={startColor} />
-              <stop offset="100%" stopColor={endColor} />
-            </linearGradient>
-          </defs>
-          <circle cx="24" cy="24" r="14" fill={`url(#${gradientId})`} />
-          <path d="M19 5 A4 4 0 0 1 29 5 L24 5 Z" fill={`url(#${gradientId})`} />
-          <path d="M38 10 A4 4 0 0 1 43 19 L40 14 Z" fill={`url(#${gradientId})`} />
-          <path d="M43 29 A4 4 0 0 1 38 38 L40 34 Z" fill={`url(#${gradientId})`} />
-          <path d="M29 43 A4 4 0 0 1 19 43 L24 43 Z" fill={`url(#${gradientId})`} />
-          <path d="M10 38 A4 4 0 0 1 5 29 L8 34 Z" fill={`url(#${gradientId})`} />
-          <path d="M5 19 A4 4 0 0 1 10 10 L8 14 Z" fill={`url(#${gradientId})`} />
-        </svg>
-        <p className="text-[10px] font-bold mb-2">
-          See your <span className="bg-clip-text text-transparent" style={{ backgroundImage: gradient }}>friends</span> more.
-        </p>
-        <button
-          className="px-3 py-1 rounded text-[10px] font-semibold text-black"
-          style={{ background: gradient }}
-        >
-          Get Started →
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// Live animated preview with full rotation animation
+// Animation phases
 type AnimationPhase = "rotating" | "fadeToKinmo" | "kinmo" | "fadeOut" | "fadeIn";
-type TextColorApproach = "hero-pop" | "unified-bright" | "gradient-text";
 
-// Compact animated preview for side-by-side comparison
-function CompactAnimatedPreview({
-  gradient,
-  startColor,
-  endColor,
-  textApproach,
-  label,
-  description
-}: {
-  gradient: string;
-  startColor: string;
-  endColor: string;
-  textApproach: TextColorApproach;
-  label: string;
-  description: string;
-}) {
-  const gradientId = `compact-sun-${textApproach}-${startColor.replace('#', '')}`;
-  const words = ["friends", "family", "loved ones", "crew"];
-
+// Compact landing preview with full animation
+function LandingPreview({ direction, isSelected }: { direction: ColorDirection; isSelected: boolean }) {
+  const words = ["friends", "family", "crew", "people"];
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [phase, setPhase] = useState<AnimationPhase>("rotating");
   const [cycleCount, setCycleCount] = useState(0);
 
-  // Get text style based on approach
-  const getTextStyle = () => {
-    switch (textApproach) {
-      case "hero-pop":
-        return { color: '#FFB800' };
-      case "unified-bright":
-        return { color: '#F8BE30' };
-      case "gradient-text":
-        return {
-          backgroundImage: gradient,
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          backgroundClip: 'text'
-        } as React.CSSProperties;
-    }
-  };
+  // Create unique gradient ID
+  const gradientId = `sun-${direction.id}`;
 
   // Animation timing
   useEffect(() => {
@@ -250,700 +216,416 @@ function CompactAnimatedPreview({
             return nextIndex;
           });
           setIsAnimating(false);
-        }, 300);
-      }, 1800); // Slightly faster for compact view
+        }, 250);
+      }, 1600);
     }
 
     return () => clearInterval(timer);
   }, [phase, words.length]);
 
-  // After one cycle, fade to "kin" then "Kinmo"
+  // Kinmo transition
   useEffect(() => {
     if (cycleCount > 0 && phase === "rotating") {
       setPhase("fadeToKinmo");
-
-      const kinTimer = setTimeout(() => setPhase("kinmo"), 500);
-      const holdTimer = setTimeout(() => setPhase("fadeOut"), 2500);
-      const restartTimer = setTimeout(() => {
+      const t1 = setTimeout(() => setPhase("kinmo"), 400);
+      const t2 = setTimeout(() => setPhase("fadeOut"), 2200);
+      const t3 = setTimeout(() => {
         setPhase("fadeIn");
         setCurrentIndex(0);
-      }, 2900);
-      const finalTimer = setTimeout(() => {
+      }, 2600);
+      const t4 = setTimeout(() => {
         setPhase("rotating");
         setCycleCount(0);
-      }, 3200);
-
-      return () => {
-        clearTimeout(kinTimer);
-        clearTimeout(holdTimer);
-        clearTimeout(restartTimer);
-        clearTimeout(finalTimer);
-      };
+      }, 3000);
+      return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
     }
   }, [cycleCount, phase]);
 
-  return (
-    <div className="bg-background rounded-xl border-2 border-border overflow-hidden">
-      {/* Label header */}
-      <div className="px-3 py-2 border-b border-border/50 bg-muted/30">
-        <p className="font-semibold text-sm text-center">{label}</p>
-        <p className="text-[10px] text-muted-foreground text-center">{description}</p>
-      </div>
-
-      {/* Animated preview */}
-      <div className="px-4 py-6 text-center">
-        {/* Gradient sun */}
-        <svg width="48" height="48" viewBox="0 0 48 48" fill="none" className="mx-auto mb-4 animate-slow-spin">
-          <defs>
-            <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor={startColor} />
-              <stop offset="100%" stopColor={endColor} />
-            </linearGradient>
-          </defs>
-          <circle cx="24" cy="24" r="14" fill={`url(#${gradientId})`} />
-          <path d="M19 5 A4 4 0 0 1 29 5 L24 5 Z" fill={`url(#${gradientId})`} />
-          <path d="M38 10 A4 4 0 0 1 43 19 L40 14 Z" fill={`url(#${gradientId})`} />
-          <path d="M43 29 A4 4 0 0 1 38 38 L40 34 Z" fill={`url(#${gradientId})`} />
-          <path d="M29 43 A4 4 0 0 1 19 43 L24 43 Z" fill={`url(#${gradientId})`} />
-          <path d="M10 38 A4 4 0 0 1 5 29 L8 34 Z" fill={`url(#${gradientId})`} />
-          <path d="M5 19 A4 4 0 0 1 10 10 L8 14 Z" fill={`url(#${gradientId})`} />
-        </svg>
-
-        {/* Animated headline */}
-        <div className="relative h-10 flex items-center justify-center">
-          <p className="text-base font-bold text-foreground">
-            See your{" "}
-            <span className="relative inline-block w-[90px] h-[1.2em] align-bottom">
-              {phase === "fadeToKinmo" && (
-                <span
-                  className="absolute top-[38%] left-1/2 -translate-x-1/2 font-bold whitespace-nowrap animate-pulse"
-                  style={getTextStyle()}
-                >
-                  kin
-                </span>
-              )}
-
-              {phase === "kinmo" && (
-                <span
-                  className="absolute top-[38%] left-1/2 -translate-x-1/2 font-bold whitespace-nowrap"
-                  style={getTextStyle()}
-                >
-                  Kinmo
-                </span>
-              )}
-
-              {phase === "fadeOut" && (
-                <span
-                  className="absolute top-[38%] left-1/2 -translate-x-1/2 font-bold whitespace-nowrap opacity-0 transition-opacity duration-300"
-                  style={getTextStyle()}
-                >
-                  Kinmo
-                </span>
-              )}
-
-              {phase === "fadeIn" && (
-                <span
-                  className="absolute top-[38%] left-1/2 -translate-x-1/2 font-bold whitespace-nowrap opacity-0 transition-opacity duration-300"
-                  style={getTextStyle()}
-                >
-                  {words[0]}
-                </span>
-              )}
-
-              {phase === "rotating" && (
-                <span
-                  className={`absolute top-[38%] left-1/2 -translate-x-1/2 transition-opacity duration-300 font-bold whitespace-nowrap ${
-                    isAnimating ? "opacity-0" : "opacity-100"
-                  }`}
-                  style={getTextStyle()}
-                >
-                  {words[currentIndex]}
-                </span>
-              )}
-            </span>{" "}
-            more.
-          </p>
-        </div>
-
-        {/* CTA button */}
-        <button
-          className="mt-4 px-4 py-1.5 rounded-lg text-xs font-semibold text-black"
-          style={{ background: gradient }}
-        >
-          Get Started →
-        </button>
-      </div>
-
-      {/* Color indicator */}
-      <div className="px-3 py-2 border-t border-border/50 bg-muted/20">
-        <div className="flex items-center justify-center gap-2">
-          <div
-            className="w-4 h-4 rounded-full border border-black/10"
-            style={{ background: textApproach === "gradient-text" ? gradient : (textApproach === "hero-pop" ? "#FFB800" : "#F8BE30") }}
-          />
-          <code className="text-[10px] text-muted-foreground">
-            {textApproach === "hero-pop" ? "#FFB800" : textApproach === "unified-bright" ? "#F8BE30" : "gradient"}
-          </code>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function LiveAnimatedPreview({ gradient, startColor, endColor }: { gradient: string; startColor: string; endColor: string }) {
-  const gradientId = `live-sun-${startColor.replace('#', '')}`;
-  const words = ["friends", "family", "loved ones", "people", "crew"];
-
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [phase, setPhase] = useState<AnimationPhase>("rotating");
-  const [cycleCount, setCycleCount] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
-
-  // Animation timing
-  useEffect(() => {
-    if (isPaused) return;
-
-    let timer: NodeJS.Timeout;
-
-    if (phase === "rotating") {
-      // Rotate through words
-      timer = setInterval(() => {
-        setIsAnimating(true);
-        setTimeout(() => {
-          setCurrentIndex((prev) => {
-            const nextIndex = (prev + 1) % words.length;
-            // After completing one full cycle, transition to kinmo
-            if (nextIndex === 0) {
-              setCycleCount(c => c + 1);
-            }
-            return nextIndex;
-          });
-          setIsAnimating(false);
-        }, 300);
-      }, 2000);
+  const getSunFill = () => {
+    if (direction.sunGradient) {
+      return `url(#${gradientId})`;
     }
-
-    return () => clearInterval(timer);
-  }, [phase, isPaused, words.length]);
-
-  // After one cycle, fade to "kin" then "Kinmo"
-  useEffect(() => {
-    if (cycleCount > 0 && phase === "rotating") {
-      setPhase("fadeToKinmo");
-
-      // Fade "kin" for 600ms, then show full "Kinmo"
-      const kinTimer = setTimeout(() => {
-        setPhase("kinmo");
-      }, 600);
-
-      // Hold "Kinmo" for 2.5s, then fade out
-      const holdTimer = setTimeout(() => {
-        setPhase("fadeOut");
-      }, 3100);
-
-      // Fade out, then restart rotation
-      const restartTimer = setTimeout(() => {
-        setPhase("fadeIn");
-        setCurrentIndex(0);
-      }, 3500);
-
-      const finalTimer = setTimeout(() => {
-        setPhase("rotating");
-        setCycleCount(0);
-      }, 3900);
-
-      return () => {
-        clearTimeout(kinTimer);
-        clearTimeout(holdTimer);
-        clearTimeout(restartTimer);
-        clearTimeout(finalTimer);
-      };
-    }
-  }, [cycleCount, phase]);
+    return direction.accent;
+  };
 
   return (
-    <div className="bg-background rounded-xl border border-border overflow-hidden shadow-lg">
-      {/* Header with play/pause */}
-      <div className="px-4 py-3 border-b border-border/50 flex items-center justify-between">
+    <div
+      className={`rounded-2xl overflow-hidden transition-all duration-300 ${
+        isSelected ? "ring-4 ring-blue-500 ring-offset-2 scale-[1.02]" : "hover:scale-[1.01]"
+      }`}
+      style={{ backgroundColor: direction.pageBg }}
+    >
+      {/* Mini header */}
+      <div
+        className="px-4 py-3 flex items-center justify-between"
+        style={{ borderBottom: `1px solid ${direction.border}` }}
+      >
         <div className="flex items-center gap-2">
-          <svg width="20" height="20" viewBox="0 0 48 48" fill="none">
+          <svg width="18" height="18" viewBox="0 0 48 48" fill="none">
+            {direction.sunGradient && (
+              <defs>
+                <linearGradient id={`header-${gradientId}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor={direction.sunGradient.start} />
+                  <stop offset="100%" stopColor={direction.sunGradient.end} />
+                </linearGradient>
+              </defs>
+            )}
+            <circle cx="24" cy="24" r="20" fill={direction.sunGradient ? `url(#header-${gradientId})` : direction.accent} />
+          </svg>
+          <span className="font-semibold text-sm" style={{ color: direction.textPrimary }}>Kinmo</span>
+        </div>
+        <span className="text-xs px-2 py-1 rounded" style={{ color: direction.textMuted }}>Sign In</span>
+      </div>
+
+      {/* Hero section */}
+      <div className="px-6 py-8 text-center">
+        {/* Sun */}
+        <svg width="56" height="56" viewBox="0 0 48 48" fill="none" className="mx-auto mb-4 animate-slow-spin">
+          {direction.sunGradient && (
             <defs>
-              <linearGradient id={`header-live-${gradientId}`} x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor={startColor} />
-                <stop offset="100%" stopColor={endColor} />
+              <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor={direction.sunGradient.start} />
+                <stop offset="100%" stopColor={direction.sunGradient.end} />
               </linearGradient>
             </defs>
-            <circle cx="24" cy="24" r="20" fill={`url(#header-live-${gradientId})`} />
-          </svg>
-          <span className="font-semibold text-sm">Kinmo</span>
-        </div>
-        <button
-          onClick={() => setIsPaused(!isPaused)}
-          className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium bg-gray-100 hover:bg-gray-200 transition-colors"
-        >
-          {isPaused ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
-          {isPaused ? "Play" : "Pause"}
-        </button>
-      </div>
-
-      {/* Animated hero section */}
-      <div className="px-6 py-12 text-center bg-background">
-        {/* Large gradient sun - with slow rotation like landing page */}
-        <svg width="80" height="80" viewBox="0 0 48 48" fill="none" className="mx-auto mb-6 animate-slow-spin">
-          <defs>
-            <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor={startColor} />
-              <stop offset="100%" stopColor={endColor} />
-            </linearGradient>
-          </defs>
-          <circle cx="24" cy="24" r="14" fill={`url(#${gradientId})`} />
-          <path d="M19 5 A4 4 0 0 1 29 5 L24 5 Z" fill={`url(#${gradientId})`} />
-          <path d="M38 10 A4 4 0 0 1 43 19 L40 14 Z" fill={`url(#${gradientId})`} />
-          <path d="M43 29 A4 4 0 0 1 38 38 L40 34 Z" fill={`url(#${gradientId})`} />
-          <path d="M29 43 A4 4 0 0 1 19 43 L24 43 Z" fill={`url(#${gradientId})`} />
-          <path d="M10 38 A4 4 0 0 1 5 29 L8 34 Z" fill={`url(#${gradientId})`} />
-          <path d="M5 19 A4 4 0 0 1 10 10 L8 14 Z" fill={`url(#${gradientId})`} />
+          )}
+          <circle cx="24" cy="24" r="14" fill={getSunFill()} />
+          <path d="M19 5 A4 4 0 0 1 29 5 L24 5 Z" fill={getSunFill()} />
+          <path d="M38 10 A4 4 0 0 1 43 19 L40 14 Z" fill={getSunFill()} />
+          <path d="M43 29 A4 4 0 0 1 38 38 L40 34 Z" fill={getSunFill()} />
+          <path d="M29 43 A4 4 0 0 1 19 43 L24 43 Z" fill={getSunFill()} />
+          <path d="M10 38 A4 4 0 0 1 5 29 L8 34 Z" fill={getSunFill()} />
+          <path d="M5 19 A4 4 0 0 1 10 10 L8 14 Z" fill={getSunFill()} />
         </svg>
 
+        <p className="text-[10px] uppercase tracking-widest mb-2" style={{ color: direction.textMuted }}>
+          Using AI to help you
+        </p>
+
         {/* Animated headline */}
-        <div className="relative h-16 flex items-center justify-center">
-          <p className="text-2xl md:text-3xl font-bold text-foreground">
-            See your{" "}
-            <span className="relative inline-block w-[140px] h-[1.2em] align-bottom">
-              {/* fadeToKinmo phase: show "kin" fading in */}
-              {phase === "fadeToKinmo" && (
+        <div className="h-12 flex items-center justify-center mb-4">
+          <p className="text-lg font-bold" style={{ color: direction.textPrimary }}>
+            {phase === "kinmo" ? (
+              <span style={{ color: direction.accent }}>Kinmo</span>
+            ) : phase === "fadeToKinmo" || phase === "fadeOut" ? (
+              <span className="opacity-50" style={{ color: direction.accent }}>
+                {phase === "fadeToKinmo" ? "kin" : "Kinmo"}
+              </span>
+            ) : (
+              <>
+                See your{" "}
                 <span
-                  className="absolute top-[38%] left-1/2 -translate-x-1/2 font-bold whitespace-nowrap animate-pulse"
-                  style={{
-                    backgroundImage: gradient,
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    backgroundClip: 'text'
-                  }}
-                >
-                  kin
-                </span>
-              )}
-
-              {/* kinmo phase: show full "Kinmo" */}
-              {phase === "kinmo" && (
-                <span
-                  className="absolute top-[38%] left-1/2 -translate-x-1/2 font-bold whitespace-nowrap"
-                  style={{
-                    backgroundImage: gradient,
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    backgroundClip: 'text'
-                  }}
-                >
-                  Kinmo
-                </span>
-              )}
-
-              {/* fadeOut phase: "Kinmo" fading out */}
-              {phase === "fadeOut" && (
-                <span
-                  className="absolute top-[38%] left-1/2 -translate-x-1/2 font-bold whitespace-nowrap opacity-0 transition-opacity duration-400"
-                  style={{
-                    backgroundImage: gradient,
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    backgroundClip: 'text'
-                  }}
-                >
-                  Kinmo
-                </span>
-              )}
-
-              {/* fadeIn phase: first word fading in */}
-              {phase === "fadeIn" && (
-                <span
-                  className="absolute top-[38%] left-1/2 -translate-x-1/2 font-bold whitespace-nowrap opacity-0 transition-opacity duration-400"
-                  style={{
-                    backgroundImage: gradient,
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    backgroundClip: 'text'
-                  }}
-                >
-                  {words[0]}
-                </span>
-              )}
-
-              {/* rotating phase: cycle through words */}
-              {phase === "rotating" && (
-                <span
-                  className={`absolute top-[38%] left-1/2 -translate-x-1/2 transition-opacity duration-300 font-bold whitespace-nowrap ${
-                    isAnimating ? "opacity-0" : "opacity-100"
-                  }`}
-                  style={{
-                    backgroundImage: gradient,
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    backgroundClip: 'text'
-                  }}
+                  className={`inline-block transition-opacity duration-200 ${isAnimating ? "opacity-0" : "opacity-100"}`}
+                  style={{ color: direction.accent }}
                 >
                   {words[currentIndex]}
-                </span>
-              )}
-            </span>{" "}
-            more.
+                </span>{" "}
+                more.
+              </>
+            )}
           </p>
         </div>
 
-        {/* CTA button with gradient */}
-        <button
-          className="mt-6 px-6 py-2.5 rounded-lg text-sm font-semibold text-black shadow-sm hover:shadow-md transition-all"
-          style={{ background: gradient }}
-        >
-          Get Started <ArrowRight className="w-4 h-4 inline ml-1" />
-        </button>
+        {/* Buttons */}
+        <div className="flex gap-2 justify-center">
+          <button
+            className="px-4 py-2 rounded-lg text-xs font-semibold transition-colors"
+            style={{
+              backgroundColor: direction.buttonBg,
+              color: direction.buttonText
+            }}
+          >
+            Get Started →
+          </button>
+          <button
+            className="px-4 py-2 rounded-lg text-xs font-medium"
+            style={{
+              border: `1px solid ${direction.border}`,
+              color: direction.textMuted,
+              backgroundColor: 'transparent'
+            }}
+          >
+            Learn More
+          </button>
+        </div>
       </div>
 
-      {/* Phase indicator */}
-      <div className="px-4 py-2 border-t border-border/50 bg-muted/30">
-        <div className="flex items-center justify-center gap-3 text-xs text-muted-foreground">
-          <span>Phase:</span>
-          <span className={`px-2 py-0.5 rounded font-medium ${
-            phase === "rotating" ? "bg-blue-100 text-blue-700" :
-            phase === "fadeToKinmo" ? "bg-amber-100 text-amber-700" :
-            phase === "kinmo" ? "bg-green-100 text-green-700" :
-            "bg-gray-100 text-gray-700"
-          }`}>
-            {phase === "rotating" ? `Rotating: "${words[currentIndex]}"` :
-             phase === "fadeToKinmo" ? '"kin" appearing' :
-             phase === "kinmo" ? '"Kinmo" displayed' :
-             phase === "fadeOut" ? "Fading out" :
-             "Fading in"}
-          </span>
-        </div>
+      {/* Sample content section */}
+      <div
+        className="px-6 py-4"
+        style={{ backgroundColor: direction.cardBg }}
+      >
+        <p className="text-xs font-medium mb-2" style={{ color: direction.textPrimary }}>
+          Life gets busy. We get it.
+        </p>
+        <p className="text-[10px] leading-relaxed" style={{ color: direction.textMuted }}>
+          Between work, family, and everything else — staying connected takes effort.
+        </p>
       </div>
     </div>
   );
 }
 
 export default function PrototypeKinmoText() {
-  const [selected, setSelected] = useState<string>("very-subtle");
-  const [showCornyGuide, setShowCornyGuide] = useState(false);
+  const [selectedId, setSelectedId] = useState<string>("current");
 
-  const selectedOption = gradientOptions.find(o => o.id === selected)!;
+  const selectedDirection = colorDirections.find(d => d.id === selectedId)!;
 
   return (
-    <div className="min-h-screen bg-[#fafafa]">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
       `}</style>
 
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-sm border-b border-black/5">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+      <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-sm border-b border-slate-200">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/">
-            <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-900">
+            <Button variant="ghost" size="sm" className="text-slate-600 hover:text-slate-900">
               ← Back to Landing
             </Button>
           </Link>
-          <div className="flex items-center gap-2 text-gray-500 text-sm">
-            <Sparkles className="w-4 h-4 text-amber-500" />
-            <span>Gradient Explorer</span>
+          <div className="text-slate-500 text-sm font-medium">
+            Landing Page Color Explorer
           </div>
         </div>
       </header>
 
       {/* Intro */}
-      <section className="py-8 px-4 border-b border-black/5">
+      <section className="py-10 px-4 border-b border-slate-200 bg-white">
         <div className="max-w-4xl mx-auto text-center">
-          <h1 className="text-2xl font-bold mb-3">Gradient Button Options</h1>
-          <p className="text-gray-600 max-w-2xl mx-auto mb-4">
-            Subtle gradients can elegantly bridge your muted gold and bright gold.
-            The key is <strong>restraint</strong> — the gradient should feel like natural light, not a 2008 web effect.
+          <h1 className="text-3xl font-bold text-slate-900 mb-3">Color Direction Exploration</h1>
+          <p className="text-slate-600 max-w-2xl mx-auto leading-relaxed">
+            Let's step back and look at fundamentally different directions for Kinmo's landing page.
+            Each option maintains the warm, human-connection feel but approaches it differently.
+            <strong className="text-slate-800"> Click any preview to select it and see details below.</strong>
           </p>
-          <button
-            onClick={() => setShowCornyGuide(!showCornyGuide)}
-            className="text-sm text-amber-600 hover:text-amber-700 underline"
-          >
-            {showCornyGuide ? "Hide" : "Show"}: What makes a gradient corny vs. sophisticated?
-          </button>
-
-          {showCornyGuide && (
-            <div className="mt-4 bg-white rounded-xl border border-gray-200 p-5 text-left max-w-xl mx-auto">
-              <h3 className="font-semibold mb-3 flex items-center gap-2">
-                <span>Corny vs. Sophisticated Gradients</span>
-              </h3>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="font-medium text-red-600 flex items-center gap-1 mb-2">
-                    <ThumbsDown className="w-3 h-3" /> Corny
-                  </p>
-                  <ul className="text-gray-600 space-y-1">
-                    <li>• Dramatic color jumps</li>
-                    <li>• Shiny/glossy "Web 2.0"</li>
-                    <li>• Multiple unrelated colors</li>
-                    <li>• Heavy drop shadows</li>
-                    <li>• Beveled edges</li>
-                  </ul>
-                </div>
-                <div>
-                  <p className="font-medium text-green-600 flex items-center gap-1 mb-2">
-                    <ThumbsUp className="w-3 h-3" /> Sophisticated
-                  </p>
-                  <ul className="text-gray-600 space-y-1">
-                    <li>• Subtle color shifts</li>
-                    <li>• Same color family</li>
-                    <li>• Mimics natural light</li>
-                    <li>• Flat or minimal shadow</li>
-                    <li>• Clean edges</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </section>
 
-      {/* TEXT COLOR COMPARISON - Three approaches side by side */}
-      <section className="py-8 px-4 bg-gradient-to-b from-white to-gray-50 border-b border-black/5">
-        <div className="max-w-5xl mx-auto">
-          <h2 className="text-sm uppercase tracking-widest text-gray-400 mb-2 text-center">
-            Text Color Approaches
-          </h2>
-          <p className="text-center text-gray-500 text-sm mb-6">
-            Compare three ways to style the rotating text with the Ultra Subtle gradient sun
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <CompactAnimatedPreview
-              gradient={selectedOption.gradient}
-              startColor={selectedOption.startColor}
-              endColor={selectedOption.endColor}
-              textApproach="hero-pop"
-              label="Hero Pop"
-              description="Brightest gold for max impact"
-            />
-            <CompactAnimatedPreview
-              gradient={selectedOption.gradient}
-              startColor={selectedOption.startColor}
-              endColor={selectedOption.endColor}
-              textApproach="unified-bright"
-              label="Unified Bright"
-              description="Matches gradient's bright end"
-            />
-            <CompactAnimatedPreview
-              gradient={selectedOption.gradient}
-              startColor={selectedOption.startColor}
-              endColor={selectedOption.endColor}
-              textApproach="gradient-text"
-              label="Gradient Text"
-              description="Full gradient on text"
-            />
-          </div>
-
-          {/* Quick recommendation */}
-          <div className="mt-6 p-4 bg-green-50 rounded-xl border border-green-200 max-w-2xl mx-auto">
-            <p className="text-sm text-green-800">
-              <strong>Recommendation:</strong> Hero Pop (#FFB800) gives the text the prominence it needs while letting the subtle gradient sun support without competing.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Gradient Options Grid */}
-      <section className="py-8 px-4">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-sm uppercase tracking-widest text-gray-400 mb-6 text-center">
-            Select a Gradient Style
-          </h2>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {gradientOptions.map((option) => (
+      {/* Color Options Grid */}
+      <section className="py-10 px-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {colorDirections.map((direction) => (
               <button
-                key={option.id}
-                onClick={() => setSelected(option.id)}
-                className={`text-left p-4 rounded-xl border-2 transition-all ${
-                  selected === option.id
-                    ? "border-amber-400 bg-amber-50/50 shadow-lg"
-                    : "border-gray-200 bg-white hover:border-gray-300"
-                }`}
+                key={direction.id}
+                onClick={() => setSelectedId(direction.id)}
+                className="text-left focus:outline-none"
               >
-                {/* Gradient preview bar */}
-                <div
-                  className="h-8 rounded-md mb-3 border border-black/5"
-                  style={{ background: option.gradient }}
-                />
-
-                <div className="flex items-start justify-between gap-2 mb-1">
-                  <h3 className="font-semibold text-gray-900 text-sm">{option.name}</h3>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                    option.verdict === "recommended" ? "bg-green-100 text-green-700" :
-                    option.verdict === "subtle" ? "bg-blue-100 text-blue-700" :
-                    option.verdict === "bold" ? "bg-orange-100 text-orange-700" :
-                    "bg-purple-100 text-purple-700"
-                  }`}>
-                    {option.verdict}
-                  </span>
+                {/* Label */}
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="font-semibold text-sm text-slate-800">{direction.name}</span>
+                  {selectedId === direction.id && (
+                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                      <Check className="w-3 h-3" /> Selected
+                    </span>
+                  )}
+                  {direction.id === "current" && (
+                    <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">Current</span>
+                  )}
                 </div>
-                <p className="text-xs text-gray-500">{option.description}</p>
+                <p className="text-xs text-slate-500 mb-3">{direction.tagline}</p>
 
-                {selected === option.id && (
-                  <div className="flex items-center gap-1 text-amber-600 text-xs font-medium mt-2">
-                    <Check className="w-3 h-3" />
-                    Selected
-                  </div>
-                )}
+                {/* Preview */}
+                <LandingPreview direction={direction} isSelected={selectedId === direction.id} />
               </button>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Selected Detail */}
-      <section className="py-8 px-4 bg-white border-y border-black/5">
+      {/* Selected Direction Details */}
+      <section className="py-10 px-4 bg-white border-t border-slate-200">
         <div className="max-w-5xl mx-auto">
           <div className="grid md:grid-cols-2 gap-8">
-            {/* Large button preview */}
+            {/* Info */}
             <div>
-              <h3 className="text-sm uppercase tracking-widest text-gray-400 mb-4">Button Preview</h3>
-              <div className="bg-gray-50 rounded-xl p-8 border border-gray-100 flex flex-col items-center gap-6">
-                {/* Large button */}
-                <GradientButton gradient={selectedOption.gradient}>
-                  Get Started <ArrowRight className="w-4 h-4 inline ml-1" />
-                </GradientButton>
+              <div className="flex items-center gap-3 mb-4">
+                <div
+                  className="w-12 h-12 rounded-xl shadow-inner"
+                  style={{ backgroundColor: selectedDirection.accent }}
+                />
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">{selectedDirection.name}</h2>
+                  <p className="text-sm text-slate-500">{selectedDirection.tagline}</p>
+                </div>
+              </div>
 
-                {/* Smaller button */}
-                <button
-                  className="px-4 py-1.5 rounded-md text-xs font-semibold text-black"
-                  style={{ background: selectedOption.gradient }}
-                >
-                  Learn More
-                </button>
+              <p className="text-slate-600 mb-6 leading-relaxed">
+                {selectedDirection.description}
+              </p>
 
-                {/* CSS code */}
-                <div className="w-full">
-                  <p className="text-xs text-gray-400 mb-1">CSS:</p>
-                  <code className="text-xs bg-gray-800 text-green-400 px-3 py-2 rounded block overflow-x-auto">
-                    background: {selectedOption.gradient};
-                  </code>
+              <div className="mb-6">
+                <p className="text-sm font-semibold text-slate-700 mb-2">Mood</p>
+                <p className="text-slate-600 italic">"{selectedDirection.mood}"</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm font-semibold text-green-700 mb-2">Pros</p>
+                  <ul className="text-sm text-slate-600 space-y-1">
+                    {selectedDirection.pros.map((pro, i) => (
+                      <li key={i} className="flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                        {pro}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-amber-700 mb-2">Considerations</p>
+                  <ul className="text-sm text-slate-600 space-y-1">
+                    {selectedDirection.cons.map((con, i) => (
+                      <li key={i} className="flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                        {con}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               </div>
             </div>
 
-            {/* In-context preview */}
+            {/* Color Palette */}
             <div>
-              <h3 className="text-sm uppercase tracking-widest text-gray-400 mb-4">In Context</h3>
-              <MiniPreview
-                gradient={selectedOption.gradient}
-                startColor={selectedOption.startColor}
-                endColor={selectedOption.endColor}
-              />
+              <h3 className="text-sm font-semibold text-slate-700 mb-4">Color Palette</h3>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-10 h-10 rounded-lg border border-black/10"
+                    style={{ backgroundColor: selectedDirection.accent }}
+                  />
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">Accent</p>
+                    <code className="text-xs text-slate-500">{selectedDirection.accent}</code>
+                  </div>
+                </div>
 
-              <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
-                <h4 className="font-semibold text-sm mb-2">{selectedOption.name}</h4>
-                <p className="text-sm text-gray-600 leading-relaxed">{selectedOption.notes}</p>
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-10 h-10 rounded-lg border border-black/10"
+                    style={{ backgroundColor: selectedDirection.buttonBg }}
+                  />
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">Button</p>
+                    <code className="text-xs text-slate-500">{selectedDirection.buttonBg}</code>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-10 h-10 rounded-lg border border-black/10"
+                    style={{ backgroundColor: selectedDirection.pageBg }}
+                  />
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">Page Background</p>
+                    <code className="text-xs text-slate-500">{selectedDirection.pageBg}</code>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-10 h-10 rounded-lg border border-black/10"
+                    style={{ backgroundColor: selectedDirection.cardBg }}
+                  />
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">Card Background</p>
+                    <code className="text-xs text-slate-500">{selectedDirection.cardBg}</code>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-10 h-10 rounded-lg border border-black/10 flex items-center justify-center"
+                    style={{ backgroundColor: selectedDirection.pageBg }}
+                  >
+                    <span className="font-bold" style={{ color: selectedDirection.textPrimary }}>Aa</span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">Text Primary</p>
+                    <code className="text-xs text-slate-500">{selectedDirection.textPrimary}</code>
+                  </div>
+                </div>
+
+                {selectedDirection.sunGradient && (
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-10 h-10 rounded-lg border border-black/10"
+                      style={{ background: `linear-gradient(135deg, ${selectedDirection.sunGradient.start} 0%, ${selectedDirection.sunGradient.end} 100%)` }}
+                    />
+                    <div>
+                      <p className="text-sm font-medium text-slate-800">Sun Gradient</p>
+                      <code className="text-xs text-slate-500">
+                        {selectedDirection.sunGradient.start} → {selectedDirection.sunGradient.end}
+                      </code>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Side-by-side comparison */}
-      <section className="py-8 px-4">
+      {/* Quick Comparison - Just the accents */}
+      <section className="py-10 px-4 border-t border-slate-200">
         <div className="max-w-4xl mx-auto">
-          <h2 className="text-sm uppercase tracking-widest text-gray-400 mb-6 text-center">
-            Compare: Flat vs. Selected Gradient
+          <h2 className="text-sm uppercase tracking-widest text-slate-400 mb-6 text-center">
+            Quick Accent Comparison
           </h2>
-
-          <div className="grid grid-cols-3 gap-6">
-            {/* Flat muted */}
-            <div className="text-center">
-              <p className="text-xs text-gray-500 mb-3">Flat Muted (#F2C94C)</p>
+          <div className="flex flex-wrap justify-center gap-4">
+            {colorDirections.map((direction) => (
               <button
-                className="px-5 py-2 rounded-lg text-sm font-semibold text-black"
-                style={{ background: "#F2C94C" }}
+                key={direction.id}
+                onClick={() => setSelectedId(direction.id)}
+                className={`flex flex-col items-center gap-2 p-3 rounded-xl transition-all ${
+                  selectedId === direction.id
+                    ? "bg-slate-100 ring-2 ring-blue-500"
+                    : "hover:bg-slate-50"
+                }`}
               >
-                Get Started →
+                <div
+                  className="w-12 h-12 rounded-full shadow-md"
+                  style={{ backgroundColor: direction.accent }}
+                />
+                <span className="text-xs font-medium text-slate-600">{direction.name.split(' ')[0]}</span>
               </button>
-            </div>
-
-            {/* Selected gradient */}
-            <div className="text-center">
-              <p className="text-xs text-gray-500 mb-3">Selected Gradient</p>
-              <button
-                className="px-5 py-2 rounded-lg text-sm font-semibold text-black"
-                style={{ background: selectedOption.gradient }}
-              >
-                Get Started →
-              </button>
-            </div>
-
-            {/* Flat bright */}
-            <div className="text-center">
-              <p className="text-xs text-gray-500 mb-3">Flat Bright (#FFB800)</p>
-              <button
-                className="px-5 py-2 rounded-lg text-sm font-semibold text-black"
-                style={{ background: "#FFB800" }}
-              >
-                Get Started →
-              </button>
-            </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Recommendation */}
-      <section className="py-10 px-4 border-t border-black/5">
+      {/* Thinking Prompts */}
+      <section className="py-10 px-4 bg-slate-800 text-white">
         <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-xl font-bold mb-4">My Take: Ultra Subtle is Perfect</h2>
-          <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm text-left">
-            <p className="text-gray-600 leading-relaxed mb-4">
-              <strong>Ultra Subtle is a great choice.</strong> Here's why it works so well:
-            </p>
-
-            {/* Top pick highlight */}
-            <div className="flex items-start gap-4 p-4 bg-green-50 rounded-xl border-2 border-green-200 mb-4">
-              <div className="flex-shrink-0">
-                <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-                  <defs>
-                    <linearGradient id="rec-sun-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#F4C74C" />
-                      <stop offset="100%" stopColor="#F8BE30" />
-                    </linearGradient>
-                  </defs>
-                  <circle cx="24" cy="24" r="14" fill="url(#rec-sun-gradient)" />
-                  <path d="M19 5 A4 4 0 0 1 29 5 L24 5 Z" fill="url(#rec-sun-gradient)" />
-                  <path d="M38 10 A4 4 0 0 1 43 19 L40 14 Z" fill="url(#rec-sun-gradient)" />
-                  <path d="M43 29 A4 4 0 0 1 38 38 L40 34 Z" fill="url(#rec-sun-gradient)" />
-                  <path d="M29 43 A4 4 0 0 1 19 43 L24 43 Z" fill="url(#rec-sun-gradient)" />
-                  <path d="M10 38 A4 4 0 0 1 5 29 L8 34 Z" fill="url(#rec-sun-gradient)" />
-                  <path d="M5 19 A4 4 0 0 1 10 10 L8 14 Z" fill="url(#rec-sun-gradient)" />
-                </svg>
-              </div>
-              <div>
-                <p className="font-semibold text-green-800 mb-1">Ultra Subtle — Top Pick</p>
-                <p className="text-sm text-green-700 leading-relaxed">
-                  The gradient is so refined it's almost invisible — felt more than seen. This gives you the warmth and cohesion
-                  you want without any risk of looking dated. Applied to the sun, it creates a beautiful, natural glow.
-                </p>
-                <div className="flex items-center gap-2 mt-2">
-                  <div className="h-6 w-20 rounded" style={{ background: "linear-gradient(135deg, #F4C74C 0%, #F8BE30 100%)" }} />
-                  <code className="text-xs text-green-600">#F4C74C → #F8BE30</code>
-                </div>
-              </div>
+          <h2 className="text-xl font-bold mb-4">Questions to Consider</h2>
+          <div className="grid sm:grid-cols-2 gap-4 text-left">
+            <div className="bg-slate-700/50 rounded-xl p-4">
+              <p className="text-sm text-slate-300 leading-relaxed">
+                <strong className="text-white">Brand Feel:</strong> Does Kinmo feel like sunshine and energy (#FFB800),
+                or calm and approachable (#F2C94C), or something else entirely?
+              </p>
             </div>
-
-            <div className="text-sm text-gray-600 space-y-2">
-              <p><strong>Why Ultra Subtle works:</strong></p>
-              <ul className="list-disc pl-5 space-y-1">
-                <li>Keeps your calm, friendly app vibe intact</li>
-                <li>The sun gets a natural warmth without being "gradient-y"</li>
-                <li>Buttons feel premium but not flashy</li>
-                <li>Both colors are close enough that there's no clash</li>
-              </ul>
+            <div className="bg-slate-700/50 rounded-xl p-4">
+              <p className="text-sm text-slate-300 leading-relaxed">
+                <strong className="text-white">Readability:</strong> Which accent color is easiest to read
+                against the white background in the rotating text?
+              </p>
             </div>
-
-            <p className="text-sm text-gray-500 mt-4 pt-4 border-t border-gray-100">
-              You could even keep the hero rotating text at the brighter #FFB800 for extra pop,
-              while the sun and buttons use this ultra-subtle gradient. Best of both worlds.
-            </p>
+            <div className="bg-slate-700/50 rounded-xl p-4">
+              <p className="text-sm text-slate-300 leading-relaxed">
+                <strong className="text-white">Button Presence:</strong> Does the CTA button feel inviting
+                without being overwhelming? Too bright? Too muted?
+              </p>
+            </div>
+            <div className="bg-slate-700/50 rounded-xl p-4">
+              <p className="text-sm text-slate-300 leading-relaxed">
+                <strong className="text-white">Gut Check:</strong> Which palette makes you feel like
+                you want to gather with friends/family?
+              </p>
+            </div>
           </div>
         </div>
       </section>
