@@ -118,20 +118,34 @@ const getDayOfWeek = (dateStr: string, timezone: string | null): string => {
     : format(date, "EEEE, MMM d");
 };
 
-// Helper function to get clean display name for events
-// Strips implementation details like "Auto-scheduled event for" prefix
-function getDisplayName(event: { itineraryName?: string; groupName?: string }): string {
-  let name = event.itineraryName?.trim() || event.groupName?.trim() || 'Upcoming Event';
+// Helper function to get smart display info for events
+// Returns title and optional subtitle based on context
+function getEventDisplayInfo(event: { itineraryName?: string; groupName?: string; groupId?: string }): { title: string; subtitle: string | null } {
+  const itineraryName = event.itineraryName?.trim();
+  const groupName = event.groupName?.trim();
+  const isStandalone = event.groupId === 'standalone';
 
-  // Strip "Auto-scheduled event for " prefix - implementation detail users don't need to see
-  name = name.replace(/^Auto-scheduled event for\s*/i, '').trim();
+  // Strip "Auto-scheduled event for" prefix
+  const cleanName = itineraryName?.replace(/^Auto-scheduled event for\s*/i, '').trim();
 
-  // If we stripped everything or it equals group name, use group name
-  if (!name || name === event.groupName) {
-    return event.groupName || 'Upcoming Event';
+  // Standalone events: just show the title, no subtitle
+  if (isStandalone) {
+    return { title: cleanName || 'Upcoming Event', subtitle: null };
   }
 
-  return name;
+  // If itinerary name equals group name (or is empty), just show group name
+  if (!cleanName || cleanName === groupName) {
+    return { title: groupName || 'Upcoming Event', subtitle: null };
+  }
+
+  // If title already contains the group name, no redundant subtitle needed
+  // e.g., "Sweatpants Holiday PopUp" already contains "Sweatpants"
+  if (groupName && cleanName.toLowerCase().includes(groupName.toLowerCase())) {
+    return { title: cleanName, subtitle: null };
+  }
+
+  // Custom title that doesn't include group name: show both
+  return { title: cleanName, subtitle: groupName || null };
 }
 
 // Format time from date
@@ -275,7 +289,17 @@ export function AttendeeBottomSheet({
               <div className="flex items-center gap-3">
                 <span className="text-2xl">{event.groupEmoji}</span>
                 <div>
-                  <h3 className="font-bold text-lg text-stone-800">{getDisplayName(event)}</h3>
+                  {(() => {
+                    const displayInfo = getEventDisplayInfo(event);
+                    return (
+                      <>
+                        <h3 className="font-bold text-lg text-stone-800">{displayInfo.title}</h3>
+                        {displayInfo.subtitle && (
+                          <p className="text-xs text-stone-500">{displayInfo.subtitle}</p>
+                        )}
+                      </>
+                    );
+                  })()}
                   {event.eventDate && (
                     <p className="text-sm text-stone-500">
                       {getDayOfWeek(event.eventDate, event.groupTimezone)}, {getFormattedTime(event.eventDate, event.groupTimezone)}
@@ -450,9 +474,17 @@ export function EventCard({
           <p className="text-sm text-stone-600 font-medium">
             {formattedTime || 'Time TBD'}
           </p>
-          <p className="text-sm text-stone-500 truncate">
-            {getDisplayName(event)}
-          </p>
+          {(() => {
+            const displayInfo = getEventDisplayInfo(event);
+            return (
+              <>
+                <p className="text-sm text-stone-500 truncate">{displayInfo.title}</p>
+                {displayInfo.subtitle && (
+                  <p className="text-xs text-stone-400 truncate">{displayInfo.subtitle}</p>
+                )}
+              </>
+            );
+          })()}
         </div>
         <ChevronRight className="h-5 w-5 text-stone-300 flex-shrink-0" />
       </div>

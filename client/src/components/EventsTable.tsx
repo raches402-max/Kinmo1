@@ -77,20 +77,34 @@ function getMembersWithoutRsvp(event: Event): string[] {
     .filter(name => !allRespondents.has(name));
 }
 
-// Helper function to get clean display name for events
-// Strips implementation details like "Auto-scheduled event for" prefix
-function getDisplayName(event: { itineraryName?: string; groupName?: string }): string {
-  let name = event.itineraryName?.trim() || event.groupName?.trim() || 'Upcoming Event';
+// Helper function to get smart display info for events
+// Returns title and optional subtitle based on context
+function getEventDisplayInfo(event: { itineraryName?: string; groupName?: string; groupId?: string }): { title: string; subtitle: string | null } {
+  const itineraryName = event.itineraryName?.trim();
+  const groupName = event.groupName?.trim();
+  const isStandalone = event.groupId === 'standalone';
 
-  // Strip "Auto-scheduled event for " prefix - implementation detail users don't need to see
-  name = name.replace(/^Auto-scheduled event for\s*/i, '').trim();
+  // Strip "Auto-scheduled event for" prefix
+  const cleanName = itineraryName?.replace(/^Auto-scheduled event for\s*/i, '').trim();
 
-  // If we stripped everything or it equals group name, use group name
-  if (!name || name === event.groupName) {
-    return event.groupName || 'Upcoming Event';
+  // Standalone events: just show the title, no subtitle
+  if (isStandalone) {
+    return { title: cleanName || 'Upcoming Event', subtitle: null };
   }
 
-  return name;
+  // If itinerary name equals group name (or is empty), just show group name
+  if (!cleanName || cleanName === groupName) {
+    return { title: groupName || 'Upcoming Event', subtitle: null };
+  }
+
+  // If title already contains the group name, no redundant subtitle needed
+  // e.g., "Sweatpants Holiday PopUp" already contains "Sweatpants"
+  if (groupName && cleanName.toLowerCase().includes(groupName.toLowerCase())) {
+    return { title: cleanName, subtitle: null };
+  }
+
+  // Custom title that doesn't include group name: show both
+  return { title: cleanName, subtitle: groupName || null };
 }
 
 type EventItem = {
@@ -634,7 +648,7 @@ export default function EventsTable({
 
       <div className="space-y-4 sm:space-y-0 fade-in-stagger">
         {/* Table Header - hidden on mobile, shown on sm+ */}
-      <div className="hidden sm:grid grid-cols-[120px_minmax(150px,1fr)_150px_80px_60px] md:grid-cols-[150px_minmax(180px,1fr)_180px_100px_80px] lg:grid-cols-[40px_180px_minmax(200px,1fr)_250px_120px_280px_80px] gap-2 lg:gap-4 px-3 py-2 text-xs font-semibold text-muted-foreground border-b">
+      <div className="hidden sm:grid grid-cols-[100px_minmax(150px,1fr)_150px_80px_60px] md:grid-cols-[120px_minmax(180px,1fr)_180px_100px_80px] lg:grid-cols-[40px_140px_minmax(200px,1fr)_250px_120px_280px_80px] gap-2 lg:gap-4 px-3 py-2 text-xs font-semibold text-muted-foreground border-b">
         <div className="hidden lg:flex items-center justify-center">
           {!isPastEvents && (
             <Checkbox
@@ -790,7 +804,7 @@ export default function EventsTable({
         // Desktop/tablet grid view (hidden on xs screens)
         const rowContent = (
           <div
-            className="hidden sm:grid grid-cols-[120px_minmax(150px,1fr)_150px_80px_60px] md:grid-cols-[150px_minmax(180px,1fr)_180px_100px_80px] lg:grid-cols-[40px_180px_minmax(200px,1fr)_250px_120px_280px_80px] gap-2 lg:gap-4 px-3 py-3 hover:bg-muted/50 transition-colors items-center cursor-pointer"
+            className="hidden sm:grid grid-cols-[100px_minmax(150px,1fr)_150px_80px_60px] md:grid-cols-[120px_minmax(180px,1fr)_180px_100px_80px] lg:grid-cols-[40px_140px_minmax(200px,1fr)_250px_120px_280px_80px] gap-2 lg:gap-4 px-3 py-3 hover:bg-muted/50 transition-colors items-center cursor-pointer"
             style={{
               borderLeft: `${borderStyle.borderWidth} solid ${borderStyle.borderColor}`,
               backgroundColor: borderStyle.backgroundColor
@@ -853,21 +867,33 @@ export default function EventsTable({
                     {event.isAutoScheduled ? '🤖' : event.groupEmoji}
                   </span>
                   <div className="min-w-0 flex-1 overflow-hidden">
-                    <Badge
-                      variant="secondary"
-                      className="font-semibold text-sm mb-1 max-w-full truncate inline-block"
-                      style={{
-                        backgroundColor: event.groupAccentColor
-                          ? hexToRgba(event.groupAccentColor, 0.15)
-                          : 'rgba(148, 163, 184, 0.15)',
-                        borderColor: event.groupAccentColor || '#94A3B8',
-                        borderWidth: '1px',
-                        borderStyle: 'solid',
-                        color: event.groupAccentColor || 'inherit'
-                      }}
-                    >
-                      {getDisplayName(event)}
-                    </Badge>
+                    {(() => {
+                      const displayInfo = getEventDisplayInfo(event);
+                      return (
+                        <>
+                          <Badge
+                            variant="secondary"
+                            className="font-semibold text-sm mb-0.5 max-w-full truncate inline-block"
+                            style={{
+                              backgroundColor: event.groupAccentColor
+                                ? hexToRgba(event.groupAccentColor, 0.15)
+                                : 'rgba(148, 163, 184, 0.15)',
+                              borderColor: event.groupAccentColor || '#94A3B8',
+                              borderWidth: '1px',
+                              borderStyle: 'solid',
+                              color: event.groupAccentColor || 'inherit'
+                            }}
+                          >
+                            {displayInfo.title}
+                          </Badge>
+                          {displayInfo.subtitle && (
+                            <div className="text-xs text-muted-foreground truncate">
+                              {displayInfo.subtitle}
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                     <div className="flex gap-2 mt-1 items-center flex-wrap">
                       {getRoleBadge(event)}
                       {getHostInfo(event)}
@@ -1197,7 +1223,7 @@ export default function EventsTable({
                 >
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-sm font-semibold text-foreground">
-                      RSVP for {getDisplayName(event)}
+                      RSVP for {getEventDisplayInfo(event).title}
                     </span>
                     <button
                       onClick={() => setMobileRsvpTrayOpen(null)}
