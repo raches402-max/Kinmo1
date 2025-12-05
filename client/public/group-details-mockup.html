@@ -741,56 +741,62 @@
     <div class="content-grid">
       <!-- Main Content -->
       <div class="main-content">
-        <!-- Upcoming Events Card - EXPANDED -->
+        <!-- 1. Basic Info Card - EXPANDED (foundational context first) -->
         <div class="card expanded" style="margin-bottom: 20px;">
           <div class="card-header">
             <div class="card-header-left">
               <div class="icon-wrapper">
                 <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                  <line x1="16" y1="2" x2="16" y2="6"></line>
-                  <line x1="8" y1="2" x2="8" y2="6"></line>
-                  <line x1="3" y1="10" x2="21" y2="10"></line>
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="16" x2="12" y2="12"></line>
+                  <line x1="12" y1="8" x2="12.01" y2="8"></line>
                 </svg>
               </div>
-              <span class="card-title">Upcoming Events</span>
-              <span class="card-badge">2 events</span>
+              <span class="card-title">Basic Info</span>
+              <span class="card-badge">Group details</span>
             </div>
             <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <polyline points="6 9 12 15 18 9"></polyline>
             </svg>
           </div>
           <div class="card-body">
-            <div class="event-list">
-              <div class="event-card">
-                <div class="event-date-box">
-                  <div class="event-month">Dec</div>
-                  <div class="event-day">14</div>
-                </div>
-                <div class="event-info">
-                  <div class="event-title">Holiday Dinner Night</div>
-                  <div class="event-details">Flour + Water, The Ice Cream Bar</div>
-                  <div class="event-details">7:00 PM - 10:00 PM</div>
-                </div>
-                <span class="event-status">Confirmed</span>
+            <div class="form-group">
+              <label class="form-label">Group Name</label>
+              <input type="text" class="form-input" value="Friday Night Foodies">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Location</label>
+              <input type="text" class="form-input" value="San Francisco, CA">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Meeting Frequency</label>
+              <div style="display: flex; gap: 12px;">
+                <input type="number" class="form-input" value="2" style="width: 80px;">
+                <select class="form-input" style="flex: 1;">
+                  <option>weeks</option>
+                  <option selected>times per month</option>
+                  <option>months</option>
+                </select>
               </div>
-              <div class="event-card">
-                <div class="event-date-box">
-                  <div class="event-month">Dec</div>
-                  <div class="event-day">28</div>
-                </div>
-                <div class="event-info">
-                  <div class="event-title">Post-Holiday Brunch</div>
-                  <div class="event-details">Tartine Bakery</div>
-                  <div class="event-details">11:00 AM - 1:00 PM</div>
-                </div>
-                <span class="event-status" style="background: hsl(44, 80%, 90%); color: hsl(44, 70%, 30%);">Pending RSVPs</span>
+            </div>
+            <div class="slider-container">
+              <div class="slider-header">
+                <span class="form-label" style="margin-bottom: 0;">Budget Range</span>
+                <span style="font-size: 14px; font-weight: 600; color: var(--foreground);">$$</span>
+              </div>
+              <div class="slider-track">
+                <div class="slider-fill"></div>
+                <div class="slider-thumb"></div>
+              </div>
+              <div style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; color: var(--muted-foreground);">
+                <span>$</span>
+                <span>$$$$</span>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Members Card - EXPANDED -->
+        <!-- 2. Members Card - EXPANDED -->
         <div class="card expanded" style="margin-bottom: 20px;">
           <div class="card-header">
             <div class="card-header-left">
@@ -844,7 +850,7 @@
           </div>
         </div>
 
-        <!-- Activity Preferences Card - COLLAPSED -->
+        <!-- 3. Activity Preferences Card - COLLAPSED -->
         <div class="card collapsed" style="margin-bottom: 20px;">
           <div class="card-header">
             <div class="card-header-left">
@@ -864,8 +870,8 @@
           </div>
         </div>
 
-        <!-- Automation Settings Card - EXPANDED -->
-        <div class="card expanded" style="margin-bottom: 20px;">
+        <!-- 4. Automation Settings Card - COLLAPSED (advanced, at bottom) -->
+        <div class="card collapsed">
           <div class="card-header">
             <div class="card-header-left">
               <div class="icon-wrapper">
@@ -875,49 +881,6 @@
               </div>
               <span class="card-title">Automation</span>
               <span class="card-badge">Smart Features</span>
-            </div>
-            <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <polyline points="6 9 12 15 18 9"></polyline>
-            </svg>
-          </div>
-          <div class="card-body">
-            <div class="toggle-row">
-              <div class="toggle-info">
-                <div class="toggle-label">Auto-schedule Events</div>
-                <div class="toggle-description">Automatically create events based on group preferences</div>
-              </div>
-              <div class="toggle-switch active"></div>
-            </div>
-            <div class="toggle-row">
-              <div class="toggle-info">
-                <div class="toggle-label">Smart Activity Suggestions</div>
-                <div class="toggle-description">AI-powered venue recommendations</div>
-              </div>
-              <div class="toggle-switch active"></div>
-            </div>
-            <div class="toggle-row">
-              <div class="toggle-info">
-                <div class="toggle-label">Auto-build Itineraries</div>
-                <div class="toggle-description">Generate multi-stop plans automatically</div>
-              </div>
-              <div class="toggle-switch"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Basic Info Card - COLLAPSED -->
-        <div class="card collapsed">
-          <div class="card-header">
-            <div class="card-header-left">
-              <div class="icon-wrapper">
-                <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <line x1="12" y1="16" x2="12" y2="12"></line>
-                  <line x1="12" y1="8" x2="12.01" y2="8"></line>
-                </svg>
-              </div>
-              <span class="card-title">Basic Info</span>
-              <span class="card-badge">Group details</span>
             </div>
             <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <polyline points="6 9 12 15 18 9"></polyline>
