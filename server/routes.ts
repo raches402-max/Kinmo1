@@ -11912,7 +11912,20 @@ Looking forward to planning great activities together!
 
       const userId = await getUserId(req);
       const { itineraryId } = { itineraryId: req.params.id };
-      const { actuallyAttended, venueRating, frequencyPreference, wouldDoAgain, improvementNotes } = validatedData;
+      const {
+        actuallyAttended,
+        didNotAttendReason,
+        wouldReturnToVenue,
+        venueVibe,
+        groupEnjoyment,
+        activityMatch,
+        timingFeedback,
+        frequencyPreference,
+        improvementNotes,
+        // Legacy fields
+        venueRating,
+        wouldDoAgain
+      } = validatedData;
 
       // Get the itinerary to check group ownership
       const [itinerary] = await db
@@ -11963,26 +11976,45 @@ Looking forward to planning great activities together!
       }
 
       // Update the RSVP with post-event feedback
+      const feedbackData: any = {
+        actuallyAttended,
+        submittedAt: new Date().toISOString(),
+      };
+
+      // Add fields based on whether they attended or not
+      if (!actuallyAttended && didNotAttendReason) {
+        feedbackData.didNotAttendReason = didNotAttendReason;
+      }
+      if (actuallyAttended) {
+        if (wouldReturnToVenue) feedbackData.wouldReturnToVenue = wouldReturnToVenue;
+        if (venueVibe) feedbackData.venueVibe = venueVibe;
+        if (groupEnjoyment) feedbackData.groupEnjoyment = groupEnjoyment;
+        if (activityMatch) feedbackData.activityMatch = activityMatch;
+        if (timingFeedback) feedbackData.timingFeedback = timingFeedback;
+        if (frequencyPreference) feedbackData.frequencyPreference = frequencyPreference;
+        if (improvementNotes) feedbackData.improvementNotes = improvementNotes;
+        // Legacy fields for backwards compatibility
+        if (venueRating) feedbackData.venueRating = venueRating;
+        if (wouldDoAgain) feedbackData.wouldDoAgain = wouldDoAgain;
+      }
 
       const updated = await db
         .update(rsvpsTable)
         .set({
-          postEventFeedback: {
-            actuallyAttended,
-            venueRating,
-            frequencyPreference,
-            wouldDoAgain,
-            improvementNotes,
-            submittedAt: new Date().toISOString(),
-          },
+          postEventFeedback: feedbackData,
           updatedAt: new Date(),
         })
         .where(eq(rsvpsTable.id, rsvp[0].id))
         .returning();
 
-      // 🤖 LEARNING LOOP #1: Auto-blacklist low-rated venues
-      // If venue rated ≤2 stars OR "would not do again", add to rejected list
-      if (venueRating !== undefined && venueRating !== null && (venueRating <= 2 || wouldDoAgain === 'no')) {
+      // 🤖 LEARNING LOOP #1: Auto-blacklist venues based on feedback
+      // Blacklist if: wouldReturnToVenue = "no", or legacy low rating, or "not for us"
+      const shouldBlacklistVenue =
+        wouldReturnToVenue === 'no' ||
+        (venueRating !== undefined && venueRating !== null && venueRating <= 2) ||
+        wouldDoAgain === 'no';
+
+      if (actuallyAttended && shouldBlacklistVenue) {
         try {
           // Get itinerary items to extract venue info
           const fetchedItems = await db
@@ -11992,7 +12024,12 @@ Looking forward to planning great activities together!
 
           for (const item of fetchedItems) {
             if (item.venueName) {
-              console.log(`🚫 Auto-blacklisting venue "${item.venueName}" (rating: ${venueRating}, wouldDoAgain: ${wouldDoAgain})`);
+              const reason = wouldReturnToVenue === 'no'
+                ? 'wouldNotReturn'
+                : venueRating && venueRating <= 2
+                  ? `lowRating:${venueRating}`
+                  : 'wouldNotDoAgain';
+              console.log(`🚫 Auto-blacklisting venue "${item.venueName}" (reason: ${reason}, vibe: ${venueVibe || 'n/a'})`);
               await storage.addRejectedVenue(itinerary.groupId, item.venueName);
             }
           }
@@ -12000,6 +12037,16 @@ Looking forward to planning great activities together!
           console.error('[Auto-blacklist] Error adding rejected venue:', error);
           // Don't fail the request if blacklisting fails
         }
+      }
+
+      // 🎯 LEARNING: Log timing feedback for future scheduling improvements
+      if (timingFeedback && timingFeedback !== 'just_right') {
+        console.log(`⏰ [Timing Feedback] Group ${itinerary.groupId}: ${timingFeedback}`);
+      }
+
+      // 🎯 LEARNING: Log activity match feedback for activity selection
+      if (activityMatch === 'try_something_different') {
+        console.log(`🔄 [Activity Feedback] Group ${itinerary.groupId}: wants different activities`);
       }
 
       // 🎯 INSIGHT TRIGGER: Update group insights after post-event feedback

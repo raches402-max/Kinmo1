@@ -411,11 +411,25 @@ export const updateGuestRsvpSchema = z.object({
 });
 
 export const postEventFeedbackSchema = z.object({
+  // Did you attend?
   actuallyAttended: z.boolean(),
-  venueRating: z.number().min(1).max(5).optional(),
+  // If didn't attend: why not?
+  didNotAttendReason: z.enum(['event_cancelled', 'couldnt_make_it', 'forgot', 'other']).optional(),
+  // Venue feedback (only if attended)
+  wouldReturnToVenue: z.enum(['yes', 'maybe', 'no']).optional(),
+  venueVibe: z.enum(['too_loud', 'too_quiet', 'just_right', 'too_crowded', 'too_empty']).optional(),
+  // Activity/group learning
+  groupEnjoyment: z.enum(['loved_it', 'good', 'okay', 'not_for_us']).optional(),
+  activityMatch: z.enum(['perfect_fit', 'good_enough', 'try_something_different']).optional(),
+  // Timing feedback
+  timingFeedback: z.enum(['too_early', 'too_late', 'just_right', 'wrong_day']).optional(),
+  // Frequency preference
   frequencyPreference: z.enum(['more_frequent', 'just_right', 'less_frequent']).optional(),
-  wouldDoAgain: z.enum(['yes', 'maybe', 'no']).optional(),
+  // Open feedback
   improvementNotes: z.string().optional(),
+  // Legacy field - keeping for backwards compatibility
+  venueRating: z.number().min(1).max(5).optional(),
+  wouldDoAgain: z.enum(['yes', 'maybe', 'no']).optional(),
 });
 
 // ========== TIME SLOT SCHEMAS ==========

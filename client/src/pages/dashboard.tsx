@@ -335,10 +335,17 @@ export default function Dashboard() {
   const [showPostEventFeedback, setShowPostEventFeedback] = useState(false);
   const [postEventData, setPostEventData] = useState<UserEvent | null>(null);
   const [actuallyAttended, setActuallyAttended] = useState<string>(""); // "yes" or "no"
-  const [venueRating, setVenueRating] = useState<number>(0);
+  const [didNotAttendReason, setDidNotAttendReason] = useState<string>("");
+  const [wouldReturnToVenue, setWouldReturnToVenue] = useState<string>("");
+  const [venueVibe, setVenueVibe] = useState<string>("");
+  const [groupEnjoyment, setGroupEnjoyment] = useState<string>("");
+  const [activityMatch, setActivityMatch] = useState<string>("");
+  const [timingFeedback, setTimingFeedback] = useState<string>("");
   const [frequencyPreference, setFrequencyPreference] = useState<string>("");
-  const [wouldDoAgain, setWouldDoAgain] = useState<string>("");
   const [improvementNotes, setImprovementNotes] = useState("");
+  // Legacy fields (keeping for backwards compat)
+  const [venueRating, setVenueRating] = useState<number>(0);
+  const [wouldDoAgain, setWouldDoAgain] = useState<string>("");
   
   // Test account switcher state (admin only)
   const isAdmin = user?.email === 'raches402@gmail.com';
@@ -799,29 +806,37 @@ export default function Dashboard() {
 
   // Post-event feedback mutation
   const postEventFeedbackMutation = useMutation({
-    mutationFn: async ({ itineraryId, actuallyAttended, venueRating, frequencyPreference, wouldDoAgain, improvementNotes }: {
+    mutationFn: async (data: {
       itineraryId: string;
       actuallyAttended: string;
-      venueRating: number;
-      frequencyPreference: string;
-      wouldDoAgain: string;
-      improvementNotes: string;
+      didNotAttendReason?: string;
+      wouldReturnToVenue?: string;
+      venueVibe?: string;
+      groupEnjoyment?: string;
+      activityMatch?: string;
+      timingFeedback?: string;
+      frequencyPreference?: string;
+      improvementNotes?: string;
     }) => {
-      console.log('[Post Event Feedback] Starting mutation:', { itineraryId, actuallyAttended, venueRating, frequencyPreference, wouldDoAgain, improvementNotes });
+      console.log('[Post Event Feedback] Starting mutation:', data);
 
       // Build request body with only defined optional fields
       const requestBody: any = {
-        actuallyAttended: actuallyAttended === "yes",
+        actuallyAttended: data.actuallyAttended === "yes",
       };
 
       // Only include optional fields if they have valid values
-      if (venueRating > 0) requestBody.venueRating = venueRating;
-      if (frequencyPreference) requestBody.frequencyPreference = frequencyPreference;
-      if (wouldDoAgain) requestBody.wouldDoAgain = wouldDoAgain;
-      if (improvementNotes) requestBody.improvementNotes = improvementNotes;
+      if (data.didNotAttendReason) requestBody.didNotAttendReason = data.didNotAttendReason;
+      if (data.wouldReturnToVenue) requestBody.wouldReturnToVenue = data.wouldReturnToVenue;
+      if (data.venueVibe) requestBody.venueVibe = data.venueVibe;
+      if (data.groupEnjoyment) requestBody.groupEnjoyment = data.groupEnjoyment;
+      if (data.activityMatch) requestBody.activityMatch = data.activityMatch;
+      if (data.timingFeedback) requestBody.timingFeedback = data.timingFeedback;
+      if (data.frequencyPreference) requestBody.frequencyPreference = data.frequencyPreference;
+      if (data.improvementNotes) requestBody.improvementNotes = data.improvementNotes;
 
       console.log('[Post Event Feedback] Request body:', requestBody);
-      const result = await apiRequest("POST", `/api/itineraries/${itineraryId}/post-event-feedback`, requestBody);
+      const result = await apiRequest("POST", `/api/itineraries/${data.itineraryId}/post-event-feedback`, requestBody);
       console.log('[Post Event Feedback] API response:', result);
       return result;
     },
@@ -831,7 +846,8 @@ export default function Dashboard() {
       setShowPostEventFeedback(false);
       resetPostEventForm();
       toast({
-        title: "Feedback submitted",
+        title: "Thanks for the feedback!",
+        description: "This helps us plan better events for your group.",
       });
     },
     onError: (error: any) => {
@@ -887,10 +903,16 @@ export default function Dashboard() {
 
   const resetPostEventForm = () => {
     setActuallyAttended("");
-    setVenueRating(0);
+    setDidNotAttendReason("");
+    setWouldReturnToVenue("");
+    setVenueVibe("");
+    setGroupEnjoyment("");
+    setActivityMatch("");
+    setTimingFeedback("");
     setFrequencyPreference("");
-    setWouldDoAgain("");
     setImprovementNotes("");
+    setVenueRating(0);
+    setWouldDoAgain("");
     setPostEventData(null);
   };
 
@@ -910,9 +932,13 @@ export default function Dashboard() {
     postEventFeedbackMutation.mutate({
       itineraryId: postEventData.itineraryId,
       actuallyAttended,
-      venueRating,
+      didNotAttendReason,
+      wouldReturnToVenue,
+      venueVibe,
+      groupEnjoyment,
+      activityMatch,
+      timingFeedback,
       frequencyPreference,
-      wouldDoAgain,
       improvementNotes
     });
   };
@@ -2006,18 +2032,22 @@ export default function Dashboard() {
             </Card>
           )}
 
-          <div className="space-y-4">
+          <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+            {/* Question 1: Did you attend? */}
             <div className="space-y-2">
-              <Label>Did you actually attend this event?</Label>
+              <Label>Did you go to this event?</Label>
               <div className="flex gap-2">
                 <Button
                   variant={actuallyAttended === "yes" ? "default" : "outline"}
                   size="sm"
                   className="flex-1"
-                  onClick={() => setActuallyAttended("yes")}
+                  onClick={() => {
+                    setActuallyAttended("yes");
+                    setDidNotAttendReason("");
+                  }}
                   data-testid="button-attended-yes"
                 >
-                  Yes
+                  Yes, I went
                 </Button>
                 <Button
                   variant={actuallyAttended === "no" ? "default" : "outline"}
@@ -2031,100 +2061,260 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Only show venue questions if they attended */}
+            {/* If didn't attend: why not? */}
+            {actuallyAttended === "no" && (
+              <div className="space-y-2">
+                <Label>What happened?</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant={didNotAttendReason === "event_cancelled" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setDidNotAttendReason("event_cancelled")}
+                  >
+                    Event was cancelled
+                  </Button>
+                  <Button
+                    variant={didNotAttendReason === "couldnt_make_it" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setDidNotAttendReason("couldnt_make_it")}
+                  >
+                    Couldn't make it
+                  </Button>
+                  <Button
+                    variant={didNotAttendReason === "forgot" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setDidNotAttendReason("forgot")}
+                  >
+                    Forgot about it
+                  </Button>
+                  <Button
+                    variant={didNotAttendReason === "other" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setDidNotAttendReason("other")}
+                  >
+                    Other reason
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Questions for those who attended */}
             {actuallyAttended === "yes" && (
               <>
+                {/* Venue feedback */}
                 <div className="space-y-2">
-                  <Label>How would you rate the venue?</Label>
-              <div className="flex gap-2">
-                {[1, 2, 3, 4, 5].map((rating) => (
-                  <Button
-                    key={rating}
-                    variant={venueRating === rating ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setVenueRating(rating)}
-                    className="gap-1"
-                    data-testid={`button-rating-${rating}`}
-                  >
-                    <Star className={`h-4 w-4 ${venueRating >= rating ? 'fill-current' : ''}`} />
-                  </Button>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>How often would you like events like this?</Label>
-              <div className="space-y-2">
-                <Button
-                  variant={frequencyPreference === "more_frequent" ? "default" : "outline"}
-                  size="sm"
-                  className="w-full"
-                  onClick={() => setFrequencyPreference("more_frequent")}
-                  data-testid="button-frequency-more"
-                >
-                  More often
-                </Button>
-                <Button
-                  variant={frequencyPreference === "just_right" ? "default" : "outline"}
-                  size="sm"
-                  className="w-full"
-                  onClick={() => setFrequencyPreference("just_right")}
-                  data-testid="button-frequency-right"
-                >
-                  This is perfect
-                </Button>
-                <Button
-                  variant={frequencyPreference === "less_frequent" ? "default" : "outline"}
-                  size="sm"
-                  className="w-full"
-                  onClick={() => setFrequencyPreference("less_frequent")}
-                  data-testid="button-frequency-less"
-                >
-                  Less often
-                </Button>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Would you do this again?</Label>
-              <div className="flex gap-2">
-                <Button
-                  variant={wouldDoAgain === "yes" ? "default" : "outline"}
-                  size="sm"
-                  className="flex-1"
-                  onClick={() => setWouldDoAgain("yes")}
-                  data-testid="button-again-yes"
-                >
-                  Yes
-                </Button>
-                <Button
-                  variant={wouldDoAgain === "maybe" ? "default" : "outline"}
-                  size="sm"
-                  className="flex-1"
-                  onClick={() => setWouldDoAgain("maybe")}
-                  data-testid="button-again-maybe"
-                >
-                  Maybe
-                </Button>
-                <Button
-                  variant={wouldDoAgain === "no" ? "default" : "outline"}
-                  size="sm"
-                  className="flex-1"
-                  onClick={() => setWouldDoAgain("no")}
-                  data-testid="button-again-no"
-                >
-                  No
-                </Button>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="improvement-notes">What would make it better? (optional)</Label>
-              <Textarea
-                id="improvement-notes"
-                placeholder="Share your thoughts..."
-                value={improvementNotes}
-                onChange={(e) => setImprovementNotes(e.target.value)}
-                data-testid="textarea-improvement"
-              />
-            </div>
+                  <Label>Would you go back to this venue?</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      variant={wouldReturnToVenue === "yes" ? "default" : "outline"}
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => setWouldReturnToVenue("yes")}
+                    >
+                      Yes
+                    </Button>
+                    <Button
+                      variant={wouldReturnToVenue === "maybe" ? "default" : "outline"}
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => setWouldReturnToVenue("maybe")}
+                    >
+                      Maybe
+                    </Button>
+                    <Button
+                      variant={wouldReturnToVenue === "no" ? "default" : "outline"}
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => setWouldReturnToVenue("no")}
+                    >
+                      No
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Venue vibe - only show if they wouldn't return or are unsure */}
+                {(wouldReturnToVenue === "no" || wouldReturnToVenue === "maybe") && (
+                  <div className="space-y-2">
+                    <Label className="text-muted-foreground text-sm">What was off about the vibe?</Label>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant={venueVibe === "too_loud" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setVenueVibe("too_loud")}
+                      >
+                        Too loud
+                      </Button>
+                      <Button
+                        variant={venueVibe === "too_quiet" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setVenueVibe("too_quiet")}
+                      >
+                        Too quiet
+                      </Button>
+                      <Button
+                        variant={venueVibe === "too_crowded" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setVenueVibe("too_crowded")}
+                      >
+                        Too crowded
+                      </Button>
+                      <Button
+                        variant={venueVibe === "too_empty" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setVenueVibe("too_empty")}
+                      >
+                        Too empty
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Group enjoyment */}
+                <div className="space-y-2">
+                  <Label>How was it for your group?</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant={groupEnjoyment === "loved_it" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setGroupEnjoyment("loved_it")}
+                    >
+                      Loved it
+                    </Button>
+                    <Button
+                      variant={groupEnjoyment === "good" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setGroupEnjoyment("good")}
+                    >
+                      It was good
+                    </Button>
+                    <Button
+                      variant={groupEnjoyment === "okay" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setGroupEnjoyment("okay")}
+                    >
+                      Just okay
+                    </Button>
+                    <Button
+                      variant={groupEnjoyment === "not_for_us" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setGroupEnjoyment("not_for_us")}
+                    >
+                      Not for us
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Activity match - only show if not "loved it" */}
+                {groupEnjoyment && groupEnjoyment !== "loved_it" && (
+                  <div className="space-y-2">
+                    <Label className="text-muted-foreground text-sm">For next time...</Label>
+                    <div className="space-y-2">
+                      <Button
+                        variant={activityMatch === "perfect_fit" ? "default" : "outline"}
+                        size="sm"
+                        className="w-full justify-start"
+                        onClick={() => setActivityMatch("perfect_fit")}
+                      >
+                        This type of activity is great for us
+                      </Button>
+                      <Button
+                        variant={activityMatch === "good_enough" ? "default" : "outline"}
+                        size="sm"
+                        className="w-full justify-start"
+                        onClick={() => setActivityMatch("good_enough")}
+                      >
+                        It's fine, just find a better spot
+                      </Button>
+                      <Button
+                        variant={activityMatch === "try_something_different" ? "default" : "outline"}
+                        size="sm"
+                        className="w-full justify-start"
+                        onClick={() => setActivityMatch("try_something_different")}
+                      >
+                        Let's try something different
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Timing feedback */}
+                <div className="space-y-2">
+                  <Label>How was the timing?</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant={timingFeedback === "just_right" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setTimingFeedback("just_right")}
+                    >
+                      Perfect timing
+                    </Button>
+                    <Button
+                      variant={timingFeedback === "too_early" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setTimingFeedback("too_early")}
+                    >
+                      Too early
+                    </Button>
+                    <Button
+                      variant={timingFeedback === "too_late" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setTimingFeedback("too_late")}
+                    >
+                      Too late
+                    </Button>
+                    <Button
+                      variant={timingFeedback === "wrong_day" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setTimingFeedback("wrong_day")}
+                    >
+                      Wrong day
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Frequency preference */}
+                <div className="space-y-2">
+                  <Label>How often should we plan events?</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      variant={frequencyPreference === "more_frequent" ? "default" : "outline"}
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => setFrequencyPreference("more_frequent")}
+                    >
+                      More often
+                    </Button>
+                    <Button
+                      variant={frequencyPreference === "just_right" ? "default" : "outline"}
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => setFrequencyPreference("just_right")}
+                    >
+                      Just right
+                    </Button>
+                    <Button
+                      variant={frequencyPreference === "less_frequent" ? "default" : "outline"}
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => setFrequencyPreference("less_frequent")}
+                    >
+                      Less often
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Open feedback */}
+                <div className="space-y-2">
+                  <Label htmlFor="improvement-notes">Anything else? (optional)</Label>
+                  <Textarea
+                    id="improvement-notes"
+                    placeholder="What would make events better for your group..."
+                    value={improvementNotes}
+                    onChange={(e) => setImprovementNotes(e.target.value)}
+                    className="h-20"
+                    data-testid="textarea-improvement"
+                  />
+                </div>
               </>
             )}
           </div>
