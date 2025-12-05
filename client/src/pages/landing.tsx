@@ -273,10 +273,18 @@ export default function Landing() {
             Life gets busy. We get it.
           </h2>
           <p className="text-center text-muted-foreground mb-8 sm:mb-14 max-w-2xl mx-auto text-sm sm:text-base md:text-lg leading-relaxed">
-            Between work, family, and everything else — staying connected takes real effort. Kinmo handles the logistics so you can focus on the fun part.
+            {/* Mobile copy */}
+            <span className="sm:hidden">
+              Keeping relationships alive takes real work. Kinmo handles the logistics so you can focus on the best parts of seeing your people.
+            </span>
+            {/* Desktop copy */}
+            <span className="hidden sm:inline">
+              Between work, family, and everything else — staying connected takes real effort. Kinmo handles the logistics so you can focus on the fun part.
+            </span>
           </p>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-8 md:gap-10">
+          {/* 4-card grid - hidden on mobile */}
+          <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-8 md:gap-10">
             <div className="text-center sm:text-left">
               <h3 className="font-semibold text-lg mb-2">"We should hang!"</h3>
               <p className="text-muted-foreground leading-relaxed text-sm sm:text-base">
@@ -379,7 +387,7 @@ export default function Landing() {
             {/* The payoff - isolated, prominent */}
             <div className="mt-10 sm:mt-16 md:mt-20 text-center">
               <p className="text-foreground text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight">
-                See your people more
+                See your people more.
               </p>
               <div className="mt-4 mx-auto w-12 h-1 bg-primary/60 rounded-full" />
             </div>
