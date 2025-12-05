@@ -32,20 +32,20 @@
   --sidebar: 35 35% 95%;              /* Warm sidebar */
   --sidebar-foreground: 25 30% 14%;   /* Espresso text */
   --sidebar-border: 32 25% 85%;       /* Warm borders */
-  --sidebar-primary: 44 87% 63%;      /* Sunflower Gold */
+  --sidebar-primary: 44 91% 57%;      /* Balanced Gold */
   --sidebar-primary-foreground: 0 0% 0%; /* Black on gold */
   --sidebar-accent: 35 30% 93%;       /* Warm accent bg */
   --sidebar-accent-foreground: 25 30% 14%;
-  --sidebar-ring: 44 87% 63%;         /* Gold ring */
+  --sidebar-ring: 44 91% 57%;         /* Balanced Gold ring */
 
   --popover: 38 45% 98%;              /* Cream popover */
   --popover-foreground: 25 30% 14%;   /* Espresso text */
   --popover-border: 32 25% 85%;       /* Warm borders */
 
-  /* PRIMARY - Sunflower Gold (Main CTAs) */
-  --primary: 44 87% 63%;              /* Sunflower Gold #F2C94C */
+  /* PRIMARY - Balanced Gold (Main CTAs) */
+  --primary: 44 91% 57%;              /* Balanced Gold #F5C030 */
   --primary-foreground: 0 0% 0%;      /* Black text for contrast */
-  --primary-hover: 46 88% 67%;        /* Lighter gold on hover */
+  --primary-hover: 44 91% 62%;        /* Lighter gold on hover */
 
   /* SECONDARY - Soft Sage (Balance, calm elements) */
   --secondary: 145 25% 72%;           /* Sage #A3C4A8 */
@@ -79,8 +79,8 @@
   --warning-foreground: 25 30% 14%;
 
   --input: 32 20% 85%;                /* Warm input borders */
-  --ring: 44 87% 63%;                 /* Gold ring */
-  --chart-1: 44 87% 63%;              /* Gold */
+  --ring: 44 91% 57%;                 /* Balanced Gold ring */
+  --chart-1: 44 91% 57%;              /* Balanced Gold */
   --chart-2: 145 25% 60%;             /* Sage */
   --chart-3: 350 45% 65%;             /* Dusty rose */
   --chart-4: 30 65% 55%;              /* Amber */

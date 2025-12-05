@@ -136,7 +136,7 @@ function RotatingHeadline() {
     return (
       <span className="relative block w-[280px] sm:w-[340px] md:w-[420px] lg:w-[500px] h-[110px] sm:h-[140px] md:h-[170px] lg:h-[200px] animate-fade-out-phrase">
         <span className="absolute top-0 -left-8 sm:-left-12 md:-left-16 lg:-left-20 text-foreground">See your</span>
-        <span className="absolute top-[38%] left-1/2 -translate-x-1/2 font-bold whitespace-nowrap" style={{ color: '#FFB800' }}>
+        <span className="absolute top-[38%] left-1/2 -translate-x-1/2 font-bold whitespace-nowrap" style={{ color: '#F5C030' }}>
           kin
         </span>
         <span className="absolute bottom-0 -right-6 sm:-right-8 md:-right-10 lg:-right-12 text-foreground">more.</span>
@@ -147,7 +147,7 @@ function RotatingHeadline() {
   // Kinmo phase - centered, no surrounding text
   if (phase === "kinmo") {
     return (
-      <span className="font-bold animate-kinmo-appear" style={{ color: '#FFB800' }}>
+      <span className="font-bold animate-kinmo-appear" style={{ color: '#F5C030' }}>
         Kinmo
       </span>
     );
@@ -156,7 +156,7 @@ function RotatingHeadline() {
   // fadeOut phase - fade out Kinmo
   if (phase === "fadeOut") {
     return (
-      <span className="font-bold animate-fade-out-phrase" style={{ color: '#FFB800' }}>
+      <span className="font-bold animate-fade-out-phrase" style={{ color: '#F5C030' }}>
         Kinmo
       </span>
     );
@@ -167,7 +167,7 @@ function RotatingHeadline() {
     return (
       <span className="relative block w-[280px] sm:w-[340px] md:w-[420px] lg:w-[500px] h-[110px] sm:h-[140px] md:h-[170px] lg:h-[200px] animate-fade-in-phrase">
         <span className="absolute top-0 -left-8 sm:-left-12 md:-left-16 lg:-left-20 text-foreground">See your</span>
-        <span className="absolute top-[38%] left-1/2 -translate-x-1/2 font-bold whitespace-nowrap" style={{ color: '#FFB800' }}>
+        <span className="absolute top-[38%] left-1/2 -translate-x-1/2 font-bold whitespace-nowrap" style={{ color: '#F5C030' }}>
           {currentWords[0]}
         </span>
         <span className="absolute bottom-0 -right-6 sm:-right-8 md:-right-10 lg:-right-12 text-foreground">more.</span>
@@ -184,7 +184,7 @@ function RotatingHeadline() {
         className={`absolute top-[38%] left-1/2 -translate-x-1/2 transition-opacity duration-300 font-bold whitespace-nowrap ${
           isAnimating ? "opacity-0" : "opacity-100"
         }`}
-        style={{ color: '#FFB800' }}
+        style={{ color: '#F5C030' }}
       >
         {currentWords[currentIndex]}
       </span>
