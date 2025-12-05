@@ -41,7 +41,6 @@ import {
   Circle,
   XCircle,
   Link as LinkIcon,
-  UserPlus,
   Copy,
 } from "lucide-react";
 import { HelpTooltip } from "@/components/HelpTooltip";
@@ -163,13 +162,13 @@ interface MembersSectionProps {
    */
   isSendingInvitations: boolean;
   /**
-   * Copy the group join link (for new people to add themselves)
+   * Copy the invite link (for members to claim their name or new people to join)
    */
-  onCopyGroupJoinLink?: () => void;
+  onCopyInviteLink?: () => void;
   /**
-   * Whether the group join link was just copied
+   * Whether the invite link was just copied
    */
-  groupJoinLinkCopied?: boolean;
+  inviteLinkCopied?: boolean;
 }
 
 // ========== COMPONENT ==========
@@ -193,8 +192,8 @@ export function MembersSection({
   onDeleteMember,
   onSendInvitations,
   isSendingInvitations,
-  onCopyGroupJoinLink,
-  groupJoinLinkCopied,
+  onCopyInviteLink,
+  inviteLinkCopied,
 }: MembersSectionProps) {
   // Find current user's member record for the "Edit My Profile" button
   const userMember = members.find((m) => m.userId === user?.id);
@@ -529,34 +528,34 @@ export function MembersSection({
           </div>
         )}
 
-        {/* Group Join Link - for new people to add themselves to the group */}
-        {onCopyGroupJoinLink && (
+        {/* Invite Link - for members to claim their name or new people to join */}
+        {onCopyInviteLink && (
           <div className="pt-4 border-t">
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground flex items-center gap-1">
-                <UserPlus className="w-3 h-3" />
-                Let new people join the group
+                <LinkIcon className="w-3 h-3" />
+                Share invite link
                 <HelpTooltip
-                  content="Share this link with people who aren't in the group yet. They can add themselves as new members."
-                  examples={["Post in a group chat", "Share with a friend who wants to join"]}
+                  content="Share this link with your group. Members can claim their name, and new people can add themselves."
+                  examples={["Post in a group chat", "Text to a friend"]}
                 />
               </Label>
               <Button
                 variant="outline"
                 size="sm"
                 className="w-full"
-                onClick={onCopyGroupJoinLink}
-                data-testid="button-copy-group-join-link"
+                onClick={onCopyInviteLink}
+                data-testid="button-copy-invite-link"
               >
-                {groupJoinLinkCopied ? (
+                {inviteLinkCopied ? (
                   <>
                     <Check className="mr-2 h-3 w-3" />
                     Copied!
                   </>
                 ) : (
                   <>
-                    <LinkIcon className="mr-2 h-3 w-3" />
-                    Copy Group Join Link
+                    <Copy className="mr-2 h-3 w-3" />
+                    Copy Invite Link
                   </>
                 )}
               </Button>

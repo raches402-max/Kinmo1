@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { getErrorToast } from "@/components/ErrorDisplay";
-import { CheckCircle2, Circle, XCircle, MapPin, DollarSign, Calendar, Clock } from "lucide-react";
+import { CheckCircle2, Circle, XCircle, MapPin, DollarSign, Calendar, Clock, UserPlus } from "lucide-react";
 
 type Member = {
   id: string;
@@ -53,6 +53,11 @@ export default function InvitePage() {
   const [budgetConcern, setBudgetConcern] = useState(false);
   const [distanceConcern, setDistanceConcern] = useState(false);
   const [constraintNotes, setConstraintNotes] = useState("");
+
+  // State for "I'm not on this list" flow (add self as new member)
+  const [showAddSelfForm, setShowAddSelfForm] = useState(false);
+  const [newMemberName, setNewMemberName] = useState("");
+  const [newMemberEmail, setNewMemberEmail] = useState("");
 
   // Load claim data from localStorage
   useEffect(() => {
@@ -185,6 +190,44 @@ export default function InvitePage() {
     },
   });
 
+  // Join as new member mutation (for "I'm not on this list" flow)
+  const joinMutation = useMutation({
+    mutationFn: async (data: { name: string; email?: string }) => {
+      return await apiRequest("POST", `/api/groups/${group?.id}/join`, data);
+    },
+    onSuccess: (newMember: any) => {
+      // Set the new member as claimed and proceed to RSVP flow
+      const newClaimToken = crypto.randomUUID();
+      setClaimedMemberId(newMember.id);
+      setClaimToken(newClaimToken);
+      saveClaimData(newMember.id, newClaimToken);
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", group?.id, "members"] });
+      setShowAddSelfForm(false);
+      toast({
+        title: "Welcome!",
+        description: `You've joined ${group?.name}`,
+      });
+    },
+    onError: (error: Error) => {
+      toast(getErrorToast(error));
+    },
+  });
+
+  const handleJoinAsNewMember = () => {
+    if (!newMemberName.trim()) {
+      toast({
+        title: "Name required",
+        description: "Please enter your name to join",
+        variant: "destructive",
+      });
+      return;
+    }
+    joinMutation.mutate({
+      name: newMemberName.trim(),
+      email: newMemberEmail.trim() || undefined,
+    });
+  };
+
   const handleClaim = (memberId: string) => {
     claimMutation.mutate(memberId);
   };
@@ -281,7 +324,7 @@ export default function InvitePage() {
                   variant="outline"
                   className="justify-start h-auto py-3 px-4"
                   onClick={() => handleClaim(member.id)}
-                  disabled={claimMutation.isPending}
+                  disabled={claimMutation.isPending || joinMutation.isPending}
                   data-testid={`button-claim-${member.name}`}
                 >
                   <div className="flex items-center justify-between w-full">
@@ -297,6 +340,70 @@ export default function InvitePage() {
                 </Button>
               ))}
             </div>
+
+            {/* "I'm not on this list" option */}
+            <Separator className="my-4" />
+            {!showAddSelfForm ? (
+              <Button
+                variant="ghost"
+                className="w-full justify-start text-muted-foreground hover:text-foreground"
+                onClick={() => setShowAddSelfForm(true)}
+                disabled={claimMutation.isPending}
+                data-testid="button-not-on-list"
+              >
+                <UserPlus className="mr-2 h-4 w-4" />
+                I'm not on this list
+              </Button>
+            ) : (
+              <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
+                <div className="space-y-2">
+                  <Label htmlFor="new-name">Your name</Label>
+                  <Input
+                    id="new-name"
+                    placeholder="How should we call you?"
+                    value={newMemberName}
+                    onChange={(e) => setNewMemberName(e.target.value)}
+                    data-testid="input-new-member-name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new-email" className="flex items-center gap-2">
+                    Email <span className="text-muted-foreground text-xs">(optional)</span>
+                  </Label>
+                  <Input
+                    id="new-email"
+                    type="email"
+                    placeholder="you@example.com"
+                    value={newMemberEmail}
+                    onChange={(e) => setNewMemberEmail(e.target.value)}
+                    data-testid="input-new-member-email"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Get notified when events are planned
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleJoinAsNewMember}
+                    disabled={joinMutation.isPending || !newMemberName.trim()}
+                    data-testid="button-join-group"
+                  >
+                    {joinMutation.isPending ? "Joining..." : "Join Group"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowAddSelfForm(false);
+                      setNewMemberName("");
+                      setNewMemberEmail("");
+                    }}
+                    disabled={joinMutation.isPending}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       ) : (

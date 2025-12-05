@@ -183,7 +183,8 @@
       "Bash(NODE_ENV=production PORT=3333 timeout:*)",
       "Bash(timeout 45 npx tsc:*)",
       "Bash(while read hash msg)",
-      "Bash(do echo \"=== $hash: $msg ===\")"
+      "Bash(do echo \"=== $hash: $msg ===\")",
+      "WebFetch(domain:docs.replit.com)"
     ],
     "deny": [],
     "ask": []

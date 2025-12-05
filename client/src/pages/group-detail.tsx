@@ -2685,29 +2685,15 @@ export default function GroupDetail() {
     });
   };
 
-  // Copy link for existing members to claim their identity and RSVP
-  const copyMemberClaimLink = () => {
+  // Copy unified invite link - works for both existing members claiming their name and new people joining
+  const copyInviteLink = () => {
     if (group?.shareableLink) {
       const fullUrl = `${window.location.origin}/invite/${group.shareableLink}`;
       navigator.clipboard.writeText(fullUrl);
       setCopied(true);
       toast({
-        title: "Member claim link copied!",
-        description: "Share this with existing members so they can claim their name and RSVP",
-      });
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
-  // Copy link for new people to join the group (add themselves as members)
-  const copyGroupJoinLink = () => {
-    if (group?.shareableLink) {
-      const fullUrl = `${window.location.origin}/join/${group.shareableLink}`;
-      navigator.clipboard.writeText(fullUrl);
-      setCopied(true);
-      toast({
-        title: "Group join link copied!",
-        description: "New people can use this link to add themselves to the group",
+        title: "Invite link copied!",
+        description: "Share this link so people can join or claim their spot",
       });
       setTimeout(() => setCopied(false), 2000);
     }
@@ -2845,7 +2831,6 @@ export default function GroupDetail() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          </div>
         </div>
       </header>
       <div className="max-w-7xl mx-auto px-6 py-6">
@@ -2998,8 +2983,8 @@ export default function GroupDetail() {
                 onDeleteMember={(memberId) => mutations.deleteMember.mutate(memberId)}
                 onSendInvitations={() => sendInvitationsMutation.mutate()}
                 isSendingInvitations={sendInvitationsMutation.isPending}
-                onCopyGroupJoinLink={copyGroupJoinLink}
-                groupJoinLinkCopied={copied}
+                onCopyInviteLink={copyInviteLink}
+                inviteLinkCopied={copied}
               />
 
               <AIPreferenceLearning

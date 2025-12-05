@@ -22,22 +22,22 @@ export function GroupCreatedSuccess({
   onContinue,
 }: GroupCreatedSuccessProps) {
   const { toast } = useToast();
-  const [copiedMemberClaimLink, setCopiedMemberClaimLink] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  // Member Claim Link - for existing members you've added to claim their name
-  const memberClaimLink = shareableLink
+  // Unified invite link - works for existing members to claim their name AND new people to join
+  const inviteLink = shareableLink
     ? `${window.location.origin}/invite/${shareableLink}`
     : null;
 
-  const copyMemberClaimLink = () => {
-    if (memberClaimLink) {
-      navigator.clipboard.writeText(memberClaimLink);
-      setCopiedMemberClaimLink(true);
+  const copyInviteLink = () => {
+    if (inviteLink) {
+      navigator.clipboard.writeText(inviteLink);
+      setCopied(true);
       toast({
-        title: "Member claim link copied!",
-        description: "Share this with your members so they can claim their name and RSVP",
+        title: "Invite link copied!",
+        description: "Share this so people can join or claim their spot",
       });
-      setTimeout(() => setCopiedMemberClaimLink(false), 2000);
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -63,7 +63,7 @@ export function GroupCreatedSuccess({
               <CardDescription>Complete these to get the most out of your group</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Step 1: Share with Members */}
+              {/* Step 1: Share Invite Link */}
               <div className="flex items-start gap-3">
                 <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
                   <span className="text-xs font-bold text-primary">1</span>
@@ -71,29 +71,26 @@ export function GroupCreatedSuccess({
                 <div className="flex-1">
                   <h3 className="font-medium flex items-center gap-2">
                     <Share2 className="h-4 w-4" />
-                    Share with Your Group Members
+                    Share the Invite Link
                   </h3>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Share this link so members can claim their name and RSVP to events
+                    Members can claim their name, and new people can add themselves
                   </p>
-                  {memberClaimLink && (
+                  {inviteLink && (
                     <div className="mt-2 flex items-center gap-2">
                       <code className="flex-1 px-3 py-2 bg-muted rounded text-xs font-mono break-all">
-                        {memberClaimLink}
+                        {inviteLink}
                       </code>
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={copyMemberClaimLink}
+                        onClick={copyInviteLink}
                       >
                         <LinkIcon className="h-4 w-4 mr-1" />
-                        {copiedMemberClaimLink ? "Copied!" : "Copy"}
+                        {copied ? "Copied!" : "Copy"}
                       </Button>
                     </div>
                   )}
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Need to let new people join? Use the "Group Join Link" in Settings → Members
-                  </p>
                 </div>
               </div>
 
