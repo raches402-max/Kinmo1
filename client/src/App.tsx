@@ -112,6 +112,7 @@ function Router() {
                 <Route path="/claim/:claimToken" component={ClaimMemberPage} />
                 <Route path="/events" component={MemberEventsPage} />
                 <Route path="/prototype/kinmo-text" component={PrototypeKinmoText} />
+                <Route path="/prototype/group-details-desktop" component={PrototypeGroupDetailsDesktop} />
                 <Route path="/privacy" component={Privacy} />
                 <Route path="/terms" component={Terms} />
               </>
