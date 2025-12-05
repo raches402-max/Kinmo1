@@ -40,6 +40,9 @@ import {
   CheckCircle2,
   Circle,
   XCircle,
+  Link as LinkIcon,
+  UserPlus,
+  Copy,
 } from "lucide-react";
 import { HelpTooltip } from "@/components/HelpTooltip";
 
@@ -159,6 +162,14 @@ interface MembersSectionProps {
    * Whether invitations are being sent
    */
   isSendingInvitations: boolean;
+  /**
+   * Copy the group join link (for new people to add themselves)
+   */
+  onCopyGroupJoinLink?: () => void;
+  /**
+   * Whether the group join link was just copied
+   */
+  groupJoinLinkCopied?: boolean;
 }
 
 // ========== COMPONENT ==========
@@ -182,6 +193,8 @@ export function MembersSection({
   onDeleteMember,
   onSendInvitations,
   isSendingInvitations,
+  onCopyGroupJoinLink,
+  groupJoinLinkCopied,
 }: MembersSectionProps) {
   // Find current user's member record for the "Edit My Profile" button
   const userMember = members.find((m) => m.userId === user?.id);
@@ -513,6 +526,41 @@ export function MembersSection({
               <Mail className="mr-2 h-3 w-3" />
               {isSendingInvitations ? "Sending..." : "Send Invitations"}
             </Button>
+          </div>
+        )}
+
+        {/* Group Join Link - for new people to add themselves to the group */}
+        {onCopyGroupJoinLink && (
+          <div className="pt-4 border-t">
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                <UserPlus className="w-3 h-3" />
+                Let new people join the group
+                <HelpTooltip
+                  content="Share this link with people who aren't in the group yet. They can add themselves as new members."
+                  examples={["Post in a group chat", "Share with a friend who wants to join"]}
+                />
+              </Label>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={onCopyGroupJoinLink}
+                data-testid="button-copy-group-join-link"
+              >
+                {groupJoinLinkCopied ? (
+                  <>
+                    <Check className="mr-2 h-3 w-3" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <LinkIcon className="mr-2 h-3 w-3" />
+                    Copy Group Join Link
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         )}
       </CardContent>

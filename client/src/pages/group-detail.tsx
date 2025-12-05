@@ -2685,14 +2685,29 @@ export default function GroupDetail() {
     });
   };
 
-  const copyShareLink = () => {
+  // Copy link for existing members to claim their identity and RSVP
+  const copyMemberClaimLink = () => {
+    if (group?.shareableLink) {
+      const fullUrl = `${window.location.origin}/invite/${group.shareableLink}`;
+      navigator.clipboard.writeText(fullUrl);
+      setCopied(true);
+      toast({
+        title: "Member claim link copied!",
+        description: "Share this with existing members so they can claim their name and RSVP",
+      });
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  // Copy link for new people to join the group (add themselves as members)
+  const copyGroupJoinLink = () => {
     if (group?.shareableLink) {
       const fullUrl = `${window.location.origin}/join/${group.shareableLink}`;
       navigator.clipboard.writeText(fullUrl);
       setCopied(true);
       toast({
-        title: "Link copied!",
-        description: "Share this link with your group members",
+        title: "Group join link copied!",
+        description: "New people can use this link to add themselves to the group",
       });
       setTimeout(() => setCopied(false), 2000);
     }
@@ -2802,6 +2817,27 @@ export default function GroupDetail() {
             <span className="text-2xl" data-testid="emoji-group-detail">{group.emoji || "🎉"}</span>
             <h1 className="text-xl font-semibold" data-testid="text-group-name">{group.name}</h1>
           </div>
+          <div className="flex items-center gap-2">
+            {/* Member Claim Link - for existing members to claim their name */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={copyMemberClaimLink}
+              data-testid="button-copy-member-claim-link"
+            >
+              {copied ? (
+                <>
+                  <Check className="h-4 w-4 mr-2" />
+                  <span className="hidden sm:inline">Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Share2 className="h-4 w-4 mr-2" />
+                  <span className="hidden sm:inline">Member Claim Link</span>
+                  <span className="sm:hidden">Share</span>
+                </>
+              )}
+            </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -2830,6 +2866,7 @@ export default function GroupDetail() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          </div>
         </div>
       </header>
       <div className="max-w-7xl mx-auto px-6 py-6">
@@ -2982,6 +3019,8 @@ export default function GroupDetail() {
                 onDeleteMember={(memberId) => mutations.deleteMember.mutate(memberId)}
                 onSendInvitations={() => sendInvitationsMutation.mutate()}
                 isSendingInvitations={sendInvitationsMutation.isPending}
+                onCopyGroupJoinLink={copyGroupJoinLink}
+                groupJoinLinkCopied={copied}
               />
 
               <AIPreferenceLearning

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ResponsiveDialog as Dialog, ResponsiveDialogContent as DialogContent } from "@/components/ui/responsive-dialog";
-import { Check, Users, Link as LinkIcon, Sparkles, Calendar } from "lucide-react";
+import { Check, Users, Link as LinkIcon, Sparkles, Calendar, Share2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 
@@ -22,21 +22,22 @@ export function GroupCreatedSuccess({
   onContinue,
 }: GroupCreatedSuccessProps) {
   const { toast } = useToast();
-  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedMemberClaimLink, setCopiedMemberClaimLink] = useState(false);
 
-  const fullShareLink = shareableLink
-    ? `${window.location.origin}/join/${shareableLink}`
+  // Member Claim Link - for existing members you've added to claim their name
+  const memberClaimLink = shareableLink
+    ? `${window.location.origin}/invite/${shareableLink}`
     : null;
 
-  const copyLink = () => {
-    if (fullShareLink) {
-      navigator.clipboard.writeText(fullShareLink);
-      setCopiedLink(true);
+  const copyMemberClaimLink = () => {
+    if (memberClaimLink) {
+      navigator.clipboard.writeText(memberClaimLink);
+      setCopiedMemberClaimLink(true);
       toast({
-        title: "Link copied!",
-        description: "Share this link with your group members",
+        title: "Member claim link copied!",
+        description: "Share this with your members so they can claim their name and RSVP",
       });
-      setTimeout(() => setCopiedLink(false), 2000);
+      setTimeout(() => setCopiedMemberClaimLink(false), 2000);
     }
   };
 
@@ -62,34 +63,37 @@ export function GroupCreatedSuccess({
               <CardDescription>Complete these to get the most out of your group</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Step 1: Invite Members */}
+              {/* Step 1: Share with Members */}
               <div className="flex items-start gap-3">
                 <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
                   <span className="text-xs font-bold text-primary">1</span>
                 </div>
                 <div className="flex-1">
                   <h3 className="font-medium flex items-center gap-2">
-                    <Users className="h-4 w-4" />
-                    Invite Your Group Members
+                    <Share2 className="h-4 w-4" />
+                    Share with Your Group Members
                   </h3>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Share the invite link below or add members from your group page
+                    Share this link so members can claim their name and RSVP to events
                   </p>
-                  {fullShareLink && (
+                  {memberClaimLink && (
                     <div className="mt-2 flex items-center gap-2">
                       <code className="flex-1 px-3 py-2 bg-muted rounded text-xs font-mono break-all">
-                        {fullShareLink}
+                        {memberClaimLink}
                       </code>
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={copyLink}
+                        onClick={copyMemberClaimLink}
                       >
                         <LinkIcon className="h-4 w-4 mr-1" />
-                        {copiedLink ? "Copied!" : "Copy"}
+                        {copiedMemberClaimLink ? "Copied!" : "Copy"}
                       </Button>
                     </div>
                   )}
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Need to let new people join? Use the "Group Join Link" in Settings → Members
+                  </p>
                 </div>
               </div>
 
