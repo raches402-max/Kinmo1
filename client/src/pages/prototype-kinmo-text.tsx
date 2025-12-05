@@ -291,8 +291,8 @@ function LiveAnimatedPreview({ gradient, startColor, endColor }: { gradient: str
 
       {/* Animated hero section */}
       <div className="px-6 py-12 text-center bg-background">
-        {/* Large gradient sun */}
-        <svg width="80" height="80" viewBox="0 0 48 48" fill="none" className="mx-auto mb-6">
+        {/* Large gradient sun - with slow rotation like landing page */}
+        <svg width="80" height="80" viewBox="0 0 48 48" fill="none" className="mx-auto mb-6 animate-slow-spin">
           <defs>
             <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor={startColor} />
