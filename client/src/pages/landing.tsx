@@ -73,20 +73,22 @@ function RotatingHeadline() {
     if (phase !== "rotating") return;
 
     const currentInterval = getIntervalForIndex(currentIndex);
+    const isLastWord = currentIndex === currentWords.length - 1;
 
+    // If on last word ("kin"), just pause then go to fadeToKinmo (no animation cycle)
+    if (isLastWord) {
+      const timeout = setTimeout(() => {
+        setPhase("fadeToKinmo");
+      }, currentInterval + 1500); // Extra pause on "kin" before fading
+      return () => clearTimeout(timeout);
+    }
+
+    // Normal word rotation with fade animation
     const timeout = setTimeout(() => {
       setIsAnimating(true);
       setTimeout(() => {
-        setCurrentIndex((prev) => {
-          if (prev === currentWords.length - 1) {
-            // End of rotation on "kin" - pause then fade to Kinmo
-            setIsAnimating(false);
-            setTimeout(() => setPhase("fadeToKinmo"), 1500); // Extra pause on "kin"
-            return prev;
-          }
-          setIsAnimating(false);
-          return prev + 1;
-        });
+        setIsAnimating(false);
+        setCurrentIndex((prev) => prev + 1);
       }, 300);
     }, currentInterval);
 
