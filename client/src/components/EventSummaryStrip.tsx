@@ -413,7 +413,7 @@ export function EventSummaryStrip({
                           <TbdAction icon={Search} label="Search" onClick={onSearchVenue} />
                         )}
                         {onFavoritesVenue && (
-                          <TbdAction icon={Star} label="Favorites" onClick={onFavoritesVenue} />
+                          <TbdAction icon={Star} label="Places" onClick={onFavoritesVenue} />
                         )}
                         {onAiPickVenue && (
                           <TbdAction icon={Sparkles} label="AI Pick" onClick={onAiPickVenue} />

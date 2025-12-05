@@ -157,7 +157,7 @@ export function SwipeSessionWithDeck({
   const handleComplete = () => {
     toast({
       title: 'Session complete!',
-      description: `You added ${addedCount} venue${addedCount !== 1 ? 's' : ''} to Favorites`,
+      description: `You added ${addedCount} venue${addedCount !== 1 ? 's' : ''} to Places`,
     });
 
     if (onComplete) {
@@ -225,7 +225,7 @@ export function SwipeSessionWithDeck({
             Swipe right to add • Swipe left to skip
           </div>
           <Button onClick={() => handleSwipe('like')}>
-            Add to Favorites
+            Add to Places
           </Button>
         </div>
       </DialogContent>

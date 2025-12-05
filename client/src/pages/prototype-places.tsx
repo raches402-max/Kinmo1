@@ -35,7 +35,7 @@ import { Input } from "@/components/ui/input";
 
 // Mock groups
 const mockGroups = [
-  { id: "personal", name: "My Favorites", emoji: "❤️", isPersonal: true },
+  { id: "personal", name: "My Places", emoji: "❤️", isPersonal: true },
   { id: "g1", name: "Sweatpants", emoji: "👖", isPersonal: false },
   { id: "g2", name: "Mission Amigos", emoji: "🌮", isPersonal: false },
   { id: "g3", name: "AFC (Asian Food Crew)", emoji: "🍜", isPersonal: false },

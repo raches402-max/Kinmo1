@@ -739,7 +739,7 @@ export function EditVenueDialog({ open, onOpenChange, venue, itineraryId, groupI
                 <p className="text-center text-muted-foreground py-8 text-sm">No group context</p>
               )}
               {libraryVenues.length === 0 && groupId && (
-                <p className="text-center text-muted-foreground py-8 text-sm">No favorites in this group yet</p>
+                <p className="text-center text-muted-foreground py-8 text-sm">No saved places in this group yet</p>
               )}
             </div>
           </TabsContent>}
