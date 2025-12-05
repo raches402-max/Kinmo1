@@ -19,17 +19,31 @@ interface GradientOption {
   name: string;
   description: string;
   gradient: string;
+  startColor: string;
+  endColor: string;
   verdict: "recommended" | "subtle" | "bold" | "experimental";
   notes: string;
 }
 
 const gradientOptions: GradientOption[] = [
   {
+    id: "very-subtle",
+    name: "Ultra Subtle",
+    description: "Almost imperceptible shift",
+    gradient: "linear-gradient(135deg, #F4C74C 0%, #F8BE30 100%)",
+    startColor: "#F4C74C",
+    endColor: "#F8BE30",
+    verdict: "recommended",
+    notes: "If you want the gradient to be felt more than seen. Extremely refined. The warmth comes through without being obvious.",
+  },
+  {
     id: "subtle-horizontal",
     name: "Subtle Horizontal",
     description: "Muted → Bright (left to right)",
     gradient: "linear-gradient(90deg, #F2C94C 0%, #FFB800 100%)",
-    verdict: "recommended",
+    startColor: "#F2C94C",
+    endColor: "#FFB800",
+    verdict: "subtle",
     notes: "Clean and modern. The eye naturally follows left-to-right, ending on the brighter, more energetic tone.",
   },
   {
@@ -37,6 +51,8 @@ const gradientOptions: GradientOption[] = [
     name: "Subtle Horizontal (Reverse)",
     description: "Bright → Muted (left to right)",
     gradient: "linear-gradient(90deg, #FFB800 0%, #F2C94C 100%)",
+    startColor: "#FFB800",
+    endColor: "#F2C94C",
     verdict: "subtle",
     notes: "Starts bright near the text, fades to softer. Good if you want the button to feel grounded.",
   },
@@ -45,7 +61,9 @@ const gradientOptions: GradientOption[] = [
     name: "Diagonal Warm",
     description: "Top-left to bottom-right sweep",
     gradient: "linear-gradient(135deg, #F2C94C 0%, #FFB800 100%)",
-    verdict: "recommended",
+    startColor: "#F2C94C",
+    endColor: "#FFB800",
+    verdict: "subtle",
     notes: "Diagonal adds dynamism without being flashy. Feels like natural light catching the surface.",
   },
   {
@@ -53,22 +71,18 @@ const gradientOptions: GradientOption[] = [
     name: "Diagonal (Reverse)",
     description: "Bottom-left to top-right",
     gradient: "linear-gradient(45deg, #F2C94C 0%, #FFB800 100%)",
+    startColor: "#F2C94C",
+    endColor: "#FFB800",
     verdict: "subtle",
     notes: "Upward diagonal can feel uplifting. Subtle energy lift.",
-  },
-  {
-    id: "very-subtle",
-    name: "Ultra Subtle",
-    description: "Almost imperceptible shift",
-    gradient: "linear-gradient(90deg, #F4C74C 0%, #F8BE30 100%)",
-    verdict: "subtle",
-    notes: "If you want the gradient to be felt more than seen. Extremely refined.",
   },
   {
     id: "center-glow",
     name: "Center Glow",
     description: "Bright center, muted edges",
     gradient: "linear-gradient(90deg, #F2C94C 0%, #FFB800 50%, #F2C94C 100%)",
+    startColor: "#F2C94C",
+    endColor: "#FFB800",
     verdict: "bold",
     notes: "Creates a subtle 'glow' or highlight in the center. More noticeable but can feel premium.",
   },
@@ -77,7 +91,9 @@ const gradientOptions: GradientOption[] = [
     name: "Soft Shine",
     description: "Diagonal with soft highlight",
     gradient: "linear-gradient(135deg, #F2C94C 0%, #FFBE00 40%, #FFB800 100%)",
-    verdict: "recommended",
+    startColor: "#F2C94C",
+    endColor: "#FFB800",
+    verdict: "subtle",
     notes: "Three-stop gradient creates depth like light reflecting off metal. Sophisticated.",
   },
   {
@@ -85,6 +101,8 @@ const gradientOptions: GradientOption[] = [
     name: "Warm to Golden",
     description: "Using the graduated warmth colors",
     gradient: "linear-gradient(90deg, #E5A800 0%, #F0B000 50%, #FFBA00 100%)",
+    startColor: "#E5A800",
+    endColor: "#FFBA00",
     verdict: "experimental",
     notes: "Uses your graduated warmth palette in a single button. Rich and cohesive.",
   },
@@ -93,6 +111,8 @@ const gradientOptions: GradientOption[] = [
     name: "Vertical Subtle",
     description: "Top to bottom, muted → bright",
     gradient: "linear-gradient(180deg, #F2C94C 0%, #FFB800 100%)",
+    startColor: "#F2C94C",
+    endColor: "#FFB800",
     verdict: "subtle",
     notes: "Vertical gradients can feel like the button has depth/dimension. Classic approach.",
   },
@@ -101,6 +121,8 @@ const gradientOptions: GradientOption[] = [
     name: "Vertical Highlight",
     description: "Bright top edge, muted body",
     gradient: "linear-gradient(180deg, #FFB800 0%, #F2C94C 30%, #F2C94C 100%)",
+    startColor: "#FFB800",
+    endColor: "#F2C94C",
     verdict: "bold",
     notes: "Simulates top lighting. Can look like a real 3D button if done right.",
   },
@@ -117,28 +139,44 @@ function GradientButton({ gradient, children }: { gradient: string; children: Re
   );
 }
 
-function MiniPreview({ gradient, heroColor = "#FFB800" }: { gradient: string; heroColor?: string }) {
+function MiniPreview({ gradient, startColor, endColor }: { gradient: string; startColor: string; endColor: string }) {
+  const gradientId = `sun-gradient-${startColor.replace('#', '')}`;
+
   return (
     <div className="bg-background rounded-lg border border-border overflow-hidden">
       {/* Mini header */}
       <div className="px-3 py-2 border-b border-border/50 flex items-center gap-1.5">
-        <KinmoIcon size={14} color={heroColor} />
+        <svg width="14" height="14" viewBox="0 0 48 48" fill="none">
+          <defs>
+            <linearGradient id={`header-${gradientId}`} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor={startColor} />
+              <stop offset="100%" stopColor={endColor} />
+            </linearGradient>
+          </defs>
+          <circle cx="24" cy="24" r="20" fill={`url(#header-${gradientId})`} />
+        </svg>
         <span className="font-medium text-xs">Kinmo</span>
       </div>
 
       {/* Mini hero */}
       <div className="px-3 py-4 text-center">
         <svg width="28" height="28" viewBox="0 0 48 48" fill="none" className="mx-auto mb-2">
-          <circle cx="24" cy="24" r="14" fill={heroColor} />
-          <path d="M19 5 A4 4 0 0 1 29 5 L24 5 Z" fill={heroColor} />
-          <path d="M38 10 A4 4 0 0 1 43 19 L40 14 Z" fill={heroColor} />
-          <path d="M43 29 A4 4 0 0 1 38 38 L40 34 Z" fill={heroColor} />
-          <path d="M29 43 A4 4 0 0 1 19 43 L24 43 Z" fill={heroColor} />
-          <path d="M10 38 A4 4 0 0 1 5 29 L8 34 Z" fill={heroColor} />
-          <path d="M5 19 A4 4 0 0 1 10 10 L8 14 Z" fill={heroColor} />
+          <defs>
+            <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor={startColor} />
+              <stop offset="100%" stopColor={endColor} />
+            </linearGradient>
+          </defs>
+          <circle cx="24" cy="24" r="14" fill={`url(#${gradientId})`} />
+          <path d="M19 5 A4 4 0 0 1 29 5 L24 5 Z" fill={`url(#${gradientId})`} />
+          <path d="M38 10 A4 4 0 0 1 43 19 L40 14 Z" fill={`url(#${gradientId})`} />
+          <path d="M43 29 A4 4 0 0 1 38 38 L40 34 Z" fill={`url(#${gradientId})`} />
+          <path d="M29 43 A4 4 0 0 1 19 43 L24 43 Z" fill={`url(#${gradientId})`} />
+          <path d="M10 38 A4 4 0 0 1 5 29 L8 34 Z" fill={`url(#${gradientId})`} />
+          <path d="M5 19 A4 4 0 0 1 10 10 L8 14 Z" fill={`url(#${gradientId})`} />
         </svg>
         <p className="text-[10px] font-bold mb-2">
-          See your <span style={{ color: heroColor }}>friends</span> more.
+          See your <span className="bg-clip-text text-transparent" style={{ backgroundImage: gradient }}>friends</span> more.
         </p>
         <button
           className="px-3 py-1 rounded text-[10px] font-semibold text-black"
@@ -152,7 +190,7 @@ function MiniPreview({ gradient, heroColor = "#FFB800" }: { gradient: string; he
 }
 
 export default function PrototypeKinmoText() {
-  const [selected, setSelected] = useState<string>("soft-shine");
+  const [selected, setSelected] = useState<string>("very-subtle");
   const [showCornyGuide, setShowCornyGuide] = useState(false);
 
   const selectedOption = gradientOptions.find(o => o.id === selected)!;
@@ -312,7 +350,11 @@ export default function PrototypeKinmoText() {
             {/* In-context preview */}
             <div>
               <h3 className="text-sm uppercase tracking-widest text-gray-400 mb-4">In Context</h3>
-              <MiniPreview gradient={selectedOption.gradient} heroColor="#FFB800" />
+              <MiniPreview
+                gradient={selectedOption.gradient}
+                startColor={selectedOption.startColor}
+                endColor={selectedOption.endColor}
+              />
 
               <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
                 <h4 className="font-semibold text-sm mb-2">{selectedOption.name}</h4>
@@ -370,37 +412,57 @@ export default function PrototypeKinmoText() {
       {/* Recommendation */}
       <section className="py-10 px-4 border-t border-black/5">
         <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-xl font-bold mb-4">My Take</h2>
+          <h2 className="text-xl font-bold mb-4">My Take: Ultra Subtle is Perfect</h2>
           <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm text-left">
             <p className="text-gray-600 leading-relaxed mb-4">
-              <strong>No, it won't look corny</strong> — as long as you keep it subtle. My top picks:
+              <strong>Ultra Subtle is a great choice.</strong> Here's why it works so well:
             </p>
-            <div className="space-y-3">
-              <div className="flex items-start gap-3 p-3 bg-green-50 rounded-lg border border-green-100">
-                <div className="w-12 h-6 rounded" style={{ background: "linear-gradient(135deg, #F2C94C 0%, #FFBE00 40%, #FFB800 100%)" }} />
-                <div>
-                  <p className="font-medium text-sm">Soft Shine (Diagonal)</p>
-                  <p className="text-xs text-gray-600">Three-stop gradient creates elegant depth. Feels like light reflecting off the surface.</p>
-                </div>
+
+            {/* Top pick highlight */}
+            <div className="flex items-start gap-4 p-4 bg-green-50 rounded-xl border-2 border-green-200 mb-4">
+              <div className="flex-shrink-0">
+                <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                  <defs>
+                    <linearGradient id="rec-sun-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#F4C74C" />
+                      <stop offset="100%" stopColor="#F8BE30" />
+                    </linearGradient>
+                  </defs>
+                  <circle cx="24" cy="24" r="14" fill="url(#rec-sun-gradient)" />
+                  <path d="M19 5 A4 4 0 0 1 29 5 L24 5 Z" fill="url(#rec-sun-gradient)" />
+                  <path d="M38 10 A4 4 0 0 1 43 19 L40 14 Z" fill="url(#rec-sun-gradient)" />
+                  <path d="M43 29 A4 4 0 0 1 38 38 L40 34 Z" fill="url(#rec-sun-gradient)" />
+                  <path d="M29 43 A4 4 0 0 1 19 43 L24 43 Z" fill="url(#rec-sun-gradient)" />
+                  <path d="M10 38 A4 4 0 0 1 5 29 L8 34 Z" fill="url(#rec-sun-gradient)" />
+                  <path d="M5 19 A4 4 0 0 1 10 10 L8 14 Z" fill="url(#rec-sun-gradient)" />
+                </svg>
               </div>
-              <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                <div className="w-12 h-6 rounded" style={{ background: "linear-gradient(135deg, #F2C94C 0%, #FFB800 100%)" }} />
-                <div>
-                  <p className="font-medium text-sm">Diagonal Warm</p>
-                  <p className="text-xs text-gray-600">Simple two-tone diagonal. Clean, modern, and ties both colors together naturally.</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3 p-3 bg-amber-50 rounded-lg border border-amber-100">
-                <div className="w-12 h-6 rounded" style={{ background: "linear-gradient(90deg, #F4C74C 0%, #F8BE30 100%)" }} />
-                <div>
-                  <p className="font-medium text-sm">Ultra Subtle</p>
-                  <p className="text-xs text-gray-600">If you want maximum refinement. The gradient is felt more than seen — very classy.</p>
+              <div>
+                <p className="font-semibold text-green-800 mb-1">Ultra Subtle — Top Pick</p>
+                <p className="text-sm text-green-700 leading-relaxed">
+                  The gradient is so refined it's almost invisible — felt more than seen. This gives you the warmth and cohesion
+                  you want without any risk of looking dated. Applied to the sun, it creates a beautiful, natural glow.
+                </p>
+                <div className="flex items-center gap-2 mt-2">
+                  <div className="h-6 w-20 rounded" style={{ background: "linear-gradient(135deg, #F4C74C 0%, #F8BE30 100%)" }} />
+                  <code className="text-xs text-green-600">#F4C74C → #F8BE30</code>
                 </div>
               </div>
             </div>
-            <p className="text-sm text-gray-500 mt-4">
-              The gradient bridges your two golds elegantly. Combined with the bright #FFB800 sun and hero text,
-              you get visual hierarchy without clash.
+
+            <div className="text-sm text-gray-600 space-y-2">
+              <p><strong>Why Ultra Subtle works:</strong></p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Keeps your calm, friendly app vibe intact</li>
+                <li>The sun gets a natural warmth without being "gradient-y"</li>
+                <li>Buttons feel premium but not flashy</li>
+                <li>Both colors are close enough that there's no clash</li>
+              </ul>
+            </div>
+
+            <p className="text-sm text-gray-500 mt-4 pt-4 border-t border-gray-100">
+              You could even keep the hero rotating text at the brighter #FFB800 for extra pop,
+              while the sun and buttons use this ultra-subtle gradient. Best of both worlds.
             </p>
           </div>
         </div>
