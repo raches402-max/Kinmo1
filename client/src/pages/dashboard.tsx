@@ -1370,13 +1370,7 @@ export default function Dashboard() {
         )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          {/* Hide tabs on mobile - bottom nav handles navigation there */}
-          {!isMobile && (
-            <TabsList className="mb-6">
-              <TabsTrigger value="my-events" data-testid="tab-my-events">My Events</TabsTrigger>
-              <TabsTrigger value="my-groups" data-testid="tab-my-groups">My Groups</TabsTrigger>
-            </TabsList>
-          )}
+          {/* Tabs removed - Header navigation handles Events/Groups switching */}
 
           <TabsContent value="my-events" data-testid="content-my-events">
             {/* Global Delete Button - Floating */}

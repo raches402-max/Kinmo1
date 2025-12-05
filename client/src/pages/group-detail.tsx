@@ -2802,15 +2802,34 @@ export default function GroupDetail() {
             <span className="text-2xl" data-testid="emoji-group-detail">{group.emoji || "🎉"}</span>
             <h1 className="text-xl font-semibold" data-testid="text-group-name">{group.name}</h1>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={openEditGroup}
-            data-testid="button-edit-group"
-          >
-            <Settings className="h-4 w-4 mr-2" />
-            <span className="hidden sm:inline">Settings</span>
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                data-testid="button-settings-menu"
+              >
+                <Settings className="h-4 w-4 mr-2" />
+                <span className="hidden sm:inline">Settings</span>
+                <ChevronDown className="h-3 w-3 ml-1 hidden sm:inline" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => { setActiveTab("preferences"); setGroupSubTab("details"); }}>
+                <Settings className="h-4 w-4 mr-2" />
+                Group Settings
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { setActiveTab("preferences"); setGroupSubTab("my-preferences"); }}>
+                <UserCheck className="h-4 w-4 mr-2" />
+                My Preferences
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setActiveTab("feedback")}>
+                <TrendingUp className="h-4 w-4 mr-2" />
+                Insights
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
       <div className="max-w-7xl mx-auto px-6 py-6">
@@ -2846,16 +2865,7 @@ export default function GroupDetail() {
         )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6 pb-20 sm:pb-0">
-          {/* Desktop tabs - hidden on mobile */}
-          <TabsList className="hidden sm:grid w-full max-w-3xl mx-auto grid-cols-5">
-            <TabsTrigger value="home" data-testid="tab-home">Home</TabsTrigger>
-            <TabsTrigger value="preferences" data-testid="tab-preferences">Group</TabsTrigger>
-            <TabsTrigger value="activities" data-testid="tab-activities">Explore</TabsTrigger>
-            <TabsTrigger value="build" data-testid="tab-build">Create Event</TabsTrigger>
-            <TabsTrigger value="feedback" data-testid="tab-feedback">Insights</TabsTrigger>
-          </TabsList>
-
-          {/* Mobile bottom navigation */}
+          {/* Mobile bottom navigation - desktop uses header dropdown + action buttons */}
           <GroupDetailMobileNav
             activeTab={activeTab as "home" | "preferences" | "activities" | "build" | "feedback"}
             onTabChange={setActiveTab}
