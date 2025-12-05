@@ -259,7 +259,7 @@ export function NotificationItem({
                 <Button
                   size="sm"
                   variant="default"
-                  className="h-7 text-xs bg-green-600 hover:bg-green-700"
+                  className="h-7 text-xs bg-primary hover:bg-primary/90 text-primary-foreground"
                   onClick={() => quickRsvpMutation.mutate('yes')}
                   disabled={quickRsvpMutation.isPending}
                 >

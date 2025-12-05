@@ -347,10 +347,10 @@ export default function PrototypeEventDetailsDesktop() {
                       size="sm"
                       onClick={() => setUserRsvp(status)}
                       className={cn(
-                        "h-10",
-                        userRsvp === status && status === "yes" && "bg-emerald-600 hover:bg-emerald-700",
-                        userRsvp === status && status === "maybe" && "bg-amber-500 hover:bg-amber-600",
-                        userRsvp === status && status === "no" && "bg-red-500 hover:bg-red-600"
+                        "h-10 transition-all",
+                        userRsvp === status && status === "yes" && "bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm",
+                        userRsvp === status && status === "maybe" && "bg-amber-500 hover:bg-amber-600 text-white shadow-sm",
+                        userRsvp === status && status === "no" && "bg-rose-500 hover:bg-rose-600 text-white shadow-sm"
                       )}
                     >
                       {status === "yes" && <Check className="h-4 w-4 mr-1" />}
@@ -370,14 +370,14 @@ export default function PrototypeEventDetailsDesktop() {
                     Attendees
                   </CardTitle>
                   <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                    <span className="text-emerald-600 font-medium">{rsvpSummary.yes}</span>
+                    <span className="text-primary font-medium">{rsvpSummary.yes}</span>
                     <span>/</span>
                     <span>{event.attendees.length}</span>
                   </div>
                 </div>
                 {/* RSVP Summary Pills */}
                 <div className="flex items-center gap-2 mt-2">
-                  <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                  <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
                     {rsvpSummary.yes} going
                   </Badge>
                   {rsvpSummary.maybe > 0 && (

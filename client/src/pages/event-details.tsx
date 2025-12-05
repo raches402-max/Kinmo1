@@ -2014,9 +2014,9 @@ export default function EventDetailsPage() {
                         variant={rsvpResponse === 'yes' ? 'default' : rsvpResponse === 'maybe' ? 'secondary' : 'outline'}
                         className={cn(
                           "text-2xs sm:text-xs",
-                          rsvpResponse === 'yes' && "bg-green-600",
-                          rsvpResponse === 'maybe' && "bg-yellow-500 text-yellow-950",
-                          rsvpResponse === 'no' && "bg-red-100 text-red-700 border-red-300"
+                          rsvpResponse === 'yes' && "bg-primary text-primary-foreground",
+                          rsvpResponse === 'maybe' && "bg-amber-100 text-amber-800 border-amber-200",
+                          rsvpResponse === 'no' && "bg-rose-50 text-rose-700 border-rose-200"
                         )}
                       >
                         {rsvpResponse === 'yes' && 'Going'}
@@ -2032,8 +2032,8 @@ export default function EventDetailsPage() {
                       onClick={() => organizerRsvpMutation.mutate('yes')}
                       disabled={organizerRsvpMutation.isPending}
                       className={cn(
-                        "gap-1 h-8 text-xs sm:text-sm",
-                        rsvpResponse === 'yes' && "bg-green-600 hover:bg-green-700"
+                        "gap-1 h-8 text-xs sm:text-sm transition-all",
+                        rsvpResponse === 'yes' && "bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
                       )}
                       data-testid="button-organizer-yes"
                     >
@@ -2046,8 +2046,8 @@ export default function EventDetailsPage() {
                       onClick={() => organizerRsvpMutation.mutate('maybe')}
                       disabled={organizerRsvpMutation.isPending}
                       className={cn(
-                        "gap-1 h-8 text-xs sm:text-sm",
-                        rsvpResponse === 'maybe' && "bg-yellow-500 hover:bg-yellow-600 text-yellow-950"
+                        "gap-1 h-8 text-xs sm:text-sm transition-all",
+                        rsvpResponse === 'maybe' && "bg-amber-500 hover:bg-amber-600 text-white shadow-sm"
                       )}
                       data-testid="button-organizer-maybe"
                     >
@@ -2060,8 +2060,8 @@ export default function EventDetailsPage() {
                       onClick={() => organizerRsvpMutation.mutate('no')}
                       disabled={organizerRsvpMutation.isPending}
                       className={cn(
-                        "gap-1 h-8 text-xs sm:text-sm",
-                        rsvpResponse === 'no' && "bg-red-600 hover:bg-red-700"
+                        "gap-1 h-8 text-xs sm:text-sm transition-all",
+                        rsvpResponse === 'no' && "bg-rose-500 hover:bg-rose-600 text-white shadow-sm"
                       )}
                       data-testid="button-organizer-no"
                     >
@@ -2299,8 +2299,8 @@ export default function EventDetailsPage() {
                 onClick={() => organizerRsvpMutation.mutate('yes')}
                 disabled={organizerRsvpMutation.isPending}
                 className={cn(
-                  "flex-1 h-9",
-                  rsvpResponse === 'yes' && "bg-green-600 hover:bg-green-700"
+                  "flex-1 h-9 transition-all",
+                  rsvpResponse === 'yes' && "bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
                 )}
               >
                 <CheckCircle className="h-4 w-4 mr-1" />
@@ -2312,8 +2312,8 @@ export default function EventDetailsPage() {
                 onClick={() => organizerRsvpMutation.mutate('maybe')}
                 disabled={organizerRsvpMutation.isPending}
                 className={cn(
-                  "flex-1 h-9",
-                  rsvpResponse === 'maybe' && "bg-yellow-500 hover:bg-yellow-600 text-yellow-950"
+                  "flex-1 h-9 transition-all",
+                  rsvpResponse === 'maybe' && "bg-amber-500 hover:bg-amber-600 text-white shadow-sm"
                 )}
               >
                 <HelpCircle className="h-4 w-4 mr-1" />
@@ -2325,8 +2325,8 @@ export default function EventDetailsPage() {
                 onClick={() => organizerRsvpMutation.mutate('no')}
                 disabled={organizerRsvpMutation.isPending}
                 className={cn(
-                  "flex-1 h-9",
-                  rsvpResponse === 'no' && "bg-red-600 hover:bg-red-700"
+                  "flex-1 h-9 transition-all",
+                  rsvpResponse === 'no' && "bg-rose-500 hover:bg-rose-600 text-white shadow-sm"
                 )}
               >
                 <XCircle className="h-4 w-4 mr-1" />
