@@ -184,7 +184,11 @@
       "Bash(timeout 45 npx tsc:*)",
       "Bash(while read hash msg)",
       "Bash(do echo \"=== $hash: $msg ===\")",
-      "WebFetch(domain:docs.replit.com)"
+      "WebFetch(domain:docs.replit.com)",
+      "Bash(dig:*)",
+      "Bash(nslookup:*)",
+      "Bash(host:*)",
+      "WebFetch(domain:dns.google)"
     ],
     "deny": [],
     "ask": []
