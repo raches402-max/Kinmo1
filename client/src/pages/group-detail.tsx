@@ -2817,27 +2817,6 @@ export default function GroupDetail() {
             <span className="text-2xl" data-testid="emoji-group-detail">{group.emoji || "🎉"}</span>
             <h1 className="text-xl font-semibold" data-testid="text-group-name">{group.name}</h1>
           </div>
-          <div className="flex items-center gap-2">
-            {/* Member Claim Link - for existing members to claim their name */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={copyMemberClaimLink}
-              data-testid="button-copy-member-claim-link"
-            >
-              {copied ? (
-                <>
-                  <Check className="h-4 w-4 mr-2" />
-                  <span className="hidden sm:inline">Copied!</span>
-                </>
-              ) : (
-                <>
-                  <Share2 className="h-4 w-4 mr-2" />
-                  <span className="hidden sm:inline">Member Claim Link</span>
-                  <span className="sm:hidden">Share</span>
-                </>
-              )}
-            </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
