@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Check, Sparkles, ThumbsUp, ThumbsDown } from "lucide-react";
+import { ArrowRight, Check, Sparkles, ThumbsUp, ThumbsDown, Play, Pause } from "lucide-react";
 import { KinmoIcon } from "@/components/KinmoLogo";
 
 /*
@@ -189,6 +189,242 @@ function MiniPreview({ gradient, startColor, endColor }: { gradient: string; sta
   );
 }
 
+// Live animated preview with full rotation animation
+type AnimationPhase = "rotating" | "fadeToKinmo" | "kinmo" | "fadeOut" | "fadeIn";
+
+function LiveAnimatedPreview({ gradient, startColor, endColor }: { gradient: string; startColor: string; endColor: string }) {
+  const gradientId = `live-sun-${startColor.replace('#', '')}`;
+  const words = ["friends", "family", "loved ones", "people", "crew"];
+
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [phase, setPhase] = useState<AnimationPhase>("rotating");
+  const [cycleCount, setCycleCount] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+
+  // Animation timing
+  useEffect(() => {
+    if (isPaused) return;
+
+    let timer: NodeJS.Timeout;
+
+    if (phase === "rotating") {
+      // Rotate through words
+      timer = setInterval(() => {
+        setIsAnimating(true);
+        setTimeout(() => {
+          setCurrentIndex((prev) => {
+            const nextIndex = (prev + 1) % words.length;
+            // After completing one full cycle, transition to kinmo
+            if (nextIndex === 0) {
+              setCycleCount(c => c + 1);
+            }
+            return nextIndex;
+          });
+          setIsAnimating(false);
+        }, 300);
+      }, 2000);
+    }
+
+    return () => clearInterval(timer);
+  }, [phase, isPaused, words.length]);
+
+  // After one cycle, fade to "kin" then "Kinmo"
+  useEffect(() => {
+    if (cycleCount > 0 && phase === "rotating") {
+      setPhase("fadeToKinmo");
+
+      // Fade "kin" for 600ms, then show full "Kinmo"
+      const kinTimer = setTimeout(() => {
+        setPhase("kinmo");
+      }, 600);
+
+      // Hold "Kinmo" for 2.5s, then fade out
+      const holdTimer = setTimeout(() => {
+        setPhase("fadeOut");
+      }, 3100);
+
+      // Fade out, then restart rotation
+      const restartTimer = setTimeout(() => {
+        setPhase("fadeIn");
+        setCurrentIndex(0);
+      }, 3500);
+
+      const finalTimer = setTimeout(() => {
+        setPhase("rotating");
+        setCycleCount(0);
+      }, 3900);
+
+      return () => {
+        clearTimeout(kinTimer);
+        clearTimeout(holdTimer);
+        clearTimeout(restartTimer);
+        clearTimeout(finalTimer);
+      };
+    }
+  }, [cycleCount, phase]);
+
+  return (
+    <div className="bg-background rounded-xl border border-border overflow-hidden shadow-lg">
+      {/* Header with play/pause */}
+      <div className="px-4 py-3 border-b border-border/50 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <svg width="20" height="20" viewBox="0 0 48 48" fill="none">
+            <defs>
+              <linearGradient id={`header-live-${gradientId}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor={startColor} />
+                <stop offset="100%" stopColor={endColor} />
+              </linearGradient>
+            </defs>
+            <circle cx="24" cy="24" r="20" fill={`url(#header-live-${gradientId})`} />
+          </svg>
+          <span className="font-semibold text-sm">Kinmo</span>
+        </div>
+        <button
+          onClick={() => setIsPaused(!isPaused)}
+          className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium bg-gray-100 hover:bg-gray-200 transition-colors"
+        >
+          {isPaused ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
+          {isPaused ? "Play" : "Pause"}
+        </button>
+      </div>
+
+      {/* Animated hero section */}
+      <div className="px-6 py-12 text-center bg-background">
+        {/* Large gradient sun */}
+        <svg width="80" height="80" viewBox="0 0 48 48" fill="none" className="mx-auto mb-6">
+          <defs>
+            <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor={startColor} />
+              <stop offset="100%" stopColor={endColor} />
+            </linearGradient>
+          </defs>
+          <circle cx="24" cy="24" r="14" fill={`url(#${gradientId})`} />
+          <path d="M19 5 A4 4 0 0 1 29 5 L24 5 Z" fill={`url(#${gradientId})`} />
+          <path d="M38 10 A4 4 0 0 1 43 19 L40 14 Z" fill={`url(#${gradientId})`} />
+          <path d="M43 29 A4 4 0 0 1 38 38 L40 34 Z" fill={`url(#${gradientId})`} />
+          <path d="M29 43 A4 4 0 0 1 19 43 L24 43 Z" fill={`url(#${gradientId})`} />
+          <path d="M10 38 A4 4 0 0 1 5 29 L8 34 Z" fill={`url(#${gradientId})`} />
+          <path d="M5 19 A4 4 0 0 1 10 10 L8 14 Z" fill={`url(#${gradientId})`} />
+        </svg>
+
+        {/* Animated headline */}
+        <div className="relative h-16 flex items-center justify-center">
+          <p className="text-2xl md:text-3xl font-bold text-foreground">
+            See your{" "}
+            <span className="relative inline-block w-[140px] h-[1.2em] align-bottom">
+              {/* fadeToKinmo phase: show "kin" fading in */}
+              {phase === "fadeToKinmo" && (
+                <span
+                  className="absolute top-[38%] left-1/2 -translate-x-1/2 font-bold whitespace-nowrap animate-pulse"
+                  style={{
+                    backgroundImage: gradient,
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text'
+                  }}
+                >
+                  kin
+                </span>
+              )}
+
+              {/* kinmo phase: show full "Kinmo" */}
+              {phase === "kinmo" && (
+                <span
+                  className="absolute top-[38%] left-1/2 -translate-x-1/2 font-bold whitespace-nowrap"
+                  style={{
+                    backgroundImage: gradient,
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text'
+                  }}
+                >
+                  Kinmo
+                </span>
+              )}
+
+              {/* fadeOut phase: "Kinmo" fading out */}
+              {phase === "fadeOut" && (
+                <span
+                  className="absolute top-[38%] left-1/2 -translate-x-1/2 font-bold whitespace-nowrap opacity-0 transition-opacity duration-400"
+                  style={{
+                    backgroundImage: gradient,
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text'
+                  }}
+                >
+                  Kinmo
+                </span>
+              )}
+
+              {/* fadeIn phase: first word fading in */}
+              {phase === "fadeIn" && (
+                <span
+                  className="absolute top-[38%] left-1/2 -translate-x-1/2 font-bold whitespace-nowrap opacity-0 transition-opacity duration-400"
+                  style={{
+                    backgroundImage: gradient,
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text'
+                  }}
+                >
+                  {words[0]}
+                </span>
+              )}
+
+              {/* rotating phase: cycle through words */}
+              {phase === "rotating" && (
+                <span
+                  className={`absolute top-[38%] left-1/2 -translate-x-1/2 transition-opacity duration-300 font-bold whitespace-nowrap ${
+                    isAnimating ? "opacity-0" : "opacity-100"
+                  }`}
+                  style={{
+                    backgroundImage: gradient,
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text'
+                  }}
+                >
+                  {words[currentIndex]}
+                </span>
+              )}
+            </span>{" "}
+            more.
+          </p>
+        </div>
+
+        {/* CTA button with gradient */}
+        <button
+          className="mt-6 px-6 py-2.5 rounded-lg text-sm font-semibold text-black shadow-sm hover:shadow-md transition-all"
+          style={{ background: gradient }}
+        >
+          Get Started <ArrowRight className="w-4 h-4 inline ml-1" />
+        </button>
+      </div>
+
+      {/* Phase indicator */}
+      <div className="px-4 py-2 border-t border-border/50 bg-muted/30">
+        <div className="flex items-center justify-center gap-3 text-xs text-muted-foreground">
+          <span>Phase:</span>
+          <span className={`px-2 py-0.5 rounded font-medium ${
+            phase === "rotating" ? "bg-blue-100 text-blue-700" :
+            phase === "fadeToKinmo" ? "bg-amber-100 text-amber-700" :
+            phase === "kinmo" ? "bg-green-100 text-green-700" :
+            "bg-gray-100 text-gray-700"
+          }`}>
+            {phase === "rotating" ? `Rotating: "${words[currentIndex]}"` :
+             phase === "fadeToKinmo" ? '"kin" appearing' :
+             phase === "kinmo" ? '"Kinmo" displayed' :
+             phase === "fadeOut" ? "Fading out" :
+             "Fading in"}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function PrototypeKinmoText() {
   const [selected, setSelected] = useState<string>("very-subtle");
   const [showCornyGuide, setShowCornyGuide] = useState(false);
@@ -264,6 +500,23 @@ export default function PrototypeKinmoText() {
               </div>
             </div>
           )}
+        </div>
+      </section>
+
+      {/* LIVE ANIMATED PREVIEW - Main feature */}
+      <section className="py-8 px-4 bg-gradient-to-b from-white to-gray-50 border-b border-black/5">
+        <div className="max-w-2xl mx-auto">
+          <h2 className="text-sm uppercase tracking-widest text-gray-400 mb-2 text-center">
+            Live Preview
+          </h2>
+          <p className="text-center text-gray-500 text-sm mb-6">
+            Watch the full rotation animation with the gradient sun (using your selected gradient)
+          </p>
+          <LiveAnimatedPreview
+            gradient={selectedOption.gradient}
+            startColor={selectedOption.startColor}
+            endColor={selectedOption.endColor}
+          />
         </div>
       </section>
 
