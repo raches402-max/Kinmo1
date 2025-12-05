@@ -236,9 +236,12 @@ export default function Landing() {
           </div>
 
           <p className="text-sm tracking-wide uppercase text-muted-foreground mb-3">Using AI to help you</p>
-          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-8 sm:mb-12 leading-[1.15]">
-            <RotatingHeadline />
-          </h1>
+          {/* Fixed height container to prevent layout shift when "Kinmo" displays */}
+          <div className="min-h-[140px] sm:min-h-[170px] md:min-h-[200px] lg:min-h-[240px] flex items-center justify-center mb-8 sm:mb-12">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.15]">
+              <RotatingHeadline />
+            </h1>
+          </div>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button
