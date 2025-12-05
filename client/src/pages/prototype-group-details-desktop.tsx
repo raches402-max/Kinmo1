@@ -1485,11 +1485,7 @@ export default function PrototypeGroupDetailsDesktop() {
 
           {/* Home Tab Content */}
           {activeTab === "home" && (
-            <>
-              {/* Hero Action Bar */}
-              <RefinedHeroActions />
-
-              <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
                 {/* Main Content Column */}
                 <div className="space-y-5">
                   {/* Upcoming Events */}
@@ -1561,6 +1557,19 @@ export default function PrototypeGroupDetailsDesktop() {
                   </div>
                 </SidebarCard>
 
+                <SidebarCard title="Quick Actions">
+                  <div className="space-y-2">
+                    <RefinedActionButton icon={Plus} variant="primary">
+                      Create Event
+                    </RefinedActionButton>
+                    <a href="/places" className="block">
+                      <RefinedActionButton icon={Compass} variant="outline">
+                        Discover Venues
+                      </RefinedActionButton>
+                    </a>
+                  </div>
+                </SidebarCard>
+
                 <SidebarCard title="Next Event">
                   <div className="flex gap-4 p-4 bg-white border border-[hsl(32,20%,88%)] rounded-xl mb-3">
                     <div className="text-center px-3 py-2 bg-[hsl(38,50%,98%)] rounded-lg border border-[hsl(32,20%,88%)]">
@@ -1580,7 +1589,6 @@ export default function PrototypeGroupDetailsDesktop() {
                 </SidebarCard>
               </div>
             </div>
-            </>
           )}
 
           {/* Settings Tab Content */}
@@ -1877,6 +1885,19 @@ export default function PrototypeGroupDetailsDesktop() {
                           label="Venues explored"
                           iconBg="bg-[hsl(280,60%,60%)]"
                         />
+                      </div>
+                    </SidebarCard>
+
+                    <SidebarCard title="Quick Actions">
+                      <div className="space-y-2">
+                        <RefinedActionButton icon={Plus} variant="primary">
+                          Create Event
+                        </RefinedActionButton>
+                        <a href="/places" className="block">
+                          <RefinedActionButton icon={Compass} variant="outline">
+                            Discover Venues
+                          </RefinedActionButton>
+                        </a>
                       </div>
                     </SidebarCard>
 
