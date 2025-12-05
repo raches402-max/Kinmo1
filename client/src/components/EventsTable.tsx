@@ -77,6 +77,22 @@ function getMembersWithoutRsvp(event: Event): string[] {
     .filter(name => !allRespondents.has(name));
 }
 
+// Helper function to get clean display name for events
+// Strips implementation details like "Auto-scheduled event for" prefix
+function getDisplayName(event: { itineraryName?: string; groupName?: string }): string {
+  let name = event.itineraryName?.trim() || event.groupName?.trim() || 'Upcoming Event';
+
+  // Strip "Auto-scheduled event for " prefix - implementation detail users don't need to see
+  name = name.replace(/^Auto-scheduled event for\s*/i, '').trim();
+
+  // If we stripped everything or it equals group name, use group name
+  if (!name || name === event.groupName) {
+    return event.groupName || 'Upcoming Event';
+  }
+
+  return name;
+}
+
 type EventItem = {
   id: string;
   venueName: string;
@@ -836,10 +852,10 @@ export default function EventsTable({
                   <span className="text-2xl flex-shrink-0">
                     {event.isAutoScheduled ? '🤖' : event.groupEmoji}
                   </span>
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0 flex-1 overflow-hidden">
                     <Badge
                       variant="secondary"
-                      className="font-semibold text-sm mb-1"
+                      className="font-semibold text-sm mb-1 max-w-full truncate inline-block"
                       style={{
                         backgroundColor: event.groupAccentColor
                           ? hexToRgba(event.groupAccentColor, 0.15)
@@ -850,7 +866,7 @@ export default function EventsTable({
                         color: event.groupAccentColor || 'inherit'
                       }}
                     >
-                      {event.itineraryName?.trim() || event.groupName?.trim() || 'Untitled Event'}
+                      {getDisplayName(event)}
                     </Badge>
                     <div className="flex gap-2 mt-1 items-center flex-wrap">
                       {getRoleBadge(event)}
@@ -1181,7 +1197,7 @@ export default function EventsTable({
                 >
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-sm font-semibold text-foreground">
-                      RSVP for {event.groupName?.trim() || 'Untitled Event'}
+                      RSVP for {getDisplayName(event)}
                     </span>
                     <button
                       onClick={() => setMobileRsvpTrayOpen(null)}

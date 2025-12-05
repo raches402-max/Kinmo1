@@ -2995,7 +2995,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const newItinerary = await storage.createItinerary(
           {
             groupId: group.id,
-            name: `Auto-scheduled event for ${group.name}`,
+            name: group.name,
             eventDate: null, // Will be set after AI time suggestion
             status: 'proposed',
             proposedOrder: [],

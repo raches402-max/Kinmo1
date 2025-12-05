@@ -118,6 +118,22 @@ const getDayOfWeek = (dateStr: string, timezone: string | null): string => {
     : format(date, "EEEE, MMM d");
 };
 
+// Helper function to get clean display name for events
+// Strips implementation details like "Auto-scheduled event for" prefix
+function getDisplayName(event: { itineraryName?: string; groupName?: string }): string {
+  let name = event.itineraryName?.trim() || event.groupName?.trim() || 'Upcoming Event';
+
+  // Strip "Auto-scheduled event for " prefix - implementation detail users don't need to see
+  name = name.replace(/^Auto-scheduled event for\s*/i, '').trim();
+
+  // If we stripped everything or it equals group name, use group name
+  if (!name || name === event.groupName) {
+    return event.groupName || 'Upcoming Event';
+  }
+
+  return name;
+}
+
 // Format time from date
 const getFormattedTime = (dateStr: string, timezone: string | null): string => {
   const date = new Date(dateStr);
@@ -259,7 +275,7 @@ export function AttendeeBottomSheet({
               <div className="flex items-center gap-3">
                 <span className="text-2xl">{event.groupEmoji}</span>
                 <div>
-                  <h3 className="font-bold text-lg text-stone-800">{event.itineraryName?.trim() || event.groupName?.trim() || 'Untitled Event'}</h3>
+                  <h3 className="font-bold text-lg text-stone-800">{getDisplayName(event)}</h3>
                   {event.eventDate && (
                     <p className="text-sm text-stone-500">
                       {getDayOfWeek(event.eventDate, event.groupTimezone)}, {getFormattedTime(event.eventDate, event.groupTimezone)}
@@ -434,8 +450,8 @@ export function EventCard({
           <p className="text-sm text-stone-600 font-medium">
             {formattedTime || 'Time TBD'}
           </p>
-          <p className="text-sm text-stone-500">
-            {event.itineraryName?.trim() || event.groupName?.trim() || 'Untitled Event'}
+          <p className="text-sm text-stone-500 truncate">
+            {getDisplayName(event)}
           </p>
         </div>
         <ChevronRight className="h-5 w-5 text-stone-300 flex-shrink-0" />

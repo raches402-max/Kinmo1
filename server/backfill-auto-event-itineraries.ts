@@ -95,7 +95,7 @@ async function backfillItineraries() {
           newItinerary = await storage.createItinerary(
             {
               groupId: event.groupId,
-              name: `Auto-scheduled event for ${group.name}`,
+              name: group.name,
               eventDate: event.proposedDate,
               status: 'proposed',
               proposedOrder: [],
