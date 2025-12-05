@@ -1,12 +1,12 @@
 /**
  * Prototype: Group Details Desktop - Subtle Refined Style
  *
- * Aesthetic: Warm, elegant, and inviting (matching event-details-desktop)
- * - Golden accent borders and glows
- * - Warm beige backgrounds (hsl 35, 40%, 95%)
- * - Smooth cubic-bezier transitions
- * - Subtle gradient overlays
- * - Collapsible cards with expand/collapse animation
+ * Complete implementation with all group detail features:
+ * - Basic Info: name, emoji, location, budget range, frequency, quorum, availability
+ * - Members: full RSVP status, constraints, edit/delete, hosting, invitations
+ * - Activity Preferences: novelty slider, categories, past preferences, instructions
+ * - Automation: all toggles with help popovers
+ * - My Preferences: personal overrides tab
  */
 
 import { useState } from "react";
@@ -17,6 +17,19 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   ChevronLeft,
   ChevronDown,
@@ -33,31 +46,147 @@ import {
   Home,
   Compass,
   Hammer,
+  HelpCircle,
+  Edit2,
+  Trash2,
+  Check,
+  X,
+  Mail,
+  Link,
+  Clock,
+  DollarSign,
+  CheckCircle2,
+  Circle,
+  XCircle,
+  FileText,
+  Send,
+  UserCheck,
+  Target,
+  Palette,
 } from "lucide-react";
 
 // ============================================================================
-// MOCK DATA
+// MOCK DATA - Comprehensive
 // ============================================================================
 
 type MemberRole = "owner" | "host" | "member";
+type RsvpStatus = "going" | "maybe" | "not_going" | null;
+
+interface Member {
+  id: string;
+  name: string;
+  email: string;
+  initials: string;
+  role: MemberRole;
+  rsvpStatus: RsvpStatus;
+  openToHosting: boolean;
+  invitationSent: boolean;
+  location?: string;
+  constraints?: {
+    scheduleConflicts: string[];
+    budgetConcern: boolean;
+    distanceConcern: boolean;
+    notes: string;
+  };
+}
 
 const mockGroup = {
   id: "1",
   name: "Friday Night Foodies",
   emoji: "🍕",
+  accentColor: "#F2C94C",
   locationBase: "San Francisco, CA",
-  budgetValue: 2, // 1-4 scale ($, $$, $$$, $$$$)
+  budgetMin: 30,
+  budgetMax: 80,
   frequencyNumber: 2,
   frequencyUnit: "month" as const,
+  defaultQuorumThreshold: 50,
+  novelty: 3, // 1-5 scale
+  pastPreferences: "Trying new restaurants, outdoor activities",
+  additionalInstructions: "Must be accessible by public transit",
 };
 
-const mockMembers = [
-  { id: "1", name: "Jane Doe", email: "jane@example.com", initials: "JD", role: "owner" as MemberRole },
-  { id: "2", name: "Mike Smith", email: "mike@example.com", initials: "MS", role: "host" as MemberRole },
-  { id: "3", name: "Sarah Johnson", email: "sarah@example.com", initials: "SJ", role: "member" as MemberRole },
-  { id: "4", name: "Alex Chen", email: "alex@example.com", initials: "AC", role: "member" as MemberRole },
-  { id: "5", name: "Emily Davis", email: "emily@example.com", initials: "ED", role: "member" as MemberRole },
-  { id: "6", name: "Chris Wilson", email: "chris@example.com", initials: "CW", role: "member" as MemberRole },
+const mockMembers: Member[] = [
+  {
+    id: "1",
+    name: "Jane Doe",
+    email: "jane@example.com",
+    initials: "JD",
+    role: "owner",
+    rsvpStatus: "going",
+    openToHosting: true,
+    invitationSent: true,
+    location: "Mission District",
+  },
+  {
+    id: "2",
+    name: "Mike Smith",
+    email: "mike@example.com",
+    initials: "MS",
+    role: "host",
+    rsvpStatus: "going",
+    openToHosting: true,
+    invitationSent: true,
+    location: "SOMA",
+    constraints: {
+      scheduleConflicts: ["Wednesdays"],
+      budgetConcern: false,
+      distanceConcern: false,
+      notes: "",
+    },
+  },
+  {
+    id: "3",
+    name: "Sarah Johnson",
+    email: "sarah@example.com",
+    initials: "SJ",
+    role: "member",
+    rsvpStatus: "maybe",
+    openToHosting: false,
+    invitationSent: true,
+    constraints: {
+      scheduleConflicts: [],
+      budgetConcern: true,
+      distanceConcern: false,
+      notes: "Prefer places under $50",
+    },
+  },
+  {
+    id: "4",
+    name: "Alex Chen",
+    email: "alex@example.com",
+    initials: "AC",
+    role: "member",
+    rsvpStatus: null,
+    openToHosting: false,
+    invitationSent: false,
+  },
+  {
+    id: "5",
+    name: "Emily Davis",
+    email: "emily@example.com",
+    initials: "ED",
+    role: "member",
+    rsvpStatus: "not_going",
+    openToHosting: true,
+    invitationSent: true,
+    constraints: {
+      scheduleConflicts: ["Friday evenings"],
+      budgetConcern: false,
+      distanceConcern: true,
+      notes: "",
+    },
+  },
+  {
+    id: "6",
+    name: "Chris Wilson",
+    email: "chris@example.com",
+    initials: "CW",
+    role: "member",
+    rsvpStatus: "going",
+    openToHosting: false,
+    invitationSent: true,
+  },
 ];
 
 const mockCategories = [
@@ -87,28 +216,66 @@ const mockNextEvent = {
   daysUntil: 9,
 };
 
+// Mock availability grid (days x time periods)
+const mockAvailability = {
+  monday: { morning: false, afternoon: true, evening: true },
+  tuesday: { morning: false, afternoon: true, evening: true },
+  wednesday: { morning: false, afternoon: false, evening: false },
+  thursday: { morning: false, afternoon: true, evening: true },
+  friday: { morning: false, afternoon: true, evening: true },
+  saturday: { morning: true, afternoon: true, evening: true },
+  sunday: { morning: true, afternoon: true, evening: false },
+};
+
+const mockMyPreferences = {
+  budgetOverrideEnabled: false,
+  budgetMin: 20,
+  budgetMax: 60,
+  categoryOverrideEnabled: false,
+  categories: ["meal", "cafes", "drinks"],
+  frequencyOverrideEnabled: false,
+  frequencyNumber: 1,
+  frequencyUnit: "week",
+};
+
 // ============================================================================
 // TABS DATA
 // ============================================================================
 
-const tabs = [
+const mainTabs = [
   { id: "home", label: "Home", icon: Home },
   { id: "settings", label: "Settings", icon: Settings },
   { id: "explore", label: "Explore", icon: Compass },
   { id: "build", label: "Build", icon: Hammer },
 ];
 
+const settingsSubTabs = [
+  { id: "group", label: "Group Settings" },
+  { id: "my", label: "My Preferences" },
+];
+
+// ============================================================================
+// NOVELTY LABELS
+// ============================================================================
+
+const noveltyLabels: Record<number, string> = {
+  1: "We like our usual spots",
+  2: "Leaning familiar",
+  3: "Open sometimes",
+  4: "Pretty adventurous",
+  5: "Always up for new things!",
+};
+
 // ============================================================================
 // STYLED COMPONENTS
 // ============================================================================
 
-/**
- * RefinedTabs - Warm styled tabs matching the mockup
- */
 function RefinedTabs({
+  tabs,
   activeTab,
   onTabChange,
 }: {
+  tabs: Array<{ id: string; label: string; icon?: React.ElementType }>;
   activeTab: string;
   onTabChange: (tab: string) => void;
 }) {
@@ -129,7 +296,7 @@ function RefinedTabs({
                 : "text-[hsl(25,15%,45%)] hover:text-[hsl(25,30%,14%)]"
             )}
           >
-            <Icon className="h-4 w-4" />
+            {Icon && <Icon className="h-4 w-4" />}
             {tab.label}
           </button>
         );
@@ -138,19 +305,50 @@ function RefinedTabs({
   );
 }
 
-/**
- * RefinedCollapsibleCard - Card with expand/collapse functionality
- */
+function RefinedSubTabs({
+  tabs,
+  activeTab,
+  onTabChange,
+}: {
+  tabs: Array<{ id: string; label: string }>;
+  activeTab: string;
+  onTabChange: (tab: string) => void;
+}) {
+  return (
+    <div className="flex gap-1 mb-6 border-b border-[hsl(32,20%,88%)]">
+      {tabs.map((tab) => {
+        const isActive = activeTab === tab.id;
+        return (
+          <button
+            key={tab.id}
+            onClick={() => onTabChange(tab.id)}
+            className={cn(
+              "px-4 py-3 text-sm font-medium transition-all duration-200 border-b-2 -mb-px",
+              isActive
+                ? "text-[hsl(25,30%,14%)] border-[hsl(44,87%,63%)]"
+                : "text-[hsl(25,15%,45%)] border-transparent hover:text-[hsl(25,30%,14%)]"
+            )}
+          >
+            {tab.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function RefinedCollapsibleCard({
   icon: Icon,
   title,
   badge,
+  badgeVariant = "default",
   children,
   defaultExpanded = false,
 }: {
   icon: React.ElementType;
   title: string;
   badge?: string;
+  badgeVariant?: "default" | "purple";
   children: React.ReactNode;
   defaultExpanded?: boolean;
 }) {
@@ -166,10 +364,10 @@ function RefinedCollapsibleCard({
         "transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
         isExpanded
           ? "border-[hsl(44,70%,75%)] shadow-[0_4px_16px_rgba(242,201,76,0.12)]"
-          : "border-[hsl(32,20%,88%)] shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
+          : "border-[hsl(32,20%,88%)] shadow-[0_2px_8px_rgba(0,0,0,0.04)]",
+        badgeVariant === "purple" && isExpanded && "border-[hsl(280,50%,75%)]"
       )}
     >
-      {/* Header - always visible, clickable */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         className={cn(
@@ -181,7 +379,9 @@ function RefinedCollapsibleCard({
           isExpanded
             ? {
                 background:
-                  "linear-gradient(135deg, hsla(44, 87%, 63%, 0.06) 0%, hsla(44, 87%, 63%, 0.02) 50%, hsl(35, 40%, 95%) 100%)",
+                  badgeVariant === "purple"
+                    ? "linear-gradient(135deg, hsla(280, 60%, 60%, 0.06) 0%, hsla(280, 60%, 60%, 0.02) 50%, hsl(35, 40%, 95%) 100%)"
+                    : "linear-gradient(135deg, hsla(44, 87%, 63%, 0.06) 0%, hsla(44, 87%, 63%, 0.02) 50%, hsl(35, 40%, 95%) 100%)",
               }
             : undefined
         }
@@ -192,7 +392,9 @@ function RefinedCollapsibleCard({
               "flex items-center justify-center w-9 h-9 rounded-full",
               "transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
               isExpanded
-                ? "bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)] shadow-[0_2px_8px_rgba(242,201,76,0.3)] scale-105"
+                ? badgeVariant === "purple"
+                  ? "bg-[hsl(280,60%,60%)] text-white shadow-[0_2px_8px_rgba(147,112,219,0.3)] scale-105"
+                  : "bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)] shadow-[0_2px_8px_rgba(242,201,76,0.3)] scale-105"
                 : "bg-[hsl(35,25%,93%)] text-[hsl(25,15%,45%)]"
             )}
           >
@@ -208,9 +410,17 @@ function RefinedCollapsibleCard({
             {title}
           </span>
           {badge && (
-            <span className="text-xs text-[hsl(25,15%,45%)] font-normal normal-case tracking-normal">
+            <Badge
+              className={cn(
+                "text-[11px] px-2 py-0.5 font-medium",
+                badgeVariant === "purple"
+                  ? "bg-[hsl(280,60%,95%)] text-[hsl(280,60%,40%)] border-[hsl(280,50%,80%)]"
+                  : "bg-[hsl(35,25%,93%)] text-[hsl(25,15%,45%)] border-[hsl(32,20%,88%)]"
+              )}
+              variant="outline"
+            >
               {badge}
-            </span>
+            </Badge>
           )}
         </div>
         <ChevronDown
@@ -221,7 +431,6 @@ function RefinedCollapsibleCard({
         />
       </button>
 
-      {/* Content - animated expand/collapse */}
       <AnimatePresence initial={false}>
         {isExpanded && (
           <motion.div
@@ -238,14 +447,29 @@ function RefinedCollapsibleCard({
   );
 }
 
-/**
- * RefinedMemberCard - Member list item with role badge
- */
-function RefinedMemberCard({ member }: { member: (typeof mockMembers)[0] }) {
+function RefinedMemberCard({
+  member,
+  isOrganizer,
+  onEdit,
+  onDelete,
+  onToggleHosting,
+}: {
+  member: Member;
+  isOrganizer: boolean;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  onToggleHosting?: () => void;
+}) {
   const roleColors = {
     owner: "bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)]",
     host: "bg-[hsl(110,40%,90%)] text-[hsl(110,40%,30%)]",
     member: "",
+  };
+
+  const rsvpConfig: Record<string, { icon: React.ElementType; label: string; color: string }> = {
+    going: { icon: CheckCircle2, label: "Going", color: "text-[hsl(145,50%,40%)] bg-[hsl(145,40%,95%)]" },
+    maybe: { icon: Circle, label: "Maybe", color: "text-[hsl(38,70%,45%)] bg-[hsl(38,50%,95%)]" },
+    not_going: { icon: XCircle, label: "Can't make it", color: "text-[hsl(350,60%,50%)] bg-[hsl(350,50%,95%)]" },
   };
 
   const avatarColors = [
@@ -258,37 +482,136 @@ function RefinedMemberCard({ member }: { member: (typeof mockMembers)[0] }) {
   ];
 
   const colorIndex = parseInt(member.id) % avatarColors.length;
+  const rsvp = member.rsvpStatus ? rsvpConfig[member.rsvpStatus] : null;
 
   return (
-    <div className="flex items-center gap-3 p-3 bg-[hsl(38,50%,98%)] rounded-xl">
+    <div className="flex items-center gap-3 p-3 bg-[hsl(38,50%,98%)] rounded-xl group">
       <Avatar className="h-10 w-10">
-        <AvatarFallback
-          className={cn("text-sm font-semibold text-white", avatarColors[colorIndex])}
-        >
+        <AvatarFallback className={cn("text-sm font-semibold text-white", avatarColors[colorIndex])}>
           {member.initials}
         </AvatarFallback>
       </Avatar>
       <div className="flex-1 min-w-0">
-        <div className="font-semibold text-sm text-[hsl(25,30%,14%)]">{member.name}</div>
-        <div className="text-xs text-[hsl(25,15%,45%)] truncate">{member.email}</div>
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-sm text-[hsl(25,30%,14%)]">{member.name}</span>
+          {member.role !== "member" && (
+            <Badge className={cn("text-[10px] px-1.5 py-0 font-medium", roleColors[member.role])}>
+              {member.role === "owner" ? "Owner" : "Host"}
+            </Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-2 text-xs text-[hsl(25,15%,45%)]">
+          <span className="truncate">{member.email}</span>
+          {member.location && (
+            <>
+              <span>•</span>
+              <span className="flex items-center gap-1">
+                <MapPin className="h-3 w-3" />
+                {member.location}
+              </span>
+            </>
+          )}
+        </div>
+        {/* Constraints indicators */}
+        {member.constraints && (
+          <div className="flex items-center gap-2 mt-1">
+            {member.constraints.scheduleConflicts.length > 0 && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <span className="flex items-center gap-1 text-[10px] text-[hsl(38,70%,45%)] bg-[hsl(38,50%,95%)] px-1.5 py-0.5 rounded">
+                      <Clock className="h-3 w-3" />
+                      Schedule
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Conflicts: {member.constraints.scheduleConflicts.join(", ")}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {member.constraints.budgetConcern && (
+              <span className="flex items-center gap-1 text-[10px] text-[hsl(38,70%,45%)] bg-[hsl(38,50%,95%)] px-1.5 py-0.5 rounded">
+                <DollarSign className="h-3 w-3" />
+                Budget
+              </span>
+            )}
+            {member.constraints.distanceConcern && (
+              <span className="flex items-center gap-1 text-[10px] text-[hsl(38,70%,45%)] bg-[hsl(38,50%,95%)] px-1.5 py-0.5 rounded">
+                <MapPin className="h-3 w-3" />
+                Distance
+              </span>
+            )}
+          </div>
+        )}
       </div>
-      {member.role !== "member" && (
-        <Badge className={cn("text-[11px] px-2 py-0.5 font-medium", roleColors[member.role])}>
-          {member.role === "owner" ? "Owner" : "Host"}
+
+      {/* RSVP Status */}
+      {rsvp && (
+        <Badge className={cn("text-[10px] px-2 py-0.5 font-medium border-0", rsvp.color)}>
+          <rsvp.icon className="h-3 w-3 mr-1" />
+          {rsvp.label}
         </Badge>
+      )}
+      {!member.rsvpStatus && !member.invitationSent && (
+        <Badge className="text-[10px] px-2 py-0.5 font-medium bg-[hsl(220,15%,95%)] text-[hsl(220,10%,45%)]">
+          Not invited
+        </Badge>
+      )}
+      {!member.rsvpStatus && member.invitationSent && (
+        <Badge className="text-[10px] px-2 py-0.5 font-medium bg-[hsl(220,15%,95%)] text-[hsl(220,10%,45%)]">
+          No response
+        </Badge>
+      )}
+
+      {/* Hosting checkbox */}
+      {member.role !== "owner" && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center">
+                <Checkbox
+                  checked={member.openToHosting}
+                  onCheckedChange={onToggleHosting}
+                  className="data-[state=checked]:bg-[hsl(44,87%,63%)] data-[state=checked]:border-[hsl(44,87%,63%)]"
+                />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Volunteer to host events</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+
+      {/* Edit/Delete buttons */}
+      {isOrganizer && (
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={onEdit}
+            className="p-1.5 rounded-lg text-[hsl(25,15%,45%)] hover:bg-[hsl(35,25%,90%)] hover:text-[hsl(25,30%,14%)] transition-all"
+          >
+            <Edit2 className="h-4 w-4" />
+          </button>
+          {member.role !== "owner" && (
+            <button
+              onClick={onDelete}
+              className="p-1.5 rounded-lg text-[hsl(350,60%,50%)] hover:bg-[hsl(350,50%,95%)] transition-all"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
 }
 
-/**
- * RefinedCategoryPill - Toggleable category chip
- */
 function RefinedCategoryPill({
   category,
   onToggle,
 }: {
-  category: (typeof mockCategories)[0];
+  category: { id: string; emoji: string; name: string; enabled: boolean };
   onToggle: () => void;
 }) {
   return (
@@ -309,29 +632,47 @@ function RefinedCategoryPill({
   );
 }
 
-/**
- * RefinedToggleRow - Automation toggle with label and description
- */
 function RefinedToggleRow({
   icon: Icon,
   label,
   description,
   checked,
   onCheckedChange,
+  helpContent,
 }: {
   icon: React.ElementType;
   label: string;
   description: string;
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
+  helpContent?: string;
 }) {
   return (
-    <div className="flex items-center gap-4 p-3 bg-[hsl(38,50%,98%)] rounded-xl">
-      <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-[hsl(35,25%,90%)] text-[hsl(25,15%,45%)]">
+    <div className="flex items-center gap-4 p-4 bg-[hsl(38,50%,98%)] rounded-xl hover:bg-[hsl(38,50%,96%)] transition-colors">
+      <div
+        className={cn(
+          "flex items-center justify-center w-10 h-10 rounded-lg transition-colors",
+          checked ? "bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)]" : "bg-[hsl(35,25%,90%)] text-[hsl(25,15%,45%)]"
+        )}
+      >
         <Icon className="h-5 w-5" />
       </div>
       <div className="flex-1">
-        <div className="font-semibold text-sm text-[hsl(25,30%,14%)]">{label}</div>
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-sm text-[hsl(25,30%,14%)]">{label}</span>
+          {helpContent && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <button className="text-[hsl(25,15%,60%)] hover:text-[hsl(25,15%,45%)] transition-colors">
+                  <HelpCircle className="h-4 w-4" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 text-sm">
+                <p>{helpContent}</p>
+              </PopoverContent>
+            </Popover>
+          )}
+        </div>
         <div className="text-xs text-[hsl(25,15%,45%)]">{description}</div>
       </div>
       <Switch
@@ -343,9 +684,6 @@ function RefinedToggleRow({
   );
 }
 
-/**
- * RefinedStatCard - Quick stat display for sidebar
- */
 function RefinedStatCard({
   icon: Icon,
   value,
@@ -359,12 +697,7 @@ function RefinedStatCard({
 }) {
   return (
     <div className="flex items-center gap-3 p-3 bg-[hsl(38,50%,98%)] rounded-xl">
-      <div
-        className={cn(
-          "flex items-center justify-center w-10 h-10 rounded-lg text-[hsl(25,30%,14%)]",
-          iconBg
-        )}
-      >
+      <div className={cn("flex items-center justify-center w-10 h-10 rounded-lg text-white", iconBg)}>
         <Icon className="h-5 w-5" />
       </div>
       <div className="flex-1">
@@ -375,75 +708,210 @@ function RefinedStatCard({
   );
 }
 
-/**
- * RefinedSlider - Budget range slider with warm styling
- */
-function RefinedSlider({
-  value,
+function RefinedBudgetSlider({
+  min,
+  max,
   onChange,
+  memberBudgets,
 }: {
-  value: number;
-  onChange: (value: number) => void;
+  min: number;
+  max: number;
+  onChange: (min: number, max: number) => void;
+  memberBudgets?: number[];
 }) {
-  const labels = ["$", "$$", "$$$", "$$$$"];
-  const percentage = ((value - 1) / 3) * 100;
+  const percentage = (value: number) => ((value - 0) / (250 - 0)) * 100;
 
   return (
     <div className="p-4 bg-[hsl(38,50%,98%)] rounded-xl">
       <div className="flex justify-between mb-3">
-        <span className="text-sm font-semibold text-[hsl(25,30%,14%)]">Budget Range</span>
-        <span className="text-sm font-bold text-[hsl(25,30%,14%)]">{labels[value - 1]}</span>
+        <span className="text-sm font-semibold text-[hsl(25,30%,14%)]">Budget Range per Person</span>
+        <span className="text-sm font-bold text-[hsl(25,30%,14%)]">
+          ${min} - {max >= 200 ? "$200+" : `$${max}`}
+        </span>
       </div>
-      <div className="relative h-2 bg-[hsl(35,25%,90%)] rounded-full">
+      <div className="relative h-2 bg-[hsl(35,25%,90%)] rounded-full mb-4">
+        {/* Active range */}
         <div
-          className="absolute h-full bg-[hsl(44,87%,63%)] rounded-full transition-all duration-200"
-          style={{ width: `${percentage}%` }}
+          className="absolute h-full bg-[hsl(44,87%,63%)] rounded-full"
+          style={{ left: `${percentage(min)}%`, width: `${percentage(max) - percentage(min)}%` }}
         />
+        {/* Member budget dots */}
+        {memberBudgets?.map((budget, i) => (
+          <TooltipProvider key={i}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div
+                  className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-[hsl(280,60%,60%)] rounded-full border-2 border-white shadow-sm"
+                  style={{ left: `calc(${percentage(budget)}% - 6px)` }}
+                />
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Member budget: ${budget}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ))}
+        {/* Min thumb */}
         <input
           type="range"
-          min={1}
-          max={4}
-          value={value}
-          onChange={(e) => onChange(parseInt(e.target.value))}
+          min={0}
+          max={250}
+          step={10}
+          value={min}
+          onChange={(e) => onChange(Math.min(parseInt(e.target.value), max - 10), max)}
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
         />
         <div
-          className="absolute top-1/2 -translate-y-1/2 w-5 h-5 bg-white border-2 border-[hsl(44,87%,63%)] rounded-full shadow-md transition-all duration-200"
-          style={{ left: `calc(${percentage}% - 10px)` }}
+          className="absolute top-1/2 -translate-y-1/2 w-5 h-5 bg-white border-2 border-[hsl(44,87%,63%)] rounded-full shadow-md"
+          style={{ left: `calc(${percentage(min)}% - 10px)` }}
+        />
+        {/* Max thumb */}
+        <div
+          className="absolute top-1/2 -translate-y-1/2 w-5 h-5 bg-white border-2 border-[hsl(44,87%,63%)] rounded-full shadow-md"
+          style={{ left: `calc(${percentage(max)}% - 10px)` }}
         />
       </div>
-      <div className="flex justify-between mt-2 text-xs text-[hsl(25,15%,45%)]">
-        <span>$</span>
-        <span>$$$$</span>
+      <div className="flex justify-between text-xs text-[hsl(25,15%,45%)]">
+        <span>$0</span>
+        <span>$250+</span>
       </div>
     </div>
   );
 }
 
-/**
- * RefinedActionButton - Warm-styled action button with icon
- */
+function RefinedNoveltySlider({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+  return (
+    <div className="p-4 bg-[hsl(38,50%,98%)] rounded-xl">
+      <div className="flex justify-between mb-3">
+        <span className="text-sm font-semibold text-[hsl(25,30%,14%)]">Openness to New Things</span>
+        <span className="text-sm font-medium text-[hsl(44,70%,45%)]">{noveltyLabels[value]}</span>
+      </div>
+      <div className="relative">
+        <input
+          type="range"
+          min={1}
+          max={5}
+          value={value}
+          onChange={(e) => onChange(parseInt(e.target.value))}
+          className="w-full h-2 bg-[hsl(35,25%,90%)] rounded-full appearance-none cursor-pointer
+            [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5
+            [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-[hsl(44,87%,63%)]
+            [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:cursor-pointer"
+        />
+      </div>
+      <div className="flex justify-between mt-2 text-xs text-[hsl(25,15%,45%)]">
+        <span>Familiar</span>
+        <span>Adventurous</span>
+      </div>
+    </div>
+  );
+}
+
+function RefinedQuorumSlider({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+  return (
+    <div className="p-4 bg-[hsl(38,50%,98%)] rounded-xl">
+      <div className="flex justify-between mb-3">
+        <span className="text-sm font-semibold text-[hsl(25,30%,14%)]">Default Quorum Threshold</span>
+        <span className="text-sm font-bold text-[hsl(25,30%,14%)]">{value}%</span>
+      </div>
+      <input
+        type="range"
+        min={10}
+        max={100}
+        step={5}
+        value={value}
+        onChange={(e) => onChange(parseInt(e.target.value))}
+        className="w-full h-2 bg-[hsl(35,25%,90%)] rounded-full appearance-none cursor-pointer
+          [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5
+          [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-[hsl(44,87%,63%)]
+          [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:cursor-pointer"
+      />
+      <div className="flex justify-between mt-2 text-xs text-[hsl(25,15%,45%)]">
+        <span>10%</span>
+        <span>50%</span>
+        <span>100%</span>
+      </div>
+    </div>
+  );
+}
+
+function RefinedAvailabilityGrid({
+  availability,
+  onChange,
+}: {
+  availability: typeof mockAvailability;
+  onChange: (day: string, period: string) => void;
+}) {
+  const days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+  const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const periods = ["morning", "afternoon", "evening"];
+  const periodLabels = ["Morning", "Afternoon", "Evening"];
+
+  return (
+    <div className="p-4 bg-[hsl(38,50%,98%)] rounded-xl">
+      <div className="text-sm font-semibold text-[hsl(25,30%,14%)] mb-3">Group Availability</div>
+      <div className="grid grid-cols-8 gap-1">
+        {/* Header */}
+        <div />
+        {dayLabels.map((day) => (
+          <div key={day} className="text-center text-xs font-medium text-[hsl(25,15%,45%)] py-1">
+            {day}
+          </div>
+        ))}
+        {/* Rows */}
+        {periods.map((period, pi) => (
+          <>
+            <div key={period} className="text-xs font-medium text-[hsl(25,15%,45%)] py-2 pr-2 text-right">
+              {periodLabels[pi]}
+            </div>
+            {days.map((day) => {
+              const isAvailable = availability[day as keyof typeof availability][period as keyof typeof availability.monday];
+              return (
+                <button
+                  key={`${day}-${period}`}
+                  onClick={() => onChange(day, period)}
+                  className={cn(
+                    "h-8 rounded-md transition-all duration-200",
+                    isAvailable
+                      ? "bg-[hsl(44,87%,63%)] hover:bg-[hsl(44,87%,55%)]"
+                      : "bg-[hsl(35,25%,90%)] hover:bg-[hsl(35,25%,85%)]"
+                  )}
+                />
+              );
+            })}
+          </>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function RefinedActionButton({
   icon: Icon,
   children,
   variant = "secondary",
   onClick,
+  disabled,
 }: {
   icon: React.ElementType;
   children: React.ReactNode;
-  variant?: "primary" | "secondary";
+  variant?: "primary" | "secondary" | "outline";
   onClick?: () => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       className={cn(
         "w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl",
         "text-sm font-semibold transition-all duration-200",
-        "active:scale-[0.98]",
-        variant === "primary"
-          ? "bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)] hover:bg-[hsl(44,87%,55%)] shadow-[0_4px_12px_rgba(242,201,76,0.3)]"
-          : "bg-[hsl(35,25%,93%)] text-[hsl(25,30%,14%)] hover:bg-[hsl(35,25%,88%)]"
+        "active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed",
+        variant === "primary" &&
+          "bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)] hover:bg-[hsl(44,87%,55%)] shadow-[0_4px_12px_rgba(242,201,76,0.3)]",
+        variant === "secondary" && "bg-[hsl(35,25%,93%)] text-[hsl(25,30%,14%)] hover:bg-[hsl(35,25%,88%)]",
+        variant === "outline" &&
+          "bg-white border border-[hsl(32,20%,88%)] text-[hsl(25,30%,14%)] hover:border-[hsl(44,70%,75%)] hover:bg-[hsl(35,40%,97%)]"
       )}
     >
       <Icon className="h-4 w-4" />
@@ -452,22 +920,11 @@ function RefinedActionButton({
   );
 }
 
-/**
- * SidebarCard - Sidebar card wrapper
- */
-function SidebarCard({
-  title,
-  children,
-}: {
-  title?: string;
-  children: React.ReactNode;
-}) {
+function SidebarCard({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
     <div className="bg-white border border-[hsl(32,20%,88%)] rounded-2xl p-5 mb-4">
       {title && (
-        <div className="text-sm font-bold uppercase tracking-[0.05em] text-[hsl(25,15%,45%)] mb-4">
-          {title}
-        </div>
+        <div className="text-sm font-bold uppercase tracking-[0.05em] text-[hsl(25,15%,45%)] mb-4">{title}</div>
       )}
       {children}
     </div>
@@ -480,256 +937,575 @@ function SidebarCard({
 
 export default function PrototypeGroupDetailsDesktop() {
   const [activeTab, setActiveTab] = useState("settings");
-  const [group] = useState(mockGroup);
-  const [members] = useState(mockMembers);
+  const [settingsTab, setSettingsTab] = useState("group");
+  const [group, setGroup] = useState(mockGroup);
+  const [members, setMembers] = useState(mockMembers);
   const [categories, setCategories] = useState(mockCategories);
   const [automation, setAutomation] = useState(mockAutomation);
-  const [budget, setBudget] = useState(group.budgetValue);
+  const [availability, setAvailability] = useState(mockAvailability);
+  const [myPreferences, setMyPreferences] = useState(mockMyPreferences);
 
   const toggleCategory = (id: string) => {
-    setCategories((prev) =>
-      prev.map((cat) => (cat.id === id ? { ...cat, enabled: !cat.enabled } : cat))
+    setCategories((prev) => prev.map((cat) => (cat.id === id ? { ...cat, enabled: !cat.enabled } : cat)));
+  };
+
+  const toggleAvailability = (day: string, period: string) => {
+    setAvailability((prev) => ({
+      ...prev,
+      [day]: {
+        ...prev[day as keyof typeof prev],
+        [period]: !prev[day as keyof typeof prev][period as keyof typeof prev.monday],
+      },
+    }));
+  };
+
+  const toggleMemberHosting = (memberId: string) => {
+    setMembers((prev) =>
+      prev.map((m) => (m.id === memberId ? { ...m, openToHosting: !m.openToHosting } : m))
     );
   };
 
   const enabledCategoriesCount = categories.filter((c) => c.enabled).length;
+  const rsvpSummary = {
+    going: members.filter((m) => m.rsvpStatus === "going").length,
+    maybe: members.filter((m) => m.rsvpStatus === "maybe").length,
+    notGoing: members.filter((m) => m.rsvpStatus === "not_going").length,
+    noResponse: members.filter((m) => !m.rsvpStatus).length,
+  };
+  const pendingInvites = members.filter((m) => !m.invitationSent).length;
 
   return (
-    <div className="min-h-screen bg-[hsl(38,50%,98%)]">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-white border-b border-[hsl(32,20%,88%)]">
-        <div className="max-w-[1200px] mx-auto px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button className="p-2 rounded-lg text-[hsl(25,15%,45%)] hover:bg-[hsl(35,25%,93%)] hover:text-[hsl(25,30%,14%)] transition-all">
-              <ChevronLeft className="h-5 w-5" />
-            </button>
+    <TooltipProvider>
+      <div className="min-h-screen bg-[hsl(38,50%,98%)]">
+        {/* Header */}
+        <header className="sticky top-0 z-50 bg-white border-b border-[hsl(32,20%,88%)]">
+          <div className="max-w-[1200px] mx-auto px-6 h-14 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button className="p-2 rounded-lg text-[hsl(25,15%,45%)] hover:bg-[hsl(35,25%,93%)] hover:text-[hsl(25,30%,14%)] transition-all">
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">{group.emoji}</span>
+                <span className="text-lg font-semibold text-[hsl(25,30%,14%)]">{group.name}</span>
+              </div>
+            </div>
             <div className="flex items-center gap-2">
-              <span className="text-2xl">{group.emoji}</span>
-              <span className="text-lg font-semibold text-[hsl(25,30%,14%)]">{group.name}</span>
+              <button className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-[hsl(25,15%,45%)] hover:bg-[hsl(35,25%,93%)] hover:text-[hsl(25,30%,14%)] transition-all">
+                <Link className="h-4 w-4" />
+                Copy Join Link
+              </button>
+              <button className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-[hsl(25,15%,45%)] hover:bg-[hsl(35,25%,93%)] hover:text-[hsl(25,30%,14%)] transition-all">
+                <Settings className="h-4 w-4" />
+                <ChevronDown className="h-3 w-3" />
+              </button>
             </div>
           </div>
-          <button className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-[hsl(25,15%,45%)] hover:bg-[hsl(35,25%,93%)] hover:text-[hsl(25,30%,14%)] transition-all">
-            <Settings className="h-4 w-4" />
-            Settings
-            <ChevronDown className="h-3 w-3" />
-          </button>
-        </div>
-      </header>
+        </header>
 
-      {/* Main Content */}
-      <main className="max-w-[1200px] mx-auto px-6 py-6">
-        {/* Breadcrumbs */}
-        <div className="text-sm text-[hsl(25,15%,45%)] mb-4">
-          <a href="#" className="hover:text-[hsl(25,30%,14%)] transition-colors">
-            Groups
-          </a>
-          <span className="mx-2">/</span>
-          <span>{group.name}</span>
-        </div>
-
-        {/* Tabs */}
-        <RefinedTabs activeTab={activeTab} onTabChange={setActiveTab} />
-
-        {/* Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
-          {/* Main Content Column */}
-          <div className="space-y-5">
-            {/* Basic Info Card */}
-            <RefinedCollapsibleCard
-              icon={Info}
-              title="Basic Info"
-              badge="Group details"
-              defaultExpanded={true}
-            >
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-semibold text-[hsl(25,30%,14%)] mb-1.5">
-                    Group Name
-                  </label>
-                  <Input
-                    defaultValue={group.name}
-                    className="bg-[hsl(38,50%,98%)] border-[hsl(32,20%,88%)] focus:border-[hsl(44,87%,63%)] focus:ring-[hsl(44,87%,63%)]/20"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-[hsl(25,30%,14%)] mb-1.5">
-                    Location
-                  </label>
-                  <Input
-                    defaultValue={group.locationBase}
-                    className="bg-[hsl(38,50%,98%)] border-[hsl(32,20%,88%)] focus:border-[hsl(44,87%,63%)] focus:ring-[hsl(44,87%,63%)]/20"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-[hsl(25,30%,14%)] mb-1.5">
-                    Meeting Frequency
-                  </label>
-                  <div className="flex gap-3">
-                    <Input
-                      type="number"
-                      defaultValue={group.frequencyNumber}
-                      className="w-20 bg-[hsl(38,50%,98%)] border-[hsl(32,20%,88%)] focus:border-[hsl(44,87%,63%)] focus:ring-[hsl(44,87%,63%)]/20"
-                    />
-                    <select className="flex-1 px-3 py-2 rounded-lg bg-[hsl(38,50%,98%)] border border-[hsl(32,20%,88%)] text-sm text-[hsl(25,30%,14%)] focus:border-[hsl(44,87%,63%)] focus:outline-none focus:ring-2 focus:ring-[hsl(44,87%,63%)]/20">
-                      <option value="week">weeks</option>
-                      <option value="month" selected>
-                        times per month
-                      </option>
-                      <option value="year">months</option>
-                    </select>
-                  </div>
-                </div>
-                <RefinedSlider value={budget} onChange={setBudget} />
-              </div>
-            </RefinedCollapsibleCard>
-
-            {/* Members Card */}
-            <RefinedCollapsibleCard
-              icon={Users}
-              title="Members"
-              badge={`${members.length} members`}
-              defaultExpanded={true}
-            >
-              <div className="space-y-3">
-                {members.map((member) => (
-                  <RefinedMemberCard key={member.id} member={member} />
-                ))}
-                <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-[hsl(32,20%,88%)] bg-white text-[hsl(25,30%,14%)] text-sm font-medium transition-all duration-200 hover:border-[hsl(44,70%,75%)] hover:bg-[hsl(35,40%,97%)] hover:shadow-[0_2px_8px_rgba(242,201,76,0.1)] active:scale-[0.98]">
-                  <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-[hsl(35,25%,93%)] text-[hsl(25,15%,45%)]">
-                    <UserPlus className="h-4 w-4" />
-                  </div>
-                  Add Member
-                </button>
-              </div>
-            </RefinedCollapsibleCard>
-
-            {/* Activity Preferences Card */}
-            <RefinedCollapsibleCard
-              icon={Layers}
-              title="Activity Preferences"
-              badge={`${enabledCategoriesCount} categories`}
-              defaultExpanded={false}
-            >
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-semibold text-[hsl(25,30%,14%)] mb-3">
-                    Categories
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {categories.map((category) => (
-                      <RefinedCategoryPill
-                        key={category.id}
-                        category={category}
-                        onToggle={() => toggleCategory(category.id)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </RefinedCollapsibleCard>
-
-            {/* Automation Card */}
-            <RefinedCollapsibleCard
-              icon={Zap}
-              title="Automation"
-              badge="Smart Features"
-              defaultExpanded={false}
-            >
-              <div className="space-y-3">
-                <RefinedToggleRow
-                  icon={Search}
-                  label="Discover Spots"
-                  description="AI finds venues matching your preferences"
-                  checked={automation.discoverSpots}
-                  onCheckedChange={(checked) =>
-                    setAutomation((prev) => ({ ...prev, discoverSpots: checked }))
-                  }
-                />
-                <RefinedToggleRow
-                  icon={Layers}
-                  label="Draft Plans"
-                  description="Auto-generate event itineraries"
-                  checked={automation.draftPlans}
-                  onCheckedChange={(checked) =>
-                    setAutomation((prev) => ({ ...prev, draftPlans: checked }))
-                  }
-                />
-                <RefinedToggleRow
-                  icon={Calendar}
-                  label="Auto Schedule"
-                  description="Schedule based on group availability"
-                  checked={automation.autoSchedule}
-                  onCheckedChange={(checked) =>
-                    setAutomation((prev) => ({ ...prev, autoSchedule: checked }))
-                  }
-                />
-              </div>
-            </RefinedCollapsibleCard>
+        {/* Main Content */}
+        <main className="max-w-[1200px] mx-auto px-6 py-6">
+          {/* Breadcrumbs */}
+          <div className="text-sm text-[hsl(25,15%,45%)] mb-4">
+            <a href="#" className="hover:text-[hsl(25,30%,14%)] transition-colors">
+              Groups
+            </a>
+            <span className="mx-2">/</span>
+            <span>{group.name}</span>
           </div>
 
-          {/* Sidebar Column */}
-          <div className="space-y-4">
-            {/* Quick Stats */}
-            <SidebarCard title="Quick Stats">
-              <div className="space-y-2">
-                <RefinedStatCard
-                  icon={Calendar}
-                  value={mockStats.eventsThisYear}
-                  label="Events this year"
-                  iconBg="bg-[hsl(44,87%,63%)]"
-                />
-                <RefinedStatCard
-                  icon={Users}
-                  value={mockStats.activeMembers}
-                  label="Active members"
-                  iconBg="bg-[hsl(110,40%,60%)]"
-                />
-                <RefinedStatCard
-                  icon={MapPin}
-                  value={mockStats.venuesExplored}
-                  label="Venues explored"
-                  iconBg="bg-[hsl(280,50%,60%)]"
-                />
-              </div>
-            </SidebarCard>
+          {/* Main Tabs */}
+          <RefinedTabs tabs={mainTabs} activeTab={activeTab} onTabChange={setActiveTab} />
 
-            {/* Next Event */}
-            <SidebarCard title="Next Event">
-              <div className="flex gap-4 p-4 bg-white border border-[hsl(32,20%,88%)] rounded-xl mb-3">
-                <div className="text-center px-3 py-2 bg-[hsl(38,50%,98%)] rounded-lg border border-[hsl(32,20%,88%)]">
-                  <div className="text-[11px] uppercase font-semibold text-[hsl(25,15%,45%)]">
-                    {mockNextEvent.month}
+          {/* Settings Tab Content */}
+          {activeTab === "settings" && (
+            <>
+              {/* Sub Tabs */}
+              <RefinedSubTabs tabs={settingsSubTabs} activeTab={settingsTab} onTabChange={setSettingsTab} />
+
+              {settingsTab === "group" ? (
+                /* GROUP SETTINGS */
+                <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
+                  {/* Main Content Column */}
+                  <div className="space-y-5">
+                    {/* Basic Info Card */}
+                    <RefinedCollapsibleCard icon={Info} title="Basic Info" badge="For Everyone" defaultExpanded={true}>
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-semibold text-[hsl(25,30%,14%)] mb-1.5">
+                              Group Name
+                            </label>
+                            <Input
+                              value={group.name}
+                              onChange={(e) => setGroup({ ...group, name: e.target.value })}
+                              className="bg-[hsl(38,50%,98%)] border-[hsl(32,20%,88%)] focus:border-[hsl(44,87%,63%)] focus:ring-[hsl(44,87%,63%)]/20"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-[hsl(25,30%,14%)] mb-1.5">
+                              Group Icon
+                            </label>
+                            <div className="flex items-center gap-3">
+                              <div className="text-4xl">{group.emoji}</div>
+                              <Button variant="outline" size="sm" className="text-xs">
+                                Change
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-semibold text-[hsl(25,30%,14%)] mb-1.5">Location</label>
+                            <Input
+                              value={group.locationBase}
+                              onChange={(e) => setGroup({ ...group, locationBase: e.target.value })}
+                              className="bg-[hsl(38,50%,98%)] border-[hsl(32,20%,88%)] focus:border-[hsl(44,87%,63%)] focus:ring-[hsl(44,87%,63%)]/20"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-[hsl(25,30%,14%)] mb-1.5">
+                              Accent Color
+                            </label>
+                            <div className="flex items-center gap-3">
+                              <div
+                                className="w-10 h-10 rounded-lg border border-[hsl(32,20%,88%)]"
+                                style={{ backgroundColor: group.accentColor }}
+                              />
+                              <Input
+                                value={group.accentColor}
+                                onChange={(e) => setGroup({ ...group, accentColor: e.target.value })}
+                                className="flex-1 bg-[hsl(38,50%,98%)] border-[hsl(32,20%,88%)] focus:border-[hsl(44,87%,63%)] focus:ring-[hsl(44,87%,63%)]/20"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-semibold text-[hsl(25,30%,14%)] mb-1.5">
+                            Meeting Frequency
+                          </label>
+                          <div className="flex gap-3">
+                            <Input
+                              type="number"
+                              min={1}
+                              max={99}
+                              value={group.frequencyNumber}
+                              onChange={(e) => setGroup({ ...group, frequencyNumber: parseInt(e.target.value) || 1 })}
+                              className="w-20 bg-[hsl(38,50%,98%)] border-[hsl(32,20%,88%)] focus:border-[hsl(44,87%,63%)] focus:ring-[hsl(44,87%,63%)]/20"
+                            />
+                            <select
+                              value={group.frequencyUnit}
+                              onChange={(e) => setGroup({ ...group, frequencyUnit: e.target.value as any })}
+                              className="flex-1 px-3 py-2 rounded-lg bg-[hsl(38,50%,98%)] border border-[hsl(32,20%,88%)] text-sm text-[hsl(25,30%,14%)] focus:border-[hsl(44,87%,63%)] focus:outline-none focus:ring-2 focus:ring-[hsl(44,87%,63%)]/20"
+                            >
+                              <option value="day">times per day</option>
+                              <option value="week">times per week</option>
+                              <option value="month">times per month</option>
+                              <option value="year">times per year</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <RefinedBudgetSlider
+                          min={group.budgetMin}
+                          max={group.budgetMax}
+                          onChange={(min, max) => setGroup({ ...group, budgetMin: min, budgetMax: max })}
+                          memberBudgets={[25, 40, 55, 70, 90]}
+                        />
+
+                        <RefinedQuorumSlider
+                          value={group.defaultQuorumThreshold}
+                          onChange={(value) => setGroup({ ...group, defaultQuorumThreshold: value })}
+                        />
+
+                        <RefinedAvailabilityGrid availability={availability} onChange={toggleAvailability} />
+                      </div>
+                    </RefinedCollapsibleCard>
+
+                    {/* Members Card */}
+                    <RefinedCollapsibleCard
+                      icon={Users}
+                      title="Members"
+                      badge={`${members.length} members`}
+                      defaultExpanded={true}
+                    >
+                      <div className="space-y-4">
+                        {/* RSVP Summary */}
+                        <div className="flex flex-wrap gap-2 p-3 bg-[hsl(35,25%,95%)] rounded-xl">
+                          <Badge className="bg-[hsl(145,40%,95%)] text-[hsl(145,50%,35%)] border-[hsl(145,35%,80%)]">
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            {rsvpSummary.going} going
+                          </Badge>
+                          <Badge className="bg-[hsl(38,50%,95%)] text-[hsl(38,70%,40%)] border-[hsl(38,45%,80%)]">
+                            <Circle className="h-3 w-3 mr-1" />
+                            {rsvpSummary.maybe} maybe
+                          </Badge>
+                          <Badge className="bg-[hsl(350,50%,96%)] text-[hsl(350,60%,45%)] border-[hsl(350,40%,85%)]">
+                            <XCircle className="h-3 w-3 mr-1" />
+                            {rsvpSummary.notGoing} can't make it
+                          </Badge>
+                          {rsvpSummary.noResponse > 0 && (
+                            <Badge className="bg-[hsl(220,15%,95%)] text-[hsl(220,10%,45%)] border-[hsl(220,10%,85%)]">
+                              {rsvpSummary.noResponse} no response
+                            </Badge>
+                          )}
+                        </div>
+
+                        {/* Member List */}
+                        <div className="space-y-2">
+                          {members.map((member) => (
+                            <RefinedMemberCard
+                              key={member.id}
+                              member={member}
+                              isOrganizer={true}
+                              onToggleHosting={() => toggleMemberHosting(member.id)}
+                            />
+                          ))}
+                        </div>
+
+                        {/* Actions */}
+                        <div className="space-y-2 pt-2">
+                          <RefinedActionButton icon={UserPlus} variant="outline">
+                            Add Member
+                          </RefinedActionButton>
+                          {pendingInvites > 0 && (
+                            <RefinedActionButton icon={Mail} variant="primary">
+                              Send {pendingInvites} Invitation{pendingInvites > 1 ? "s" : ""}
+                            </RefinedActionButton>
+                          )}
+                          <RefinedActionButton icon={Link} variant="outline">
+                            Copy Group Join Link
+                          </RefinedActionButton>
+                        </div>
+                      </div>
+                    </RefinedCollapsibleCard>
+
+                    {/* Activity Preferences Card */}
+                    <RefinedCollapsibleCard
+                      icon={Target}
+                      title="Activity Preferences"
+                      badge={`${enabledCategoriesCount} categories`}
+                      defaultExpanded={false}
+                    >
+                      <div className="space-y-5">
+                        <RefinedNoveltySlider
+                          value={group.novelty}
+                          onChange={(value) => setGroup({ ...group, novelty: value })}
+                        />
+
+                        <div>
+                          <label className="block text-sm font-semibold text-[hsl(25,30%,14%)] mb-3">Categories</label>
+                          <div className="flex flex-wrap gap-2 p-3 bg-[hsl(35,25%,95%)] rounded-xl">
+                            {categories.map((category) => (
+                              <RefinedCategoryPill
+                                key={category.id}
+                                category={category}
+                                onToggle={() => toggleCategory(category.id)}
+                              />
+                            ))}
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-semibold text-[hsl(25,30%,14%)] mb-1.5">
+                            Past Preferences
+                          </label>
+                          <Textarea
+                            value={group.pastPreferences}
+                            onChange={(e) => setGroup({ ...group, pastPreferences: e.target.value })}
+                            placeholder="e.g., Trying new restaurants, outdoor activities, board game cafes, art museums..."
+                            className="h-24 resize-none bg-[hsl(38,50%,98%)] border-[hsl(32,20%,88%)] focus:border-[hsl(44,87%,63%)] focus:ring-[hsl(44,87%,63%)]/20"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-semibold text-[hsl(25,30%,14%)] mb-1.5">
+                            Additional Instructions
+                          </label>
+                          <Textarea
+                            value={group.additionalInstructions}
+                            onChange={(e) => setGroup({ ...group, additionalInstructions: e.target.value })}
+                            placeholder="e.g., Must be accessible by public transit, prefer venues with outdoor seating..."
+                            className="h-24 resize-none bg-[hsl(38,50%,98%)] border-[hsl(32,20%,88%)] focus:border-[hsl(44,87%,63%)] focus:ring-[hsl(44,87%,63%)]/20"
+                          />
+                        </div>
+                      </div>
+                    </RefinedCollapsibleCard>
+
+                    {/* Automation Card */}
+                    <RefinedCollapsibleCard icon={Zap} title="Automation" badge="Smart Features" defaultExpanded={false}>
+                      <div className="space-y-3">
+                        <RefinedToggleRow
+                          icon={Compass}
+                          label="Auto Discover New Spots"
+                          description="AI finds venues matching your preferences weekly"
+                          checked={automation.discoverSpots}
+                          onCheckedChange={(checked) => setAutomation({ ...automation, discoverSpots: checked })}
+                          helpContent="Kinmo will automatically search for new venues that match your group's preferences and add them to your discovery queue each week."
+                        />
+                        <RefinedToggleRow
+                          icon={FileText}
+                          label="Auto Draft Event Plans"
+                          description="Auto-generate ready-to-send itineraries"
+                          checked={automation.draftPlans}
+                          onCheckedChange={(checked) => setAutomation({ ...automation, draftPlans: checked })}
+                          helpContent="Kinmo will create draft event itineraries based on your group's preferences, selected venues, and availability patterns."
+                        />
+                        <RefinedToggleRow
+                          icon={Send}
+                          label="Auto Send Invites"
+                          description="Schedule and send based on group availability"
+                          checked={automation.autoSchedule}
+                          onCheckedChange={(checked) => setAutomation({ ...automation, autoSchedule: checked })}
+                          helpContent="10 days before your next event is due, Kinmo will select a time and send invites. If no responses within 48 hours, it will finalize and send the event."
+                        />
+
+                        {automation.autoSchedule && (
+                          <div className="p-3 bg-[hsl(44,87%,95%)] rounded-xl border border-[hsl(44,70%,80%)]">
+                            <div className="text-sm font-medium text-[hsl(25,30%,14%)]">
+                              Next event due: <span className="font-bold">Dec 20</span>
+                            </div>
+                            <div className="text-xs text-[hsl(25,15%,45%)] mt-1">
+                              Based on meeting {group.frequencyNumber}x per {group.frequencyUnit}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </RefinedCollapsibleCard>
+
+                    {/* Save Button */}
+                    <div className="flex justify-end">
+                      <Button className="bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)] hover:bg-[hsl(44,87%,55%)] px-8">
+                        <Check className="h-4 w-4 mr-2" />
+                        Save Group Settings
+                      </Button>
+                    </div>
                   </div>
-                  <div className="text-2xl font-bold text-[hsl(25,30%,14%)]">
-                    {mockNextEvent.day}
+
+                  {/* Sidebar Column */}
+                  <div className="space-y-4">
+                    <SidebarCard title="Quick Stats">
+                      <div className="space-y-2">
+                        <RefinedStatCard
+                          icon={Calendar}
+                          value={mockStats.eventsThisYear}
+                          label="Events this year"
+                          iconBg="bg-[hsl(44,87%,63%)]"
+                        />
+                        <RefinedStatCard
+                          icon={Users}
+                          value={mockStats.activeMembers}
+                          label="Active members"
+                          iconBg="bg-[hsl(110,50%,50%)]"
+                        />
+                        <RefinedStatCard
+                          icon={MapPin}
+                          value={mockStats.venuesExplored}
+                          label="Venues explored"
+                          iconBg="bg-[hsl(280,60%,60%)]"
+                        />
+                      </div>
+                    </SidebarCard>
+
+                    <SidebarCard title="Next Event">
+                      <div className="flex gap-4 p-4 bg-white border border-[hsl(32,20%,88%)] rounded-xl mb-3">
+                        <div className="text-center px-3 py-2 bg-[hsl(38,50%,98%)] rounded-lg border border-[hsl(32,20%,88%)]">
+                          <div className="text-[11px] uppercase font-semibold text-[hsl(25,15%,45%)]">
+                            {mockNextEvent.month}
+                          </div>
+                          <div className="text-2xl font-bold text-[hsl(25,30%,14%)]">{mockNextEvent.day}</div>
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-semibold text-[hsl(25,30%,14%)]">{mockNextEvent.title}</div>
+                          <div className="text-sm text-[hsl(25,15%,45%)]">In {mockNextEvent.daysUntil} days</div>
+                        </div>
+                      </div>
+                      <RefinedActionButton icon={Calendar} variant="primary">
+                        View Details
+                      </RefinedActionButton>
+                    </SidebarCard>
+
+                    <SidebarCard title="Create Event">
+                      <div className="space-y-2">
+                        <RefinedActionButton icon={Plus} variant="primary">
+                          New Event
+                        </RefinedActionButton>
+                        <RefinedActionButton icon={Search} variant="secondary">
+                          Discover Venues
+                        </RefinedActionButton>
+                      </div>
+                    </SidebarCard>
                   </div>
                 </div>
-                <div className="flex-1">
-                  <div className="font-semibold text-[hsl(25,30%,14%)]">{mockNextEvent.title}</div>
-                  <div className="text-sm text-[hsl(25,15%,45%)]">
-                    In {mockNextEvent.daysUntil} days
-                  </div>
-                </div>
-              </div>
-              <RefinedActionButton icon={Calendar} variant="primary">
-                View Details
-              </RefinedActionButton>
-            </SidebarCard>
+              ) : (
+                /* MY PREFERENCES TAB */
+                <div className="max-w-3xl">
+                  <RefinedCollapsibleCard
+                    icon={UserCheck}
+                    title="My Preferences"
+                    badge="Just For Me"
+                    badgeVariant="purple"
+                    defaultExpanded={true}
+                  >
+                    <div className="space-y-6">
+                      {/* Info box */}
+                      <div className="p-4 bg-[hsl(280,60%,97%)] rounded-xl border border-[hsl(280,50%,90%)]">
+                        <div className="flex items-start gap-3">
+                          <Info className="h-5 w-5 text-[hsl(280,60%,50%)] mt-0.5" />
+                          <div>
+                            <div className="text-sm font-medium text-[hsl(280,60%,30%)]">Personal overrides</div>
+                            <div className="text-xs text-[hsl(280,40%,45%)] mt-1">
+                              These preferences override group settings for AI suggestions just for you. They won't affect
+                              other members.
+                            </div>
+                          </div>
+                        </div>
+                      </div>
 
-            {/* Create Event */}
-            <SidebarCard title="Create Event">
-              <div className="space-y-2">
-                <RefinedActionButton icon={Plus} variant="primary">
-                  New Event
-                </RefinedActionButton>
-                <RefinedActionButton icon={Search} variant="secondary">
-                  Discover Venues
-                </RefinedActionButton>
+                      {/* Budget Override */}
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-3">
+                          <Checkbox
+                            checked={myPreferences.budgetOverrideEnabled}
+                            onCheckedChange={(checked) =>
+                              setMyPreferences({ ...myPreferences, budgetOverrideEnabled: !!checked })
+                            }
+                            className="data-[state=checked]:bg-[hsl(280,60%,60%)] data-[state=checked]:border-[hsl(280,60%,60%)]"
+                          />
+                          <label className="text-sm font-semibold text-[hsl(25,30%,14%)]">
+                            Override budget range{" "}
+                            <span className="font-normal text-[hsl(25,15%,45%)]">
+                              (Group: ${group.budgetMin}-${group.budgetMax})
+                            </span>
+                          </label>
+                        </div>
+                        {myPreferences.budgetOverrideEnabled && (
+                          <RefinedBudgetSlider
+                            min={myPreferences.budgetMin}
+                            max={myPreferences.budgetMax}
+                            onChange={(min, max) => setMyPreferences({ ...myPreferences, budgetMin: min, budgetMax: max })}
+                          />
+                        )}
+                      </div>
+
+                      {/* Category Override */}
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-3">
+                          <Checkbox
+                            checked={myPreferences.categoryOverrideEnabled}
+                            onCheckedChange={(checked) =>
+                              setMyPreferences({ ...myPreferences, categoryOverrideEnabled: !!checked })
+                            }
+                            className="data-[state=checked]:bg-[hsl(280,60%,60%)] data-[state=checked]:border-[hsl(280,60%,60%)]"
+                          />
+                          <label className="text-sm font-semibold text-[hsl(25,30%,14%)]">
+                            Override category preferences{" "}
+                            <span className="font-normal text-[hsl(25,15%,45%)]">(Using group categories by default)</span>
+                          </label>
+                        </div>
+                        {myPreferences.categoryOverrideEnabled && (
+                          <div className="flex flex-wrap gap-2 p-3 bg-[hsl(35,25%,95%)] rounded-xl">
+                            {categories.map((category) => {
+                              const isEnabled = myPreferences.categories.includes(category.id);
+                              return (
+                                <button
+                                  key={category.id}
+                                  onClick={() => {
+                                    setMyPreferences({
+                                      ...myPreferences,
+                                      categories: isEnabled
+                                        ? myPreferences.categories.filter((c) => c !== category.id)
+                                        : [...myPreferences.categories, category.id],
+                                    });
+                                  }}
+                                  className={cn(
+                                    "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium",
+                                    "transition-all duration-200",
+                                    isEnabled
+                                      ? "bg-[hsl(280,60%,60%)] text-white"
+                                      : "bg-[hsl(35,25%,93%)] text-[hsl(25,15%,45%)]",
+                                    "hover:scale-[1.02] active:scale-[0.98]"
+                                  )}
+                                >
+                                  <span>{category.emoji}</span>
+                                  <span>{category.name}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Frequency Override */}
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-3">
+                          <Checkbox
+                            checked={myPreferences.frequencyOverrideEnabled}
+                            onCheckedChange={(checked) =>
+                              setMyPreferences({ ...myPreferences, frequencyOverrideEnabled: !!checked })
+                            }
+                            className="data-[state=checked]:bg-[hsl(280,60%,60%)] data-[state=checked]:border-[hsl(280,60%,60%)]"
+                          />
+                          <label className="text-sm font-semibold text-[hsl(25,30%,14%)]">
+                            Override meeting frequency{" "}
+                            <span className="font-normal text-[hsl(25,15%,45%)]">
+                              (Group: {group.frequencyNumber}x per {group.frequencyUnit})
+                            </span>
+                          </label>
+                        </div>
+                        {myPreferences.frequencyOverrideEnabled && (
+                          <div className="flex gap-3 p-4 bg-[hsl(38,50%,98%)] rounded-xl">
+                            <Input
+                              type="number"
+                              min={1}
+                              value={myPreferences.frequencyNumber}
+                              onChange={(e) =>
+                                setMyPreferences({ ...myPreferences, frequencyNumber: parseInt(e.target.value) || 1 })
+                              }
+                              className="w-20 bg-white border-[hsl(32,20%,88%)] focus:border-[hsl(280,60%,60%)] focus:ring-[hsl(280,60%,60%)]/20"
+                            />
+                            <select
+                              value={myPreferences.frequencyUnit}
+                              onChange={(e) => setMyPreferences({ ...myPreferences, frequencyUnit: e.target.value })}
+                              className="flex-1 px-3 py-2 rounded-lg bg-white border border-[hsl(32,20%,88%)] text-sm text-[hsl(25,30%,14%)] focus:border-[hsl(280,60%,60%)] focus:outline-none focus:ring-2 focus:ring-[hsl(280,60%,60%)]/20"
+                            >
+                              <option value="days">times per day</option>
+                              <option value="weeks">times per week</option>
+                              <option value="months">times per month</option>
+                            </select>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Save Button */}
+                      <div className="flex justify-end pt-4">
+                        <Button className="bg-[hsl(280,60%,60%)] text-white hover:bg-[hsl(280,60%,50%)] px-8">
+                          <Check className="h-4 w-4 mr-2" />
+                          Save My Preferences
+                        </Button>
+                      </div>
+                    </div>
+                  </RefinedCollapsibleCard>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Other tabs placeholder */}
+          {activeTab !== "settings" && (
+            <div className="text-center py-20 text-[hsl(25,15%,45%)]">
+              <div className="text-6xl mb-4">
+                {activeTab === "home" && "🏠"}
+                {activeTab === "explore" && "🧭"}
+                {activeTab === "build" && "🔨"}
               </div>
-            </SidebarCard>
-          </div>
-        </div>
-      </main>
-    </div>
+              <div className="text-lg font-medium">{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Tab</div>
+              <div className="text-sm mt-1">This tab content would go here</div>
+            </div>
+          )}
+        </main>
+      </div>
+    </TooltipProvider>
   );
 }
