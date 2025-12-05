@@ -10,6 +10,7 @@
 
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useSearch } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -165,9 +166,17 @@ interface PlacesSwipeQueueResponse {
 
 export default function PlacesPage() {
   const { toast } = useToast();
+  const searchString = useSearch();
+
+  // Parse URL params for group filter (e.g., /places?group=abc123)
+  const urlGroupId = useMemo(() => {
+    const params = new URLSearchParams(searchString);
+    return params.get("group");
+  }, [searchString]);
+
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [selectedCategory, setSelectedCategory] = useState("all");
-  const [selectedGroupId, setSelectedGroupId] = useState<string>("all");
+  const [selectedGroupId, setSelectedGroupId] = useState<string>(urlGroupId || "all");
   const [showAddSheet, setShowAddSheet] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [saveToGroupId, setSaveToGroupId] = useState<string>("personal");
@@ -178,6 +187,13 @@ export default function PlacesPage() {
 
   // Swipe mode state - check if there are unreviewed venues
   const [showSwipeMode, setShowSwipeMode] = useState<boolean | null>(null); // null = loading, true/false = show/hide
+
+  // Update selectedGroupId when URL param changes
+  useEffect(() => {
+    if (urlGroupId) {
+      setSelectedGroupId(urlGroupId);
+    }
+  }, [urlGroupId]);
 
   // Check for unreviewed venues to determine initial view
   const { data: swipeQueue, isLoading: isLoadingSwipeQueue } = useQuery<PlacesSwipeQueueResponse>({
