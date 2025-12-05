@@ -1519,39 +1519,6 @@ export default function EventDetailsPage() {
                 )}
               </div>
               <div className="flex gap-1.5 sm:gap-2 flex-wrap items-center">
-                {/* Condensed badges - hide draft badge on mobile since we have prominent banner */}
-                {isOrganizer && (
-                  <Badge variant="default" className="gap-1 text-xs sm:text-sm">
-                    <Sparkles className="h-3 w-3" />
-                    <span className="hidden sm:inline">Organizer</span>
-                  </Badge>
-                )}
-                {event.hostMemberId && event.hostMemberName && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Badge variant="default" className="gap-1 text-xs sm:text-sm hidden sm:flex cursor-help">
-                        <UserCheck className="h-3 w-3" />
-                        <span>{isCurrentHost ? "You're hosting" : `Hosted by ${event.hostMemberName}`}</span>
-                      </Badge>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs">
-                      <p className="text-sm">The host sends out event details and coordinates the group. Any member who's "open to hosting" can volunteer.</p>
-                    </TooltipContent>
-                  </Tooltip>
-                )}
-                {!event.hostMemberId && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Badge variant="secondary" className="gap-1 text-xs sm:text-sm hidden sm:flex cursor-help">
-                        <Bot className="h-3 w-3" />
-                        <span>AI-hosted</span>
-                      </Badge>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs">
-                      <p className="text-sm">No one has volunteered to host yet. The AI will send event details automatically, or a member can still volunteer to take over.</p>
-                    </TooltipContent>
-                  </Tooltip>
-                )}
                 {/* Draft badge - desktop only, mobile has prominent banner */}
                 {event.status === 'draft' && !event.inviteSentAt && (
                   <Badge variant="outline" className="gap-1 bg-orange-50 text-orange-700 border-orange-300 text-xs sm:text-sm hidden sm:flex">
@@ -1936,8 +1903,8 @@ export default function EventDetailsPage() {
                           <div className="flex-1 min-w-0">
                             <div className="font-medium text-xs sm:text-sm truncate flex items-center gap-1">
                               {attendee.name}
-                              {attendee.isOrganizer && (
-                                <Badge variant="default" className="text-2xs sm:text-xs py-0 h-3.5 sm:h-4 bg-primary">Organizer</Badge>
+                              {attendee.id === event.hostMemberId && (
+                                <Badge variant="outline" className="text-2xs sm:text-xs py-0 h-3.5 sm:h-4 bg-primary/5 border-primary/20 text-primary">Host</Badge>
                               )}
                               {attendee.isGuest && (
                                 <Badge variant="outline" className="text-2xs sm:text-xs py-0 h-3.5 sm:h-4">Guest</Badge>
