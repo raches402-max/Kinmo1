@@ -3,86 +3,58 @@ import { ArrowLeft, Check, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 
-// Styling options for the Kinmo text
+// Styling options for the Kinmo text (baseline: #FFB800 font-bold)
 const kinmoOptions = [
   {
     id: "current",
     name: "Current",
-    description: "font-medium, text-primary",
-    className: "text-[#F2C94C] font-medium",
-    style: {},
-  },
-  {
-    id: "bold",
-    name: "Bold Weight",
-    description: "font-bold instead of font-medium",
-    className: "text-[#F2C94C] font-bold",
-    style: {},
+    description: "Saturated Gold #FFB800, font-bold",
+    className: "font-bold",
+    style: { color: "#FFB800" },
   },
   {
     id: "extrabold",
     name: "Extra Bold",
     description: "font-extrabold for maximum weight",
-    className: "text-[#F2C94C] font-extrabold",
-    style: {},
-  },
-  {
-    id: "richer-gold",
-    name: "Richer Gold",
-    description: "Deeper amber: #E5A91A (lower lightness)",
-    className: "font-bold",
-    style: { color: "#E5A91A" },
-  },
-  {
-    id: "saturated-gold",
-    name: "Saturated Gold",
-    description: "High saturation: #FFB800",
-    className: "font-bold",
+    className: "font-extrabold",
     style: { color: "#FFB800" },
-  },
-  {
-    id: "warm-orange",
-    name: "Warm Orange-Gold",
-    description: "Warmer tone: #F5A623",
-    className: "font-bold",
-    style: { color: "#F5A623" },
   },
   {
     id: "text-shadow",
     name: "Text Shadow",
-    description: "Bold + subtle dark shadow for depth",
+    description: "Current + subtle dark shadow for depth",
     className: "font-bold",
     style: {
-      color: "#F2C94C",
+      color: "#FFB800",
       textShadow: "0 2px 8px rgba(0, 0, 0, 0.2), 0 1px 2px rgba(0, 0, 0, 0.15)"
     },
   },
   {
     id: "glow",
     name: "Glow Effect",
-    description: "Bold + golden glow behind text",
-    className: "font-bold",
-    style: {
-      color: "#E5A91A",
-      textShadow: "0 0 20px rgba(229, 169, 26, 0.4), 0 0 40px rgba(229, 169, 26, 0.2)"
-    },
-  },
-  {
-    id: "glow-saturated",
-    name: "Saturated + Glow",
-    description: "Bright gold with matching glow",
+    description: "Current + golden glow behind text",
     className: "font-bold",
     style: {
       color: "#FFB800",
-      textShadow: "0 0 24px rgba(255, 184, 0, 0.4), 0 0 48px rgba(255, 184, 0, 0.2)"
+      textShadow: "0 0 20px rgba(255, 184, 0, 0.4), 0 0 40px rgba(255, 184, 0, 0.2)"
+    },
+  },
+  {
+    id: "glow-strong",
+    name: "Strong Glow",
+    description: "Current + more intense glow effect",
+    className: "font-bold",
+    style: {
+      color: "#FFB800",
+      textShadow: "0 0 30px rgba(255, 184, 0, 0.6), 0 0 60px rgba(255, 184, 0, 0.3)"
     },
   },
   {
     id: "outline-dark",
     name: "Dark Outline",
-    description: "Bold + subtle dark text stroke",
+    description: "Current + subtle dark text stroke",
     className: "font-bold kinmo-outline-dark",
-    style: { color: "#F2C94C" },
+    style: { color: "#FFB800" },
   },
   {
     id: "gradient-gold",
@@ -97,6 +69,34 @@ const kinmoOptions = [
     description: "Gold to warm orange gradient",
     className: "font-bold kinmo-gradient-sunset",
     style: {},
+  },
+  {
+    id: "warmer",
+    name: "Warmer Tone",
+    description: "Slightly warmer: #FFA500 (orange-gold)",
+    className: "font-bold",
+    style: { color: "#FFA500" },
+  },
+  {
+    id: "deeper",
+    name: "Deeper Gold",
+    description: "Richer amber: #E5A500",
+    className: "font-bold",
+    style: { color: "#E5A500" },
+  },
+  {
+    id: "old-primary",
+    name: "Old Primary",
+    description: "Previous pale gold #F2C94C (for comparison)",
+    className: "font-bold",
+    style: { color: "#F2C94C" },
+  },
+  {
+    id: "old-medium",
+    name: "Old Style",
+    description: "Previous: #F2C94C + font-medium",
+    className: "font-medium",
+    style: { color: "#F2C94C" },
   },
 ];
 
@@ -115,14 +115,14 @@ export default function PrototypeKinmoText() {
         }
 
         .kinmo-gradient-gold {
-          background: linear-gradient(135deg, #FFE066 0%, #F2C94C 40%, #D4A017 100%);
+          background: linear-gradient(135deg, #FFD54F 0%, #FFB800 40%, #E5A000 100%);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
         }
 
         .kinmo-gradient-sunset {
-          background: linear-gradient(135deg, #FFD93D 0%, #F5A623 50%, #E88B00 100%);
+          background: linear-gradient(135deg, #FFCA28 0%, #FFB800 35%, #FF9800 100%);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
@@ -171,7 +171,7 @@ export default function PrototypeKinmoText() {
                 Kinmo
               </h1>
             ) : (
-              <h1 className="text-6xl sm:text-7xl md:text-8xl font-['Plus_Jakarta_Sans'] text-primary font-medium">
+              <h1 className="text-6xl sm:text-7xl md:text-8xl font-['Plus_Jakarta_Sans'] font-bold" style={{ color: '#FFB800' }}>
                 Kinmo
                 <span className="block text-lg text-muted-foreground font-normal mt-4">Click an option below to preview</span>
               </h1>
@@ -252,7 +252,7 @@ export default function PrototypeKinmoText() {
                     Kinmo
                   </span>
                 ) : (
-                  <span className="text-4xl md:text-5xl font-['Plus_Jakarta_Sans'] text-primary font-medium">
+                  <span className="text-4xl md:text-5xl font-['Plus_Jakarta_Sans'] font-bold" style={{ color: '#FFB800' }}>
                     Kinmo
                   </span>
                 )}
