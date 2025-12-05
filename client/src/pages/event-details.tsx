@@ -1838,11 +1838,21 @@ export default function EventDetailsPage() {
                       <div className="flex items-center justify-between cursor-pointer sm:cursor-default">
                         <h3 className="font-semibold text-base sm:text-lg">Who's Coming</h3>
                         <div className="flex items-center gap-2">
-                          {/* Summary Stats - compact on mobile when collapsed */}
-                          <div className="flex gap-2 sm:gap-4 flex-wrap text-xs sm:text-sm">
-                            <span className="font-medium text-green-600">{goingCount} going</span>
-                            {maybeCount > 0 && <span className="font-medium text-yellow-600">{maybeCount} maybe</span>}
-                            {pendingCount > 0 && <span className="font-medium text-muted-foreground">{pendingCount} pending</span>}
+                          {/* Summary Stats - styled badges like prototype */}
+                          <div className="flex gap-1.5 sm:gap-2 flex-wrap">
+                            <Badge variant="outline" className="text-2xs sm:text-xs bg-primary/10 text-primary border-primary/20">
+                              {goingCount} going
+                            </Badge>
+                            {maybeCount > 0 && (
+                              <Badge variant="outline" className="text-2xs sm:text-xs bg-amber-50 text-amber-700 border-amber-200">
+                                {maybeCount} maybe
+                              </Badge>
+                            )}
+                            {pendingCount > 0 && (
+                              <Badge variant="outline" className="text-2xs sm:text-xs bg-slate-50 text-slate-600 border-slate-200">
+                                {pendingCount} pending
+                              </Badge>
+                            )}
                           </div>
                           <ChevronRight className={cn(
                             "h-4 w-4 text-muted-foreground transition-transform sm:hidden",
@@ -1861,10 +1871,10 @@ export default function EventDetailsPage() {
                               key={attendee.id}
                               className={cn(
                                 "w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold border-2 border-background",
-                                attendee.response === 'yes' && 'bg-green-100 text-green-700',
-                                attendee.response === 'maybe' && 'bg-yellow-100 text-yellow-700',
-                                attendee.response === 'no' && 'bg-red-100 text-red-700',
-                                attendee.response === 'pending' && 'bg-gray-100 text-gray-700'
+                                attendee.response === 'yes' && 'bg-primary/20 text-primary',
+                                attendee.response === 'maybe' && 'bg-amber-100 text-amber-700',
+                                attendee.response === 'no' && 'bg-rose-100 text-rose-700',
+                                attendee.response === 'pending' && 'bg-slate-100 text-slate-600'
                               )}
                             >
                               {attendee.initials}
@@ -1889,13 +1899,13 @@ export default function EventDetailsPage() {
                           className="group relative flex items-start gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
                         >
                           {/* Avatar */}
-                          <div className={`
-                            w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs sm:text-sm font-semibold shrink-0
-                            ${attendee.response === 'yes' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : ''}
-                            ${attendee.response === 'maybe' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300' : ''}
-                            ${attendee.response === 'no' ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' : ''}
-                            ${attendee.response === 'pending' ? 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' : ''}
-                          `}>
+                          <div className={cn(
+                            "w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs sm:text-sm font-semibold shrink-0",
+                            attendee.response === 'yes' && "bg-primary/20 text-primary dark:bg-primary/30",
+                            attendee.response === 'maybe' && "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300",
+                            attendee.response === 'no' && "bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300",
+                            attendee.response === 'pending' && "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                          )}>
                             {attendee.initials}
                           </div>
 
@@ -1943,26 +1953,26 @@ export default function EventDetailsPage() {
                               <div className="flex items-center gap-1 mt-0.5 text-2xs sm:text-xs">
                                 {attendee.response === 'yes' && (
                                   <>
-                                    <CheckCircle2 className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-green-600" />
-                                    <span className="text-green-600 dark:text-green-400">Going</span>
+                                    <CheckCircle2 className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-primary" />
+                                    <span className="text-primary">Going</span>
                                   </>
                                 )}
                                 {attendee.response === 'maybe' && (
                                   <>
-                                    <HelpCircle className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-yellow-600" />
-                                    <span className="text-yellow-600 dark:text-yellow-400">Maybe</span>
+                                    <HelpCircle className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-amber-600" />
+                                    <span className="text-amber-600 dark:text-amber-400">Maybe</span>
                                   </>
                                 )}
                                 {attendee.response === 'no' && (
                                   <>
-                                    <XCircle className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-red-600" />
-                                    <span className="text-red-600 dark:text-red-400 hidden sm:inline">Can't Make It</span>
-                                    <span className="text-red-600 dark:text-red-400 sm:hidden">No</span>
+                                    <XCircle className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-rose-600" />
+                                    <span className="text-rose-600 dark:text-rose-400 hidden sm:inline">Can't Make It</span>
+                                    <span className="text-rose-600 dark:text-rose-400 sm:hidden">No</span>
                                   </>
                                 )}
                                 {attendee.response === 'pending' && (
                                   <>
-                                    <MinusCircle className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-gray-500" />
+                                    <MinusCircle className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-slate-500" />
                                     <span className="text-muted-foreground">Invited</span>
                                   </>
                                 )}
