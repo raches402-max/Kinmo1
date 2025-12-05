@@ -109,6 +109,7 @@ function Router() {
                 <Route path="/guest-rsvp/:guestToken" component={GuestRsvpPage} />
                 <Route path="/claim/:claimToken" component={ClaimMemberPage} />
                 <Route path="/events" component={MemberEventsPage} />
+                <Route path="/prototype/kinmo-text" component={PrototypeKinmoText} />
                 <Route path="/privacy" component={Privacy} />
                 <Route path="/terms" component={Terms} />
               </>
