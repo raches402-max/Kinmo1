@@ -17,10 +17,10 @@ import { cn } from "@/lib/utils";
 interface VotingEvent {
   id: number;
   groupId: number;
-  name: string;
+  title: string;
   venueAddress?: string;
   venueType?: string;
-  venuePlaceId?: string;
+  googlePlaceId?: string;
   photoUrl?: string;
   rating?: string;
   reviewCount?: number;
@@ -44,13 +44,13 @@ interface FavoritesTabProps {
 function toVenueData(event: VotingEvent): VenueData {
   return {
     id: event.id.toString(),
-    name: event.name,
+    name: event.title,
     address: event.venueAddress || '',
     photoUrl: event.photoUrl,
     rating: event.rating,
     reviewCount: event.reviewCount,
     priceLevel: event.priceLevel,
-    googlePlaceId: event.venuePlaceId,
+    googlePlaceId: event.googlePlaceId,
     category: event.category,
     venueType: event.venueType,
     source: 'favorite',
@@ -85,9 +85,9 @@ export function FavoritesTab({
 
   // Transform to VenueData and dedupe by place ID
   const venues = votingEvents
-    .filter(e => e.venuePlaceId) // Only include venues with place IDs
+    .filter(e => e.googlePlaceId) // Only include venues with place IDs
     .reduce((acc, event) => {
-      const existing = acc.find(v => v.googlePlaceId === event.venuePlaceId);
+      const existing = acc.find(v => v.googlePlaceId === event.googlePlaceId);
       if (!existing) {
         acc.push(toVenueData(event));
       }
