@@ -33,8 +33,8 @@ function generateRotation(rotationIndex: number): string[] {
   // Every 5th rotation, swap "friends" for "frands" as an easter egg
   const startsWithFrands = rotationIndex % 5 === 3;
 
-  // Arc structure: generic start → climb into niche → anchor → niche peak → descend → people
-  // Every rotation ends with "people" which leads to kin → Kinmo
+  // Arc structure: generic start → climb into niche → anchor → niche peak → descend → kin
+  // Every rotation ends with "kin" which then fades to Kinmo
   return [
     startsWithFrands ? "frands" : "friends",       // generic start (or easter egg)
     "family",                                       // generic
@@ -42,8 +42,8 @@ function generateRotation(rotationIndex: number): string[] {
     "partner",                                      // anchor mid-way
     allNiche[(nicheOffset + 1) % allNiche.length], // niche peak
     allNiche[(nicheOffset + 2) % allNiche.length], // still niche
-    allNiche[(nicheOffset + 3) % allNiche.length], // descending
-    "people",                                       // land on generic → leads to kin
+    "people",                                       // descending
+    "kin",                                          // final word → leads to Kinmo
   ];
 }
 
@@ -51,24 +51,24 @@ function RotatingHeadline() {
   const [rotationIndex, setRotationIndex] = useState(0);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
-  const [phase, setPhase] = useState<"rotating" | "resting" | "kin" | "kinmo">("rotating");
+  const [phase, setPhase] = useState<"rotating" | "fadeToKinmo" | "kinmo" | "fadeOut" | "fadeIn">("rotating");
 
   const [currentWords, setCurrentWords] = useState(() => generateRotation(0));
 
   // Base rotation speed
   const baseInterval = 1800;
-  const restDuration = 2000; // Pause between rotations
 
   // Slow down as we approach the end (arc deceleration)
   const getIntervalForIndex = (index: number) => {
     const totalWords = currentWords.length;
     const remaining = totalWords - index - 1;
-    if (remaining <= 0) return baseInterval + 600; // "people" - slowest
+    if (remaining <= 0) return baseInterval + 800; // "kin" - slowest, longer pause
     if (remaining === 1) return baseInterval + 400; // second to last
     if (remaining === 2) return baseInterval + 200; // third to last
     return baseInterval;
   };
 
+  // Rotating phase - cycle through words
   useEffect(() => {
     if (phase !== "rotating") return;
 
@@ -79,8 +79,9 @@ function RotatingHeadline() {
       setTimeout(() => {
         setCurrentIndex((prev) => {
           if (prev === currentWords.length - 1) {
-            // End of this rotation - go straight to kin (don't show "people" again)
-            setPhase("resting");
+            // End of rotation on "kin" - pause then fade to Kinmo
+            setIsAnimating(false);
+            setTimeout(() => setPhase("fadeToKinmo"), 1500); // Extra pause on "kin"
             return prev;
           }
           setIsAnimating(false);
@@ -92,27 +93,30 @@ function RotatingHeadline() {
     return () => clearTimeout(timeout);
   }, [phase, currentIndex, currentWords.length]);
 
-  // After words end, go to kin phase
+  // fadeToKinmo → kinmo (after fade animation completes)
   useEffect(() => {
-    if (phase !== "resting") return;
-
-    const timeout = setTimeout(() => {
-      setPhase("kin");
-    }, 500); // brief pause before kin
-
+    if (phase !== "fadeToKinmo") return;
+    const timeout = setTimeout(() => setPhase("kinmo"), 600);
     return () => clearTimeout(timeout);
   }, [phase]);
 
-  // kin → kinmo
-  useEffect(() => {
-    if (phase !== "kin") return;
-    const timeout = setTimeout(() => setPhase("kinmo"), 2500);
-    return () => clearTimeout(timeout);
-  }, [phase]);
-
-  // kinmo → start new rotation
+  // kinmo → fadeOut
   useEffect(() => {
     if (phase !== "kinmo") return;
+    const timeout = setTimeout(() => setPhase("fadeOut"), 2000);
+    return () => clearTimeout(timeout);
+  }, [phase]);
+
+  // fadeOut → fadeIn (after fade animation completes)
+  useEffect(() => {
+    if (phase !== "fadeOut") return;
+    const timeout = setTimeout(() => setPhase("fadeIn"), 600);
+    return () => clearTimeout(timeout);
+  }, [phase]);
+
+  // fadeIn → rotating (restart cycle)
+  useEffect(() => {
+    if (phase !== "fadeIn") return;
 
     const timeout = setTimeout(() => {
       const nextRotation = rotationIndex + 1;
@@ -120,28 +124,50 @@ function RotatingHeadline() {
       setCurrentWords(generateRotation(nextRotation));
       setCurrentIndex(0);
       setPhase("rotating");
-    }, restDuration);
+    }, 600);
 
     return () => clearTimeout(timeout);
   }, [phase, rotationIndex]);
 
-  // Kinmo finale phase - uses same stacked layout
-  if (phase === "kinmo") {
+  // fadeToKinmo phase - fade out entire phrase
+  if (phase === "fadeToKinmo") {
     return (
-      <span className="flex flex-col items-center gap-1 sm:gap-2 animate-hero-finale-glow">
+      <span className="flex flex-col items-center gap-1 sm:gap-2 animate-fade-out-phrase">
         <span className="self-start text-foreground">See your</span>
-        <span className="text-primary font-medium">Kinmo</span>
-        <span className="self-end text-foreground invisible">more.</span>
+        <span className="min-w-[180px] sm:min-w-[220px] md:min-w-[280px] text-center text-primary font-medium">
+          kin
+        </span>
+        <span className="self-end text-foreground">more.</span>
       </span>
     );
   }
 
-  // "kin" phase - staggered diagonal layout (same for mobile and desktop)
-  if (phase === "kin") {
+  // Kinmo phase - centered, no surrounding text
+  if (phase === "kinmo") {
     return (
-      <span className="flex flex-col items-center gap-1 sm:gap-2 animate-kin-reveal">
+      <span className="text-primary font-medium animate-kinmo-appear">
+        Kinmo
+      </span>
+    );
+  }
+
+  // fadeOut phase - fade out Kinmo
+  if (phase === "fadeOut") {
+    return (
+      <span className="text-primary font-medium animate-fade-out-phrase">
+        Kinmo
+      </span>
+    );
+  }
+
+  // fadeIn phase - fade in the full phrase to restart
+  if (phase === "fadeIn") {
+    return (
+      <span className="flex flex-col items-center gap-1 sm:gap-2 animate-fade-in-phrase">
         <span className="self-start text-foreground">See your</span>
-        <span className="text-primary font-medium">kin</span>
+        <span className="min-w-[180px] sm:min-w-[220px] md:min-w-[280px] text-center text-primary font-medium">
+          {currentWords[0]}
+        </span>
         <span className="self-end text-foreground">more.</span>
       </span>
     );

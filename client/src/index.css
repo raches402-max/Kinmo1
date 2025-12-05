@@ -468,6 +468,58 @@
              kinmoGlow 3s ease-in-out 1s infinite;
 }
 
+/* Smooth fade out for entire phrase */
+@keyframes fadeOutPhrase {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+.animate-fade-out-phrase {
+  animation: fadeOutPhrase 0.6s ease-out forwards;
+}
+
+/* Kinmo appears with subtle bloom and scale */
+@keyframes kinmoAppear {
+  0% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-kinmo-appear {
+  animation: kinmoAppear 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Smooth fade in for phrase restart */
+@keyframes fadeInPhrase {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-phrase {
+  animation: fadeInPhrase 0.6s ease-out forwards;
+}
+
 /* Subtle pulse for sun rays */
 @keyframes pulseSubtle {
   0%, 100% { opacity: 1; }
