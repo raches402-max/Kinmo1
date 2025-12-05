@@ -1,285 +1,276 @@
 import { Link } from "wouter";
-import { ArrowLeft, Check, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { ArrowRight, ArrowLeft } from "lucide-react";
+import { KinmoIcon } from "@/components/KinmoLogo";
 
-// Styling options for the Kinmo text (baseline: #FFB800 font-bold)
-const kinmoOptions = [
-  {
-    id: "current",
-    name: "Current",
-    description: "Saturated Gold #FFB800, font-bold",
-    className: "font-bold",
-    style: { color: "#FFB800" },
-  },
-  {
-    id: "extrabold",
-    name: "Extra Bold",
-    description: "font-extrabold for maximum weight",
-    className: "font-extrabold",
-    style: { color: "#FFB800" },
-  },
-  {
-    id: "text-shadow",
-    name: "Text Shadow",
-    description: "Current + subtle dark shadow for depth",
-    className: "font-bold",
-    style: {
-      color: "#FFB800",
-      textShadow: "0 2px 8px rgba(0, 0, 0, 0.2), 0 1px 2px rgba(0, 0, 0, 0.15)"
-    },
-  },
-  {
-    id: "glow",
-    name: "Glow Effect",
-    description: "Current + golden glow behind text",
-    className: "font-bold",
-    style: {
-      color: "#FFB800",
-      textShadow: "0 0 20px rgba(255, 184, 0, 0.4), 0 0 40px rgba(255, 184, 0, 0.2)"
-    },
-  },
-  {
-    id: "glow-strong",
-    name: "Strong Glow",
-    description: "Current + more intense glow effect",
-    className: "font-bold",
-    style: {
-      color: "#FFB800",
-      textShadow: "0 0 30px rgba(255, 184, 0, 0.6), 0 0 60px rgba(255, 184, 0, 0.3)"
-    },
-  },
-  {
-    id: "outline-dark",
-    name: "Dark Outline",
-    description: "Current + subtle dark text stroke",
-    className: "font-bold kinmo-outline-dark",
-    style: { color: "#FFB800" },
-  },
-  {
-    id: "gradient-gold",
-    name: "Gold Gradient",
-    description: "Linear gradient from light to deep gold",
-    className: "font-bold kinmo-gradient-gold",
-    style: {},
-  },
-  {
-    id: "gradient-sunset",
-    name: "Sunset Gradient",
-    description: "Gold to warm orange gradient",
-    className: "font-bold kinmo-gradient-sunset",
-    style: {},
-  },
-  {
-    id: "warmer",
-    name: "Warmer Tone",
-    description: "Slightly warmer: #FFA500 (orange-gold)",
-    className: "font-bold",
-    style: { color: "#FFA500" },
-  },
-  {
-    id: "deeper",
-    name: "Deeper Gold",
-    description: "Richer amber: #E5A500",
-    className: "font-bold",
-    style: { color: "#E5A500" },
-  },
-  {
-    id: "old-primary",
-    name: "Old Primary",
-    description: "Previous pale gold #F2C94C (for comparison)",
-    className: "font-bold",
-    style: { color: "#F2C94C" },
-  },
-  {
-    id: "old-medium",
-    name: "Old Style",
-    description: "Previous: #F2C94C + font-medium",
-    className: "font-medium",
-    style: { color: "#F2C94C" },
-  },
-];
-
+// Full landing page mockup with new Saturated Gold (#FFB800) applied to all yellow elements
 export default function PrototypeKinmoText() {
-  const [selected, setSelected] = useState<string | null>(null);
-
   return (
     <div className="min-h-screen bg-background">
-      {/* Custom styles for special effects */}
+      {/* Override primary color to #FFB800 for this page */}
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-
-        .kinmo-outline-dark {
-          -webkit-text-stroke: 1px rgba(0, 0, 0, 0.25);
-          paint-order: stroke fill;
+        :root {
+          --primary-preview: 45 100% 50%;
         }
-
-        .kinmo-gradient-gold {
-          background: linear-gradient(135deg, #FFD54F 0%, #FFB800 40%, #E5A000 100%);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
+        .preview-primary {
+          color: #FFB800 !important;
         }
-
-        .kinmo-gradient-sunset {
-          background: linear-gradient(135deg, #FFCA28 0%, #FFB800 35%, #FF9800 100%);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
+        .preview-primary-bg {
+          background-color: #FFB800 !important;
         }
-
-        .option-card {
-          transition: all 0.2s ease;
+        .preview-primary-fill {
+          fill: #FFB800 !important;
         }
-
-        .option-card:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+        .preview-primary-bg-10 {
+          background-color: rgba(255, 184, 0, 0.1) !important;
         }
-
-        .option-card.selected {
-          box-shadow: 0 0 0 2px hsl(var(--primary)), 0 8px 32px rgba(0, 0, 0, 0.1);
+        .preview-primary-bg-60 {
+          background-color: rgba(255, 184, 0, 0.6) !important;
+        }
+        .preview-btn-primary {
+          background-color: #FFB800 !important;
+          color: #000 !important;
+        }
+        .preview-btn-primary:hover {
+          background-color: #E5A500 !important;
+        }
+        @keyframes slow-spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .animate-slow-spin {
+          animation: slow-spin 20s linear infinite;
         }
       `}</style>
 
+      {/* Floating "Preview Mode" banner */}
+      <div className="fixed top-0 left-0 right-0 z-[100] bg-[#FFB800] text-black py-2 px-4 text-center text-sm font-medium">
+        Preview Mode: Saturated Gold (#FFB800) applied to all yellow elements
+        <Link href="/" className="ml-4 underline hover:no-underline">
+          ← Back to actual landing page
+        </Link>
+      </div>
+
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-background/90 backdrop-blur-sm border-b border-border/40">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/">
-            <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Landing
-            </Button>
-          </Link>
-          <div className="flex items-center gap-2 text-muted-foreground text-sm">
-            <Sparkles className="w-4 h-4 text-primary" />
-            <span>Kinmo Text Preview</span>
+      <header className="fixed top-10 left-0 right-0 z-50 bg-background/90 backdrop-blur-sm border-b border-border/40">
+        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <KinmoIcon size={26} color="#FFB800" />
+            <span className="font-semibold text-lg">Kinmo</span>
           </div>
+          <Button variant="ghost" size="sm">
+            Sign In
+          </Button>
         </div>
       </header>
 
-      {/* Hero section showing selected option large */}
-      <section className="py-16 px-4 border-b border-border">
-        <div className="max-w-4xl mx-auto text-center">
-          <p className="text-muted-foreground text-sm uppercase tracking-widest mb-8">Preview at Full Size</p>
-          <div className="min-h-[120px] flex items-center justify-center">
-            {selected ? (
-              <h1
-                className={`text-6xl sm:text-7xl md:text-8xl font-['Plus_Jakarta_Sans'] ${kinmoOptions.find(o => o.id === selected)?.className}`}
-                style={kinmoOptions.find(o => o.id === selected)?.style}
-              >
-                Kinmo
-              </h1>
-            ) : (
-              <h1 className="text-6xl sm:text-7xl md:text-8xl font-['Plus_Jakarta_Sans'] font-bold" style={{ color: '#FFB800' }}>
-                Kinmo
-                <span className="block text-lg text-muted-foreground font-normal mt-4">Click an option below to preview</span>
-              </h1>
-            )}
-          </div>
-          {selected && (
-            <p className="text-muted-foreground mt-6">
-              {kinmoOptions.find(o => o.id === selected)?.name}: {kinmoOptions.find(o => o.id === selected)?.description}
-            </p>
-          )}
-        </div>
-      </section>
-
-      {/* Options Grid */}
-      <section className="py-12 px-4">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-muted-foreground text-sm uppercase tracking-widest mb-8 text-center">Select a Style Option</h2>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {kinmoOptions.map((option) => (
-              <button
-                key={option.id}
-                onClick={() => setSelected(option.id)}
-                className={`option-card relative p-6 rounded-xl bg-card border border-border text-left group ${
-                  selected === option.id ? 'selected' : ''
-                }`}
-              >
-                {/* Selection indicator */}
-                {selected === option.id && (
-                  <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-primary flex items-center justify-center">
-                    <Check className="w-4 h-4 text-primary-foreground" />
-                  </div>
-                )}
-
-                {/* Preview text */}
-                <div className="h-16 flex items-center justify-center mb-4">
-                  <span
-                    className={`text-3xl font-['Plus_Jakarta_Sans'] ${option.className}`}
-                    style={option.style}
-                  >
-                    Kinmo
-                  </span>
-                </div>
-
-                {/* Label */}
-                <div className="border-t border-border pt-3">
-                  <h3 className="text-foreground font-medium text-sm">{option.name}</h3>
-                  <p className="text-muted-foreground text-xs mt-1 line-clamp-2">{option.description}</p>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* In-context preview */}
-      <section className="py-12 px-4 border-t border-border">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-muted-foreground text-sm uppercase tracking-widest mb-8 text-center">In Animation Context</h2>
-
-          <div className="rounded-2xl bg-card p-8 md:p-12 border border-border shadow-sm">
-            <div className="text-center space-y-6">
-              {/* Simulated "See your kin more" faded state */}
-              <p className="text-3xl md:text-4xl font-['Plus_Jakarta_Sans'] text-muted-foreground/50">
-                See your <span className="text-muted-foreground/70">kin</span> more.
-              </p>
-
-              {/* Arrow */}
-              <div className="text-muted-foreground/50 text-2xl">↓</div>
-
-              {/* Kinmo appears */}
-              <div className="py-4">
-                {selected ? (
-                  <span
-                    className={`text-4xl md:text-5xl font-['Plus_Jakarta_Sans'] ${kinmoOptions.find(o => o.id === selected)?.className}`}
-                    style={kinmoOptions.find(o => o.id === selected)?.style}
-                  >
-                    Kinmo
-                  </span>
-                ) : (
-                  <span className="text-4xl md:text-5xl font-['Plus_Jakarta_Sans'] font-bold" style={{ color: '#FFB800' }}>
-                    Kinmo
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer with selection summary */}
-      {selected && (
-        <section className="sticky bottom-0 py-4 px-4 bg-background/95 backdrop-blur-sm border-t border-border">
-          <div className="max-w-4xl mx-auto flex items-center justify-between">
-            <div>
-              <p className="text-foreground font-medium">{kinmoOptions.find(o => o.id === selected)?.name}</p>
-              <p className="text-muted-foreground text-sm">{kinmoOptions.find(o => o.id === selected)?.description}</p>
-            </div>
-            <Button
-              onClick={() => setSelected(null)}
-              variant="ghost"
-              className="text-muted-foreground hover:text-foreground"
+      {/* Hero */}
+      <section className="pt-32 sm:pt-40 md:pt-48 pb-14 sm:pb-24 px-6">
+        <div className="max-w-3xl mx-auto text-center">
+          <div className="mb-6">
+            <svg
+              width="72"
+              height="72"
+              viewBox="0 0 48 48"
+              fill="none"
+              className="mx-auto animate-slow-spin"
+              aria-hidden="true"
             >
-              Clear
+              <circle cx="24" cy="24" r="14" className="preview-primary-fill" />
+              <path d="M19 5 A4 4 0 0 1 29 5 L24 5 Z" className="preview-primary-fill" />
+              <path d="M38 10 A4 4 0 0 1 43 19 L40 14 Z" className="preview-primary-fill" />
+              <path d="M43 29 A4 4 0 0 1 38 38 L40 34 Z" className="preview-primary-fill" />
+              <path d="M29 43 A4 4 0 0 1 19 43 L24 43 Z" className="preview-primary-fill" />
+              <path d="M10 38 A4 4 0 0 1 5 29 L8 34 Z" className="preview-primary-fill" />
+              <path d="M5 19 A4 4 0 0 1 10 10 L8 14 Z" className="preview-primary-fill" />
+            </svg>
+          </div>
+
+          <p className="text-sm tracking-wide uppercase text-muted-foreground mb-3">Using AI to help you</p>
+
+          {/* Static headline for mockup */}
+          <div className="min-h-[110px] sm:min-h-[140px] md:min-h-[170px] lg:min-h-[200px] flex items-center justify-center mb-8 sm:mb-12">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.15]">
+              <span className="relative block w-[280px] sm:w-[340px] md:w-[420px] lg:w-[500px] h-[110px] sm:h-[140px] md:h-[170px] lg:h-[200px]">
+                <span className="absolute top-0 -left-8 sm:-left-12 md:-left-16 lg:-left-20 text-foreground">See your</span>
+                <span className="absolute top-[38%] left-1/2 -translate-x-1/2 font-bold whitespace-nowrap" style={{ color: '#FFB800' }}>
+                  friends
+                </span>
+                <span className="absolute bottom-0 -right-6 sm:-right-8 md:-right-10 lg:-right-12 text-foreground">more.</span>
+              </span>
+            </h1>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Button
+              size="lg"
+              className="preview-btn-primary px-10 h-12 text-base font-semibold"
+            >
+              Get Started
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              className="h-12 text-base"
+            >
+              See How It Works
             </Button>
           </div>
-        </section>
-      )}
+        </div>
+      </section>
+
+      {/* The Problem */}
+      <section className="py-14 sm:py-24 px-6 bg-muted/30">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-center mb-4 sm:mb-5">
+            Life gets busy. We get it.
+          </h2>
+          <p className="text-center text-muted-foreground mb-8 sm:mb-14 max-w-2xl mx-auto text-sm sm:text-base md:text-lg leading-relaxed">
+            Between work, family, and everything else — staying connected takes real effort. Kinmo handles the logistics so you can focus on the fun part.
+          </p>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-8 md:gap-10">
+            <div className="text-center sm:text-left">
+              <h3 className="font-semibold text-lg mb-2">"We should hang!"</h3>
+              <p className="text-muted-foreground leading-relaxed text-sm sm:text-base">
+                Turning good intentions into actual plans
+              </p>
+            </div>
+            <div className="text-center sm:text-left">
+              <h3 className="font-semibold text-lg mb-2">"Who's planning this?"</h3>
+              <p className="text-muted-foreground leading-relaxed text-sm sm:text-base">
+                When everyone assumes someone else will do it
+              </p>
+            </div>
+            <div className="text-center sm:text-left">
+              <h3 className="font-semibold text-lg mb-2">"Works for me!"</h3>
+              <p className="text-muted-foreground leading-relaxed text-sm sm:text-base">
+                Finding times that actually work for everyone
+              </p>
+            </div>
+            <div className="text-center sm:text-left">
+              <h3 className="font-semibold text-lg mb-2">"Same place again?"</h3>
+              <p className="text-muted-foreground leading-relaxed text-sm sm:text-base">
+                Discovering spots you'll all love
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* How Kinmo's AI Works */}
+      <section className="py-14 sm:py-24 px-6">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-center mb-4 sm:mb-5">
+            How it works
+          </h2>
+          <p className="text-center text-muted-foreground mb-10 sm:mb-16 max-w-2xl mx-auto text-sm sm:text-base md:text-lg leading-relaxed">
+            Kinmo learns the rhythm of your friendships.
+          </p>
+
+          <div className="grid md:grid-cols-3 gap-6 sm:gap-8 md:gap-10 lg:gap-12">
+            <div>
+              <div className="inline-flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full preview-primary-bg-10 preview-primary text-base sm:text-lg font-semibold mb-3 sm:mb-4">1</div>
+              <h3 className="font-semibold text-lg mb-3">Learns what you love</h3>
+              <p className="text-muted-foreground leading-relaxed">
+                Swipe on places, share what you liked. Our tool learns your group's preferences.
+              </p>
+            </div>
+            <div>
+              <div className="inline-flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full preview-primary-bg-10 preview-primary text-base sm:text-lg font-semibold mb-3 sm:mb-4">2</div>
+              <h3 className="font-semibold text-lg mb-3">Finds when you're free</h3>
+              <p className="text-muted-foreground leading-relaxed">
+                Everyone shares when they're free. It finds times that work.
+              </p>
+            </div>
+            <div>
+              <div className="inline-flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full preview-primary-bg-10 preview-primary text-base sm:text-lg font-semibold mb-3 sm:mb-4">3</div>
+              <h3 className="font-semibold text-lg mb-3">Picks up on the vibes</h3>
+              <p className="text-muted-foreground leading-relaxed">
+                Too pricey? Too far? Too often? It picks up on the subtle stuff people might not say out loud.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Why Kinmo */}
+      <section className="py-14 sm:py-24 md:py-32 px-6 bg-muted/30 overflow-hidden">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-center mb-12 sm:mb-20">
+            Why Kinmo?
+          </h2>
+
+          <div className="relative">
+            <div className="space-y-4 sm:space-y-8 md:space-y-10">
+              <div className="flex justify-center sm:justify-start sm:pl-4">
+                <p className="text-muted-foreground text-sm sm:text-base md:text-lg tracking-wide text-center sm:text-left">
+                  Reduce the weight of planning
+                </p>
+              </div>
+
+              <div className="flex justify-center sm:justify-start sm:pl-16">
+                <p className="text-muted-foreground text-sm sm:text-base md:text-lg tracking-wide text-center sm:text-left">
+                  Increase the number of planners
+                </p>
+              </div>
+
+              <div className="flex justify-center">
+                <p className="text-muted-foreground/90 text-sm sm:text-base md:text-lg tracking-wide text-center">
+                  Share feedback that loops into future events
+                </p>
+              </div>
+
+              <div className="flex justify-center sm:justify-end sm:pr-16">
+                <p className="text-foreground/70 text-sm sm:text-base md:text-lg tracking-wide text-center sm:text-right">
+                  Improve the quality of your events
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-10 sm:mt-16 md:mt-20 text-center">
+              <p className="text-foreground text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight">
+                See your people more
+              </p>
+              <div className="mt-4 mx-auto w-12 h-1 preview-primary-bg-60 rounded-full" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="py-14 sm:py-20 md:py-28 px-6">
+        <div className="max-w-2xl mx-auto text-center">
+          <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold mb-4 sm:mb-5 leading-snug">
+            Is there anyone you want to see more?
+          </h2>
+          <p className="text-muted-foreground mb-8 sm:mb-10 text-sm sm:text-base md:text-lg leading-relaxed max-w-lg mx-auto">
+            Free to start. See how it feels. No commitment.
+          </p>
+          <Button
+            size="lg"
+            className="preview-btn-primary px-10 h-12 text-base font-semibold"
+          >
+            Get Started
+            <ArrowRight className="w-4 h-4 ml-2" />
+          </Button>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="py-10 px-6 border-t border-border/30">
+        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2.5 text-muted-foreground">
+            <KinmoIcon size={18} color="currentColor" />
+            <span className="text-sm">© {new Date().getFullYear()} Kinmo</span>
+          </div>
+          <div className="flex gap-8">
+            <span className="text-sm text-muted-foreground">Privacy</span>
+            <span className="text-sm text-muted-foreground">Terms</span>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
