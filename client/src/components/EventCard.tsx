@@ -259,7 +259,7 @@ export function AttendeeBottomSheet({
               <div className="flex items-center gap-3">
                 <span className="text-2xl">{event.groupEmoji}</span>
                 <div>
-                  <h3 className="font-bold text-lg text-stone-800">{event.groupName?.trim() || 'Untitled Event'}</h3>
+                  <h3 className="font-bold text-lg text-stone-800">{event.itineraryName?.trim() || event.groupName?.trim() || 'Untitled Event'}</h3>
                   {event.eventDate && (
                     <p className="text-sm text-stone-500">
                       {getDayOfWeek(event.eventDate, event.groupTimezone)}, {getFormattedTime(event.eventDate, event.groupTimezone)}
@@ -435,7 +435,7 @@ export function EventCard({
             {formattedTime || 'Time TBD'}
           </p>
           <p className="text-sm text-stone-500">
-            {event.groupName?.trim() || 'Untitled Event'}
+            {event.itineraryName?.trim() || event.groupName?.trim() || 'Untitled Event'}
           </p>
         </div>
         <ChevronRight className="h-5 w-5 text-stone-300 flex-shrink-0" />

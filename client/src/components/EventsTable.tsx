@@ -850,7 +850,7 @@ export default function EventsTable({
                         color: event.groupAccentColor || 'inherit'
                       }}
                     >
-                      {event.groupName?.trim() || 'Untitled Event'}
+                      {event.itineraryName?.trim() || event.groupName?.trim() || 'Untitled Event'}
                     </Badge>
                     <div className="flex gap-2 mt-1 items-center flex-wrap">
                       {getRoleBadge(event)}
