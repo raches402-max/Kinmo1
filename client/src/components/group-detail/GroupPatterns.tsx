@@ -1,65 +1,48 @@
 /**
- * AIPreferenceLearning
- * Displays AI preference learning controls and discovered group patterns.
- * Includes a "Refine Ideas" button to start a swipe session and shows
- * AI-discovered preference insights.
+ * GroupPatterns
+ * Shows learned group preferences and lets users refine their taste through swiping.
  */
 
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Sparkles, Target } from "lucide-react";
+import { Heart, RefreshCw, Target } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
 // ========== TYPES ==========
 
-/**
- * A single preference insight discovered by AI
- */
 export interface PreferenceInsight {
   icon: string;
   pattern: string;
   description: string;
 }
 
-interface AIPreferenceLearningProps {
-  /**
-   * Group ID for refreshing insights
-   */
+interface GroupPatternsProps {
   groupId: string;
-  /**
-   * AI-discovered preference insights
-   */
   preferenceInsights?: PreferenceInsight[] | null;
-  /**
-   * Number of feedback actions the AI has learned from
-   */
   feedbackCount?: number;
-  /**
-   * Callback to open the swipe session
-   */
   onOpenSwipeSession: () => void;
 }
 
 // ========== COMPONENT ==========
 
-export function AIPreferenceLearning({
+export function GroupPatterns({
   groupId,
   preferenceInsights,
   feedbackCount,
   onOpenSwipeSession,
-}: AIPreferenceLearningProps) {
+}: GroupPatternsProps) {
   const { toast } = useToast();
 
   const handleRefreshInsights = async () => {
     try {
       await apiRequest("POST", `/api/groups/${groupId}/analyze-patterns`, {});
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId] });
-      toast({ title: "Insights refreshed successfully" });
+      toast({ title: "Patterns refreshed" });
     } catch (error: any) {
       toast({
-        title: "Failed to refresh insights",
+        title: "Couldn't refresh patterns",
         description: error.message,
         variant: "destructive",
       });
@@ -70,56 +53,55 @@ export function AIPreferenceLearning({
 
   return (
     <>
-      {/* AI Preference Actions */}
+      {/* Refine Preferences Card */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            AI Preference Learning
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Heart className="h-4 w-4 text-accent" />
+            Your Group's Taste
           </CardTitle>
-          <CardDescription>Refine AI understanding of your group's preferences</CardDescription>
+          <CardDescription>Help us learn what you love</CardDescription>
         </CardHeader>
         <CardContent>
           <Button onClick={onOpenSwipeSession} variant="outline" data-testid="button-refine-ideas">
             <Target className="mr-2 h-4 w-4" />
             Refine Ideas
           </Button>
-          <p className="text-sm text-muted-foreground mt-2">
-            Swipe through activity concepts to help AI learn your group's taste
+          <p className="text-sm text-muted-foreground mt-3">
+            Swipe through ideas to teach us your preferences
           </p>
         </CardContent>
       </Card>
 
-      {/* AI Preference Insights Section */}
+      {/* Learned Patterns Section */}
       {hasInsights && (
         <Card>
-          <CardHeader>
+          <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-purple-500" />
-                  Your Group's Patterns
+                <CardTitle className="flex items-center gap-2 text-base">
+                  What We've Noticed
                 </CardTitle>
                 <CardDescription>
-                  AI-discovered preferences based on {feedbackCount || 0} feedback actions
+                  Based on {feedbackCount || 0} things you've liked
                 </CardDescription>
               </div>
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
                 onClick={handleRefreshInsights}
-                className="gap-2"
+                className="gap-1.5 text-muted-foreground hover:text-foreground"
                 data-testid="button-refresh-insights"
               >
-                <Sparkles className="w-4 h-4" />
+                <RefreshCw className="w-3.5 h-3.5" />
                 Refresh
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-2">
             {preferenceInsights.map((insight, index) => (
-              <div key={index} className="flex gap-3 p-3 bg-muted/50 rounded-md">
-                <div className="text-2xl flex-shrink-0">{insight.icon}</div>
+              <div key={index} className="flex gap-3 p-3 bg-muted/30 rounded-lg">
+                <div className="text-xl flex-shrink-0">{insight.icon}</div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium">{insight.pattern}</p>
                   <p className="text-sm text-muted-foreground">{insight.description}</p>
@@ -132,3 +114,6 @@ export function AIPreferenceLearning({
     </>
   );
 }
+
+// Keep the old export name for backwards compatibility during transition
+export { GroupPatterns as AIPreferenceLearning };
