@@ -104,7 +104,7 @@ export default function PrototypeKinmoText() {
   const [selected, setSelected] = useState<string | null>(null);
 
   return (
-    <div className="min-h-screen bg-[#fafafa]">
+    <div className="min-h-screen bg-background">
       {/* Custom styles for special effects */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
@@ -138,30 +138,30 @@ export default function PrototypeKinmoText() {
         }
 
         .option-card.selected {
-          box-shadow: 0 0 0 2px #E5A91A, 0 8px 32px rgba(0, 0, 0, 0.1);
+          box-shadow: 0 0 0 2px hsl(var(--primary)), 0 8px 32px rgba(0, 0, 0, 0.1);
         }
       `}</style>
 
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-sm border-b border-black/5">
+      <header className="sticky top-0 z-50 bg-background/90 backdrop-blur-sm border-b border-border/40">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/">
-            <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-900 hover:bg-black/5">
+            <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Landing
             </Button>
           </Link>
-          <div className="flex items-center gap-2 text-gray-500 text-sm">
-            <Sparkles className="w-4 h-4 text-[#E5A91A]" />
+          <div className="flex items-center gap-2 text-muted-foreground text-sm">
+            <Sparkles className="w-4 h-4 text-primary" />
             <span>Kinmo Text Preview</span>
           </div>
         </div>
       </header>
 
       {/* Hero section showing selected option large */}
-      <section className="py-16 px-4 border-b border-black/5">
+      <section className="py-16 px-4 border-b border-border">
         <div className="max-w-4xl mx-auto text-center">
-          <p className="text-gray-400 text-sm uppercase tracking-widest mb-8">Preview at Full Size</p>
+          <p className="text-muted-foreground text-sm uppercase tracking-widest mb-8">Preview at Full Size</p>
           <div className="min-h-[120px] flex items-center justify-center">
             {selected ? (
               <h1
@@ -171,14 +171,14 @@ export default function PrototypeKinmoText() {
                 Kinmo
               </h1>
             ) : (
-              <h1 className="text-6xl sm:text-7xl md:text-8xl font-['Plus_Jakarta_Sans'] text-[#F2C94C] font-medium">
+              <h1 className="text-6xl sm:text-7xl md:text-8xl font-['Plus_Jakarta_Sans'] text-primary font-medium">
                 Kinmo
-                <span className="block text-lg text-gray-400 font-normal mt-4">Click an option below to preview</span>
+                <span className="block text-lg text-muted-foreground font-normal mt-4">Click an option below to preview</span>
               </h1>
             )}
           </div>
           {selected && (
-            <p className="text-gray-500 mt-6">
+            <p className="text-muted-foreground mt-6">
               {kinmoOptions.find(o => o.id === selected)?.name}: {kinmoOptions.find(o => o.id === selected)?.description}
             </p>
           )}
@@ -188,21 +188,21 @@ export default function PrototypeKinmoText() {
       {/* Options Grid */}
       <section className="py-12 px-4">
         <div className="max-w-6xl mx-auto">
-          <h2 className="text-gray-400 text-sm uppercase tracking-widest mb-8 text-center">Select a Style Option</h2>
+          <h2 className="text-muted-foreground text-sm uppercase tracking-widest mb-8 text-center">Select a Style Option</h2>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {kinmoOptions.map((option) => (
               <button
                 key={option.id}
                 onClick={() => setSelected(option.id)}
-                className={`option-card relative p-6 rounded-xl bg-white border border-black/10 text-left group ${
+                className={`option-card relative p-6 rounded-xl bg-card border border-border text-left group ${
                   selected === option.id ? 'selected' : ''
                 }`}
               >
                 {/* Selection indicator */}
                 {selected === option.id && (
-                  <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-[#E5A91A] flex items-center justify-center">
-                    <Check className="w-4 h-4 text-white" />
+                  <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-primary flex items-center justify-center">
+                    <Check className="w-4 h-4 text-primary-foreground" />
                   </div>
                 )}
 
@@ -217,9 +217,9 @@ export default function PrototypeKinmoText() {
                 </div>
 
                 {/* Label */}
-                <div className="border-t border-black/5 pt-3">
-                  <h3 className="text-gray-800 font-medium text-sm">{option.name}</h3>
-                  <p className="text-gray-400 text-xs mt-1 line-clamp-2">{option.description}</p>
+                <div className="border-t border-border pt-3">
+                  <h3 className="text-foreground font-medium text-sm">{option.name}</h3>
+                  <p className="text-muted-foreground text-xs mt-1 line-clamp-2">{option.description}</p>
                 </div>
               </button>
             ))}
@@ -228,19 +228,19 @@ export default function PrototypeKinmoText() {
       </section>
 
       {/* In-context preview */}
-      <section className="py-12 px-4 border-t border-black/5">
+      <section className="py-12 px-4 border-t border-border">
         <div className="max-w-4xl mx-auto">
-          <h2 className="text-gray-400 text-sm uppercase tracking-widest mb-8 text-center">In Animation Context</h2>
+          <h2 className="text-muted-foreground text-sm uppercase tracking-widest mb-8 text-center">In Animation Context</h2>
 
-          <div className="rounded-2xl bg-white p-8 md:p-12 border border-black/5 shadow-sm">
+          <div className="rounded-2xl bg-card p-8 md:p-12 border border-border shadow-sm">
             <div className="text-center space-y-6">
               {/* Simulated "See your kin more" faded state */}
-              <p className="text-3xl md:text-4xl font-['Plus_Jakarta_Sans'] text-gray-300">
-                See your <span className="text-gray-400">kin</span> more.
+              <p className="text-3xl md:text-4xl font-['Plus_Jakarta_Sans'] text-muted-foreground/50">
+                See your <span className="text-muted-foreground/70">kin</span> more.
               </p>
 
               {/* Arrow */}
-              <div className="text-gray-300 text-2xl">↓</div>
+              <div className="text-muted-foreground/50 text-2xl">↓</div>
 
               {/* Kinmo appears */}
               <div className="py-4">
@@ -252,7 +252,7 @@ export default function PrototypeKinmoText() {
                     Kinmo
                   </span>
                 ) : (
-                  <span className="text-4xl md:text-5xl font-['Plus_Jakarta_Sans'] text-[#F2C94C] font-medium">
+                  <span className="text-4xl md:text-5xl font-['Plus_Jakarta_Sans'] text-primary font-medium">
                     Kinmo
                   </span>
                 )}
@@ -264,16 +264,16 @@ export default function PrototypeKinmoText() {
 
       {/* Footer with selection summary */}
       {selected && (
-        <section className="sticky bottom-0 py-4 px-4 bg-white/95 backdrop-blur-sm border-t border-black/5">
+        <section className="sticky bottom-0 py-4 px-4 bg-background/95 backdrop-blur-sm border-t border-border">
           <div className="max-w-4xl mx-auto flex items-center justify-between">
             <div>
-              <p className="text-gray-800 font-medium">{kinmoOptions.find(o => o.id === selected)?.name}</p>
-              <p className="text-gray-500 text-sm">{kinmoOptions.find(o => o.id === selected)?.description}</p>
+              <p className="text-foreground font-medium">{kinmoOptions.find(o => o.id === selected)?.name}</p>
+              <p className="text-muted-foreground text-sm">{kinmoOptions.find(o => o.id === selected)?.description}</p>
             </div>
             <Button
               onClick={() => setSelected(null)}
               variant="ghost"
-              className="text-gray-500 hover:text-gray-800"
+              className="text-muted-foreground hover:text-foreground"
             >
               Clear
             </Button>
