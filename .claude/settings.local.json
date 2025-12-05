@@ -181,7 +181,9 @@
       "Bash(NODE_ENV=production timeout 5 node dist/index.js)",
       "Bash(NODE_ENV=production timeout 10 node dist/index.js)",
       "Bash(NODE_ENV=production PORT=3333 timeout:*)",
-      "Bash(timeout 45 npx tsc:*)"
+      "Bash(timeout 45 npx tsc:*)",
+      "Bash(while read hash msg)",
+      "Bash(do echo \"=== $hash: $msg ===\")"
     ],
     "deny": [],
     "ask": []
