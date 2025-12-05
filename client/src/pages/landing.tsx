@@ -136,7 +136,7 @@ function RotatingHeadline() {
     return (
       <span className="relative block w-[280px] sm:w-[340px] md:w-[420px] lg:w-[500px] h-[110px] sm:h-[140px] md:h-[170px] lg:h-[200px] animate-fade-out-phrase">
         <span className="absolute top-0 -left-8 sm:-left-12 md:-left-16 lg:-left-20 text-foreground">See your</span>
-        <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-primary font-medium whitespace-nowrap">
+        <span className="absolute top-[42%] left-1/2 -translate-x-1/2 -translate-y-1/2 text-primary font-medium whitespace-nowrap">
           kin
         </span>
         <span className="absolute bottom-0 -right-6 sm:-right-8 md:-right-10 lg:-right-12 text-foreground">more.</span>
@@ -167,7 +167,7 @@ function RotatingHeadline() {
     return (
       <span className="relative block w-[280px] sm:w-[340px] md:w-[420px] lg:w-[500px] h-[110px] sm:h-[140px] md:h-[170px] lg:h-[200px] animate-fade-in-phrase">
         <span className="absolute top-0 -left-8 sm:-left-12 md:-left-16 lg:-left-20 text-foreground">See your</span>
-        <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-primary font-medium whitespace-nowrap">
+        <span className="absolute top-[42%] left-1/2 -translate-x-1/2 -translate-y-1/2 text-primary font-medium whitespace-nowrap">
           {currentWords[0]}
         </span>
         <span className="absolute bottom-0 -right-6 sm:-right-8 md:-right-10 lg:-right-12 text-foreground">more.</span>
@@ -181,7 +181,7 @@ function RotatingHeadline() {
     <span className="relative block w-[280px] sm:w-[340px] md:w-[420px] lg:w-[500px] h-[110px] sm:h-[140px] md:h-[170px] lg:h-[200px]">
       <span className="absolute top-0 -left-8 sm:-left-12 md:-left-16 lg:-left-20 text-foreground">See your</span>
       <span
-        className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-all duration-300 text-primary font-medium whitespace-nowrap ${
+        className={`absolute top-[42%] left-1/2 -translate-x-1/2 -translate-y-1/2 transition-all duration-300 text-primary font-medium whitespace-nowrap ${
           isAnimating ? "opacity-0 translate-y-2" : "opacity-100 translate-y-0"
         }`}
       >
