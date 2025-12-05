@@ -134,7 +134,7 @@ function RotatingHeadline() {
   // fadeToKinmo phase - fade out entire phrase
   if (phase === "fadeToKinmo") {
     return (
-      <span className="relative block w-[280px] sm:w-[340px] md:w-[420px] lg:w-[500px] h-[90px] sm:h-[110px] md:h-[130px] lg:h-[150px] animate-fade-out-phrase">
+      <span className="relative block w-[280px] sm:w-[340px] md:w-[420px] lg:w-[500px] h-[110px] sm:h-[140px] md:h-[170px] lg:h-[200px] animate-fade-out-phrase">
         <span className="absolute top-0 left-0 text-foreground">See your</span>
         <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-primary font-medium whitespace-nowrap">
           kin
@@ -165,7 +165,7 @@ function RotatingHeadline() {
   // fadeIn phase - fade in the full phrase to restart
   if (phase === "fadeIn") {
     return (
-      <span className="relative block w-[280px] sm:w-[340px] md:w-[420px] lg:w-[500px] h-[90px] sm:h-[110px] md:h-[130px] lg:h-[150px] animate-fade-in-phrase">
+      <span className="relative block w-[280px] sm:w-[340px] md:w-[420px] lg:w-[500px] h-[110px] sm:h-[140px] md:h-[170px] lg:h-[200px] animate-fade-in-phrase">
         <span className="absolute top-0 left-0 text-foreground">See your</span>
         <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-primary font-medium whitespace-nowrap">
           {currentWords[0]}
@@ -178,7 +178,7 @@ function RotatingHeadline() {
   // Rotating phase - fixed diagonal layout with absolute positioning
   // "See your" top-left, rotating word centered, "more." bottom-right
   return (
-    <span className="relative block w-[280px] sm:w-[340px] md:w-[420px] lg:w-[500px] h-[90px] sm:h-[110px] md:h-[130px] lg:h-[150px]">
+    <span className="relative block w-[280px] sm:w-[340px] md:w-[420px] lg:w-[500px] h-[110px] sm:h-[140px] md:h-[170px] lg:h-[200px]">
       <span className="absolute top-0 left-0 text-foreground">See your</span>
       <span
         className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-all duration-300 text-primary font-medium whitespace-nowrap ${
@@ -237,7 +237,7 @@ export default function Landing() {
 
           <p className="text-sm tracking-wide uppercase text-muted-foreground mb-3">Using AI to help you</p>
           {/* Fixed height container to prevent layout shift when "Kinmo" displays */}
-          <div className="min-h-[90px] sm:min-h-[110px] md:min-h-[130px] lg:min-h-[150px] flex items-center justify-center mb-8 sm:mb-12">
+          <div className="min-h-[110px] sm:min-h-[140px] md:min-h-[170px] lg:min-h-[200px] flex items-center justify-center mb-8 sm:mb-12">
             <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.15]">
               <RotatingHeadline />
             </h1>
