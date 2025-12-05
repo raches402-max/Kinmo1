@@ -63,6 +63,10 @@ import {
   UserCheck,
   Target,
   Palette,
+  Sun,
+  Sunset,
+  Moon,
+  Sparkles,
 } from "lucide-react";
 
 // ============================================================================
@@ -216,16 +220,98 @@ const mockNextEvent = {
   daysUntil: 9,
 };
 
-// Mock availability grid (days x time periods)
-const mockAvailability = {
-  monday: { morning: false, afternoon: true, evening: true },
-  tuesday: { morning: false, afternoon: true, evening: true },
-  wednesday: { morning: false, afternoon: false, evening: false },
-  thursday: { morning: false, afternoon: true, evening: true },
-  friday: { morning: false, afternoon: true, evening: true },
-  saturday: { morning: true, afternoon: true, evening: true },
-  sunday: { morning: true, afternoon: true, evening: false },
+// Mock availability grid (days x time periods) - for current user
+const mockMyAvailability = {
+  Mon: { morning: false, afternoon: true, evening: true },
+  Tue: { morning: false, afternoon: true, evening: true },
+  Wed: { morning: false, afternoon: false, evening: false },
+  Thu: { morning: false, afternoon: true, evening: true },
+  Fri: { morning: false, afternoon: true, evening: true },
+  Sat: { morning: true, afternoon: true, evening: true },
+  Sun: { morning: true, afternoon: true, evening: false },
 };
+
+// Mock all members' availability data for heatmap
+const mockMembersAvailability = [
+  {
+    memberId: "1",
+    memberName: "Jane Doe",
+    availability: {
+      Mon: { morning: false, afternoon: true, evening: true },
+      Tue: { morning: false, afternoon: true, evening: true },
+      Wed: { morning: false, afternoon: false, evening: false },
+      Thu: { morning: false, afternoon: true, evening: true },
+      Fri: { morning: true, afternoon: true, evening: true },
+      Sat: { morning: true, afternoon: true, evening: true },
+      Sun: { morning: true, afternoon: true, evening: false },
+    },
+  },
+  {
+    memberId: "2",
+    memberName: "Mike Smith",
+    availability: {
+      Mon: { morning: false, afternoon: true, evening: true },
+      Tue: { morning: true, afternoon: true, evening: false },
+      Wed: { morning: false, afternoon: true, evening: false },
+      Thu: { morning: false, afternoon: true, evening: true },
+      Fri: { morning: false, afternoon: true, evening: true },
+      Sat: { morning: true, afternoon: true, evening: true },
+      Sun: { morning: false, afternoon: true, evening: true },
+    },
+  },
+  {
+    memberId: "3",
+    memberName: "Sarah Johnson",
+    availability: {
+      Mon: { morning: false, afternoon: false, evening: true },
+      Tue: { morning: false, afternoon: true, evening: true },
+      Wed: { morning: false, afternoon: false, evening: false },
+      Thu: { morning: false, afternoon: true, evening: true },
+      Fri: { morning: false, afternoon: true, evening: true },
+      Sat: { morning: true, afternoon: true, evening: true },
+      Sun: { morning: true, afternoon: true, evening: false },
+    },
+  },
+  {
+    memberId: "4",
+    memberName: "Alex Chen",
+    availability: {
+      Mon: { morning: false, afternoon: true, evening: false },
+      Tue: { morning: false, afternoon: false, evening: true },
+      Wed: { morning: false, afternoon: false, evening: false },
+      Thu: { morning: false, afternoon: false, evening: true },
+      Fri: { morning: false, afternoon: true, evening: true },
+      Sat: { morning: false, afternoon: true, evening: true },
+      Sun: { morning: false, afternoon: false, evening: false },
+    },
+  },
+  {
+    memberId: "5",
+    memberName: "Emily Davis",
+    availability: {
+      Mon: { morning: false, afternoon: true, evening: true },
+      Tue: { morning: false, afternoon: true, evening: true },
+      Wed: { morning: false, afternoon: false, evening: true },
+      Thu: { morning: false, afternoon: true, evening: false },
+      Fri: { morning: false, afternoon: false, evening: false },
+      Sat: { morning: true, afternoon: true, evening: true },
+      Sun: { morning: true, afternoon: true, evening: true },
+    },
+  },
+  {
+    memberId: "6",
+    memberName: "Chris Wilson",
+    availability: {
+      Mon: { morning: false, afternoon: true, evening: true },
+      Tue: { morning: false, afternoon: true, evening: true },
+      Wed: { morning: false, afternoon: true, evening: true },
+      Thu: { morning: false, afternoon: true, evening: true },
+      Fri: { morning: false, afternoon: true, evening: true },
+      Sat: { morning: true, afternoon: true, evening: true },
+      Sun: { morning: true, afternoon: true, evening: true },
+    },
+  },
+];
 
 const mockMyPreferences = {
   budgetOverrideEnabled: false,
