@@ -70,14 +70,17 @@ export default function InvitePage() {
     }
   }, [token]);
 
-  // Save claim data to localStorage
-  const saveClaimData = (memberId: string, token: string, rsvp?: string) => {
+  // Save claim data to localStorage (using URL token as the key)
+  const saveClaimData = (memberId: string, memberClaimToken: string, rsvp?: string) => {
     const data = {
       memberId,
-      claimToken: token,
+      claimToken: memberClaimToken,
       rsvpStatus: rsvp || selectedRsvp,
     };
-    localStorage.setItem(`claim_${params?.token}`, JSON.stringify(data));
+    // Use the URL token (shareable link) as the localStorage key
+    if (token) {
+      localStorage.setItem(`claim_${token}`, JSON.stringify(data));
+    }
   };
 
   // Fetch group by shareable link
@@ -191,16 +194,25 @@ export default function InvitePage() {
   });
 
   // Join as new member mutation (for "I'm not on this list" flow)
+  // This joins the group AND claims the member in one flow
   const joinMutation = useMutation({
     mutationFn: async (data: { name: string; email?: string }) => {
-      return await apiRequest("POST", `/api/groups/${group?.id}/join`, data);
-    },
-    onSuccess: (newMember: any) => {
-      // Set the new member as claimed and proceed to RSVP flow
+      // Step 1: Join the group (creates the member)
+      const newMember = await apiRequest("POST", `/api/groups/${group?.id}/join`, data);
+
+      // Step 2: Claim the member (stores the claim token on the server)
       const newClaimToken = crypto.randomUUID();
-      setClaimedMemberId(newMember.id);
-      setClaimToken(newClaimToken);
-      saveClaimData(newMember.id, newClaimToken);
+      await apiRequest("POST", `/api/members/${newMember.id}/claim`, {
+        claimToken: newClaimToken,
+      });
+
+      return { member: newMember, claimToken: newClaimToken };
+    },
+    onSuccess: (data) => {
+      // Set the claimed member and proceed to RSVP flow
+      setClaimedMemberId(data.member.id);
+      setClaimToken(data.claimToken);
+      saveClaimData(data.member.id, data.claimToken);
       queryClient.invalidateQueries({ queryKey: ["/api/groups", group?.id, "members"] });
       setShowAddSelfForm(false);
       toast({
