@@ -1,5 +1,5 @@
 // Reference: javascript_log_in_with_replit blueprint
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { lazy, Suspense } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -55,6 +55,7 @@ const Places = lazy(() => import("@/pages/places"));
 
 function Router() {
   const { isAuthenticated, isLoading, error } = useAuth();
+  const [location] = useLocation();
 
   // Show loading spinner while checking authentication
   if (isLoading) {
@@ -160,8 +161,8 @@ function Router() {
         </Suspense>
       </div>
 
-      {/* Show bottom nav only for authenticated users */}
-      {isAuthenticated && <BottomNav />}
+      {/* Show bottom nav only for authenticated users, hide on prototype pages */}
+      {isAuthenticated && !location.startsWith("/prototype") && <BottomNav />}
     </>
   );
 }
