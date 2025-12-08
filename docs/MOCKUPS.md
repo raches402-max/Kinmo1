@@ -18,6 +18,9 @@ A catalog of all mockups and design explorations for Kinmo.
 - `client/public/mockups/mobile-landing-mockup.html`
 - `client/src/pages/landing.tsx` (live React implementation)
 
+**Notes & Future Updates:**
+-
+
 ---
 
 ## Event Details
@@ -31,6 +34,9 @@ A catalog of all mockups and design explorations for Kinmo.
 - `client/public/event-details-mockup.html`
 - `client/public/event-details-mockup-variations.html`
 
+**Notes & Future Updates:**
+-
+
 ---
 
 ## Group Details
@@ -41,6 +47,9 @@ A catalog of all mockups and design explorations for Kinmo.
 
 **Local files:**
 - `client/public/group-details-mockup.html`
+
+**Notes & Future Updates:**
+-
 
 ---
 
@@ -54,6 +63,9 @@ A catalog of all mockups and design explorations for Kinmo.
 **Local files:**
 - `client/public/mockups/event-planning-redesign.html`
 - `client/public/mockups/event-cards-redesign.html`
+
+**Notes & Future Updates:**
+-
 
 ---
 
@@ -69,6 +81,9 @@ A catalog of all mockups and design explorations for Kinmo.
 **Design docs:**
 - `docs/dashboard-mockup.md` (Nov 23, 2024)
 
+**Notes & Future Updates:**
+-
+
 ---
 
 ## Branding & Logo
@@ -82,6 +97,9 @@ A catalog of all mockups and design explorations for Kinmo.
 - `client/logo-concepts.html`
 - `client/logo-concepts-v2.html`
 
+**Notes & Future Updates:**
+-
+
 ---
 
 ## Feedback Page
@@ -92,6 +110,9 @@ A catalog of all mockups and design explorations for Kinmo.
 
 **Local files:**
 - `client/src/pages/feedback-mockup.tsx`
+
+**Notes & Future Updates:**
+-
 
 ---
 
