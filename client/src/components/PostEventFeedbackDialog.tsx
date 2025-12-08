@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Calendar, Check, X, MapPin } from "lucide-react";
+import { Calendar, Check, X, MapPin, Sparkles, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -15,6 +15,95 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { getErrorToast } from "@/components/ErrorDisplay";
 import { apiRequest } from "@/lib/queryClient";
+
+// Celebration component with floating particles
+function CelebrationOverlay({ onComplete }: { onComplete: () => void }) {
+  useEffect(() => {
+    const timer = setTimeout(onComplete, 2500);
+    return () => clearTimeout(timer);
+  }, [onComplete]);
+
+  // Generate random particles
+  const particles = Array.from({ length: 20 }, (_, i) => ({
+    id: i,
+    left: Math.random() * 100,
+    delay: Math.random() * 0.5,
+    duration: 1.5 + Math.random() * 1,
+    size: 6 + Math.random() * 8,
+    type: ['sparkle', 'heart', 'dot'][Math.floor(Math.random() * 3)] as 'sparkle' | 'heart' | 'dot',
+  }));
+
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/95 z-50 overflow-hidden">
+      {/* Floating particles */}
+      {particles.map((particle) => (
+        <div
+          key={particle.id}
+          className="absolute animate-float-up pointer-events-none"
+          style={{
+            left: `${particle.left}%`,
+            bottom: '-20px',
+            animationDelay: `${particle.delay}s`,
+            animationDuration: `${particle.duration}s`,
+          }}
+        >
+          {particle.type === 'sparkle' && (
+            <Sparkles
+              className="text-primary"
+              style={{ width: particle.size, height: particle.size }}
+            />
+          )}
+          {particle.type === 'heart' && (
+            <Heart
+              className="text-accent fill-accent/50"
+              style={{ width: particle.size, height: particle.size }}
+            />
+          )}
+          {particle.type === 'dot' && (
+            <div
+              className="rounded-full bg-secondary"
+              style={{ width: particle.size * 0.6, height: particle.size * 0.6 }}
+            />
+          )}
+        </div>
+      ))}
+
+      {/* Center content */}
+      <div className="relative z-10 text-center animate-in zoom-in-50 fade-in duration-500">
+        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center animate-pulse">
+          <Sparkles className="w-8 h-8 text-primary" />
+        </div>
+        <h3 className="text-xl font-bold mb-2">Thanks for sharing!</h3>
+        <p className="text-muted-foreground text-sm max-w-[200px] mx-auto">
+          Your feedback helps us plan even better events for your group
+        </p>
+      </div>
+
+      {/* Styles for float animation */}
+      <style>{`
+        @keyframes float-up {
+          0% {
+            transform: translateY(0) rotate(0deg) scale(1);
+            opacity: 0;
+          }
+          10% {
+            opacity: 1;
+          }
+          90% {
+            opacity: 1;
+          }
+          100% {
+            transform: translateY(-400px) rotate(360deg) scale(0.5);
+            opacity: 0;
+          }
+        }
+        .animate-float-up {
+          animation: float-up ease-out forwards;
+        }
+      `}</style>
+    </div>
+  );
+}
 
 interface PostEventFeedbackDialogProps {
   open: boolean;
@@ -156,6 +245,9 @@ export function PostEventFeedbackDialog({
   const [frequencyPreference, setFrequencyPreference] = useState<number>(3);
   const [notes, setNotes] = useState("");
 
+  // Celebration state
+  const [showCelebration, setShowCelebration] = useState(false);
+
   const resetForm = () => {
     setAttended(null);
     setDidNotAttendReason("");
@@ -166,6 +258,7 @@ export function PostEventFeedbackDialog({
     setTimingRating(0);
     setFrequencyPreference(3);
     setNotes("");
+    setShowCelebration(false);
   };
 
   // Mutation
@@ -202,17 +295,18 @@ export function PostEventFeedbackDialog({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
-      onOpenChange(false);
-      resetForm();
-      toast({
-        title: "Thanks for the feedback!",
-        description: "This helps us plan better events.",
-      });
+      // Show celebration instead of immediately closing
+      setShowCelebration(true);
     },
     onError: (error: any) => {
       toast(getErrorToast(error));
     },
   });
+
+  const handleCelebrationComplete = () => {
+    onOpenChange(false);
+    resetForm();
+  };
 
   const handleSubmit = () => {
     if (!event || attended === null) return;
@@ -243,7 +337,12 @@ export function PostEventFeedbackDialog({
 
   return (
     <ResponsiveDialog open={open} onOpenChange={handleOpenChange}>
-      <ResponsiveDialogContent className="max-w-md">
+      <ResponsiveDialogContent className="max-w-md relative overflow-hidden">
+        {/* Celebration overlay */}
+        {showCelebration && (
+          <CelebrationOverlay onComplete={handleCelebrationComplete} />
+        )}
+
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle className="text-2xl font-bold">How was it?</ResponsiveDialogTitle>
           <p className="text-sm text-muted-foreground">Quick feedback helps plan better events</p>

@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format } from "date-fns";
-import { Calendar, Check, X, MapPin } from "lucide-react";
+import { Calendar, Check, X, MapPin, Sparkles, Heart } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,6 +15,95 @@ import { cn } from "@/lib/utils";
  * - Existing UI components (Card, Button)
  * - Tailwind utilities for consistency
  */
+
+// Celebration component with floating particles
+function CelebrationOverlay({ onComplete }: { onComplete: () => void }) {
+  useEffect(() => {
+    const timer = setTimeout(onComplete, 2500);
+    return () => clearTimeout(timer);
+  }, [onComplete]);
+
+  // Generate random particles
+  const particles = Array.from({ length: 20 }, (_, i) => ({
+    id: i,
+    left: Math.random() * 100,
+    delay: Math.random() * 0.5,
+    duration: 1.5 + Math.random() * 1,
+    size: 6 + Math.random() * 8,
+    type: ['sparkle', 'heart', 'dot'][Math.floor(Math.random() * 3)] as 'sparkle' | 'heart' | 'dot',
+  }));
+
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/95 z-50 overflow-hidden rounded-3xl">
+      {/* Floating particles */}
+      {particles.map((particle) => (
+        <div
+          key={particle.id}
+          className="absolute animate-float-up pointer-events-none"
+          style={{
+            left: `${particle.left}%`,
+            bottom: '-20px',
+            animationDelay: `${particle.delay}s`,
+            animationDuration: `${particle.duration}s`,
+          }}
+        >
+          {particle.type === 'sparkle' && (
+            <Sparkles
+              className="text-primary"
+              style={{ width: particle.size, height: particle.size }}
+            />
+          )}
+          {particle.type === 'heart' && (
+            <Heart
+              className="text-accent fill-accent/50"
+              style={{ width: particle.size, height: particle.size }}
+            />
+          )}
+          {particle.type === 'dot' && (
+            <div
+              className="rounded-full bg-secondary"
+              style={{ width: particle.size * 0.6, height: particle.size * 0.6 }}
+            />
+          )}
+        </div>
+      ))}
+
+      {/* Center content */}
+      <div className="relative z-10 text-center animate-in zoom-in-50 fade-in duration-500">
+        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center animate-pulse">
+          <Sparkles className="w-8 h-8 text-primary" />
+        </div>
+        <h3 className="text-xl font-bold mb-2">Thanks for sharing!</h3>
+        <p className="text-muted-foreground text-sm max-w-[200px] mx-auto">
+          Your feedback helps us plan even better events for your group
+        </p>
+      </div>
+
+      {/* Styles for float animation */}
+      <style>{`
+        @keyframes float-up {
+          0% {
+            transform: translateY(0) rotate(0deg) scale(1);
+            opacity: 0;
+          }
+          10% {
+            opacity: 1;
+          }
+          90% {
+            opacity: 1;
+          }
+          100% {
+            transform: translateY(-400px) rotate(360deg) scale(0.5);
+            opacity: 0;
+          }
+        }
+        .animate-float-up {
+          animation: float-up ease-out forwards;
+        }
+      `}</style>
+    </div>
+  );
+}
 
 interface FeedbackSurveyMockupProps {
   eventName?: string;
@@ -151,8 +240,13 @@ export function FeedbackSurveyMockup({
   const [timingRating, setTimingRating] = useState<number>(0);
   const [frequencyPreference, setFrequencyPreference] = useState<number>(3);
   const [notes, setNotes] = useState("");
+  const [showCelebration, setShowCelebration] = useState(false);
 
   const handleSubmit = () => {
+    // Show celebration animation
+    setShowCelebration(true);
+
+    // Call the onSubmit callback
     onSubmit?.({
       attended,
       didNotAttendReason: attended === false ? didNotAttendReason : undefined,
@@ -166,12 +260,22 @@ export function FeedbackSurveyMockup({
     });
   };
 
+  const handleCelebrationComplete = () => {
+    setShowCelebration(false);
+    onCancel?.(); // Close the survey after celebration
+  };
+
   // Only require the attendance question - everything else is optional
   const isValid = attended !== null;
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-6">
-      <Card className="max-w-md mx-auto overflow-hidden">
+      <Card className="max-w-md mx-auto overflow-hidden relative">
+        {/* Celebration overlay */}
+        {showCelebration && (
+          <CelebrationOverlay onComplete={handleCelebrationComplete} />
+        )}
+
         {/* Header */}
         <CardHeader className="pb-4">
           <CardTitle className="text-2xl font-bold">How was it?</CardTitle>
