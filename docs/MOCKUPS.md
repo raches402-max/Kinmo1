@@ -6,6 +6,18 @@ A catalog of all mockups and design explorations for Kinmo.
 
 ---
 
+## Landing Page
+
+| Mockup | Description | Updated |
+|--------|-------------|---------|
+| [Mobile Landing Mockup](https://44512696-dbac-4dd3-bce3-5b36e27640e8-00-14jxlhpvi40bm.kirk.replit.dev/mockups/mobile-landing-mockup.html) | Mobile-first landing page with phone frame preview | Dec 8, 2024 |
+
+**Local files:**
+- `client/public/mockups/mobile-landing-mockup.html`
+- `client/src/pages/landing.tsx` (live React implementation)
+
+---
+
 ## Event Details
 
 | Mockup | Description | Updated |
