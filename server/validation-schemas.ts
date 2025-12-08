@@ -415,20 +415,23 @@ export const postEventFeedbackSchema = z.object({
   actuallyAttended: z.boolean(),
   // If didn't attend: why not?
   didNotAttendReason: z.enum(['event_cancelled', 'couldnt_make_it', 'forgot', 'other']).optional(),
-  // Venue feedback (only if attended)
+
+  // New simplified feedback format (1-5 scale ratings, all optional)
+  overallRating: z.number().min(1).max(5).optional(),
+  venueRating: z.number().min(1).max(5).optional(),
+  budgetRating: z.number().min(1).max(5).optional(),
+  activityFit: z.number().min(1).max(5).optional(),
+  timingRating: z.number().min(1).max(5).optional(),
+  frequencyPreference: z.number().min(1).max(5).optional(),
+  notes: z.string().optional(),
+
+  // Legacy fields - keeping for backwards compatibility with old feedback
   wouldReturnToVenue: z.enum(['yes', 'maybe', 'no']).optional(),
   venueVibe: z.enum(['too_loud', 'too_quiet', 'just_right', 'too_crowded', 'too_empty']).optional(),
-  // Activity/group learning
   groupEnjoyment: z.enum(['loved_it', 'good', 'okay', 'not_for_us']).optional(),
   activityMatch: z.enum(['perfect_fit', 'good_enough', 'try_something_different']).optional(),
-  // Timing feedback
   timingFeedback: z.enum(['too_early', 'too_late', 'just_right', 'wrong_day']).optional(),
-  // Frequency preference
-  frequencyPreference: z.enum(['more_frequent', 'just_right', 'less_frequent']).optional(),
-  // Open feedback
   improvementNotes: z.string().optional(),
-  // Legacy field - keeping for backwards compatibility
-  venueRating: z.number().min(1).max(5).optional(),
   wouldDoAgain: z.enum(['yes', 'maybe', 'no']).optional(),
 });
 

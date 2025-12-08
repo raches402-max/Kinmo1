@@ -11937,15 +11937,21 @@ Looking forward to planning great activities together!
       const {
         actuallyAttended,
         didNotAttendReason,
+        // New simplified format (1-5 ratings)
+        overallRating,
+        venueRating,
+        budgetRating,
+        activityFit,
+        timingRating,
+        frequencyPreference,
+        notes,
+        // Legacy fields for backwards compatibility
         wouldReturnToVenue,
         venueVibe,
         groupEnjoyment,
         activityMatch,
         timingFeedback,
-        frequencyPreference,
         improvementNotes,
-        // Legacy fields
-        venueRating,
         wouldDoAgain
       } = validatedData;
 
@@ -12008,15 +12014,21 @@ Looking forward to planning great activities together!
         feedbackData.didNotAttendReason = didNotAttendReason;
       }
       if (actuallyAttended) {
+        // New simplified format (1-5 ratings)
+        if (overallRating) feedbackData.overallRating = overallRating;
+        if (venueRating) feedbackData.venueRating = venueRating;
+        if (budgetRating) feedbackData.budgetRating = budgetRating;
+        if (activityFit) feedbackData.activityFit = activityFit;
+        if (timingRating) feedbackData.timingRating = timingRating;
+        if (frequencyPreference) feedbackData.frequencyPreference = frequencyPreference;
+        if (notes) feedbackData.notes = notes;
+        // Legacy fields for backwards compatibility
         if (wouldReturnToVenue) feedbackData.wouldReturnToVenue = wouldReturnToVenue;
         if (venueVibe) feedbackData.venueVibe = venueVibe;
         if (groupEnjoyment) feedbackData.groupEnjoyment = groupEnjoyment;
         if (activityMatch) feedbackData.activityMatch = activityMatch;
         if (timingFeedback) feedbackData.timingFeedback = timingFeedback;
-        if (frequencyPreference) feedbackData.frequencyPreference = frequencyPreference;
         if (improvementNotes) feedbackData.improvementNotes = improvementNotes;
-        // Legacy fields for backwards compatibility
-        if (venueRating) feedbackData.venueRating = venueRating;
         if (wouldDoAgain) feedbackData.wouldDoAgain = wouldDoAgain;
       }
 
@@ -12030,10 +12042,10 @@ Looking forward to planning great activities together!
         .returning();
 
       // 🤖 LEARNING LOOP #1: Auto-blacklist venues based on feedback
-      // Blacklist if: wouldReturnToVenue = "no", or legacy low rating, or "not for us"
+      // Blacklist if: venueRating <= 2 (new format), or wouldReturnToVenue = "no" (legacy), or wouldDoAgain === 'no' (legacy)
       const shouldBlacklistVenue =
-        wouldReturnToVenue === 'no' ||
         (venueRating !== undefined && venueRating !== null && venueRating <= 2) ||
+        wouldReturnToVenue === 'no' ||
         wouldDoAgain === 'no';
 
       if (actuallyAttended && shouldBlacklistVenue) {
@@ -12046,12 +12058,12 @@ Looking forward to planning great activities together!
 
           for (const item of fetchedItems) {
             if (item.venueName) {
-              const reason = wouldReturnToVenue === 'no'
-                ? 'wouldNotReturn'
-                : venueRating && venueRating <= 2
-                  ? `lowRating:${venueRating}`
+              const reason = venueRating && venueRating <= 2
+                ? `lowRating:${venueRating}`
+                : wouldReturnToVenue === 'no'
+                  ? 'wouldNotReturn'
                   : 'wouldNotDoAgain';
-              console.log(`🚫 Auto-blacklisting venue "${item.venueName}" (reason: ${reason}, vibe: ${venueVibe || 'n/a'})`);
+              console.log(`🚫 Auto-blacklisting venue "${item.venueName}" (reason: ${reason})`);
               await storage.addRejectedVenue(itinerary.groupId, item.venueName);
             }
           }
@@ -12062,13 +12074,27 @@ Looking forward to planning great activities together!
       }
 
       // 🎯 LEARNING: Log timing feedback for future scheduling improvements
-      if (timingFeedback && timingFeedback !== 'just_right') {
+      // New format: timingRating 1-2 = too early, 4-5 = too late, 3 = just right
+      // Legacy format: timingFeedback enum
+      if (timingRating && timingRating !== 3) {
+        const timingDescription = timingRating <= 2 ? 'too_early' : 'too_late';
+        console.log(`⏰ [Timing Feedback] Group ${itinerary.groupId}: ${timingDescription} (rating: ${timingRating})`);
+      } else if (timingFeedback && timingFeedback !== 'just_right') {
         console.log(`⏰ [Timing Feedback] Group ${itinerary.groupId}: ${timingFeedback}`);
       }
 
       // 🎯 LEARNING: Log activity match feedback for activity selection
-      if (activityMatch === 'try_something_different') {
+      // New format: activityFit 1-2 = not a good fit
+      // Legacy format: activityMatch enum
+      if (activityFit && activityFit <= 2) {
+        console.log(`🔄 [Activity Feedback] Group ${itinerary.groupId}: wants different activities (fit rating: ${activityFit})`);
+      } else if (activityMatch === 'try_something_different') {
         console.log(`🔄 [Activity Feedback] Group ${itinerary.groupId}: wants different activities`);
+      }
+
+      // 🎯 LEARNING: Log budget feedback
+      if (budgetRating && budgetRating <= 2) {
+        console.log(`💰 [Budget Feedback] Group ${itinerary.groupId}: too expensive (rating: ${budgetRating})`);
       }
 
       // 🎯 INSIGHT TRIGGER: Update group insights after post-event feedback
