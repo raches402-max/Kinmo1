@@ -35,6 +35,7 @@ import { Header } from "@/components/Header";
 import { UnifiedEventCreationModal } from "@/components/UnifiedEventCreationModal";
 import { OnboardingChecklist } from "@/components/OnboardingChecklist";
 import { StandaloneEventCreationModal } from "@/components/StandaloneEventCreationModal";
+import { PostEventFeedbackDialog } from "@/components/PostEventFeedbackDialog";
 import {
   DndContext,
   closestCenter,
@@ -334,18 +335,6 @@ export default function Dashboard() {
   // Post-event feedback dialog state
   const [showPostEventFeedback, setShowPostEventFeedback] = useState(false);
   const [postEventData, setPostEventData] = useState<UserEvent | null>(null);
-  const [actuallyAttended, setActuallyAttended] = useState<string>(""); // "yes" or "no"
-  const [didNotAttendReason, setDidNotAttendReason] = useState<string>("");
-  const [wouldReturnToVenue, setWouldReturnToVenue] = useState<string>("");
-  const [venueVibe, setVenueVibe] = useState<string>("");
-  const [groupEnjoyment, setGroupEnjoyment] = useState<string>("");
-  const [activityMatch, setActivityMatch] = useState<string>("");
-  const [timingFeedback, setTimingFeedback] = useState<string>("");
-  const [frequencyPreference, setFrequencyPreference] = useState<string>("");
-  const [improvementNotes, setImprovementNotes] = useState("");
-  // Legacy fields (keeping for backwards compat)
-  const [venueRating, setVenueRating] = useState<number>(0);
-  const [wouldDoAgain, setWouldDoAgain] = useState<string>("");
   
   // Test account switcher state (admin only)
   const isAdmin = user?.email === 'raches402@gmail.com';
@@ -804,58 +793,6 @@ export default function Dashboard() {
     },
   });
 
-  // Post-event feedback mutation
-  const postEventFeedbackMutation = useMutation({
-    mutationFn: async (data: {
-      itineraryId: string;
-      actuallyAttended: string;
-      didNotAttendReason?: string;
-      wouldReturnToVenue?: string;
-      venueVibe?: string;
-      groupEnjoyment?: string;
-      activityMatch?: string;
-      timingFeedback?: string;
-      frequencyPreference?: string;
-      improvementNotes?: string;
-    }) => {
-      console.log('[Post Event Feedback] Starting mutation:', data);
-
-      // Build request body with only defined optional fields
-      const requestBody: any = {
-        actuallyAttended: data.actuallyAttended === "yes",
-      };
-
-      // Only include optional fields if they have valid values
-      if (data.didNotAttendReason) requestBody.didNotAttendReason = data.didNotAttendReason;
-      if (data.wouldReturnToVenue) requestBody.wouldReturnToVenue = data.wouldReturnToVenue;
-      if (data.venueVibe) requestBody.venueVibe = data.venueVibe;
-      if (data.groupEnjoyment) requestBody.groupEnjoyment = data.groupEnjoyment;
-      if (data.activityMatch) requestBody.activityMatch = data.activityMatch;
-      if (data.timingFeedback) requestBody.timingFeedback = data.timingFeedback;
-      if (data.frequencyPreference) requestBody.frequencyPreference = data.frequencyPreference;
-      if (data.improvementNotes) requestBody.improvementNotes = data.improvementNotes;
-
-      console.log('[Post Event Feedback] Request body:', requestBody);
-      const result = await apiRequest("POST", `/api/itineraries/${data.itineraryId}/post-event-feedback`, requestBody);
-      console.log('[Post Event Feedback] API response:', result);
-      return result;
-    },
-    onSuccess: (data) => {
-      console.log('[Post Event Feedback] Mutation success:', data);
-      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
-      setShowPostEventFeedback(false);
-      resetPostEventForm();
-      toast({
-        title: "Thanks for the feedback!",
-        description: "This helps us plan better events for your group.",
-      });
-    },
-    onError: (error: any) => {
-      console.error('[Post Event Feedback] Mutation error:', error);
-      toast(getErrorToast(error));
-    },
-  });
-
   // Approve guest RSVP mutation
   const approveGuestRsvpMutation = useMutation({
     mutationFn: async ({ rsvpId, guestName }: { rsvpId: string; guestName: string }) => {
@@ -901,46 +838,9 @@ export default function Dashboard() {
     setFeedbackEvent(null);
   };
 
-  const resetPostEventForm = () => {
-    setActuallyAttended("");
-    setDidNotAttendReason("");
-    setWouldReturnToVenue("");
-    setVenueVibe("");
-    setGroupEnjoyment("");
-    setActivityMatch("");
-    setTimingFeedback("");
-    setFrequencyPreference("");
-    setImprovementNotes("");
-    setVenueRating(0);
-    setWouldDoAgain("");
-    setPostEventData(null);
-  };
-
   const handlePostEventFeedback = (event: UserEvent) => {
     setPostEventData(event);
     setShowPostEventFeedback(true);
-  };
-
-  const handleSubmitPostEventFeedback = () => {
-    console.log('[Post Event Feedback] handleSubmit called', { postEventData, actuallyAttended });
-    if (!postEventData || !postEventData.itineraryId) {
-      console.error('[Post Event Feedback] Missing data:', { postEventData, itineraryId: postEventData?.itineraryId });
-      return;
-    }
-
-    console.log('[Post Event Feedback] Calling mutation...');
-    postEventFeedbackMutation.mutate({
-      itineraryId: postEventData.itineraryId,
-      actuallyAttended,
-      didNotAttendReason,
-      wouldReturnToVenue,
-      venueVibe,
-      groupEnjoyment,
-      activityMatch,
-      timingFeedback,
-      frequencyPreference,
-      improvementNotes
-    });
   };
 
   const handleRsvpClick = (event: UserEvent, response: string) => {
