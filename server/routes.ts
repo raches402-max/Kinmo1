@@ -395,6 +395,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Debug endpoint to check static file paths
+  app.get('/api/debug/paths', (req, res) => {
+    const fs = require('fs');
+    const path = require('path');
+    const dirname = import.meta.dirname;
+    const distPath = path.resolve(dirname, "..", "dist", "public");
+    const altPath = path.resolve(dirname, "public");
+
+    res.json({
+      dirname,
+      distPath,
+      distPathExists: fs.existsSync(distPath),
+      altPath,
+      altPathExists: fs.existsSync(altPath),
+      cwd: process.cwd(),
+      nodeEnv: process.env.NODE_ENV,
+      buildTime: "2025-12-08T01:15:00Z"
+    });
+  });
+
   // Rate limiting for public endpoints to prevent scraping and abuse
   const publicEndpointLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
