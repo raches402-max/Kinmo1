@@ -52,6 +52,7 @@ const PrototypeTimelineInfo = lazy(() => import("@/pages/prototype-timeline-info
 const PrototypeKinmoText = lazy(() => import("@/pages/prototype-kinmo-text"));
 const BottomNavConcepts = lazy(() => import("@/components/BottomNavConcepts"));
 const Places = lazy(() => import("@/pages/places"));
+const FeedbackMockup = lazy(() => import("@/pages/feedback-mockup"));
 
 function Router() {
   const { isAuthenticated, isLoading, error } = useAuth();
@@ -152,6 +153,7 @@ function Router() {
                 <Route path="/prototype/timeline-info" component={PrototypeTimelineInfo} />
                 <Route path="/prototype/kinmo-text" component={PrototypeKinmoText} />
                 <Route path="/prototype/nav" component={BottomNavConcepts} />
+                <Route path="/prototype/feedback-mockup" component={FeedbackMockup} />
                 <Route path="/privacy" component={Privacy} />
                 <Route path="/terms" component={Terms} />
               </>
