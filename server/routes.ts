@@ -1804,6 +1804,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           eventDate: invite.eventDate,
           status: invite.status,
           inviteSentAt: itinerary?.inviteSentAt || null,
+          rsvpDeadline: itinerary?.rsvpDeadline || null,
           groupId: invite.groupId,
           groupName: invite.groupName,
           groupEmoji: invite.groupEmoji,

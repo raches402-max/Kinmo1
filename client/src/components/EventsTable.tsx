@@ -24,6 +24,7 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { getRsvpColor } from "@/lib/tokens";
+import { cn } from "@/lib/utils";
 
 // Helper function to convert hex color to rgba
 function hexToRgba(hex: string, alpha: number): string {
@@ -540,6 +541,9 @@ export default function EventsTable({
       );
     }
 
+    // Check if this event needs RSVP (no response yet and user is not organizer)
+    const needsRsvpAction = !currentResponse && !event.isOrganizer;
+
     return (
       <DropdownMenu
         open={isOpen}
@@ -553,23 +557,32 @@ export default function EventsTable({
       >
         <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
           <Button
-            variant="ghost"
-            className="h-auto p-1 hover:bg-muted w-full justify-between"
+            variant={needsRsvpAction ? "default" : "ghost"}
+            size={needsRsvpAction ? "sm" : "default"}
+            className={needsRsvpAction
+              ? "h-8 px-3 gap-1.5 font-medium shadow-sm"
+              : "h-auto p-1 hover:bg-muted w-full justify-between"
+            }
             disabled={isLoading || !itineraryId}
           >
-            <span className={displayInfo.className}>
-              {isLoading ? (
-                <><Loader2 className="h-3 w-3 inline mr-1 animate-spin" />Updating...</>
-              ) : (
-                <>
+            {isLoading ? (
+              <><Loader2 className="h-3 w-3 inline mr-1 animate-spin" />Updating...</>
+            ) : needsRsvpAction ? (
+              <>
+                <Check className="h-3.5 w-3.5" />
+                RSVP
+              </>
+            ) : (
+              <>
+                <span className={displayInfo.className}>
                   {currentResponse === "going" || currentResponse === "yes" ? "Going ✓" :
                    currentResponse === "maybe" ? "Maybe" :
                    currentResponse === "no" ? "Can't go" :
                    "RSVP"}
-                </>
-              )}
-            </span>
-            {!isLoading && <span className="text-xs text-muted-foreground ml-2">▼</span>}
+                </span>
+                <span className="text-xs text-muted-foreground ml-2">▼</span>
+              </>
+            )}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent
@@ -780,6 +793,8 @@ export default function EventsTable({
 
         const rsvpBorder = getRsvpBorderStyle();
         const hasRsvpStatus = !!event.rsvp?.response;
+        // Check if this event needs an RSVP (not organizer, has itinerary, no response yet)
+        const needsRsvp = !event.isOrganizer && event.itineraryId && !hasRsvpStatus && !isPastEvents;
 
         // Mobile card view - uses new EventCard component with date-first layout
         const mobileCardContent = (
@@ -804,10 +819,15 @@ export default function EventsTable({
         // Desktop/tablet grid view (hidden on xs screens)
         const rowContent = (
           <div
-            className="hidden sm:grid grid-cols-[100px_minmax(150px,1fr)_150px_80px_60px] md:grid-cols-[120px_minmax(180px,1fr)_180px_100px_80px] lg:grid-cols-[40px_140px_minmax(200px,1fr)_250px_120px_280px_80px] gap-2 lg:gap-4 px-3 py-3 hover:bg-muted/50 transition-colors items-center cursor-pointer"
+            className={cn(
+              "hidden sm:grid grid-cols-[100px_minmax(150px,1fr)_150px_80px_60px] md:grid-cols-[120px_minmax(180px,1fr)_180px_100px_80px] lg:grid-cols-[40px_140px_minmax(200px,1fr)_250px_120px_280px_80px] gap-2 lg:gap-4 px-3 py-3 hover:bg-muted/50 transition-colors items-center cursor-pointer",
+              needsRsvp && "bg-gradient-to-r from-primary/5 to-transparent ring-1 ring-inset ring-primary/20"
+            )}
             style={{
-              borderLeft: `${borderStyle.borderWidth} solid ${borderStyle.borderColor}`,
-              backgroundColor: borderStyle.backgroundColor
+              borderLeft: needsRsvp
+                ? '4px solid hsl(var(--primary) / 0.5)'
+                : `${borderStyle.borderWidth} solid ${borderStyle.borderColor}`,
+              backgroundColor: needsRsvp ? undefined : borderStyle.backgroundColor
             }}
           >
                 {/* Checkbox Column - Hidden on tablet/mobile */}

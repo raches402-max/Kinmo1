@@ -70,7 +70,7 @@ type EventCardProps = {
 };
 
 // RSVP border styling based on status
-const getRsvpBorderStyle = (rsvp: string | null) => {
+const getRsvpBorderStyle = (rsvp: string | null, needsRsvp: boolean = false) => {
   switch (rsvp) {
     case "going":
     case "yes":
@@ -80,7 +80,10 @@ const getRsvpBorderStyle = (rsvp: string | null) => {
     case "no":
       return "border border-stone-200 bg-stone-50/50 opacity-60";
     default:
-      return "border-2 border-stone-200 bg-white";
+      // No RSVP yet - make it more prominent if interaction is expected
+      return needsRsvp
+        ? "border-2 border-primary/40 bg-gradient-to-br from-primary/5 to-secondary/5 shadow-md ring-2 ring-primary/10"
+        : "border-2 border-stone-200 bg-white";
   }
 };
 
@@ -450,6 +453,9 @@ export function EventCard({
     }
   };
 
+  // Determine if this event needs an RSVP (has callback and no response yet)
+  const needsRsvp = !!onRsvpChange && !hasRsvped && !isPastEvent;
+
   const cardContent = (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -458,7 +464,7 @@ export function EventCard({
       onClick={handleCardClick}
       className={cn(
         "rounded-2xl overflow-hidden transition-all active:scale-[0.98] cursor-pointer",
-        getRsvpBorderStyle(currentRsvp)
+        getRsvpBorderStyle(currentRsvp, needsRsvp)
       )}
     >
       {/* Colored header - clean, date first */}
@@ -558,6 +564,10 @@ export function EventCard({
               <span className="text-amber-600"> · {maybeCount} maybe</span>
             )}
           </button>
+        ) : needsRsvp ? (
+          <span className="text-sm text-primary font-medium animate-pulse">
+            Can you make it?
+          </span>
         ) : (
           <span className="text-sm text-stone-400">RSVP to see who's coming</span>
         )}

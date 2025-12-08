@@ -16,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from "@/components/ui/dropdown-menu";
-import { Plus, Sparkles, Users, MapPin, Calendar, CheckCircle, XCircle, HelpCircle, ExternalLink, Settings, LogOut, MoreVertical, ChevronDown, ChevronUp, ChevronRight, Pencil, Trash2, FolderOpen, UserCheck, Bot, UserPlus, Star, MessageSquare, Copy, Check, Baby } from "lucide-react";
+import { Plus, Sparkles, Users, MapPin, Calendar, CheckCircle, XCircle, HelpCircle, ExternalLink, Settings, LogOut, MoreVertical, ChevronDown, ChevronUp, ChevronRight, Pencil, Trash2, FolderOpen, UserCheck, Bot, UserPlus, Star, MessageSquare, Copy, Check, Baby, Clock } from "lucide-react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
@@ -81,6 +81,7 @@ type UserEvent = {
   eventDate: string | null;
   status: string;
   inviteSentAt: string | null;
+  rsvpDeadline: string | null;
   groupId: string;
   groupName: string;
   groupEmoji: string;
@@ -400,6 +401,7 @@ export default function Dashboard() {
           eventDate: standalone.eventDate ? standalone.eventDate.toString() : null,
           status: standalone.status || 'draft',
           inviteSentAt: null,
+          rsvpDeadline: null,
           groupId: 'standalone', // Special ID to identify standalone events
           groupName: standalone.name?.trim() || 'Untitled Event',
           groupEmoji: '📅',
@@ -1289,59 +1291,131 @@ export default function Dashboard() {
               </div>
             )}
 
-            <div className="space-y-6">
-              {/* Quick actions card - friendly, not demanding */}
-              {!eventsLoading && (pendingInvites.length > 0 || guestApprovalEvents.length > 0 || pastEventsNeedingFeedback.length > 0) && (
-                <Card className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 border-amber-200/50 dark:border-amber-800/30 shadow-warm" data-testid="card-action-required">
-                  <CardContent className="py-5">
-                    <div className="flex items-start gap-4">
-                      <div className="flex-shrink-0 p-2.5 rounded-softer bg-amber-100 dark:bg-amber-900/50">
-                        <Sparkles className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+            <div className="space-y-4">
+              {/* RSVP Nudge Card - Personal and inviting */}
+              {!eventsLoading && pendingInvites.length > 0 && (() => {
+                const firstInvite = pendingInvites[0];
+                const eventDate = firstInvite.eventDate ? new Date(firstInvite.eventDate) : null;
+                const rsvpDeadline = firstInvite.rsvpDeadline ? new Date(firstInvite.rsvpDeadline) : null;
+                const hostName = firstInvite.hostMemberName;
+                const formattedDate = eventDate ? format(eventDate, "EEEE, MMM d") : null;
+                const formattedDeadline = rsvpDeadline ? format(rsvpDeadline, "EEEE, MMM d") : null;
+
+                return (
+                  <Card
+                    className="overflow-hidden border-2 border-primary/20 bg-gradient-to-br from-primary/5 via-background to-secondary/5 shadow-lg"
+                    data-testid="card-rsvp-nudge"
+                  >
+                    <CardContent className="p-0">
+                      {/* Warm header strip */}
+                      <div className="bg-gradient-to-r from-primary/10 to-secondary/10 px-5 py-3 border-b border-primary/10">
+                        <div className="flex items-center gap-2">
+                          <span className="text-2xl">{firstInvite.groupEmoji}</span>
+                          <div className="flex-1">
+                            <p className="font-semibold text-foreground">{firstInvite.groupName}</p>
+                            {hostName && (
+                              <p className="text-xs text-muted-foreground">
+                                {hostName} is hosting
+                              </p>
+                            )}
+                          </div>
+                          {pendingInvites.length > 1 && (
+                            <Badge variant="outline" className="rounded-full text-xs bg-background">
+                              +{pendingInvites.length - 1} more
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Main content */}
+                      <div className="px-5 py-4">
+                        <h3 className="text-xl font-bold mb-1">Can you make it?</h3>
+                        <p className="text-muted-foreground text-sm mb-3">
+                          {firstInvite.itineraryName}
+                          {formattedDate && (
+                            <span className="block mt-0.5 font-medium text-foreground">{formattedDate}</span>
+                          )}
+                        </p>
+
+                        {/* RSVP deadline - friendly nudge */}
+                        {formattedDeadline && (
+                          <p className="text-xs text-muted-foreground mb-3 flex items-center gap-1.5">
+                            <Clock className="h-3.5 w-3.5" />
+                            Please respond by {formattedDeadline}
+                          </p>
+                        )}
+
+                        {/* Venue preview if available */}
+                        {firstInvite.items?.[0]?.venueName && (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4 bg-muted/50 rounded-lg px-3 py-2">
+                            <MapPin className="h-4 w-4 flex-shrink-0" />
+                            <span className="truncate">{firstInvite.items[0].venueName}</span>
+                          </div>
+                        )}
+
+                        {/* RSVP Button - prominent and warm */}
+                        <Link href={`/rsvp/${firstInvite.itineraryId}/${firstInvite.inviteToken}`}>
+                          <Button
+                            className="w-full gap-2 h-12 text-base font-semibold bg-primary hover:bg-primary/90 shadow-md"
+                          >
+                            <CheckCircle className="h-5 w-5" />
+                            Let {hostName ? hostName.split(' ')[0] : 'them'} know
+                          </Button>
+                        </Link>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })()}
+
+              {/* Guest Approvals Card - for organizers */}
+              {!eventsLoading && guestApprovalEvents.reduce((count, e) => count + e.pendingGuestRsvps.length, 0) > 0 && (
+                <Card className="border-blue-200/50 dark:border-blue-800/30 bg-blue-50/30 dark:bg-blue-950/20" data-testid="card-guest-approvals">
+                  <CardContent className="py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex-shrink-0 p-2 rounded-full bg-blue-100 dark:bg-blue-900/50">
+                        <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                       </div>
                       <div className="flex-1">
-                        <h3 className="font-semibold text-lg mb-2">A few things for you</h3>
-                        <div className="flex flex-wrap gap-2 mb-4">
-                          {pendingInvites.length > 0 && (
-                            <Badge variant="secondary" className="rounded-pill bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-700">
-                              {pendingInvites.length} RSVP{pendingInvites.length > 1 ? 's' : ''} waiting
-                            </Badge>
-                          )}
-                          {guestApprovalEvents.reduce((count, e) => count + e.pendingGuestRsvps.length, 0) > 0 && (
-                            <Badge variant="secondary" className="rounded-pill bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700">
-                              {guestApprovalEvents.reduce((count, e) => count + e.pendingGuestRsvps.length, 0)} guest{guestApprovalEvents.reduce((count, e) => count + e.pendingGuestRsvps.length, 0) > 1 ? 's' : ''} to review
-                            </Badge>
-                          )}
-                          {pastEventsNeedingFeedback.length > 0 && (
-                            <Badge variant="secondary" className="rounded-pill bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-700">
-                              {pastEventsNeedingFeedback.length} feedback request{pastEventsNeedingFeedback.length > 1 ? 's' : ''}
-                            </Badge>
-                          )}
-                        </div>
-
-                        {/* Quick action buttons */}
-                        <div className="flex flex-wrap gap-2">
-                          {pendingInvites.length > 0 && pendingInvites[0].itineraryId && (
-                            <Link href={`/rsvp/${pendingInvites[0].itineraryId}/${pendingInvites[0].inviteToken}`}>
-                              <Button size="sm" variant="outline" className="gap-1.5">
-                                <CheckCircle className="h-3.5 w-3.5" />
-                                RSVP Now
-                              </Button>
-                            </Link>
-                          )}
-                          {pastEventsNeedingFeedback.length > 0 && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handlePostEventFeedback(pastEventsNeedingFeedback[0])}
-                              className="gap-1.5"
-                              data-testid="button-banner-feedback"
-                            >
-                              <MessageSquare className="h-3.5 w-3.5" />
-                              Share Feedback
-                            </Button>
-                          )}
-                        </div>
+                        <p className="font-medium text-sm">
+                          {guestApprovalEvents.reduce((count, e) => count + e.pendingGuestRsvps.length, 0)} guest{guestApprovalEvents.reduce((count, e) => count + e.pendingGuestRsvps.length, 0) > 1 ? 's' : ''} waiting to be approved
+                        </p>
                       </div>
+                      <Link href={`/group/${guestApprovalEvents[0].groupId}`}>
+                        <Button size="sm" variant="outline" className="gap-1.5 border-blue-200 hover:bg-blue-50">
+                          Review
+                        </Button>
+                      </Link>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Feedback Request Card - subtle and appreciative */}
+              {!eventsLoading && pastEventsNeedingFeedback.length > 0 && (
+                <Card className="border-purple-200/50 dark:border-purple-800/30 bg-purple-50/30 dark:bg-purple-950/20" data-testid="card-feedback-request">
+                  <CardContent className="py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex-shrink-0 p-2 rounded-full bg-purple-100 dark:bg-purple-900/50">
+                        <MessageSquare className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">
+                          How was {pastEventsNeedingFeedback[0].itineraryName}?
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Your feedback helps plan better events
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handlePostEventFeedback(pastEventsNeedingFeedback[0])}
+                        className="gap-1.5 border-purple-200 hover:bg-purple-50"
+                        data-testid="button-banner-feedback"
+                      >
+                        Share
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
