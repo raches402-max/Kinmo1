@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/responsive-dialog";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { getErrorToast } from "@/lib/errorToast";
+import { getErrorToast } from "@/components/ErrorDisplay";
 import { apiRequest } from "@/lib/queryClient";
 
 interface PostEventFeedbackDialogProps {
