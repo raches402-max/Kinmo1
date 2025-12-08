@@ -54,23 +54,25 @@ function EmojiOption({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all duration-200",
-        "hover:bg-muted hover:scale-105",
-        selected && "bg-muted scale-110"
+        "flex flex-col items-center gap-1 p-1.5 rounded-xl transition-all duration-200",
+        "hover:bg-muted/50",
+        selected && "bg-muted"
       )}
     >
       <div className={cn(
-        "w-12 h-12 rounded-full flex items-center justify-center text-2xl",
+        "w-11 h-11 rounded-full flex items-center justify-center text-xl",
         "bg-card border-2 transition-all duration-200",
         selected
-          ? "border-primary shadow-md"
-          : "border-transparent"
+          ? "border-primary shadow-md scale-110"
+          : "border-border/40 hover:border-border"
       )}>
         {emoji}
       </div>
       <span className={cn(
-        "text-[11px] uppercase tracking-wide text-muted-foreground transition-opacity",
-        selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+        "text-[10px] leading-tight text-center max-w-[52px] transition-colors",
+        selected
+          ? "text-foreground font-medium"
+          : "text-muted-foreground/70"
       )}>
         {label}
       </span>
