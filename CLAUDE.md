@@ -159,3 +159,24 @@ Kinmo automates the "planner" role in friend groups - the person who always text
 - Suggesting venues based on preferences
 - Sending reminders and collecting RSVPs
 - Keeping groups connected even when life gets busy
+
+## Voice & Tone
+
+Kinmo's voice is **helpful friend, not demanding app**. The core philosophy:
+
+- **Nothing is required** - RSVPs, feedback, preferences are all optional. Frame as "it would help the group" not "you must do this"
+- **We're here to help you** - The app serves the group, not the other way around. We want to know what works for *them*
+- **Honest feedback welcome** - We genuinely want to know if something doesn't work. "Can't make it" is useful info, not a failure
+- **Quality over obligation** - Goal is great events people actually enjoy, not guilt-tripping attendance
+
+**Examples of the right tone:**
+- "Let us know if this works for you" (not "RSVP required by Friday")
+- "Your feedback helps us pick better spots" (not "Rate this venue")
+- "No worries if you can't make it" (not "You haven't responded yet")
+- "What times usually work for you?" (not "Set your availability")
+
+**Avoid:**
+- Guilt language ("You haven't..." "Don't forget to...")
+- Demanding/urgent framing ("Required" "Must" "Deadline")
+- Gamification pressure (streaks, points, badges)
+- Corporate/transactional tone
