@@ -68,36 +68,66 @@ export async function setupVite(app: Express, server: Server) {
 }
 
 export function serveStatic(app: Express) {
-  const distPath = path.resolve(import.meta.dirname, "..", "dist", "public");
+  // Try multiple possible locations for the static files
+  // The path depends on where the bundled server runs from
+  const possiblePaths = [
+    path.resolve(import.meta.dirname, "public"),              // When running from dist/ folder
+    path.resolve(import.meta.dirname, "..", "dist", "public"), // Original development path
+    path.resolve(process.cwd(), "dist", "public"),            // From working directory
+    path.resolve(process.cwd(), "public"),                    // Direct public folder
+  ];
 
+  console.log(`[Static] Looking for static files...`);
   console.log(`[Static] import.meta.dirname: ${import.meta.dirname}`);
-  console.log(`[Static] Resolved distPath: ${distPath}`);
-  console.log(`[Static] distPath exists: ${fs.existsSync(distPath)}`);
+  console.log(`[Static] process.cwd(): ${process.cwd()}`);
 
-  // Try alternative path if the standard one doesn't exist
-  let finalPath = distPath;
-  if (!fs.existsSync(distPath)) {
-    // In bundled mode, public folder might be sibling to index.js
-    const altPath = path.resolve(import.meta.dirname, "public");
-    console.log(`[Static] Trying alternative path: ${altPath}`);
-    console.log(`[Static] altPath exists: ${fs.existsSync(altPath)}`);
-
-    if (fs.existsSync(altPath)) {
-      finalPath = altPath;
-    } else {
-      console.error(`[Static] ERROR: Neither path exists!`);
-      console.error(`[Static] Tried: ${distPath}`);
-      console.error(`[Static] Tried: ${altPath}`);
-      throw new Error(
-        `Could not find the build directory: ${distPath}, make sure to build the client first`,
-      );
+  let staticPath: string | null = null;
+  for (const p of possiblePaths) {
+    const exists = fs.existsSync(p);
+    console.log(`[Static] Checking: ${p} -> ${exists ? 'EXISTS' : 'not found'}`);
+    if (exists && !staticPath) {
+      // Also verify it has the expected content (index.html)
+      const hasIndex = fs.existsSync(path.join(p, 'index.html'));
+      console.log(`[Static]   Has index.html: ${hasIndex}`);
+      if (hasIndex) {
+        staticPath = p;
+      }
     }
   }
 
-  console.log(`[Static] Using path: ${finalPath}`);
+  if (!staticPath) {
+    console.error(`[Static] ERROR: No valid static path found!`);
+    console.error(`[Static] Tried paths:`, possiblePaths);
+    // List contents of likely directories for debugging
+    try {
+      console.error(`[Static] Contents of cwd:`, fs.readdirSync(process.cwd()));
+      const distDir = path.resolve(process.cwd(), "dist");
+      if (fs.existsSync(distDir)) {
+        console.error(`[Static] Contents of dist/:`, fs.readdirSync(distDir));
+      }
+    } catch (e) {
+      console.error(`[Static] Could not list directories:`, e);
+    }
+    throw new Error(
+      `Could not find the build directory with index.html, make sure to build the client first`,
+    );
+  }
+
+  console.log(`[Static] Using static path: ${staticPath}`);
+
+  // List contents for verification
+  try {
+    console.log(`[Static] Contents:`, fs.readdirSync(staticPath));
+    const assetsDir = path.join(staticPath, 'assets');
+    if (fs.existsSync(assetsDir)) {
+      console.log(`[Static] Assets:`, fs.readdirSync(assetsDir));
+    }
+  } catch (e) {
+    console.error(`[Static] Could not list static contents:`, e);
+  }
 
   // Serve static files with proper headers for production
-  app.use(express.static(finalPath, {
+  app.use(express.static(staticPath, {
     maxAge: '1y',
     immutable: true,
     setHeaders: (res, filePath) => {
@@ -113,9 +143,14 @@ export function serveStatic(app: Express) {
     }
   }));
 
-  // fall through to index.html if the file doesn't exist
-  app.use("*", (_req, res, next) => {
-    res.sendFile(path.resolve(finalPath, "index.html"), (err) => {
+  // Fall through to index.html for SPA routing (but NOT for API routes)
+  app.use("*", (req, res, next) => {
+    // Don't catch API routes - let them 404 properly
+    if (req.originalUrl.startsWith('/api')) {
+      return next();
+    }
+
+    res.sendFile(path.resolve(staticPath!, "index.html"), (err) => {
       if (err) {
         next(err);
       }
