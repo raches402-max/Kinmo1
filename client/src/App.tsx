@@ -115,6 +115,7 @@ function Router() {
                 <Route path="/events" component={MemberEventsPage} />
                 <Route path="/prototype/kinmo-text" component={PrototypeKinmoText} />
                 <Route path="/prototype/group-details-desktop" component={PrototypeGroupDetailsDesktop} />
+                <Route path="/prototype/feedback-mockup" component={FeedbackMockup} />
                 <Route path="/privacy" component={Privacy} />
                 <Route path="/terms" component={Terms} />
               </>
