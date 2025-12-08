@@ -79,25 +79,29 @@ process.on('unhandledRejection', (reason, promise) => {
 
 const app = express();
 
-// CRITICAL: Early health check for Replit deployment
-// This must be the FIRST route to ensure fast response for health checks
-app.get('/__health', (req, res) => {
+// CRITICAL: Health check endpoints must be FIRST and respond immediately
+// Replit autoscale requires very fast health check responses
+app.get('/__health', (_req, res) => {
   res.status(200).send('OK');
 });
 
-// Also respond to root with a quick health check if it's a health probe
-// (Replit checks / by default)
-app.use((req, res, next) => {
-  // Detect health check probes (usually have specific user agents or headers)
+// Root health check - respond immediately for any request to /
+// This is critical for Replit's default health check behavior
+app.get('/', (req, res, next) => {
+  // Check if this looks like a health check (no accept header for HTML, or specific probes)
+  const acceptHeader = req.headers['accept'] || '';
   const userAgent = req.headers['user-agent'] || '';
-  const isHealthCheck = userAgent.includes('kube-probe') ||
-                        userAgent.includes('GoogleHC') ||
-                        req.headers['x-health-check'] === 'true';
 
-  // If it's a health check to root, respond immediately
-  if (isHealthCheck && req.path === '/') {
+  const isHealthProbe =
+    userAgent.includes('kube-probe') ||
+    userAgent.includes('GoogleHC') ||
+    !acceptHeader.includes('text/html');
+
+  if (isHealthProbe) {
     return res.status(200).send('OK');
   }
+
+  // Not a health probe - continue to static file serving
   next();
 });
 
