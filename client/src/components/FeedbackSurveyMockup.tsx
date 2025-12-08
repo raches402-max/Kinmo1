@@ -30,6 +30,7 @@ interface FeedbackData {
   didNotAttendReason?: string;
   overallRating: number;
   venueRating: number;
+  budgetRating: number;
   timingRating: number;
   frequencyPreference: number;
   notes?: string;
@@ -47,6 +48,7 @@ export function FeedbackSurveyMockup({
   const [didNotAttendReason, setDidNotAttendReason] = useState<string>("");
   const [overallRating, setOverallRating] = useState<number>(0);
   const [venueRating, setVenueRating] = useState<number>(0);
+  const [budgetRating, setBudgetRating] = useState<number>(0);
   const [timingRating, setTimingRating] = useState<number>(0);
   const [frequencyPreference, setFrequencyPreference] = useState<number>(3);
   const [notes, setNotes] = useState("");
@@ -57,6 +59,7 @@ export function FeedbackSurveyMockup({
       didNotAttendReason: attended === false ? didNotAttendReason : undefined,
       overallRating,
       venueRating,
+      budgetRating,
       timingRating,
       frequencyPreference,
       notes: notes || undefined
@@ -459,6 +462,7 @@ export function FeedbackSurveyMockup({
         .delay-2 { animation-delay: 0.2s; opacity: 0; }
         .delay-3 { animation-delay: 0.3s; opacity: 0; }
         .delay-4 { animation-delay: 0.4s; opacity: 0; }
+        .delay-5 { animation-delay: 0.5s; opacity: 0; }
       `}</style>
 
       <div className="feedback-card">
@@ -568,8 +572,32 @@ export function FeedbackSurveyMockup({
                 </div>
               </div>
 
-              {/* Timing - simple scale */}
+              {/* Budget - emoji scale */}
               <div className="question-section animate-in delay-3">
+                <label className="question-label">The budget</label>
+                <p className="question-hint">How did the cost feel?</p>
+                <div className="emoji-scale">
+                  {[
+                    { value: 1, emoji: '😰', label: 'Too pricey' },
+                    { value: 2, emoji: '😕', label: 'A bit much' },
+                    { value: 3, emoji: '👌', label: 'Just right' },
+                    { value: 4, emoji: '🙌', label: 'Good deal' },
+                    { value: 5, emoji: '🤑', label: 'Great value' }
+                  ].map(option => (
+                    <div
+                      key={option.value}
+                      className={`emoji-option ${budgetRating === option.value ? 'selected' : ''}`}
+                      onClick={() => setBudgetRating(option.value)}
+                    >
+                      <div className="emoji-circle">{option.emoji}</div>
+                      <span className="emoji-label">{option.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Timing - simple scale */}
+              <div className="question-section animate-in delay-4">
                 <label className="question-label">The timing</label>
                 <div className="slider-scale">
                   <div className="slider-track">
@@ -592,8 +620,9 @@ export function FeedbackSurveyMockup({
               </div>
 
               {/* Frequency - simple scale */}
-              <div className="question-section animate-in delay-4">
-                <label className="question-label">Event frequency</label>
+              <div className="question-section animate-in delay-5">
+                <label className="question-label">How often should we meet?</label>
+                <p className="question-hint">Want to hang out with this group...</p>
                 <div className="slider-scale">
                   <div className="slider-track">
                     <div className="slider-dots">
@@ -608,14 +637,14 @@ export function FeedbackSurveyMockup({
                   </div>
                   <div className="slider-labels">
                     <span className="slider-label">Less often</span>
-                    <span className="slider-label">Just right</span>
-                    <span className="slider-label">More often</span>
+                    <span className="slider-label">This is perfect</span>
+                    <span className="slider-label">More often!</span>
                   </div>
                 </div>
               </div>
 
               {/* Optional notes */}
-              <div className="question-section animate-in delay-4">
+              <div className="question-section animate-in delay-5">
                 <label className="question-label">Anything else?</label>
                 <textarea
                   className="notes-textarea"
@@ -635,7 +664,7 @@ export function FeedbackSurveyMockup({
           </button>
           <button
             className="btn-primary"
-            disabled={attended === null || (attended === true && (overallRating === 0 || venueRating === 0 || timingRating === 0))}
+            disabled={attended === null || (attended === true && (overallRating === 0 || venueRating === 0 || budgetRating === 0 || timingRating === 0))}
             onClick={handleSubmit}
           >
             Submit
