@@ -164,10 +164,8 @@ export function FeedbackSurveyMockup({
     });
   };
 
-  const isValid = attended !== null && (
-    attended === false ||
-    (overallRating > 0 && venueRating > 0 && budgetRating > 0 && activityFit > 0 && timingRating > 0)
-  );
+  // Only require the attendance question - everything else is optional
+  const isValid = attended !== null;
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-6">
