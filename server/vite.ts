@@ -70,14 +70,34 @@ export async function setupVite(app: Express, server: Server) {
 export function serveStatic(app: Express) {
   const distPath = path.resolve(import.meta.dirname, "..", "dist", "public");
 
+  console.log(`[Static] import.meta.dirname: ${import.meta.dirname}`);
+  console.log(`[Static] Resolved distPath: ${distPath}`);
+  console.log(`[Static] distPath exists: ${fs.existsSync(distPath)}`);
+
+  // Try alternative path if the standard one doesn't exist
+  let finalPath = distPath;
   if (!fs.existsSync(distPath)) {
-    throw new Error(
-      `Could not find the build directory: ${distPath}, make sure to build the client first`,
-    );
+    // In bundled mode, public folder might be sibling to index.js
+    const altPath = path.resolve(import.meta.dirname, "public");
+    console.log(`[Static] Trying alternative path: ${altPath}`);
+    console.log(`[Static] altPath exists: ${fs.existsSync(altPath)}`);
+
+    if (fs.existsSync(altPath)) {
+      finalPath = altPath;
+    } else {
+      console.error(`[Static] ERROR: Neither path exists!`);
+      console.error(`[Static] Tried: ${distPath}`);
+      console.error(`[Static] Tried: ${altPath}`);
+      throw new Error(
+        `Could not find the build directory: ${distPath}, make sure to build the client first`,
+      );
+    }
   }
 
+  console.log(`[Static] Using path: ${finalPath}`);
+
   // Serve static files with proper headers for production
-  app.use(express.static(distPath, {
+  app.use(express.static(finalPath, {
     maxAge: '1y',
     immutable: true,
     setHeaders: (res, filePath) => {
@@ -95,7 +115,7 @@ export function serveStatic(app: Express) {
 
   // fall through to index.html if the file doesn't exist
   app.use("*", (_req, res, next) => {
-    res.sendFile(path.resolve(distPath, "index.html"), (err) => {
+    res.sendFile(path.resolve(finalPath, "index.html"), (err) => {
       if (err) {
         next(err);
       }
