@@ -10,9 +10,11 @@ A catalog of all mockups and design explorations for Kinmo.
 
 | Mockup | Description | Updated |
 |--------|-------------|---------|
-| [Mobile Landing Mockup](https://44512696-dbac-4dd3-bce3-5b36e27640e8-00-14jxlhpvi40bm.kirk.replit.dev/mockups/mobile-landing-mockup.html) | Mobile-first landing page with phone frame preview | Dec 8, 2024 |
+| [Landing Mockup (Mobile + Desktop)](https://44512696-dbac-4dd3-bce3-5b36e27640e8-00-14jxlhpvi40bm.kirk.replit.dev/mockups/landing-mockup.html) | Side-by-side mobile (375px) and desktop (1280px) views | Dec 8, 2024 |
+| [Mobile Landing Mockup](https://44512696-dbac-4dd3-bce3-5b36e27640e8-00-14jxlhpvi40bm.kirk.replit.dev/mockups/mobile-landing-mockup.html) | Mobile-only with phone frame preview | Dec 8, 2024 |
 
 **Local files:**
+- `client/public/mockups/landing-mockup.html`
 - `client/public/mockups/mobile-landing-mockup.html`
 - `client/src/pages/landing.tsx` (live React implementation)
 
