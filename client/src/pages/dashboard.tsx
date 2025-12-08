@@ -1290,7 +1290,7 @@ export default function Dashboard() {
             )}
 
             <div className="space-y-6">
-              {/* Consolidated Action Required Card */}
+              {/* Quick actions card - friendly, not demanding */}
               {!eventsLoading && (pendingInvites.length > 0 || guestApprovalEvents.length > 0 || pastEventsNeedingFeedback.length > 0) && (
                 <Card className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 border-amber-200/50 dark:border-amber-800/30 shadow-warm" data-testid="card-action-required">
                   <CardContent className="py-5">
@@ -1299,21 +1299,21 @@ export default function Dashboard() {
                         <Sparkles className="h-5 w-5 text-amber-600 dark:text-amber-400" />
                       </div>
                       <div className="flex-1">
-                        <h3 className="font-semibold text-lg mb-2">Action Required</h3>
+                        <h3 className="font-semibold text-lg mb-2">A few things for you</h3>
                         <div className="flex flex-wrap gap-2 mb-4">
                           {pendingInvites.length > 0 && (
                             <Badge variant="secondary" className="rounded-pill bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-700">
-                              {pendingInvites.length} RSVP{pendingInvites.length > 1 ? 's' : ''} needed
+                              {pendingInvites.length} RSVP{pendingInvites.length > 1 ? 's' : ''} waiting
                             </Badge>
                           )}
                           {guestApprovalEvents.reduce((count, e) => count + e.pendingGuestRsvps.length, 0) > 0 && (
                             <Badge variant="secondary" className="rounded-pill bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700">
-                              {guestApprovalEvents.reduce((count, e) => count + e.pendingGuestRsvps.length, 0)} guest{guestApprovalEvents.reduce((count, e) => count + e.pendingGuestRsvps.length, 0) > 1 ? 's' : ''} to approve
+                              {guestApprovalEvents.reduce((count, e) => count + e.pendingGuestRsvps.length, 0)} guest{guestApprovalEvents.reduce((count, e) => count + e.pendingGuestRsvps.length, 0) > 1 ? 's' : ''} to review
                             </Badge>
                           )}
                           {pastEventsNeedingFeedback.length > 0 && (
                             <Badge variant="secondary" className="rounded-pill bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-700">
-                              {pastEventsNeedingFeedback.length} feedback{pastEventsNeedingFeedback.length > 1 ? 's' : ''} needed
+                              {pastEventsNeedingFeedback.length} feedback request{pastEventsNeedingFeedback.length > 1 ? 's' : ''}
                             </Badge>
                           )}
                         </div>
@@ -1337,7 +1337,7 @@ export default function Dashboard() {
                               data-testid="button-banner-feedback"
                             >
                               <MessageSquare className="h-3.5 w-3.5" />
-                              Leave Feedback
+                              Share Feedback
                             </Button>
                           )}
                         </div>
