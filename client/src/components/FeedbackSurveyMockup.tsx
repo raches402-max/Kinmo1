@@ -31,6 +31,7 @@ interface FeedbackData {
   overallRating: number;
   venueRating: number;
   budgetRating: number;
+  activityFit: number;
   timingRating: number;
   frequencyPreference: number;
   notes?: string;
@@ -49,6 +50,7 @@ export function FeedbackSurveyMockup({
   const [overallRating, setOverallRating] = useState<number>(0);
   const [venueRating, setVenueRating] = useState<number>(0);
   const [budgetRating, setBudgetRating] = useState<number>(0);
+  const [activityFit, setActivityFit] = useState<number>(0);
   const [timingRating, setTimingRating] = useState<number>(0);
   const [frequencyPreference, setFrequencyPreference] = useState<number>(3);
   const [notes, setNotes] = useState("");
@@ -60,6 +62,7 @@ export function FeedbackSurveyMockup({
       overallRating,
       venueRating,
       budgetRating,
+      activityFit,
       timingRating,
       frequencyPreference,
       notes: notes || undefined
@@ -463,6 +466,7 @@ export function FeedbackSurveyMockup({
         .delay-3 { animation-delay: 0.3s; opacity: 0; }
         .delay-4 { animation-delay: 0.4s; opacity: 0; }
         .delay-5 { animation-delay: 0.5s; opacity: 0; }
+        .delay-6 { animation-delay: 0.6s; opacity: 0; }
       `}</style>
 
       <div className="feedback-card">
@@ -596,8 +600,32 @@ export function FeedbackSurveyMockup({
                 </div>
               </div>
 
-              {/* Timing - simple scale */}
+              {/* Activity fit - slider scale */}
               <div className="question-section animate-in delay-4">
+                <label className="question-label">This type of activity?</label>
+                <p className="question-hint">For your group...</p>
+                <div className="slider-scale">
+                  <div className="slider-track">
+                    <div className="slider-dots">
+                      {[1, 2, 3, 4, 5].map(value => (
+                        <div
+                          key={value}
+                          className={`slider-dot ${activityFit === value ? 'selected' : ''}`}
+                          onClick={() => setActivityFit(value)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="slider-labels">
+                    <span className="slider-label">Try something else</span>
+                    <span className="slider-label">Good fit</span>
+                    <span className="slider-label">Perfect for us</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Timing - simple scale */}
+              <div className="question-section animate-in delay-5">
                 <label className="question-label">The timing</label>
                 <div className="slider-scale">
                   <div className="slider-track">
@@ -620,7 +648,7 @@ export function FeedbackSurveyMockup({
               </div>
 
               {/* Frequency - simple scale */}
-              <div className="question-section animate-in delay-5">
+              <div className="question-section animate-in delay-6">
                 <label className="question-label">How often should we meet?</label>
                 <p className="question-hint">Want to hang out with this group...</p>
                 <div className="slider-scale">
@@ -644,7 +672,7 @@ export function FeedbackSurveyMockup({
               </div>
 
               {/* Optional notes */}
-              <div className="question-section animate-in delay-5">
+              <div className="question-section animate-in delay-6">
                 <label className="question-label">Anything else?</label>
                 <textarea
                   className="notes-textarea"
@@ -664,7 +692,7 @@ export function FeedbackSurveyMockup({
           </button>
           <button
             className="btn-primary"
-            disabled={attended === null || (attended === true && (overallRating === 0 || venueRating === 0 || budgetRating === 0 || timingRating === 0))}
+            disabled={attended === null || (attended === true && (overallRating === 0 || venueRating === 0 || budgetRating === 0 || activityFit === 0 || timingRating === 0))}
             onClick={handleSubmit}
           >
             Submit
