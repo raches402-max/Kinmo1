@@ -143,10 +143,14 @@ export function serveStatic(app: Express) {
     }
   }));
 
-  // Fall through to index.html for SPA routing (but NOT for API routes)
+  // Fall through to index.html for SPA routing (but NOT for API or static asset routes)
   app.use("*", (req, res, next) => {
     // Don't catch API routes - let them 404 properly
     if (req.originalUrl.startsWith('/api')) {
+      return next();
+    }
+    // Don't catch static assets - let express.static handle them (or 404)
+    if (req.originalUrl.startsWith('/assets')) {
       return next();
     }
 
