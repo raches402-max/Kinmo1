@@ -603,7 +603,7 @@ export function FeedbackSurveyMockup({
               {/* Activity fit - slider scale */}
               <div className="question-section animate-in delay-4">
                 <label className="question-label">This type of activity?</label>
-                <p className="question-hint">For your group...</p>
+                <p className="question-hint">For you...</p>
                 <div className="slider-scale">
                   <div className="slider-track">
                     <div className="slider-dots">
@@ -617,9 +617,9 @@ export function FeedbackSurveyMockup({
                     </div>
                   </div>
                   <div className="slider-labels">
-                    <span className="slider-label">Try something else</span>
-                    <span className="slider-label">Good fit</span>
-                    <span className="slider-label">Perfect for us</span>
+                    <span className="slider-label">Not my thing</span>
+                    <span className="slider-label">Works for me</span>
+                    <span className="slider-label">More of this</span>
                   </div>
                 </div>
               </div>
@@ -641,7 +641,7 @@ export function FeedbackSurveyMockup({
                   </div>
                   <div className="slider-labels">
                     <span className="slider-label">Too early</span>
-                    <span className="slider-label">Perfect</span>
+                    <span className="slider-label">Just right</span>
                     <span className="slider-label">Too late</span>
                   </div>
                 </div>
@@ -649,8 +649,7 @@ export function FeedbackSurveyMockup({
 
               {/* Frequency - simple scale */}
               <div className="question-section animate-in delay-6">
-                <label className="question-label">How often should we meet?</label>
-                <p className="question-hint">Want to hang out with this group...</p>
+                <label className="question-label">How often would you want to meet?</label>
                 <div className="slider-scale">
                   <div className="slider-track">
                     <div className="slider-dots">
@@ -665,8 +664,8 @@ export function FeedbackSurveyMockup({
                   </div>
                   <div className="slider-labels">
                     <span className="slider-label">Less often</span>
-                    <span className="slider-label">This is perfect</span>
-                    <span className="slider-label">More often!</span>
+                    <span className="slider-label">About right</span>
+                    <span className="slider-label">More often</span>
                   </div>
                 </div>
               </div>
