@@ -116,6 +116,23 @@ A catalog of all mockups and design explorations for Kinmo.
 
 ---
 
+## UX Explorations
+
+| Mockup | Description | Updated |
+|--------|-------------|---------|
+| [RSVP Notification UX](https://44512696-dbac-4dd3-bce3-5b36e27640e8-00-14jxlhpvi40bm.kirk.replit.dev/mockups/rsvp-notification-ux.html) | 3 concepts for RSVP prompts: Inline Cards, Floating Pill, Enhanced Event Cards | Dec 8, 2024 |
+
+**Local files:**
+- `client/public/mockups/rsvp-notification-ux.html`
+
+**Notes & Future Updates:**
+- Concepts focus on "easy and obvious without being annoying"
+- Concept A: Inline Quick-RSVP Cards in amber banner
+- Concept B: Floating Action Pill at bottom of screen
+- Concept C: Enhanced Event Cards with gold border + invite banner
+
+---
+
 ## Design Documentation
 
 | Document | Description | Updated |
