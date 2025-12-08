@@ -14,6 +14,15 @@ BACKUP_DIR="$HOME/workspace/claude_backups"
 MAX_MAIN_SESSIONS=5      # Keep only the 5 most recent main sessions
 AGENT_MAX_AGE_DAYS=7     # Remove agent files older than 7 days
 
+# Plugins to auto-install from claude-code-plugins marketplace
+# Add plugin names here (without @marketplace suffix)
+AUTO_INSTALL_PLUGINS=(
+  "frontend-design"
+  "code-review"
+  "security-guidance"
+  "agent-sdk-dev"
+)
+
 # Helper: Prune old session files
 prune_old_sessions() {
   local dir="$1"
@@ -154,8 +163,51 @@ case "$1" in
       echo "Marketplace installation complete!"
     fi
 
+    # Auto-enable plugins from AUTO_INSTALL_PLUGINS list
+    if [ ${#AUTO_INSTALL_PLUGINS[@]} -gt 0 ]; then
+      echo ""
+      echo "Enabling plugins..."
+
+      # Create or update settings.json with enabled plugins
+      mkdir -p "$HOME/.claude"
+
+      # Build the enabledPlugins JSON object
+      enabled_json="{"
+      first=true
+      for plugin in "${AUTO_INSTALL_PLUGINS[@]}"; do
+        if [ "$first" = true ]; then
+          first=false
+        else
+          enabled_json+=","
+        fi
+        enabled_json+="\"${plugin}@claude-code-plugins\":true"
+      done
+      enabled_json+="}"
+
+      # Merge with existing settings or create new
+      if [ -f "$CLAUDE_SETTINGS" ]; then
+        # Update existing settings with new enabledPlugins
+        node -e "
+          const fs = require('fs');
+          const settings = JSON.parse(fs.readFileSync('$CLAUDE_SETTINGS', 'utf8'));
+          settings.enabledPlugins = $enabled_json;
+          fs.writeFileSync('$CLAUDE_SETTINGS', JSON.stringify(settings, null, 2));
+        " 2>/dev/null
+      else
+        # Create new settings file
+        echo "{\"enabledPlugins\":$enabled_json}" > "$CLAUDE_SETTINGS"
+      fi
+
+      echo "  Enabled ${#AUTO_INSTALL_PLUGINS[@]} plugin(s):"
+      for plugin in "${AUTO_INSTALL_PLUGINS[@]}"; do
+        echo "    - $plugin"
+      done
+    fi
+
     echo ""
     echo "Restore complete! Claude Code plugins are ready."
+    echo ""
+    echo "NOTE: Restart Claude Code to load the plugins."
     ;;
 
   clean)
@@ -230,6 +282,29 @@ case "$1" in
       " 2>/dev/null || echo "  (error reading marketplaces)"
     else
       echo "  (none installed)"
+    fi
+
+    echo ""
+    echo "Auto-install plugins (on restore):"
+    for plugin in "${AUTO_INSTALL_PLUGINS[@]}"; do
+      echo "  - $plugin"
+    done
+
+    echo ""
+    echo "Currently enabled plugins:"
+    if [ -f "$CLAUDE_SETTINGS" ]; then
+      node -e "
+        const data = require('$CLAUDE_SETTINGS');
+        const plugins = data.enabledPlugins || {};
+        const enabled = Object.entries(plugins).filter(([k,v]) => v).map(([k]) => k);
+        if (enabled.length === 0) {
+          console.log('  (none)');
+        } else {
+          enabled.forEach(p => console.log('  - ' + p));
+        }
+      " 2>/dev/null || echo "  (error reading settings)"
+    else
+      echo "  (none)"
     fi
     ;;
 
