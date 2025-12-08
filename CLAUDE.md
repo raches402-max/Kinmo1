@@ -90,10 +90,13 @@ Routes are in `server/routes.ts`. Key patterns:
 ## Frontend Patterns
 
 - **Data fetching**: React Query with `queryClient` from `lib/queryClient.ts`
+- **API calls**: Use `apiRequest(method, url, data)` from `lib/queryClient.ts` for mutations
 - **Forms**: React Hook Form + Zod validation
 - **UI Components**: shadcn/ui in `components/ui/`
 - **Routing**: wouter (`useLocation`, `<Route>`, `<Link>`)
-- **Toasts**: Use `useToast()` hook with `getSuccessToast()` / `getErrorToast()` helpers
+- **Error handling**: Use `getErrorToast(error)` from `components/ErrorDisplay.tsx` in mutation `onError`
+- **Toasts**: Use `useToast()` hook - errors via `getErrorToast()`, success via `toast({ title, description })`
+- **Mutations**: Prefer extracting to hooks like `useGroupMutations.ts` for reusability
 
 ## AI Integration
 
@@ -141,3 +144,18 @@ Required in `.env`:
 - **Timezones**: Events use group's `timezone` field (IANA format)
 - **Caching**: Google API results cached in `placesCache` and `searchCache` tables
 - **Rate limiting**: API calls logged to `apiCallLogs` for cost tracking
+
+## Code Style
+
+- Always use `getErrorToast(error)` for mutation error handling, not inline error messages
+- Invalidate relevant queries after mutations: `queryClient.invalidateQueries({ queryKey: [...] })`
+- Use absolute imports with `@/` prefix (maps to `client/src/`)
+- Prefer extracting complex mutation logic to custom hooks in `client/src/hooks/`
+
+## Product Context
+
+Kinmo automates the "planner" role in friend groups - the person who always texts "when are you free?" and picks the place. The app handles:
+- Finding times that work for the group
+- Suggesting venues based on preferences
+- Sending reminders and collecting RSVPs
+- Keeping groups connected even when life gets busy
