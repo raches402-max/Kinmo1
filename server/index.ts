@@ -251,7 +251,20 @@ app.use((req, res, next) => {
   }, () => {
     log(`serving on port ${port}`);
 
-    // Start the automated reminder scheduler
-    startReminderScheduler();
+    // CRITICAL: Delay scheduler startup for autoscale deployments
+    // This ensures health checks pass before heavy background tasks run
+    // In development, start immediately; in production, delay 15 seconds
+    const schedulerDelay = process.env.NODE_ENV === 'production' ? 15000 : 0;
+
+    if (schedulerDelay > 0) {
+      console.log(`[Startup] Server ready! Delaying scheduler by ${schedulerDelay/1000}s for health checks...`);
+      setTimeout(() => {
+        console.log(`[Startup] Starting scheduler now...`);
+        startReminderScheduler();
+      }, schedulerDelay);
+    } else {
+      // Development mode - start immediately
+      startReminderScheduler();
+    }
   });
 })();
