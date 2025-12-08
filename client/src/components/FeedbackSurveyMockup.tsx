@@ -1,19 +1,19 @@
 import { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
 import { Calendar, Check, X, MapPin } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
 /**
  * Redesigned Post-Event Feedback Survey
  *
- * Design Philosophy: "Soft Editorial"
- * - Clean, magazine-inspired layout with generous whitespace
- * - Warm, inviting color palette (cream/terracotta/sage)
- * - Intuitive visual inputs that don't require reading each option
- * - Progressive disclosure - show only relevant questions
- * - Emoji-scale ratings for instant comprehension
+ * Now using Kinmo's design system:
+ * - Plus Jakarta Sans typography
+ * - Warm gold/sage/dusty rose palette
+ * - Existing UI components (Card, Button)
+ * - Tailwind utilities for consistency
  */
 
 interface FeedbackSurveyMockupProps {
@@ -35,6 +35,101 @@ interface FeedbackData {
   timingRating: number;
   frequencyPreference: number;
   notes?: string;
+}
+
+// Emoji rating option component
+function EmojiOption({
+  emoji,
+  label,
+  selected,
+  onClick
+}: {
+  emoji: string;
+  label: string;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all duration-200",
+        "hover:bg-muted hover:scale-105",
+        selected && "bg-muted scale-110"
+      )}
+    >
+      <div className={cn(
+        "w-12 h-12 rounded-full flex items-center justify-center text-2xl",
+        "bg-card border-2 transition-all duration-200",
+        selected
+          ? "border-primary shadow-md"
+          : "border-transparent"
+      )}>
+        {emoji}
+      </div>
+      <span className={cn(
+        "text-[11px] uppercase tracking-wide text-muted-foreground transition-opacity",
+        selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+      )}>
+        {label}
+      </span>
+    </button>
+  );
+}
+
+// Slider scale component
+function SliderScale({
+  value,
+  onChange,
+  leftLabel,
+  centerLabel,
+  rightLabel,
+}: {
+  value: number;
+  onChange: (value: number) => void;
+  leftLabel: string;
+  centerLabel: string;
+  rightLabel: string;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="relative pt-4 pb-2">
+        {/* Track with gradient */}
+        <div className="h-1.5 rounded-full bg-gradient-to-r from-accent/60 via-muted to-secondary/60" />
+
+        {/* Dots */}
+        <div className="absolute top-2 left-0 right-0 flex justify-between px-1">
+          {[1, 2, 3, 4, 5].map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => onChange(v)}
+              className={cn(
+                "w-6 h-6 rounded-full border-2 transition-all duration-200",
+                "flex items-center justify-center",
+                "hover:border-primary hover:scale-110",
+                value === v
+                  ? "bg-primary border-primary scale-115 shadow-md"
+                  : "bg-background border-border"
+              )}
+            >
+              {value === v && (
+                <div className="w-2 h-2 rounded-full bg-primary-foreground" />
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Labels */}
+      <div className="flex justify-between text-xs text-muted-foreground">
+        <span>{leftLabel}</span>
+        <span>{centerLabel}</span>
+        <span>{rightLabel}</span>
+      </div>
+    </div>
+  );
 }
 
 export function FeedbackSurveyMockup({
@@ -69,445 +164,64 @@ export function FeedbackSurveyMockup({
     });
   };
 
+  const isValid = attended !== null && (
+    attended === false ||
+    (overallRating > 0 && venueRating > 0 && budgetRating > 0 && activityFit > 0 && timingRating > 0)
+  );
+
   return (
-    <div className="feedback-survey-mockup">
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;1,9..144,400&family=Source+Sans+3:wght@400;500;600&display=swap');
+    <div className="min-h-screen bg-background p-4 md:p-6">
+      <Card className="max-w-md mx-auto overflow-hidden">
+        {/* Header */}
+        <CardHeader className="pb-4">
+          <CardTitle className="text-2xl font-bold">How was it?</CardTitle>
+          <CardDescription>Quick feedback helps plan better events</CardDescription>
 
-        .feedback-survey-mockup {
-          --cream: #FAF7F2;
-          --warm-white: #FFFFFF;
-          --terracotta: #C4704F;
-          --terracotta-light: #E8A88A;
-          --sage: #8FA68A;
-          --sage-light: #B8CCB4;
-          --charcoal: #2D2D2D;
-          --muted: #7A7A7A;
-          --border: #E8E4DE;
-
-          font-family: 'Source Sans 3', system-ui, sans-serif;
-          background: var(--cream);
-          min-height: 100vh;
-          padding: 24px;
-        }
-
-        .feedback-card {
-          background: var(--warm-white);
-          border-radius: 24px;
-          max-width: 440px;
-          margin: 0 auto;
-          overflow: hidden;
-          box-shadow:
-            0 1px 2px rgba(0,0,0,0.04),
-            0 4px 16px rgba(0,0,0,0.06);
-        }
-
-        .feedback-header {
-          padding: 32px 28px 24px;
-          border-bottom: 1px solid var(--border);
-        }
-
-        .feedback-title {
-          font-family: 'Fraunces', serif;
-          font-size: 26px;
-          font-weight: 500;
-          color: var(--charcoal);
-          margin: 0 0 4px;
-          letter-spacing: -0.02em;
-        }
-
-        .feedback-subtitle {
-          font-size: 14px;
-          color: var(--muted);
-        }
-
-        .event-pill {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          background: var(--cream);
-          padding: 10px 14px;
-          border-radius: 12px;
-          margin-top: 16px;
-          font-size: 13px;
-          color: var(--charcoal);
-        }
-
-        .event-pill svg {
-          width: 14px;
-          height: 14px;
-          color: var(--muted);
-        }
-
-        .feedback-body {
-          padding: 28px;
-        }
-
-        .question-section {
-          margin-bottom: 32px;
-        }
-
-        .question-section:last-of-type {
-          margin-bottom: 24px;
-        }
-
-        .question-label {
-          font-family: 'Fraunces', serif;
-          font-size: 17px;
-          font-weight: 500;
-          color: var(--charcoal);
-          margin-bottom: 14px;
-          display: block;
-        }
-
-        .question-hint {
-          font-size: 13px;
-          color: var(--muted);
-          margin-top: -8px;
-          margin-bottom: 14px;
-        }
-
-        /* Binary Yes/No Toggle */
-        .binary-toggle {
-          display: flex;
-          gap: 12px;
-        }
-
-        .binary-btn {
-          flex: 1;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          padding: 14px 20px;
-          border: 2px solid var(--border);
-          border-radius: 14px;
-          background: var(--warm-white);
-          font-size: 15px;
-          font-weight: 500;
-          color: var(--charcoal);
-          cursor: pointer;
-          transition: all 0.2s ease;
-        }
-
-        .binary-btn:hover {
-          border-color: var(--sage-light);
-          background: var(--cream);
-        }
-
-        .binary-btn.selected-yes {
-          border-color: var(--sage);
-          background: linear-gradient(135deg, var(--sage-light) 0%, var(--sage) 100%);
-          color: white;
-        }
-
-        .binary-btn.selected-no {
-          border-color: var(--terracotta);
-          background: linear-gradient(135deg, var(--terracotta-light) 0%, var(--terracotta) 100%);
-          color: white;
-        }
-
-        .binary-btn svg {
-          width: 18px;
-          height: 18px;
-        }
-
-        /* Quick Reason Pills */
-        .reason-pills {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-        }
-
-        .reason-pill {
-          padding: 8px 14px;
-          border: 1.5px solid var(--border);
-          border-radius: 20px;
-          background: var(--warm-white);
-          font-size: 13px;
-          color: var(--charcoal);
-          cursor: pointer;
-          transition: all 0.2s ease;
-        }
-
-        .reason-pill:hover {
-          border-color: var(--terracotta-light);
-        }
-
-        .reason-pill.selected {
-          border-color: var(--terracotta);
-          background: var(--terracotta);
-          color: white;
-        }
-
-        /* Emoji Rating Scale */
-        .emoji-scale {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 8px 4px;
-        }
-
-        .emoji-option {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 6px;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          padding: 8px;
-          border-radius: 12px;
-        }
-
-        .emoji-option:hover {
-          background: var(--cream);
-          transform: scale(1.05);
-        }
-
-        .emoji-option.selected {
-          background: var(--cream);
-          transform: scale(1.1);
-        }
-
-        .emoji-circle {
-          width: 48px;
-          height: 48px;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 26px;
-          background: var(--cream);
-          border: 2px solid transparent;
-          transition: all 0.2s ease;
-        }
-
-        .emoji-option.selected .emoji-circle {
-          border-color: var(--sage);
-          background: white;
-          box-shadow: 0 2px 8px rgba(143, 166, 138, 0.3);
-        }
-
-        .emoji-label {
-          font-size: 11px;
-          color: var(--muted);
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          opacity: 0;
-          transition: opacity 0.2s ease;
-        }
-
-        .emoji-option:hover .emoji-label,
-        .emoji-option.selected .emoji-label {
-          opacity: 1;
-        }
-
-        /* Slider Scale */
-        .slider-scale {
-          position: relative;
-          padding: 16px 0 8px;
-        }
-
-        .slider-track {
-          height: 6px;
-          background: linear-gradient(90deg, var(--terracotta-light) 0%, var(--cream) 50%, var(--sage-light) 100%);
-          border-radius: 3px;
-          position: relative;
-        }
-
-        .slider-labels {
-          display: flex;
-          justify-content: space-between;
-          margin-top: 10px;
-        }
-
-        .slider-label {
-          font-size: 12px;
-          color: var(--muted);
-        }
-
-        .slider-dots {
-          display: flex;
-          justify-content: space-between;
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          transform: translateY(-50%);
-          padding: 0 4px;
-        }
-
-        .slider-dot {
-          width: 24px;
-          height: 24px;
-          border-radius: 50%;
-          background: white;
-          border: 2px solid var(--border);
-          cursor: pointer;
-          transition: all 0.2s ease;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .slider-dot:hover {
-          border-color: var(--sage);
-          transform: scale(1.1);
-        }
-
-        .slider-dot.selected {
-          border-color: var(--sage);
-          background: var(--sage);
-          transform: scale(1.15);
-        }
-
-        .slider-dot.selected::after {
-          content: '';
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-          background: white;
-        }
-
-        /* Notes Textarea */
-        .notes-textarea {
-          width: 100%;
-          padding: 14px 16px;
-          border: 1.5px solid var(--border);
-          border-radius: 14px;
-          font-family: 'Source Sans 3', system-ui, sans-serif;
-          font-size: 14px;
-          resize: none;
-          transition: all 0.2s ease;
-          background: var(--warm-white);
-        }
-
-        .notes-textarea:focus {
-          outline: none;
-          border-color: var(--sage);
-          box-shadow: 0 0 0 3px rgba(143, 166, 138, 0.15);
-        }
-
-        .notes-textarea::placeholder {
-          color: var(--muted);
-        }
-
-        /* Footer Actions */
-        .feedback-footer {
-          display: flex;
-          gap: 12px;
-          padding: 20px 28px 28px;
-          border-top: 1px solid var(--border);
-        }
-
-        .btn-secondary {
-          flex: 1;
-          padding: 14px 20px;
-          border: 1.5px solid var(--border);
-          border-radius: 12px;
-          background: var(--warm-white);
-          font-family: 'Source Sans 3', system-ui, sans-serif;
-          font-size: 15px;
-          font-weight: 500;
-          color: var(--muted);
-          cursor: pointer;
-          transition: all 0.2s ease;
-        }
-
-        .btn-secondary:hover {
-          background: var(--cream);
-          color: var(--charcoal);
-        }
-
-        .btn-primary {
-          flex: 2;
-          padding: 14px 20px;
-          border: none;
-          border-radius: 12px;
-          background: linear-gradient(135deg, var(--sage) 0%, #7A9375 100%);
-          font-family: 'Source Sans 3', system-ui, sans-serif;
-          font-size: 15px;
-          font-weight: 600;
-          color: white;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          box-shadow: 0 2px 8px rgba(143, 166, 138, 0.3);
-        }
-
-        .btn-primary:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(143, 166, 138, 0.4);
-        }
-
-        .btn-primary:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-          transform: none;
-        }
-
-        /* Animations */
-        @keyframes slideIn {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        .animate-in {
-          animation: slideIn 0.3s ease forwards;
-        }
-
-        .delay-1 { animation-delay: 0.1s; opacity: 0; }
-        .delay-2 { animation-delay: 0.2s; opacity: 0; }
-        .delay-3 { animation-delay: 0.3s; opacity: 0; }
-        .delay-4 { animation-delay: 0.4s; opacity: 0; }
-        .delay-5 { animation-delay: 0.5s; opacity: 0; }
-        .delay-6 { animation-delay: 0.6s; opacity: 0; }
-      `}</style>
-
-      <div className="feedback-card">
-        <div className="feedback-header">
-          <h2 className="feedback-title">How was it?</h2>
-          <p className="feedback-subtitle">Quick feedback helps us plan better events</p>
-
-          <div className="event-pill">
-            <MapPin />
-            <span>{eventName}</span>
-            <span style={{ color: 'var(--muted)' }}>•</span>
-            <Calendar />
-            <span>{format(eventDate, 'MMM d')}</span>
+          {/* Event pill */}
+          <div className="flex items-center gap-2 bg-muted rounded-xl px-3 py-2.5 mt-3 text-sm">
+            <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="font-medium">{eventName}</span>
+            <span className="text-muted-foreground">•</span>
+            <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-muted-foreground">{format(eventDate, 'MMM d')}</span>
           </div>
-        </div>
+        </CardHeader>
 
-        <div className="feedback-body">
+        <CardContent className="space-y-6">
           {/* Question 1: Did you attend? */}
-          <div className="question-section animate-in">
-            <label className="question-label">Did you make it?</label>
-            <div className="binary-toggle">
-              <button
-                className={`binary-btn ${attended === true ? 'selected-yes' : ''}`}
+          <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <label className="text-base font-semibold">Did you make it?</label>
+            <div className="flex gap-3">
+              <Button
+                type="button"
+                variant={attended === true ? "default" : "outline"}
+                className={cn(
+                  "flex-1 gap-2",
+                  attended === true && "bg-secondary text-secondary-foreground hover:bg-secondary/90"
+                )}
                 onClick={() => setAttended(true)}
               >
-                <Check /> Yes
-              </button>
-              <button
-                className={`binary-btn ${attended === false ? 'selected-no' : ''}`}
+                <Check className="h-4 w-4" /> Yes
+              </Button>
+              <Button
+                type="button"
+                variant={attended === false ? "default" : "outline"}
+                className={cn(
+                  "flex-1 gap-2",
+                  attended === false && "bg-accent text-accent-foreground hover:bg-accent/90"
+                )}
                 onClick={() => setAttended(false)}
               >
-                <X /> No
-              </button>
+                <X className="h-4 w-4" /> No
+              </Button>
             </div>
           </div>
 
           {/* If didn't attend - quick reason */}
           {attended === false && (
-            <div className="question-section animate-in">
-              <label className="question-label">What happened?</label>
-              <div className="reason-pills">
+            <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <label className="text-base font-semibold">What happened?</label>
+              <div className="flex flex-wrap gap-2">
                 {[
                   { value: 'cancelled', label: 'Event cancelled' },
                   { value: 'conflict', label: 'Schedule conflict' },
@@ -516,8 +230,14 @@ export function FeedbackSurveyMockup({
                 ].map(reason => (
                   <button
                     key={reason.value}
-                    className={`reason-pill ${didNotAttendReason === reason.value ? 'selected' : ''}`}
+                    type="button"
                     onClick={() => setDidNotAttendReason(reason.value)}
+                    className={cn(
+                      "px-3.5 py-2 rounded-full text-sm border-2 transition-all duration-200",
+                      didNotAttendReason === reason.value
+                        ? "bg-accent border-accent text-accent-foreground"
+                        : "bg-background border-border hover:border-accent/50"
+                    )}
                   >
                     {reason.label}
                   </button>
@@ -530,9 +250,9 @@ export function FeedbackSurveyMockup({
           {attended === true && (
             <>
               {/* Overall experience - emoji scale */}
-              <div className="question-section animate-in delay-1">
-                <label className="question-label">Overall experience</label>
-                <div className="emoji-scale">
+              <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300" style={{ animationDelay: '100ms' }}>
+                <label className="text-base font-semibold">Overall experience</label>
+                <div className="flex justify-between items-start">
                   {[
                     { value: 1, emoji: '😔', label: 'Poor' },
                     { value: 2, emoji: '😕', label: 'Meh' },
@@ -540,23 +260,24 @@ export function FeedbackSurveyMockup({
                     { value: 4, emoji: '😊', label: 'Good' },
                     { value: 5, emoji: '🤩', label: 'Great!' }
                   ].map(option => (
-                    <div
+                    <EmojiOption
                       key={option.value}
-                      className={`emoji-option ${overallRating === option.value ? 'selected' : ''}`}
+                      emoji={option.emoji}
+                      label={option.label}
+                      selected={overallRating === option.value}
                       onClick={() => setOverallRating(option.value)}
-                    >
-                      <div className="emoji-circle">{option.emoji}</div>
-                      <span className="emoji-label">{option.label}</span>
-                    </div>
+                    />
                   ))}
                 </div>
               </div>
 
               {/* Venue rating - emoji scale */}
-              <div className="question-section animate-in delay-2">
-                <label className="question-label">The venue</label>
-                <p className="question-hint">Would you go back to {venueName}?</p>
-                <div className="emoji-scale">
+              <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300" style={{ animationDelay: '200ms' }}>
+                <div>
+                  <label className="text-base font-semibold">The venue</label>
+                  <p className="text-sm text-muted-foreground">Would you go back to {venueName}?</p>
+                </div>
+                <div className="flex justify-between items-start">
                   {[
                     { value: 1, emoji: '👎', label: 'Nope' },
                     { value: 2, emoji: '😬', label: 'Probably not' },
@@ -564,23 +285,24 @@ export function FeedbackSurveyMockup({
                     { value: 4, emoji: '👍', label: 'Yes' },
                     { value: 5, emoji: '❤️', label: 'Love it!' }
                   ].map(option => (
-                    <div
+                    <EmojiOption
                       key={option.value}
-                      className={`emoji-option ${venueRating === option.value ? 'selected' : ''}`}
+                      emoji={option.emoji}
+                      label={option.label}
+                      selected={venueRating === option.value}
                       onClick={() => setVenueRating(option.value)}
-                    >
-                      <div className="emoji-circle">{option.emoji}</div>
-                      <span className="emoji-label">{option.label}</span>
-                    </div>
+                    />
                   ))}
                 </div>
               </div>
 
               {/* Budget - emoji scale */}
-              <div className="question-section animate-in delay-3">
-                <label className="question-label">The budget</label>
-                <p className="question-hint">How did the cost feel?</p>
-                <div className="emoji-scale">
+              <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300" style={{ animationDelay: '300ms' }}>
+                <div>
+                  <label className="text-base font-semibold">The budget</label>
+                  <p className="text-sm text-muted-foreground">How did the cost feel?</p>
+                </div>
+                <div className="flex justify-between items-start">
                   {[
                     { value: 1, emoji: '😰', label: 'Too pricey' },
                     { value: 2, emoji: '😕', label: 'A bit much' },
@@ -588,116 +310,90 @@ export function FeedbackSurveyMockup({
                     { value: 4, emoji: '🙌', label: 'Good deal' },
                     { value: 5, emoji: '🤑', label: 'Great value' }
                   ].map(option => (
-                    <div
+                    <EmojiOption
                       key={option.value}
-                      className={`emoji-option ${budgetRating === option.value ? 'selected' : ''}`}
+                      emoji={option.emoji}
+                      label={option.label}
+                      selected={budgetRating === option.value}
                       onClick={() => setBudgetRating(option.value)}
-                    >
-                      <div className="emoji-circle">{option.emoji}</div>
-                      <span className="emoji-label">{option.label}</span>
-                    </div>
+                    />
                   ))}
                 </div>
               </div>
 
               {/* Activity fit - slider scale */}
-              <div className="question-section animate-in delay-4">
-                <label className="question-label">This type of activity?</label>
-                <p className="question-hint">For you...</p>
-                <div className="slider-scale">
-                  <div className="slider-track">
-                    <div className="slider-dots">
-                      {[1, 2, 3, 4, 5].map(value => (
-                        <div
-                          key={value}
-                          className={`slider-dot ${activityFit === value ? 'selected' : ''}`}
-                          onClick={() => setActivityFit(value)}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                  <div className="slider-labels">
-                    <span className="slider-label">Not my thing</span>
-                    <span className="slider-label">Works for me</span>
-                    <span className="slider-label">More of this</span>
-                  </div>
+              <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300" style={{ animationDelay: '400ms' }}>
+                <div>
+                  <label className="text-base font-semibold">This type of activity?</label>
+                  <p className="text-sm text-muted-foreground">For you...</p>
                 </div>
+                <SliderScale
+                  value={activityFit}
+                  onChange={setActivityFit}
+                  leftLabel="Not my thing"
+                  centerLabel="Works for me"
+                  rightLabel="More of this"
+                />
               </div>
 
-              {/* Timing - simple scale */}
-              <div className="question-section animate-in delay-5">
-                <label className="question-label">The timing</label>
-                <div className="slider-scale">
-                  <div className="slider-track">
-                    <div className="slider-dots">
-                      {[1, 2, 3, 4, 5].map(value => (
-                        <div
-                          key={value}
-                          className={`slider-dot ${timingRating === value ? 'selected' : ''}`}
-                          onClick={() => setTimingRating(value)}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                  <div className="slider-labels">
-                    <span className="slider-label">Too early</span>
-                    <span className="slider-label">Just right</span>
-                    <span className="slider-label">Too late</span>
-                  </div>
-                </div>
+              {/* Timing - slider scale */}
+              <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300" style={{ animationDelay: '500ms' }}>
+                <label className="text-base font-semibold">The timing</label>
+                <SliderScale
+                  value={timingRating}
+                  onChange={setTimingRating}
+                  leftLabel="Too early"
+                  centerLabel="Just right"
+                  rightLabel="Too late"
+                />
               </div>
 
-              {/* Frequency - simple scale */}
-              <div className="question-section animate-in delay-6">
-                <label className="question-label">How often would you want to meet?</label>
-                <div className="slider-scale">
-                  <div className="slider-track">
-                    <div className="slider-dots">
-                      {[1, 2, 3, 4, 5].map(value => (
-                        <div
-                          key={value}
-                          className={`slider-dot ${frequencyPreference === value ? 'selected' : ''}`}
-                          onClick={() => setFrequencyPreference(value)}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                  <div className="slider-labels">
-                    <span className="slider-label">Less often</span>
-                    <span className="slider-label">About right</span>
-                    <span className="slider-label">More often</span>
-                  </div>
-                </div>
+              {/* Frequency - slider scale */}
+              <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300" style={{ animationDelay: '600ms' }}>
+                <label className="text-base font-semibold">How often would you want to meet?</label>
+                <SliderScale
+                  value={frequencyPreference}
+                  onChange={setFrequencyPreference}
+                  leftLabel="Less often"
+                  centerLabel="About right"
+                  rightLabel="More often"
+                />
               </div>
 
               {/* Optional notes */}
-              <div className="question-section animate-in delay-6">
-                <label className="question-label">Anything else?</label>
-                <textarea
-                  className="notes-textarea"
+              <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300" style={{ animationDelay: '600ms' }}>
+                <label className="text-base font-semibold">Anything else?</label>
+                <Textarea
                   placeholder="Optional - suggestions for next time..."
-                  rows={3}
+                  className="min-h-[80px] resize-none"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                 />
               </div>
             </>
           )}
-        </div>
+        </CardContent>
 
-        <div className="feedback-footer">
-          <button className="btn-secondary" onClick={onCancel}>
+        {/* Footer */}
+        <div className="flex gap-3 p-6 pt-0 border-t border-border mt-4">
+          <Button
+            type="button"
+            variant="ghost"
+            className="flex-1"
+            onClick={onCancel}
+          >
             Skip
-          </button>
-          <button
-            className="btn-primary"
-            disabled={attended === null || (attended === true && (overallRating === 0 || venueRating === 0 || budgetRating === 0 || activityFit === 0 || timingRating === 0))}
+          </Button>
+          <Button
+            type="button"
+            className="flex-[2]"
+            disabled={!isValid}
             onClick={handleSubmit}
           >
             Submit
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }
