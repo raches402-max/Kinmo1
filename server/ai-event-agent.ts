@@ -346,6 +346,332 @@ function executeTool(
 /**
  * Main agent function - plans an event using AI reasoning and tools
  */
+// ============================================================================
+// AI Suggestion Types for Event Editing
+// ============================================================================
+
+export interface AISuggestionRequest {
+  group: Group;
+  eventDate: Date;
+  availableVenues: VenueForAgent[];
+  currentVenue?: VenueForAgent;  // The venue being replaced (for alternatives)
+  existingVenues?: VenueForAgent[];  // Other venues in the itinerary (for complements)
+}
+
+export interface AISuggestion {
+  venue: VenueForAgent;
+  confidence: number;
+  category?: string;
+}
+
+export interface AISuggestionsResult {
+  alternatives?: AISuggestion[];
+  complements?: AISuggestion[];
+}
+
+/**
+ * Suggest alternative venues to replace a current venue
+ * Uses the agent to find better options based on group preferences
+ */
+export async function suggestAlternativesWithAgent(
+  request: AISuggestionRequest
+): Promise<AISuggestion[]> {
+  const startTime = Date.now();
+  const { group, eventDate, availableVenues, currentVenue } = request;
+
+  const eventHour = eventDate.getHours();
+  const eventDay = eventDate.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric'
+  });
+
+  console.log(`[Agent:Alternatives] Finding alternatives for "${currentVenue?.name || 'venue'}" for "${group.name}"`);
+
+  // Filter out the current venue and build venue list
+  const candidateVenues = availableVenues.filter(v =>
+    !currentVenue || v.id !== currentVenue.id
+  ).slice(0, 15);
+
+  if (candidateVenues.length === 0) {
+    console.log('[Agent:Alternatives] No candidate venues available');
+    return [];
+  }
+
+  const venueList = candidateVenues
+    .map((v, i) => {
+      const category = getVenueCategory(v);
+      const isFavorite = v.type === 'voting_event';
+      return `${i}. ${v.name} (${v.venueType || 'unknown'})${isFavorite ? ' ⭐ FAVORITE' : ''}
+   Category: ${category} | Score: ${v.score.toFixed(1)} | Rating: ${v.rating || 'N/A'}
+   Visits: ${v.visitCount}x, Last: ${v.daysSinceLastVisit === 999 ? 'Never' : Math.round(v.daysSinceLastVisit) + ' days ago'}`;
+    })
+    .join('\n\n');
+
+  const currentVenueInfo = currentVenue
+    ? `Current venue: ${currentVenue.name} (${currentVenue.venueType || 'unknown'})`
+    : 'No current venue specified';
+
+  const systemPrompt = `You are an expert event planner helping "${group.name}" find BETTER alternatives.
+
+EVENT CONTEXT:
+- Date: ${eventDay}
+- Time: ${eventHour}:00 (${getTimePeriod(eventHour)})
+- Group preferences: ${group.activityCategories || 'None specified'}
+- ${currentVenueInfo}
+
+YOUR TASK: Rank the TOP 3 venues that would be great alternatives.
+
+RANKING CRITERIA:
+1. **Favorites (⭐) get priority** - proven group favorites
+2. **High scores** - venues the group will love
+3. **Time-appropriate** - suitable for ${getTimePeriod(eventHour)}
+4. **Fresh experiences** - not visited recently
+5. **Similar category** - if replacing a restaurant, suggest restaurants
+
+Return EXACTLY 3 venues ranked by how confident you are they'll be a hit.`;
+
+  const userPrompt = `Rank the TOP 3 alternative venues from this list:
+
+${venueList}
+
+**RESPOND WITH THIS JSON ONLY:**
+{
+  "suggestions": [
+    { "index": 2, "confidence": 92 },
+    { "index": 5, "confidence": 87 },
+    { "index": 0, "confidence": 81 }
+  ]
+}
+
+Rules:
+- "index" must be a number from the list above (0-${candidateVenues.length - 1})
+- "confidence" is 0-100, how sure you are this venue will be a hit
+- Rank from highest to lowest confidence
+- Return exactly 3 suggestions`;
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.5,
+    });
+
+    const content = response.choices[0]?.message?.content || '';
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+
+    if (!jsonMatch) {
+      console.error('[Agent:Alternatives] No JSON in response');
+      return [];
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    const suggestions: AISuggestion[] = (parsed.suggestions || [])
+      .filter((s: any) => s.index >= 0 && s.index < candidateVenues.length)
+      .map((s: any) => ({
+        venue: candidateVenues[s.index],
+        confidence: Math.min(100, Math.max(0, s.confidence || 70)),
+        category: getVenueCategory(candidateVenues[s.index]),
+      }));
+
+    const responseTime = Date.now() - startTime;
+    const cost = calculateOpenAICost(
+      'gpt-4o-mini',
+      response.usage?.prompt_tokens || 0,
+      response.usage?.completion_tokens || 0
+    );
+
+    await logApiCall({
+      service: 'openai',
+      method: 'suggestAlternativesWithAgent',
+      cacheStatus: 'miss',
+      status: 'success',
+      responseTimeMs: responseTime,
+      costEstimate: cost,
+      parameters: { groupName: group.name, venueCount: candidateVenues.length },
+      metadata: { suggestionsCount: suggestions.length },
+    });
+
+    console.log(`[Agent:Alternatives] Found ${suggestions.length} alternatives in ${responseTime}ms ($${cost.toFixed(4)})`);
+    return suggestions;
+
+  } catch (error: any) {
+    await logApiCall({
+      service: 'openai',
+      method: 'suggestAlternativesWithAgent',
+      cacheStatus: 'miss',
+      status: 'error',
+      responseTimeMs: Date.now() - startTime,
+      errorMessage: error.message,
+      parameters: { groupName: group.name },
+    });
+    console.error('[Agent:Alternatives] Error:', error.message);
+    return [];
+  }
+}
+
+/**
+ * Suggest complementary venues to add to an existing itinerary
+ * Finds venues that pair well with what's already planned
+ */
+export async function suggestComplementsWithAgent(
+  request: AISuggestionRequest
+): Promise<AISuggestion[]> {
+  const startTime = Date.now();
+  const { group, eventDate, availableVenues, existingVenues = [] } = request;
+
+  const eventHour = eventDate.getHours();
+  const eventDay = eventDate.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric'
+  });
+
+  console.log(`[Agent:Complements] Finding complements for "${group.name}" with ${existingVenues.length} existing venues`);
+
+  // Get categories of existing venues to find complements
+  const existingCategories = existingVenues.map(v => getVenueCategory(v));
+  const existingIds = new Set(existingVenues.map(v => v.id));
+
+  // Filter to venues NOT already in the itinerary and preferably different categories
+  const candidateVenues = availableVenues
+    .filter(v => !existingIds.has(v.id))
+    .slice(0, 15);
+
+  if (candidateVenues.length === 0) {
+    console.log('[Agent:Complements] No candidate venues available');
+    return [];
+  }
+
+  const venueList = candidateVenues
+    .map((v, i) => {
+      const category = getVenueCategory(v);
+      const isFavorite = v.type === 'voting_event';
+      return `${i}. ${v.name} (${v.venueType || 'unknown'})${isFavorite ? ' ⭐ FAVORITE' : ''}
+   Category: ${category} | Score: ${v.score.toFixed(1)} | Rating: ${v.rating || 'N/A'}`;
+    })
+    .join('\n\n');
+
+  const existingInfo = existingVenues.length > 0
+    ? `Already planned: ${existingVenues.map(v => `${v.name} (${getVenueCategory(v)})`).join(', ')}`
+    : 'No venues planned yet';
+
+  const systemPrompt = `You are an expert event planner helping "${group.name}" add a complementary stop to their evening.
+
+EVENT CONTEXT:
+- Date: ${eventDay}
+- Time: ${eventHour}:00 (${getTimePeriod(eventHour)})
+- ${existingInfo}
+- Group preferences: ${group.activityCategories || 'None specified'}
+
+YOUR TASK: Suggest venues that would COMPLEMENT the existing plan.
+
+COMPLEMENT STRATEGY:
+- After a meal → suggest dessert, drinks, or activity
+- After drinks → suggest late-night food or dessert
+- After dessert → suggest drinks or activity
+- For variety → suggest different category than what's already planned
+- Keep it nearby and time-appropriate
+
+PRIORITY:
+1. **Different category** from existing venues
+2. **Favorites (⭐)** are always great choices
+3. **High scores** - proven hits
+4. **Time-appropriate** for after ${getTimePeriod(eventHour)}`;
+
+  const userPrompt = `Suggest TOP 3 venues to ADD to this itinerary:
+
+${venueList}
+
+**RESPOND WITH THIS JSON ONLY:**
+{
+  "suggestions": [
+    { "index": 3, "confidence": 89, "why": "dessert" },
+    { "index": 7, "confidence": 85, "why": "drinks" },
+    { "index": 1, "confidence": 78, "why": "activity" }
+  ]
+}
+
+Rules:
+- "index" must be from the list (0-${candidateVenues.length - 1})
+- "confidence" is 0-100
+- "why" is the complement category (dessert, drinks, activity, etc.)
+- Prefer DIFFERENT categories from: ${existingCategories.join(', ') || 'none'}
+- Return exactly 3 suggestions`;
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.6,
+    });
+
+    const content = response.choices[0]?.message?.content || '';
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+
+    if (!jsonMatch) {
+      console.error('[Agent:Complements] No JSON in response');
+      return [];
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    const suggestions: AISuggestion[] = (parsed.suggestions || [])
+      .filter((s: any) => s.index >= 0 && s.index < candidateVenues.length)
+      .map((s: any) => ({
+        venue: candidateVenues[s.index],
+        confidence: Math.min(100, Math.max(0, s.confidence || 70)),
+        category: s.why || getVenueCategory(candidateVenues[s.index]),
+      }));
+
+    const responseTime = Date.now() - startTime;
+    const cost = calculateOpenAICost(
+      'gpt-4o-mini',
+      response.usage?.prompt_tokens || 0,
+      response.usage?.completion_tokens || 0
+    );
+
+    await logApiCall({
+      service: 'openai',
+      method: 'suggestComplementsWithAgent',
+      cacheStatus: 'miss',
+      status: 'success',
+      responseTimeMs: responseTime,
+      costEstimate: cost,
+      parameters: { groupName: group.name, existingCount: existingVenues.length },
+      metadata: { suggestionsCount: suggestions.length },
+    });
+
+    console.log(`[Agent:Complements] Found ${suggestions.length} complements in ${responseTime}ms ($${cost.toFixed(4)})`);
+    return suggestions;
+
+  } catch (error: any) {
+    await logApiCall({
+      service: 'openai',
+      method: 'suggestComplementsWithAgent',
+      cacheStatus: 'miss',
+      status: 'error',
+      responseTimeMs: Date.now() - startTime,
+      errorMessage: error.message,
+      parameters: { groupName: group.name },
+    });
+    console.error('[Agent:Complements] Error:', error.message);
+    return [];
+  }
+}
+
+// ============================================================================
+// Original Event Planning Agent
+// ============================================================================
+
+/**
+ * Main agent function - plans an event using AI reasoning and tools
+ */
 export async function planEventWithAgent(
   request: EventPlanningRequest
 ): Promise<EventPlan | null> {

@@ -571,3 +571,87 @@ button.bg-primary:hover {
 .card:hover:not(:has(button:hover)):not(:has(a:hover)) {
   @apply shadow-warm-lg;
 }
+
+/* ========================
+   AI SUGGESTIONS TAB
+   ======================== */
+
+/* AI Thinking Animation - warm golden dots */
+@keyframes aiThinking {
+  0%, 80%, 100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.ai-thinking-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: hsl(var(--primary));
+  animation: aiThinking 1.4s ease-in-out infinite;
+}
+.ai-thinking-dot:nth-child(1) { animation-delay: 0s; }
+.ai-thinking-dot:nth-child(2) { animation-delay: 0.2s; }
+.ai-thinking-dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* Confidence badge color tiers */
+.confidence-high { /* 90+ */
+  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-hover)));
+  color: hsl(var(--primary-foreground));
+}
+.confidence-medium { /* 70-89 */
+  background: hsl(var(--secondary));
+  color: hsl(var(--secondary-foreground));
+}
+.confidence-low { /* <70 */
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+}
+
+/* Segmented control for mode toggle */
+.ai-mode-toggle {
+  display: flex;
+  background: hsl(var(--muted));
+  border-radius: 9999px;
+  padding: 4px;
+  gap: 4px;
+}
+.ai-mode-toggle button {
+  flex: 1;
+  padding: 8px 16px;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  border: none;
+  cursor: pointer;
+}
+.ai-mode-toggle button[data-active="true"] {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  box-shadow: var(--shadow-subtle);
+}
+.ai-mode-toggle button[data-active="false"] {
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+}
+.ai-mode-toggle button[data-active="false"]:hover {
+  color: hsl(var(--foreground));
+}
+
+/* AI suggestion card */
+.ai-suggestion-card {
+  @apply bg-card border border-card-border rounded-lg p-3 cursor-pointer;
+  @apply transition-all duration-200;
+}
+.ai-suggestion-card:hover {
+  @apply -translate-y-0.5 shadow-warm-lg border-primary/30;
+}
+.ai-suggestion-card[data-selected="true"] {
+  @apply border-primary bg-primary/5;
+}

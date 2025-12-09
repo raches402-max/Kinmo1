@@ -10095,6 +10095,203 @@ Looking forward to planning great activities together!
     }
   });
 
+  // ============================================================================
+  // AI Suggestions for Event Editing
+  // ============================================================================
+
+  /**
+   * Get AI-powered venue suggestions for an event
+   * - alternatives: Better venues to replace a current one
+   * - complements: Venues that pair well with existing itinerary
+   */
+  app.post("/api/itineraries/:id/ai-suggestions", isAuthenticated, requireItineraryAccess(), async (req: any, res) => {
+    try {
+      const itineraryId = req.params.id;
+      const { venueId, suggestionType = 'alternatives' } = req.body;
+
+      // Get the itinerary
+      const itinerary = await storage.getItinerary(itineraryId);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      // Need group context for AI suggestions
+      if (!itinerary.groupId) {
+        return res.status(400).json({ message: "AI suggestions require group context" });
+      }
+
+      const group = await storage.getGroup(itinerary.groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      // Import scoring utilities
+      const { calculateVenueScore, getVisitStats: getVisitStatsUtil, shouldSkipVenue, calculateQualityScore, calculateVotingEventQuality } = await import('./venue-scoring-utils');
+      const { suggestAlternativesWithAgent, suggestComplementsWithAgent } = await import('./ai-event-agent');
+      const { getVenueVisitStats } = await import('./auto-scheduler');
+
+      // Get all available venues (activities + voting events)
+      const activities = await storage.getGroupActivities(group.id);
+      const votingEvents = await storage.getGroupVotingEvents(group.id);
+
+      console.log(`[AI Suggestions] Found ${activities.length} activities, ${votingEvents.length} favorites for group "${group.name}"`);
+
+      // Get visit history
+      const visitStats = await getVenueVisitStats(group.id);
+
+      // Score all venues - use any[] and let the agent functions handle typing
+      const scoredVenues: any[] = [];
+
+      // Score activities
+      for (const activity of activities) {
+        if (shouldSkipVenue(activity.businessStatus, activity.feedback)) continue;
+
+        const qualityScore = calculateQualityScore(activity.feedback);
+        const stats = visitStats.find((v: any) => v.activityId === activity.id);
+        const { visitCount, daysSinceLastVisit } = getVisitStatsUtil(stats);
+        const score = calculateVenueScore(qualityScore, visitCount, daysSinceLastVisit);
+
+        scoredVenues.push({
+          type: 'activity',
+          id: activity.id,
+          name: activity.venueName,
+          score,
+          visitCount,
+          daysSinceLastVisit,
+          qualityScore,
+          feedback: activity.feedback,
+          category: activity.category,
+          timeCategory: activity.timeCategory,
+          venueType: activity.venueType,
+          rating: activity.rating,
+          venueAddress: activity.venueAddress,
+          googlePlaceId: activity.googlePlaceId,
+          latitude: activity.latitude,
+          longitude: activity.longitude,
+        });
+      }
+
+      // Score voting events (favorites)
+      const voteCounts = await Promise.all(
+        votingEvents.map(async (ve) => {
+          const votes = await storage.getEventVotes(ve.id);
+          const upvotes = votes.filter((v: any) => v.voteType === 'upvote').length;
+          const downvotes = votes.filter((v: any) => v.voteType === 'downvote').length;
+          return { id: ve.id, upvotes, downvotes, netVotes: upvotes - downvotes };
+        })
+      );
+
+      for (const votingEvent of votingEvents) {
+        const voteCount = voteCounts.find(vc => vc.id === votingEvent.id);
+        const upvotes = voteCount?.upvotes || 0;
+        const downvotes = voteCount?.downvotes || 0;
+
+        const qualityScore = calculateVotingEventQuality(upvotes, downvotes);
+        if (qualityScore === -1) continue; // Skip net-downvoted
+
+        const stats = visitStats.find((v: any) => v.votingEventId === votingEvent.id);
+        const { visitCount, daysSinceLastVisit } = getVisitStatsUtil(stats);
+        const score = calculateVenueScore(qualityScore, visitCount, daysSinceLastVisit);
+
+        scoredVenues.push({
+          type: 'voting_event',
+          id: votingEvent.id,
+          name: votingEvent.title,
+          score,
+          visitCount,
+          daysSinceLastVisit,
+          qualityScore,
+          venueType: votingEvent.venueType || undefined,
+          rating: votingEvent.rating || undefined,
+          venueAddress: votingEvent.venueAddress || undefined,
+          googlePlaceId: votingEvent.googlePlaceId || undefined,
+          latitude: votingEvent.latitude,
+          longitude: votingEvent.longitude,
+        });
+      }
+
+      // Sort by score descending
+      scoredVenues.sort((a, b) => b.score - a.score);
+
+      console.log(`[AI Suggestions] ${scoredVenues.length} scored venues available`);
+
+      // Prepare event date (use itinerary date or default to now)
+      const eventDate = itinerary.eventDate ? new Date(itinerary.eventDate) : new Date();
+
+      // Find current venue if venueId provided
+      let currentVenue: VenueForAgent | undefined;
+      if (venueId) {
+        currentVenue = scoredVenues.find(v => v.id === venueId);
+      }
+
+      // Get existing venues in itinerary (for complements)
+      const existingVenues: VenueForAgent[] = [];
+      if (itinerary.items && itinerary.items.length > 0) {
+        for (const item of itinerary.items) {
+          const found = scoredVenues.find(v => v.id === item.sourceId);
+          if (found) existingVenues.push(found);
+        }
+      }
+
+      // Call the appropriate agent function
+      const result: { alternatives?: any[]; complements?: any[] } = {};
+
+      if (suggestionType === 'alternatives' || suggestionType === 'both') {
+        const alternatives = await suggestAlternativesWithAgent({
+          group,
+          eventDate,
+          availableVenues: scoredVenues,
+          currentVenue,
+        });
+        result.alternatives = alternatives.map(s => ({
+          venue: {
+            id: s.venue.id,
+            name: s.venue.name,
+            type: s.venue.type,
+            venueType: s.venue.venueType,
+            rating: s.venue.rating,
+            address: s.venue.venueAddress,
+            googlePlaceId: s.venue.googlePlaceId,
+            latitude: s.venue.latitude,
+            longitude: s.venue.longitude,
+          },
+          confidence: s.confidence,
+          category: s.category,
+          replaces: currentVenue?.name,
+        }));
+      }
+
+      if (suggestionType === 'complements' || suggestionType === 'both') {
+        const complements = await suggestComplementsWithAgent({
+          group,
+          eventDate,
+          availableVenues: scoredVenues,
+          existingVenues,
+        });
+        result.complements = complements.map(s => ({
+          venue: {
+            id: s.venue.id,
+            name: s.venue.name,
+            type: s.venue.type,
+            venueType: s.venue.venueType,
+            rating: s.venue.rating,
+            address: s.venue.venueAddress,
+            googlePlaceId: s.venue.googlePlaceId,
+            latitude: s.venue.latitude,
+            longitude: s.venue.longitude,
+          },
+          confidence: s.confidence,
+          category: s.category,
+        }));
+      }
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("[AI Suggestions] Error:", error);
+      res.status(500).json({ message: error.message || "Failed to get AI suggestions" });
+    }
+  });
+
   // Create a new itinerary (used for TBD events on dashboard)
   app.post("/api/itineraries", isAuthenticated, async (req: any, res) => {
     try {

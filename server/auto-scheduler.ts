@@ -75,7 +75,7 @@ function getDefaultEventTime(group: Group): number {
 /**
  * Get visit statistics for all venues in a group
  */
-async function getVenueVisitStats(groupId: string) {
+export async function getVenueVisitStats(groupId: string) {
   const visits = await db.select({
     activityId: venueVisitHistory.activityId,
     votingEventId: venueVisitHistory.votingEventId,

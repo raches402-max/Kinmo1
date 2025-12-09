@@ -109,7 +109,9 @@ export function EditVenueDialog({ open, onOpenChange, venue, itineraryId, groupI
 
   // AI suggestions state
   const [aiSuggestions, setAiSuggestions] = useState<any[]>([]);
+  const [aiComplements, setAiComplements] = useState<any[]>([]);
   const [selectedAiSuggestion, setSelectedAiSuggestion] = useState<any>(null);
+  const [aiMode, setAiMode] = useState<'alternatives' | 'complements'>('alternatives');
 
   // Library state
   const [libraryFilter, setLibraryFilter] = useState({ category: "", priceLevel: "" });
@@ -157,7 +159,9 @@ export function EditVenueDialog({ open, onOpenChange, venue, itineraryId, groupI
     setSelectedSearchResult(null);
     setSearchNearVenueId(null);
     setAiSuggestions([]);
+    setAiComplements([]);
     setSelectedAiSuggestion(null);
+    setAiMode('alternatives');
     setSelectedLibraryVenue(null);
     setActiveTab("library");
     setShowUrlInput(false);
@@ -193,23 +197,18 @@ export function EditVenueDialog({ open, onOpenChange, venue, itineraryId, groupI
     },
   });
 
-  // Fetch AI suggestions
+  // Fetch AI suggestions - using the new agent-powered endpoint
   const [aiError, setAiError] = useState<string | null>(null);
   const aiSuggestionsMutation = useMutation({
-    mutationFn: async () => {
-      if (!venue) throw new Error("No venue to analyze");
-      const response = await fetch(`/api/venues/suggest-alternatives`, {
+    mutationFn: async (suggestionType: 'alternatives' | 'complements' | 'both' = 'both') => {
+      if (!itineraryId) throw new Error("No itinerary context");
+      const response = await fetch(`/api/itineraries/${itineraryId}/ai-suggestions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          currentVenue: {
-            name: venue.venueName,
-            address: venue.venueAddress,
-            placeId: venue.googlePlaceId,
-            venueType: venue.venueType,
-          },
-          itineraryId,
+          venueId: venue?.sourceId,  // The venue being replaced (if any)
+          suggestionType,
         }),
       });
       if (!response.ok) {
@@ -219,7 +218,8 @@ export function EditVenueDialog({ open, onOpenChange, venue, itineraryId, groupI
       return response.json();
     },
     onSuccess: (data) => {
-      setAiSuggestions(data.suggestions || []);
+      if (data.alternatives) setAiSuggestions(data.alternatives);
+      if (data.complements) setAiComplements(data.complements);
       setAiError(null);
     },
     onError: (error: Error) => {
@@ -593,10 +593,10 @@ export function EditVenueDialog({ open, onOpenChange, venue, itineraryId, groupI
 
   // Load AI suggestions when tab is activated
   useEffect(() => {
-    if (activeTab === "ai" && aiSuggestions.length === 0 && venue) {
-      aiSuggestionsMutation.mutate();
+    if (activeTab === "ai" && aiSuggestions.length === 0 && aiComplements.length === 0 && itineraryId) {
+      aiSuggestionsMutation.mutate('both');
     }
-  }, [activeTab, venue]);
+  }, [activeTab, itineraryId]);
 
   return (
     <Dialog
@@ -847,18 +847,44 @@ export function EditVenueDialog({ open, onOpenChange, venue, itineraryId, groupI
 
           {/* AI Suggestions Tab - only shown with group context */}
           {hasGroupContext && <TabsContent value="ai" className="space-y-4 mt-4">
+            {/* Mode Toggle */}
+            <div className="ai-mode-toggle">
+              <button
+                type="button"
+                data-active={aiMode === 'alternatives'}
+                onClick={() => setAiMode('alternatives')}
+              >
+                <Sparkles className="h-3.5 w-3.5 inline mr-1.5" />
+                Swap Venue
+              </button>
+              <button
+                type="button"
+                data-active={aiMode === 'complements'}
+                onClick={() => setAiMode('complements')}
+              >
+                + Add Stop
+              </button>
+            </div>
+
+            {/* Loading State - Warm Thinking Animation */}
             {aiSuggestionsMutation.isPending && (
-              <div className="text-center py-8">
-                <Sparkles className="h-8 w-8 animate-pulse mx-auto mb-2" />
-                <p className="text-muted-foreground">Generating suggestions...</p>
+              <div className="text-center py-10">
+                <div className="flex justify-center gap-1.5 mb-3">
+                  <div className="ai-thinking-dot" />
+                  <div className="ai-thinking-dot" />
+                  <div className="ai-thinking-dot" />
+                </div>
+                <p className="text-muted-foreground text-sm">
+                  {aiMode === 'alternatives' ? 'Finding the perfect spot...' : 'Looking for something to add...'}
+                </p>
               </div>
             )}
 
-            {/* Inline error display with retry option */}
+            {/* Error State with Retry */}
             {aiError && !aiSuggestionsMutation.isPending && (
-              <div className="text-center py-8 space-y-3">
+              <div className="text-center py-10 space-y-3">
                 <div className="text-muted-foreground">
-                  <Sparkles className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <Sparkles className="h-8 w-8 mx-auto mb-2 opacity-40" />
                   <p className="text-sm">Couldn't generate suggestions</p>
                   <p className="text-xs text-muted-foreground/70 mt-1">{aiError}</p>
                 </div>
@@ -867,7 +893,7 @@ export function EditVenueDialog({ open, onOpenChange, venue, itineraryId, groupI
                   size="sm"
                   onClick={() => {
                     setAiError(null);
-                    aiSuggestionsMutation.mutate();
+                    aiSuggestionsMutation.mutate('both');
                   }}
                 >
                   Try Again
@@ -875,51 +901,104 @@ export function EditVenueDialog({ open, onOpenChange, venue, itineraryId, groupI
               </div>
             )}
 
-            <div className={`space-y-2 overflow-y-auto ${isMobile ? 'max-h-[40vh]' : 'max-h-[400px]'}`}>
-              {aiSuggestions.map((suggestion, idx) => (
-                <Card
-                  key={idx}
-                  className={`p-3 cursor-pointer transition-colors ${
-                    selectedAiSuggestion?.placeId === suggestion.placeId
-                      ? "border-primary bg-primary/5"
-                      : "hover:border-gray-300"
-                  }`}
-                  onClick={() => handleSelectAiSuggestion(suggestion)}
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <h4 className="font-semibold">{suggestion.name}</h4>
-                      <p className="text-sm text-muted-foreground">{suggestion.address}</p>
-                      {suggestion.reasoning && (
-                        <p className="text-sm text-primary mt-1">💡 {suggestion.reasoning}</p>
-                      )}
-                      <div className="flex gap-2 mt-2">
-                        {suggestion.rating && (
-                          <Badge variant="secondary" className="text-xs">
-                            <Star className="h-3 w-3 mr-1" />
-                            {suggestion.rating}
-                          </Badge>
-                        )}
-                        {suggestion.priceLevel && (
-                          <Badge variant="secondary" className="text-xs">
-                            {suggestion.priceLevel}
-                          </Badge>
-                        )}
-                        {suggestion.distance && (
-                          <Badge variant="secondary" className="text-xs">
-                            <Navigation2 className="h-3 w-3 mr-1" />
-                            {suggestion.distance}
-                          </Badge>
+            {/* Suggestions List */}
+            {!aiSuggestionsMutation.isPending && !aiError && (
+              <div className={`space-y-2 overflow-y-auto fade-in-stagger ${isMobile ? 'max-h-[40vh]' : 'max-h-[350px]'}`}>
+                {/* Context header for complements mode */}
+                {aiMode === 'complements' && venue && (
+                  <p className="text-sm text-muted-foreground pb-1">
+                    After {venue.venueName}...
+                  </p>
+                )}
+
+                {/* Show alternatives or complements based on mode */}
+                {(aiMode === 'alternatives' ? aiSuggestions : aiComplements).map((suggestion, idx) => {
+                  const confidenceClass = suggestion.confidence >= 90
+                    ? 'confidence-high'
+                    : suggestion.confidence >= 70
+                    ? 'confidence-medium'
+                    : 'confidence-low';
+
+                  return (
+                    <div
+                      key={suggestion.venue?.id || idx}
+                      className="ai-suggestion-card"
+                      data-selected={selectedAiSuggestion?.venue?.id === suggestion.venue?.id}
+                      onClick={() => handleSelectAiSuggestion({
+                        name: suggestion.venue?.name,
+                        address: suggestion.venue?.address,
+                        placeId: suggestion.venue?.googlePlaceId,
+                        venueType: suggestion.venue?.venueType,
+                        rating: suggestion.venue?.rating,
+                        type: suggestion.venue?.type,
+                        sourceId: suggestion.venue?.id,
+                      })}
+                    >
+                      <div className="flex gap-3 items-start">
+                        {/* Confidence Badge */}
+                        <div className={`${confidenceClass} w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm shrink-0`}>
+                          {Math.round(suggestion.confidence)}
+                        </div>
+
+                        {/* Venue Info */}
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-sm truncate">{suggestion.venue?.name}</h4>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {suggestion.category && <span className="capitalize">{suggestion.category}</span>}
+                            {suggestion.category && suggestion.venue?.rating && ' · '}
+                            {suggestion.venue?.rating && (
+                              <>
+                                <Star className="h-3 w-3 inline -mt-0.5" /> {suggestion.venue.rating}
+                              </>
+                            )}
+                          </p>
+                          {suggestion.venue?.address && (
+                            <p className="text-xs text-muted-foreground/70 truncate mt-0.5">
+                              {suggestion.venue.address}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Add button for complements mode */}
+                        {aiMode === 'complements' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="shrink-0 h-8 text-xs"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSelectAiSuggestion({
+                                name: suggestion.venue?.name,
+                                address: suggestion.venue?.address,
+                                placeId: suggestion.venue?.googlePlaceId,
+                                venueType: suggestion.venue?.venueType,
+                                rating: suggestion.venue?.rating,
+                                type: suggestion.venue?.type,
+                                sourceId: suggestion.venue?.id,
+                              });
+                            }}
+                          >
+                            + Add
+                          </Button>
                         )}
                       </div>
                     </div>
+                  );
+                })}
+
+                {/* Empty State */}
+                {(aiMode === 'alternatives' ? aiSuggestions : aiComplements).length === 0 && aiSuggestionsMutation.isSuccess && (
+                  <div className="text-center py-10">
+                    <Library className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
+                    <p className="text-sm text-muted-foreground">
+                      {aiMode === 'alternatives'
+                        ? 'No alternatives found - try adding more venues to your Favorites'
+                        : 'No complement suggestions available'}
+                    </p>
                   </div>
-                </Card>
-              ))}
-              {aiSuggestions.length === 0 && aiSuggestionsMutation.isSuccess && !aiError && (
-                <p className="text-center text-muted-foreground py-8">No alternative suggestions available</p>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </TabsContent>}
 
           {/* Details Tab (Manual edit with collapsible timing) */}
