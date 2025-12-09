@@ -596,7 +596,7 @@ export function EditVenueDialog({ open, onOpenChange, venue, itineraryId, groupI
     if (activeTab === "ai" && aiSuggestions.length === 0 && venue) {
       aiSuggestionsMutation.mutate();
     }
-  }, [activeTab]);
+  }, [activeTab, venue]);
 
   return (
     <Dialog
