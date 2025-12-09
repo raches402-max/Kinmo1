@@ -73,6 +73,96 @@ function getDefaultEventTime(group: Group): number {
   }
 }
 
+// Map day names to JS getDay() values (0 = Sunday)
+const DAY_NAME_TO_INDEX: Record<string, number> = {
+  'Sunday': 0,
+  'Monday': 1,
+  'Tuesday': 2,
+  'Wednesday': 3,
+  'Thursday': 4,
+  'Friday': 5,
+  'Saturday': 6,
+};
+
+const INDEX_TO_DAY_NAME: Record<number, string> = {
+  0: 'Sunday',
+  1: 'Monday',
+  2: 'Tuesday',
+  3: 'Wednesday',
+  4: 'Thursday',
+  5: 'Friday',
+  6: 'Saturday',
+};
+
+/**
+ * Adjust a date to prefer learned best days and avoid worst days
+ *
+ * This function shifts the date by up to 3 days to land on a preferred day,
+ * or to avoid a day with historically low attendance.
+ *
+ * @param date - The original proposed date
+ * @param bestDays - List of day names with best attendance
+ * @param worstDays - List of day names to avoid
+ * @returns The adjusted date (may be the same as input)
+ */
+function adjustDateForLearnedPatterns(
+  date: Date,
+  bestDays: string[],
+  worstDays: string[]
+): Date {
+  const currentDayIndex = getDay(date);
+  const currentDayName = INDEX_TO_DAY_NAME[currentDayIndex];
+
+  // If we're already on a best day, keep it
+  if (bestDays.includes(currentDayName)) {
+    return date;
+  }
+
+  // If we're on a worst day, try to shift
+  const isOnWorstDay = worstDays.includes(currentDayName);
+
+  // Look for a best day within ±3 days
+  for (let offset = 1; offset <= 3; offset++) {
+    // Check forward first
+    const forwardDate = addDays(date, offset);
+    const forwardDayIndex = getDay(forwardDate);
+    const forwardDayName = INDEX_TO_DAY_NAME[forwardDayIndex];
+
+    if (bestDays.includes(forwardDayName)) {
+      console.log(`[Auto-Scheduler] Shifting date forward ${offset} days from ${currentDayName} to ${forwardDayName} (learned best day)`);
+      return forwardDate;
+    }
+
+    // Check backward
+    const backwardDate = addDays(date, -offset);
+    const backwardDayIndex = getDay(backwardDate);
+    const backwardDayName = INDEX_TO_DAY_NAME[backwardDayIndex];
+
+    // Only shift backward if it's still in the future
+    if (backwardDate > new Date() && bestDays.includes(backwardDayName)) {
+      console.log(`[Auto-Scheduler] Shifting date backward ${offset} days from ${currentDayName} to ${backwardDayName} (learned best day)`);
+      return backwardDate;
+    }
+  }
+
+  // If on a worst day but no best day found, at least shift to a neutral day
+  if (isOnWorstDay) {
+    for (let offset = 1; offset <= 3; offset++) {
+      const forwardDate = addDays(date, offset);
+      const forwardDayIndex = getDay(forwardDate);
+      const forwardDayName = INDEX_TO_DAY_NAME[forwardDayIndex];
+
+      if (!worstDays.includes(forwardDayName)) {
+        console.log(`[Auto-Scheduler] Shifting date forward ${offset} days from ${currentDayName} to ${forwardDayName} (avoiding low-attendance day)`);
+        return forwardDate;
+      }
+    }
+  }
+
+  // Couldn't find a better day, keep original
+  return date;
+}
+
 /**
  * Get visit statistics for all venues in a group
  */
@@ -912,6 +1002,66 @@ export function calculateFutureEventDates(
 }
 
 /**
+ * Calculate future event dates with learned pattern adjustments
+ *
+ * This async version queries the group's historical attendance patterns
+ * and adjusts dates to prefer days with better attendance.
+ *
+ * @param nextEventDueDate - The next event due date
+ * @param meetingFrequency - The meeting frequency string
+ * @param count - Number of dates to generate
+ * @param group - The group (optional, needed for timezone and learned patterns)
+ * @returns Array of adjusted future dates
+ */
+export async function calculateFutureEventDatesWithLearning(
+  nextEventDueDate: Date,
+  meetingFrequency: string,
+  count: number,
+  group?: Group
+): Promise<Date[]> {
+  // First, get the base dates without learning
+  const baseDates = calculateFutureEventDates(nextEventDueDate, meetingFrequency, count, group);
+
+  // If no group, we can't apply learning
+  if (!group?.id) {
+    return baseDates;
+  }
+
+  // Fetch learned patterns for this group
+  let bestDays: string[] = [];
+  let worstDays: string[] = [];
+
+  try {
+    const patterns = await analyzeGroupTimePatterns(group.id);
+
+    // Only use patterns with medium or high confidence
+    if (patterns.confidence !== 'low') {
+      bestDays = patterns.bestDays.map(d => d.day);
+      worstDays = patterns.worstDays.filter(d => d.avgAttendance < 50).map(d => d.day);
+
+      if (bestDays.length > 0 || worstDays.length > 0) {
+        console.log(`[Auto-Scheduler] Group ${group.name || group.id}: Using learned patterns - best days: ${bestDays.join(', ') || 'none'}, avoid: ${worstDays.join(', ') || 'none'}`);
+      }
+    }
+  } catch (error) {
+    console.warn(`[Auto-Scheduler] Could not fetch learned patterns for group ${group.id}:`, error);
+    // Continue with base dates if learning fails
+  }
+
+  // If no patterns learned, return base dates
+  if (bestDays.length === 0 && worstDays.length === 0) {
+    return baseDates;
+  }
+
+  // Adjust each date based on learned patterns
+  const adjustedDates = baseDates.map(date => {
+    return adjustDateForLearnedPatterns(date, bestDays, worstDays);
+  });
+
+  return adjustedDates;
+}
+
+/**
  * Calculate cadence in days from meeting frequency string
  * Examples: "2x week" = 3.5 days, "1x month" = 30 days
  */
@@ -1148,11 +1298,11 @@ export async function maintainEventPipeline(
       .map(rd => new Date(rd.rejectedDate).toISOString().split('T')[0])
   );
 
-  // Generate future event dates with smart time selection
+  // Generate future event dates with smart time selection AND learned patterns
   // Generate extra candidates to account for rejected dates AND existing events
   // We may need to skip several dates if they already have events
   const candidateCount = eventsNeeded * 4 + rejectedDateStrs.size;
-  const allFutureDates = calculateFutureEventDates(startDate, group.meetingFrequency, candidateCount, group);
+  const allFutureDates = await calculateFutureEventDatesWithLearning(startDate, group.meetingFrequency, candidateCount, group);
 
   // Filter out rejected dates but don't slice yet - we need extra candidates
   // in case some dates already have events (duplicates)
