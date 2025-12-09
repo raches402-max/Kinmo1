@@ -128,27 +128,24 @@ function getEventDisplayInfo(event: { itineraryName?: string; groupName?: string
   const groupName = event.groupName?.trim();
   const isStandalone = event.groupId === 'standalone';
 
-  // Strip "Auto-scheduled event for" prefix
-  const cleanName = itineraryName?.replace(/^Auto-scheduled event for\s*/i, '').trim();
-
   // Standalone events: just show the title, no subtitle
   if (isStandalone) {
-    return { title: cleanName || 'Upcoming Event', subtitle: null };
+    return { title: itineraryName || 'Upcoming Event', subtitle: null };
   }
 
   // If itinerary name equals group name (or is empty), just show group name
-  if (!cleanName || cleanName === groupName) {
+  if (!itineraryName || itineraryName === groupName) {
     return { title: groupName || 'Upcoming Event', subtitle: null };
   }
 
   // If title already contains the group name, no redundant subtitle needed
   // e.g., "Sweatpants Holiday PopUp" already contains "Sweatpants"
-  if (groupName && cleanName.toLowerCase().includes(groupName.toLowerCase())) {
-    return { title: cleanName, subtitle: null };
+  if (groupName && itineraryName.toLowerCase().includes(groupName.toLowerCase())) {
+    return { title: itineraryName, subtitle: null };
   }
 
   // Custom title that doesn't include group name: show both
-  return { title: cleanName, subtitle: groupName || null };
+  return { title: itineraryName, subtitle: groupName || null };
 }
 
 // Format time from date

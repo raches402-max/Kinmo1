@@ -10,17 +10,13 @@ import { eq, and, desc } from "drizzle-orm";
 
 /**
  * Clean up event names for user-facing display.
- * Removes technical jargon like "Auto-scheduled event for" since users
- * don't care HOW an event was created - it's just an event.
  */
 function getDisplayEventName(eventName: string, groupName?: string): string {
-  // Remove "Auto-scheduled event for " prefix - users don't need to know implementation details
-  let cleanName = eventName
-    .replace(/^Auto-scheduled event for\s*/i, '')
+  const cleanName = eventName
     .replace(/\s*\(Auto-Scheduled\)\s*/i, '')
     .trim();
 
-  // If the name is now empty or was just the group name, use group name or fallback
+  // If the name is empty, use group name or fallback
   if (!cleanName || cleanName === groupName) {
     return groupName || 'Upcoming Event';
   }

@@ -681,7 +681,7 @@ export async function processAutoScheduling(): Promise<void> {
           const newItinerary = await storage.createItinerary(
             {
               groupId: group.id,
-              name: `${original.name} (Auto-Scheduled)`,
+              name: group.name,
               status: 'draft',
               isSaved: false,
               proposedOrder: {},
@@ -704,7 +704,7 @@ export async function processAutoScheduling(): Promise<void> {
           const newItinerary = await storage.createItinerary(
             {
               groupId: group.id,
-              name: 'Upcoming Hangout',
+              name: group.name,
               status: 'draft',
               isSaved: false,
               proposedOrder: {},

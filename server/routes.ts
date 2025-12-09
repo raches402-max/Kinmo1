@@ -3006,7 +3006,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const duplicatedItinerary = await storage.createItinerary(
           {
             groupId: group.id,
-            name: `${originalItinerary.name} (Auto-Scheduled)`,
+            name: group.name,
             status: "draft",
             proposedOrder: [],
           },
@@ -3034,7 +3034,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const newItinerary = await storage.createItinerary(
           {
             groupId: group.id,
-            name: "Upcoming Hangout",
+            name: group.name,
             status: "draft",
             proposedOrder,
           },
