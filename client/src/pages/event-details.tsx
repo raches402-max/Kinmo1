@@ -583,8 +583,9 @@ export default function EventDetailsPage() {
       // Optimistically update to the new value
       if (previousEvent) {
         const currentEvent = previousEvent as any;
-        const sourceIdToItem = new Map(currentEvent.items.map((item: any) => [item.sourceId, item]));
-        const newItems = proposedOrder.map(sourceId => sourceIdToItem.get(sourceId)).filter(Boolean);
+        // Use item.id for mapping since ad-hoc items have null sourceId
+        const idToItem = new Map(currentEvent.items.map((item: any) => [item.id, item]));
+        const newItems = proposedOrder.map(id => idToItem.get(id)).filter(Boolean);
 
         queryClient.setQueryData(["/api/user/events", eventId], {
           ...currentEvent,
@@ -843,8 +844,9 @@ export default function EventDetailsPage() {
 
     // Calculate the new order and send to server
     // The optimistic update will be handled by the mutation's onMutate
+    // Use item.id instead of sourceId because ad-hoc items have null sourceId
     const newItems = arrayMove(event.items, oldIndex, newIndex);
-    const proposedOrder = newItems.map((item: any) => item.sourceId);
+    const proposedOrder = newItems.map((item: any) => item.id);
     reorderVenuesMutation.mutate(proposedOrder);
   };
 

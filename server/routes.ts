@@ -1832,6 +1832,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           })),
           items: items.map(item => ({
             id: item.id,
+            sourceId: item.sourceId,
             venueName: item.venueName,
             venueType: item.venueType,
             venueAddress: item.venueAddress,
@@ -1945,6 +1946,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           pendingGuestRsvps: [],
           items: items.map(item => ({
             id: item.id,
+            sourceId: item.sourceId,
             venueName: item.venueName,
             venueType: item.venueType,
             venueAddress: item.venueAddress,
@@ -1952,6 +1954,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             rating: item.rating,
             googlePlaceId: item.googlePlaceId,
             orderIndex: item.orderIndex,
+            sourceType: item.sourceType,
+            notes: item.notes,
+            googleMapsUrl: item.googleMapsUrl,
             arrivalTime: item.arrivalTime,
             departureTime: item.departureTime,
             travelNotes: item.travelNotes,
@@ -9903,32 +9908,25 @@ Looking forward to planning great activities together!
   // Update itinerary item order
   app.patch("/api/itineraries/:id/order", isAuthenticated, async (req, res) => {
     try {
-      const { proposedOrder } = req.body; // New array of sourceIds
+      const { proposedOrder } = req.body; // Array of item IDs in new order
       const itineraryId = req.params.id;
 
-      // Get the current itinerary to map sourceIds to item IDs
+      // Verify the itinerary exists
       const currentItinerary = await storage.getItinerary(itineraryId);
       if (!currentItinerary) {
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
-      // Map sourceIds to item IDs for ordering
-      const sourceIdToItemId = new Map(
-        currentItinerary.items.map((item: ItineraryItem) => [item.sourceId, item.id])
-      );
-      const orderedItemIds = proposedOrder
-        .map((sourceId: string) => sourceIdToItemId.get(sourceId))
-        .filter((id: string | undefined) => id !== undefined);
+      // Validate that all provided IDs belong to this itinerary
+      const validItemIds = new Set(currentItinerary.items.map((item: ItineraryItem) => item.id));
+      const orderedItemIds = proposedOrder.filter((id: string) => validItemIds.has(id));
 
       // Update the order indices in the database
       await storage.updateItineraryItemOrder(itineraryId, orderedItemIds);
 
-      // Also update the itinerary's proposedOrder field
-      const itinerary = await storage.updateItinerary(itineraryId, {
-        proposedOrder,
-      });
-
-      res.json(itinerary);
+      // Return updated itinerary with items in new order
+      const updatedItinerary = await storage.getItinerary(itineraryId);
+      res.json(updatedItinerary);
     } catch (error: any) {
       console.error("[Update Order] Error:", error);
       res.status(500).json({ message: error.message });
