@@ -803,56 +803,6 @@ export function DesktopEventDetails({
               </RefinedCard>
             )}
 
-            {/* Event Note/Description */}
-            {(event.note || isOrganizer) && (
-              <RefinedCard hover={false}>
-                <RefinedSectionHeader icon={PenLine} title="Note" />
-                <div className="p-5">
-                  {isEditingNote ? (
-                    <Textarea
-                      value={editingNote}
-                      onChange={(e) => setEditingNote(e.target.value)}
-                      className={cn(
-                        "min-h-[100px] text-sm resize-none",
-                        "border-[hsl(44,70%,75%)] focus:border-[hsl(44,87%,63%)]"
-                      )}
-                      placeholder="Add a note or description for this event..."
-                      autoFocus
-                      onBlur={() => {
-                        if (editingNote !== (event.note || "")) {
-                          onUpdateNote?.(editingNote);
-                        }
-                        setIsEditingNote(false);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Escape") {
-                          setEditingNote(event.note || "");
-                          setIsEditingNote(false);
-                        }
-                      }}
-                    />
-                  ) : event.note ? (
-                    <button
-                      onClick={() => isOrganizer && onUpdateNote && setIsEditingNote(true)}
-                      className={cn(
-                        "w-full text-left text-sm text-[hsl(25,30%,14%)] whitespace-pre-wrap",
-                        isOrganizer && onUpdateNote && "hover:text-[hsl(44,87%,45%)] transition-colors cursor-pointer"
-                      )}
-                    >
-                      {event.note}
-                    </button>
-                  ) : isOrganizer && onUpdateNote ? (
-                    <button
-                      onClick={() => setIsEditingNote(true)}
-                      className="text-sm text-[hsl(25,15%,55%)] hover:text-[hsl(44,87%,45%)] transition-colors"
-                    >
-                      + Add a note or description...
-                    </button>
-                  ) : null}
-                </div>
-              </RefinedCard>
-            )}
-
             {/* Members */}
             <RefinedCard>
               <RefinedSectionHeader icon={Users} title="Members">
@@ -1073,58 +1023,6 @@ export function DesktopEventDetails({
                     </DropdownMenu>
                   )}
                 </div>
-              </div>
-            </RefinedCard>
-
-            {/* Share & Manage - REMOVED */}
-            <RefinedCard hover={false}>
-              <RefinedSectionHeader icon={Share2} title="Share & Manage" />
-              <div className="p-5 space-y-2">
-                <RefinedActionButton icon={Copy} onClick={onCopyInviteLink}>
-                  Copy Invite Link
-                </RefinedActionButton>
-                {isOrganizer && onDuplicateEvent && (
-                  <RefinedActionButton icon={CopyPlus} onClick={onDuplicateEvent}>
-                    Duplicate Event
-                  </RefinedActionButton>
-                )}
-                {isOrganizer && onRemindAll && (
-                  <RefinedActionButton icon={Bell} onClick={onRemindAll}>
-                    Remind All Attendees
-                  </RefinedActionButton>
-                )}
-                {canVolunteerToHost && (
-                  <RefinedActionButton
-                    icon={UserPlus}
-                    onClick={onVolunteerToHost}
-                    disabled={isPending.volunteerToHost}
-                  >
-                    Volunteer to Host
-                  </RefinedActionButton>
-                )}
-                {isCurrentHost && hostableMembers.length > 0 && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <div>
-                        <RefinedActionButton icon={Share2}>
-                          Hand Off Host
-                        </RefinedActionButton>
-                      </div>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Select New Host</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      {hostableMembers.map((member: any) => (
-                        <DropdownMenuItem
-                          key={member.id}
-                          onClick={() => onHandOffHost(member.id)}
-                        >
-                          {member.name || member.email}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
               </div>
             </RefinedCard>
 
