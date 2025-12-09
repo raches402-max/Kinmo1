@@ -1,0 +1,11 @@
+<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Center circle - the table/sun -->
+  <circle cx="24" cy="24" r="14" fill="#F2C94C" />
+  <!-- Six seats around the table -->
+  <path d="M19 5 A4 4 0 0 1 29 5 L24 5 Z" fill="#F2C94C" />
+  <path d="M38 10 A4 4 0 0 1 43 19 L40 14 Z" fill="#F2C94C" />
+  <path d="M43 29 A4 4 0 0 1 38 38 L40 34 Z" fill="#F2C94C" />
+  <path d="M29 43 A4 4 0 0 1 19 43 L24 43 Z" fill="#F2C94C" />
+  <path d="M10 38 A4 4 0 0 1 5 29 L8 34 Z" fill="#F2C94C" />
+  <path d="M5 19 A4 4 0 0 1 10 10 L8 14 Z" fill="#F2C94C" />
+</svg>
