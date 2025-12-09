@@ -5,17 +5,17 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { getErrorToast } from "@/components/ErrorDisplay";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, MapPin, Clock, Check, X, HelpCircle, User, Users, Baby, CalendarPlus } from "lucide-react";
+import { Calendar, MapPin, Clock, Check, X, HelpCircle, User, Users, Baby, CalendarPlus, Star, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { TimeSlotVoting } from "@/components/TimeSlotVoting";
 import { generateCalendarUrlFromItinerary } from "@/lib/calendar";
 import { AvailabilityGrid } from "@/components/AvailabilityGrid";
+import { cn } from "@/lib/utils";
 
 type Member = {
   id: string;
@@ -317,10 +317,10 @@ export default function RsvpItineraryPage() {
   // Loading state
   if (itineraryLoading || groupLoading || membersLoading || inviteLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen bg-[hsl(38,35%,97%)] flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading event details...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[hsl(44,87%,63%)] mx-auto mb-4"></div>
+          <p className="text-[hsl(25,15%,45%)]">Loading event details...</p>
         </div>
       </div>
     );
@@ -329,13 +329,14 @@ export default function RsvpItineraryPage() {
   // Error states
   if (!itinerary || !group) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="max-w-md w-full">
-          <CardHeader>
-            <CardTitle>Event not found</CardTitle>
-            <CardDescription>This event link may be invalid or expired</CardDescription>
-          </CardHeader>
-        </Card>
+      <div className="min-h-screen bg-[hsl(38,35%,97%)] flex items-center justify-center p-4">
+        <div className={cn(
+          "max-w-md w-full rounded-2xl border bg-white overflow-hidden p-6",
+          "border-[hsl(32,20%,88%)] shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
+        )}>
+          <h2 className="text-xl font-bold text-[hsl(25,30%,14%)]">Event not found</h2>
+          <p className="text-[hsl(25,15%,45%)] mt-2">This event link may be invalid or expired</p>
+        </div>
       </div>
     );
   }
@@ -343,28 +344,50 @@ export default function RsvpItineraryPage() {
   // Step 1: Identity Claiming (show first, before event details)
   if (!identityClaimed) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-[hsl(38,35%,97%)]">
         <div className="max-w-2xl mx-auto p-4 py-10 space-y-8">
           {/* Event Header */}
-          <div className="text-center space-y-2">
-            <div className="text-4xl mb-2">{group.emoji}</div>
-            <h1 className="text-3xl font-black">{itinerary.name}</h1>
-            <p className="text-muted-foreground">from {group.name}</p>
+          <div className="text-center space-y-3">
+            <div className={cn(
+              "inline-flex items-center justify-center w-20 h-20 rounded-full",
+              "bg-[hsl(44,87%,63%)] shadow-[0_4px_20px_rgba(242,201,76,0.4)]"
+            )}>
+              <span className="text-4xl">{group.emoji}</span>
+            </div>
+            <h1 className="text-3xl font-black text-[hsl(25,30%,14%)]">{itinerary.name}</h1>
+            <p className="text-[hsl(25,15%,45%)]">from {group.name}</p>
           </div>
 
           {/* Identity Claiming Card */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <User className="h-5 w-5" />
-                Who's RSVPing?
-              </CardTitle>
-              <CardDescription>
-                Select your name from the list or enter as a guest
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <RadioGroup 
+          <div className={cn(
+            "rounded-2xl border bg-white overflow-hidden",
+            "border-[hsl(32,20%,88%)] shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
+          )}>
+            {/* Card Header */}
+            <div
+              className="relative px-6 py-5 border-b border-[hsl(32,20%,88%)]"
+              style={{
+                background: "linear-gradient(135deg, hsla(44, 87%, 63%, 0.06) 0%, hsla(44, 87%, 63%, 0.02) 50%, hsl(35, 40%, 95%) 100%)",
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  "flex items-center justify-center w-10 h-10 rounded-full",
+                  "bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)]",
+                  "shadow-[0_2px_8px_rgba(242,201,76,0.3)]"
+                )}>
+                  <User className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-[hsl(25,30%,14%)]">Who's RSVPing?</h2>
+                  <p className="text-sm text-[hsl(25,15%,45%)]">Select your name or enter as a guest</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Card Content */}
+            <div className="p-6 space-y-5">
+              <RadioGroup
                 value={claimedMemberId || 'guest'}
                 onValueChange={(value) => {
                   if (value === 'guest') {
@@ -378,54 +401,83 @@ export default function RsvpItineraryPage() {
               >
                 {groupMembers && groupMembers.length > 0 && (
                   <div className="space-y-3">
-                    <Label className="text-sm font-medium">Group Members</Label>
+                    <Label className="text-xs font-bold uppercase tracking-wide text-[hsl(25,15%,45%)]">Group Members</Label>
                     {groupMembers.map((member) => (
-                      <div key={member.id} className="flex items-center space-x-2">
-                        <RadioGroupItem 
-                          value={member.id} 
+                      <label
+                        key={member.id}
+                        htmlFor={`member-${member.id}`}
+                        className={cn(
+                          "flex items-center gap-3 p-3 rounded-xl cursor-pointer",
+                          "border border-[hsl(32,20%,88%)] bg-[hsl(38,50%,99%)]",
+                          "transition-all duration-200",
+                          "hover:border-[hsl(44,70%,75%)] hover:bg-[hsl(35,40%,97%)]",
+                          claimedMemberId === member.id && "border-[hsl(44,87%,63%)] bg-[hsl(44,80%,97%)]"
+                        )}
+                      >
+                        <RadioGroupItem
+                          value={member.id}
                           id={`member-${member.id}`}
                           data-testid={`radio-member-${member.id}`}
+                          className="border-[hsl(32,20%,80%)] text-[hsl(44,87%,50%)]"
                         />
-                        <Label htmlFor={`member-${member.id}`} className="cursor-pointer">
+                        <span className="font-medium text-[hsl(25,30%,14%)]">
                           I'm {member.name || member.email}
-                        </Label>
-                      </div>
+                        </span>
+                      </label>
                     ))}
                   </div>
                 )}
 
-                <div className="pt-4 border-t space-y-3">
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="guest" id="guest" data-testid="radio-guest" />
-                    <Label htmlFor="guest" className="cursor-pointer">
-                      I'm a guest
-                    </Label>
-                  </div>
-                  
+                <div className="pt-5 border-t border-[hsl(32,20%,88%)] space-y-3">
+                  <label
+                    htmlFor="guest"
+                    className={cn(
+                      "flex items-center gap-3 p-3 rounded-xl cursor-pointer",
+                      "border border-[hsl(32,20%,88%)] bg-[hsl(38,50%,99%)]",
+                      "transition-all duration-200",
+                      "hover:border-[hsl(44,70%,75%)] hover:bg-[hsl(35,40%,97%)]",
+                      claimedIdentity === 'guest' && "border-[hsl(44,87%,63%)] bg-[hsl(44,80%,97%)]"
+                    )}
+                  >
+                    <RadioGroupItem
+                      value="guest"
+                      id="guest"
+                      data-testid="radio-guest"
+                      className="border-[hsl(32,20%,80%)] text-[hsl(44,87%,50%)]"
+                    />
+                    <span className="font-medium text-[hsl(25,30%,14%)]">I'm a guest</span>
+                  </label>
+
                   {claimedIdentity === 'guest' && (
-                    <div className="ml-6 space-y-2">
-                      <Label htmlFor="guest-name">Your name</Label>
+                    <div className="ml-4 space-y-2">
+                      <Label htmlFor="guest-name" className="text-sm text-[hsl(25,30%,14%)]">Your name</Label>
                       <Input
                         id="guest-name"
                         placeholder="Enter your name"
                         value={tempGuestName}
                         onChange={(e) => setTempGuestName(e.target.value)}
                         data-testid="input-guest-name"
+                        className="border-[hsl(32,20%,88%)] focus:border-[hsl(44,70%,75%)] focus:ring-[hsl(44,87%,63%)]"
                       />
                     </div>
                   )}
                 </div>
               </RadioGroup>
 
-              <Button 
+              <Button
                 onClick={handleContinueIdentity}
-                className="w-full"
+                className={cn(
+                  "w-full h-12 text-base font-semibold",
+                  "bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)]",
+                  "hover:bg-[hsl(44,87%,58%)]",
+                  "shadow-[0_2px_8px_rgba(242,201,76,0.3)]"
+                )}
                 data-testid="button-continue-identity"
               >
                 Continue
               </Button>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -433,83 +485,137 @@ export default function RsvpItineraryPage() {
 
   // Step 2+: Show full event details and RSVP
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-3xl mx-auto p-4 py-10 space-y-8">
+    <div className="min-h-screen bg-[hsl(38,35%,97%)]">
+      <div className="max-w-3xl mx-auto p-4 py-10 space-y-6">
         {/* Event Header with claimed identity */}
-        <div className="text-center space-y-2">
-          <div className="text-4xl mb-2">{group.emoji}</div>
-          <h1 className="text-3xl font-black">{itinerary.name}</h1>
-          <p className="text-muted-foreground">from {group.name}</p>
-          <p className="text-sm text-muted-foreground" data-testid="text-claimed-identity">
-            {claimedIdentity === 'guest' ? `RSVP as guest: ${guestName}` : `RSVP for ${getDisplayName()}`}
-          </p>
+        <div className="text-center space-y-3">
+          <div className={cn(
+            "inline-flex items-center justify-center w-20 h-20 rounded-full",
+            "bg-[hsl(44,87%,63%)] shadow-[0_4px_20px_rgba(242,201,76,0.4)]"
+          )}>
+            <span className="text-4xl">{group.emoji}</span>
+          </div>
+          <h1 className="text-3xl font-black text-[hsl(25,30%,14%)]">{itinerary.name}</h1>
+          <p className="text-[hsl(25,15%,45%)]">from {group.name}</p>
+          <div
+            className="inline-block px-4 py-1.5 rounded-full bg-[hsl(44,80%,95%)] border border-[hsl(44,70%,80%)]"
+            data-testid="text-claimed-identity"
+          >
+            <span className="text-sm font-medium text-[hsl(44,60%,30%)]">
+              {claimedIdentity === 'guest' ? `RSVP as guest: ${guestName}` : `RSVP for ${getDisplayName()}`}
+            </span>
+          </div>
         </div>
 
         {/* Event Date/Time */}
         {itinerary.eventDate && (
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-4 justify-center">
-                <div className="flex items-center gap-2 text-lg">
-                  <Calendar className="h-5 w-5 text-primary" />
-                  <span className="font-semibold">
+          <div className={cn(
+            "rounded-2xl border bg-white overflow-hidden",
+            "border-[hsl(32,20%,88%)] shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
+          )}>
+            <div className="p-5">
+              <div className="flex flex-wrap items-center gap-4 justify-center">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-center w-9 h-9 rounded-full bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)]">
+                    <Calendar className="h-4 w-4" />
+                  </div>
+                  <span className="font-semibold text-[hsl(25,30%,14%)]">
                     {format(new Date(itinerary.eventDate), "EEEE, MMMM d, yyyy")}
                   </span>
                 </div>
-                <div className="flex items-center gap-2 text-lg">
-                  <Clock className="h-5 w-5 text-primary" />
-                  <span className="font-semibold">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-center w-9 h-9 rounded-full bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)]">
+                    <Clock className="h-4 w-4" />
+                  </div>
+                  <span className="font-semibold text-[hsl(25,30%,14%)]">
                     {format(new Date(itinerary.eventDate), "h:mm a")}
                   </span>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         )}
 
         {/* Time Slot Voting */}
         {itinerary.proposedTimeSlots && itinerary.proposedTimeSlots.length > 0 && claimedMemberId && (
-          <Card>
-            <CardContent className="pt-6">
+          <div className={cn(
+            "rounded-2xl border bg-white overflow-hidden",
+            "border-[hsl(32,20%,88%)] shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
+          )}>
+            <div className="p-5">
               <TimeSlotVoting
                 itineraryId={itinerary.id}
                 memberId={claimedMemberId}
                 isOrganizer={false}
                 isHost={false}
               />
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         )}
 
         {/* Itinerary Items */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Plan</CardTitle>
-            <CardDescription>Here's what we'll do</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {itinerary.items.map((item, idx) => (
-                <div key={item.id} className="flex gap-4">
-                  <div className="flex flex-col items-center">
-                    <div className="h-8 w-8 rounded-full bg-primary/25 flex items-center justify-center text-sm font-semibold">
-                      {idx + 1}
-                    </div>
-                    {idx < itinerary.items.length - 1 && (
-                      <div className="flex-1 w-px bg-border my-1"></div>
-                    )}
+        <div className={cn(
+          "rounded-2xl border bg-white overflow-hidden",
+          "border-[hsl(32,20%,88%)] shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
+        )}>
+          {/* Card Header */}
+          <div
+            className="relative px-6 py-4 border-b border-[hsl(32,20%,88%)]"
+            style={{
+              background: "linear-gradient(135deg, hsla(44, 87%, 63%, 0.06) 0%, hsla(44, 87%, 63%, 0.02) 50%, hsl(35, 40%, 95%) 100%)",
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                "flex items-center justify-center w-9 h-9 rounded-full",
+                "bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)]",
+                "shadow-[0_2px_8px_rgba(242,201,76,0.3)]"
+              )}>
+                <MapPin className="h-4 w-4" />
+              </div>
+              <div>
+                <span className="text-[13px] font-bold uppercase tracking-[0.08em] text-[hsl(25,30%,14%)]">Plan</span>
+                <p className="text-sm text-[hsl(25,15%,45%)]">Here's what we'll do</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Card Content - Venues */}
+          <div className="p-5 space-y-3">
+            {itinerary.items.map((item, idx) => (
+              <div
+                key={item.id}
+                className={cn(
+                  "relative rounded-xl border p-4",
+                  "border-[hsl(32,20%,88%)] bg-[hsl(38,50%,99%)]",
+                  "transition-all duration-200",
+                  "hover:border-[hsl(44,70%,75%)] hover:shadow-[0_2px_8px_rgba(242,201,76,0.1)]"
+                )}
+              >
+                <div className="flex gap-4">
+                  {/* Number badge */}
+                  <div className={cn(
+                    "flex items-center justify-center w-8 h-8 rounded-full shrink-0",
+                    "bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)] text-sm font-bold",
+                    "shadow-[0_2px_6px_rgba(242,201,76,0.3)]"
+                  )}>
+                    {idx + 1}
                   </div>
-                  <div className="flex-1 pb-4">
+
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
-                      <h4 className="font-semibold">{item.venueName}</h4>
+                      <h4 className="font-semibold text-[hsl(25,30%,14%)]">{item.venueName}</h4>
                       {item.rating && (
-                        <span className="text-sm text-muted-foreground shrink-0">⭐ {item.rating}</span>
+                        <div className="flex items-center gap-1 text-sm shrink-0">
+                          <Star className="h-3.5 w-3.5 fill-[hsl(44,87%,63%)] text-[hsl(44,87%,63%)]" />
+                          <span className="text-[hsl(25,15%,45%)]">{item.rating}</span>
+                        </div>
                       )}
                     </div>
-                    <p className="text-sm text-muted-foreground">{item.venueType}</p>
+                    <p className="text-sm text-[hsl(25,15%,55%)]">{item.venueType}</p>
                     {item.venueAddress && (
-                      <div className="flex items-start gap-1 text-sm text-muted-foreground mt-1">
-                        <MapPin className="h-3 w-3 mt-0.5 shrink-0" />
+                      <div className="flex items-start gap-1 text-sm text-[hsl(25,15%,45%)] mt-1.5">
+                        <MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                         <span className="text-xs">{item.venueAddress}</span>
                       </div>
                     )}
@@ -518,32 +624,56 @@ export default function RsvpItineraryPage() {
                         href={item.googleMapsUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-2"
+                        className={cn(
+                          "inline-flex items-center gap-1.5 text-xs font-medium mt-2 px-2.5 py-1 rounded-full",
+                          "bg-[hsl(35,25%,93%)] text-[hsl(25,30%,30%)]",
+                          "hover:bg-[hsl(44,50%,90%)] transition-colors"
+                        )}
                       >
-                        <MapPin className="h-3 w-3" />
-                        Open in Google Maps
+                        <ExternalLink className="h-3 w-3" />
+                        Open in Maps
                       </a>
                     )}
                   </div>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+              </div>
+            ))}
+          </div>
+        </div>
 
         {/* RSVP Section */}
         {showFeedbackForm ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>When works for you?</CardTitle>
-              <CardDescription>
-                Tap the times you're available to help us find a better time
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          <div className={cn(
+            "rounded-2xl border bg-white overflow-hidden",
+            "border-[hsl(32,20%,88%)] shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
+          )}>
+            {/* Card Header */}
+            <div
+              className="relative px-6 py-4 border-b border-[hsl(32,20%,88%)]"
+              style={{
+                background: "linear-gradient(135deg, hsla(44, 87%, 63%, 0.06) 0%, hsla(44, 87%, 63%, 0.02) 50%, hsl(35, 40%, 95%) 100%)",
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  "flex items-center justify-center w-9 h-9 rounded-full",
+                  "bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)]",
+                  "shadow-[0_2px_8px_rgba(242,201,76,0.3)]"
+                )}>
+                  <Clock className="h-4 w-4" />
+                </div>
+                <div>
+                  <span className="text-[13px] font-bold uppercase tracking-[0.08em] text-[hsl(25,30%,14%)]">When works for you?</span>
+                  <p className="text-sm text-[hsl(25,15%,45%)]">Help us find a better time (optional)</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Card Content */}
+            <div className="p-5 space-y-5">
               {/* Availability Grid */}
-              <div className="space-y-2">
-                <Label>Your availability</Label>
+              <div className="space-y-3">
+                <Label className="text-sm font-medium text-[hsl(25,30%,14%)]">Your availability</Label>
                 <AvailabilityGrid
                   value={feedbackAvailability}
                   onChange={setFeedbackAvailability}
@@ -551,7 +681,7 @@ export default function RsvpItineraryPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="feedback">Additional notes (optional)</Label>
+                <Label htmlFor="feedback" className="text-sm font-medium text-[hsl(25,30%,14%)]">Additional notes (optional)</Label>
                 <Textarea
                   id="feedback"
                   placeholder="Any other constraints or preferences?"
@@ -559,14 +689,20 @@ export default function RsvpItineraryPage() {
                   onChange={(e) => setFreeformFeedback(e.target.value)}
                   data-testid="textarea-feedback"
                   rows={2}
+                  className="border-[hsl(32,20%,88%)] focus:border-[hsl(44,70%,75%)]"
                 />
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex gap-3 pt-2">
                 <Button
                   onClick={handleSubmitFeedback}
                   disabled={rsvpMutation.isPending}
-                  className="flex-1"
+                  className={cn(
+                    "flex-1 h-11 font-semibold",
+                    "bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)]",
+                    "hover:bg-[hsl(44,87%,58%)]",
+                    "shadow-[0_2px_8px_rgba(242,201,76,0.3)]"
+                  )}
                   data-testid="button-submit-feedback"
                 >
                   {rsvpMutation.isPending ? "Submitting..." : "Submit Response"}
@@ -575,70 +711,149 @@ export default function RsvpItineraryPage() {
                   variant="outline"
                   onClick={() => setShowFeedbackForm(false)}
                   data-testid="button-cancel-feedback"
+                  className="border-[hsl(32,20%,88%)] text-[hsl(25,30%,30%)] hover:bg-[hsl(35,40%,97%)]"
                 >
                   Cancel
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         ) : (
           <>
             {/* RSVP Response Buttons */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Can you make it?</CardTitle>
-                <CardDescription>
-                  {selectedResponse 
-                    ? "You can update your response anytime" 
-                    : "Let us know if you can join"}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-3">
-                  <Button
-                    variant={selectedResponse === "yes" ? "default" : "outline"}
-                    className="justify-start h-auto py-4 px-4"
-                    onClick={() => handleRsvp("yes")}
-                    disabled={rsvpMutation.isPending}
-                    data-testid="button-rsvp-yes"
-                  >
-                    <Check className="h-5 w-5 mr-2" />
-                    <div className="text-left">
-                      <div className="font-semibold">Yes, I'll be there!</div>
-                      <div className="text-xs text-muted-foreground">Count me in</div>
-                    </div>
-                  </Button>
-                  <Button
-                    variant={selectedResponse === "maybe" ? "default" : "outline"}
-                    className="justify-start h-auto py-4 px-4"
-                    onClick={() => handleRsvp("maybe")}
-                    disabled={rsvpMutation.isPending}
-                    data-testid="button-rsvp-maybe"
-                  >
-                    <HelpCircle className="h-5 w-5 mr-2" />
-                    <div className="text-left">
-                      <div className="font-semibold">Maybe</div>
-                      <div className="text-xs text-muted-foreground">Not sure about this time</div>
-                    </div>
-                  </Button>
-                  <Button
-                    variant={selectedResponse === "no" ? "default" : "outline"}
-                    className="justify-start h-auto py-4 px-4"
-                    onClick={() => handleRsvp("no")}
-                    disabled={rsvpMutation.isPending}
-                    data-testid="button-rsvp-no"
-                  >
-                    <X className="h-5 w-5 mr-2" />
-                    <div className="text-left">
-                      <div className="font-semibold">Can't make it</div>
-                      <div className="text-xs text-muted-foreground">This time doesn't work</div>
-                    </div>
-                  </Button>
+            <div className={cn(
+              "rounded-2xl border bg-white overflow-hidden",
+              "border-[hsl(32,20%,88%)] shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
+            )}>
+              {/* Card Header */}
+              <div
+                className="relative px-6 py-4 border-b border-[hsl(32,20%,88%)]"
+                style={{
+                  background: "linear-gradient(135deg, hsla(44, 87%, 63%, 0.06) 0%, hsla(44, 87%, 63%, 0.02) 50%, hsl(35, 40%, 95%) 100%)",
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "flex items-center justify-center w-9 h-9 rounded-full",
+                    "bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)]",
+                    "shadow-[0_2px_8px_rgba(242,201,76,0.3)]"
+                  )}>
+                    <User className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <span className="text-[13px] font-bold uppercase tracking-[0.08em] text-[hsl(25,30%,14%)]">Can you make it?</span>
+                    <p className="text-sm text-[hsl(25,15%,45%)]">
+                      {selectedResponse ? "You can update your response anytime" : "Let us know if you can join"}
+                    </p>
+                  </div>
                 </div>
+              </div>
+
+              {/* Card Content */}
+              <div className="p-5 space-y-3">
+                {/* Yes Button */}
+                <button
+                  onClick={() => handleRsvp("yes")}
+                  disabled={rsvpMutation.isPending}
+                  data-testid="button-rsvp-yes"
+                  className={cn(
+                    "w-full flex items-center gap-4 p-4 rounded-xl",
+                    "border transition-all duration-200",
+                    selectedResponse === "yes"
+                      ? "border-[hsl(145,50%,50%)] bg-[hsl(145,50%,97%)]"
+                      : "border-[hsl(32,20%,88%)] bg-[hsl(38,50%,99%)] hover:border-[hsl(145,40%,70%)] hover:bg-[hsl(145,50%,98%)]"
+                  )}
+                >
+                  <div className={cn(
+                    "flex items-center justify-center w-10 h-10 rounded-full",
+                    selectedResponse === "yes"
+                      ? "bg-[hsl(145,50%,45%)] text-white"
+                      : "bg-[hsl(145,40%,90%)] text-[hsl(145,50%,35%)]"
+                  )}>
+                    <Check className="h-5 w-5" />
+                  </div>
+                  <div className="text-left">
+                    <div className={cn(
+                      "font-semibold",
+                      selectedResponse === "yes" ? "text-[hsl(145,50%,30%)]" : "text-[hsl(25,30%,14%)]"
+                    )}>Yes, I'll be there!</div>
+                    <div className="text-xs text-[hsl(25,15%,50%)]">Count me in</div>
+                  </div>
+                </button>
+
+                {/* Maybe Button */}
+                <button
+                  onClick={() => handleRsvp("maybe")}
+                  disabled={rsvpMutation.isPending}
+                  data-testid="button-rsvp-maybe"
+                  className={cn(
+                    "w-full flex items-center gap-4 p-4 rounded-xl",
+                    "border transition-all duration-200",
+                    selectedResponse === "maybe"
+                      ? "border-[hsl(44,70%,60%)] bg-[hsl(44,80%,97%)]"
+                      : "border-[hsl(32,20%,88%)] bg-[hsl(38,50%,99%)] hover:border-[hsl(44,70%,75%)] hover:bg-[hsl(44,80%,98%)]"
+                  )}
+                >
+                  <div className={cn(
+                    "flex items-center justify-center w-10 h-10 rounded-full",
+                    selectedResponse === "maybe"
+                      ? "bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)]"
+                      : "bg-[hsl(44,60%,90%)] text-[hsl(44,60%,35%)]"
+                  )}>
+                    <HelpCircle className="h-5 w-5" />
+                  </div>
+                  <div className="text-left">
+                    <div className={cn(
+                      "font-semibold",
+                      selectedResponse === "maybe" ? "text-[hsl(44,60%,25%)]" : "text-[hsl(25,30%,14%)]"
+                    )}>Maybe</div>
+                    <div className="text-xs text-[hsl(25,15%,50%)]">Not sure about this time</div>
+                  </div>
+                </button>
+
+                {/* No Button */}
+                <button
+                  onClick={() => handleRsvp("no")}
+                  disabled={rsvpMutation.isPending}
+                  data-testid="button-rsvp-no"
+                  className={cn(
+                    "w-full flex items-center gap-4 p-4 rounded-xl",
+                    "border transition-all duration-200",
+                    selectedResponse === "no"
+                      ? "border-[hsl(350,50%,60%)] bg-[hsl(350,50%,97%)]"
+                      : "border-[hsl(32,20%,88%)] bg-[hsl(38,50%,99%)] hover:border-[hsl(350,40%,75%)] hover:bg-[hsl(350,50%,98%)]"
+                  )}
+                >
+                  <div className={cn(
+                    "flex items-center justify-center w-10 h-10 rounded-full",
+                    selectedResponse === "no"
+                      ? "bg-[hsl(350,50%,50%)] text-white"
+                      : "bg-[hsl(350,40%,92%)] text-[hsl(350,50%,40%)]"
+                  )}>
+                    <X className="h-5 w-5" />
+                  </div>
+                  <div className="text-left">
+                    <div className={cn(
+                      "font-semibold",
+                      selectedResponse === "no" ? "text-[hsl(350,50%,35%)]" : "text-[hsl(25,30%,14%)]"
+                    )}>Can't make it</div>
+                    <div className="text-xs text-[hsl(25,15%,50%)]">This time doesn't work</div>
+                  </div>
+                </button>
 
                 {selectedResponse && (
-                  <div className="mt-4 p-3 bg-primary/15 rounded-lg text-sm">
-                    <p className="font-medium text-primary">Your response: {
+                  <div className={cn(
+                    "mt-2 p-3 rounded-xl text-sm",
+                    selectedResponse === "yes" && "bg-[hsl(145,50%,95%)] border border-[hsl(145,40%,80%)]",
+                    selectedResponse === "maybe" && "bg-[hsl(44,80%,95%)] border border-[hsl(44,60%,80%)]",
+                    selectedResponse === "no" && "bg-[hsl(350,50%,96%)] border border-[hsl(350,40%,85%)]"
+                  )}>
+                    <p className={cn(
+                      "font-medium",
+                      selectedResponse === "yes" && "text-[hsl(145,50%,30%)]",
+                      selectedResponse === "maybe" && "text-[hsl(44,60%,25%)]",
+                      selectedResponse === "no" && "text-[hsl(350,50%,35%)]"
+                    )}>Your response: {
                       selectedResponse === "yes" ? "Going" :
                       selectedResponse === "maybe" ? "Maybe" :
                       "Can't make it"
@@ -648,7 +863,7 @@ export default function RsvpItineraryPage() {
 
                 {/* Add to Calendar button - shown when RSVP is yes */}
                 {selectedResponse === 'yes' && itinerary.eventDate && (
-                  <div className="mt-4 pt-4 border-t">
+                  <div className="mt-4 pt-4 border-t border-[hsl(44,70%,75%)]">
                     <a
                       href={generateCalendarUrlFromItinerary({
                         groupName: group.name,
@@ -661,15 +876,15 @@ export default function RsvpItineraryPage() {
                       })}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-lg border-2 border-dashed border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/50 transition-colors"
+                      className="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl border-2 border-dashed border-[hsl(44,70%,75%)] text-[hsl(25,30%,14%)] hover:bg-[hsl(44,87%,63%)]/10 hover:border-[hsl(44,87%,63%)] transition-all duration-200"
                     >
-                      <CalendarPlus className="h-5 w-5" />
+                      <CalendarPlus className="h-5 w-5 text-[hsl(44,87%,63%)]" />
                       <span className="font-medium">Add to Google Calendar</span>
                     </a>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
             {/* Additional Attendees and Kids Count - Only show after selecting a response */}
             {selectedResponse === "yes" && (
