@@ -888,26 +888,30 @@ export default function RsvpItineraryPage() {
 
             {/* Additional Attendees and Kids Count - Only show after selecting a response */}
             {selectedResponse === "yes" && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="h-5 w-5" />
-                    Additional Details
-                  </CardTitle>
-                  <CardDescription>
-                    Let us know if you're bringing anyone else
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
+              <div className="rounded-2xl border border-[hsl(44,70%,75%)] bg-[hsl(38,50%,98%)] shadow-[0_2px_8px_rgba(242,201,76,0.12)] overflow-hidden">
+                {/* Header with gradient */}
+                <div className="px-5 py-4 bg-gradient-to-r from-[hsl(38,35%,97%)] to-[hsl(44,45%,96%)] border-b border-[hsl(44,70%,75%)]">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-[hsl(44,87%,63%)]/20 flex items-center justify-center">
+                      <Users className="h-5 w-5 text-[hsl(44,87%,63%)]" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-[hsl(25,30%,14%)]">Additional Details</h3>
+                      <p className="text-sm text-[hsl(25,20%,40%)]">Let us know if you're bringing anyone else</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-5 space-y-6">
                   {/* Additional Attendees */}
                   <div className="space-y-3">
-                    <Label htmlFor="additional-attendee" className="text-base font-semibold">
+                    <Label htmlFor="additional-attendee" className="text-base font-semibold text-[hsl(25,30%,14%)]">
                       Also RSVPing for (optional)
                     </Label>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-[hsl(25,20%,40%)]">
                       Maximum 2 people total including yourself
                     </p>
-                    
+
                     <Select
                       value={additionalAttendeeType}
                       onValueChange={(value: 'none' | 'member' | 'guest') => {
@@ -918,7 +922,10 @@ export default function RsvpItineraryPage() {
                         }
                       }}
                     >
-                      <SelectTrigger data-testid="select-additional-attendee-type">
+                      <SelectTrigger
+                        data-testid="select-additional-attendee-type"
+                        className="border-[hsl(44,70%,75%)] bg-white focus:ring-[hsl(44,87%,63%)] focus:border-[hsl(44,87%,63%)]"
+                      >
                         <SelectValue placeholder="Select an option" />
                       </SelectTrigger>
                       <SelectContent>
@@ -930,12 +937,15 @@ export default function RsvpItineraryPage() {
 
                     {additionalAttendeeType === 'member' && (
                       <div className="space-y-2">
-                        <Label htmlFor="additional-member">Select member</Label>
+                        <Label htmlFor="additional-member" className="text-[hsl(25,30%,14%)]">Select member</Label>
                         <Select
                           value={additionalMemberId}
                           onValueChange={setAdditionalMemberId}
                         >
-                          <SelectTrigger data-testid="select-additional-member">
+                          <SelectTrigger
+                            data-testid="select-additional-member"
+                            className="border-[hsl(44,70%,75%)] bg-white focus:ring-[hsl(44,87%,63%)] focus:border-[hsl(44,87%,63%)]"
+                          >
                             <SelectValue placeholder="Choose a member" />
                           </SelectTrigger>
                           <SelectContent>
@@ -951,13 +961,14 @@ export default function RsvpItineraryPage() {
 
                     {additionalAttendeeType === 'guest' && (
                       <div className="space-y-2">
-                        <Label htmlFor="additional-guest-name">Guest name</Label>
+                        <Label htmlFor="additional-guest-name" className="text-[hsl(25,30%,14%)]">Guest name</Label>
                         <Input
                           id="additional-guest-name"
                           placeholder="Enter guest name"
                           value={additionalGuestName}
                           onChange={(e) => setAdditionalGuestName(e.target.value)}
                           data-testid="input-additional-guest-name"
+                          className="border-[hsl(44,70%,75%)] bg-white focus:ring-[hsl(44,87%,63%)] focus:border-[hsl(44,87%,63%)]"
                         />
                       </div>
                     )}
@@ -965,8 +976,8 @@ export default function RsvpItineraryPage() {
 
                   {/* Kids Count */}
                   <div className="space-y-3">
-                    <Label htmlFor="kids-count" className="text-base font-semibold flex items-center gap-2">
-                      <Baby className="h-4 w-4" />
+                    <Label htmlFor="kids-count" className="text-base font-semibold text-[hsl(25,30%,14%)] flex items-center gap-2">
+                      <Baby className="h-4 w-4 text-[hsl(44,87%,63%)]" />
                       Number of kids (optional)
                     </Label>
                     <Input
@@ -977,8 +988,9 @@ export default function RsvpItineraryPage() {
                       value={numberOfKids}
                       onChange={(e) => setNumberOfKids(Math.min(10, Math.max(0, parseInt(e.target.value) || 0)))}
                       data-testid="input-kids-count"
+                      className="border-[hsl(44,70%,75%)] bg-white focus:ring-[hsl(44,87%,63%)] focus:border-[hsl(44,87%,63%)]"
                     />
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-[hsl(25,20%,40%)]">
                       Ages 0-12
                     </p>
                   </div>
@@ -987,13 +999,13 @@ export default function RsvpItineraryPage() {
                   <Button
                     onClick={() => rsvpMutation.mutate({ response: selectedResponse })}
                     disabled={rsvpMutation.isPending}
-                    className="w-full"
+                    className="w-full bg-[hsl(44,87%,63%)] hover:bg-[hsl(44,87%,55%)] text-[hsl(25,30%,14%)] font-semibold shadow-[0_2px_8px_rgba(242,201,76,0.3)] transition-all duration-200"
                     data-testid="button-submit-rsvp"
                   >
                     {rsvpMutation.isPending ? "Saving..." : "Save RSVP"}
                   </Button>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             )}
           </>
         )}
