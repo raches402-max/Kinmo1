@@ -141,10 +141,11 @@ function SortableVenueCard({ venue, idx, isOrganizer, toast, queryClient, onEdit
           title: "Removed",
           description: `${venue.venueName} has been removed`,
         });
-      } catch (error) {
+      } catch (error: any) {
+        console.error("[Delete Venue] Error:", error);
         toast({
           title: "Error",
-          description: "Failed to remove venue",
+          description: error.message || "Failed to remove venue",
           variant: "destructive",
         });
       }
