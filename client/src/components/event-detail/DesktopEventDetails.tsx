@@ -24,6 +24,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   DndContext,
   closestCenter,
   KeyboardSensor,
@@ -841,35 +852,119 @@ export function DesktopEventDetails({
                             "border border-[hsl(32,20%,88%)] bg-[hsl(38,50%,99%)]"
                           )}
                         >
-                          <div className="flex items-center gap-2 flex-1 min-w-0">
-                            <span className="font-medium text-sm text-[hsl(25,30%,14%)] truncate">
-                              {guest.guestName}
-                            </span>
-                            {guest.rsvpStatus && (
-                              <Badge
-                                variant="outline"
-                                className={cn(
-                                  "text-xs",
-                                  guest.rsvpStatus === "yes" && "bg-[hsl(145,40%,96%)] text-[hsl(145,45%,35%)] border-[hsl(145,35%,80%)]",
-                                  guest.rsvpStatus === "maybe" && "bg-[hsl(38,50%,96%)] text-[hsl(38,60%,35%)] border-[hsl(38,45%,80%)]",
-                                  guest.rsvpStatus === "no" && "bg-[hsl(350,50%,97%)] text-[hsl(350,50%,40%)] border-[hsl(350,40%,85%)]"
-                                )}
+                          {editingGuestId === guest.id ? (
+                            <div className="flex items-center gap-2 flex-1">
+                              <Input
+                                value={editingGuestName}
+                                onChange={(e) => setEditingGuestName(e.target.value)}
+                                className="flex-1 h-8 text-sm"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && editingGuestName.trim()) {
+                                    onUpdateGuest(guest.id, editingGuestName.trim());
+                                    setEditingGuestId(null);
+                                  } else if (e.key === "Escape") {
+                                    setEditingGuestId(null);
+                                  }
+                                }}
+                              />
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0"
+                                disabled={isPending.updateGuest}
+                                onClick={() => {
+                                  if (editingGuestName.trim()) {
+                                    onUpdateGuest(guest.id, editingGuestName.trim());
+                                    setEditingGuestId(null);
+                                  }
+                                }}
                               >
-                                {guest.rsvpStatus === "yes" && "Going"}
-                                {guest.rsvpStatus === "maybe" && "Maybe"}
-                                {guest.rsvpStatus === "no" && "No"}
-                              </Badge>
-                            )}
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onCopyGuestLink(guest.guestToken, guest.guestName)}
-                            className="gap-1 h-7 text-xs border-[hsl(32,20%,88%)] hover:border-[hsl(44,70%,75%)]"
-                          >
-                            <Copy className="h-3 w-3" />
-                            Copy Link
-                          </Button>
+                                <Check className="h-4 w-4 text-green-600" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0"
+                                onClick={() => setEditingGuestId(null)}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                <span className="font-medium text-sm text-[hsl(25,30%,14%)] truncate">
+                                  {guest.guestName}
+                                </span>
+                                {guest.rsvpStatus && (
+                                  <Badge
+                                    variant="outline"
+                                    className={cn(
+                                      "text-xs",
+                                      guest.rsvpStatus === "yes" && "bg-[hsl(145,40%,96%)] text-[hsl(145,45%,35%)] border-[hsl(145,35%,80%)]",
+                                      guest.rsvpStatus === "maybe" && "bg-[hsl(38,50%,96%)] text-[hsl(38,60%,35%)] border-[hsl(38,45%,80%)]",
+                                      guest.rsvpStatus === "no" && "bg-[hsl(350,50%,97%)] text-[hsl(350,50%,40%)] border-[hsl(350,40%,85%)]"
+                                    )}
+                                  >
+                                    {guest.rsvpStatus === "yes" && "Going"}
+                                    {guest.rsvpStatus === "maybe" && "Maybe"}
+                                    {guest.rsvpStatus === "no" && "No"}
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setEditingGuestId(guest.id);
+                                    setEditingGuestName(guest.guestName);
+                                  }}
+                                  className="h-7 w-7 p-0"
+                                >
+                                  <Edit2 className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => onCopyGuestLink(guest.guestToken, guest.guestName)}
+                                  className="gap-1 h-7 text-xs border-[hsl(32,20%,88%)] hover:border-[hsl(44,70%,75%)]"
+                                >
+                                  <Copy className="h-3 w-3" />
+                                  Link
+                                </Button>
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Remove Guest?</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        This will remove "{guest.guestName}" from this event. Their invite link will no longer work.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={() => onDeleteGuest(guest.id)}
+                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                      >
+                                        Remove
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </div>
+                            </>
+                          )}
                         </div>
                       ))}
                     </div>

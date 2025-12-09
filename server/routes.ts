@@ -1714,7 +1714,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
 
         // Build detailed RSVP list with additional attendees and kids count
-        const detailedRsvps = [];
+        const detailedRsvps: Array<{name: string; response: string; additionalAttendees: any[]; numberOfKids: number; isGuest: boolean}> = [];
+
+        // Track names already added to avoid duplicates (e.g., organizer appearing twice)
+        const processedNames = new Set<string>();
 
         for (const r of allRsvps) {
           let name = '';
@@ -1746,10 +1749,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Guest RSVP
             name = r.guestName;
           }
-          
-          if (name && r.response) {
+
+          // Only add if we have a name, response, and haven't already added this person
+          const nameLower = name.toLowerCase();
+          if (name && r.response && !processedNames.has(nameLower)) {
+            processedNames.add(nameLower);
             rsvpSummary[r.response as 'yes' | 'maybe' | 'no'].push(name);
-            
+
             // Add detailed RSVP info
             detailedRsvps.push({
               name,
@@ -1775,13 +1781,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .from(guestInvites)
           .where(eq(guestInvites.itineraryId, invite.itineraryId));
 
-        // Track names already added to avoid duplicates
-        const addedNames = new Set(detailedRsvps.map(r => r.name.toLowerCase()));
-
         // Add guest invites to detailed RSVPs (only if not already added from rsvps table)
         for (const gi of allGuestInvites) {
+          const guestNameLower = gi.guestName.toLowerCase();
           // Only add if they have responded and aren't already in the list
-          if (gi.rsvpStatus && gi.rsvpStatus !== null && !addedNames.has(gi.guestName.toLowerCase())) {
+          if (gi.rsvpStatus && gi.rsvpStatus !== null && !processedNames.has(guestNameLower)) {
+            processedNames.add(guestNameLower);
             detailedRsvps.push({
               name: gi.guestName,
               response: gi.rsvpStatus,
@@ -1794,8 +1799,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (gi.rsvpStatus in rsvpSummary) {
               rsvpSummary[gi.rsvpStatus as 'yes' | 'maybe' | 'no'].push(gi.guestName);
             }
-
-            addedNames.add(gi.guestName.toLowerCase());
           }
         }
 

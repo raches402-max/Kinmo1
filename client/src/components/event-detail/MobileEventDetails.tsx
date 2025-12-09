@@ -23,6 +23,17 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { format, subDays } from "date-fns";
 
@@ -47,6 +58,10 @@ interface MobileEventDetailsProps {
   onAddVenue?: () => void;
   onEditVenue?: (venue: EventVenue) => void;
   onRemoveVenue?: (venue: EventVenue) => void;
+  guestInvites?: any[];
+  onAddGuest?: (name: string) => void;
+  onUpdateGuest?: (guestId: string, guestName: string) => void;
+  onDeleteGuest?: (guestId: string) => void;
   onInviteGuest?: () => void;
   onRemindAll?: () => void;
   onMakeHost?: (attendee: EventAttendee) => void;
@@ -148,6 +163,10 @@ export function MobileEventDetails({
   onAddVenue,
   onEditVenue,
   onRemoveVenue,
+  guestInvites,
+  onAddGuest,
+  onUpdateGuest,
+  onDeleteGuest,
   onInviteGuest,
   onRemindAll,
   onMakeHost,
@@ -285,8 +304,30 @@ export function MobileEventDetails({
       });
     });
 
+    // Add guests for group events
+    if (guestInvites && guestInvites.length > 0) {
+      guestInvites.forEach((guest: any) => {
+        const initials = guest.guestName
+          .split(" ")
+          .map((n: string) => n[0])
+          .join("")
+          .toUpperCase()
+          .slice(0, 2);
+
+        result.push({
+          id: guest.id,
+          name: guest.guestName,
+          initials,
+          response: (guest.rsvpStatus || "pending") as RsvpStatus,
+          isGuest: true,
+          isOrganizer: false,
+          isHost: false,
+        });
+      });
+    }
+
     return result;
-  }, [event, itineraryDetails, user]);
+  }, [event, itineraryDetails, user, guestInvites]);
 
   // Calculate RSVP counts
   const rsvpCounts: RsvpCounts = useMemo(() => {

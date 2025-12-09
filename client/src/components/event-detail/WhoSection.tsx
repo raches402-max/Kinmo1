@@ -27,6 +27,7 @@ interface AttendeeRowProps {
   onMakeHost?: () => void;
   onRemove?: () => void;
   onSendReminder?: () => void;
+  onEditName?: () => void;
 }
 
 function AttendeeRow({
@@ -36,6 +37,7 @@ function AttendeeRow({
   onMakeHost,
   onRemove,
   onSendReminder,
+  onEditName,
 }: AttendeeRowProps) {
   const [showActions, setShowActions] = useState(false);
 
@@ -128,6 +130,17 @@ function AttendeeRow({
             className="overflow-hidden"
           >
             <div className="flex flex-wrap gap-2 pb-2 pt-1">
+              {attendee.isGuest && onEditName && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs gap-1.5"
+                  onClick={onEditName}
+                >
+                  <Edit2 className="h-3 w-3" />
+                  Edit Name
+                </Button>
+              )}
               <Button
                 size="sm"
                 variant="outline"
@@ -137,7 +150,7 @@ function AttendeeRow({
                 <Edit2 className="h-3 w-3" />
                 Change RSVP
               </Button>
-              {!attendee.isHost && (
+              {!attendee.isHost && !attendee.isGuest && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -194,6 +207,7 @@ interface WhoSectionProps {
   onRemoveAttendee?: (attendee: EventAttendee) => void;
   onSendReminder?: (attendee: EventAttendee) => void;
   onUpdateQuorum?: (threshold: number) => void;
+  onEditGuestName?: (attendee: EventAttendee) => void;
 }
 
 export function WhoSection({
@@ -212,6 +226,7 @@ export function WhoSection({
   onRemoveAttendee,
   onSendReminder,
   onUpdateQuorum,
+  onEditGuestName,
 }: WhoSectionProps) {
   const [isEditingQuorum, setIsEditingQuorum] = useState(false);
   const [localQuorum, setLocalQuorum] = useState(quorumThreshold);
@@ -396,6 +411,7 @@ export function WhoSection({
                           onMakeHost={() => onMakeHost?.(attendee)}
                           onRemove={() => onRemoveAttendee?.(attendee)}
                           onSendReminder={() => onSendReminder?.(attendee)}
+                          onEditName={() => onEditGuestName?.(attendee)}
                         />
                       ))}
                     </div>
