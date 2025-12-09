@@ -37,6 +37,7 @@ import { SwipeSession } from "@/components/SwipeSession";
 import { FavoritesMap } from "@/components/FavoritesMap";
 import { AddAdHocVenueDialog } from "@/components/AddAdHocVenueDialog";
 import { GroupInsights } from "@/components/GroupInsights";
+import { AvailabilityPulseCard } from "@/components/AvailabilityPulseCard";
 import { FeedbackTab } from "@/components/FeedbackTab";
 import { UnifiedEventCreationModal } from "@/components/UnifiedEventCreationModal";
 import { DiscoverVenuesModal } from "@/components/DiscoverVenuesModal";
@@ -2874,6 +2875,7 @@ export default function GroupDetail() {
 
           {/* Home Tab */}
           <TabsContent value="home" className="space-y-6">
+            {groupId && <AvailabilityPulseCard groupId={groupId} />}
             <HomeTab
               eventsLoading={eventsLoading}
               allGroupEvents={allGroupEvents}

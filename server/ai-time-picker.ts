@@ -297,6 +297,12 @@ interface TimeSelectionInput {
   }>; // Existing events to avoid conflicts
   currentGroupId?: string; // Current group ID to exclude from conflict checking
   schedulingPreferences?: string; // Custom scheduling instructions (e.g., "Always start dinner at 6pm")
+  // Date-specific availability from pulse responses (takes priority over general availability)
+  pulseAvailability?: {
+    aggregated: Record<string, { morning: number; afternoon: number; evening: number }>;
+    totalResponses: number;
+    memberCount: number;
+  };
 }
 
 interface TimeSelectionResult {
@@ -735,10 +741,48 @@ ${input.schedulingPreferences}
 These are the organizer's explicit scheduling instructions. Treat these as HARD CONSTRAINTS that override general guidelines.`;
       }
 
+      // Build pulse availability context (date-specific availability from recent member responses)
+      let pulseAvailabilityContext = '';
+      if (input.pulseAvailability && Object.keys(input.pulseAvailability.aggregated).length > 0) {
+        const { aggregated, totalResponses, memberCount } = input.pulseAvailability;
+
+        // Sort dates and find best options
+        const sortedDates = Object.entries(aggregated)
+          .map(([dateStr, slots]) => ({
+            date: dateStr,
+            total: slots.morning + slots.afternoon + slots.evening,
+            morning: slots.morning,
+            afternoon: slots.afternoon,
+            evening: slots.evening,
+          }))
+          .sort((a, b) => b.total - a.total);
+
+        // Format top dates with availability
+        const topDates = sortedDates.slice(0, 10).map(d => {
+          const dateObj = new Date(d.date + 'T12:00:00');
+          const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+          const dateLabel = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          const slots = [];
+          if (d.morning > 0) slots.push(`morning: ${d.morning}/${totalResponses}`);
+          if (d.afternoon > 0) slots.push(`afternoon: ${d.afternoon}/${totalResponses}`);
+          if (d.evening > 0) slots.push(`evening: ${d.evening}/${totalResponses}`);
+          return `  ${dayName} ${dateLabel} (${d.date}): ${slots.join(', ')}`;
+        }).join('\n');
+
+        pulseAvailabilityContext = `\n\n📅 **DATE-SPECIFIC AVAILABILITY** (from recent availability pulse - ${totalResponses}/${memberCount} members responded):
+This is REAL calendar availability from members, not just general weekly patterns. STRONGLY prefer dates where more members are available.
+
+${topDates}
+
+**IMPORTANT**: Dates with higher numbers mean more members confirmed they're free on that specific date. Prioritize these over weekly pattern assumptions.`;
+
+        console.log('[AI Time Picker] Using pulse availability data with', totalResponses, 'responses');
+      }
+
       const prompt = `You are scheduling a group outing. Pick ONE specific date and time.
 
 Venues: ${venueList}
-Group general availability: ${input.generalAvailability || 'Not specified'}${densityContext}
+Group general availability: ${input.generalAvailability || 'Not specified'}${densityContext}${pulseAvailabilityContext}
 Member constraints: ${constraints}
 ${input.rescheduleReason ? `Previous attempt failed: ${input.rescheduleReason}` : ''}
 Timezone: ${tzName} (all times should be in this timezone)

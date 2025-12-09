@@ -1,12 +1,13 @@
 import { db } from './db';
-import { itineraries, members, reminderLogs, groups, autoScheduledEvents, itineraryInvites, rejectedEventDates } from '../shared/schema';
+import { itineraries, members, reminderLogs, groups, autoScheduledEvents, itineraryInvites, rejectedEventDates, type Group } from '../shared/schema';
 import { eq, and, isNull, sql, or, lt } from 'drizzle-orm';
-import { addDays } from 'date-fns';
+import { addDays, differenceInDays } from 'date-fns';
 import {
   sendItineraryInvite,
   sendGentleNudge,
   sendFinalCall,
   sendDayBeforeReminder,
+  sendAvailabilityPulseRequest,
   type EmailRecipient,
   type ItineraryInviteData,
   type ReminderData,
@@ -15,6 +16,112 @@ import { storage } from './storage';
 import { selectBestItineraryForAutoSchedule, shouldTriggerAutoSchedule, maintainEventPipeline, calculateTargetEventCount } from './auto-scheduler';
 import { calculateEventConfidence, shouldRequireReview } from './confidence-scoring';
 import { randomBytes } from 'crypto';
+
+/**
+ * Calculate lead days for availability pulse based on meeting frequency
+ */
+function calculatePulseLeadDays(meetingFrequency: string | null): number {
+  switch (meetingFrequency) {
+    case '2x week':
+    case '3x week':
+      return 4;
+    case '1x week':
+      return 6;
+    case '2x month':
+      return 8;
+    case '1x month':
+    default:
+      return 10;
+  }
+}
+
+/**
+ * Check if we should trigger an availability pulse for a group and create it if needed
+ */
+async function triggerAvailabilityPulseIfNeeded(group: Group): Promise<boolean> {
+  // Skip if no next event date is set
+  if (!group.nextEventDueDate) {
+    return false;
+  }
+
+  const targetDate = new Date(group.nextEventDueDate);
+  const now = new Date();
+  const daysUntilEvent = differenceInDays(targetDate, now);
+
+  // Get configured lead days or calculate from frequency
+  const leadDays = group.availabilityPulseLeadDays || calculatePulseLeadDays(group.meetingFrequency);
+
+  // Only trigger pulse if we're within the lead window but not too close
+  // (pulse should be sent leadDays before, but not after the event is already being created)
+  if (daysUntilEvent > leadDays || daysUntilEvent < 3) {
+    return false;
+  }
+
+  // Check if there's already an active pulse
+  const existingPulse = await storage.getActivePulseForGroup(group.id);
+  if (existingPulse) {
+    return false; // Pulse already exists
+  }
+
+  console.log(`[AvailabilityPulse] Creating pulse for group ${group.name}, ${daysUntilEvent} days until event`);
+
+  // Get group members
+  const groupMembers = await storage.getGroupMembers(group.id);
+
+  // Calculate pulse window (3 days before target to 2.5 weeks after)
+  const startDate = addDays(targetDate, -3);
+  const endDate = addDays(targetDate, 18); // 21 days total (3 weeks)
+  const expiresAt = addDays(targetDate, -2); // Expires 2 days before event
+
+  // Create the pulse
+  const pulse = await storage.createAvailabilityPulse({
+    groupId: group.id,
+    startDate,
+    endDate,
+    targetEventDate: targetDate,
+    memberCount: groupMembers.length,
+    expiresAt,
+    status: 'active',
+  });
+
+  // Create response tokens for each member
+  for (const member of groupMembers) {
+    await storage.getOrCreatePulseResponseForMember(
+      pulse.id,
+      member.id,
+      member.userId || undefined
+    );
+  }
+
+  // Send email notifications to members with email addresses
+  const membersWithEmail = groupMembers.filter(m => m.email);
+  for (const member of membersWithEmail) {
+    const response = await storage.getPulseResponse(pulse.id, member.id);
+    if (!response?.responseToken) continue;
+
+    try {
+      await sendAvailabilityPulseRequest(
+        { email: member.email!, name: member.name || 'there' },
+        {
+          groupName: group.name,
+          groupEmoji: group.emoji || '',
+          memberName: member.name || 'there',
+          targetEventDate: targetDate.toISOString(),
+          pulseLink: `${process.env.REPLIT_DEPLOYMENT_URL || 'https://kinmo.ai'}/availability/${pulse.id}/${response.responseToken}`,
+          deadline: expiresAt.toISOString(),
+        }
+      );
+    } catch (emailError) {
+      console.error(`[AvailabilityPulse] Failed to send email to ${member.email}:`, emailError);
+    }
+  }
+
+  // Mark email as sent
+  await storage.updatePulseEmailSentAt(pulse.id);
+
+  console.log(`[AvailabilityPulse] Created pulse ${pulse.id} and sent ${membersWithEmail.length} emails`);
+  return true;
+}
 
 /**
  * Validates that a date is valid before performing mutations
@@ -458,6 +565,14 @@ export async function processAutoScheduling(): Promise<void> {
         continue;
       }
 
+      // Try to trigger an availability pulse if we're in the right window
+      // This gives members a chance to submit their real calendar availability before we pick a date
+      try {
+        await triggerAvailabilityPulseIfNeeded(group);
+      } catch (pulseError) {
+        console.error(`[AvailabilityPulse] Error checking pulse for group ${group.name}:`, pulseError);
+      }
+
       // Check if there's already a pending auto-event
       const pendingEvent = await storage.getPendingAutoScheduledEvent(group.id);
 
@@ -641,6 +756,31 @@ export async function processAutoScheduling(): Promise<void> {
             addDays(new Date(), 90)
           );
 
+          // Check for active availability pulse with responses
+          let pulseAvailability: {
+            aggregated: Record<string, { morning: number; afternoon: number; evening: number }>;
+            totalResponses: number;
+            memberCount: number;
+          } | undefined;
+
+          try {
+            const activePulse = await storage.getActivePulseForGroup(group.id);
+            if (activePulse && activePulse.responseCount > 0) {
+              const { aggregated, totalResponses } = await storage.getAggregatedPulseAvailability(activePulse.id);
+              if (totalResponses > 0 && Object.keys(aggregated).length > 0) {
+                pulseAvailability = {
+                  aggregated,
+                  totalResponses,
+                  memberCount: activePulse.memberCount,
+                };
+                console.log(`[Auto-Schedule] Using pulse availability: ${totalResponses}/${activePulse.memberCount} responses, ${Object.keys(aggregated).length} dates`);
+              }
+            }
+          } catch (pulseError) {
+            console.error('[Auto-Schedule] Error fetching pulse availability:', pulseError);
+            // Continue without pulse data
+          }
+
           // Use AI to find optimal time
           const { suggestOptimalTime } = await import('./ai-time-picker');
           const timeResult = await suggestOptimalTime({
@@ -653,6 +793,7 @@ export async function processAutoScheduling(): Promise<void> {
             existingEvents, // Pass existing events to avoid conflicts
             currentGroupId: group.id, // Pass current group to exclude from conflict check
             schedulingPreferences: group.schedulingPreferences || undefined, // Pass custom scheduling instructions
+            pulseAvailability, // Pass date-specific availability from pulse responses
           });
 
           proposedDate = timeResult.eventDate;

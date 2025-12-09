@@ -5,13 +5,11 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { getErrorToast } from "@/components/ErrorDisplay";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
-import { Calendar, MapPin, Check, X, HelpCircle, Users, Crown, Clock, CalendarPlus } from "lucide-react";
+import { Calendar, MapPin, Check, X, HelpCircle, Users, Crown, Clock, CalendarPlus, Star } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { format } from "date-fns";
 import { generateCalendarUrlFromItinerary } from "@/lib/calendar";
+import { cn } from "@/lib/utils";
 
 type GuestRsvpData = {
   guestInvite: {
@@ -87,23 +85,23 @@ export default function GuestRsvpPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-muted-foreground">Loading event details...</div>
+      <div className="min-h-screen flex items-center justify-center bg-[hsl(38,35%,97%)]">
+        <div className="text-[hsl(25,20%,40%)]">Loading event details...</div>
       </div>
     );
   }
 
   if (!data) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="max-w-md w-full">
-          <CardHeader>
-            <CardTitle>Event Not Found</CardTitle>
-            <CardDescription>
+      <div className="min-h-screen flex items-center justify-center bg-[hsl(38,35%,97%)] p-4">
+        <div className="max-w-md w-full rounded-2xl border border-[hsl(44,70%,75%)] bg-[hsl(38,50%,98%)] shadow-[0_2px_8px_rgba(242,201,76,0.12)] overflow-hidden">
+          <div className="px-6 py-5 bg-gradient-to-r from-[hsl(38,35%,97%)] to-[hsl(44,45%,96%)] border-b border-[hsl(44,70%,75%)]">
+            <h2 className="text-xl font-semibold text-[hsl(25,30%,14%)]">Event Not Found</h2>
+            <p className="text-sm text-[hsl(25,20%,40%)] mt-1">
               This RSVP link is invalid or has expired.
-            </CardDescription>
-          </CardHeader>
-        </Card>
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
@@ -116,124 +114,202 @@ export default function GuestRsvpPage() {
   const maybeCount = attendees.filter(a => a.response === 'maybe').length;
 
   return (
-    <div className="min-h-screen bg-background p-4">
+    <div className="min-h-screen bg-[hsl(38,35%,97%)] p-4">
       <div className="max-w-2xl mx-auto py-8 space-y-6">
         {/* Header */}
-        <div className="text-center space-y-2">
-          {group && <div className="text-4xl mb-2">{group.emoji}</div>}
-          {group && <h1 className="text-3xl font-bold">{group.name}</h1>}
-          <p className="text-muted-foreground">You're invited to join us!</p>
+        <div className="text-center space-y-3">
+          {group && (
+            <div className="w-16 h-16 rounded-full bg-[hsl(44,87%,63%)]/20 flex items-center justify-center mx-auto shadow-[0_2px_8px_rgba(242,201,76,0.3)]">
+              <span className="text-3xl">{group.emoji}</span>
+            </div>
+          )}
+          {group && <h1 className="text-3xl font-bold text-[hsl(25,30%,14%)]">{group.name}</h1>}
+          <p className="text-[hsl(25,20%,40%)]">You're invited to join us!</p>
         </div>
 
-
         {/* Event Details Card */}
-        <Card data-testid="card-event-details">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              {itinerary.name || "Group Event"}
-            </CardTitle>
-            {itinerary.eventDate && (
-              <CardDescription className="text-base font-medium">
-                {format(new Date(itinerary.eventDate), "EEEE, MMMM d, yyyy 'at' h:mm a")}
-              </CardDescription>
-            )}
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <div className="rounded-2xl border border-[hsl(44,70%,75%)] bg-[hsl(38,50%,98%)] shadow-[0_2px_8px_rgba(242,201,76,0.12)] overflow-hidden" data-testid="card-event-details">
+          {/* Card Header with gradient */}
+          <div className="px-5 py-4 bg-gradient-to-r from-[hsl(38,35%,97%)] to-[hsl(44,45%,96%)] border-b border-[hsl(44,70%,75%)]">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-[hsl(44,87%,63%)]/20 flex items-center justify-center">
+                <Calendar className="h-5 w-5 text-[hsl(44,87%,63%)]" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-[hsl(25,30%,14%)]">{itinerary.name || "Group Event"}</h3>
+                {itinerary.eventDate && (
+                  <p className="text-sm text-[hsl(25,20%,40%)] font-medium">
+                    {format(new Date(itinerary.eventDate), "EEEE, MMMM d, yyyy 'at' h:mm a")}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Card Content */}
+          <div className="p-5 space-y-4">
             <div className="space-y-3">
-              <h3 className="font-semibold text-sm text-muted-foreground">Event Details</h3>
+              <h3 className="font-semibold text-sm text-[hsl(25,20%,40%)]">Event Details</h3>
               {items.map((item, idx) => (
-                <div key={item.id} className="flex gap-3 p-3 rounded-lg bg-muted/50" data-testid={`venue-${item.id}`}>
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/25 flex items-center justify-center text-sm font-semibold text-primary">
+                <div key={item.id} className="flex gap-3 p-3 rounded-xl bg-[hsl(35,40%,95%)] border border-[hsl(44,70%,75%)]/50" data-testid={`venue-${item.id}`}>
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[hsl(44,87%,63%)]/30 flex items-center justify-center text-sm font-bold text-[hsl(25,30%,14%)]">
                     {idx + 1}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium">{item.venueName}</div>
-                    <div className="text-sm text-muted-foreground">{item.venueType}</div>
+                    <div className="font-semibold text-[hsl(25,30%,14%)]">{item.venueName}</div>
+                    <div className="text-sm text-[hsl(25,20%,40%)]">{item.venueType}</div>
                     {item.venueAddress && (
-                      <div className="text-xs text-muted-foreground flex items-start gap-1 mt-1">
-                        <MapPin className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                      <div className="text-xs text-[hsl(25,20%,40%)] flex items-start gap-1 mt-1">
+                        <MapPin className="h-3 w-3 mt-0.5 flex-shrink-0 text-[hsl(44,87%,63%)]" />
                         <span>{item.venueAddress}</span>
                       </div>
                     )}
                     {item.rating && (
-                      <div className="text-xs text-muted-foreground mt-1">
-                        ⭐ {item.rating}
+                      <div className="text-xs text-[hsl(25,20%,40%)] mt-1 flex items-center gap-1">
+                        <Star className="h-3 w-3 text-[hsl(44,87%,63%)] fill-[hsl(44,87%,63%)]" />
+                        <span>{item.rating}</span>
                       </div>
                     )}
                   </div>
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* RSVP Card */}
-        <Card data-testid="card-rsvp">
-          <CardHeader>
-            <CardTitle>Your RSVP</CardTitle>
-            <CardDescription>
+        <div className="rounded-2xl border border-[hsl(44,70%,75%)] bg-[hsl(38,50%,98%)] shadow-[0_2px_8px_rgba(242,201,76,0.12)] overflow-hidden" data-testid="card-rsvp">
+          {/* Card Header with gradient */}
+          <div className="px-5 py-4 bg-gradient-to-r from-[hsl(38,35%,97%)] to-[hsl(44,45%,96%)] border-b border-[hsl(44,70%,75%)]">
+            <h3 className="text-lg font-semibold text-[hsl(25,30%,14%)]">Your RSVP</h3>
+            <p className="text-sm text-[hsl(25,20%,40%)] mt-1">
               Hi {guestInvite.guestName}! Will you be able to join us?
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <RadioGroup value={currentResponse} onValueChange={setSelectedResponse} data-testid="radio-rsvp-response">
-              <div className="flex items-center space-x-2 p-4 rounded-lg border hover-elevate cursor-pointer" data-testid="option-yes">
-                <RadioGroupItem value="yes" id="yes" />
-                <Label htmlFor="yes" className="flex items-center gap-2 cursor-pointer flex-1">
-                  <Check className="h-4 w-4 text-green-600" />
-                  <div>
-                    <div className="font-medium">Yes, I'll be there!</div>
-                    <div className="text-sm text-muted-foreground">Looking forward to it</div>
-                  </div>
-                </Label>
-              </div>
+            </p>
+          </div>
 
-              <div className="flex items-center space-x-2 p-4 rounded-lg border hover-elevate cursor-pointer" data-testid="option-maybe">
-                <RadioGroupItem value="maybe" id="maybe" />
-                <Label htmlFor="maybe" className="flex items-center gap-2 cursor-pointer flex-1">
-                  <HelpCircle className="h-4 w-4 text-yellow-600" />
-                  <div>
-                    <div className="font-medium">Maybe</div>
-                    <div className="text-sm text-muted-foreground">I'll try to make it</div>
+          {/* Card Content */}
+          <div className="p-5 space-y-5">
+            {/* RSVP Options */}
+            <div className="space-y-3" data-testid="radio-rsvp-response">
+              {/* Yes option */}
+              <button
+                type="button"
+                onClick={() => setSelectedResponse('yes')}
+                className={cn(
+                  "w-full flex items-center gap-4 p-4 rounded-xl border-2 transition-all duration-200",
+                  currentResponse === 'yes'
+                    ? "bg-[hsl(145,50%,95%)] border-[hsl(145,50%,50%)]"
+                    : "bg-[hsl(35,40%,95%)] border-transparent hover:border-[hsl(44,70%,75%)] hover:bg-[hsl(38,50%,96%)]"
+                )}
+                data-testid="option-yes"
+              >
+                <div className={cn(
+                  "w-10 h-10 rounded-full flex items-center justify-center",
+                  currentResponse === 'yes' ? "bg-[hsl(145,50%,50%)]" : "bg-[hsl(145,50%,85%)]"
+                )}>
+                  <Check className={cn("h-5 w-5", currentResponse === 'yes' ? "text-white" : "text-[hsl(145,50%,35%)]")} />
+                </div>
+                <div className="flex-1 text-left">
+                  <div className="font-semibold text-[hsl(25,30%,14%)]">Yes, I'll be there!</div>
+                  <div className="text-xs text-[hsl(25,20%,40%)]">Looking forward to it</div>
+                </div>
+                {currentResponse === 'yes' && (
+                  <div className="w-6 h-6 rounded-full bg-[hsl(145,50%,50%)] flex items-center justify-center">
+                    <Check className="h-4 w-4 text-white" />
                   </div>
-                </Label>
-              </div>
+                )}
+              </button>
 
-              <div className="flex items-center space-x-2 p-4 rounded-lg border hover-elevate cursor-pointer" data-testid="option-no">
-                <RadioGroupItem value="no" id="no" />
-                <Label htmlFor="no" className="flex items-center gap-2 cursor-pointer flex-1">
-                  <X className="h-4 w-4 text-red-600" />
-                  <div>
-                    <div className="font-medium">Can't make it</div>
-                    <div className="text-sm text-muted-foreground">Sorry, have to skip this one</div>
+              {/* Maybe option */}
+              <button
+                type="button"
+                onClick={() => setSelectedResponse('maybe')}
+                className={cn(
+                  "w-full flex items-center gap-4 p-4 rounded-xl border-2 transition-all duration-200",
+                  currentResponse === 'maybe'
+                    ? "bg-[hsl(44,60%,95%)] border-[hsl(44,70%,55%)]"
+                    : "bg-[hsl(35,40%,95%)] border-transparent hover:border-[hsl(44,70%,75%)] hover:bg-[hsl(38,50%,96%)]"
+                )}
+                data-testid="option-maybe"
+              >
+                <div className={cn(
+                  "w-10 h-10 rounded-full flex items-center justify-center",
+                  currentResponse === 'maybe' ? "bg-[hsl(44,70%,55%)]" : "bg-[hsl(44,70%,85%)]"
+                )}>
+                  <HelpCircle className={cn("h-5 w-5", currentResponse === 'maybe' ? "text-white" : "text-[hsl(44,70%,35%)]")} />
+                </div>
+                <div className="flex-1 text-left">
+                  <div className="font-semibold text-[hsl(25,30%,14%)]">Maybe</div>
+                  <div className="text-xs text-[hsl(25,20%,40%)]">I'll try to make it</div>
+                </div>
+                {currentResponse === 'maybe' && (
+                  <div className="w-6 h-6 rounded-full bg-[hsl(44,70%,55%)] flex items-center justify-center">
+                    <Check className="h-4 w-4 text-white" />
                   </div>
-                </Label>
-              </div>
-            </RadioGroup>
+                )}
+              </button>
 
+              {/* No option */}
+              <button
+                type="button"
+                onClick={() => setSelectedResponse('no')}
+                className={cn(
+                  "w-full flex items-center gap-4 p-4 rounded-xl border-2 transition-all duration-200",
+                  currentResponse === 'no'
+                    ? "bg-[hsl(350,60%,95%)] border-[hsl(350,60%,55%)]"
+                    : "bg-[hsl(35,40%,95%)] border-transparent hover:border-[hsl(44,70%,75%)] hover:bg-[hsl(38,50%,96%)]"
+                )}
+                data-testid="option-no"
+              >
+                <div className={cn(
+                  "w-10 h-10 rounded-full flex items-center justify-center",
+                  currentResponse === 'no' ? "bg-[hsl(350,60%,55%)]" : "bg-[hsl(350,60%,85%)]"
+                )}>
+                  <X className={cn("h-5 w-5", currentResponse === 'no' ? "text-white" : "text-[hsl(350,60%,35%)]")} />
+                </div>
+                <div className="flex-1 text-left">
+                  <div className="font-semibold text-[hsl(25,30%,14%)]">Can't make it</div>
+                  <div className="text-xs text-[hsl(25,20%,40%)]">Sorry, have to skip this one</div>
+                </div>
+                {currentResponse === 'no' && (
+                  <div className="w-6 h-6 rounded-full bg-[hsl(350,60%,55%)] flex items-center justify-center">
+                    <Check className="h-4 w-4 text-white" />
+                  </div>
+                )}
+              </button>
+            </div>
+
+            {/* Submit button */}
             {selectedResponse && selectedResponse !== guestInvite.rsvpStatus && (
               <Button
                 onClick={handleSubmit}
                 disabled={updateRsvpMutation.isPending}
-                className="w-full"
+                className="w-full bg-[hsl(44,87%,63%)] hover:bg-[hsl(44,87%,55%)] text-[hsl(25,30%,14%)] font-semibold shadow-[0_2px_8px_rgba(242,201,76,0.3)] transition-all duration-200"
                 data-testid="button-submit-rsvp"
               >
                 {updateRsvpMutation.isPending ? "Saving..." : "Update RSVP"}
               </Button>
             )}
 
+            {/* Current response badge */}
             {(!selectedResponse || selectedResponse === guestInvite.rsvpStatus) && guestInvite.rsvpStatus ? (
-              <div className="text-center text-sm text-muted-foreground">
-                Your current response: <span className="font-medium text-foreground">
-                  {guestInvite.rsvpStatus === 'yes' ? "Yes, I'll be there!" : guestInvite.rsvpStatus === 'maybe' ? 'Maybe' : "Can't make it"}
-                </span>
+              <div className={cn(
+                "text-center py-2 px-4 rounded-lg text-sm",
+                guestInvite.rsvpStatus === 'yes' && "bg-[hsl(145,50%,95%)] text-[hsl(145,50%,30%)]",
+                guestInvite.rsvpStatus === 'maybe' && "bg-[hsl(44,60%,95%)] text-[hsl(44,60%,25%)]",
+                guestInvite.rsvpStatus === 'no' && "bg-[hsl(350,60%,95%)] text-[hsl(350,50%,35%)]"
+              )}>
+                <span className="font-medium">Your response: {
+                  guestInvite.rsvpStatus === 'yes' ? "Going" :
+                  guestInvite.rsvpStatus === 'maybe' ? "Maybe" :
+                  "Can't make it"
+                }</span>
               </div>
             ) : null}
 
             {/* Add to Calendar button - shown when RSVP is yes */}
             {guestInvite.rsvpStatus === 'yes' && itinerary.eventDate && (
-              <div className="pt-4 border-t">
+              <div className="pt-4 border-t border-[hsl(44,70%,75%)]">
                 <a
                   href={generateCalendarUrlFromItinerary({
                     groupName: group?.name || 'Event',
@@ -246,69 +322,76 @@ export default function GuestRsvpPage() {
                   })}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-lg border-2 border-dashed border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/50 transition-colors"
+                  className="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl border-2 border-dashed border-[hsl(44,70%,75%)] text-[hsl(25,30%,14%)] hover:bg-[hsl(44,87%,63%)]/10 hover:border-[hsl(44,87%,63%)] transition-all duration-200"
                 >
-                  <CalendarPlus className="h-5 w-5" />
+                  <CalendarPlus className="h-5 w-5 text-[hsl(44,87%,63%)]" />
                   <span className="font-medium">Add to Google Calendar</span>
                 </a>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Who's Coming Card */}
         {attendees.length > 0 && (
-          <Card data-testid="card-whos-coming">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Who's Coming
-              </CardTitle>
-              <CardDescription>
-                {goingCount > 0 && `${goingCount} going`}
-                {goingCount > 0 && maybeCount > 0 && ' · '}
-                {maybeCount > 0 && `${maybeCount} maybe`}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
+          <div className="rounded-2xl border border-[hsl(44,70%,75%)] bg-[hsl(38,50%,98%)] shadow-[0_2px_8px_rgba(242,201,76,0.12)] overflow-hidden" data-testid="card-whos-coming">
+            {/* Card Header with gradient */}
+            <div className="px-5 py-4 bg-gradient-to-r from-[hsl(38,35%,97%)] to-[hsl(44,45%,96%)] border-b border-[hsl(44,70%,75%)]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-[hsl(44,87%,63%)]/20 flex items-center justify-center">
+                  <Users className="h-5 w-5 text-[hsl(44,87%,63%)]" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-[hsl(25,30%,14%)]">Who's Coming</h3>
+                  <p className="text-sm text-[hsl(25,20%,40%)]">
+                    {goingCount > 0 && `${goingCount} going`}
+                    {goingCount > 0 && maybeCount > 0 && ' · '}
+                    {maybeCount > 0 && `${maybeCount} maybe`}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Card Content */}
+            <div className="p-5">
               <div className="space-y-3">
                 {attendees.map((attendee, idx) => (
-                  <div key={idx} className="flex items-center gap-3">
-                    <Avatar className="h-8 w-8">
-                      <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                  <div key={idx} className="flex items-center gap-3 p-2 rounded-lg hover:bg-[hsl(35,40%,95%)] transition-colors">
+                    <Avatar className="h-8 w-8 border border-[hsl(44,70%,75%)]">
+                      <AvatarFallback className="text-xs bg-[hsl(44,87%,63%)]/20 text-[hsl(25,30%,14%)]">
                         {attendee.initials}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium truncate">{attendee.name}</span>
+                        <span className="font-medium text-[hsl(25,30%,14%)] truncate">{attendee.name}</span>
                         {attendee.isHost && (
-                          <Crown className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
+                          <Crown className="h-3.5 w-3.5 text-[hsl(44,87%,63%)] flex-shrink-0" />
                         )}
                       </div>
                     </div>
                     <div className="flex-shrink-0">
                       {attendee.response === 'yes' && (
-                        <div className="flex items-center gap-1 text-green-600 text-sm">
-                          <Check className="h-4 w-4" />
+                        <div className="flex items-center gap-1.5 text-[hsl(145,50%,35%)] text-sm px-2 py-1 rounded-full bg-[hsl(145,50%,95%)]">
+                          <Check className="h-3.5 w-3.5" />
                           <span>Going</span>
                         </div>
                       )}
                       {attendee.response === 'maybe' && (
-                        <div className="flex items-center gap-1 text-yellow-600 text-sm">
-                          <HelpCircle className="h-4 w-4" />
+                        <div className="flex items-center gap-1.5 text-[hsl(44,70%,30%)] text-sm px-2 py-1 rounded-full bg-[hsl(44,60%,95%)]">
+                          <HelpCircle className="h-3.5 w-3.5" />
                           <span>Maybe</span>
                         </div>
                       )}
                       {attendee.response === 'no' && (
-                        <div className="flex items-center gap-1 text-red-600 text-sm">
-                          <X className="h-4 w-4" />
+                        <div className="flex items-center gap-1.5 text-[hsl(350,50%,40%)] text-sm px-2 py-1 rounded-full bg-[hsl(350,60%,95%)]">
+                          <X className="h-3.5 w-3.5" />
                           <span>Can't go</span>
                         </div>
                       )}
                       {!attendee.response && (
-                        <div className="flex items-center gap-1 text-muted-foreground text-sm">
-                          <Clock className="h-4 w-4" />
+                        <div className="flex items-center gap-1.5 text-[hsl(25,20%,40%)] text-sm px-2 py-1 rounded-full bg-[hsl(35,40%,95%)]">
+                          <Clock className="h-3.5 w-3.5" />
                           <span>Pending</span>
                         </div>
                       )}
@@ -316,8 +399,8 @@ export default function GuestRsvpPage() {
                   </div>
                 ))}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         )}
       </div>
     </div>

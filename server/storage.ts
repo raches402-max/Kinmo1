@@ -1,7 +1,7 @@
 // Reference: javascript_database blueprint
 // Reference: javascript_log_in_with_replit blueprint
 import {
-  users, groups, members, memberGroupPreferences, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, itineraryInvites, reminderLogs, autoScheduledEvents, itineraryOptions, frequencyFeedback, venueVisitHistory, userProfiles, proposedTimeSlots, timeSlotVotes, groupCollections, categorySearchHistory, hostAssignments, groupBackups, databaseBackups, scrapedVenuesImport, curatedVenues, seenActivities, memberFavoriteVenues, userSavedPlaces, groupSavedPlaces, standaloneEventInvitees,
+  users, groups, members, memberGroupPreferences, activities, votingEvents, votes, preferenceSignals, itineraries, itineraryItems, rsvps, itineraryInvites, reminderLogs, autoScheduledEvents, itineraryOptions, frequencyFeedback, venueVisitHistory, userProfiles, proposedTimeSlots, timeSlotVotes, groupCollections, categorySearchHistory, hostAssignments, groupBackups, databaseBackups, scrapedVenuesImport, curatedVenues, seenActivities, memberFavoriteVenues, userSavedPlaces, groupSavedPlaces, standaloneEventInvitees, availabilityPulses, availabilityPulseResponses,
   type User, type UpsertUser,
   type Group, type InsertGroup, type UpdateGroup,
   type Member, type InsertMember, type UpdateMember,
@@ -28,7 +28,10 @@ import {
   type MemberFavoriteVenue, type InsertMemberFavoriteVenue,
   type UserSavedPlace, type InsertUserSavedPlace,
   type GroupSavedPlace, type InsertGroupSavedPlace,
-  type StandaloneEventInvitee, type InsertStandaloneEventInvitee
+  type StandaloneEventInvitee, type InsertStandaloneEventInvitee,
+  type AvailabilityPulse, type InsertAvailabilityPulse,
+  type AvailabilityPulseResponse, type InsertAvailabilityPulseResponse,
+  type DateSpecificAvailability
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, or, inArray, isNull, isNotNull, gte, asc, lt } from "drizzle-orm";
@@ -3740,6 +3743,237 @@ export class DatabaseStorage implements IStorage {
     if (!event) return undefined;
 
     return { invitee, event };
+  }
+
+  // ==================== Availability Pulses ====================
+
+  async createAvailabilityPulse(data: InsertAvailabilityPulse): Promise<AvailabilityPulse> {
+    const [pulse] = await db
+      .insert(availabilityPulses)
+      .values(data)
+      .returning();
+    return pulse;
+  }
+
+  async getAvailabilityPulse(id: string): Promise<AvailabilityPulse | undefined> {
+    const [pulse] = await db
+      .select()
+      .from(availabilityPulses)
+      .where(eq(availabilityPulses.id, id));
+    return pulse;
+  }
+
+  async getActivePulseForGroup(groupId: string): Promise<AvailabilityPulse | undefined> {
+    const [pulse] = await db
+      .select()
+      .from(availabilityPulses)
+      .where(
+        and(
+          eq(availabilityPulses.groupId, groupId),
+          eq(availabilityPulses.status, 'active')
+        )
+      )
+      .orderBy(desc(availabilityPulses.createdAt))
+      .limit(1);
+    return pulse;
+  }
+
+  async getActivePulseWithResponses(groupId: string): Promise<{
+    pulse: AvailabilityPulse;
+    responses: AvailabilityPulseResponse[];
+  } | undefined> {
+    const pulse = await this.getActivePulseForGroup(groupId);
+    if (!pulse) return undefined;
+
+    const responses = await db
+      .select()
+      .from(availabilityPulseResponses)
+      .where(eq(availabilityPulseResponses.pulseId, pulse.id));
+
+    return { pulse, responses };
+  }
+
+  async updatePulseStatus(id: string, status: string, completedAt?: Date): Promise<AvailabilityPulse | undefined> {
+    const [pulse] = await db
+      .update(availabilityPulses)
+      .set({
+        status,
+        ...(completedAt && { completedAt })
+      })
+      .where(eq(availabilityPulses.id, id))
+      .returning();
+    return pulse;
+  }
+
+  async updatePulseEmailSentAt(id: string): Promise<void> {
+    await db
+      .update(availabilityPulses)
+      .set({ emailSentAt: new Date() })
+      .where(eq(availabilityPulses.id, id));
+  }
+
+  async updatePulseReminderSentAt(id: string): Promise<void> {
+    await db
+      .update(availabilityPulses)
+      .set({ reminderSentAt: new Date() })
+      .where(eq(availabilityPulses.id, id));
+  }
+
+  async incrementPulseResponseCount(id: string): Promise<void> {
+    await db
+      .update(availabilityPulses)
+      .set({
+        responseCount: sql`${availabilityPulses.responseCount} + 1`
+      })
+      .where(eq(availabilityPulses.id, id));
+  }
+
+  async expireOldPulses(): Promise<number> {
+    const result = await db
+      .update(availabilityPulses)
+      .set({ status: 'expired' })
+      .where(
+        and(
+          eq(availabilityPulses.status, 'active'),
+          lt(availabilityPulses.expiresAt, new Date())
+        )
+      )
+      .returning();
+    return result.length;
+  }
+
+  // ==================== Availability Pulse Responses ====================
+
+  async createPulseResponse(data: InsertAvailabilityPulseResponse): Promise<AvailabilityPulseResponse> {
+    const responseToken = randomBytes(16).toString('hex');
+    const [response] = await db
+      .insert(availabilityPulseResponses)
+      .values({ ...data, responseToken })
+      .returning();
+
+    // Increment the pulse response count
+    await this.incrementPulseResponseCount(data.pulseId);
+
+    return response;
+  }
+
+  async updatePulseResponse(id: string, availability: DateSpecificAvailability, notes?: string): Promise<AvailabilityPulseResponse | undefined> {
+    const [response] = await db
+      .update(availabilityPulseResponses)
+      .set({
+        availability,
+        notes,
+        updatedAt: new Date()
+      })
+      .where(eq(availabilityPulseResponses.id, id))
+      .returning();
+    return response;
+  }
+
+  async getPulseResponse(pulseId: string, memberId: string): Promise<AvailabilityPulseResponse | undefined> {
+    const [response] = await db
+      .select()
+      .from(availabilityPulseResponses)
+      .where(
+        and(
+          eq(availabilityPulseResponses.pulseId, pulseId),
+          eq(availabilityPulseResponses.memberId, memberId)
+        )
+      );
+    return response;
+  }
+
+  async getPulseResponseByToken(responseToken: string): Promise<AvailabilityPulseResponse | undefined> {
+    const [response] = await db
+      .select()
+      .from(availabilityPulseResponses)
+      .where(eq(availabilityPulseResponses.responseToken, responseToken));
+    return response;
+  }
+
+  async getPulseResponses(pulseId: string): Promise<AvailabilityPulseResponse[]> {
+    return await db
+      .select()
+      .from(availabilityPulseResponses)
+      .where(eq(availabilityPulseResponses.pulseId, pulseId));
+  }
+
+  async getAggregatedPulseAvailability(pulseId: string): Promise<{
+    aggregated: Record<string, { morning: number; afternoon: number; evening: number }>;
+    totalResponses: number;
+  }> {
+    const responses = await this.getPulseResponses(pulseId);
+
+    const aggregated: Record<string, { morning: number; afternoon: number; evening: number }> = {};
+
+    for (const response of responses) {
+      const availability = response.availability as DateSpecificAvailability;
+      for (const [dateStr, slots] of Object.entries(availability)) {
+        if (!aggregated[dateStr]) {
+          aggregated[dateStr] = { morning: 0, afternoon: 0, evening: 0 };
+        }
+        if (slots.morning) aggregated[dateStr].morning++;
+        if (slots.afternoon) aggregated[dateStr].afternoon++;
+        if (slots.evening) aggregated[dateStr].evening++;
+      }
+    }
+
+    return { aggregated, totalResponses: responses.length };
+  }
+
+  async getPulseResponseWithDetails(responseToken: string): Promise<{
+    response: AvailabilityPulseResponse;
+    pulse: AvailabilityPulse;
+    member: Member;
+    group: Group;
+  } | undefined> {
+    const response = await this.getPulseResponseByToken(responseToken);
+    if (!response) return undefined;
+
+    const [pulse] = await db
+      .select()
+      .from(availabilityPulses)
+      .where(eq(availabilityPulses.id, response.pulseId));
+    if (!pulse) return undefined;
+
+    const [member] = await db
+      .select()
+      .from(members)
+      .where(eq(members.id, response.memberId));
+    if (!member) return undefined;
+
+    const [group] = await db
+      .select()
+      .from(groups)
+      .where(eq(groups.id, pulse.groupId));
+    if (!group) return undefined;
+
+    return { response, pulse, member, group };
+  }
+
+  async getOrCreatePulseResponseForMember(
+    pulseId: string,
+    memberId: string,
+    userId?: string
+  ): Promise<AvailabilityPulseResponse> {
+    // Check if response already exists
+    const existing = await this.getPulseResponse(pulseId, memberId);
+    if (existing) return existing;
+
+    // Create new response with empty availability
+    const responseToken = randomBytes(16).toString('hex');
+    const [response] = await db
+      .insert(availabilityPulseResponses)
+      .values({
+        pulseId,
+        memberId,
+        userId,
+        availability: {},
+        responseToken,
+      })
+      .returning();
+
+    return response;
   }
 }
 

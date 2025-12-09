@@ -141,6 +141,9 @@ export const groups = pgTable("groups", {
   // Visual customization
   accentColor: varchar("accent_color", { length: 7 }), // Hex color code for group visual identity (e.g., "#60A5FA")
 
+  // Availability pulse settings
+  availabilityPulseLeadDays: integer("availability_pulse_lead_days").default(7), // Days before event to send availability pulse (null = use cadence-based default)
+
   deletedAt: timestamp("deleted_at"), // Soft delete: when group was deleted (null = active)
   isTest: boolean("is_test").default(false).notNull(), // Mark test/development groups to exclude from analytics
 
@@ -850,6 +853,58 @@ export const hostAssignments = pgTable("host_assignments", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Availability pulses - proactive availability collection before AI picks event dates
+export const availabilityPulses = pgTable("availability_pulses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  groupId: varchar("group_id").notNull().references(() => groups.id, { onDelete: "cascade" }),
+
+  // Window configuration (3-week calendar view anchored around target date)
+  startDate: timestamp("start_date").notNull(), // Start of availability window (few days before target)
+  endDate: timestamp("end_date").notNull(), // End of availability window (~2.5 weeks after target)
+  targetEventDate: timestamp("target_event_date"), // Approximate event date we're planning around
+
+  // Tracking
+  status: text("status").default("active").notNull(), // 'active', 'completed', 'expired', 'cancelled'
+  memberCount: integer("member_count").notNull(), // Total members at creation
+  responseCount: integer("response_count").default(0).notNull(), // How many have responded
+
+  // Notification tracking
+  emailSentAt: timestamp("email_sent_at"), // When pulse notification was sent
+  reminderSentAt: timestamp("reminder_sent_at"), // Optional gentle nudge
+
+  // Lifecycle
+  expiresAt: timestamp("expires_at").notNull(), // When pulse is no longer accepting responses
+  completedAt: timestamp("completed_at"), // When pulse was used by scheduler or manually closed
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_pulses_group_status").on(table.groupId, table.status),
+  index("idx_pulses_expires").on(table.expiresAt),
+]);
+
+// Availability pulse responses - member-submitted date-specific availability
+export const availabilityPulseResponses = pgTable("availability_pulse_responses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  pulseId: varchar("pulse_id").notNull().references(() => availabilityPulses.id, { onDelete: "cascade" }),
+  memberId: varchar("member_id").notNull().references(() => members.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }), // If member is linked to user account
+
+  // Date-specific availability (JSONB structure)
+  // Format: { "2025-01-15": { morning: true, afternoon: false, evening: true }, "2025-01-16": {...}, ... }
+  availability: jsonb("availability").notNull(),
+
+  // Optional notes
+  notes: text("notes"), // "Out of town Jan 20-22", "Work party on Thursday", etc.
+
+  // Access control
+  responseToken: varchar("response_token").unique(), // For email link access without login
+
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_pulse_responses_pulse").on(table.pulseId),
+  index("idx_pulse_responses_member").on(table.memberId),
+]);
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   groups: many(groups),
@@ -1068,6 +1123,29 @@ export const timeSlotVotesRelations = relations(timeSlotVotes, ({ one }) => ({
   }),
 }));
 
+export const availabilityPulsesRelations = relations(availabilityPulses, ({ one, many }) => ({
+  group: one(groups, {
+    fields: [availabilityPulses.groupId],
+    references: [groups.id],
+  }),
+  responses: many(availabilityPulseResponses),
+}));
+
+export const availabilityPulseResponsesRelations = relations(availabilityPulseResponses, ({ one }) => ({
+  pulse: one(availabilityPulses, {
+    fields: [availabilityPulseResponses.pulseId],
+    references: [availabilityPulses.id],
+  }),
+  member: one(members, {
+    fields: [availabilityPulseResponses.memberId],
+    references: [members.id],
+  }),
+  user: one(users, {
+    fields: [availabilityPulseResponses.userId],
+    references: [users.id],
+  }),
+}));
+
 // Insert schemas
 export const insertGroupSchema = createInsertSchema(groups).omit({
   id: true,
@@ -1215,6 +1293,18 @@ export const insertHostAssignmentSchema = createInsertSchema(hostAssignments).om
   askedAt: true,
 });
 
+export const insertAvailabilityPulseSchema = createInsertSchema(availabilityPulses).omit({
+  id: true,
+  createdAt: true,
+  responseCount: true,
+});
+
+export const insertAvailabilityPulseResponseSchema = createInsertSchema(availabilityPulseResponses).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertCuratedVenueSchema = createInsertSchema(curatedVenues).omit({
   id: true,
   createdAt: true,
@@ -1335,6 +1425,19 @@ export type AiCategorizationCache = typeof aiCategorizationCache.$inferSelect;
 
 export type InsertHostAssignment = z.infer<typeof insertHostAssignmentSchema>;
 export type HostAssignment = typeof hostAssignments.$inferSelect;
+
+export type InsertAvailabilityPulse = z.infer<typeof insertAvailabilityPulseSchema>;
+export type AvailabilityPulse = typeof availabilityPulses.$inferSelect;
+
+export type InsertAvailabilityPulseResponse = z.infer<typeof insertAvailabilityPulseResponseSchema>;
+export type AvailabilityPulseResponse = typeof availabilityPulseResponses.$inferSelect;
+
+// Date-specific availability format for pulse responses
+export type DateSpecificAvailability = Record<string, {
+  morning: boolean;
+  afternoon: boolean;
+  evening: boolean;
+}>;
 
 export const insertUserSavedPlaceSchema = createInsertSchema(userSavedPlaces).omit({
   id: true,

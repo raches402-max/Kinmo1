@@ -29,6 +29,7 @@ const RsvpItineraryPage = lazy(() => import("@/pages/rsvp-itinerary"));
 const EventInvitePage = lazy(() => import("@/pages/event-invite"));
 const GuestEventInvitePage = lazy(() => import("@/pages/guest-event-invite"));
 const GuestRsvpPage = lazy(() => import("@/pages/guest-rsvp"));
+const AvailabilityPulsePage = lazy(() => import("@/pages/availability-pulse"));
 const ClaimMemberPage = lazy(() => import("@/pages/claim-member"));
 const LinkMemberAccountPage = lazy(() => import("@/pages/link-member-account"));
 const MemberEventsPage = lazy(() => import("@/pages/member-events"));
@@ -111,6 +112,7 @@ function Router() {
                 <Route path="/event/:eventId/guest" component={GuestEventInvitePage} />
                 <Route path="/rsvp/:itineraryId/:inviteToken" component={RsvpItineraryPage} />
                 <Route path="/guest-rsvp/:guestToken" component={GuestRsvpPage} />
+                <Route path="/availability/:pulseId/:responseToken" component={AvailabilityPulsePage} />
                 <Route path="/claim/:claimToken" component={ClaimMemberPage} />
                 <Route path="/events" component={MemberEventsPage} />
                 <Route path="/prototype/kinmo-text" component={PrototypeKinmoText} />
@@ -134,6 +136,7 @@ function Router() {
                 <Route path="/event/:eventId/guest" component={GuestEventInvitePage} />
                 <Route path="/rsvp/:itineraryId/:inviteToken" component={RsvpItineraryPage} />
                 <Route path="/guest-rsvp/:guestToken" component={GuestRsvpPage} />
+                <Route path="/availability/:pulseId/:responseToken" component={AvailabilityPulsePage} />
                 <Route path="/claim/:claimToken" component={ClaimMemberPage} />
                 <Route path="/link-member-account" component={LinkMemberAccountPage} />
                 <Route path="/events" component={MemberEventsPage} />

@@ -2,9 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, useLocation } from "wouter";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ResponsiveDialog as Dialog, ResponsiveDialogContent as DialogContent, ResponsiveDialogDescription as DialogDescription, ResponsiveDialogFooter as DialogFooter, ResponsiveDialogHeader as DialogHeader, ResponsiveDialogTitle as DialogTitle } from "@/components/ui/responsive-dialog";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Sparkles, CheckCircle, UserPlus } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -98,10 +96,10 @@ export default function ClaimMemberPage() {
   // Loading state
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen bg-[hsl(38,35%,97%)] flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Verifying invitation...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[hsl(44,87%,63%)] mx-auto mb-4"></div>
+          <p className="text-[hsl(25,20%,40%)]">Verifying invitation...</p>
         </div>
       </div>
     );
@@ -110,15 +108,15 @@ export default function ClaimMemberPage() {
   // Error states
   if (error || !claimData) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="max-w-md w-full">
-          <CardHeader>
-            <CardTitle>Invalid Invitation</CardTitle>
-            <CardDescription>
+      <div className="min-h-screen bg-[hsl(38,35%,97%)] flex items-center justify-center p-4">
+        <div className="max-w-md w-full rounded-2xl border border-[hsl(44,70%,75%)] bg-[hsl(38,50%,98%)] shadow-[0_2px_8px_rgba(242,201,76,0.12)] overflow-hidden">
+          <div className="px-6 py-5 bg-gradient-to-r from-[hsl(38,35%,97%)] to-[hsl(44,45%,96%)] border-b border-[hsl(44,70%,75%)]">
+            <h2 className="text-xl font-semibold text-[hsl(25,30%,14%)]">Invalid Invitation</h2>
+            <p className="text-sm text-[hsl(25,20%,40%)] mt-1">
               This invitation link is invalid or has expired.
-            </CardDescription>
-          </CardHeader>
-        </Card>
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
@@ -126,89 +124,103 @@ export default function ClaimMemberPage() {
   // Already claimed
   if (claimData.alreadyClaimed) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="max-w-md w-full">
-          <CardHeader>
-            <div className="flex items-center gap-2 mb-2">
-              <CheckCircle className="h-6 w-6 text-green-600" />
-              <CardTitle>Already Claimed</CardTitle>
+      <div className="min-h-screen bg-[hsl(38,35%,97%)] flex items-center justify-center p-4">
+        <div className="max-w-md w-full rounded-2xl border border-[hsl(44,70%,75%)] bg-[hsl(38,50%,98%)] shadow-[0_2px_8px_rgba(242,201,76,0.12)] overflow-hidden">
+          <div className="px-6 py-5 bg-gradient-to-r from-[hsl(38,35%,97%)] to-[hsl(44,45%,96%)] border-b border-[hsl(44,70%,75%)]">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-[hsl(145,50%,50%)]/20 flex items-center justify-center">
+                <CheckCircle className="h-5 w-5 text-[hsl(145,50%,50%)]" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-[hsl(25,30%,14%)]">Already Claimed</h2>
+                <p className="text-sm text-[hsl(25,20%,40%)]">
+                  You've already claimed this membership.
+                </p>
+              </div>
             </div>
-            <CardDescription>
-              You've already claimed this membership. Check your dashboard to see your group's activities.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button 
-              className="w-full" 
+          </div>
+          <div className="p-5">
+            <p className="text-sm text-[hsl(25,20%,40%)] mb-4">
+              Check your dashboard to see your group's activities.
+            </p>
+            <Button
+              className="w-full bg-[hsl(44,87%,63%)] hover:bg-[hsl(44,87%,55%)] text-[hsl(25,30%,14%)] font-semibold shadow-[0_2px_8px_rgba(242,201,76,0.3)]"
               onClick={() => setLocation("/")}
               data-testid="button-go-to-dashboard"
             >
               Go to Dashboard
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-[hsl(38,35%,97%)]">
       <div className="max-w-2xl mx-auto p-4 py-8">
         {/* Header */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-4">
-            <Sparkles className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-bold">Kinmo.ai</h1>
+            <div className="w-12 h-12 rounded-full bg-[hsl(44,87%,63%)]/20 flex items-center justify-center shadow-[0_2px_8px_rgba(242,201,76,0.3)]">
+              <Sparkles className="h-6 w-6 text-[hsl(44,87%,63%)]" />
+            </div>
           </div>
-          <p className="text-muted-foreground">AI-Powered Group Planning</p>
+          <h1 className="text-3xl font-bold text-[hsl(25,30%,14%)]">Kinmo.ai</h1>
+          <p className="text-[hsl(25,20%,40%)]">AI-Powered Group Planning</p>
         </div>
 
         {/* Invitation Card */}
-        <Card>
-          <CardHeader>
-            <div className="text-center space-y-2">
-              <div className="text-5xl mb-2">{claimData.groupEmoji}</div>
-              <CardTitle className="text-2xl">You're Invited!</CardTitle>
-              <CardDescription className="text-base">
+        <div className="rounded-2xl border border-[hsl(44,70%,75%)] bg-[hsl(38,50%,98%)] shadow-[0_2px_8px_rgba(242,201,76,0.12)] overflow-hidden">
+          {/* Card Header with gradient */}
+          <div className="px-6 py-6 bg-gradient-to-r from-[hsl(38,35%,97%)] to-[hsl(44,45%,96%)] border-b border-[hsl(44,70%,75%)]">
+            <div className="text-center space-y-3">
+              <div className="w-20 h-20 rounded-full bg-[hsl(44,87%,63%)]/20 flex items-center justify-center mx-auto shadow-[0_2px_8px_rgba(242,201,76,0.3)]">
+                <span className="text-4xl">{claimData.groupEmoji}</span>
+              </div>
+              <h2 className="text-2xl font-bold text-[hsl(25,30%,14%)]">You're Invited!</h2>
+              <p className="text-base text-[hsl(25,20%,40%)]">
                 Join {claimData.groupName} on Kinmo.ai
-              </CardDescription>
+              </p>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="bg-muted p-4 rounded-lg space-y-2">
+          </div>
+
+          {/* Card Content */}
+          <div className="p-6 space-y-6">
+            <div className="bg-[hsl(35,40%,95%)] p-4 rounded-xl border border-[hsl(44,70%,75%)]/50 space-y-3">
               <div>
-                <p className="text-sm text-muted-foreground">Your name</p>
-                <p className="font-medium">{claimData.name}</p>
+                <p className="text-sm text-[hsl(25,20%,40%)]">Your name</p>
+                <p className="font-semibold text-[hsl(25,30%,14%)]">{claimData.name}</p>
               </div>
               {claimData.email && (
                 <div>
-                  <p className="text-sm text-muted-foreground">Email</p>
-                  <p className="font-medium">{claimData.email}</p>
+                  <p className="text-sm text-[hsl(25,20%,40%)]">Email</p>
+                  <p className="font-semibold text-[hsl(25,30%,14%)]">{claimData.email}</p>
                 </div>
               )}
             </div>
 
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground text-center">
+            <div className="space-y-4">
+              <p className="text-sm text-[hsl(25,20%,40%)] text-center">
                 Claim your membership to see group activities, vote on venues, and RSVP to events
               </p>
 
               {!user ? (
                 <div className="space-y-2">
                   <Button
-                    className="w-full"
+                    className="w-full bg-[hsl(44,87%,63%)] hover:bg-[hsl(44,87%,55%)] text-[hsl(25,30%,14%)] font-semibold shadow-[0_2px_8px_rgba(242,201,76,0.3)] transition-all duration-200"
                     onClick={() => window.location.href = "/api/login"}
                     data-testid="button-sign-in"
                   >
                     Sign In with Replit
                   </Button>
-                  <p className="text-xs text-center text-muted-foreground">
+                  <p className="text-xs text-center text-[hsl(25,20%,40%)]">
                     Sign in to claim your membership
                   </p>
                 </div>
               ) : (
                 <Button
-                  className="w-full"
+                  className="w-full bg-[hsl(44,87%,63%)] hover:bg-[hsl(44,87%,55%)] text-[hsl(25,30%,14%)] font-semibold shadow-[0_2px_8px_rgba(242,201,76,0.3)] transition-all duration-200"
                   onClick={() => claimMutation.mutate()}
                   disabled={claimMutation.isPending}
                   data-testid="button-claim-membership"
@@ -217,8 +229,8 @@ export default function ClaimMemberPage() {
                 </Button>
               )}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Profile Completion Dialog */}
         <Dialog open={showProfileDialog} onOpenChange={setShowProfileDialog}>

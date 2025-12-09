@@ -642,3 +642,93 @@ export async function sendItineraryReschedule(
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }
+
+interface AvailabilityPulseData {
+  groupName: string;
+  groupEmoji: string;
+  memberName: string;
+  targetEventDate: string;
+  pulseLink: string;
+  deadline: string;
+}
+
+export async function sendAvailabilityPulseRequest(
+  recipient: EmailRecipient,
+  data: AvailabilityPulseData
+): Promise<{ success: boolean; error?: string }> {
+  if (!EMAIL_ENABLED) {
+    console.log('[EMAIL DISABLED] Would send availability pulse to:', recipient.email);
+    return { success: true };
+  }
+  try {
+    const targetDate = new Date(data.targetEventDate);
+    const deadlineDate = new Date(data.deadline);
+    const formattedTarget = targetDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+    const formattedDeadline = deadlineDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+    await resend.emails.send({
+      from: 'Kinmo.ai <invites@kinmo.ai>',
+      to: recipient.email,
+      subject: `When works for you? · ${data.groupName}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.6; color: #333; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); color: white; padding: 30px; border-radius: 8px; margin-bottom: 20px; text-align: center; }
+              .content { background: #f9fafb; padding: 30px; border-radius: 8px; }
+              .button { display: inline-block; background: #6366f1; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: 600; }
+              .button:hover { background: #4f46e5; }
+              .footer { text-align: center; color: #6b7280; font-size: 14px; margin-top: 30px; }
+              .info-box { background: #ede9fe; border-radius: 8px; padding: 16px; margin: 20px 0; }
+              .subtle { color: #6b7280; font-size: 14px; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <div style="font-size: 48px; margin-bottom: 10px;">${data.groupEmoji || '📅'}</div>
+                <h1 style="margin: 0; font-size: 24px;">${data.groupName}</h1>
+              </div>
+
+              <div class="content">
+                <p>Hey ${data.memberName}!</p>
+
+                <p>We're planning ${data.groupName}'s next hangout for around <strong>${formattedTarget}</strong>.</p>
+
+                <div class="info-box">
+                  <strong>When are you free over the next few weeks?</strong><br>
+                  <span class="subtle">Your input helps us pick a time that works for everyone.</span>
+                </div>
+
+                <center>
+                  <a href="${data.pulseLink}" class="button">Share Your Availability</a>
+                </center>
+
+                <p class="subtle" style="text-align: center;">
+                  No pressure if you can't fill this out - we'll work with what we have!
+                </p>
+
+                <p class="subtle" style="text-align: center; margin-top: 20px;">
+                  This link is good until ${formattedDeadline}
+                </p>
+              </div>
+
+              <div class="footer">
+                <p>Powered by Kinmo.ai - Making group planning effortless</p>
+                <p class="subtle" style="font-size: 12px;">This link is just for you - don't share it with others</p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `,
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error sending availability pulse email:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
