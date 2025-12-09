@@ -133,10 +133,16 @@ app.use(cors({
       return callback(null, true);
     }
 
+    // Allow Replit domains (both dev and deployed apps)
+    if (origin.endsWith('.replit.dev') || origin.endsWith('.replit.app') || origin.endsWith('.repl.co')) {
+      return callback(null, true);
+    }
+
     // In production, check against allowedOrigins
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
+      console.warn(`[CORS] Blocked origin: ${origin}`);
       callback(new Error('Not allowed by CORS'));
     }
   },
