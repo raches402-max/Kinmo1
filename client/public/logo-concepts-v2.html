@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kinmo Logo v2 - Sun/Table Exploration</title>
+  <title>Kinmo Logo Animation — The Gathering</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -15,19 +15,12 @@
     }
 
     :root {
-      /* Core palette */
       --terracotta: #C75D3A;
       --terracotta-dark: #A84D2F;
       --cream: #FAF6F1;
       --espresso: #3E271C;
       --warm-gray: #8B7B6B;
-
-      /* Sun/Yellow options */
-      --sun-gold: #E8A832;
-      --sun-amber: #D4922A;
-      --sun-warm: #F5B041;
-      --sun-honey: #DAA520;
-      --sun-marigold: #E8963A;
+      --sun-gold: #F2C94C;
     }
 
     body {
@@ -38,1415 +31,368 @@
       padding: 3rem 2rem;
     }
 
-    .page-header {
-      text-align: center;
-      margin-bottom: 4rem;
-    }
-
-    .page-header h1 {
-      font-family: 'Nunito', sans-serif;
-      font-size: 2.5rem;
-      font-weight: 800;
-      color: var(--espresso);
-      margin-bottom: 0.5rem;
-    }
-
-    .page-header p {
-      color: var(--warm-gray);
-      font-size: 1.1rem;
-      max-width: 600px;
-      margin: 0 auto;
-      line-height: 1.6;
-    }
-
-    .triple-meaning {
-      display: flex;
-      justify-content: center;
-      gap: 2rem;
-      margin-top: 1.5rem;
-      flex-wrap: wrap;
-    }
-
-    .meaning-chip {
-      background: white;
-      padding: 0.5rem 1rem;
-      border-radius: 100px;
-      font-size: 0.85rem;
-      color: var(--espresso);
-      box-shadow: 0 2px 8px rgba(62, 39, 28, 0.08);
-    }
-
-    .concepts-grid {
-      display: grid;
-      gap: 3rem;
-      max-width: 1400px;
-      margin: 0 auto;
-    }
-
     .concept-section {
       background: white;
       border-radius: 24px;
       padding: 2.5rem;
       box-shadow: 0 4px 24px rgba(62, 39, 28, 0.06);
+      max-width: 900px;
+      margin: 0 auto;
     }
 
-    .concept-section h2 {
+    /* =============================================
+       THE GATHERING — KINMO LOGO ANIMATION
+       Natural, organic motion with warm sun glow
+       ============================================= */
+
+    .gathering-container {
+      position: relative;
+      width: 160px;
+      height: 160px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Table/Sun center — starts dim, brightens as friends arrive */
+    .table-center {
+      opacity: 0.18;
+      transform-origin: center;
+    }
+    .table-center.playing {
+      animation: tableBrighten 5.5s ease-out forwards;
+    }
+    @keyframes tableBrighten {
+      0% { opacity: 0.12; transform: scale(0.94); }
+      30% { opacity: 0.35; transform: scale(0.96); }
+      60% { opacity: 0.6; transform: scale(0.98); }
+      85% { opacity: 0.85; transform: scale(0.99); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    /* Chair/Arc base styles */
+    .chair {
+      opacity: 0;
+    }
+
+    /* =============================================
+       RANDOMIZED ARRIVAL ORDER & REALISTIC SPEEDS
+       Like actual chairs being pulled up to a table
+       ============================================= */
+
+    /* Chair 5 (Bottom-left) — FIRST to arrive */
+    .chair.c5.playing {
+      animation: slideBottomLeft 1.4s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+      animation-delay: 0s;
+    }
+    @keyframes slideBottomLeft {
+      0% { opacity: 0; transform: translate(-20px, 20px); }
+      15% { opacity: 0.7; }
+      85% { opacity: 1; transform: translate(0, 0); }
+      100% { opacity: 1; transform: translate(0, 0); }
+    }
+
+    /* Chair 1 (Top) — arrives leisurely */
+    .chair.c1.playing {
+      animation: slideTop 1.8s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+      animation-delay: 0.8s;
+    }
+    @keyframes slideTop {
+      0% { opacity: 0; transform: translateY(-22px); }
+      12% { opacity: 0.6; }
+      90% { opacity: 1; transform: translateY(0); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Chair 3 (Bottom-right) — steady pull */
+    .chair.c3.playing {
+      animation: slideBottomRight 1.5s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+      animation-delay: 1.6s;
+    }
+    @keyframes slideBottomRight {
+      0% { opacity: 0; transform: translate(20px, 20px); }
+      15% { opacity: 0.7; }
+      88% { opacity: 1; transform: translate(0, 0); }
+      100% { opacity: 1; transform: translate(0, 0); }
+    }
+
+    /* Chair 6 (Top-left) — unhurried */
+    .chair.c6.playing {
+      animation: slideTopLeft 1.6s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+      animation-delay: 2.4s;
+    }
+    @keyframes slideTopLeft {
+      0% { opacity: 0; transform: translate(-20px, -20px); }
+      12% { opacity: 0.6; }
+      88% { opacity: 1; transform: translate(0, 0); }
+      100% { opacity: 1; transform: translate(0, 0); }
+    }
+
+    /* Chair 4 (Bottom) — slow, relaxed */
+    .chair.c4.playing {
+      animation: slideBottom 2s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+      animation-delay: 3.2s;
+    }
+    @keyframes slideBottom {
+      0% { opacity: 0; transform: translateY(22px); }
+      10% { opacity: 0.5; }
+      92% { opacity: 1; transform: translateY(0); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Chair 2 (Top-right) — LAST friend finally arrives */
+    .chair.c2.playing {
+      animation: slideTopRight 1.3s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+      animation-delay: 4.5s;
+    }
+    @keyframes slideTopRight {
+      0% { opacity: 0; transform: translate(20px, -20px); }
+      18% { opacity: 0.75; }
+      85% { opacity: 1; transform: translate(0, 0); }
+      100% { opacity: 1; transform: translate(0, 0); }
+    }
+
+    /* =============================================
+       WARM SUN GLOW — The whole sun radiates
+       Encompasses the entire logo, not just center
+       ============================================= */
+
+    /* Outer glow — large, encompasses whole logo */
+    .sun-warmth {
+      opacity: 0;
+      transform-origin: center;
+    }
+    .sun-warmth.playing {
+      animation: warmthReveal 4s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+      animation-delay: 5.8s;
+    }
+    @keyframes warmthReveal {
+      0% { opacity: 0; transform: scale(0.85); }
+      25% { opacity: 0.4; transform: scale(0.95); }
+      50% { opacity: 0.6; transform: scale(1); }
+      75% { opacity: 0.55; transform: scale(1.02); }
+      100% { opacity: 0.5; transform: scale(1.02); }
+    }
+
+    /* Inner warmth layer — adds depth and center brightness */
+    .sun-warmth-inner {
+      opacity: 0;
+      transform-origin: center;
+    }
+    .sun-warmth-inner.playing {
+      animation: innerWarmth 3.5s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+      animation-delay: 6.2s;
+    }
+    @keyframes innerWarmth {
+      0% { opacity: 0; transform: scale(0.9); }
+      30% { opacity: 0.45; transform: scale(0.98); }
+      60% { opacity: 0.6; transform: scale(1); }
+      100% { opacity: 0.55; transform: scale(1); }
+    }
+
+    /* Whole logo gentle settle — the "everyone's here" moment */
+    .logo-svg.playing {
+      animation: logoSettle 1.2s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+      animation-delay: 6.5s;
+    }
+    @keyframes logoSettle {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.035); }
+      100% { transform: scale(1); }
+    }
+
+    /* Replay button */
+    .replay-btn {
       font-family: 'Nunito', sans-serif;
-      font-size: 1.5rem;
+      font-size: 0.85rem;
       font-weight: 700;
-      color: var(--terracotta);
-      margin-bottom: 0.5rem;
-    }
-
-    .concept-section .description {
-      color: var(--warm-gray);
-      margin-bottom: 2rem;
-      line-height: 1.6;
-    }
-
-    .logo-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 2rem;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 2rem;
-    }
-
-    .logo-item {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.75rem;
-    }
-
-    .logo-item .label {
-      font-size: 0.7rem;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--warm-gray);
-    }
-
-    .logo-box {
-      padding: 1.5rem 2rem;
-      border-radius: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .logo-box.light {
-      background: var(--cream);
-      border: 1px solid rgba(62, 39, 28, 0.08);
-    }
-
-    .logo-box.dark {
-      background: var(--espresso);
-    }
-
-    .icon-row {
-      display: flex;
-      gap: 1.5rem;
-      flex-wrap: wrap;
-      justify-content: center;
-      align-items: flex-end;
-      padding-top: 1.5rem;
-      border-top: 1px solid rgba(62, 39, 28, 0.06);
-    }
-
-    .icon-item {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.4rem;
-    }
-
-    .icon-item .size-label {
-      font-size: 0.6rem;
-      color: var(--warm-gray);
-    }
-
-    /* Nav preview */
-    .nav-preview {
-      background: white;
-      border-radius: 12px;
-      padding: 1rem 1.5rem;
-      display: flex;
-      align-items: center;
-      gap: 2rem;
-      box-shadow: 0 2px 12px rgba(62, 39, 28, 0.08);
-    }
-
-    .nav-logo {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
-    .nav-links {
-      display: flex;
-      gap: 1.5rem;
-      margin-left: auto;
-    }
-
-    .nav-links span {
-      color: var(--warm-gray);
-      font-size: 0.9rem;
-    }
-
-    .color-swatches {
-      display: flex;
-      gap: 0.75rem;
-      justify-content: center;
-      margin-bottom: 2rem;
-    }
-
-    .swatch {
-      width: 48px;
-      height: 48px;
-      border-radius: 12px;
-      display: flex;
-      align-items: flex-end;
-      justify-content: center;
-      padding-bottom: 0.25rem;
-      font-size: 0.5rem;
-      color: white;
-      text-shadow: 0 1px 2px rgba(0,0,0,0.3);
-    }
-
-    .winner-badge {
-      background: linear-gradient(135deg, var(--sun-gold), var(--sun-amber));
-      color: white;
-      padding: 0.25rem 0.75rem;
+      padding: 0.65rem 1.4rem;
       border-radius: 100px;
-      font-size: 0.7rem;
-      font-weight: 600;
-      margin-left: 0.5rem;
+      border: none;
+      background: var(--terracotta);
+      color: white;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-top: 1.5rem;
     }
-
-    .subsection {
-      margin-top: 2rem;
-      padding-top: 2rem;
-      border-top: 1px solid rgba(62, 39, 28, 0.08);
-    }
-
-    .subsection-title {
-      font-family: 'Nunito', sans-serif;
-      font-size: 1rem;
-      font-weight: 700;
-      color: var(--espresso);
-      margin-bottom: 1rem;
-      text-align: center;
+    .replay-btn:hover {
+      background: var(--terracotta-dark);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(199, 93, 58, 0.3);
     }
   </style>
 </head>
 <body>
-  <div class="page-header">
-    <h1>The Kinmo Sun</h1>
-    <p>Exploring your triple-meaning concept: the O in Kinmo, a gathering table, and a warm sun that brings people together.</p>
-    <div class="triple-meaning">
-      <span class="meaning-chip">The "O" in Kinmo</span>
-      <span class="meaning-chip">A Gathering Table</span>
-      <span class="meaning-chip">A Warm Sun</span>
+
+  <!-- FINAL ANIMATION — "THE GATHERING" -->
+  <section class="concept-section" style="background: linear-gradient(145deg, #2D1F18 0%, #3E271C 50%, #4A3228 100%); color: white;">
+    <h2 style="font-family: Nunito, sans-serif; color: #F2C94C; font-size: 1.75rem; margin-bottom: 1rem;">The Gathering — Kinmo Logo Animation</h2>
+
+    <div style="color: rgba(255,255,255,0.9); line-height: 1.8; margin-bottom: 2rem;">
+      <p style="font-size: 1.05rem;">Friends arrive at the table one by one, each at their own pace. When everyone's finally seated together, the shape reveals itself as a sun — and warmth radiates outward.</p>
     </div>
-  </div>
 
-  <div class="concepts-grid">
-
-    <!-- COLOR OPTIONS -->
-    <section class="concept-section">
-      <h2>Yellow/Gold Options</h2>
-      <p class="description">Different warm yellows to consider for the sun/table. These all complement your terracotta primary.</p>
-
-      <div class="color-swatches">
-        <div class="swatch" style="background: #E8A832;">Gold</div>
-        <div class="swatch" style="background: #D4922A;">Amber</div>
-        <div class="swatch" style="background: #F5B041;">Warm</div>
-        <div class="swatch" style="background: #DAA520;">Honey</div>
-        <div class="swatch" style="background: #E8963A;">Marigold</div>
+    <!-- Live Demo -->
+    <div style="display: flex; justify-content: center; margin: 2.5rem 0;">
+      <div style="background: rgba(255,255,255,0.08); border-radius: 24px; padding: 3rem; display: flex; flex-direction: column; align-items: center;">
+        <div class="gathering-container">
+          <svg class="logo-svg" width="130" height="130" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" style="overflow: visible;">
+            <defs>
+              <radialGradient id="warmGlow" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#F5D76E" stop-opacity="0.75"/>
+                <stop offset="30%" stop-color="#F2C94C" stop-opacity="0.5"/>
+                <stop offset="55%" stop-color="#E8A832" stop-opacity="0.25"/>
+                <stop offset="80%" stop-color="#E8A832" stop-opacity="0.1"/>
+                <stop offset="100%" stop-color="#E8A832" stop-opacity="0"/>
+              </radialGradient>
+              <radialGradient id="innerGlow" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#FFF8E0" stop-opacity="0.7"/>
+                <stop offset="40%" stop-color="#F5D76E" stop-opacity="0.4"/>
+                <stop offset="70%" stop-color="#F2C94C" stop-opacity="0.15"/>
+                <stop offset="100%" stop-color="#F2C94C" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <circle class="sun-warmth" cx="24" cy="24" r="38" fill="url(#warmGlow)"/>
+            <circle class="sun-warmth-inner" cx="24" cy="24" r="28" fill="url(#innerGlow)"/>
+            <circle class="table-center" cx="24" cy="24" r="14" fill="#F2C94C"/>
+            <path class="chair c1" d="M19 5 A4 4 0 0 1 29 5 L24 5 Z" fill="#F2C94C"/>
+            <path class="chair c2" d="M38 10 A4 4 0 0 1 43 19 L40 14 Z" fill="#F2C94C"/>
+            <path class="chair c3" d="M43 29 A4 4 0 0 1 38 38 L40 34 Z" fill="#F2C94C"/>
+            <path class="chair c4" d="M29 43 A4 4 0 0 1 19 43 L24 43 Z" fill="#F2C94C"/>
+            <path class="chair c5" d="M10 38 A4 4 0 0 1 5 29 L8 34 Z" fill="#F2C94C"/>
+            <path class="chair c6" d="M5 19 A4 4 0 0 1 10 10 L8 14 Z" fill="#F2C94C"/>
+          </svg>
+        </div>
+        <button class="replay-btn" onclick="replayGathering()">Replay Animation</button>
       </div>
+    </div>
 
-      <p style="text-align: center; color: var(--warm-gray); font-size: 0.85rem;">
-        I'm using <strong>Gold (#E8A832)</strong> in the examples below — warm enough to read as "sun" without clashing with your terracotta.
+    <!-- Design Process Notes -->
+    <div style="margin-top: 2.5rem;">
+      <h3 style="font-family: Nunito, sans-serif; font-size: 1.1rem; color: #F2C94C; margin-bottom: 1.25rem;">Design Process & Iterations</h3>
+
+      <div style="display: grid; gap: 1rem;">
+        <div style="background: rgba(255,255,255,0.06); border-radius: 12px; padding: 1.25rem; border-left: 3px solid #F2C94C;">
+          <div style="font-size: 0.7rem; color: #F2C94C; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.5rem;">Iteration 1: Wrong shapes</div>
+          <p style="font-size: 0.85rem; color: rgba(255,255,255,0.75); line-height: 1.6;">Started with solid circles (dots) instead of the actual Kinmo logo. The logo uses arc/semi-circle shapes that represent chairs around a table — these are the key visual elements that needed to animate.</p>
+        </div>
+
+        <div style="background: rgba(255,255,255,0.06); border-radius: 12px; padding: 1.25rem; border-left: 3px solid #F2C94C;">
+          <div style="font-size: 0.7rem; color: #F2C94C; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.5rem;">Iteration 2: Clockwise was too mechanical</div>
+          <p style="font-size: 0.85rem; color: rgba(255,255,255,0.75); line-height: 1.6;">Chairs arrived in clockwise order, which felt robotic and synchronized. Real friends don't arrive in perfect sequence — we needed randomness to feel natural.</p>
+        </div>
+
+        <div style="background: rgba(255,255,255,0.06); border-radius: 12px; padding: 1.25rem; border-left: 3px solid #F2C94C;">
+          <div style="font-size: 0.7rem; color: #F2C94C; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.5rem;">Iteration 3: Ring glow was artificial</div>
+          <p style="font-size: 0.85rem; color: rgba(255,255,255,0.75); line-height: 1.6;">Tried expanding ring borders for the sun reveal. Looked like a digital effect, not natural warmth. Switched to radial gradients that fade smoothly — like actual light diffusing.</p>
+        </div>
+
+        <div style="background: rgba(255,255,255,0.06); border-radius: 12px; padding: 1.25rem; border-left: 3px solid #F2C94C;">
+          <div style="font-size: 0.7rem; color: #F2C94C; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.5rem;">Iteration 4: Too fast</div>
+          <p style="font-size: 0.85rem; color: rgba(255,255,255,0.75); line-height: 1.6;">Animation was ~1.5 seconds total. Chairs felt "flung" into place, not pulled. Slowed everything down so each chair movement feels like someone actually pulling a chair to the table.</p>
+        </div>
+
+        <div style="background: rgba(255,255,255,0.06); border-radius: 12px; padding: 1.25rem; border-left: 3px solid #F2C94C;">
+          <div style="font-size: 0.7rem; color: #F2C94C; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.5rem;">Iteration 5: Glow from center only</div>
+          <p style="font-size: 0.85rem; color: rgba(255,255,255,0.75); line-height: 1.6;">Glow was localized to the table center. But the metaphor is that the <em>whole completed shape</em> is the sun — table + chairs together. Expanded glow radius to encompass the entire logo.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Final Specification -->
+    <div style="margin-top: 2.5rem;">
+      <h3 style="font-family: Nunito, sans-serif; font-size: 1.1rem; color: #F2C94C; margin-bottom: 1.25rem;">Final Animation Specification</h3>
+
+      <div style="background: rgba(0,0,0,0.25); border-radius: 16px; padding: 1.5rem; font-family: monospace; font-size: 0.8rem; color: rgba(255,255,255,0.85); line-height: 1.8;">
+        <div style="color: #F2C94C; margin-bottom: 0.75rem;">/* Total duration: ~8 seconds */</div>
+
+        <div style="margin-bottom: 1rem;">
+          <div style="color: rgba(255,255,255,0.5);">// Chair arrivals (random order, varied speeds)</div>
+          <div>Chair 5 (bottom-left): 0.0s start, 1.4s duration</div>
+          <div>Chair 1 (top): 0.8s start, 1.8s duration</div>
+          <div>Chair 3 (bottom-right): 1.6s start, 1.5s duration</div>
+          <div>Chair 6 (top-left): 2.4s start, 1.6s duration</div>
+          <div>Chair 4 (bottom): 3.2s start, 2.0s duration</div>
+          <div>Chair 2 (top-right): 4.5s start, 1.3s duration — last to arrive</div>
+        </div>
+
+        <div style="margin-bottom: 1rem;">
+          <div style="color: rgba(255,255,255,0.5);">// Table brightening</div>
+          <div>0.0s → 5.5s: opacity 0.12 → 1.0, scale 0.94 → 1.0</div>
+        </div>
+
+        <div style="margin-bottom: 1rem;">
+          <div style="color: rgba(255,255,255,0.5);">// Sun glow reveal (whole logo radiates)</div>
+          <div>Outer glow: 5.8s start, 4.0s duration, r=38</div>
+          <div>Inner glow: 6.2s start, 3.5s duration, r=28</div>
+        </div>
+
+        <div>
+          <div style="color: rgba(255,255,255,0.5);">// Settle pulse</div>
+          <div>6.5s start, 1.2s duration, scale 1.0 → 1.035 → 1.0</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- The Metaphor -->
+    <div style="margin-top: 2.5rem; background: linear-gradient(135deg, rgba(242,201,76,0.15), rgba(242,201,76,0.05)); border-radius: 16px; padding: 1.75rem; border: 1px solid rgba(242,201,76,0.2);">
+      <h3 style="font-family: Nunito, sans-serif; font-size: 1.1rem; color: #F2C94C; margin-bottom: 1rem;">The Metaphor</h3>
+      <p style="font-size: 0.95rem; color: rgba(255,255,255,0.9); line-height: 1.8;">
+        The static Kinmo logo is a sun. But when animated, you see the story: <strong>friends gathering at a table</strong>. Each chair slides in at its own pace — one friend arrives early, another strolls in late. The table gradually brightens as the group fills in. When the last friend finally takes their seat, you realize the shape you've been watching form is a sun. And then warmth radiates outward.
       </p>
-    </section>
-
-    <!-- VARIATION A: Circles (original) with yellow center -->
-    <section class="concept-section">
-      <h2>A. Circle People + Sun Center</h2>
-      <p class="description">
-        Your original concept with the yellow sun/table in the center. The terracotta people dots orbit around it like planets around the sun.
+      <p style="font-size: 0.95rem; color: rgba(255,255,255,0.9); line-height: 1.8; margin-top: 1rem;">
+        The sun isn't just a sun — <strong>it's the feeling of everyone finally being together</strong>. Friends gathering creates warmth.
       </p>
+    </div>
 
-      <div class="logo-row">
-        <div class="logo-item">
-          <div class="logo-box light">
-            <svg width="180" height="48" viewBox="0 0 180 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <text x="0" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">K</text>
-              <text x="24" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">i</text>
-              <text x="40" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">n</text>
-              <text x="68" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">m</text>
-              <g transform="translate(124, 24)">
-                <!-- Sun/Table center -->
-                <circle cx="0" cy="0" r="9" fill="#E8A832"/>
-                <!-- People around -->
-                <circle cx="0" cy="-16" r="4" fill="#C75D3A"/>
-                <circle cx="13.8" cy="-8" r="4" fill="#C75D3A"/>
-                <circle cx="13.8" cy="8" r="4" fill="#C75D3A"/>
-                <circle cx="0" cy="16" r="4" fill="#C75D3A"/>
-                <circle cx="-13.8" cy="8" r="4" fill="#C75D3A"/>
-                <circle cx="-13.8" cy="-8" r="4" fill="#C75D3A"/>
-              </g>
-            </svg>
-          </div>
-          <span class="label">6 people</span>
+    <!-- Key Design Principles -->
+    <div style="margin-top: 2.5rem;">
+      <h3 style="font-family: Nunito, sans-serif; font-size: 1.1rem; color: #F2C94C; margin-bottom: 1.25rem;">Key Design Principles</h3>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+        <div style="background: rgba(255,255,255,0.06); border-radius: 12px; padding: 1.25rem;">
+          <div style="font-size: 0.8rem; color: #F2C94C; font-weight: 700; margin-bottom: 0.5rem;">Organic, not mechanical</div>
+          <p style="font-size: 0.8rem; color: rgba(255,255,255,0.7); line-height: 1.5;">Random arrival order. Varied speeds. No two chairs move identically. Like real humans.</p>
         </div>
-
-        <div class="logo-item">
-          <div class="logo-box dark">
-            <svg width="180" height="48" viewBox="0 0 180 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <text x="0" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">K</text>
-              <text x="24" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">i</text>
-              <text x="40" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">n</text>
-              <text x="68" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">m</text>
-              <g transform="translate(124, 24)">
-                <circle cx="0" cy="0" r="9" fill="#E8A832"/>
-                <circle cx="0" cy="-16" r="4" fill="#C75D3A"/>
-                <circle cx="13.8" cy="-8" r="4" fill="#C75D3A"/>
-                <circle cx="13.8" cy="8" r="4" fill="#C75D3A"/>
-                <circle cx="0" cy="16" r="4" fill="#C75D3A"/>
-                <circle cx="-13.8" cy="8" r="4" fill="#C75D3A"/>
-                <circle cx="-13.8" cy="-8" r="4" fill="#C75D3A"/>
-              </g>
-            </svg>
-          </div>
-          <span class="label">On dark</span>
+        <div style="background: rgba(255,255,255,0.06); border-radius: 12px; padding: 1.25rem;">
+          <div style="font-size: 0.8rem; color: #F2C94C; font-weight: 700; margin-bottom: 0.5rem;">Weighted movement</div>
+          <p style="font-size: 0.8rem; color: rgba(255,255,255,0.7); line-height: 1.5;">Chairs feel like they have mass. Deliberate, smooth easing — like pulling a real chair across a floor.</p>
+        </div>
+        <div style="background: rgba(255,255,255,0.06); border-radius: 12px; padding: 1.25rem;">
+          <div style="font-size: 0.8rem; color: #F2C94C; font-weight: 700; margin-bottom: 0.5rem;">Natural warmth</div>
+          <p style="font-size: 0.8rem; color: rgba(255,255,255,0.7); line-height: 1.5;">Radial gradient glow, not hard-edged rings. Fades smoothly like actual light. The whole sun glows, not just the center.</p>
+        </div>
+        <div style="background: rgba(255,255,255,0.06); border-radius: 12px; padding: 1.25rem;">
+          <div style="font-size: 0.8rem; color: #F2C94C; font-weight: 700; margin-bottom: 0.5rem;">Patience</div>
+          <p style="font-size: 0.8rem; color: rgba(255,255,255,0.7); line-height: 1.5;">~8 seconds is long for a logo animation. But the story needs time to breathe. Rushing undermines the metaphor.</p>
         </div>
       </div>
-
-      <div class="icon-row">
-        <div class="icon-item">
-          <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-            <circle cx="24" cy="24" r="9" fill="#E8A832"/>
-            <circle cx="24" cy="6" r="5" fill="#C75D3A"/>
-            <circle cx="39.5" cy="15" r="5" fill="#C75D3A"/>
-            <circle cx="39.5" cy="33" r="5" fill="#C75D3A"/>
-            <circle cx="24" cy="42" r="5" fill="#C75D3A"/>
-            <circle cx="8.5" cy="33" r="5" fill="#C75D3A"/>
-            <circle cx="8.5" cy="15" r="5" fill="#C75D3A"/>
-          </svg>
-          <span class="size-label">48px</span>
-        </div>
-        <div class="icon-item">
-          <svg width="32" height="32" viewBox="0 0 48 48" fill="none">
-            <circle cx="24" cy="24" r="9" fill="#E8A832"/>
-            <circle cx="24" cy="6" r="5" fill="#C75D3A"/>
-            <circle cx="39.5" cy="15" r="5" fill="#C75D3A"/>
-            <circle cx="39.5" cy="33" r="5" fill="#C75D3A"/>
-            <circle cx="24" cy="42" r="5" fill="#C75D3A"/>
-            <circle cx="8.5" cy="33" r="5" fill="#C75D3A"/>
-            <circle cx="8.5" cy="15" r="5" fill="#C75D3A"/>
-          </svg>
-          <span class="size-label">32px</span>
-        </div>
-        <div class="icon-item">
-          <svg width="24" height="24" viewBox="0 0 48 48" fill="none">
-            <circle cx="24" cy="24" r="9" fill="#E8A832"/>
-            <circle cx="24" cy="6" r="5" fill="#C75D3A"/>
-            <circle cx="39.5" cy="15" r="5" fill="#C75D3A"/>
-            <circle cx="39.5" cy="33" r="5" fill="#C75D3A"/>
-            <circle cx="24" cy="42" r="5" fill="#C75D3A"/>
-            <circle cx="8.5" cy="33" r="5" fill="#C75D3A"/>
-            <circle cx="8.5" cy="15" r="5" fill="#C75D3A"/>
-          </svg>
-          <span class="size-label">24px</span>
-        </div>
-        <div class="icon-item">
-          <svg width="16" height="16" viewBox="0 0 48 48" fill="none">
-            <circle cx="24" cy="24" r="9" fill="#E8A832"/>
-            <circle cx="24" cy="6" r="5" fill="#C75D3A"/>
-            <circle cx="39.5" cy="15" r="5" fill="#C75D3A"/>
-            <circle cx="39.5" cy="33" r="5" fill="#C75D3A"/>
-            <circle cx="24" cy="42" r="5" fill="#C75D3A"/>
-            <circle cx="8.5" cy="33" r="5" fill="#C75D3A"/>
-            <circle cx="8.5" cy="15" r="5" fill="#C75D3A"/>
-          </svg>
-          <span class="size-label">16px</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- VARIATION B: Rounded rectangles (seats) -->
-    <section class="concept-section">
-      <h2>B. Rounded Seats</h2>
-      <p class="description">
-        Instead of circles, small rounded rectangles suggest chairs or place settings around the table. More literal "seating" while still reading as abstract figures.
-      </p>
-
-      <div class="logo-row">
-        <div class="logo-item">
-          <div class="logo-box light">
-            <svg width="180" height="48" viewBox="0 0 180 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <text x="0" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">K</text>
-              <text x="24" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">i</text>
-              <text x="40" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">n</text>
-              <text x="68" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">m</text>
-              <g transform="translate(124, 24)">
-                <circle cx="0" cy="0" r="9" fill="#E8A832"/>
-                <!-- Rounded rect seats -->
-                <rect x="-3" y="-19" width="6" height="4" rx="2" fill="#C75D3A"/>
-                <rect x="11" y="-11" width="6" height="4" rx="2" fill="#C75D3A" transform="rotate(60 14 -9)"/>
-                <rect x="11" y="7" width="6" height="4" rx="2" fill="#C75D3A" transform="rotate(120 14 9)"/>
-                <rect x="-3" y="15" width="6" height="4" rx="2" fill="#C75D3A"/>
-                <rect x="-17" y="7" width="6" height="4" rx="2" fill="#C75D3A" transform="rotate(-120 -14 9)"/>
-                <rect x="-17" y="-11" width="6" height="4" rx="2" fill="#C75D3A" transform="rotate(-60 -14 -9)"/>
-              </g>
-            </svg>
-          </div>
-          <span class="label">Seat shapes</span>
-        </div>
-
-        <div class="logo-item">
-          <div class="logo-box dark">
-            <svg width="180" height="48" viewBox="0 0 180 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <text x="0" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">K</text>
-              <text x="24" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">i</text>
-              <text x="40" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">n</text>
-              <text x="68" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">m</text>
-              <g transform="translate(124, 24)">
-                <circle cx="0" cy="0" r="9" fill="#E8A832"/>
-                <rect x="-3" y="-19" width="6" height="4" rx="2" fill="#C75D3A"/>
-                <rect x="11" y="-11" width="6" height="4" rx="2" fill="#C75D3A" transform="rotate(60 14 -9)"/>
-                <rect x="11" y="7" width="6" height="4" rx="2" fill="#C75D3A" transform="rotate(120 14 9)"/>
-                <rect x="-3" y="15" width="6" height="4" rx="2" fill="#C75D3A"/>
-                <rect x="-17" y="7" width="6" height="4" rx="2" fill="#C75D3A" transform="rotate(-120 -14 9)"/>
-                <rect x="-17" y="-11" width="6" height="4" rx="2" fill="#C75D3A" transform="rotate(-60 -14 -9)"/>
-              </g>
-            </svg>
-          </div>
-          <span class="label">On dark</span>
-        </div>
-      </div>
-
-      <div class="icon-row">
-        <div class="icon-item">
-          <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-            <circle cx="24" cy="24" r="10" fill="#E8A832"/>
-            <rect x="21" y="2" width="6" height="5" rx="2.5" fill="#C75D3A"/>
-            <rect x="37" y="11" width="6" height="5" rx="2.5" fill="#C75D3A" transform="rotate(60 40 13.5)"/>
-            <rect x="37" y="32" width="6" height="5" rx="2.5" fill="#C75D3A" transform="rotate(120 40 34.5)"/>
-            <rect x="21" y="41" width="6" height="5" rx="2.5" fill="#C75D3A"/>
-            <rect x="5" y="32" width="6" height="5" rx="2.5" fill="#C75D3A" transform="rotate(-120 8 34.5)"/>
-            <rect x="5" y="11" width="6" height="5" rx="2.5" fill="#C75D3A" transform="rotate(-60 8 13.5)"/>
-          </svg>
-          <span class="size-label">48px</span>
-        </div>
-        <div class="icon-item">
-          <svg width="32" height="32" viewBox="0 0 48 48" fill="none">
-            <circle cx="24" cy="24" r="10" fill="#E8A832"/>
-            <rect x="21" y="2" width="6" height="5" rx="2.5" fill="#C75D3A"/>
-            <rect x="37" y="11" width="6" height="5" rx="2.5" fill="#C75D3A" transform="rotate(60 40 13.5)"/>
-            <rect x="37" y="32" width="6" height="5" rx="2.5" fill="#C75D3A" transform="rotate(120 40 34.5)"/>
-            <rect x="21" y="41" width="6" height="5" rx="2.5" fill="#C75D3A"/>
-            <rect x="5" y="32" width="6" height="5" rx="2.5" fill="#C75D3A" transform="rotate(-120 8 34.5)"/>
-            <rect x="5" y="11" width="6" height="5" rx="2.5" fill="#C75D3A" transform="rotate(-60 8 13.5)"/>
-          </svg>
-          <span class="size-label">32px</span>
-        </div>
-        <div class="icon-item">
-          <svg width="24" height="24" viewBox="0 0 48 48" fill="none">
-            <circle cx="24" cy="24" r="10" fill="#E8A832"/>
-            <rect x="21" y="2" width="6" height="5" rx="2.5" fill="#C75D3A"/>
-            <rect x="37" y="11" width="6" height="5" rx="2.5" fill="#C75D3A" transform="rotate(60 40 13.5)"/>
-            <rect x="37" y="32" width="6" height="5" rx="2.5" fill="#C75D3A" transform="rotate(120 40 34.5)"/>
-            <rect x="21" y="41" width="6" height="5" rx="2.5" fill="#C75D3A"/>
-            <rect x="5" y="32" width="6" height="5" rx="2.5" fill="#C75D3A" transform="rotate(-120 8 34.5)"/>
-            <rect x="5" y="11" width="6" height="5" rx="2.5" fill="#C75D3A" transform="rotate(-60 8 13.5)"/>
-          </svg>
-          <span class="size-label">24px</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- VARIATION C: Sun rays / Wedges -->
-    <section class="concept-section">
-      <h2>C. Sun Rays</h2>
-      <p class="description">
-        Leaning into the sun metaphor — small wedge/ray shapes emanate from the center. Could read as sun rays OR as people leaning toward the table. Very dynamic energy.
-      </p>
-
-      <div class="logo-row">
-        <div class="logo-item">
-          <div class="logo-box light">
-            <svg width="180" height="48" viewBox="0 0 180 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <text x="0" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">K</text>
-              <text x="24" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">i</text>
-              <text x="40" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">n</text>
-              <text x="68" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">m</text>
-              <g transform="translate(124, 24)">
-                <circle cx="0" cy="0" r="8" fill="#E8A832"/>
-                <!-- Sun rays pointing outward -->
-                <path d="M0 -12 L-3 -18 L3 -18 Z" fill="#C75D3A"/>
-                <path d="M10.4 -6 L13.4 -12.9 L16.4 -6.9 Z" fill="#C75D3A" transform="rotate(60 0 0)"/>
-                <path d="M10.4 6 L16.4 6.9 L13.4 12.9 Z" fill="#C75D3A" transform="rotate(120 0 0)"/>
-                <path d="M0 12 L3 18 L-3 18 Z" fill="#C75D3A"/>
-                <path d="M-10.4 6 L-13.4 12.9 L-16.4 6.9 Z" fill="#C75D3A" transform="rotate(-120 0 0)"/>
-                <path d="M-10.4 -6 L-16.4 -6.9 L-13.4 -12.9 Z" fill="#C75D3A" transform="rotate(-60 0 0)"/>
-              </g>
-            </svg>
-          </div>
-          <span class="label">Ray shapes</span>
-        </div>
-
-        <div class="logo-item">
-          <div class="logo-box dark">
-            <svg width="180" height="48" viewBox="0 0 180 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <text x="0" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">K</text>
-              <text x="24" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">i</text>
-              <text x="40" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">n</text>
-              <text x="68" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">m</text>
-              <g transform="translate(124, 24)">
-                <circle cx="0" cy="0" r="8" fill="#E8A832"/>
-                <path d="M0 -12 L-3 -18 L3 -18 Z" fill="#C75D3A"/>
-                <path d="M10.4 -6 L13.4 -12.9 L16.4 -6.9 Z" fill="#C75D3A" transform="rotate(60 0 0)"/>
-                <path d="M10.4 6 L16.4 6.9 L13.4 12.9 Z" fill="#C75D3A" transform="rotate(120 0 0)"/>
-                <path d="M0 12 L3 18 L-3 18 Z" fill="#C75D3A"/>
-                <path d="M-10.4 6 L-13.4 12.9 L-16.4 6.9 Z" fill="#C75D3A" transform="rotate(-120 0 0)"/>
-                <path d="M-10.4 -6 L-16.4 -6.9 L-13.4 -12.9 Z" fill="#C75D3A" transform="rotate(-60 0 0)"/>
-              </g>
-            </svg>
-          </div>
-          <span class="label">On dark</span>
-        </div>
-      </div>
-
-      <div class="icon-row">
-        <div class="icon-item">
-          <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-            <circle cx="24" cy="24" r="9" fill="#E8A832"/>
-            <!-- 6 rays -->
-            <path d="M24 2 L21 8 L27 8 Z" fill="#C75D3A"/>
-            <path d="M43 13 L37 16 L40 22 Z" fill="#C75D3A"/>
-            <path d="M43 35 L40 26 L37 32 Z" fill="#C75D3A"/>
-            <path d="M24 46 L27 40 L21 40 Z" fill="#C75D3A"/>
-            <path d="M5 35 L11 32 L8 26 Z" fill="#C75D3A"/>
-            <path d="M5 13 L8 22 L11 16 Z" fill="#C75D3A"/>
-          </svg>
-          <span class="size-label">48px</span>
-        </div>
-        <div class="icon-item">
-          <svg width="32" height="32" viewBox="0 0 48 48" fill="none">
-            <circle cx="24" cy="24" r="9" fill="#E8A832"/>
-            <path d="M24 2 L21 8 L27 8 Z" fill="#C75D3A"/>
-            <path d="M43 13 L37 16 L40 22 Z" fill="#C75D3A"/>
-            <path d="M43 35 L40 26 L37 32 Z" fill="#C75D3A"/>
-            <path d="M24 46 L27 40 L21 40 Z" fill="#C75D3A"/>
-            <path d="M5 35 L11 32 L8 26 Z" fill="#C75D3A"/>
-            <path d="M5 13 L8 22 L11 16 Z" fill="#C75D3A"/>
-          </svg>
-          <span class="size-label">32px</span>
-        </div>
-        <div class="icon-item">
-          <svg width="24" height="24" viewBox="0 0 48 48" fill="none">
-            <circle cx="24" cy="24" r="9" fill="#E8A832"/>
-            <path d="M24 2 L21 8 L27 8 Z" fill="#C75D3A"/>
-            <path d="M43 13 L37 16 L40 22 Z" fill="#C75D3A"/>
-            <path d="M43 35 L40 26 L37 32 Z" fill="#C75D3A"/>
-            <path d="M24 46 L27 40 L21 40 Z" fill="#C75D3A"/>
-            <path d="M5 35 L11 32 L8 26 Z" fill="#C75D3A"/>
-            <path d="M5 13 L8 22 L11 16 Z" fill="#C75D3A"/>
-          </svg>
-          <span class="size-label">24px</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- VARIATION D: Soft ovals / heads -->
-    <section class="concept-section">
-      <h2>D. Soft Ovals (Heads)</h2>
-      <p class="description">
-        Vertical ovals feel more human — like simplified heads/figures looking toward the center. Softer, friendlier energy than perfect circles.
-      </p>
-
-      <div class="logo-row">
-        <div class="logo-item">
-          <div class="logo-box light">
-            <svg width="180" height="48" viewBox="0 0 180 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <text x="0" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">K</text>
-              <text x="24" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">i</text>
-              <text x="40" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">n</text>
-              <text x="68" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">m</text>
-              <g transform="translate(124, 24)">
-                <circle cx="0" cy="0" r="9" fill="#E8A832"/>
-                <!-- Oval heads pointing toward center -->
-                <ellipse cx="0" cy="-16" rx="3" ry="4.5" fill="#C75D3A"/>
-                <ellipse cx="13.8" cy="-8" rx="3" ry="4.5" fill="#C75D3A" transform="rotate(60 13.8 -8)"/>
-                <ellipse cx="13.8" cy="8" rx="3" ry="4.5" fill="#C75D3A" transform="rotate(120 13.8 8)"/>
-                <ellipse cx="0" cy="16" rx="3" ry="4.5" fill="#C75D3A"/>
-                <ellipse cx="-13.8" cy="8" rx="3" ry="4.5" fill="#C75D3A" transform="rotate(-120 -13.8 8)"/>
-                <ellipse cx="-13.8" cy="-8" rx="3" ry="4.5" fill="#C75D3A" transform="rotate(-60 -13.8 -8)"/>
-              </g>
-            </svg>
-          </div>
-          <span class="label">Oval people</span>
-        </div>
-
-        <div class="logo-item">
-          <div class="logo-box dark">
-            <svg width="180" height="48" viewBox="0 0 180 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <text x="0" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">K</text>
-              <text x="24" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">i</text>
-              <text x="40" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">n</text>
-              <text x="68" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">m</text>
-              <g transform="translate(124, 24)">
-                <circle cx="0" cy="0" r="9" fill="#E8A832"/>
-                <ellipse cx="0" cy="-16" rx="3" ry="4.5" fill="#C75D3A"/>
-                <ellipse cx="13.8" cy="-8" rx="3" ry="4.5" fill="#C75D3A" transform="rotate(60 13.8 -8)"/>
-                <ellipse cx="13.8" cy="8" rx="3" ry="4.5" fill="#C75D3A" transform="rotate(120 13.8 8)"/>
-                <ellipse cx="0" cy="16" rx="3" ry="4.5" fill="#C75D3A"/>
-                <ellipse cx="-13.8" cy="8" rx="3" ry="4.5" fill="#C75D3A" transform="rotate(-120 -13.8 8)"/>
-                <ellipse cx="-13.8" cy="-8" rx="3" ry="4.5" fill="#C75D3A" transform="rotate(-60 -13.8 -8)"/>
-              </g>
-            </svg>
-          </div>
-          <span class="label">On dark</span>
-        </div>
-      </div>
-
-      <div class="icon-row">
-        <div class="icon-item">
-          <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-            <circle cx="24" cy="24" r="10" fill="#E8A832"/>
-            <ellipse cx="24" cy="5" rx="4" ry="5.5" fill="#C75D3A"/>
-            <ellipse cx="40.5" cy="14.5" rx="4" ry="5.5" fill="#C75D3A" transform="rotate(60 40.5 14.5)"/>
-            <ellipse cx="40.5" cy="33.5" rx="4" ry="5.5" fill="#C75D3A" transform="rotate(120 40.5 33.5)"/>
-            <ellipse cx="24" cy="43" rx="4" ry="5.5" fill="#C75D3A"/>
-            <ellipse cx="7.5" cy="33.5" rx="4" ry="5.5" fill="#C75D3A" transform="rotate(-120 7.5 33.5)"/>
-            <ellipse cx="7.5" cy="14.5" rx="4" ry="5.5" fill="#C75D3A" transform="rotate(-60 7.5 14.5)"/>
-          </svg>
-          <span class="size-label">48px</span>
-        </div>
-        <div class="icon-item">
-          <svg width="32" height="32" viewBox="0 0 48 48" fill="none">
-            <circle cx="24" cy="24" r="10" fill="#E8A832"/>
-            <ellipse cx="24" cy="5" rx="4" ry="5.5" fill="#C75D3A"/>
-            <ellipse cx="40.5" cy="14.5" rx="4" ry="5.5" fill="#C75D3A" transform="rotate(60 40.5 14.5)"/>
-            <ellipse cx="40.5" cy="33.5" rx="4" ry="5.5" fill="#C75D3A" transform="rotate(120 40.5 33.5)"/>
-            <ellipse cx="24" cy="43" rx="4" ry="5.5" fill="#C75D3A"/>
-            <ellipse cx="7.5" cy="33.5" rx="4" ry="5.5" fill="#C75D3A" transform="rotate(-120 7.5 33.5)"/>
-            <ellipse cx="7.5" cy="14.5" rx="4" ry="5.5" fill="#C75D3A" transform="rotate(-60 7.5 14.5)"/>
-          </svg>
-          <span class="size-label">32px</span>
-        </div>
-        <div class="icon-item">
-          <svg width="24" height="24" viewBox="0 0 48 48" fill="none">
-            <circle cx="24" cy="24" r="10" fill="#E8A832"/>
-            <ellipse cx="24" cy="5" rx="4" ry="5.5" fill="#C75D3A"/>
-            <ellipse cx="40.5" cy="14.5" rx="4" ry="5.5" fill="#C75D3A" transform="rotate(60 40.5 14.5)"/>
-            <ellipse cx="40.5" cy="33.5" rx="4" ry="5.5" fill="#C75D3A" transform="rotate(120 40.5 33.5)"/>
-            <ellipse cx="24" cy="43" rx="4" ry="5.5" fill="#C75D3A"/>
-            <ellipse cx="7.5" cy="33.5" rx="4" ry="5.5" fill="#C75D3A" transform="rotate(-120 7.5 33.5)"/>
-            <ellipse cx="7.5" cy="14.5" rx="4" ry="5.5" fill="#C75D3A" transform="rotate(-60 7.5 14.5)"/>
-          </svg>
-          <span class="size-label">24px</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- VARIATION E: Rounded short lines (minimalist) -->
-    <section class="concept-section">
-      <h2>E. Minimal Dashes</h2>
-      <p class="description">
-        Ultra-minimal: short rounded lines radiating from the sun. Clean, modern, very scalable. Less literal about "people" but captures the radiating energy beautifully.
-      </p>
-
-      <div class="logo-row">
-        <div class="logo-item">
-          <div class="logo-box light">
-            <svg width="180" height="48" viewBox="0 0 180 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <text x="0" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">K</text>
-              <text x="24" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">i</text>
-              <text x="40" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">n</text>
-              <text x="68" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#3E271C">m</text>
-              <g transform="translate(124, 24)">
-                <circle cx="0" cy="0" r="8" fill="#E8A832"/>
-                <!-- Minimal dashes -->
-                <line x1="0" y1="-12" x2="0" y2="-18" stroke="#C75D3A" stroke-width="3" stroke-linecap="round"/>
-                <line x1="10.4" y1="-6" x2="15.6" y2="-9" stroke="#C75D3A" stroke-width="3" stroke-linecap="round"/>
-                <line x1="10.4" y1="6" x2="15.6" y2="9" stroke="#C75D3A" stroke-width="3" stroke-linecap="round"/>
-                <line x1="0" y1="12" x2="0" y2="18" stroke="#C75D3A" stroke-width="3" stroke-linecap="round"/>
-                <line x1="-10.4" y1="6" x2="-15.6" y2="9" stroke="#C75D3A" stroke-width="3" stroke-linecap="round"/>
-                <line x1="-10.4" y1="-6" x2="-15.6" y2="-9" stroke="#C75D3A" stroke-width="3" stroke-linecap="round"/>
-              </g>
-            </svg>
-          </div>
-          <span class="label">Line dashes</span>
-        </div>
-
-        <div class="logo-item">
-          <div class="logo-box dark">
-            <svg width="180" height="48" viewBox="0 0 180 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <text x="0" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">K</text>
-              <text x="24" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">i</text>
-              <text x="40" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">n</text>
-              <text x="68" y="36" font-family="Nunito, sans-serif" font-size="36" font-weight="700" fill="#FAF6F1">m</text>
-              <g transform="translate(124, 24)">
-                <circle cx="0" cy="0" r="8" fill="#E8A832"/>
-                <line x1="0" y1="-12" x2="0" y2="-18" stroke="#C75D3A" stroke-width="3" stroke-linecap="round"/>
-                <line x1="10.4" y1="-6" x2="15.6" y2="-9" stroke="#C75D3A" stroke-width="3" stroke-linecap="round"/>
-                <line x1="10.4" y1="6" x2="15.6" y2="9" stroke="#C75D3A" stroke-width="3" stroke-linecap="round"/>
-                <line x1="0" y1="12" x2="0" y2="18" stroke="#C75D3A" stroke-width="3" stroke-linecap="round"/>
-                <line x1="-10.4" y1="6" x2="-15.6" y2="9" stroke="#C75D3A" stroke-width="3" stroke-linecap="round"/>
-                <line x1="-10.4" y1="-6" x2="-15.6" y2="-9" stroke="#C75D3A" stroke-width="3" stroke-linecap="round"/>
-              </g>
-            </svg>
-          </div>
-          <span class="label">On dark</span>
-        </div>
-      </div>
-
-      <div class="icon-row">
-        <div class="icon-item">
-          <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-            <circle cx="24" cy="24" r="9" fill="#E8A832"/>
-            <line x1="24" y1="4" x2="24" y2="11" stroke="#C75D3A" stroke-width="4" stroke-linecap="round"/>
-            <line x1="41.3" y1="14" x2="35.2" y2="17.5" stroke="#C75D3A" stroke-width="4" stroke-linecap="round"/>
-            <line x1="41.3" y1="34" x2="35.2" y2="30.5" stroke="#C75D3A" stroke-width="4" stroke-linecap="round"/>
-            <line x1="24" y1="44" x2="24" y2="37" stroke="#C75D3A" stroke-width="4" stroke-linecap="round"/>
-            <line x1="6.7" y1="34" x2="12.8" y2="30.5" stroke="#C75D3A" stroke-width="4" stroke-linecap="round"/>
-            <line x1="6.7" y1="14" x2="12.8" y2="17.5" stroke="#C75D3A" stroke-width="4" stroke-linecap="round"/>
-          </svg>
-          <span class="size-label">48px</span>
-        </div>
-        <div class="icon-item">
-          <svg width="32" height="32" viewBox="0 0 48 48" fill="none">
-            <circle cx="24" cy="24" r="9" fill="#E8A832"/>
-            <line x1="24" y1="4" x2="24" y2="11" stroke="#C75D3A" stroke-width="4" stroke-linecap="round"/>
-            <line x1="41.3" y1="14" x2="35.2" y2="17.5" stroke="#C75D3A" stroke-width="4" stroke-linecap="round"/>
-            <line x1="41.3" y1="34" x2="35.2" y2="30.5" stroke="#C75D3A" stroke-width="4" stroke-linecap="round"/>
-            <line x1="24" y1="44" x2="24" y2="37" stroke="#C75D3A" stroke-width="4" stroke-linecap="round"/>
-            <line x1="6.7" y1="34" x2="12.8" y2="30.5" stroke="#C75D3A" stroke-width="4" stroke-linecap="round"/>
-            <line x1="6.7" y1="14" x2="12.8" y2="17.5" stroke="#C75D3A" stroke-width="4" stroke-linecap="round"/>
-          </svg>
-          <span class="size-label">32px</span>
-        </div>
-        <div class="icon-item">
-          <svg width="24" height="24" viewBox="0 0 48 48" fill="none">
-            <circle cx="24" cy="24" r="9" fill="#E8A832"/>
-            <line x1="24" y1="4" x2="24" y2="11" stroke="#C75D3A" stroke-width="5" stroke-linecap="round"/>
-            <line x1="41.3" y1="14" x2="35.2" y2="17.5" stroke="#C75D3A" stroke-width="5" stroke-linecap="round"/>
-            <line x1="41.3" y1="34" x2="35.2" y2="30.5" stroke="#C75D3A" stroke-width="5" stroke-linecap="round"/>
-            <line x1="24" y1="44" x2="24" y2="37" stroke="#C75D3A" stroke-width="5" stroke-linecap="round"/>
-            <line x1="6.7" y1="34" x2="12.8" y2="30.5" stroke="#C75D3A" stroke-width="5" stroke-linecap="round"/>
-            <line x1="6.7" y1="14" x2="12.8" y2="17.5" stroke="#C75D3A" stroke-width="5" stroke-linecap="round"/>
-          </svg>
-          <span class="size-label">24px</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- IN-CONTEXT: NAV PREVIEWS -->
-    <section class="concept-section">
-      <h2>Navigation Previews</h2>
-      <p class="description">How each variant looks in your nav bar context.</p>
-
-      <div style="display: flex; flex-direction: column; gap: 1rem;">
-        <!-- A: Circles -->
-        <div class="nav-preview">
-          <div class="nav-logo">
-            <svg width="28" height="28" viewBox="0 0 48 48" fill="none">
-              <circle cx="24" cy="24" r="9" fill="#E8A832"/>
-              <circle cx="24" cy="6" r="5" fill="#C75D3A"/>
-              <circle cx="39.5" cy="15" r="5" fill="#C75D3A"/>
-              <circle cx="39.5" cy="33" r="5" fill="#C75D3A"/>
-              <circle cx="24" cy="42" r="5" fill="#C75D3A"/>
-              <circle cx="8.5" cy="33" r="5" fill="#C75D3A"/>
-              <circle cx="8.5" cy="15" r="5" fill="#C75D3A"/>
-            </svg>
-            <span style="font-family: Nunito, sans-serif; font-weight: 700; font-size: 1.25rem; color: #3E271C;">Kinmo</span>
-          </div>
-          <span style="font-size: 0.7rem; color: var(--warm-gray); background: var(--cream); padding: 0.25rem 0.5rem; border-radius: 4px;">A. Circles</span>
-          <div class="nav-links">
-            <span>Dashboard</span>
-            <span>Groups</span>
-          </div>
-        </div>
-
-        <!-- D: Ovals -->
-        <div class="nav-preview">
-          <div class="nav-logo">
-            <svg width="28" height="28" viewBox="0 0 48 48" fill="none">
-              <circle cx="24" cy="24" r="10" fill="#E8A832"/>
-              <ellipse cx="24" cy="5" rx="4" ry="5.5" fill="#C75D3A"/>
-              <ellipse cx="40.5" cy="14.5" rx="4" ry="5.5" fill="#C75D3A" transform="rotate(60 40.5 14.5)"/>
-              <ellipse cx="40.5" cy="33.5" rx="4" ry="5.5" fill="#C75D3A" transform="rotate(120 40.5 33.5)"/>
-              <ellipse cx="24" cy="43" rx="4" ry="5.5" fill="#C75D3A"/>
-              <ellipse cx="7.5" cy="33.5" rx="4" ry="5.5" fill="#C75D3A" transform="rotate(-120 7.5 33.5)"/>
-              <ellipse cx="7.5" cy="14.5" rx="4" ry="5.5" fill="#C75D3A" transform="rotate(-60 7.5 14.5)"/>
-            </svg>
-            <span style="font-family: Nunito, sans-serif; font-weight: 700; font-size: 1.25rem; color: #3E271C;">Kinmo</span>
-          </div>
-          <span style="font-size: 0.7rem; color: var(--warm-gray); background: var(--cream); padding: 0.25rem 0.5rem; border-radius: 4px;">D. Ovals</span>
-          <div class="nav-links">
-            <span>Dashboard</span>
-            <span>Groups</span>
-          </div>
-        </div>
-
-        <!-- E: Dashes -->
-        <div class="nav-preview">
-          <div class="nav-logo">
-            <svg width="28" height="28" viewBox="0 0 48 48" fill="none">
-              <circle cx="24" cy="24" r="9" fill="#E8A832"/>
-              <line x1="24" y1="4" x2="24" y2="11" stroke="#C75D3A" stroke-width="4" stroke-linecap="round"/>
-              <line x1="41.3" y1="14" x2="35.2" y2="17.5" stroke="#C75D3A" stroke-width="4" stroke-linecap="round"/>
-              <line x1="41.3" y1="34" x2="35.2" y2="30.5" stroke="#C75D3A" stroke-width="4" stroke-linecap="round"/>
-              <line x1="24" y1="44" x2="24" y2="37" stroke="#C75D3A" stroke-width="4" stroke-linecap="round"/>
-              <line x1="6.7" y1="34" x2="12.8" y2="30.5" stroke="#C75D3A" stroke-width="4" stroke-linecap="round"/>
-              <line x1="6.7" y1="14" x2="12.8" y2="17.5" stroke="#C75D3A" stroke-width="4" stroke-linecap="round"/>
-            </svg>
-            <span style="font-family: Nunito, sans-serif; font-weight: 700; font-size: 1.25rem; color: #3E271C;">Kinmo</span>
-          </div>
-          <span style="font-size: 0.7rem; color: var(--warm-gray); background: var(--cream); padding: 0.25rem 0.5rem; border-radius: 4px;">E. Dashes</span>
-          <div class="nav-links">
-            <span>Dashboard</span>
-            <span>Groups</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- THE GATHERING: Animation Storyboard -->
-    <section class="concept-section" style="background: linear-gradient(135deg, #FAF6F1, #fff);">
-      <h2 style="color: var(--terracotta);">The Gathering — Animation Concept</h2>
-      <p class="description">
-        The Kinmo logo stays exactly as it is. The magic is in the <strong>animation</strong>: chairs pull in at staggered times, like friends arriving at a table. When everyone's seated, you realize — it's a sun.
-      </p>
-
-      <div style="display: flex; gap: 2rem; justify-content: center; flex-wrap: wrap; margin: 2rem 0;">
-        <!-- Frame 1: Scattered -->
-        <div style="text-align: center;">
-          <div style="background: white; border-radius: 16px; padding: 1.5rem; box-shadow: 0 2px 12px rgba(62,39,28,0.08); margin-bottom: 0.75rem;">
-            <svg width="80" height="80" viewBox="0 0 48 48" fill="none">
-              <!-- Table center (dim, waiting) -->
-              <circle cx="24" cy="24" r="10" fill="#F2C94C" opacity="0.3"/>
-              <!-- Chairs scattered - using actual Kinmo arc shapes -->
-              <g opacity="0.5">
-                <path d="M15 2 A4 4 0 0 1 25 2 L20 2 Z" fill="#F2C94C" transform="translate(2, -2) rotate(15 20 2)"/>
-              </g>
-              <g opacity="0.4">
-                <path d="M38 10 A4 4 0 0 1 43 19 L40 14 Z" fill="#F2C94C" transform="translate(5, 3) rotate(-10 40 14)"/>
-              </g>
-              <g opacity="0.6">
-                <path d="M43 29 A4 4 0 0 1 38 38 L40 34 Z" fill="#F2C94C" transform="translate(4, 5)"/>
-              </g>
-              <g opacity="0.35">
-                <path d="M29 43 A4 4 0 0 1 19 43 L24 43 Z" fill="#F2C94C" transform="translate(-3, 4) rotate(-20 24 43)"/>
-              </g>
-              <g opacity="0.55">
-                <path d="M10 38 A4 4 0 0 1 5 29 L8 34 Z" fill="#F2C94C" transform="translate(-6, 2)"/>
-              </g>
-              <g opacity="0.45">
-                <path d="M5 19 A4 4 0 0 1 10 10 L8 14 Z" fill="#F2C94C" transform="translate(-4, -3) rotate(25 8 14)"/>
-              </g>
-            </svg>
-          </div>
-          <span style="font-size: 0.75rem; color: var(--warm-gray); font-weight: 600;">Frame 1</span>
-          <p style="font-size: 0.7rem; color: var(--warm-gray); margin-top: 0.25rem;">Friends arriving...</p>
-        </div>
-
-        <!-- Arrow -->
-        <div style="display: flex; align-items: center; color: var(--warm-gray); font-size: 1.5rem;">→</div>
-
-        <!-- Frame 2: Moving closer -->
-        <div style="text-align: center;">
-          <div style="background: white; border-radius: 16px; padding: 1.5rem; box-shadow: 0 2px 12px rgba(62,39,28,0.08); margin-bottom: 0.75rem;">
-            <svg width="80" height="80" viewBox="0 0 48 48" fill="none">
-              <!-- Table center (brighter) -->
-              <circle cx="24" cy="24" r="12" fill="#F2C94C" opacity="0.6"/>
-              <!-- Chairs moving closer -->
-              <g opacity="0.75">
-                <path d="M19 5 A4 4 0 0 1 29 5 L24 5 Z" fill="#F2C94C" transform="translate(0, -1)"/>
-              </g>
-              <g opacity="0.65">
-                <path d="M38 10 A4 4 0 0 1 43 19 L40 14 Z" fill="#F2C94C" transform="translate(2, 1)"/>
-              </g>
-              <g opacity="0.8">
-                <path d="M43 29 A4 4 0 0 1 38 38 L40 34 Z" fill="#F2C94C" transform="translate(1, 2)"/>
-              </g>
-              <g opacity="0.6">
-                <path d="M29 43 A4 4 0 0 1 19 43 L24 43 Z" fill="#F2C94C" transform="translate(0, 1)"/>
-              </g>
-              <g opacity="0.75">
-                <path d="M10 38 A4 4 0 0 1 5 29 L8 34 Z" fill="#F2C94C" transform="translate(-2, 1)"/>
-              </g>
-              <g opacity="0.7">
-                <path d="M5 19 A4 4 0 0 1 10 10 L8 14 Z" fill="#F2C94C" transform="translate(-1, -1)"/>
-              </g>
-            </svg>
-          </div>
-          <span style="font-size: 0.75rem; color: var(--warm-gray); font-weight: 600;">Frame 2</span>
-          <p style="font-size: 0.7rem; color: var(--warm-gray); margin-top: 0.25rem;">Pulling in...</p>
-        </div>
-
-        <!-- Arrow -->
-        <div style="display: flex; align-items: center; color: var(--warm-gray); font-size: 1.5rem;">→</div>
-
-        <!-- Frame 3: Seated (the actual Kinmo logo!) -->
-        <div style="text-align: center;">
-          <div style="background: white; border-radius: 16px; padding: 1.5rem; box-shadow: 0 4px 16px rgba(242,201,76,0.4); margin-bottom: 0.75rem; border: 2px solid #F2C94C;">
-            <svg width="80" height="80" viewBox="0 0 48 48" fill="none">
-              <!-- The actual Kinmo logo -->
-              <circle cx="24" cy="24" r="14" fill="#F2C94C"/>
-              <path d="M19 5 A4 4 0 0 1 29 5 L24 5 Z" fill="#F2C94C"/>
-              <path d="M38 10 A4 4 0 0 1 43 19 L40 14 Z" fill="#F2C94C"/>
-              <path d="M43 29 A4 4 0 0 1 38 38 L40 34 Z" fill="#F2C94C"/>
-              <path d="M29 43 A4 4 0 0 1 19 43 L24 43 Z" fill="#F2C94C"/>
-              <path d="M10 38 A4 4 0 0 1 5 29 L8 34 Z" fill="#F2C94C"/>
-              <path d="M5 19 A4 4 0 0 1 10 10 L8 14 Z" fill="#F2C94C"/>
-            </svg>
-          </div>
-          <span style="font-size: 0.75rem; color: #F2C94C; font-weight: 700;">The Kinmo Sun ☀️</span>
-          <p style="font-size: 0.7rem; color: var(--warm-gray); margin-top: 0.25rem;">Everyone's here!</p>
-        </div>
-      </div>
-
-      <!-- Detailed timing breakdown -->
-      <div style="background: white; border-radius: 12px; padding: 1.5rem; margin-top: 1.5rem;">
-        <h3 style="font-family: Nunito, sans-serif; font-size: 1rem; color: var(--espresso); margin-bottom: 1rem;">Animation Timing</h3>
-        <div style="display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center;">
-          <div style="background: var(--cream); padding: 0.75rem 1rem; border-radius: 8px; text-align: center; min-width: 100px;">
-            <div style="font-size: 0.7rem; color: var(--warm-gray); margin-bottom: 0.25rem;">Chair 1</div>
-            <div style="font-weight: 600; color: var(--espresso);">0.0s</div>
-          </div>
-          <div style="background: var(--cream); padding: 0.75rem 1rem; border-radius: 8px; text-align: center; min-width: 100px;">
-            <div style="font-size: 0.7rem; color: var(--warm-gray); margin-bottom: 0.25rem;">Chair 2</div>
-            <div style="font-weight: 600; color: var(--espresso);">0.15s</div>
-          </div>
-          <div style="background: var(--cream); padding: 0.75rem 1rem; border-radius: 8px; text-align: center; min-width: 100px;">
-            <div style="font-size: 0.7rem; color: var(--warm-gray); margin-bottom: 0.25rem;">Chair 3</div>
-            <div style="font-weight: 600; color: var(--espresso);">0.35s</div>
-          </div>
-          <div style="background: var(--cream); padding: 0.75rem 1rem; border-radius: 8px; text-align: center; min-width: 100px;">
-            <div style="font-size: 0.7rem; color: var(--warm-gray); margin-bottom: 0.25rem;">Chair 4</div>
-            <div style="font-weight: 600; color: var(--espresso);">0.5s</div>
-          </div>
-          <div style="background: var(--cream); padding: 0.75rem 1rem; border-radius: 8px; text-align: center; min-width: 100px;">
-            <div style="font-size: 0.7rem; color: var(--warm-gray); margin-bottom: 0.25rem;">Chair 5</div>
-            <div style="font-weight: 600; color: var(--espresso);">0.7s</div>
-          </div>
-          <div style="background: var(--cream); padding: 0.75rem 1rem; border-radius: 8px; text-align: center; min-width: 100px;">
-            <div style="font-size: 0.7rem; color: var(--warm-gray); margin-bottom: 0.25rem;">Chair 6</div>
-            <div style="font-weight: 600; color: var(--espresso);">0.85s</div>
-          </div>
-          <div style="background: linear-gradient(135deg, #F2C94C, #E8A832); padding: 0.75rem 1rem; border-radius: 8px; text-align: center; min-width: 100px; color: white;">
-            <div style="font-size: 0.7rem; opacity: 0.9; margin-bottom: 0.25rem;">Sun glow</div>
-            <div style="font-weight: 600;">1.0s</div>
-          </div>
-        </div>
-      </div>
-
-      <div style="background: white; border-radius: 12px; padding: 1.5rem; margin-top: 1rem;">
-        <h3 style="font-family: Nunito, sans-serif; font-size: 1rem; color: var(--espresso); margin-bottom: 0.75rem;">Animation Notes</h3>
-        <ul style="color: var(--warm-gray); font-size: 0.85rem; line-height: 1.8; padding-left: 1.25rem;">
-          <li><strong>Movement:</strong> Each chair/arc slides inward from a scattered position to its final seat at the table</li>
-          <li><strong>Stagger:</strong> Irregular timing (not evenly spaced) — feels like friends arriving naturally, not synchronized</li>
-          <li><strong>Easing:</strong> Ease-out on each chair (fast start, gentle landing — like sliding a chair in)</li>
-          <li><strong>Sound:</strong> Gentle chair-sliding sounds at each arrival, slightly overlapping</li>
-          <li><strong>The reveal:</strong> When the last chair lands, the center circle pulses warmly — "Oh, it's a sun!"</li>
-          <li><strong>Table brightens:</strong> The center circle starts dim and gets brighter as more friends arrive</li>
-        </ul>
-      </div>
-
-      <div style="background: linear-gradient(135deg, #F2C94C, #E8A832); border-radius: 12px; padding: 1.5rem; margin-top: 1rem; color: white;">
-        <h3 style="font-family: Nunito, sans-serif; font-size: 1rem; margin-bottom: 0.75rem;">The Metaphor</h3>
-        <p style="font-size: 0.9rem; line-height: 1.7; opacity: 0.95;">
-          The static logo is the sun. But when you see the chairs pull in, you understand: <strong>friends gathering at a table creates warmth</strong>. The sun isn't just a sun — it's the feeling of everyone finally being together.
-        </p>
-      </div>
-
-      <!-- LIVE ANIMATED DEMO -->
-      <div style="margin-top: 2.5rem; padding-top: 2rem; border-top: 2px solid rgba(62, 39, 28, 0.1);">
-        <h3 style="font-family: Nunito, sans-serif; font-size: 1.1rem; color: var(--espresso); margin-bottom: 0.5rem; text-align: center;">Live Animation Demo</h3>
-        <p style="text-align: center; color: var(--warm-gray); font-size: 0.85rem; margin-bottom: 1.5rem;">Friends arrive at random times — some quick, some leisurely. When everyone's here, it becomes a sun.</p>
-
-        <style>
-          /* =============================================
-             THE GATHERING — KINMO LOGO ANIMATION
-             Natural, organic motion with warm sun glow
-             SLOWED DOWN ~1.8x for better readability
-             ============================================= */
-
-          .gathering-container {
-            position: relative;
-            width: 160px;
-            height: 160px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-          }
-
-          /* Table/Sun center — starts dim, brightens as friends arrive */
-          .table-center {
-            opacity: 0.18;
-            transform-origin: center;
-          }
-          .table-center.playing {
-            animation: tableBrighten 5.5s ease-out forwards;
-          }
-          @keyframes tableBrighten {
-            0% { opacity: 0.12; transform: scale(0.94); }
-            30% { opacity: 0.35; transform: scale(0.96); }
-            60% { opacity: 0.6; transform: scale(0.98); }
-            85% { opacity: 0.85; transform: scale(0.99); }
-            100% { opacity: 1; transform: scale(1); }
-          }
-
-          /* Chair/Arc base styles */
-          .chair {
-            opacity: 0;
-          }
-
-          /* =============================================
-             RANDOMIZED ARRIVAL ORDER & REALISTIC SPEEDS
-             Like actual chairs being pulled up to a table
-             Weighted, deliberate movement — not flung
-             ============================================= */
-
-          /* Chair 5 (Bottom-left) — FIRST to arrive */
-          .chair.c5.playing {
-            animation: slideBottomLeft 1.4s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
-            animation-delay: 0s;
-          }
-          @keyframes slideBottomLeft {
-            0% { opacity: 0; transform: translate(-20px, 20px); }
-            15% { opacity: 0.7; }
-            85% { opacity: 1; transform: translate(0, 0); }
-            100% { opacity: 1; transform: translate(0, 0); }
-          }
-
-          /* Chair 1 (Top) — arrives leisurely, takes their time */
-          .chair.c1.playing {
-            animation: slideTop 1.8s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
-            animation-delay: 0.8s;
-          }
-          @keyframes slideTop {
-            0% { opacity: 0; transform: translateY(-22px); }
-            12% { opacity: 0.6; }
-            90% { opacity: 1; transform: translateY(0); }
-            100% { opacity: 1; transform: translateY(0); }
-          }
-
-          /* Chair 3 (Bottom-right) — steady pull */
-          .chair.c3.playing {
-            animation: slideBottomRight 1.5s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
-            animation-delay: 1.6s;
-          }
-          @keyframes slideBottomRight {
-            0% { opacity: 0; transform: translate(20px, 20px); }
-            15% { opacity: 0.7; }
-            88% { opacity: 1; transform: translate(0, 0); }
-            100% { opacity: 1; transform: translate(0, 0); }
-          }
-
-          /* Chair 6 (Top-left) — unhurried */
-          .chair.c6.playing {
-            animation: slideTopLeft 1.6s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
-            animation-delay: 2.4s;
-          }
-          @keyframes slideTopLeft {
-            0% { opacity: 0; transform: translate(-20px, -20px); }
-            12% { opacity: 0.6; }
-            88% { opacity: 1; transform: translate(0, 0); }
-            100% { opacity: 1; transform: translate(0, 0); }
-          }
-
-          /* Chair 4 (Bottom) — slow, relaxed */
-          .chair.c4.playing {
-            animation: slideBottom 2s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
-            animation-delay: 3.2s;
-          }
-          @keyframes slideBottom {
-            0% { opacity: 0; transform: translateY(22px); }
-            10% { opacity: 0.5; }
-            92% { opacity: 1; transform: translateY(0); }
-            100% { opacity: 1; transform: translateY(0); }
-          }
-
-          /* Chair 2 (Top-right) — LAST friend finally arrives */
-          .chair.c2.playing {
-            animation: slideTopRight 1.3s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
-            animation-delay: 4.5s;
-          }
-          @keyframes slideTopRight {
-            0% { opacity: 0; transform: translate(20px, -20px); }
-            18% { opacity: 0.75; }
-            85% { opacity: 1; transform: translate(0, 0); }
-            100% { opacity: 1; transform: translate(0, 0); }
-          }
-
-          /* =============================================
-             WARM SUN GLOW — The whole sun radiates
-             Encompasses the entire logo, not just center
-             Slow, deliberate warmth spreading outward
-             ============================================= */
-
-          /* Outer glow — large, encompasses whole logo */
-          .sun-warmth {
-            opacity: 0;
-            transform-origin: center;
-          }
-          .sun-warmth.playing {
-            animation: warmthReveal 4s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
-            animation-delay: 5.8s;
-          }
-          @keyframes warmthReveal {
-            0% { opacity: 0; transform: scale(0.85); }
-            25% { opacity: 0.4; transform: scale(0.95); }
-            50% { opacity: 0.6; transform: scale(1); }
-            75% { opacity: 0.55; transform: scale(1.02); }
-            100% { opacity: 0.5; transform: scale(1.02); }
-          }
-
-          /* Inner warmth layer — adds depth and center brightness */
-          .sun-warmth-inner {
-            opacity: 0;
-            transform-origin: center;
-          }
-          .sun-warmth-inner.playing {
-            animation: innerWarmth 3.5s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
-            animation-delay: 6.2s;
-          }
-          @keyframes innerWarmth {
-            0% { opacity: 0; transform: scale(0.9); }
-            30% { opacity: 0.45; transform: scale(0.98); }
-            60% { opacity: 0.6; transform: scale(1); }
-            100% { opacity: 0.55; transform: scale(1); }
-          }
-
-          /* Whole logo gentle settle — the "everyone's here" moment */
-          .logo-svg.playing {
-            animation: logoSettle 1.2s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
-            animation-delay: 6.5s;
-          }
-          @keyframes logoSettle {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.035); }
-            100% { transform: scale(1); }
-          }
-
-          /* Replay button */
-          .replay-btn {
-            font-family: 'Nunito', sans-serif;
-            font-size: 0.85rem;
-            font-weight: 700;
-            padding: 0.65rem 1.4rem;
-            border-radius: 100px;
-            border: none;
-            background: var(--terracotta);
-            color: white;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            margin-top: 1.5rem;
-          }
-          .replay-btn:hover {
-            background: #A84D2F;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(199, 93, 58, 0.3);
-          }
-        </style>
-
-        <div style="display: flex; gap: 2.5rem; justify-content: center; flex-wrap: wrap;">
-          <!-- Light background -->
-          <div style="background: white; border-radius: 24px; padding: 2.5rem; box-shadow: 0 4px 24px rgba(62,39,28,0.08); display: flex; flex-direction: column; align-items: center;">
-            <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--warm-gray); margin-bottom: 1.25rem; font-weight: 600;">Light</div>
-            <div class="gathering-container">
-              <svg class="logo-svg" width="110" height="110" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" style="overflow: visible;">
-                <defs>
-                  <!-- Outer glow - encompasses entire sun (logo + chairs) -->
-                  <radialGradient id="warmGlow1" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stop-color="#F2C94C" stop-opacity="0.7"/>
-                    <stop offset="35%" stop-color="#F5D76E" stop-opacity="0.45"/>
-                    <stop offset="60%" stop-color="#F5D76E" stop-opacity="0.2"/>
-                    <stop offset="85%" stop-color="#F5D76E" stop-opacity="0.08"/>
-                    <stop offset="100%" stop-color="#F5D76E" stop-opacity="0"/>
-                  </radialGradient>
-                  <!-- Inner warmth - brighter center -->
-                  <radialGradient id="innerGlow1" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stop-color="#FFF4CC" stop-opacity="0.65"/>
-                    <stop offset="40%" stop-color="#F2C94C" stop-opacity="0.4"/>
-                    <stop offset="75%" stop-color="#F2C94C" stop-opacity="0.15"/>
-                    <stop offset="100%" stop-color="#F2C94C" stop-opacity="0"/>
-                  </radialGradient>
-                </defs>
-
-                <!-- Outer warm glow - large enough to wrap around entire logo -->
-                <circle class="sun-warmth" cx="24" cy="24" r="38" fill="url(#warmGlow1)"/>
-                <!-- Inner warmth layer - medium size -->
-                <circle class="sun-warmth-inner" cx="24" cy="24" r="28" fill="url(#innerGlow1)"/>
-
-                <!-- Center table/sun -->
-                <circle class="table-center" cx="24" cy="24" r="14" fill="#F2C94C"/>
-
-                <!-- Six chairs — random order arrival -->
-                <path class="chair c1" d="M19 5 A4 4 0 0 1 29 5 L24 5 Z" fill="#F2C94C"/>
-                <path class="chair c2" d="M38 10 A4 4 0 0 1 43 19 L40 14 Z" fill="#F2C94C"/>
-                <path class="chair c3" d="M43 29 A4 4 0 0 1 38 38 L40 34 Z" fill="#F2C94C"/>
-                <path class="chair c4" d="M29 43 A4 4 0 0 1 19 43 L24 43 Z" fill="#F2C94C"/>
-                <path class="chair c5" d="M10 38 A4 4 0 0 1 5 29 L8 34 Z" fill="#F2C94C"/>
-                <path class="chair c6" d="M5 19 A4 4 0 0 1 10 10 L8 14 Z" fill="#F2C94C"/>
-              </svg>
-            </div>
-          </div>
-
-          <!-- Dark background -->
-          <div style="background: var(--espresso); border-radius: 24px; padding: 2.5rem; box-shadow: 0 4px 24px rgba(0,0,0,0.2); display: flex; flex-direction: column; align-items: center;">
-            <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.12em; color: rgba(250,246,241,0.5); margin-bottom: 1.25rem; font-weight: 600;">Dark</div>
-            <div class="gathering-container">
-              <svg class="logo-svg" width="110" height="110" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" style="overflow: visible;">
-                <defs>
-                  <!-- Outer glow on dark - encompasses entire sun -->
-                  <radialGradient id="warmGlow2" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stop-color="#F5D76E" stop-opacity="0.75"/>
-                    <stop offset="30%" stop-color="#F2C94C" stop-opacity="0.5"/>
-                    <stop offset="55%" stop-color="#E8A832" stop-opacity="0.25"/>
-                    <stop offset="80%" stop-color="#E8A832" stop-opacity="0.1"/>
-                    <stop offset="100%" stop-color="#E8A832" stop-opacity="0"/>
-                  </radialGradient>
-                  <!-- Inner warmth on dark -->
-                  <radialGradient id="innerGlow2" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stop-color="#FFF8E0" stop-opacity="0.7"/>
-                    <stop offset="40%" stop-color="#F5D76E" stop-opacity="0.4"/>
-                    <stop offset="70%" stop-color="#F2C94C" stop-opacity="0.15"/>
-                    <stop offset="100%" stop-color="#F2C94C" stop-opacity="0"/>
-                  </radialGradient>
-                </defs>
-
-                <!-- Warm glow layers - large enough for entire logo -->
-                <circle class="sun-warmth" cx="24" cy="24" r="38" fill="url(#warmGlow2)"/>
-                <circle class="sun-warmth-inner" cx="24" cy="24" r="28" fill="url(#innerGlow2)"/>
-
-                <!-- Center table/sun -->
-                <circle class="table-center" cx="24" cy="24" r="14" fill="#F2C94C"/>
-
-                <!-- Six chairs -->
-                <path class="chair c1" d="M19 5 A4 4 0 0 1 29 5 L24 5 Z" fill="#F2C94C"/>
-                <path class="chair c2" d="M38 10 A4 4 0 0 1 43 19 L40 14 Z" fill="#F2C94C"/>
-                <path class="chair c3" d="M43 29 A4 4 0 0 1 38 38 L40 34 Z" fill="#F2C94C"/>
-                <path class="chair c4" d="M29 43 A4 4 0 0 1 19 43 L24 43 Z" fill="#F2C94C"/>
-                <path class="chair c5" d="M10 38 A4 4 0 0 1 5 29 L8 34 Z" fill="#F2C94C"/>
-                <path class="chair c6" d="M5 19 A4 4 0 0 1 10 10 L8 14 Z" fill="#F2C94C"/>
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        <div style="text-align: center;">
-          <button class="replay-btn" onclick="replayGathering()">Replay Animation</button>
-        </div>
-
-        <script>
-          function replayGathering() {
-            const elements = document.querySelectorAll('.table-center, .chair, .sun-warmth, .sun-warmth-inner, .logo-svg');
-
-            // Remove playing class
-            elements.forEach(el => el.classList.remove('playing'));
-
-            // Force reflow
-            void document.body.offsetWidth;
-
-            // Re-add playing class
-            setTimeout(() => {
-              elements.forEach(el => el.classList.add('playing'));
-            }, 50);
-          }
-
-          // Auto-play on load
-          window.addEventListener('load', () => {
-            setTimeout(replayGathering, 600);
-          });
-        </script>
-
-        <!-- Animation breakdown -->
-        <div style="background: white; border-radius: 16px; padding: 1.5rem; margin-top: 2rem;">
-          <h3 style="font-family: Nunito, sans-serif; font-size: 1rem; color: var(--espresso); margin-bottom: 1rem;">Animation Sequence</h3>
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
-            <div style="background: var(--cream); padding: 1rem; border-radius: 10px;">
-              <div style="font-size: 0.7rem; color: var(--terracotta); font-weight: 700; margin-bottom: 0.5rem;">1. FRIENDS ARRIVE (0s - 1.45s)</div>
-              <p style="font-size: 0.75rem; color: var(--warm-gray); line-height: 1.5;">Random order, varied speeds — one rushes in, another strolls. Like real friends, not synchronized robots.</p>
-            </div>
-            <div style="background: var(--cream); padding: 1rem; border-radius: 10px;">
-              <div style="font-size: 0.7rem; color: var(--terracotta); font-weight: 700; margin-bottom: 0.5rem;">2. TABLE BRIGHTENS (0s - 1.8s)</div>
-              <p style="font-size: 0.75rem; color: var(--warm-gray); line-height: 1.5;">The center starts dim and gradually warms up as friends gather.</p>
-            </div>
-            <div style="background: var(--cream); padding: 1rem; border-radius: 10px;">
-              <div style="font-size: 0.7rem; color: var(--terracotta); font-weight: 700; margin-bottom: 0.5rem;">3. WARM GLOW (1.4s)</div>
-              <p style="font-size: 0.75rem; color: var(--warm-gray); line-height: 1.5;">Soft, natural sunlight radiates outward — not a ring, just gentle warmth spreading.</p>
-            </div>
-            <div style="background: var(--cream); padding: 1rem; border-radius: 10px;">
-              <div style="font-size: 0.7rem; color: var(--terracotta); font-weight: 700; margin-bottom: 0.5rem;">4. SETTLE (1.55s)</div>
-              <p style="font-size: 0.75rem; color: var(--warm-gray); line-height: 1.5;">A gentle pulse — everyone's finally together.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ================================================================
-         FINAL ANIMATION — "THE GATHERING"
-         The approved logo animation with design notes
-         ================================================================ -->
-    <section class="concept-section" style="background: linear-gradient(145deg, #2D1F18 0%, #3E271C 50%, #4A3228 100%); color: white; margin-top: 2rem;">
-      <h2 style="color: #F2C94C; font-size: 1.75rem; margin-bottom: 1rem;">Final Animation: "The Gathering"</h2>
-
-      <div style="color: rgba(255,255,255,0.9); line-height: 1.8; margin-bottom: 2rem;">
-        <p style="font-size: 1.05rem;">Friends arrive at the table one by one, each at their own pace. When everyone's finally seated together, the shape reveals itself as a sun — and warmth radiates outward.</p>
-      </div>
-
-      <!-- Final Demo -->
-      <div style="display: flex; justify-content: center; margin: 2.5rem 0;">
-        <div style="background: rgba(255,255,255,0.08); border-radius: 24px; padding: 3rem; display: flex; flex-direction: column; align-items: center;">
-          <div class="gathering-container">
-            <svg class="logo-svg" width="130" height="130" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" style="overflow: visible;">
-              <defs>
-                <radialGradient id="warmGlowFinal" cx="50%" cy="50%" r="50%">
-                  <stop offset="0%" stop-color="#F5D76E" stop-opacity="0.75"/>
-                  <stop offset="30%" stop-color="#F2C94C" stop-opacity="0.5"/>
-                  <stop offset="55%" stop-color="#E8A832" stop-opacity="0.25"/>
-                  <stop offset="80%" stop-color="#E8A832" stop-opacity="0.1"/>
-                  <stop offset="100%" stop-color="#E8A832" stop-opacity="0"/>
-                </radialGradient>
-                <radialGradient id="innerGlowFinal" cx="50%" cy="50%" r="50%">
-                  <stop offset="0%" stop-color="#FFF8E0" stop-opacity="0.7"/>
-                  <stop offset="40%" stop-color="#F5D76E" stop-opacity="0.4"/>
-                  <stop offset="70%" stop-color="#F2C94C" stop-opacity="0.15"/>
-                  <stop offset="100%" stop-color="#F2C94C" stop-opacity="0"/>
-                </radialGradient>
-              </defs>
-              <circle class="sun-warmth" cx="24" cy="24" r="38" fill="url(#warmGlowFinal)"/>
-              <circle class="sun-warmth-inner" cx="24" cy="24" r="28" fill="url(#innerGlowFinal)"/>
-              <circle class="table-center" cx="24" cy="24" r="14" fill="#F2C94C"/>
-              <path class="chair c1" d="M19 5 A4 4 0 0 1 29 5 L24 5 Z" fill="#F2C94C"/>
-              <path class="chair c2" d="M38 10 A4 4 0 0 1 43 19 L40 14 Z" fill="#F2C94C"/>
-              <path class="chair c3" d="M43 29 A4 4 0 0 1 38 38 L40 34 Z" fill="#F2C94C"/>
-              <path class="chair c4" d="M29 43 A4 4 0 0 1 19 43 L24 43 Z" fill="#F2C94C"/>
-              <path class="chair c5" d="M10 38 A4 4 0 0 1 5 29 L8 34 Z" fill="#F2C94C"/>
-              <path class="chair c6" d="M5 19 A4 4 0 0 1 10 10 L8 14 Z" fill="#F2C94C"/>
-            </svg>
-          </div>
-          <button class="replay-btn" onclick="replayGathering()" style="margin-top: 1.5rem;">Replay Animation</button>
-        </div>
-      </div>
-
-      <!-- Design Process Notes -->
-      <div style="margin-top: 2.5rem;">
-        <h3 style="font-family: Nunito, sans-serif; font-size: 1.1rem; color: #F2C94C; margin-bottom: 1.25rem;">Design Process & Iterations</h3>
-
-        <div style="display: grid; gap: 1rem;">
-          <!-- Iteration 1 -->
-          <div style="background: rgba(255,255,255,0.06); border-radius: 12px; padding: 1.25rem; border-left: 3px solid #F2C94C;">
-            <div style="font-size: 0.7rem; color: #F2C94C; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.5rem;">Iteration 1: Wrong shapes</div>
-            <p style="font-size: 0.85rem; color: rgba(255,255,255,0.75); line-height: 1.6;">Started with solid circles (dots) instead of the actual Kinmo logo. The logo uses arc/semi-circle shapes that represent chairs around a table — these are the key visual elements that needed to animate.</p>
-          </div>
-
-          <!-- Iteration 2 -->
-          <div style="background: rgba(255,255,255,0.06); border-radius: 12px; padding: 1.25rem; border-left: 3px solid #F2C94C;">
-            <div style="font-size: 0.7rem; color: #F2C94C; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.5rem;">Iteration 2: Clockwise was too mechanical</div>
-            <p style="font-size: 0.85rem; color: rgba(255,255,255,0.75); line-height: 1.6;">Chairs arrived in clockwise order, which felt robotic and synchronized. Real friends don't arrive in perfect sequence — we needed randomness to feel natural.</p>
-          </div>
-
-          <!-- Iteration 3 -->
-          <div style="background: rgba(255,255,255,0.06); border-radius: 12px; padding: 1.25rem; border-left: 3px solid #F2C94C;">
-            <div style="font-size: 0.7rem; color: #F2C94C; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.5rem;">Iteration 3: Ring glow was artificial</div>
-            <p style="font-size: 0.85rem; color: rgba(255,255,255,0.75); line-height: 1.6;">Tried expanding ring borders for the sun reveal. Looked like a digital effect, not natural warmth. Switched to radial gradients that fade smoothly — like actual light diffusing.</p>
-          </div>
-
-          <!-- Iteration 4 -->
-          <div style="background: rgba(255,255,255,0.06); border-radius: 12px; padding: 1.25rem; border-left: 3px solid #F2C94C;">
-            <div style="font-size: 0.7rem; color: #F2C94C; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.5rem;">Iteration 4: Too fast</div>
-            <p style="font-size: 0.85rem; color: rgba(255,255,255,0.75); line-height: 1.6;">Animation was ~1.5 seconds total. Chairs felt "flung" into place, not pulled. Slowed everything down so each chair movement feels like someone actually pulling a chair to the table.</p>
-          </div>
-
-          <!-- Iteration 5 -->
-          <div style="background: rgba(255,255,255,0.06); border-radius: 12px; padding: 1.25rem; border-left: 3px solid #F2C94C;">
-            <div style="font-size: 0.7rem; color: #F2C94C; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.5rem;">Iteration 5: Glow from center only</div>
-            <p style="font-size: 0.85rem; color: rgba(255,255,255,0.75); line-height: 1.6;">Glow was localized to the table center. But the metaphor is that the <em>whole completed shape</em> is the sun — table + chairs together. Expanded glow radius to encompass the entire logo.</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Final Specification -->
-      <div style="margin-top: 2.5rem;">
-        <h3 style="font-family: Nunito, sans-serif; font-size: 1.1rem; color: #F2C94C; margin-bottom: 1.25rem;">Final Animation Specification</h3>
-
-        <div style="background: rgba(0,0,0,0.25); border-radius: 16px; padding: 1.5rem; font-family: monospace; font-size: 0.8rem; color: rgba(255,255,255,0.85); line-height: 1.8;">
-          <div style="color: #F2C94C; margin-bottom: 0.75rem;">/* Total duration: ~8 seconds */</div>
-
-          <div style="margin-bottom: 1rem;">
-            <div style="color: rgba(255,255,255,0.5);">// Chair arrivals (random order, varied speeds)</div>
-            <div>Chair 5 (bottom-left): 0.0s start, 1.4s duration</div>
-            <div>Chair 1 (top): 0.8s start, 1.8s duration</div>
-            <div>Chair 3 (bottom-right): 1.6s start, 1.5s duration</div>
-            <div>Chair 6 (top-left): 2.4s start, 1.6s duration</div>
-            <div>Chair 4 (bottom): 3.2s start, 2.0s duration</div>
-            <div>Chair 2 (top-right): 4.5s start, 1.3s duration — last to arrive</div>
-          </div>
-
-          <div style="margin-bottom: 1rem;">
-            <div style="color: rgba(255,255,255,0.5);">// Table brightening</div>
-            <div>0.0s → 5.5s: opacity 0.12 → 1.0, scale 0.94 → 1.0</div>
-          </div>
-
-          <div style="margin-bottom: 1rem;">
-            <div style="color: rgba(255,255,255,0.5);">// Sun glow reveal (whole logo radiates)</div>
-            <div>Outer glow: 5.8s start, 4.0s duration, r=38</div>
-            <div>Inner glow: 6.2s start, 3.5s duration, r=28</div>
-          </div>
-
-          <div>
-            <div style="color: rgba(255,255,255,0.5);">// Settle pulse</div>
-            <div>6.5s start, 1.2s duration, scale 1.0 → 1.035 → 1.0</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- The Metaphor -->
-      <div style="margin-top: 2.5rem; background: linear-gradient(135deg, rgba(242,201,76,0.15), rgba(242,201,76,0.05)); border-radius: 16px; padding: 1.75rem; border: 1px solid rgba(242,201,76,0.2);">
-        <h3 style="font-family: Nunito, sans-serif; font-size: 1.1rem; color: #F2C94C; margin-bottom: 1rem;">The Metaphor</h3>
-        <p style="font-size: 0.95rem; color: rgba(255,255,255,0.9); line-height: 1.8;">
-          The static Kinmo logo is a sun. But when animated, you see the story: <strong>friends gathering at a table</strong>. Each chair slides in at its own pace — one friend arrives early, another strolls in late. The table gradually brightens as the group fills in. When the last friend finally takes their seat, you realize the shape you've been watching form is a sun. And then warmth radiates outward.
-        </p>
-        <p style="font-size: 0.95rem; color: rgba(255,255,255,0.9); line-height: 1.8; margin-top: 1rem;">
-          The sun isn't just a sun — <strong>it's the feeling of everyone finally being together</strong>. Friends gathering creates warmth.
-        </p>
-      </div>
-
-      <!-- Key Design Principles -->
-      <div style="margin-top: 2.5rem;">
-        <h3 style="font-family: Nunito, sans-serif; font-size: 1.1rem; color: #F2C94C; margin-bottom: 1.25rem;">Key Design Principles</h3>
-
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
-          <div style="background: rgba(255,255,255,0.06); border-radius: 12px; padding: 1.25rem;">
-            <div style="font-size: 0.8rem; color: #F2C94C; font-weight: 700; margin-bottom: 0.5rem;">Organic, not mechanical</div>
-            <p style="font-size: 0.8rem; color: rgba(255,255,255,0.7); line-height: 1.5;">Random arrival order. Varied speeds. No two chairs move identically. Like real humans.</p>
-          </div>
-          <div style="background: rgba(255,255,255,0.06); border-radius: 12px; padding: 1.25rem;">
-            <div style="font-size: 0.8rem; color: #F2C94C; font-weight: 700; margin-bottom: 0.5rem;">Weighted movement</div>
-            <p style="font-size: 0.8rem; color: rgba(255,255,255,0.7); line-height: 1.5;">Chairs feel like they have mass. Deliberate, smooth easing — like pulling a real chair across a floor.</p>
-          </div>
-          <div style="background: rgba(255,255,255,0.06); border-radius: 12px; padding: 1.25rem;">
-            <div style="font-size: 0.8rem; color: #F2C94C; font-weight: 700; margin-bottom: 0.5rem;">Natural warmth</div>
-            <p style="font-size: 0.8rem; color: rgba(255,255,255,0.7); line-height: 1.5;">Radial gradient glow, not hard-edged rings. Fades smoothly like actual light. The whole sun glows, not just the center.</p>
-          </div>
-          <div style="background: rgba(255,255,255,0.06); border-radius: 12px; padding: 1.25rem;">
-            <div style="font-size: 0.8rem; color: #F2C94C; font-weight: 700; margin-bottom: 0.5rem;">Patience</div>
-            <p style="font-size: 0.8rem; color: rgba(255,255,255,0.7); line-height: 1.5;">~8 seconds is long for a logo animation. But the story needs time to breathe. Rushing undermines the metaphor.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-  </div>
+    </div>
+  </section>
+
+  <script>
+    // Start animation on page load
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        document.querySelectorAll('.table-center, .chair, .sun-warmth, .sun-warmth-inner, .logo-svg').forEach(el => {
+          el.classList.add('playing');
+        });
+      }, 500);
+    });
+
+    // Replay button
+    function replayGathering() {
+      const elements = document.querySelectorAll('.table-center, .chair, .sun-warmth, .sun-warmth-inner, .logo-svg');
+      elements.forEach(el => el.classList.remove('playing'));
+
+      // Force reflow
+      void document.body.offsetWidth;
+
+      setTimeout(() => {
+        elements.forEach(el => el.classList.add('playing'));
+      }, 100);
+    }
+  </script>
 
 </body>
 </html>
