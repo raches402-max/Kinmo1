@@ -2083,6 +2083,13 @@ export default function Dashboard() {
         onOpenChange={setShowStandaloneEventModal}
       />
 
+      {/* Claim Memberships Modal */}
+      <ClaimMembershipsModal
+        open={showClaimModal}
+        onOpenChange={setShowClaimModal}
+        groups={discoverableMemberships?.groups ?? []}
+      />
+
       {/* Test Account Switcher Dialog */}
       <Dialog open={showTestAccountDialog} onOpenChange={setShowTestAccountDialog}>
         <DialogContent className="max-w-md">
