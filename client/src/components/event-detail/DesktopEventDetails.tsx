@@ -328,9 +328,12 @@ export function DesktopEventDetails({
       });
     }
 
-    // Add members
+    // Add members (skip organizer if already added above)
     const members = (event.members?.length > 0 ? event.members : itineraryDetails?.members) || [];
     members.forEach((member: any) => {
+      // Skip if this is the organizer (already added above)
+      if (member.isOrganizer) return;
+
       const rsvp = event.detailedRsvps?.find((r: any) =>
         r.memberId === member.id ||
         r.name === (member.name || `${member.firstName || ""} ${member.lastName || ""}`.trim())
