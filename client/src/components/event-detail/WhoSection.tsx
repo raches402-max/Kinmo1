@@ -19,7 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { EventAccordionSection } from "./EventAccordionSection";
-import type { EventAttendee, RsvpStatus, RsvpCounts } from "./types";
+import type { EventAttendee, RsvpStatus, RsvpCounts, HeadcountSummary } from "./types";
 
 interface AttendeeRowProps {
   attendee: EventAttendee;
@@ -85,6 +85,24 @@ function AttendeeRow({
               {attendee.email && (
                 <div className="text-2xs text-muted-foreground">{attendee.email}</div>
               )}
+              {/* Companion info - only show for confirmed attendees with +1s or kids */}
+              {attendee.response === "yes" && (
+                (attendee.additionalAttendees && attendee.additionalAttendees.length > 0) ||
+                (attendee.numberOfKids && attendee.numberOfKids > 0)
+              ) && (
+                <div className="text-2xs text-muted-foreground/80 mt-0.5">
+                  Bringing: {[
+                    attendee.additionalAttendees && attendee.additionalAttendees.length > 0
+                      ? attendee.additionalAttendees[0].name
+                        ? `${attendee.additionalAttendees[0].name} (+1)`
+                        : '+1 guest'
+                      : null,
+                    attendee.numberOfKids && attendee.numberOfKids > 0
+                      ? `${attendee.numberOfKids} kid${attendee.numberOfKids !== 1 ? 's' : ''}`
+                      : null
+                  ].filter(Boolean).join(', ')}
+                </div>
+              )}
             </div>
           </div>
           <ChevronDown
@@ -116,6 +134,24 @@ function AttendeeRow({
                 </span>
               )}
             </div>
+            {/* Companion info - only show for confirmed attendees with +1s or kids */}
+            {attendee.response === "yes" && (
+              (attendee.additionalAttendees && attendee.additionalAttendees.length > 0) ||
+              (attendee.numberOfKids && attendee.numberOfKids > 0)
+            ) && (
+              <div className="text-2xs text-muted-foreground/80 mt-0.5">
+                Bringing: {[
+                  attendee.additionalAttendees && attendee.additionalAttendees.length > 0
+                    ? attendee.additionalAttendees[0].name
+                      ? `${attendee.additionalAttendees[0].name} (+1)`
+                      : '+1 guest'
+                    : null,
+                  attendee.numberOfKids && attendee.numberOfKids > 0
+                    ? `${attendee.numberOfKids} kid${attendee.numberOfKids !== 1 ? 's' : ''}`
+                    : null
+                ].filter(Boolean).join(', ')}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -210,6 +246,7 @@ interface WhoSectionProps {
   onUpdateQuorum?: (threshold: number) => void;
   onEditGuestName?: (attendee: EventAttendee) => void;
   onShareInvite?: () => void;
+  headcountSummary?: HeadcountSummary;
 }
 
 export function WhoSection({
@@ -230,6 +267,7 @@ export function WhoSection({
   onUpdateQuorum,
   onEditGuestName,
   onShareInvite,
+  headcountSummary,
 }: WhoSectionProps) {
   const [isEditingQuorum, setIsEditingQuorum] = useState(false);
   const [localQuorum, setLocalQuorum] = useState(quorumThreshold);
@@ -293,6 +331,29 @@ export function WhoSection({
               </div>
             )}
           </div>
+
+          {/* Headcount Summary - only show if there are companions */}
+          {headcountSummary?.hasCompanions && rsvpCounts.yes > 0 && (
+            <div className="flex items-center gap-2 text-xs px-2 py-1.5 bg-muted/30 rounded-md">
+              <span>
+                <span className="font-semibold">{headcountSummary.totalAdults}</span>
+                {' '}adult{headcountSummary.totalAdults !== 1 ? 's' : ''}
+              </span>
+              {headcountSummary.totalKids > 0 && (
+                <>
+                  <span className="text-muted-foreground/50">·</span>
+                  <span>
+                    <span className="font-semibold">{headcountSummary.totalKids}</span>
+                    {' '}kid{headcountSummary.totalKids !== 1 ? 's' : ''}
+                  </span>
+                </>
+              )}
+              <span className="text-muted-foreground/50">·</span>
+              <span className="font-medium text-primary">
+                {headcountSummary.grandTotal} total
+              </span>
+            </div>
+          )}
 
           {/* Quorum indicator */}
           <div className="flex items-center gap-2">

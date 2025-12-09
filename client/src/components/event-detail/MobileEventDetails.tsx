@@ -42,7 +42,7 @@ import { WhenSection } from "./WhenSection";
 import { WhereSection } from "./WhereTimeline";
 import { WhoSection } from "./WhoSection";
 import { PendingRsvpPrompt } from "./PendingRsvpPrompt";
-import type { EventData, EventAttendee, EventStatus, RsvpStatus, RsvpCounts, EventVenue } from "./types";
+import type { EventData, EventAttendee, EventStatus, RsvpStatus, RsvpCounts, EventVenue, HeadcountSummary } from "./types";
 
 interface MobileEventDetailsProps {
   event: EventData;
@@ -313,6 +313,8 @@ export function MobileEventDetails({
         isOrganizer: member.isOrganizer || false,
         isHost: member.isOrganizer || member.id === event.hostMemberId,
         memberId: member.isOrganizer ? undefined : member.id,
+        additionalAttendees: rsvp?.additionalAttendees || [],
+        numberOfKids: rsvp?.numberOfKids || 0,
       });
     });
 
@@ -350,6 +352,33 @@ export function MobileEventDetails({
       },
       { yes: 0, maybe: 0, pending: 0, no: 0 } as RsvpCounts
     );
+  }, [attendees]);
+
+  // Headcount summary (includes +1s and kids)
+  const headcountSummary: HeadcountSummary = useMemo(() => {
+    const goingAttendees = attendees.filter(a => a.response === "yes");
+    let totalAdults = 0;
+    let totalKids = 0;
+
+    goingAttendees.forEach(attendee => {
+      // Count the member themselves
+      totalAdults += 1;
+      // Count their +1s
+      if (attendee.additionalAttendees && attendee.additionalAttendees.length > 0) {
+        totalAdults += attendee.additionalAttendees.length;
+      }
+      // Count kids
+      if (attendee.numberOfKids && attendee.numberOfKids > 0) {
+        totalKids += attendee.numberOfKids;
+      }
+    });
+
+    return {
+      totalAdults,
+      totalKids,
+      grandTotal: totalAdults + totalKids,
+      hasCompanions: totalAdults > goingAttendees.length || totalKids > 0,
+    };
   }, [attendees]);
 
   // Build timeline info for tooltip
@@ -663,6 +692,7 @@ export function MobileEventDetails({
             }
           }}
           onShareInvite={eventStatus !== "draft" ? onShare : undefined}
+          headcountSummary={headcountSummary}
         />
 
         {/* Event Note/Description - at the bottom */}

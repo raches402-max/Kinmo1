@@ -3,6 +3,12 @@
 export type EventStatus = "draft" | "sent" | "finalized";
 export type RsvpStatus = "yes" | "maybe" | "no" | "pending";
 
+export interface AdditionalAttendeeInfo {
+  type: 'member' | 'guest';
+  memberId?: string;
+  name: string;
+}
+
 export interface EventVenue {
   id: string;
   sourceId?: string;
@@ -28,9 +34,16 @@ export interface EventAttendee {
   isGuest: boolean;
   isHost?: boolean;
   isOrganizer?: boolean;
-  additionalAttendees?: number;
+  additionalAttendees?: AdditionalAttendeeInfo[];
   numberOfKids?: number;
   memberId?: string;
+}
+
+export interface HeadcountSummary {
+  totalAdults: number;
+  totalKids: number;
+  grandTotal: number;
+  hasCompanions: boolean;
 }
 
 export interface AutoScheduleConfig {

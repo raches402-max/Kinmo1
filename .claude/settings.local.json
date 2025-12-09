@@ -189,7 +189,8 @@
       "Bash(nslookup:*)",
       "Bash(host:*)",
       "WebFetch(domain:dns.google)",
-      "Bash(timeout 20 npx tsc:*)"
+      "Bash(timeout 20 npx tsc:*)",
+      "Bash(git reset:*)"
     ],
     "deny": [],
     "ask": []

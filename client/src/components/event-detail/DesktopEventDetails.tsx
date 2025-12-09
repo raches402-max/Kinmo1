@@ -85,6 +85,7 @@ import {
 import { Header } from "@/components/Header";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { RefinedCard, RefinedSectionHeader, RefinedActionButton, RefinedVenueCard, RefinedAttendeeCard } from "./RefinedCard";
+import type { AdditionalAttendeeInfo, HeadcountSummary } from "./types";
 
 type RsvpStatus = "yes" | "maybe" | "pending" | "no";
 
@@ -339,6 +340,8 @@ export function DesktopEventDetails({
       isGuest: boolean;
       isOrganizer?: boolean;
       isHost?: boolean;
+      additionalAttendees?: AdditionalAttendeeInfo[];
+      numberOfKids?: number;
     }> = [];
 
     // Add organizer first
@@ -348,6 +351,11 @@ export function DesktopEventDetails({
         user.email || "You";
       const initials = organizerName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
 
+      // Find organizer's RSVP to get +1/kids data
+      const organizerRsvp = event.detailedRsvps?.find((r: any) =>
+        r.name === organizerName || r.name === organizerName.replace(" (You)", "")
+      );
+
       result.push({
         id: "organizer",
         name: `${organizerName} (You)`,
@@ -356,6 +364,8 @@ export function DesktopEventDetails({
         isGuest: false,
         isOrganizer: true,
         isHost: true,
+        additionalAttendees: organizerRsvp?.additionalAttendees || [],
+        numberOfKids: organizerRsvp?.numberOfKids || 0,
       });
     }
 
@@ -381,6 +391,8 @@ export function DesktopEventDetails({
         response: memberResponse as RsvpStatus,
         isGuest: false,
         isHost: member.id === event.hostMemberId,
+        additionalAttendees: rsvp?.additionalAttendees || [],
+        numberOfKids: rsvp?.numberOfKids || 0,
       });
     });
 
@@ -412,6 +424,33 @@ export function DesktopEventDetails({
     pending: attendees.filter(a => a.response === "pending").length,
     no: attendees.filter(a => a.response === "no").length,
   }), [attendees]);
+
+  // Headcount summary (includes +1s and kids)
+  const headcountSummary = useMemo((): HeadcountSummary => {
+    const goingAttendees = attendees.filter(a => a.response === "yes");
+    let totalAdults = 0;
+    let totalKids = 0;
+
+    goingAttendees.forEach(attendee => {
+      // Count the member themselves
+      totalAdults += 1;
+      // Count their +1s
+      if (attendee.additionalAttendees && attendee.additionalAttendees.length > 0) {
+        totalAdults += attendee.additionalAttendees.length;
+      }
+      // Count kids
+      if (attendee.numberOfKids && attendee.numberOfKids > 0) {
+        totalKids += attendee.numberOfKids;
+      }
+    });
+
+    return {
+      totalAdults,
+      totalKids,
+      grandTotal: totalAdults + totalKids,
+      hasCompanions: totalAdults > goingAttendees.length || totalKids > 0,
+    };
+  }, [attendees]);
 
   const rsvpLabels: Record<RsvpStatus, string> = {
     yes: "Going",
@@ -845,6 +884,29 @@ export function DesktopEventDetails({
                   )}
                 </div>
 
+                {/* Headcount Summary Strip - only show if there are companions */}
+                {headcountSummary.hasCompanions && rsvpSummary.yes > 0 && (
+                  <div className="flex items-center gap-3 px-3 py-2 bg-[hsl(35,40%,96%)] rounded-lg border border-[hsl(32,20%,90%)]">
+                    <span className="text-sm text-[hsl(25,15%,45%)]">
+                      <span className="font-semibold text-[hsl(25,30%,25%)]">{headcountSummary.totalAdults}</span>
+                      {' '}adult{headcountSummary.totalAdults !== 1 ? 's' : ''}
+                    </span>
+                    {headcountSummary.totalKids > 0 && (
+                      <>
+                        <span className="text-[hsl(25,15%,65%)]">·</span>
+                        <span className="text-sm text-[hsl(25,15%,45%)]">
+                          <span className="font-semibold text-[hsl(25,30%,25%)]">{headcountSummary.totalKids}</span>
+                          {' '}kid{headcountSummary.totalKids !== 1 ? 's' : ''}
+                        </span>
+                      </>
+                    )}
+                    <span className="text-[hsl(25,15%,65%)]">·</span>
+                    <span className="text-sm font-medium text-[hsl(44,70%,35%)]">
+                      {headcountSummary.grandTotal} total
+                    </span>
+                  </div>
+                )}
+
                 {/* Attendee List */}
                 <div className="space-y-2">
                   {attendees.map((attendee) => (
@@ -903,6 +965,25 @@ export function DesktopEventDetails({
                         >
                           {rsvpLabels[attendee.response]}
                         </span>
+
+                        {/* Companion info - only show for confirmed attendees with +1s or kids */}
+                        {attendee.response === "yes" && (
+                          (attendee.additionalAttendees && attendee.additionalAttendees.length > 0) ||
+                          (attendee.numberOfKids && attendee.numberOfKids > 0)
+                        ) && (
+                          <div className="text-xs text-[hsl(25,15%,55%)] mt-0.5">
+                            Bringing: {[
+                              attendee.additionalAttendees && attendee.additionalAttendees.length > 0
+                                ? attendee.additionalAttendees[0].name
+                                  ? `${attendee.additionalAttendees[0].name} (+1)`
+                                  : '+1 guest'
+                                : null,
+                              attendee.numberOfKids && attendee.numberOfKids > 0
+                                ? `${attendee.numberOfKids} kid${attendee.numberOfKids !== 1 ? 's' : ''}`
+                                : null
+                            ].filter(Boolean).join(', ')}
+                          </div>
+                        )}
                       </div>
 
                       {/* RSVP Status Icon */}
