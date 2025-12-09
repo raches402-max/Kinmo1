@@ -107,6 +107,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { AvailabilityGrid } from "@/components/AvailabilityGrid";
+import { PostEventFeedbackDialog } from "@/components/PostEventFeedbackDialog";
 import { cn, formatDateTimeWithTimezone } from "@/lib/utils";
 
 interface SortableVenueCardProps {
@@ -360,6 +361,7 @@ export default function EventDetailsPage() {
   const [mobileDatePickerDate, setMobileDatePickerDate] = useState<Date | null>(null);
   const [showAddInviteeDialog, setShowAddInviteeDialog] = useState(false);
   const [newInviteeName, setNewInviteeName] = useState("");
+  const [showPostEventFeedback, setShowPostEventFeedback] = useState(false);
 
   // RSVP feedback modal state (desktop only)
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
@@ -1073,8 +1075,18 @@ export default function EventDetailsPage() {
   // Current user's RSVP for mobile view
   const currentUserRsvp = rsvpResponse as 'yes' | 'maybe' | 'no' | 'pending' | undefined;
 
-  // Share event functionality
+  // Check if event is in the past (for showing feedback dialog)
+  const isEventPast = event?.eventDate && new Date(event.eventDate) < new Date();
+
+  // Share event functionality - shows feedback dialog for past events
   const handleShare = async () => {
+    // For past events, show the feedback dialog instead of sharing
+    if (isEventPast) {
+      setShowPostEventFeedback(true);
+      return;
+    }
+
+    // For upcoming events, share the link
     const link = `${window.location.origin}/event/${event.itineraryId}`;
     if (navigator.share) {
       try {
@@ -1488,6 +1500,19 @@ export default function EventDetailsPage() {
             </DrawerFooter>
           </DrawerContent>
         </Drawer>
+
+        {/* Post-Event Feedback Dialog */}
+        <PostEventFeedbackDialog
+          open={showPostEventFeedback}
+          onOpenChange={setShowPostEventFeedback}
+          event={event ? {
+            itineraryId: event.itineraryId,
+            itineraryName: event.itineraryName,
+            groupName: event.groupName || undefined,
+            eventDate: event.eventDate,
+            venueName: event.items?.[0]?.venueName,
+          } : null}
+        />
       </>
     );
   }
@@ -1688,6 +1713,19 @@ export default function EventDetailsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Post-Event Feedback Dialog (desktop) */}
+      <PostEventFeedbackDialog
+        open={showPostEventFeedback}
+        onOpenChange={setShowPostEventFeedback}
+        event={event ? {
+          itineraryId: event.itineraryId,
+          itineraryName: event.itineraryName,
+          groupName: event.groupName || undefined,
+          eventDate: event.eventDate,
+          venueName: event.items?.[0]?.venueName,
+        } : null}
+      />
     </>
   );
 }
