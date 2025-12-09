@@ -34,7 +34,7 @@ import { analyzeEventAvailability, analyzeGroupTimePatterns } from "./availabili
 import { generateGroupInsights, saveGroupInsights, dismissInsight, editInsightSuggestion } from "./group-insights";
 import { triggerInsightUpdate, triggerInsightUpdateDebounced } from "./insight-triggers";
 import { db } from "./db";
-import { eq, sql, and, or, gte, desc, isNotNull, isNull, inArray } from "drizzle-orm";
+import { eq, sql, and, or, gte, desc, isNotNull, isNull } from "drizzle-orm";
 import { format } from 'date-fns';
 import pLimit from 'p-limit';
 import { validate, safeParse } from './validation-middleware';
@@ -2312,84 +2312,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         name: error.name,
         userId: req.user?.id
       });
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  // Get discoverable memberships (Tier 2: email match but not explicitly invited)
-  // These require user confirmation before claiming
-  app.get("/api/user/discoverable-memberships", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = await getUserId(req);
-      const user = await storage.getUser(userId);
-
-      if (!user?.email) {
-        return res.json({ groups: [], standaloneEvents: [] });
-      }
-
-      // Find Tier 2 group memberships (email match, NOT invited)
-      const discoverableGroups = await db
-        .select({
-          memberId: membersTable.id,
-          memberName: membersTable.name,
-          groupId: groupsTable.id,
-          groupName: groupsTable.name,
-          groupEmoji: groupsTable.emoji,
-          createdAt: membersTable.createdAt,
-        })
-        .from(membersTable)
-        .innerJoin(groupsTable, eq(membersTable.groupId, groupsTable.id))
-        .where(and(
-          eq(membersTable.email, user.email),
-          isNull(membersTable.userId),
-          eq(membersTable.invitationSent, false), // Tier 2: not invited
-          isNull(groupsTable.deletedAt) // Exclude soft-deleted groups
-        ));
-
-      res.json({
-        groups: discoverableGroups,
-        standaloneEvents: [] // Standalone events are auto-linked in getUserGroups
-      });
-    } catch (error: any) {
-      console.error('[Discoverable Memberships] Error:', error);
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  // Bulk claim memberships (for Tier 2 claims after user confirmation)
-  app.post("/api/user/claim-memberships", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = await getUserId(req);
-      const { memberIds } = req.body;
-
-      if (!Array.isArray(memberIds) || memberIds.length === 0) {
-        return res.status(400).json({ message: "No memberships to claim" });
-      }
-
-      const user = await storage.getUser(userId);
-      if (!user?.email) {
-        return res.status(400).json({ message: "User email required to claim memberships" });
-      }
-
-      // Verify all members match user's email and are unclaimed
-      const claimed = await db
-        .update(membersTable)
-        .set({ userId, hasJoined: true, claimedAt: new Date() })
-        .where(and(
-          inArray(membersTable.id, memberIds),
-          eq(membersTable.email, user.email),
-          isNull(membersTable.userId)
-        ))
-        .returning();
-
-      console.log(`[Claim Memberships] User ${userId} claimed ${claimed.length} memberships`);
-
-      res.json({
-        claimed: claimed.length,
-        message: `Claimed ${claimed.length} membership(s)`
-      });
-    } catch (error: any) {
-      console.error('[Claim Memberships] Error:', error);
       res.status(500).json({ message: error.message });
     }
   });
