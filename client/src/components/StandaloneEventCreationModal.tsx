@@ -69,21 +69,80 @@ export function StandaloneEventCreationModal({
 
       return event;
     },
+    onMutate: async () => {
+      // Cancel any outgoing refetches so they don't overwrite our optimistic update
+      await queryClient.cancelQueries({ queryKey: ["/api/standalone-events"] });
+
+      // Snapshot the previous value for rollback
+      const previousEvents = queryClient.getQueryData(["/api/standalone-events"]);
+
+      // Optimistically add the new event to the cache
+      const optimisticEvent = {
+        id: `temp-${Date.now()}`,
+        name: eventName,
+        eventDate: eventDate ? new Date(eventDate).toISOString() : null,
+        status: "draft",
+        isStandalone: true,
+        groupId: null,
+        organizerId: null,
+        isSaved: false,
+        isPrimary: false,
+        backupForItineraryId: null,
+        aiValidationNotes: null,
+        timingRecommendations: null,
+        proposedOrder: [],
+        inviteSentAt: null,
+        rsvpDeadline: null,
+        autoScheduleConfig: null,
+        rescheduleAttempts: 0,
+        hostMemberId: null,
+        createdBy: "",
+        createdAt: new Date().toISOString(),
+        items: [],
+        invitees: selectedContacts.map((c) => ({
+          id: `temp-${c.id}`,
+          itineraryId: `temp-${Date.now()}`,
+          memberId: c.memberId,
+          userId: c.userId,
+          sourceGroupId: c.sourceGroupId,
+          inviteeName: c.name,
+          inviteeEmail: c.email,
+          inviteToken: null,
+          inviteSentAt: null,
+          rsvpStatus: null,
+          createdAt: new Date().toISOString(),
+        })),
+      };
+
+      queryClient.setQueryData(
+        ["/api/standalone-events"],
+        (old: unknown[] = []) => [optimisticEvent, ...old]
+      );
+
+      return { previousEvents };
+    },
     onSuccess: () => {
       toast({
         title: "Event created!",
         description: `"${eventName}" has been created with ${selectedContacts.length} invitees.`,
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/standalone-events"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
       resetAndClose();
     },
-    onError: (error: Error) => {
+    onError: (error: Error, _variables, context) => {
+      // Rollback to previous state on error
+      if (context?.previousEvents) {
+        queryClient.setQueryData(["/api/standalone-events"], context.previousEvents);
+      }
       toast({
         title: "Error creating event",
         description: error.message,
         variant: "destructive",
       });
+    },
+    onSettled: () => {
+      // Always refetch to sync with server (replaces optimistic data with real data)
+      queryClient.invalidateQueries({ queryKey: ["/api/standalone-events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
     },
   });
 

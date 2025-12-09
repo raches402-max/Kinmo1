@@ -98,6 +98,15 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { AvailabilityGrid } from "@/components/AvailabilityGrid";
 import { cn, formatDateTimeWithTimezone } from "@/lib/utils";
 
 interface SortableVenueCardProps {
@@ -352,6 +361,12 @@ export default function EventDetailsPage() {
   const [showAddInviteeDialog, setShowAddInviteeDialog] = useState(false);
   const [newInviteeName, setNewInviteeName] = useState("");
 
+  // RSVP feedback modal state (desktop only)
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [pendingRsvpResponse, setPendingRsvpResponse] = useState<'maybe' | 'no' | null>(null);
+  const [feedbackAvailability, setFeedbackAvailability] = useState<Record<string, { morning: boolean; afternoon: boolean; evening: boolean }>>({});
+  const [freeformFeedback, setFreeformFeedback] = useState('');
+
   // Drag-and-drop sensors
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -431,13 +446,14 @@ export default function EventDetailsPage() {
   });
 
   const organizerRsvpMutation = useMutation({
-    mutationFn: async (response: 'yes' | 'maybe' | 'no') => {
+    mutationFn: async ({ response, rsvpFeedback }: { response: 'yes' | 'maybe' | 'no'; rsvpFeedback?: any }) => {
       const result = await apiRequest("POST", `/api/itineraries/${eventId}/organizer-rsvp`, {
         response,
+        rsvpFeedback,
       });
       return result;
     },
-    onMutate: async (newResponse) => {
+    onMutate: async ({ response: newResponse }) => {
       // Cancel outgoing refetches
       await queryClient.cancelQueries({ queryKey: ["/api/user/events"] });
 
@@ -715,20 +731,15 @@ export default function EventDetailsPage() {
   });
 
   const updateMemberRsvpMutation = useMutation({
-    mutationFn: async ({ memberId, response }: { memberId: string; response: 'yes' | 'maybe' | 'no' }) => {
-      // Find the RSVP for this member
-      const rsvp = event?.detailedRsvps?.find((r: any) => r.memberId === memberId);
-
-      if (rsvp?.rsvpId) {
-        // Update existing RSVP
-        return apiRequest("PATCH", `/api/rsvps/${rsvp.rsvpId}`, { response });
-      } else {
-        // Create new RSVP
-        return apiRequest("POST", `/api/itineraries/${eventId}/rsvps`, {
-          memberId,
-          response,
-        });
-      }
+    mutationFn: async ({ memberId, response, rsvpFeedback }: { memberId: string; response: 'yes' | 'maybe' | 'no'; rsvpFeedback?: any }) => {
+      // Use the /api/itineraries/:id/rsvp endpoint which supports rsvpFeedback
+      // This endpoint handles both create and update automatically
+      const responseValue = response === 'no' ? 'not_going' : response === 'yes' ? 'going' : 'maybe';
+      return apiRequest("POST", `/api/itineraries/${eventId}/rsvp`, {
+        memberId,
+        response: responseValue,
+        rsvpFeedback,
+      });
     },
     onMutate: async ({ memberId, response }) => {
       // Cancel outgoing refetches
@@ -1061,6 +1072,41 @@ export default function EventDetailsPage() {
     }
   };
 
+  // RSVP feedback modal submit handlers (desktop only)
+  const handleSubmitWithFeedback = () => {
+    const feedback: any = {};
+    const hasAvailability = Object.values(feedbackAvailability).some(
+      day => day.morning || day.afternoon || day.evening
+    );
+    if (hasAvailability) feedback.availability = feedbackAvailability;
+    if (freeformFeedback.trim()) feedback.freeformFeedback = freeformFeedback.trim();
+
+    const rsvpFeedback = Object.keys(feedback).length > 0 ? feedback : undefined;
+
+    if (isOrganizer) {
+      organizerRsvpMutation.mutate({ response: pendingRsvpResponse!, rsvpFeedback });
+    } else if (event?.currentUserMemberId) {
+      updateMemberRsvpMutation.mutate({
+        memberId: event.currentUserMemberId,
+        response: pendingRsvpResponse!,
+        rsvpFeedback
+      });
+    }
+    setShowFeedbackModal(false);
+  };
+
+  const handleSubmitWithoutFeedback = () => {
+    if (isOrganizer) {
+      organizerRsvpMutation.mutate({ response: pendingRsvpResponse! });
+    } else if (event?.currentUserMemberId) {
+      updateMemberRsvpMutation.mutate({
+        memberId: event.currentUserMemberId,
+        response: pendingRsvpResponse!
+      });
+    }
+    setShowFeedbackModal(false);
+  };
+
   // Mobile view - render MobileEventDetails component
   if (isMobile) {
     return (
@@ -1096,8 +1142,9 @@ export default function EventDetailsPage() {
           isOrganizer={isOrganizer}
           currentUserRsvp={currentUserRsvp}
           onChangeMyRsvp={(response) => {
+            // Mobile: submit immediately without feedback modal
             if (isOrganizer) {
-              organizerRsvpMutation.mutate(response as 'yes' | 'maybe' | 'no');
+              organizerRsvpMutation.mutate({ response: response as 'yes' | 'maybe' | 'no' });
             } else if (event.currentUserMemberId) {
               updateMemberRsvpMutation.mutate({
                 memberId: event.currentUserMemberId,
@@ -1428,8 +1475,28 @@ export default function EventDetailsPage() {
         rsvpResponse={rsvpResponse as 'yes' | 'maybe' | 'pending' | 'no' | undefined}
         guestInvites={guestInvites}
         isLoadingGuests={isLoadingGuests}
-        onOrganizerRsvp={(response) => organizerRsvpMutation.mutate(response)}
-        onUpdateMemberRsvp={(memberId, response) => updateMemberRsvpMutation.mutate({ memberId, response })}
+        onOrganizerRsvp={(response) => {
+          if (response === 'yes') {
+            organizerRsvpMutation.mutate({ response: 'yes' });
+          } else {
+            // Show feedback modal for maybe/no
+            setPendingRsvpResponse(response);
+            setFeedbackAvailability({});
+            setFreeformFeedback('');
+            setShowFeedbackModal(true);
+          }
+        }}
+        onUpdateMemberRsvp={(memberId, response) => {
+          if (response === 'yes') {
+            updateMemberRsvpMutation.mutate({ memberId, response: 'yes' });
+          } else {
+            // Show feedback modal for maybe/no
+            setPendingRsvpResponse(response);
+            setFeedbackAvailability({});
+            setFreeformFeedback('');
+            setShowFeedbackModal(true);
+          }
+        }}
         onUpdateEventDate={(date) => updateEventDateMutation.mutate(date)}
         onCopyInviteLink={copyInviteLink}
         onCopyGuestLink={copyGuestLink}
@@ -1545,6 +1612,53 @@ export default function EventDetailsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* RSVP Feedback Modal (desktop only) */}
+      <Dialog open={showFeedbackModal} onOpenChange={setShowFeedbackModal}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>What time works better?</DialogTitle>
+            <DialogDescription>
+              This helps us plan future events. Totally optional!
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <AvailabilityGrid
+              value={feedbackAvailability}
+              onChange={setFeedbackAvailability}
+            />
+
+            <div className="space-y-2">
+              <Label htmlFor="feedback-notes">Any other thoughts? (optional)</Label>
+              <Textarea
+                id="feedback-notes"
+                value={freeformFeedback}
+                onChange={(e) => setFreeformFeedback(e.target.value)}
+                placeholder="e.g., I'm usually free weekday evenings..."
+                className="resize-none"
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="ghost"
+              onClick={handleSubmitWithoutFeedback}
+              disabled={organizerRsvpMutation.isPending || updateMemberRsvpMutation.isPending}
+            >
+              Skip
+            </Button>
+            <Button
+              onClick={handleSubmitWithFeedback}
+              disabled={organizerRsvpMutation.isPending || updateMemberRsvpMutation.isPending}
+            >
+              {organizerRsvpMutation.isPending || updateMemberRsvpMutation.isPending ? "Submitting..." : "Submit"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
