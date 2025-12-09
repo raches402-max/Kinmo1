@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CrossGroupContactPicker } from "@/components/CrossGroupContactPicker";
-import { Calendar, Users, ArrowLeft, ArrowRight, Loader2, PartyPopper } from "lucide-react";
+import { Calendar, Users, ArrowLeft, ArrowRight, Loader2, PartyPopper, Clock } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -157,6 +157,9 @@ export function StandaloneEventCreationModal({
   const canProceedFromDetails = eventName.trim().length > 0;
   const canCreate = eventName.trim().length > 0;
 
+  // Check if selected date is in the past
+  const isPastDate = eventDate ? new Date(eventDate) < new Date() : false;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
@@ -194,9 +197,16 @@ export function StandaloneEventCreationModal({
                 value={eventDate}
                 onChange={(e) => setEventDate(e.target.value)}
               />
-              <p className="text-xs text-muted-foreground">
-                You can set the date later
-              </p>
+              {isPastDate ? (
+                <p className="text-xs text-amber-600 dark:text-amber-500 flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  This date is in the past - great for logging past events
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  You can set the date later
+                </p>
+              )}
             </div>
           </div>
         )}
@@ -237,6 +247,12 @@ export function StandaloneEventCreationModal({
                       })
                     : "Not set yet"}
                 </p>
+                {isPastDate && (
+                  <p className="text-xs text-amber-600 dark:text-amber-500 flex items-center gap-1 mt-1">
+                    <Clock className="h-3 w-3" />
+                    Past event - will appear in your history
+                  </p>
+                )}
               </div>
 
               <div>
