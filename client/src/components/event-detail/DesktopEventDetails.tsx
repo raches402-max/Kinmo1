@@ -84,6 +84,8 @@ interface DesktopEventDetailsProps {
   onCopyInviteLink: () => void;
   onCopyGuestLink: (guestToken: string, guestName: string) => void;
   onAddGuest: (name: string) => void;
+  onUpdateGuest: (guestId: string, guestName: string) => void;
+  onDeleteGuest: (guestId: string) => void;
   onRemoveInvite: (memberId: string) => void;
   onVolunteerToHost: () => void;
   onHandOffHost: (memberId: string) => void;
@@ -99,6 +101,8 @@ interface DesktopEventDetailsProps {
     updateMemberRsvp: boolean;
     updateEventDate: boolean;
     addGuest: boolean;
+    updateGuest: boolean;
+    deleteGuest: boolean;
     volunteerToHost: boolean;
     handOffHost: boolean;
     sendToGroup: boolean;
@@ -243,6 +247,8 @@ export function DesktopEventDetails({
   onCopyInviteLink,
   onCopyGuestLink,
   onAddGuest,
+  onUpdateGuest,
+  onDeleteGuest,
   onRemoveInvite,
   onVolunteerToHost,
   onHandOffHost,
@@ -258,6 +264,8 @@ export function DesktopEventDetails({
   hostableMembers,
 }: DesktopEventDetailsProps) {
   const [guestName, setGuestName] = useState("");
+  const [editingGuestId, setEditingGuestId] = useState<string | null>(null);
+  const [editingGuestName, setEditingGuestName] = useState("");
 
   // Drag and drop sensors
   const sensors = useSensors(

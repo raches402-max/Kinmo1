@@ -503,6 +503,40 @@ export default function EventDetailsPage() {
     },
   });
 
+  const updateGuestMutation = useMutation({
+    mutationFn: async ({ guestId, guestName }: { guestId: string; guestName: string }) => {
+      return apiRequest("PATCH", `/api/itineraries/${eventId}/guest-invites/${guestId}`, {
+        guestName,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/itineraries/:id/guest-invites", eventId] });
+      toast({
+        title: "Guest updated",
+        description: "Guest name has been updated",
+      });
+    },
+    onError: (error: any) => {
+      toast(getErrorToast(error));
+    },
+  });
+
+  const deleteGuestMutation = useMutation({
+    mutationFn: async (guestId: string) => {
+      return apiRequest("DELETE", `/api/itineraries/${eventId}/guest-invites/${guestId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/itineraries/:id/guest-invites", eventId] });
+      toast({
+        title: "Guest removed",
+        description: "Guest has been removed from this event",
+      });
+    },
+    onError: (error: any) => {
+      toast(getErrorToast(error));
+    },
+  });
+
   const finalizeItineraryMutation = useMutation({
     mutationFn: async (timeSlotId: string) => {
       const selectedSlot = itineraryDetails?.proposedTimeSlots?.find((s: any) => s.id === timeSlotId);
@@ -1028,6 +1062,10 @@ export default function EventDetailsPage() {
               }
             }
           }}
+          guestInvites={guestInvites}
+          onAddGuest={(name) => addGuestMutation.mutate(name)}
+          onUpdateGuest={(guestId, guestName) => updateGuestMutation.mutate({ guestId, guestName })}
+          onDeleteGuest={(guestId) => deleteGuestMutation.mutate(guestId)}
           onInviteGuest={() => {
             if (event.isStandalone) {
               // Open add invitee dialog for standalone events
@@ -1295,6 +1333,8 @@ export default function EventDetailsPage() {
         onCopyInviteLink={copyInviteLink}
         onCopyGuestLink={copyGuestLink}
         onAddGuest={(name) => addGuestMutation.mutate(name)}
+        onUpdateGuest={(guestId, guestName) => updateGuestMutation.mutate({ guestId, guestName })}
+        onDeleteGuest={(guestId) => deleteGuestMutation.mutate(guestId)}
         onRemoveInvite={(memberId) => removeInviteMutation.mutate(memberId)}
         onVolunteerToHost={() => volunteerToHostMutation.mutate()}
         onHandOffHost={(memberId) => handOffHostMutation.mutate(memberId)}
@@ -1326,6 +1366,8 @@ export default function EventDetailsPage() {
           updateMemberRsvp: updateMemberRsvpMutation.isPending,
           updateEventDate: updateEventDateMutation.isPending,
           addGuest: addGuestMutation.isPending,
+          updateGuest: updateGuestMutation.isPending,
+          deleteGuest: deleteGuestMutation.isPending,
           volunteerToHost: volunteerToHostMutation.isPending,
           handOffHost: handOffHostMutation.isPending,
           sendToGroup: sendToGroupMutation.isPending,

@@ -1775,10 +1775,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .from(guestInvites)
           .where(eq(guestInvites.itineraryId, invite.itineraryId));
 
-        // Add guest invites to detailed RSVPs
+        // Track names already added to avoid duplicates
+        const addedNames = new Set(detailedRsvps.map(r => r.name.toLowerCase()));
+
+        // Add guest invites to detailed RSVPs (only if not already added from rsvps table)
         for (const gi of allGuestInvites) {
-          // Only add if they have responded (to avoid duplicating pending invites)
-          if (gi.rsvpStatus && gi.rsvpStatus !== null) {
+          // Only add if they have responded and aren't already in the list
+          if (gi.rsvpStatus && gi.rsvpStatus !== null && !addedNames.has(gi.guestName.toLowerCase())) {
             detailedRsvps.push({
               name: gi.guestName,
               response: gi.rsvpStatus,
@@ -1791,6 +1794,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (gi.rsvpStatus in rsvpSummary) {
               rsvpSummary[gi.rsvpStatus as 'yes' | 'maybe' | 'no'].push(gi.guestName);
             }
+
+            addedNames.add(gi.guestName.toLowerCase());
           }
         }
 
@@ -11776,6 +11781,84 @@ Looking forward to planning great activities together!
         .where(eq(guestInvites.itineraryId, itineraryId));
 
       res.json(invites);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Update a guest invite (edit name)
+  app.patch("/api/itineraries/:itineraryId/guest-invites/:guestId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = await getUserId(req);
+      const { itineraryId, guestId } = req.params;
+      const { guestName } = req.body;
+
+      if (!guestName || !guestName.trim()) {
+        return res.status(400).json({ message: "Guest name is required" });
+      }
+
+      // Verify itinerary exists and user is authorized (group owner)
+      const itinerary = await storage.getItinerary(itineraryId);
+      if (!itinerary || !itinerary.groupId) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      const group = await storage.getGroup(itinerary.groupId);
+      if (!group || group.userId !== userId) {
+        return res.status(403).json({ message: "Only the group owner can edit guests" });
+      }
+
+      // Update the guest invite
+      const [updated] = await db
+        .update(guestInvites)
+        .set({ guestName: guestName.trim() })
+        .where(and(
+          eq(guestInvites.id, guestId),
+          eq(guestInvites.itineraryId, itineraryId)
+        ))
+        .returning();
+
+      if (!updated) {
+        return res.status(404).json({ message: "Guest not found" });
+      }
+
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Delete a guest invite
+  app.delete("/api/itineraries/:itineraryId/guest-invites/:guestId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = await getUserId(req);
+      const { itineraryId, guestId } = req.params;
+
+      // Verify itinerary exists and user is authorized (group owner)
+      const itinerary = await storage.getItinerary(itineraryId);
+      if (!itinerary || !itinerary.groupId) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      const group = await storage.getGroup(itinerary.groupId);
+      if (!group || group.userId !== userId) {
+        return res.status(403).json({ message: "Only the group owner can remove guests" });
+      }
+
+      // Delete the guest invite
+      const [deleted] = await db
+        .delete(guestInvites)
+        .where(and(
+          eq(guestInvites.id, guestId),
+          eq(guestInvites.itineraryId, itineraryId)
+        ))
+        .returning();
+
+      if (!deleted) {
+        return res.status(404).json({ message: "Guest not found" });
+      }
+
+      res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
