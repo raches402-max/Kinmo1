@@ -9,7 +9,7 @@ import { useState, useEffect } from "react";
 const nicheWords = {
   casual: ["crew", "squad", "besties", "roommates"],
   relationships: ["girlfriend", "boyfriend", "wife", "husband", "partner"],
-  activity: ["book club", "gym buddies", "hiking crew", "trivia team", "brunch bunch", "wine club"],
+  activity: ["book club", "gym buddies", "hiking crew", "trivia team", "brunch bunch", "wine club", "Scuba Gang"],
   sports: ["Sunday football fam", "running buddies", "yoga friends", "volleyball crew", "fantasy league", "climbing partners"],
   lifeStage: ["parent friends", "mom friends", "dad group", "couple friends", "old college crew", "childhood friends", "new city friends", "parents", "kids"],
   ultraNiche: ["Costco run crew", "dog park friends", "coffee shop crew", "pickleball posse", "karaoke crew", "D&D party", "poker night", "Target run crew", "the group chat"],
