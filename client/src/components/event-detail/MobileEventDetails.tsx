@@ -193,6 +193,12 @@ export function MobileEventDetails({
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [editingNote, setEditingNote] = useState(event.note || "");
 
+  // Guest editing state
+  const [showAddGuestDrawer, setShowAddGuestDrawer] = useState(false);
+  const [showEditGuestDrawer, setShowEditGuestDrawer] = useState(false);
+  const [editingGuest, setEditingGuest] = useState<{ id: string; name: string } | null>(null);
+  const [newGuestName, setNewGuestName] = useState("");
+
   // Determine event status
   const eventStatus: EventStatus = useMemo(() => {
     if (!event.inviteSentAt) return "draft";
@@ -623,10 +629,32 @@ export function MobileEventDetails({
           isOrganizer={isOrganizer}
           currentUserRsvp={currentUserRsvp}
           onChangeMyRsvp={onChangeMyRsvp}
-          onInviteGuest={onInviteGuest}
+          onInviteGuest={() => {
+            if (!event.isStandalone && onAddGuest) {
+              // For group events, open add guest drawer
+              setShowAddGuestDrawer(true);
+            } else {
+              // For standalone events, use original handler
+              onInviteGuest?.();
+            }
+          }}
           onRemindAll={onRemindAll}
           onMakeHost={onMakeHost}
-          onRemoveAttendee={onRemoveAttendee}
+          onRemoveAttendee={(attendee) => {
+            if (attendee.isGuest && onDeleteGuest) {
+              // Delete guest
+              onDeleteGuest(attendee.id);
+            } else {
+              // Regular member removal
+              onRemoveAttendee?.(attendee);
+            }
+          }}
+          onEditGuestName={(attendee) => {
+            if (attendee.isGuest) {
+              setEditingGuest({ id: attendee.id, name: attendee.name });
+              setShowEditGuestDrawer(true);
+            }
+          }}
         />
 
         {/* Event Note/Description - at the bottom */}
@@ -697,6 +725,91 @@ export function MobileEventDetails({
           onInviteGuest={onInviteGuest}
         />
       </div>
+
+      {/* Add Guest Drawer */}
+      <Drawer open={showAddGuestDrawer} onOpenChange={setShowAddGuestDrawer}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>Add Guest</DrawerTitle>
+            <DrawerDescription>
+              Add a guest to this event. They'll receive a unique invite link.
+            </DrawerDescription>
+          </DrawerHeader>
+          <div className="px-4 pb-4 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="guest-name">Name</Label>
+              <Input
+                id="guest-name"
+                value={newGuestName}
+                onChange={(e) => setNewGuestName(e.target.value)}
+                placeholder="Guest name"
+                autoFocus
+              />
+            </div>
+          </div>
+          <DrawerFooter>
+            <Button
+              onClick={() => {
+                if (newGuestName.trim() && onAddGuest) {
+                  onAddGuest(newGuestName.trim());
+                  setNewGuestName("");
+                  setShowAddGuestDrawer(false);
+                }
+              }}
+              disabled={!newGuestName.trim()}
+            >
+              Add Guest
+            </Button>
+            <DrawerClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DrawerClose>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
+
+      {/* Edit Guest Name Drawer */}
+      <Drawer open={showEditGuestDrawer} onOpenChange={(open) => {
+        setShowEditGuestDrawer(open);
+        if (!open) setEditingGuest(null);
+      }}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>Edit Guest Name</DrawerTitle>
+            <DrawerDescription>
+              Update the name for this guest.
+            </DrawerDescription>
+          </DrawerHeader>
+          <div className="px-4 pb-4 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-guest-name">Name</Label>
+              <Input
+                id="edit-guest-name"
+                value={editingGuest?.name || ""}
+                onChange={(e) => setEditingGuest(prev => prev ? { ...prev, name: e.target.value } : null)}
+                placeholder="Guest name"
+                autoFocus
+              />
+            </div>
+          </div>
+          <DrawerFooter>
+            <Button
+              onClick={() => {
+                if (editingGuest && editingGuest.name.trim() && onUpdateGuest) {
+                  onUpdateGuest(editingGuest.id, editingGuest.name.trim());
+                  setEditingGuest(null);
+                  setShowEditGuestDrawer(false);
+                }
+              }}
+              disabled={!editingGuest?.name.trim()}
+            >
+              Save
+            </Button>
+            <DrawerClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DrawerClose>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 }
