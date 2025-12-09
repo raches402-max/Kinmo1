@@ -1020,7 +1020,131 @@
           const clone = container.cloneNode(true);
           container.parentNode.replaceChild(clone, container);
         }
+        function replayAnimation2() {
+          const container = document.getElementById('animatedLogo2');
+          const clone = container.cloneNode(true);
+          container.parentNode.replaceChild(clone, container);
+        }
       </script>
+
+      <!-- VERSION 2: Random arrival order -->
+      <h3 style="font-family: Nunito, sans-serif; font-size: 1.1rem; color: var(--espresso); margin-top: 3rem; text-align: center;">Version 2: Random Arrival Order</h3>
+      <p style="text-align: center; color: var(--warm-gray); font-size: 0.9rem; margin-bottom: 1rem;">Chairs arrive in the order: 3 → 1 → 5 → 2 → 6 → 4 (like friends actually showing up)</p>
+
+      <style>
+        /* VERSION 2: Random order - 3, 1, 5, 2, 6, 4 */
+
+        /* Chair 3 arrives FIRST */
+        .chair-3-svg-v2 {
+          transform-origin: 40px 34px;
+          animation: chair3ArriveV2 5s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+        }
+        @keyframes chair3ArriveV2 {
+          0%, 5% { opacity: 0.3; transform: translate(12px, 6px) rotate(25deg); }
+          18%, 90% { opacity: 1; transform: translate(0, 0) rotate(0deg); }
+          95%, 100% { opacity: 1; transform: translate(0, 0) rotate(0deg); }
+        }
+
+        /* Chair 1 arrives SECOND */
+        .chair-1-svg-v2 {
+          transform-origin: 24px 5px;
+          animation: chair1ArriveV2 5s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+        }
+        @keyframes chair1ArriveV2 {
+          0%, 15% { opacity: 0.4; transform: translateY(-12px) rotate(15deg); }
+          30%, 90% { opacity: 1; transform: translateY(0) rotate(0deg); }
+          95%, 100% { opacity: 1; transform: translateY(0) rotate(0deg); }
+        }
+
+        /* Chair 5 arrives THIRD */
+        .chair-5-svg-v2 {
+          transform-origin: 8px 34px;
+          animation: chair5ArriveV2 5s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+        }
+        @keyframes chair5ArriveV2 {
+          0%, 28% { opacity: 0.35; transform: translate(-10px, 8px) rotate(-22deg); }
+          43%, 90% { opacity: 1; transform: translate(0, 0) rotate(0deg); }
+          95%, 100% { opacity: 1; transform: translate(0, 0) rotate(0deg); }
+        }
+
+        /* Chair 2 arrives FOURTH */
+        .chair-2-svg-v2 {
+          transform-origin: 40px 14px;
+          animation: chair2ArriveV2 5s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+        }
+        @keyframes chair2ArriveV2 {
+          0%, 38% { opacity: 0.35; transform: translate(10px, -8px) rotate(-20deg); }
+          55%, 90% { opacity: 1; transform: translate(0, 0) rotate(0deg); }
+          95%, 100% { opacity: 1; transform: translate(0, 0) rotate(0deg); }
+        }
+
+        /* Chair 6 arrives FIFTH */
+        .chair-6-svg-v2 {
+          transform-origin: 8px 14px;
+          animation: chair6ArriveV2 5s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+        }
+        @keyframes chair6ArriveV2 {
+          0%, 50% { opacity: 0.3; transform: translate(-12px, -6px) rotate(20deg); }
+          67%, 90% { opacity: 1; transform: translate(0, 0) rotate(0deg); }
+          95%, 100% { opacity: 1; transform: translate(0, 0) rotate(0deg); }
+        }
+
+        /* Chair 4 arrives LAST */
+        .chair-4-svg-v2 {
+          transform-origin: 24px 43px;
+          animation: chair4ArriveV2 5s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+        }
+        @keyframes chair4ArriveV2 {
+          0%, 60% { opacity: 0.4; transform: translateY(10px) rotate(-18deg); }
+          78%, 90% { opacity: 1; transform: translateY(0) rotate(0deg); }
+          95%, 100% { opacity: 1; transform: translateY(0) rotate(0deg); }
+        }
+
+        .table-center-svg-v2 {
+          transform-origin: 24px 24px;
+          animation: tableGlow 5s ease-in-out infinite;
+        }
+
+        .sun-pulse-svg-v2 {
+          transform-origin: 24px 24px;
+          animation: sunPulse 5s ease-in-out infinite;
+        }
+      </style>
+
+      <div class="gathering-container">
+        <div class="animated-logo" id="animatedLogo2">
+          <svg width="160" height="160" viewBox="0 0 48 48" fill="none" style="overflow: visible;">
+            <circle class="sun-pulse-svg-v2" cx="24" cy="24" r="20" fill="url(#pulseGradient2)" opacity="0"/>
+            <defs>
+              <radialGradient id="pulseGradient2">
+                <stop offset="0%" stop-color="#F2C94C" stop-opacity="0.6"/>
+                <stop offset="100%" stop-color="#F2C94C" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <circle class="table-center-svg-v2" cx="24" cy="24" r="14" fill="#F2C94C" opacity="0.25"/>
+            <g class="chair-svg chair-1-svg-v2">
+              <path d="M19 5 A4 4 0 0 1 29 5 L24 5 Z" fill="#F2C94C"/>
+            </g>
+            <g class="chair-svg chair-2-svg-v2">
+              <path d="M38 10 A4 4 0 0 1 43 19 L40 14 Z" fill="#F2C94C"/>
+            </g>
+            <g class="chair-svg chair-3-svg-v2">
+              <path d="M43 29 A4 4 0 0 1 38 38 L40 34 Z" fill="#F2C94C"/>
+            </g>
+            <g class="chair-svg chair-4-svg-v2">
+              <path d="M29 43 A4 4 0 0 1 19 43 L24 43 Z" fill="#F2C94C"/>
+            </g>
+            <g class="chair-svg chair-5-svg-v2">
+              <path d="M10 38 A4 4 0 0 1 5 29 L8 34 Z" fill="#F2C94C"/>
+            </g>
+            <g class="chair-svg chair-6-svg-v2">
+              <path d="M5 19 A4 4 0 0 1 10 10 L8 14 Z" fill="#F2C94C"/>
+            </g>
+          </svg>
+        </div>
+      </div>
+
+      <button class="replay-btn" onclick="replayAnimation2()">Replay Animation</button>
 
       <div style="background: white; border-radius: 12px; padding: 1.5rem; margin-top: 2rem;">
         <h3 style="font-family: Nunito, sans-serif; font-size: 1rem; color: var(--espresso); margin-bottom: 0.75rem;">What's Happening</h3>
