@@ -974,6 +974,7 @@
           /* =============================================
              THE GATHERING — KINMO LOGO ANIMATION
              Natural, organic motion with warm sun glow
+             SLOWED DOWN ~1.8x for better readability
              ============================================= */
 
           .gathering-container {
@@ -991,7 +992,7 @@
             transform-origin: center;
           }
           .table-center.playing {
-            animation: tableBrighten 1.8s ease-out forwards;
+            animation: tableBrighten 3.2s ease-out forwards;
           }
           @keyframes tableBrighten {
             0% { opacity: 0.12; transform: scale(0.94); }
@@ -1009,77 +1010,78 @@
              RANDOMIZED ARRIVAL ORDER & VARIED SPEEDS
              Order: Bottom-left → Top → Bottom-right → Top-left → Bottom → Top-right
              (Feels random, not clockwise)
+             SLOWED: durations ~1.8x, delays spread out more
              ============================================= */
 
-          /* Chair 5 (Bottom-left) — FIRST, arrives quick */
+          /* Chair 5 (Bottom-left) — FIRST, arrives moderately quick */
           .chair.c5.playing {
-            animation: slideBottomLeft 0.38s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+            animation: slideBottomLeft 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
             animation-delay: 0s;
           }
           @keyframes slideBottomLeft {
-            0% { opacity: 0; transform: translate(-16px, 16px); }
+            0% { opacity: 0; transform: translate(-18px, 18px); }
             75% { opacity: 1; transform: translate(1px, -1px); }
             100% { opacity: 1; transform: translate(0, 0); }
           }
 
           /* Chair 1 (Top) — arrives leisurely */
           .chair.c1.playing {
-            animation: slideTop 0.65s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
-            animation-delay: 0.22s;
+            animation: slideTop 1.1s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+            animation-delay: 0.4s;
           }
           @keyframes slideTop {
-            0% { opacity: 0; transform: translateY(-20px); }
+            0% { opacity: 0; transform: translateY(-22px); }
             80% { opacity: 1; transform: translateY(0); }
             100% { opacity: 1; transform: translateY(0); }
           }
 
-          /* Chair 3 (Bottom-right) — quick arrival */
+          /* Chair 3 (Bottom-right) — medium-quick arrival */
           .chair.c3.playing {
-            animation: slideBottomRight 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-            animation-delay: 0.45s;
+            animation: slideBottomRight 0.75s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+            animation-delay: 0.85s;
           }
           @keyframes slideBottomRight {
-            0% { opacity: 0; transform: translate(16px, 16px); }
+            0% { opacity: 0; transform: translate(18px, 18px); }
             70% { opacity: 1; transform: translate(-1px, -1px); }
             100% { opacity: 1; transform: translate(0, 0); }
           }
 
           /* Chair 6 (Top-left) — medium speed */
           .chair.c6.playing {
-            animation: slideTopLeft 0.52s cubic-bezier(0.34, 1.2, 0.64, 1) forwards;
-            animation-delay: 0.6s;
+            animation: slideTopLeft 0.9s cubic-bezier(0.34, 1.2, 0.64, 1) forwards;
+            animation-delay: 1.15s;
           }
           @keyframes slideTopLeft {
-            0% { opacity: 0; transform: translate(-16px, -16px); }
+            0% { opacity: 0; transform: translate(-18px, -18px); }
             75% { opacity: 1; transform: translate(0, 0); }
             100% { opacity: 1; transform: translate(0, 0); }
           }
 
           /* Chair 4 (Bottom) — slow, relaxed arrival */
           .chair.c4.playing {
-            animation: slideBottom 0.72s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
-            animation-delay: 0.78s;
+            animation: slideBottom 1.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+            animation-delay: 1.5s;
           }
           @keyframes slideBottom {
-            0% { opacity: 0; transform: translateY(20px); }
+            0% { opacity: 0; transform: translateY(22px); }
             85% { opacity: 1; transform: translateY(0); }
             100% { opacity: 1; transform: translateY(0); }
           }
 
           /* Chair 2 (Top-right) — LAST friend, quick rush in */
           .chair.c2.playing {
-            animation: slideTopRight 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-            animation-delay: 1.1s;
+            animation: slideTopRight 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+            animation-delay: 2.1s;
           }
           @keyframes slideTopRight {
-            0% { opacity: 0; transform: translate(16px, -16px); }
+            0% { opacity: 0; transform: translate(18px, -18px); }
             70% { opacity: 1; transform: translate(-1px, 1px); }
             100% { opacity: 1; transform: translate(0, 0); }
           }
 
           /* =============================================
-             WARM SUN GLOW — Natural, not artificial
-             Soft radial warmth that breathes
+             WARM SUN GLOW — More visible, natural warmth
+             Stronger opacity for perceptibility
              ============================================= */
 
           .sun-warmth {
@@ -1087,39 +1089,39 @@
             transform-origin: center;
           }
           .sun-warmth.playing {
-            animation: warmthReveal 1.6s ease-out forwards;
-            animation-delay: 1.4s;
+            animation: warmthReveal 2s ease-out forwards;
+            animation-delay: 2.6s;
           }
           @keyframes warmthReveal {
-            0% { opacity: 0; }
-            40% { opacity: 0.45; }
-            70% { opacity: 0.35; }
-            100% { opacity: 0.28; }
+            0% { opacity: 0; transform: scale(0.95); }
+            40% { opacity: 0.75; transform: scale(1.02); }
+            70% { opacity: 0.6; transform: scale(1); }
+            100% { opacity: 0.5; transform: scale(1); }
           }
 
-          /* Secondary warmth layer for depth */
+          /* Secondary warmth layer for depth — also stronger */
           .sun-warmth-inner {
             opacity: 0;
             transform-origin: center;
           }
           .sun-warmth-inner.playing {
-            animation: innerWarmth 1.4s ease-out forwards;
-            animation-delay: 1.5s;
+            animation: innerWarmth 1.8s ease-out forwards;
+            animation-delay: 2.75s;
           }
           @keyframes innerWarmth {
             0% { opacity: 0; }
-            50% { opacity: 0.5; }
-            100% { opacity: 0.35; }
+            50% { opacity: 0.7; }
+            100% { opacity: 0.55; }
           }
 
           /* Whole logo gentle settle */
           .logo-svg.playing {
-            animation: logoSettle 0.5s cubic-bezier(0.34, 1.4, 0.64, 1) forwards;
-            animation-delay: 1.55s;
+            animation: logoSettle 0.7s cubic-bezier(0.34, 1.4, 0.64, 1) forwards;
+            animation-delay: 2.85s;
           }
           @keyframes logoSettle {
             0% { transform: scale(1); }
-            50% { transform: scale(1.045); }
+            50% { transform: scale(1.05); }
             100% { transform: scale(1); }
           }
 
@@ -1151,25 +1153,25 @@
             <div class="gathering-container">
               <svg class="logo-svg" width="110" height="110" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <defs>
-                  <!-- Soft warm glow gradient - like actual sunlight -->
+                  <!-- Soft warm glow gradient - more visible -->
                   <radialGradient id="warmGlow1" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stop-color="#F2C94C" stop-opacity="0.6"/>
-                    <stop offset="40%" stop-color="#F2C94C" stop-opacity="0.25"/>
-                    <stop offset="70%" stop-color="#F5D76E" stop-opacity="0.1"/>
+                    <stop offset="0%" stop-color="#F2C94C" stop-opacity="0.85"/>
+                    <stop offset="30%" stop-color="#F5D76E" stop-opacity="0.5"/>
+                    <stop offset="60%" stop-color="#F5D76E" stop-opacity="0.2"/>
                     <stop offset="100%" stop-color="#F5D76E" stop-opacity="0"/>
                   </radialGradient>
-                  <!-- Inner warmth for depth -->
+                  <!-- Inner warmth for depth - stronger -->
                   <radialGradient id="innerGlow1" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stop-color="#FFEBB0" stop-opacity="0.5"/>
-                    <stop offset="60%" stop-color="#F2C94C" stop-opacity="0.15"/>
+                    <stop offset="0%" stop-color="#FFF4CC" stop-opacity="0.75"/>
+                    <stop offset="50%" stop-color="#F2C94C" stop-opacity="0.35"/>
                     <stop offset="100%" stop-color="#F2C94C" stop-opacity="0"/>
                   </radialGradient>
                 </defs>
 
-                <!-- Outer warm glow - soft, natural -->
-                <circle class="sun-warmth" cx="24" cy="24" r="23" fill="url(#warmGlow1)"/>
+                <!-- Outer warm glow - larger radius for more visibility -->
+                <circle class="sun-warmth" cx="24" cy="24" r="24" fill="url(#warmGlow1)"/>
                 <!-- Inner warmth layer -->
-                <circle class="sun-warmth-inner" cx="24" cy="24" r="18" fill="url(#innerGlow1)"/>
+                <circle class="sun-warmth-inner" cx="24" cy="24" r="19" fill="url(#innerGlow1)"/>
 
                 <!-- Center table/sun -->
                 <circle class="table-center" cx="24" cy="24" r="14" fill="#F2C94C"/>
@@ -1191,23 +1193,23 @@
             <div class="gathering-container">
               <svg class="logo-svg" width="110" height="110" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <defs>
-                  <!-- Warmer, more visible glow on dark -->
+                  <!-- Warmer, more visible glow on dark - stronger -->
                   <radialGradient id="warmGlow2" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stop-color="#F5D76E" stop-opacity="0.7"/>
-                    <stop offset="35%" stop-color="#F2C94C" stop-opacity="0.35"/>
-                    <stop offset="65%" stop-color="#E8A832" stop-opacity="0.12"/>
+                    <stop offset="0%" stop-color="#F5D76E" stop-opacity="0.9"/>
+                    <stop offset="30%" stop-color="#F2C94C" stop-opacity="0.55"/>
+                    <stop offset="55%" stop-color="#E8A832" stop-opacity="0.25"/>
                     <stop offset="100%" stop-color="#E8A832" stop-opacity="0"/>
                   </radialGradient>
                   <radialGradient id="innerGlow2" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stop-color="#FFF4CC" stop-opacity="0.55"/>
-                    <stop offset="50%" stop-color="#F5D76E" stop-opacity="0.2"/>
+                    <stop offset="0%" stop-color="#FFF8E0" stop-opacity="0.8"/>
+                    <stop offset="45%" stop-color="#F5D76E" stop-opacity="0.4"/>
                     <stop offset="100%" stop-color="#F2C94C" stop-opacity="0"/>
                   </radialGradient>
                 </defs>
 
-                <!-- Warm glow layers -->
-                <circle class="sun-warmth" cx="24" cy="24" r="23" fill="url(#warmGlow2)"/>
-                <circle class="sun-warmth-inner" cx="24" cy="24" r="18" fill="url(#innerGlow2)"/>
+                <!-- Warm glow layers - larger radius -->
+                <circle class="sun-warmth" cx="24" cy="24" r="24" fill="url(#warmGlow2)"/>
+                <circle class="sun-warmth-inner" cx="24" cy="24" r="19" fill="url(#innerGlow2)"/>
 
                 <!-- Center table/sun -->
                 <circle class="table-center" cx="24" cy="24" r="14" fill="#F2C94C"/>
