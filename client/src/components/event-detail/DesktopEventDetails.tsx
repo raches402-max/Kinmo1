@@ -322,7 +322,8 @@ export function DesktopEventDetails({
     if (oldIndex === -1 || newIndex === -1) return;
 
     const newItems = arrayMove(event.items, oldIndex, newIndex);
-    const proposedOrder = newItems.map((item: any) => item.sourceId);
+    // Use item.id (itinerary item ID), not sourceId - API validates against item IDs
+    const proposedOrder = newItems.map((item: any) => item.id);
     onReorderVenues(proposedOrder);
   };
 
