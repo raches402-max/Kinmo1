@@ -57,6 +57,7 @@ interface MobileEventDetailsProps {
   onAddVenue?: () => void;
   onEditVenue?: (venue: EventVenue) => void;
   onRemoveVenue?: (venue: EventVenue) => void;
+  onMoveVenue?: (fromIndex: number, toIndex: number) => void;
   guestInvites?: any[];
   onAddGuest?: (name: string) => void;
   onUpdateGuest?: (guestId: string, guestName: string) => void;
@@ -69,6 +70,8 @@ interface MobileEventDetailsProps {
   onDuplicateEvent?: () => void;
   onUpdateName?: (name: string) => void;
   onUpdateNote?: (note: string) => void;
+  onVolunteerToHost?: () => void;
+  canVolunteerToHost?: boolean;
   onBack?: () => void;
   isSending?: boolean;
   onSendInvites?: () => void;
@@ -162,6 +165,7 @@ export function MobileEventDetails({
   onAddVenue,
   onEditVenue,
   onRemoveVenue,
+  onMoveVenue,
   guestInvites,
   onAddGuest,
   onUpdateGuest,
@@ -616,6 +620,7 @@ export function MobileEventDetails({
           onAddVenue={onAddVenue}
           onEditVenue={onEditVenue}
           onRemoveVenue={onRemoveVenue}
+          onMoveVenue={onMoveVenue}
         />
 
         {/* WHO Section */}

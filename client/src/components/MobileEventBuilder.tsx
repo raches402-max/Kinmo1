@@ -20,6 +20,7 @@ import {
   MapPin,
   Users,
   ChevronDown,
+  ChevronUp,
   ChevronLeft,
   X,
   Plus,
@@ -35,6 +36,7 @@ import {
   Trash2,
   Send,
   Loader2,
+  ArrowUpDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -182,18 +184,27 @@ function AccordionSection({
   );
 }
 
-// Compact Venue Chip
+// Compact Venue Chip with reorder support
 function VenueChip({
   venue,
   index,
+  totalCount,
   onRemove,
-  isDraggable,
+  isEditMode,
+  onMoveUp,
+  onMoveDown,
 }: {
   venue: VenueItem;
   index: number;
+  totalCount: number;
   onRemove?: () => void;
-  isDraggable?: boolean;
+  isEditMode?: boolean;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
 }) {
+  const isFirst = index === 0;
+  const isLast = index === totalCount - 1;
+
   return (
     <motion.div
       layout
@@ -201,11 +212,13 @@ function VenueChip({
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 20 }}
       transition={{ delay: index * 0.05 }}
-      className="flex items-center gap-3 p-3 bg-muted/50 rounded-xl group"
-    >
-      {isDraggable && (
-        <GripVertical className="h-4 w-4 text-muted-foreground/50 cursor-grab" />
+      className={cn(
+        "flex items-center gap-3 p-3 rounded-xl group transition-all",
+        isEditMode
+          ? "bg-primary/5 border border-primary/20 shadow-sm"
+          : "bg-muted/50"
       )}
+    >
       <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold">
         {index + 1}
       </div>
@@ -228,13 +241,53 @@ function VenueChip({
           <p className="text-xs text-muted-foreground truncate">{venue.address}</p>
         )}
       </div>
-      {venue.isFavorite && (
+      {venue.isFavorite && !isEditMode && (
         <Heart className="h-3.5 w-3.5 text-pink-500 fill-pink-500" />
       )}
+
+      {/* Edit mode: up/down arrows */}
+      {isEditMode && (
+        <div className="flex items-center gap-1">
+          <motion.button
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            onClick={onMoveUp}
+            disabled={isFirst}
+            className={cn(
+              "p-1.5 rounded-lg transition-all",
+              isFirst
+                ? "text-muted-foreground/30 cursor-not-allowed"
+                : "text-primary hover:bg-primary/10 active:scale-95"
+            )}
+          >
+            <ChevronUp className="h-5 w-5" />
+          </motion.button>
+          <motion.button
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.05 }}
+            onClick={onMoveDown}
+            disabled={isLast}
+            className={cn(
+              "p-1.5 rounded-lg transition-all",
+              isLast
+                ? "text-muted-foreground/30 cursor-not-allowed"
+                : "text-primary hover:bg-primary/10 active:scale-95"
+            )}
+          >
+            <ChevronDown className="h-5 w-5" />
+          </motion.button>
+        </div>
+      )}
+
+      {/* Remove button - always visible in edit mode, hover on normal */}
       {onRemove && (
         <button
           onClick={onRemove}
-          className="p-1.5 rounded-full opacity-0 group-hover:opacity-100 hover:bg-destructive/10 transition-all"
+          className={cn(
+            "p-1.5 rounded-full hover:bg-destructive/10 transition-all",
+            isEditMode ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+          )}
         >
           <X className="h-3.5 w-3.5 text-destructive" />
         </button>
@@ -613,6 +666,7 @@ export function MobileEventBuilder({
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [selectedVenues, setSelectedVenues] = useState<VenueItem[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string>(preselectedGroupId || "");
+  const [isEditingOrder, setIsEditingOrder] = useState(false);
   const [eventName, setEventName] = useState("");
 
   // UI state
@@ -656,10 +710,25 @@ export function MobileEventBuilder({
     setSelectedVenues((prev) => {
       const exists = prev.some((v) => v.id === venue.id);
       if (exists) {
+        // Exit edit mode if removing brings us below 2 venues
+        if (prev.length <= 2) setIsEditingOrder(false);
         return prev.filter((v) => v.id !== venue.id);
       }
       if (prev.length >= 5) return prev;
       return [...prev, venue];
+    });
+  };
+
+  // Handle venue reorder
+  const handleMoveVenue = (fromIndex: number, direction: "up" | "down") => {
+    const toIndex = direction === "up" ? fromIndex - 1 : fromIndex + 1;
+    if (toIndex < 0 || toIndex >= selectedVenues.length) return;
+
+    setSelectedVenues((prev) => {
+      const newVenues = [...prev];
+      const [moved] = newVenues.splice(fromIndex, 1);
+      newVenues.splice(toIndex, 0, moved);
+      return newVenues;
     });
   };
 
@@ -823,6 +892,37 @@ export function MobileEventBuilder({
           }
         >
           <div className="space-y-3">
+            {/* Edit order toggle - only show when 2+ venues */}
+            {selectedVenues.length >= 2 && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                className="flex items-center justify-between"
+              >
+                <button
+                  onClick={() => setIsEditingOrder(!isEditingOrder)}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-full transition-all",
+                    isEditingOrder
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "bg-muted/80 text-muted-foreground hover:bg-muted"
+                  )}
+                >
+                  <ArrowUpDown className="h-3.5 w-3.5" />
+                  {isEditingOrder ? "Done" : "Reorder"}
+                </button>
+                {isEditingOrder && (
+                  <motion.span
+                    initial={{ opacity: 0, x: 10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="text-xs text-muted-foreground"
+                  >
+                    Tap arrows to reorder
+                  </motion.span>
+                )}
+              </motion.div>
+            )}
+
             {/* Selected venues */}
             <AnimatePresence>
               {selectedVenues.map((venue, index) => (
@@ -830,7 +930,11 @@ export function MobileEventBuilder({
                   key={venue.id}
                   venue={venue}
                   index={index}
+                  totalCount={selectedVenues.length}
                   onRemove={() => handleToggleVenue(venue)}
+                  isEditMode={isEditingOrder}
+                  onMoveUp={() => handleMoveVenue(index, "up")}
+                  onMoveDown={() => handleMoveVenue(index, "down")}
                 />
               ))}
             </AnimatePresence>

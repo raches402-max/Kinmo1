@@ -5,13 +5,14 @@
  * No duplicate information (removes EventSummaryStrip redundancy).
  */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { format } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Calendar as DatePicker } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -76,6 +77,9 @@ import {
   XCircle,
   MoreVertical,
   Crown,
+  PenLine,
+  Bell,
+  CopyPlus,
 } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
@@ -109,6 +113,11 @@ interface DesktopEventDetailsProps {
   onEditVenue: (venue: any) => void;
   onDeleteVenue: (venue: any) => void;
   onReorderVenues: (newOrder: string[]) => void;
+  // New feature parity props
+  onUpdateName?: (name: string) => void;
+  onUpdateNote?: (note: string) => void;
+  onDuplicateEvent?: () => void;
+  onRemindAll?: () => void;
   // State
   isPending: {
     organizerRsvp: boolean;
@@ -272,6 +281,10 @@ export function DesktopEventDetails({
   onEditVenue,
   onDeleteVenue,
   onReorderVenues,
+  onUpdateName,
+  onUpdateNote,
+  onDuplicateEvent,
+  onRemindAll,
   isPending,
   canVolunteerToHost,
   isCurrentHost,
@@ -280,6 +293,18 @@ export function DesktopEventDetails({
   const [guestName, setGuestName] = useState("");
   const [editingGuestId, setEditingGuestId] = useState<string | null>(null);
   const [editingGuestName, setEditingGuestName] = useState("");
+
+  // Inline editing state
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editingName, setEditingName] = useState(event.itineraryName || "");
+  const [isEditingNote, setIsEditingNote] = useState(false);
+  const [editingNote, setEditingNote] = useState(event.note || "");
+
+  // Sync editing state when event changes
+  useEffect(() => {
+    setEditingName(event.itineraryName || "");
+    setEditingNote(event.note || "");
+  }, [event.itineraryName, event.note]);
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -472,7 +497,41 @@ export function DesktopEventDetails({
                     <span className="text-lg">{event.groupEmoji || "📅"}</span>
                     <span>{event.groupName}</span>
                   </div>
-                  <h1 className="text-2xl font-bold text-[hsl(25,30%,14%)]">{event.itineraryName}</h1>
+                  {isEditingName ? (
+                    <Input
+                      value={editingName}
+                      onChange={(e) => setEditingName(e.target.value)}
+                      className="text-2xl font-bold h-auto py-1 px-2 -ml-2 border-[hsl(44,70%,75%)] focus:border-[hsl(44,87%,63%)]"
+                      autoFocus
+                      onBlur={() => {
+                        if (editingName.trim() && editingName !== event.itineraryName) {
+                          onUpdateName?.(editingName.trim());
+                        }
+                        setIsEditingName(false);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          if (editingName.trim() && editingName !== event.itineraryName) {
+                            onUpdateName?.(editingName.trim());
+                          }
+                          setIsEditingName(false);
+                        } else if (e.key === "Escape") {
+                          setEditingName(event.itineraryName || "");
+                          setIsEditingName(false);
+                        }
+                      }}
+                    />
+                  ) : (
+                    <h1
+                      className={cn(
+                        "text-2xl font-bold text-[hsl(25,30%,14%)]",
+                        isOrganizer && onUpdateName && "cursor-pointer hover:text-[hsl(44,87%,45%)] transition-colors"
+                      )}
+                      onClick={() => isOrganizer && onUpdateName && setIsEditingName(true)}
+                    >
+                      {event.itineraryName}
+                    </h1>
+                  )}
                 </div>
 
                 {/* Date & Time */}
@@ -647,6 +706,56 @@ export function DesktopEventDetails({
                       </button>
                     ))}
                   </div>
+                </div>
+              </RefinedCard>
+            )}
+
+            {/* Event Note/Description */}
+            {(event.note || isOrganizer) && (
+              <RefinedCard hover={false}>
+                <RefinedSectionHeader icon={PenLine} title="Note" />
+                <div className="p-5">
+                  {isEditingNote ? (
+                    <Textarea
+                      value={editingNote}
+                      onChange={(e) => setEditingNote(e.target.value)}
+                      className={cn(
+                        "min-h-[100px] text-sm resize-none",
+                        "border-[hsl(44,70%,75%)] focus:border-[hsl(44,87%,63%)]"
+                      )}
+                      placeholder="Add a note or description for this event..."
+                      autoFocus
+                      onBlur={() => {
+                        if (editingNote !== (event.note || "")) {
+                          onUpdateNote?.(editingNote);
+                        }
+                        setIsEditingNote(false);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") {
+                          setEditingNote(event.note || "");
+                          setIsEditingNote(false);
+                        }
+                      }}
+                    />
+                  ) : event.note ? (
+                    <button
+                      onClick={() => isOrganizer && onUpdateNote && setIsEditingNote(true)}
+                      className={cn(
+                        "w-full text-left text-sm text-[hsl(25,30%,14%)] whitespace-pre-wrap",
+                        isOrganizer && onUpdateNote && "hover:text-[hsl(44,87%,45%)] transition-colors cursor-pointer"
+                      )}
+                    >
+                      {event.note}
+                    </button>
+                  ) : isOrganizer && onUpdateNote ? (
+                    <button
+                      onClick={() => setIsEditingNote(true)}
+                      className="text-sm text-[hsl(25,15%,55%)] hover:text-[hsl(44,87%,45%)] transition-colors"
+                    >
+                      + Add a note or description...
+                    </button>
+                  ) : null}
                 </div>
               </RefinedCard>
             )}
@@ -837,6 +946,16 @@ export function DesktopEventDetails({
                 <RefinedActionButton icon={Copy} onClick={onCopyInviteLink}>
                   Copy Invite Link
                 </RefinedActionButton>
+                {isOrganizer && onDuplicateEvent && (
+                  <RefinedActionButton icon={CopyPlus} onClick={onDuplicateEvent}>
+                    Duplicate Event
+                  </RefinedActionButton>
+                )}
+                {isOrganizer && onRemindAll && (
+                  <RefinedActionButton icon={Bell} onClick={onRemindAll}>
+                    Remind All Attendees
+                  </RefinedActionButton>
+                )}
                 {canVolunteerToHost && (
                   <RefinedActionButton
                     icon={UserPlus}

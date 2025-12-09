@@ -11,6 +11,8 @@ import {
   Plus,
   ExternalLink,
   Navigation,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -20,6 +22,7 @@ import type { EventVenue } from "./types";
 interface TimelineVenueCardProps {
   venue: EventVenue;
   index: number;
+  totalCount: number;
   isLast: boolean;
   isExpanded: boolean;
   onToggle: () => void;
@@ -28,12 +31,15 @@ interface TimelineVenueCardProps {
   onSwapVenue?: () => void;
   onEditNotes?: () => void;
   onRemove?: () => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
   distanceToNext?: string | null;
 }
 
 function TimelineVenueCard({
   venue,
   index,
+  totalCount,
   isLast,
   isExpanded,
   onToggle,
@@ -42,8 +48,12 @@ function TimelineVenueCard({
   onSwapVenue,
   onEditNotes,
   onRemove,
+  onMoveUp,
+  onMoveDown,
   distanceToNext,
 }: TimelineVenueCardProps) {
+  const isFirst = index === 0;
+  const canReorder = totalCount > 1;
   // Use venue name + place ID when available (matches desktop pattern)
   const mapsUrl = venue.googlePlaceId && venue.venueName
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venue.venueName)}&query_place_id=${venue.googlePlaceId}`
@@ -154,6 +164,41 @@ function TimelineVenueCard({
                   <div className="px-3 pb-3 pt-2 border-t border-border">
                     {/* Mobile-optimized compact action row */}
                     <div className="flex items-center gap-2">
+                      {/* Reorder arrows - only show when multiple venues */}
+                      {canReorder && (
+                        <div className="flex items-center gap-0.5 mr-1">
+                          <button
+                            className={cn(
+                              "flex items-center justify-center h-8 w-7 rounded-md transition-all",
+                              isFirst
+                                ? "text-muted-foreground/30 cursor-not-allowed"
+                                : "text-primary border border-primary/30 hover:bg-primary/10 active:scale-[0.95]"
+                            )}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!isFirst) onMoveUp?.();
+                            }}
+                            disabled={isFirst}
+                          >
+                            <ChevronUp className="h-4 w-4" />
+                          </button>
+                          <button
+                            className={cn(
+                              "flex items-center justify-center h-8 w-7 rounded-md transition-all",
+                              isLast
+                                ? "text-muted-foreground/30 cursor-not-allowed"
+                                : "text-primary border border-primary/30 hover:bg-primary/10 active:scale-[0.95]"
+                            )}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!isLast) onMoveDown?.();
+                            }}
+                            disabled={isLast}
+                          >
+                            <ChevronDown className="h-4 w-4" />
+                          </button>
+                        </div>
+                      )}
                       <button
                         className="flex-1 flex items-center justify-center gap-1 h-8 px-2 rounded-md border border-border bg-background text-[11px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground active:scale-[0.98] transition-all"
                         onClick={(e) => {
@@ -221,6 +266,7 @@ interface WhereSectionProps {
   onAddVenue?: () => void;
   onEditVenue?: (venue: EventVenue) => void;
   onRemoveVenue?: (venue: EventVenue) => void;
+  onMoveVenue?: (fromIndex: number, toIndex: number) => void;
 }
 
 // Helper function to validate venue has minimum location data
@@ -261,6 +307,7 @@ export function WhereSection({
   onAddVenue,
   onEditVenue,
   onRemoveVenue,
+  onMoveVenue,
 }: WhereSectionProps) {
   const [expandedVenueId, setExpandedVenueId] = useState<string | null>(null);
   const hasVenues = venues.length > 0;
@@ -305,6 +352,7 @@ export function WhereSection({
                 key={venue.id}
                 venue={venue}
                 index={index}
+                totalCount={venues.length}
                 isLast={index === venues.length - 1}
                 isExpanded={expandedVenueId === venue.id}
                 onToggle={() => {
@@ -319,6 +367,8 @@ export function WhereSection({
                 onSwapVenue={() => onEditVenue?.(venue)}
                 onEditNotes={() => onEditVenue?.(venue)}
                 onRemove={() => onRemoveVenue?.(venue)}
+                onMoveUp={() => onMoveVenue?.(index, index - 1)}
+                onMoveDown={() => onMoveVenue?.(index, index + 1)}
                 distanceToNext={index < venues.length - 1 ? null : null} // TODO: calculate distance
               />
             ))}

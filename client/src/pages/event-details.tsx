@@ -1062,6 +1062,29 @@ export default function EventDetailsPage() {
               }
             }
           }}
+          onMoveVenue={async (fromIndex, toIndex) => {
+            // Get current items and reorder
+            const items = event.items || [];
+            if (fromIndex < 0 || toIndex < 0 || fromIndex >= items.length || toIndex >= items.length) return;
+
+            const newItems = [...items];
+            const [moved] = newItems.splice(fromIndex, 1);
+            newItems.splice(toIndex, 0, moved);
+            const newOrder = newItems.map((item: any) => item.id);
+
+            try {
+              const response = await fetch(`/api/itineraries/${event.itineraryId}/order`, {
+                method: "PATCH",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ itemIds: newOrder }),
+              });
+              if (!response.ok) throw new Error("Failed to reorder");
+              queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
+            } catch {
+              toast({ title: "Error", description: "Failed to reorder venues", variant: "destructive" });
+            }
+          }}
           guestInvites={guestInvites}
           onAddGuest={(name) => addGuestMutation.mutate(name)}
           onUpdateGuest={(guestId, guestName) => updateGuestMutation.mutate({ guestId, guestName })}
