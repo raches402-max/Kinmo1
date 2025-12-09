@@ -88,7 +88,7 @@ function AttendeeRow({
               {/* Companion info - only show for confirmed attendees with +1s or kids */}
               {attendee.response === "yes" && (
                 (attendee.additionalAttendees && attendee.additionalAttendees.length > 0) ||
-                (attendee.numberOfKids && attendee.numberOfKids > 0)
+                (typeof attendee.numberOfKids === 'number' && attendee.numberOfKids > 0)
               ) && (
                 <div className="text-2xs text-muted-foreground/80 mt-0.5">
                   Bringing: {[
@@ -137,7 +137,7 @@ function AttendeeRow({
             {/* Companion info - only show for confirmed attendees with +1s or kids */}
             {attendee.response === "yes" && (
               (attendee.additionalAttendees && attendee.additionalAttendees.length > 0) ||
-              (attendee.numberOfKids && attendee.numberOfKids > 0)
+              (typeof attendee.numberOfKids === 'number' && attendee.numberOfKids > 0)
             ) && (
               <div className="text-2xs text-muted-foreground/80 mt-0.5">
                 Bringing: {[
@@ -146,7 +146,7 @@ function AttendeeRow({
                       ? `${attendee.additionalAttendees[0].name} (+1)`
                       : '+1 guest'
                     : null,
-                  attendee.numberOfKids && attendee.numberOfKids > 0
+                  typeof attendee.numberOfKids === 'number' && attendee.numberOfKids > 0
                     ? `${attendee.numberOfKids} kid${attendee.numberOfKids !== 1 ? 's' : ''}`
                     : null
                 ].filter(Boolean).join(', ')}
