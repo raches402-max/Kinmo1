@@ -15,6 +15,7 @@ import {
   CalendarDays,
   Mail,
   Clock,
+  Hand,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -179,6 +180,8 @@ export function MobileEventDetails({
   onDuplicateEvent,
   onUpdateName,
   onUpdateNote,
+  onVolunteerToHost,
+  canVolunteerToHost,
   onBack,
   isSending,
 }: MobileEventDetailsProps) {
@@ -710,6 +713,19 @@ export function MobileEventDetails({
                 ) : null}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Volunteer to Host - for non-organizers who can volunteer */}
+        {canVolunteerToHost && onVolunteerToHost && (
+          <div className="rounded-2xl border border-primary/30 bg-primary/5 overflow-hidden shadow-subtle p-4">
+            <button
+              onClick={onVolunteerToHost}
+              className="w-full flex items-center justify-center gap-2 text-primary font-medium"
+            >
+              <Hand className="h-4 w-4" />
+              Volunteer to Host
+            </button>
           </div>
         )}
       </main>

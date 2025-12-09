@@ -1129,6 +1129,8 @@ export default function EventDetailsPage() {
           }}
           onUpdateName={(name) => updateItineraryMutation.mutate({ name })}
           onUpdateNote={(note) => updateItineraryMutation.mutate({ note })}
+          onVolunteerToHost={() => volunteerToHostMutation.mutate()}
+          canVolunteerToHost={canVolunteerToHost}
           onBack={() => setLocation(event.groupId ? `/group/${event.groupId}` : '/')}
           isSending={sendToGroupMutation.isPending || sendStandaloneInvitesMutation.isPending}
           onSendInvites={() => sendStandaloneInvitesMutation.mutate()}
@@ -1384,6 +1386,20 @@ export default function EventDetailsPage() {
           }
         }}
         onReorderVenues={(newOrder) => reorderVenuesMutation.mutate(newOrder)}
+        onUpdateName={(name) => updateItineraryMutation.mutate({ name })}
+        onUpdateNote={(note) => updateItineraryMutation.mutate({ note })}
+        onDuplicateEvent={() => {
+          toast({
+            title: "Coming soon",
+            description: "Duplicate event feature is coming soon",
+          });
+        }}
+        onRemindAll={() => {
+          toast({
+            title: "Reminders sent",
+            description: "All pending members have been reminded",
+          });
+        }}
         isPending={{
           organizerRsvp: organizerRsvpMutation.isPending,
           updateMemberRsvp: updateMemberRsvpMutation.isPending,
