@@ -74,7 +74,7 @@ import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { PlanningInsightBanner } from "@/components/PlanningInsightBanner";
 import { ProfileCompletionBanner } from "@/components/ProfileCompletionBanner";
 import { HelpTooltip } from "@/components/HelpTooltip";
-import { HomeTab, GroupDetailMobileNav, ActivitiesTab, SelectedVenuesCard, ItineraryCard, AddMoreStopsCard, TimeSelectionTabs, InlineSchedulingCard, SaveItineraryDialog, SendBackupDialog, InviteGuestDialog, AutoSchedulePreviewDialog, EditAvailabilityDialog, RsvpConstraintDialog, AddVenueDialog, EditGroupDialog, MembersSection, AIPreferenceLearning, ColorPaletteSelector, AutomationSettings, ActivityPreferencesAccordion, MyPreferencesTab, BasicInfoAccordion, VenueSearchEmptyState, NearbySuggestionsCard } from "@/components/group-detail";
+import { HomeTab, GroupDetailMobileNav, ActivitiesTab, SelectedVenuesCard, ItineraryCard, AddMoreStopsCard, TimeSelectionTabs, InlineSchedulingCard, SaveItineraryDialog, SendBackupDialog, InviteGuestDialog, AutoSchedulePreviewDialog, EditAvailabilityDialog, RsvpConstraintDialog, AddVenueDialog, EditGroupDialog, MembersSection, AIPreferenceLearning, ColorPaletteSelector, AutomationSettings, ActivityPreferencesAccordion, MyPreferencesTab, BasicInfoAccordion, VenueSearchEmptyState, NearbySuggestionsCard, AIPreview, AutomationPauseControls } from "@/components/group-detail";
 import { useItineraryEditor } from "@/hooks/useItineraryEditor";
 import { useVenueSelection } from "@/hooks/useVenueSelection";
 import { useSchedulingFlow } from "@/hooks/useSchedulingFlow";
@@ -2876,6 +2876,35 @@ export default function GroupDetail() {
           {/* Home Tab */}
           <TabsContent value="home" className="space-y-6">
             {groupId && <AvailabilityPulseCard groupId={groupId} />}
+            {/* AI Preview - shows what automation would do, even when off */}
+            {groupId && isOwner && (
+              <AIPreview
+                groupId={groupId}
+                isOrganizer={isOwner}
+                autoScheduleEnabled={group?.autoScheduleEnabled || false}
+                automationPaused={group?.automationPaused || false}
+                nextEventDueDate={group?.nextEventDueDate}
+                confidenceThreshold={group?.confidenceThreshold || 80}
+                onToggleAutomation={(enabled) => {
+                  if (enabled) {
+                    setAutoSchedulePreviewOpen(true);
+                  } else {
+                    toggleAutomationMutation.mutate({ field: 'autoScheduleEnabled', value: false });
+                  }
+                }}
+                onNavigateToQueue={() => setActiveTab('build')}
+              />
+            )}
+            {/* Pause/Resume Controls - visible when automation is on */}
+            {groupId && isOwner && group?.autoScheduleEnabled && (
+              <AutomationPauseControls
+                groupId={groupId}
+                autoScheduleEnabled={group?.autoScheduleEnabled || false}
+                automationPaused={group?.automationPaused || false}
+                automationPausedUntil={group?.automationPausedUntil}
+                automationPauseEventsRemaining={group?.automationPauseEventsRemaining}
+              />
+            )}
             <HomeTab
               eventsLoading={eventsLoading}
               allGroupEvents={allGroupEvents}
