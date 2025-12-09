@@ -432,29 +432,41 @@ export default function EventDetailsPage() {
 
   const organizerRsvpMutation = useMutation({
     mutationFn: async (response: 'yes' | 'maybe' | 'no') => {
-      console.log('[organizerRsvpMutation] Sending RSVP:', { eventId, response });
       const result = await apiRequest("POST", `/api/itineraries/${eventId}/organizer-rsvp`, {
         response,
       });
-      console.log('[organizerRsvpMutation] Response:', result);
       return result;
     },
-    onSuccess: (data) => {
-      console.log('[organizerRsvpMutation] Success! Data:', data);
-      // Invalidate both endpoints to ensure the RSVP is reflected
+    onMutate: async (newResponse) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["/api/user/events"] });
+
+      // Snapshot previous value
+      const previousEvents = queryClient.getQueryData(["/api/user/events"]) as any[] | undefined;
+
+      // Optimistically update
+      if (previousEvents) {
+        const updatedEvents = previousEvents.map((evt: any) => {
+          if (evt.itineraryId !== eventId) return evt;
+          return { ...evt, organizerRsvp: newResponse };
+        });
+        queryClient.setQueryData(["/api/user/events"], updatedEvents);
+      }
+
+      return { previousEvents };
+    },
+    onError: (error: any, _, context) => {
+      // Rollback on error
+      if (context?.previousEvents) {
+        queryClient.setQueryData(["/api/user/events"], context.previousEvents);
+      }
+      toast(getErrorToast(error));
+    },
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/itineraries/:id", eventId] });
       toast({
         title: "RSVP updated",
         description: "Your response has been recorded",
-      });
-    },
-    onError: (error: any) => {
-      console.error('[organizerRsvpMutation] Error:', error);
-      toast({
-        title: "Failed to update RSVP",
-        description: error.message || "Please try again",
-        variant: "destructive",
       });
     },
   });
@@ -718,6 +730,47 @@ export default function EventDetailsPage() {
         });
       }
     },
+    onMutate: async ({ memberId, response }) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["/api/user/events"] });
+
+      // Snapshot previous value
+      const previousEvents = queryClient.getQueryData(["/api/user/events"]) as any[] | undefined;
+
+      // Optimistically update
+      if (previousEvents) {
+        const updatedEvents = previousEvents.map((evt: any) => {
+          if (evt.itineraryId !== eventId) return evt;
+
+          // Update detailedRsvps array
+          const existingRsvps = evt.detailedRsvps || [];
+          const existingIndex = existingRsvps.findIndex((r: any) => r.memberId === memberId);
+
+          let newRsvps;
+          if (existingIndex >= 0) {
+            // Update existing RSVP
+            newRsvps = existingRsvps.map((r: any, i: number) =>
+              i === existingIndex ? { ...r, response } : r
+            );
+          } else {
+            // Add new RSVP entry
+            newRsvps = [...existingRsvps, { memberId, response }];
+          }
+
+          return { ...evt, detailedRsvps: newRsvps };
+        });
+        queryClient.setQueryData(["/api/user/events"], updatedEvents);
+      }
+
+      return { previousEvents };
+    },
+    onError: (error: any, _, context) => {
+      // Rollback on error
+      if (context?.previousEvents) {
+        queryClient.setQueryData(["/api/user/events"], context.previousEvents);
+      }
+      toast(getErrorToast(error));
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
       toast({
@@ -794,12 +847,33 @@ export default function EventDetailsPage() {
     mutationFn: async (updates: { name?: string; note?: string }) => {
       return await apiRequest("PATCH", `/api/itineraries/${eventId}`, updates);
     },
+    onMutate: async (updates) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["/api/user/events"] });
+
+      // Snapshot previous value
+      const previousEvents = queryClient.getQueryData(["/api/user/events"]) as any[] | undefined;
+
+      // Optimistically update
+      if (previousEvents) {
+        const updatedEvents = previousEvents.map((evt: any) => {
+          if (evt.itineraryId !== eventId) return evt;
+          return { ...evt, ...updates };
+        });
+        queryClient.setQueryData(["/api/user/events"], updatedEvents);
+      }
+
+      return { previousEvents };
+    },
+    onError: (error: any, _, context) => {
+      // Rollback on error
+      if (context?.previousEvents) {
+        queryClient.setQueryData(["/api/user/events"], context.previousEvents);
+      }
+      toast(getErrorToast(error));
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
-      queryClient.invalidateQueries({ queryKey: [`/api/itineraries/${eventId}`] });
-    },
-    onError: (error: any) => {
-      toast(getErrorToast(error));
     },
   });
 

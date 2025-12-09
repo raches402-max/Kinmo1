@@ -7,12 +7,13 @@ import { useState, useEffect } from "react";
 
 // Niche words organized by specificity - will be sprinkled in
 const nicheWords = {
-  casual: ["crew", "squad", "besties", "roommates", "neighbors"],
+  casual: ["crew", "squad", "besties", "roommates"],
+  relationships: ["girlfriend", "boyfriend", "wife", "husband", "partner"],
   activity: ["book club", "gym buddies", "hiking crew", "trivia team", "brunch bunch", "wine club"],
   sports: ["Sunday football fam", "running buddies", "yoga friends", "volleyball crew", "fantasy league", "climbing partners"],
-  lifeStage: ["parent friends", "mom friends", "dad group", "couple friends", "old college crew", "childhood friends", "new city friends"],
-  ultraNiche: ["Costco run crew", "dog park friends", "coffee shop crew", "pickleball posse", "karaoke crew", "D&D party", "poker night"],
-  insideJokes: ["frands", "b-school crew", "ravefrands", "girlfrands", "ladles", "faves", "usual boys"],
+  lifeStage: ["parent friends", "mom friends", "dad group", "couple friends", "old college crew", "childhood friends", "new city friends", "parents", "kids"],
+  ultraNiche: ["Costco run crew", "dog park friends", "coffee shop crew", "pickleball posse", "karaoke crew", "D&D party", "poker night", "Target run crew", "the group chat"],
+  insideJokes: ["frands", "b-school crew", "ravefrands", "girlfrands", "ladles", "faves", "usual boys", "ride or dies", "work wives", "college roomies"],
 };
 
 // Generate a mixed rotation: arc from generic → niche → back to generic
@@ -39,7 +40,7 @@ function generateRotation(rotationIndex: number): string[] {
     startsWithFrands ? "frands" : "friends",       // generic start (or easter egg)
     "family",                                       // generic
     allNiche[(nicheOffset + 0) % allNiche.length], // climb into niche
-    "partner",                                      // anchor mid-way
+    nicheWords.relationships[rotationIndex % nicheWords.relationships.length], // rotating relationship word
     allNiche[(nicheOffset + 1) % allNiche.length], // niche peak
     allNiche[(nicheOffset + 2) % allNiche.length], // still niche
     "people",                                       // descending
