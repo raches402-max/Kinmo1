@@ -608,38 +608,38 @@ export default function EventDetailsPage() {
       });
     },
     onMutate: async (proposedOrder) => {
-      // Cancel any outgoing refetches
-      await queryClient.cancelQueries({ queryKey: ["/api/user/events", eventId] });
+      // Cancel any outgoing refetches - use correct query key (the events list, not individual event)
+      await queryClient.cancelQueries({ queryKey: ["/api/user/events"] });
 
       // Snapshot the previous value
-      const previousEvent = queryClient.getQueryData(["/api/user/events", eventId]);
+      const previousEvents = queryClient.getQueryData(["/api/user/events"]) as any[] | undefined;
 
       // Optimistically update to the new value
-      if (previousEvent) {
-        const currentEvent = previousEvent as any;
-        // Use item.id for mapping since ad-hoc items have null sourceId
-        const idToItem = new Map(currentEvent.items.map((item: any) => [item.id, item]));
-        const newItems = proposedOrder.map(id => idToItem.get(id)).filter(Boolean);
-
-        queryClient.setQueryData(["/api/user/events", eventId], {
-          ...currentEvent,
-          items: newItems,
+      if (previousEvents) {
+        const updatedEvents = previousEvents.map((evt: any) => {
+          if (evt.itineraryId !== eventId) return evt;
+          // Reorder items for this specific event
+          const idToItem = new Map(evt.items.map((item: any) => [item.id, item]));
+          const newItems = proposedOrder.map(id => idToItem.get(id)).filter(Boolean);
+          return { ...evt, items: newItems };
         });
+
+        queryClient.setQueryData(["/api/user/events"], updatedEvents);
       }
 
       // Return context with the snapshot
-      return { previousEvent };
+      return { previousEvents };
     },
     onError: (err, proposedOrder, context) => {
       // Rollback to the previous value on error
-      if (context?.previousEvent) {
-        queryClient.setQueryData(["/api/user/events", eventId], context.previousEvent);
+      if (context?.previousEvents) {
+        queryClient.setQueryData(["/api/user/events"], context.previousEvents);
       }
       toast(getErrorToast(err));
     },
     onSuccess: () => {
       // Refetch to ensure we have the latest data
-      queryClient.invalidateQueries({ queryKey: ["/api/user/events", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
       toast({
         title: "Order updated",
         description: "Venue order has been updated",
@@ -652,7 +652,6 @@ export default function EventDetailsPage() {
       return await apiRequest("POST", `/api/itineraries/${eventId}/decide-now`, {});
     },
     onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/user/events", eventId] });
       queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
       toast({
         title: "Venues regenerated!",
@@ -671,28 +670,31 @@ export default function EventDetailsPage() {
       });
     },
     onMutate: async (newDate: Date) => {
-      // Cancel outgoing refetches
-      await queryClient.cancelQueries({ queryKey: ["/api/user/events", eventId] });
+      // Cancel outgoing refetches - use correct query key (events list)
+      await queryClient.cancelQueries({ queryKey: ["/api/user/events"] });
 
       // Snapshot previous value
-      const previousEvent = queryClient.getQueryData(["/api/user/events", eventId]);
+      const previousEvents = queryClient.getQueryData(["/api/user/events"]) as any[] | undefined;
 
       // Optimistically update to the new value
-      queryClient.setQueryData(["/api/user/events", eventId], (old: any) => {
-        if (!old) return old;
-        return { ...old, eventDate: newDate.toISOString() };
-      });
+      if (previousEvents) {
+        const updatedEvents = previousEvents.map((evt: any) => {
+          if (evt.itineraryId !== eventId) return evt;
+          return { ...evt, eventDate: newDate.toISOString() };
+        });
+        queryClient.setQueryData(["/api/user/events"], updatedEvents);
+      }
 
-      return { previousEvent };
+      return { previousEvents };
     },
     onError: (err, newDate, context: any) => {
       // Rollback on error
-      if (context?.previousEvent) {
-        queryClient.setQueryData(["/api/user/events", eventId], context.previousEvent);
+      if (context?.previousEvents) {
+        queryClient.setQueryData(["/api/user/events"], context.previousEvents);
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/user/events", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
       toast({
         title: "Date updated",
         description: "Event date has been updated",
@@ -717,7 +719,7 @@ export default function EventDetailsPage() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/user/events", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
       toast({
         title: "RSVP updated",
         description: "Member RSVP has been updated",
@@ -744,7 +746,7 @@ export default function EventDetailsPage() {
       return response;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/user/events", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
       toast({
         title: "Invite removed",
         description: "Member has been removed from this event",
