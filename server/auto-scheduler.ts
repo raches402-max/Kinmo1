@@ -880,6 +880,11 @@ export function calculateFutureEventDates(
   const defaultHour = group ? getDefaultEventTime(group) : 19; // Default to 7 PM
   const timezone = group?.timezone || 'America/Los_Angeles'; // Default to PST
 
+  // Log warning if timezone is missing - helps identify geocoding failures
+  if (!group?.timezone) {
+    console.warn(`[Auto-scheduler] Group ${group?.id || 'unknown'} has no timezone set, defaulting to America/Los_Angeles`);
+  }
+
   for (let i = 0; i < count; i++) {
     // Create a date with just the date part (no weird times!)
     const dateOnly = new Date(currentDate);

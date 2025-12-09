@@ -539,7 +539,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllGroups(): Promise<Group[]> {
-    return await db.select().from(groups);
+    return await db.select().from(groups).where(isNull(groups.deletedAt));
   }
 
   async getGroup(id: string): Promise<Group | undefined> {

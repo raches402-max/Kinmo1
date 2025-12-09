@@ -648,7 +648,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Refresh stale photo URL for a venue (lazy refresh on image error)
-  app.post('/api/venues/:googlePlaceId/refresh-photo', async (req, res) => {
+  // Requires authentication to prevent abuse
+  app.post('/api/venues/:googlePlaceId/refresh-photo', isAuthenticated, async (req, res) => {
     try {
       const { googlePlaceId } = req.params;
 
@@ -3523,9 +3524,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { feedback } = validatedData;
 
-      // First fetch the activity to check ownership
-      const activities = await storage.getAllGroupActivities(''); // We'll use a workaround
-      const activity = activities.find(a => a.id === req.params.activityId);
+      // Fetch the specific activity by ID (not loading all activities!)
+      const activity = await storage.getActivity(req.params.activityId);
 
       if (!activity || !activity.groupId) {
         return res.status(404).json({ message: "Activity not found" });
@@ -4024,7 +4024,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/cron/weekly-digest", async (req, res) => {
     try {
       // Simple auth: check for CRON_SECRET in headers or query
-      const cronSecret = process.env.CRON_SECRET || 'dev-secret-change-in-production';
+      const cronSecret = process.env.CRON_SECRET;
+      if (!cronSecret) {
+        console.error("CRON_SECRET environment variable not configured");
+        return res.status(500).json({ message: "Server configuration error" });
+      }
       const providedSecret = req.headers['x-cron-secret'] || req.query.secret;
 
       if (providedSecret !== cronSecret) {
@@ -4042,40 +4046,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Join a group
+  // Join a group (requires valid invite token for security)
   app.post("/api/groups/:id/join", async (req, res) => {
     try {
       // Validate request body
       const validatedData = safeParse(joinGroupSchema, req.body, res);
       if (!validatedData) return;
 
-      const { name, email } = validatedData;
+      const { name, email, inviteToken } = validatedData;
 
-      const memberData = {
-        groupId: req.params.id,
-        name: name || null,
-        email: email || null,
-        isOrganizer: false,
-        invitationSent: false,
-        hasJoined: true,
-      };
+      // Verify the group exists and is not deleted
+      const group = await storage.getGroup(req.params.id);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
 
-      const member = await storage.createMember(memberData);
-      res.json(member);
+      // Require invite token OR email that matches an existing invited member
+      let existingMember: any = null;
+      if (inviteToken) {
+        // Validate invite token by querying members with that claim token
+        const [memberByToken] = await db
+          .select()
+          .from(membersTable)
+          .where(sql`claim_token = ${inviteToken}`);
+
+        if (!memberByToken || memberByToken.groupId !== req.params.id) {
+          return res.status(403).json({ message: "Invalid invite token" });
+        }
+        existingMember = memberByToken;
+      } else if (email) {
+        // Check if email was pre-invited to this group
+        const members = await storage.getGroupMembers(req.params.id);
+        existingMember = members.find(m => m.email?.toLowerCase() === email.toLowerCase());
+        if (!existingMember) {
+          return res.status(403).json({ message: "You must be invited to join this group" });
+        }
+      } else {
+        return res.status(403).json({ message: "Invite token or email required to join" });
+      }
+
+      // Update existing member record instead of creating duplicate
+      if (existingMember) {
+        const updatedMember = await storage.updateMember(existingMember.id, {
+          name: name || existingMember.name,
+          hasJoined: true,
+        });
+        return res.json(updatedMember);
+      }
+
+      // Fallback: should not reach here with proper validation above
+      return res.status(403).json({ message: "Unable to join group" });
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }
   });
 
-  // Get individual member by ID (requires authentication)
-  // Phase 1: Make member endpoint public for event invite flow
+  // Get individual member by ID (public for event invite flow)
+  // Returns only safe, non-sensitive fields
   app.get("/api/members/:id", publicEndpointLimiter, async (req, res) => {
     try {
       const member = await storage.getMember(req.params.id);
       if (!member) {
         return res.status(404).json({ message: "Member not found" });
       }
-      res.json(member);
+
+      // Return only safe fields - explicitly exclude sensitive data
+      const safeMember = {
+        id: member.id,
+        name: member.name,
+        groupId: member.groupId,
+        isOrganizer: member.isOrganizer,
+        openToHosting: member.openToHosting,
+        hasJoined: member.hasJoined,
+        // Explicitly excluded: claimToken, email, userId, memberLocation,
+        // memberBudgetMin/Max, memberAvailability, memberConstraints
+      };
+
+      res.json(safeMember);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -5127,6 +5174,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           reviewCount: alt.reviewCount,
           photoUrl: alt.photoUrl,
           types: alt.types,
+          type: alt.types?.[0] || venueType, // Primary type for frontend compatibility
+          latitude: alt.location?.lat,
+          longitude: alt.location?.lng,
           reasoning: reasons.length > 0 ? reasons.join(', ') : 'Similar venue in area',
         };
       });
@@ -10332,21 +10382,40 @@ Looking forward to planning great activities together!
     try {
       const { timeSlotId } = req.params;
       const { memberId, memberName, voteType = "yes" } = req.body;
-      
+
       // Validate voteType
       if (!["yes", "maybe", "no"].includes(voteType)) {
         return res.status(400).json({ message: "voteType must be 'yes', 'maybe', or 'no'" });
       }
-      
+
       let userId = null;
       if (req.user) {
         userId = await getUserId(req);
       }
-      
+
       if (!userId && !memberId) {
         return res.status(400).json({ message: "Either userId or memberId is required" });
       }
-      
+
+      // Validate that the time slot exists and get its itinerary
+      const timeSlot = await storage.getTimeSlot(timeSlotId);
+      if (!timeSlot) {
+        return res.status(404).json({ message: "Time slot not found" });
+      }
+
+      const itinerary = await storage.getItinerary(timeSlot.itineraryId);
+      if (!itinerary || !itinerary.groupId) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      // Validate memberId belongs to this group
+      if (memberId) {
+        const member = await storage.getMember(memberId);
+        if (!member || member.groupId !== itinerary.groupId) {
+          return res.status(403).json({ message: "Member does not belong to this group" });
+        }
+      }
+
       const vote = await storage.voteForTimeSlot({
         timeSlotId,
         userId,
@@ -10354,7 +10423,7 @@ Looking forward to planning great activities together!
         memberName: memberName || null,
         voteType,
       });
-      
+
       res.json(vote);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -10377,6 +10446,25 @@ Looking forward to planning great activities together!
 
       if (!userId && !memberId) {
         return res.status(400).json({ message: "Either userId or memberId is required" });
+      }
+
+      // Validate that the time slot exists and get its itinerary
+      const timeSlot = await storage.getTimeSlot(timeSlotId);
+      if (!timeSlot) {
+        return res.status(404).json({ message: "Time slot not found" });
+      }
+
+      const itinerary = await storage.getItinerary(timeSlot.itineraryId);
+      if (!itinerary || !itinerary.groupId) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      // Validate memberId belongs to this group
+      if (memberId) {
+        const member = await storage.getMember(memberId);
+        if (!member || member.groupId !== itinerary.groupId) {
+          return res.status(403).json({ message: "Member does not belong to this group" });
+        }
       }
 
       await storage.removeTimeSlotVote(timeSlotId, userId, memberId);
@@ -13767,8 +13855,8 @@ Looking forward to planning great activities together!
   });
 
   // Admin endpoint to backfill coordinates for existing groups
-  // Protected endpoint - requires authentication
-  app.post("/api/admin/backfill-coordinates", isAuthenticated, async (req, res) => {
+  // Protected endpoint - requires admin access
+  app.post("/api/admin/backfill-coordinates", isAuthenticated, requireAdmin(), async (req, res) => {
     try {
       const groups = await storage.getAllGroups();
       let backfilled = 0;

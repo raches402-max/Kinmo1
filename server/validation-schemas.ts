@@ -172,11 +172,12 @@ export const updateAutomationSchema = z.object({
 // ========== MEMBER SCHEMAS ==========
 
 export const joinGroupSchema = z.object({
-  name: z.string().min(1, "Name is required"),
+  name: z.string().min(1, "Name is required").optional(),
   email: z.union([
     z.string().email("Invalid email format"),
     z.literal(""),
   ]).optional(),
+  inviteToken: z.string().optional(),
 });
 
 export const claimMemberSchema = z.object({

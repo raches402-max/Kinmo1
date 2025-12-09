@@ -50,8 +50,14 @@ export async function userOwnsGroup(userId: string, groupId: string): Promise<bo
 
 /**
  * Check if a user is a member of a group
+ * Also verifies the group exists and is not soft-deleted
  */
 export async function userIsMemberOfGroup(userId: string, groupId: string): Promise<boolean> {
+  // First verify the group exists and is not deleted
+  const group = await storage.getGroup(groupId);
+  if (!group) {
+    return false;
+  }
   const members = await storage.getGroupMembers(groupId);
   return members.some(member => member.userId === userId);
 }
@@ -317,17 +323,26 @@ export function requireMemberAccess() {
 
 /**
  * Middleware: Require admin access
- * Currently checks against a hardcoded list, but could be expanded to check roles in DB
+ * Checks against ADMIN_EMAILS environment variable (comma-separated list)
+ * Falls back to hardcoded default for backwards compatibility
  */
-const ADMIN_EMAILS = ['raches402@gmail.com'];
+function getAdminEmails(): string[] {
+  const envAdmins = process.env.ADMIN_EMAILS;
+  if (envAdmins) {
+    return envAdmins.split(',').map(email => email.trim().toLowerCase());
+  }
+  // Fallback to default admin
+  return ['raches402@gmail.com'];
+}
 
 export function requireAdmin() {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const user = req.user as any;
-      const email = user?.claims?.email;
+      const email = user?.claims?.email?.toLowerCase();
+      const adminEmails = getAdminEmails();
 
-      if (!email || !ADMIN_EMAILS.includes(email)) {
+      if (!email || !adminEmails.includes(email)) {
         return res.status(403).json({ message: "Forbidden: Admin access required" });
       }
 

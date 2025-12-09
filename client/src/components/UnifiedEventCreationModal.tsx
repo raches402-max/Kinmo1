@@ -99,7 +99,7 @@ export function UnifiedEventCreationModal({
 
   // Fetch selected group data
   const { data: selectedGroup } = useQuery({
-    queryKey: ["groups", selectedGroupId],
+    queryKey: ["/api/groups", selectedGroupId],
     queryFn: async () => {
       const res = await fetch(`/api/groups/${selectedGroupId}`);
       if (!res.ok) throw new Error("Failed to fetch group");
@@ -110,7 +110,7 @@ export function UnifiedEventCreationModal({
 
   // Fetch Favorites count for selected group
   const { data: favoritesData } = useQuery({
-    queryKey: ["groups", selectedGroupId, "voting-events"],
+    queryKey: ["/api/groups", selectedGroupId, "voting-events"],
     queryFn: async () => {
       const res = await fetch(`/api/groups/${selectedGroupId}/voting-events`);
       if (!res.ok) throw new Error("Failed to fetch voting events");

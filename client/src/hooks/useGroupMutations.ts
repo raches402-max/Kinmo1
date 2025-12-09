@@ -131,6 +131,9 @@ export function useGroupMutations({ groupId, callbacks = {} }: UseGroupMutations
       callbacks.onEditMemberSuccess?.();
       toast({ title: "Member updated", description: "Member details have been updated" });
     },
+    onError: (error: Error) => {
+      toast(getErrorToast(error));
+    },
   });
 
   const toggleHostingMutation = useMutation({
@@ -346,6 +349,7 @@ export function useGroupMutations({ groupId, callbacks = {} }: UseGroupMutations
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "proposed-itineraries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
       callbacks.onSendItinerarySuccess?.();
+      toast({ title: "Itinerary sent!", description: "Invitations have been sent to group members" });
     },
     onError: (error: Error) => {
       toast(getErrorToast(error));
