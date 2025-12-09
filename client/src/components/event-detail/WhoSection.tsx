@@ -14,6 +14,7 @@ import {
   UserPlus,
   CheckCircle,
   Plus,
+  Share2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -208,6 +209,7 @@ interface WhoSectionProps {
   onSendReminder?: (attendee: EventAttendee) => void;
   onUpdateQuorum?: (threshold: number) => void;
   onEditGuestName?: (attendee: EventAttendee) => void;
+  onShareInvite?: () => void;
 }
 
 export function WhoSection({
@@ -227,6 +229,7 @@ export function WhoSection({
   onSendReminder,
   onUpdateQuorum,
   onEditGuestName,
+  onShareInvite,
 }: WhoSectionProps) {
   const [isEditingQuorum, setIsEditingQuorum] = useState(false);
   const [localQuorum, setLocalQuorum] = useState(quorumThreshold);
@@ -420,6 +423,19 @@ export function WhoSection({
               </>
             );
           })()}
+
+          {/* Share Invite Link - shown for organizers when event is sent */}
+          {isOrganizer && onShareInvite && (
+            <Button
+              variant="default"
+              size="sm"
+              className="w-full h-11 text-sm gap-2 font-semibold"
+              onClick={onShareInvite}
+            >
+              <Share2 className="h-4 w-4" />
+              Share Invite Link
+            </Button>
+          )}
 
           {/* Add buttons - organizer only */}
           {isOrganizer && (

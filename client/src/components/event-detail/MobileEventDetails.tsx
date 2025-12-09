@@ -40,7 +40,6 @@ import { format, subDays } from "date-fns";
 import { WhenSection } from "./WhenSection";
 import { WhereSection } from "./WhereTimeline";
 import { WhoSection } from "./WhoSection";
-import { FloatingActionBar } from "./FloatingActionBar";
 import { PendingRsvpPrompt } from "./PendingRsvpPrompt";
 import type { EventData, EventAttendee, EventStatus, RsvpStatus, RsvpCounts, EventVenue } from "./types";
 
@@ -346,7 +345,7 @@ export function MobileEventDetails({
     );
   }, [attendees]);
 
-  // Build timeline info for FloatingActionBar tooltip
+  // Build timeline info for tooltip
   const timelineInfo = useMemo(() => {
     if (!event.eventDate) return undefined;
 
@@ -655,6 +654,7 @@ export function MobileEventDetails({
               setShowEditGuestDrawer(true);
             }
           }}
+          onShareInvite={eventStatus !== "draft" ? onShare : undefined}
         />
 
         {/* Event Note/Description - at the bottom */}
@@ -708,23 +708,6 @@ export function MobileEventDetails({
           </div>
         )}
       </main>
-
-      {/* Floating Action Bar - positioned above BottomNav */}
-      <div className="fixed bottom-16 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border">
-        <FloatingActionBar
-          status={eventStatus}
-          hasUnsavedChanges={false}
-          hasMinorChanges={false}
-          isOrganizer={isOrganizer}
-          isSending={isSending}
-          isStandalone={event.isStandalone}
-          timelineInfo={timelineInfo}
-          onSendToGroup={onSendToGroup}
-          onSendInvites={onSendInvites}
-          onShare={onShare}
-          onInviteGuest={onInviteGuest}
-        />
-      </div>
 
       {/* Add Guest Drawer */}
       <Drawer open={showAddGuestDrawer} onOpenChange={setShowAddGuestDrawer}>
