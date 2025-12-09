@@ -9613,7 +9613,7 @@ Looking forward to planning great activities together!
   });
 
   // Delete itinerary item
-  app.delete("/api/itinerary-items/:id", async (req, res) => {
+  app.delete("/api/itinerary-items/:id", isAuthenticated, async (req: any, res) => {
     try {
       const itemId = req.params.id;
 
