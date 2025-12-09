@@ -80,6 +80,7 @@ import {
   PenLine,
   Bell,
   CopyPlus,
+  ChevronDown,
 } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
@@ -299,6 +300,7 @@ export function DesktopEventDetails({
   const [editingName, setEditingName] = useState(event.itineraryName || "");
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [editingNote, setEditingNote] = useState(event.note || "");
+  const [isNoteExpanded, setIsNoteExpanded] = useState(!!event.note);
 
   // Sync editing state when event changes
   useEffect(() => {
@@ -488,6 +490,25 @@ export function DesktopEventDetails({
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     )}
+                    {isOrganizer && onDuplicateEvent && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-[hsl(25,15%,45%)] hover:text-[hsl(25,30%,14%)] hover:bg-[hsl(38,30%,93%)]"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={onDuplicateEvent}>
+                            <CopyPlus className="h-4 w-4 mr-2" />
+                            Duplicate Event
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                   </div>
                 }
               />
@@ -603,6 +624,77 @@ export function DesktopEventDetails({
                       <div className="text-[hsl(25,15%,45%)]">Date not set</div>
                     )}
                   </div>
+                </div>
+
+                {/* Collapsible Note Section */}
+                <div className="border-t border-[hsl(32,20%,88%)] pt-4">
+                  <button
+                    onClick={() => {
+                      if (!isNoteExpanded && isOrganizer && onUpdateNote) {
+                        setIsNoteExpanded(true);
+                        setIsEditingNote(true);
+                      } else {
+                        setIsNoteExpanded(!isNoteExpanded);
+                      }
+                    }}
+                    className="flex items-center gap-2 w-full text-left group"
+                  >
+                    <PenLine className="h-4 w-4 text-[hsl(25,15%,45%)]" />
+                    <span className="text-sm font-medium text-[hsl(25,15%,45%)] group-hover:text-[hsl(44,87%,45%)] transition-colors">
+                      {event.note ? "Note" : "+ Add a note"}
+                    </span>
+                    {event.note && (
+                      <ChevronDown
+                        className={cn(
+                          "h-4 w-4 text-[hsl(25,15%,45%)] ml-auto transition-transform",
+                          isNoteExpanded && "rotate-180"
+                        )}
+                      />
+                    )}
+                  </button>
+
+                  {isNoteExpanded && (
+                    <div className="mt-3">
+                      {isEditingNote ? (
+                        <Textarea
+                          value={editingNote}
+                          onChange={(e) => setEditingNote(e.target.value)}
+                          className="min-h-[80px] text-sm border-[hsl(44,70%,75%)] focus:border-[hsl(44,87%,63%)]"
+                          placeholder="Add a note or description for this event..."
+                          autoFocus
+                          onBlur={() => {
+                            if (editingNote !== (event.note || "")) {
+                              onUpdateNote?.(editingNote);
+                            }
+                            setIsEditingNote(false);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Escape") {
+                              setEditingNote(event.note || "");
+                              setIsEditingNote(false);
+                            }
+                          }}
+                        />
+                      ) : event.note ? (
+                        <p
+                          onClick={() => isOrganizer && onUpdateNote && setIsEditingNote(true)}
+                          className={cn(
+                            "text-sm text-[hsl(25,20%,35%)] whitespace-pre-wrap",
+                            isOrganizer && onUpdateNote && "hover:text-[hsl(44,87%,45%)] transition-colors cursor-pointer"
+                          )}
+                        >
+                          {event.note}
+                        </p>
+                      ) : isOrganizer && onUpdateNote ? (
+                        <button
+                          onClick={() => setIsEditingNote(true)}
+                          className="text-sm text-[hsl(25,15%,55%)] hover:text-[hsl(44,87%,45%)] transition-colors"
+                        >
+                          Click to add a note...
+                        </button>
+                      ) : null}
+                    </div>
+                  )}
                 </div>
               </div>
             </RefinedCard>
@@ -761,9 +853,9 @@ export function DesktopEventDetails({
               </RefinedCard>
             )}
 
-            {/* Attendees */}
+            {/* Members */}
             <RefinedCard>
-              <RefinedSectionHeader icon={Users} title="Attendees">
+              <RefinedSectionHeader icon={Users} title="Members">
                 <div className="flex items-center gap-1.5 ml-3 text-sm text-[hsl(25,15%,45%)]">
                   <span className="text-[hsl(44,87%,45%)] font-semibold">{rsvpSummary.yes}</span>
                   <span>/</span>
@@ -937,10 +1029,54 @@ export function DesktopEventDetails({
                     </RefinedAttendeeCard>
                   ))}
                 </div>
+
+                {/* Action Buttons */}
+                <div className="border-t border-[hsl(32,20%,88%)] pt-4 mt-4 space-y-2">
+                  <RefinedActionButton icon={Copy} onClick={onCopyInviteLink}>
+                    Copy Invite Link
+                  </RefinedActionButton>
+                  {isOrganizer && onRemindAll && (
+                    <RefinedActionButton icon={Bell} onClick={onRemindAll}>
+                      Remind All
+                    </RefinedActionButton>
+                  )}
+                  {canVolunteerToHost && (
+                    <RefinedActionButton
+                      icon={UserPlus}
+                      onClick={onVolunteerToHost}
+                      disabled={isPending.volunteerToHost}
+                    >
+                      Volunteer to Host
+                    </RefinedActionButton>
+                  )}
+                  {isCurrentHost && hostableMembers.length > 0 && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <div>
+                          <RefinedActionButton icon={Share2}>
+                            Hand Off Host
+                          </RefinedActionButton>
+                        </div>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Select New Host</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        {hostableMembers.map((member: any) => (
+                          <DropdownMenuItem
+                            key={member.id}
+                            onClick={() => onHandOffHost(member.id)}
+                          >
+                            {member.name || member.email}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </div>
               </div>
             </RefinedCard>
 
-            {/* Share & Manage */}
+            {/* Share & Manage - REMOVED */}
             <RefinedCard hover={false}>
               <RefinedSectionHeader icon={Share2} title="Share & Manage" />
               <div className="p-5 space-y-2">
