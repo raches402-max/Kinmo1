@@ -1292,17 +1292,157 @@
       </div>
     </section>
 
-    <!-- RECOMMENDATION -->
-    <section class="concept-section" style="background: linear-gradient(135deg, #E8A832, #D4922A); color: white;">
-      <h2 style="color: white;">My Take</h2>
-      <div style="color: rgba(255,255,255,0.95); line-height: 1.8;">
-        <p><strong>Option A (Circles)</strong> is the clearest "people around a table" read. Simple, friendly, universal.</p>
-        <br>
-        <p><strong>Option D (Ovals)</strong> adds subtle human warmth — the shapes feel more like figures leaning in to the conversation.</p>
-        <br>
-        <p><strong>Option E (Dashes)</strong> is the most abstract but scales perfectly and really captures that sun-ray energy.</p>
-        <br>
-        <p style="padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.3);"><strong>The gold center works beautifully</strong> — it pops against both light and dark backgrounds, and the dual yellow/terracotta color scheme creates a warm, appetizing palette that says "gather around good food."</p>
+    <!-- ================================================================
+         FINAL ANIMATION — "THE GATHERING"
+         The approved logo animation with design notes
+         ================================================================ -->
+    <section class="concept-section" style="background: linear-gradient(145deg, #2D1F18 0%, #3E271C 50%, #4A3228 100%); color: white; margin-top: 2rem;">
+      <h2 style="color: #F2C94C; font-size: 1.75rem; margin-bottom: 1rem;">Final Animation: "The Gathering"</h2>
+
+      <div style="color: rgba(255,255,255,0.9); line-height: 1.8; margin-bottom: 2rem;">
+        <p style="font-size: 1.05rem;">Friends arrive at the table one by one, each at their own pace. When everyone's finally seated together, the shape reveals itself as a sun — and warmth radiates outward.</p>
+      </div>
+
+      <!-- Final Demo -->
+      <div style="display: flex; justify-content: center; margin: 2.5rem 0;">
+        <div style="background: rgba(255,255,255,0.08); border-radius: 24px; padding: 3rem; display: flex; flex-direction: column; align-items: center;">
+          <div class="gathering-container">
+            <svg class="logo-svg" width="130" height="130" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" style="overflow: visible;">
+              <defs>
+                <radialGradient id="warmGlowFinal" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stop-color="#F5D76E" stop-opacity="0.75"/>
+                  <stop offset="30%" stop-color="#F2C94C" stop-opacity="0.5"/>
+                  <stop offset="55%" stop-color="#E8A832" stop-opacity="0.25"/>
+                  <stop offset="80%" stop-color="#E8A832" stop-opacity="0.1"/>
+                  <stop offset="100%" stop-color="#E8A832" stop-opacity="0"/>
+                </radialGradient>
+                <radialGradient id="innerGlowFinal" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stop-color="#FFF8E0" stop-opacity="0.7"/>
+                  <stop offset="40%" stop-color="#F5D76E" stop-opacity="0.4"/>
+                  <stop offset="70%" stop-color="#F2C94C" stop-opacity="0.15"/>
+                  <stop offset="100%" stop-color="#F2C94C" stop-opacity="0"/>
+                </radialGradient>
+              </defs>
+              <circle class="sun-warmth" cx="24" cy="24" r="38" fill="url(#warmGlowFinal)"/>
+              <circle class="sun-warmth-inner" cx="24" cy="24" r="28" fill="url(#innerGlowFinal)"/>
+              <circle class="table-center" cx="24" cy="24" r="14" fill="#F2C94C"/>
+              <path class="chair c1" d="M19 5 A4 4 0 0 1 29 5 L24 5 Z" fill="#F2C94C"/>
+              <path class="chair c2" d="M38 10 A4 4 0 0 1 43 19 L40 14 Z" fill="#F2C94C"/>
+              <path class="chair c3" d="M43 29 A4 4 0 0 1 38 38 L40 34 Z" fill="#F2C94C"/>
+              <path class="chair c4" d="M29 43 A4 4 0 0 1 19 43 L24 43 Z" fill="#F2C94C"/>
+              <path class="chair c5" d="M10 38 A4 4 0 0 1 5 29 L8 34 Z" fill="#F2C94C"/>
+              <path class="chair c6" d="M5 19 A4 4 0 0 1 10 10 L8 14 Z" fill="#F2C94C"/>
+            </svg>
+          </div>
+          <button class="replay-btn" onclick="replayGathering()" style="margin-top: 1.5rem;">Replay Animation</button>
+        </div>
+      </div>
+
+      <!-- Design Process Notes -->
+      <div style="margin-top: 2.5rem;">
+        <h3 style="font-family: Nunito, sans-serif; font-size: 1.1rem; color: #F2C94C; margin-bottom: 1.25rem;">Design Process & Iterations</h3>
+
+        <div style="display: grid; gap: 1rem;">
+          <!-- Iteration 1 -->
+          <div style="background: rgba(255,255,255,0.06); border-radius: 12px; padding: 1.25rem; border-left: 3px solid #F2C94C;">
+            <div style="font-size: 0.7rem; color: #F2C94C; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.5rem;">Iteration 1: Wrong shapes</div>
+            <p style="font-size: 0.85rem; color: rgba(255,255,255,0.75); line-height: 1.6;">Started with solid circles (dots) instead of the actual Kinmo logo. The logo uses arc/semi-circle shapes that represent chairs around a table — these are the key visual elements that needed to animate.</p>
+          </div>
+
+          <!-- Iteration 2 -->
+          <div style="background: rgba(255,255,255,0.06); border-radius: 12px; padding: 1.25rem; border-left: 3px solid #F2C94C;">
+            <div style="font-size: 0.7rem; color: #F2C94C; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.5rem;">Iteration 2: Clockwise was too mechanical</div>
+            <p style="font-size: 0.85rem; color: rgba(255,255,255,0.75); line-height: 1.6;">Chairs arrived in clockwise order, which felt robotic and synchronized. Real friends don't arrive in perfect sequence — we needed randomness to feel natural.</p>
+          </div>
+
+          <!-- Iteration 3 -->
+          <div style="background: rgba(255,255,255,0.06); border-radius: 12px; padding: 1.25rem; border-left: 3px solid #F2C94C;">
+            <div style="font-size: 0.7rem; color: #F2C94C; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.5rem;">Iteration 3: Ring glow was artificial</div>
+            <p style="font-size: 0.85rem; color: rgba(255,255,255,0.75); line-height: 1.6;">Tried expanding ring borders for the sun reveal. Looked like a digital effect, not natural warmth. Switched to radial gradients that fade smoothly — like actual light diffusing.</p>
+          </div>
+
+          <!-- Iteration 4 -->
+          <div style="background: rgba(255,255,255,0.06); border-radius: 12px; padding: 1.25rem; border-left: 3px solid #F2C94C;">
+            <div style="font-size: 0.7rem; color: #F2C94C; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.5rem;">Iteration 4: Too fast</div>
+            <p style="font-size: 0.85rem; color: rgba(255,255,255,0.75); line-height: 1.6;">Animation was ~1.5 seconds total. Chairs felt "flung" into place, not pulled. Slowed everything down so each chair movement feels like someone actually pulling a chair to the table.</p>
+          </div>
+
+          <!-- Iteration 5 -->
+          <div style="background: rgba(255,255,255,0.06); border-radius: 12px; padding: 1.25rem; border-left: 3px solid #F2C94C;">
+            <div style="font-size: 0.7rem; color: #F2C94C; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.5rem;">Iteration 5: Glow from center only</div>
+            <p style="font-size: 0.85rem; color: rgba(255,255,255,0.75); line-height: 1.6;">Glow was localized to the table center. But the metaphor is that the <em>whole completed shape</em> is the sun — table + chairs together. Expanded glow radius to encompass the entire logo.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Final Specification -->
+      <div style="margin-top: 2.5rem;">
+        <h3 style="font-family: Nunito, sans-serif; font-size: 1.1rem; color: #F2C94C; margin-bottom: 1.25rem;">Final Animation Specification</h3>
+
+        <div style="background: rgba(0,0,0,0.25); border-radius: 16px; padding: 1.5rem; font-family: monospace; font-size: 0.8rem; color: rgba(255,255,255,0.85); line-height: 1.8;">
+          <div style="color: #F2C94C; margin-bottom: 0.75rem;">/* Total duration: ~8 seconds */</div>
+
+          <div style="margin-bottom: 1rem;">
+            <div style="color: rgba(255,255,255,0.5);">// Chair arrivals (random order, varied speeds)</div>
+            <div>Chair 5 (bottom-left): 0.0s start, 1.4s duration</div>
+            <div>Chair 1 (top): 0.8s start, 1.8s duration</div>
+            <div>Chair 3 (bottom-right): 1.6s start, 1.5s duration</div>
+            <div>Chair 6 (top-left): 2.4s start, 1.6s duration</div>
+            <div>Chair 4 (bottom): 3.2s start, 2.0s duration</div>
+            <div>Chair 2 (top-right): 4.5s start, 1.3s duration — last to arrive</div>
+          </div>
+
+          <div style="margin-bottom: 1rem;">
+            <div style="color: rgba(255,255,255,0.5);">// Table brightening</div>
+            <div>0.0s → 5.5s: opacity 0.12 → 1.0, scale 0.94 → 1.0</div>
+          </div>
+
+          <div style="margin-bottom: 1rem;">
+            <div style="color: rgba(255,255,255,0.5);">// Sun glow reveal (whole logo radiates)</div>
+            <div>Outer glow: 5.8s start, 4.0s duration, r=38</div>
+            <div>Inner glow: 6.2s start, 3.5s duration, r=28</div>
+          </div>
+
+          <div>
+            <div style="color: rgba(255,255,255,0.5);">// Settle pulse</div>
+            <div>6.5s start, 1.2s duration, scale 1.0 → 1.035 → 1.0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- The Metaphor -->
+      <div style="margin-top: 2.5rem; background: linear-gradient(135deg, rgba(242,201,76,0.15), rgba(242,201,76,0.05)); border-radius: 16px; padding: 1.75rem; border: 1px solid rgba(242,201,76,0.2);">
+        <h3 style="font-family: Nunito, sans-serif; font-size: 1.1rem; color: #F2C94C; margin-bottom: 1rem;">The Metaphor</h3>
+        <p style="font-size: 0.95rem; color: rgba(255,255,255,0.9); line-height: 1.8;">
+          The static Kinmo logo is a sun. But when animated, you see the story: <strong>friends gathering at a table</strong>. Each chair slides in at its own pace — one friend arrives early, another strolls in late. The table gradually brightens as the group fills in. When the last friend finally takes their seat, you realize the shape you've been watching form is a sun. And then warmth radiates outward.
+        </p>
+        <p style="font-size: 0.95rem; color: rgba(255,255,255,0.9); line-height: 1.8; margin-top: 1rem;">
+          The sun isn't just a sun — <strong>it's the feeling of everyone finally being together</strong>. Friends gathering creates warmth.
+        </p>
+      </div>
+
+      <!-- Key Design Principles -->
+      <div style="margin-top: 2.5rem;">
+        <h3 style="font-family: Nunito, sans-serif; font-size: 1.1rem; color: #F2C94C; margin-bottom: 1.25rem;">Key Design Principles</h3>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+          <div style="background: rgba(255,255,255,0.06); border-radius: 12px; padding: 1.25rem;">
+            <div style="font-size: 0.8rem; color: #F2C94C; font-weight: 700; margin-bottom: 0.5rem;">Organic, not mechanical</div>
+            <p style="font-size: 0.8rem; color: rgba(255,255,255,0.7); line-height: 1.5;">Random arrival order. Varied speeds. No two chairs move identically. Like real humans.</p>
+          </div>
+          <div style="background: rgba(255,255,255,0.06); border-radius: 12px; padding: 1.25rem;">
+            <div style="font-size: 0.8rem; color: #F2C94C; font-weight: 700; margin-bottom: 0.5rem;">Weighted movement</div>
+            <p style="font-size: 0.8rem; color: rgba(255,255,255,0.7); line-height: 1.5;">Chairs feel like they have mass. Deliberate, smooth easing — like pulling a real chair across a floor.</p>
+          </div>
+          <div style="background: rgba(255,255,255,0.06); border-radius: 12px; padding: 1.25rem;">
+            <div style="font-size: 0.8rem; color: #F2C94C; font-weight: 700; margin-bottom: 0.5rem;">Natural warmth</div>
+            <p style="font-size: 0.8rem; color: rgba(255,255,255,0.7); line-height: 1.5;">Radial gradient glow, not hard-edged rings. Fades smoothly like actual light. The whole sun glows, not just the center.</p>
+          </div>
+          <div style="background: rgba(255,255,255,0.06); border-radius: 12px; padding: 1.25rem;">
+            <div style="font-size: 0.8rem; color: #F2C94C; font-weight: 700; margin-bottom: 0.5rem;">Patience</div>
+            <p style="font-size: 0.8rem; color: rgba(255,255,255,0.7); line-height: 1.5;">~8 seconds is long for a logo animation. But the story needs time to breathe. Rushing undermines the metaphor.</p>
+          </div>
+        </div>
       </div>
     </section>
 
