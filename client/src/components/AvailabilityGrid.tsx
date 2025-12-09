@@ -194,11 +194,6 @@ export function AvailabilityGrid({ value, onChange }: AvailabilityGridProps) {
         <span className="text-muted-foreground">
           {totalAvailable} of 21 time slots selected
         </span>
-        {totalAvailable === 0 && (
-          <span className="text-destructive text-xs font-medium">
-            Select at least one slot
-          </span>
-        )}
       </div>
 
       <div className="overflow-x-auto -mx-2 px-2">

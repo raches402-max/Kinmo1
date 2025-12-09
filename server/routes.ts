@@ -1760,7 +1760,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             detailedRsvps.push({
               name,
               response: r.response,
-              additionalAttendees: r.additionalAttendees || [],
+              additionalAttendees: Array.isArray(r.additionalAttendees) ? r.additionalAttendees : [],
               numberOfKids: r.numberOfKids || 0,
               isGuest: !!r.guestName,
             });
@@ -1804,9 +1804,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         console.log('[DEBUG /api/user/events] Event:', invite.itineraryName, 'groupMembers count:', groupMembers.length, 'members:', groupMembers.map(m => m.name));
 
+        // For organizers, get the shareable invite token (memberId IS NULL)
+        // This is the generic link they can share with anyone
+        let shareableInviteToken = invite.inviteToken;
+        if (invite.isOrganizer) {
+          const [shareableInvite] = await db
+            .select({ inviteToken: itineraryInvites.inviteToken })
+            .from(itineraryInvites)
+            .where(
+              and(
+                eq(itineraryInvites.itineraryId, invite.itineraryId),
+                isNull(itineraryInvites.memberId)
+              )
+            )
+            .limit(1);
+          if (shareableInvite) {
+            shareableInviteToken = shareableInvite.inviteToken;
+          } else {
+            // No shareable token exists (legacy event) - create one now
+            const crypto = await import('crypto');
+            const newShareableToken = crypto.randomUUID();
+            await db.insert(itineraryInvites).values({
+              itineraryId: invite.itineraryId,
+              memberId: null,
+              inviteToken: newShareableToken,
+            });
+            shareableInviteToken = newShareableToken;
+            console.log(`[User Events] Created shareable invite token for legacy itinerary ${invite.itineraryId}`);
+          }
+        }
+
         return {
           inviteId: invite.inviteId,
-          inviteToken: invite.inviteToken,
+          inviteToken: shareableInviteToken,
           itineraryId: invite.itineraryId,
           itineraryName: invite.itineraryName,
           eventDate: invite.eventDate,
@@ -10716,42 +10746,36 @@ Looking forward to planning great activities together!
         const members = await storage.getGroupMembers(group.id);
 
         console.log(`[Send Itinerary] Found ${members.length} members for group ${group.id}`);
-        
+
         // Create itinerary-specific invite tokens for each member
         const memberInvites = new Map<string, string>(); // memberId -> inviteToken
-        
-        // If there are no members, create a special invite for the organizer
-        if (members.length === 0) {
+
+        // Always create a generic shareable invite (memberId = null)
+        // This allows organizers to share a single link where recipients choose their identity
+        const shareableInviteToken = crypto.randomUUID();
+        await db.insert(itineraryInvites).values({
+          itineraryId: itinerary.id,
+          memberId: null, // Generic invite - recipient picks their identity
+          inviteToken: shareableInviteToken,
+        });
+        console.log(`[Send Itinerary] Created shareable invite token for itinerary ${itinerary.id}`);
+
+        // Create individual invites for existing members (for direct links in emails)
+        for (const member of members) {
           const inviteToken = crypto.randomUUID();
-          
-          // Create a pseudo-member ID for the organizer (use group's userId)
-          const organizerPseudoMemberId = `organizer-${group.userId}`;
-          
-          // Store invite in database with a special marker
+
+          // Store invite in database
           await db.insert(itineraryInvites).values({
             itineraryId: itinerary.id,
-            memberId: null, // No actual member record yet
+            memberId: member.id,
             inviteToken,
           });
-          
-          memberInvites.set(organizerPseudoMemberId, inviteToken);
-          console.log(`[Send Itinerary] Created invite for organizer (no members yet)`);
-        } else {
-          // Create invites for existing members
-          for (const member of members) {
-            const inviteToken = crypto.randomUUID();
 
-            // Store invite in database
-            await db.insert(itineraryInvites).values({
-              itineraryId: itinerary.id,
-              memberId: member.id,
-              inviteToken,
-            });
+          memberInvites.set(member.id, inviteToken);
+        }
 
-            memberInvites.set(member.id, inviteToken);
-          }
-
-          // Send in-app notifications to all invited members
+        // Send in-app notifications to all invited members
+        if (members.length > 0) {
           try {
             await notifyEventInvite({
               itineraryId: itinerary.id,
