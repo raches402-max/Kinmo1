@@ -64,6 +64,7 @@ import {
   Send,
   Share2,
   UserPlus,
+  UserMinus,
   ExternalLink,
   Navigation,
   Copy,
@@ -73,6 +74,8 @@ import {
   CheckCircle,
   HelpCircle,
   XCircle,
+  MoreVertical,
+  Crown,
 } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
@@ -765,6 +768,62 @@ export function DesktopEventDetails({
                         {attendee.response === "pending" && <Clock className="h-3.5 w-3.5" />}
                         {attendee.response === "no" && <X className="h-3.5 w-3.5" />}
                       </div>
+
+                      {/* Actions dropdown for organizer (non-organizer attendees only) */}
+                      {isOrganizer && !attendee.isOrganizer && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-[hsl(25,15%,55%)] hover:text-[hsl(25,30%,14%)] hover:bg-[hsl(35,25%,90%)]"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Change RSVP</DropdownMenuLabel>
+                            <DropdownMenuItem
+                              onClick={() => onUpdateMemberRsvp(attendee.id, "yes")}
+                              disabled={attendee.response === "yes"}
+                            >
+                              <Check className="h-4 w-4 mr-2 text-[hsl(145,50%,45%)]" />
+                              Going
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => onUpdateMemberRsvp(attendee.id, "maybe")}
+                              disabled={attendee.response === "maybe"}
+                            >
+                              <HelpCircle className="h-4 w-4 mr-2 text-[hsl(38,70%,50%)]" />
+                              Maybe
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => onUpdateMemberRsvp(attendee.id, "no")}
+                              disabled={attendee.response === "no"}
+                            >
+                              <X className="h-4 w-4 mr-2 text-[hsl(350,60%,55%)]" />
+                              Can't Go
+                            </DropdownMenuItem>
+                            {!attendee.isGuest && !attendee.isHost && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => onHandOffHost(attendee.id)}>
+                                  <Crown className="h-4 w-4 mr-2 text-[hsl(44,70%,50%)]" />
+                                  Make Host
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => attendee.isGuest ? onDeleteGuest(attendee.id) : onRemoveInvite(attendee.id)}
+                              className="text-[hsl(350,60%,50%)] focus:text-[hsl(350,60%,50%)]"
+                            >
+                              <UserMinus className="h-4 w-4 mr-2" />
+                              Remove
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
                     </RefinedAttendeeCard>
                   ))}
                 </div>
