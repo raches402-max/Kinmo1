@@ -412,21 +412,40 @@ export class DatabaseStorage implements IStorage {
           .where(inArray(groups.id, orphanedGroups.map(g => g.id)));
       }
 
-      // 2. Find and re-link ALL orphaned member records (organizer AND regular members)
-      const orphanedMembers = await db
+      // 2. Auto-link Tier 1 members: email match + invitation was sent
+      // These are explicit invites, so we auto-claim without user confirmation
+      const tier1Members = await db
         .select()
         .from(members)
         .where(and(
-          isNull(members.userId), // Member has no linked user
-          eq(members.email, user.email) // Email matches current user
+          isNull(members.userId),
+          eq(members.email, user.email),
+          eq(members.invitationSent, true) // Only auto-link if explicitly invited
         ));
 
-      if (orphanedMembers.length > 0) {
-        console.log(`[Reconciliation] Re-linking ${orphanedMembers.length} orphaned member records to user ${userId} (${user.email})`);
+      if (tier1Members.length > 0) {
+        console.log(`[Auto-Link] Linking ${tier1Members.length} Tier 1 member records to user ${userId} (${user.email})`);
         await db
           .update(members)
+          .set({ userId, hasJoined: true, claimedAt: new Date() })
+          .where(inArray(members.id, tier1Members.map(m => m.id)));
+      }
+
+      // 3. Auto-link standalone event invitees by email
+      const standaloneInvitees = await db
+        .select()
+        .from(standaloneEventInvitees)
+        .where(and(
+          isNull(standaloneEventInvitees.userId),
+          eq(standaloneEventInvitees.inviteeEmail, user.email)
+        ));
+
+      if (standaloneInvitees.length > 0) {
+        console.log(`[Auto-Link] Linking ${standaloneInvitees.length} standalone event invitees to user ${userId} (${user.email})`);
+        await db
+          .update(standaloneEventInvitees)
           .set({ userId })
-          .where(inArray(members.id, orphanedMembers.map(m => m.id)));
+          .where(inArray(standaloneEventInvitees.id, standaloneInvitees.map(i => i.id)));
       }
     }
 

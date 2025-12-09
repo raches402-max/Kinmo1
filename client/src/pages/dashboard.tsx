@@ -36,6 +36,8 @@ import { UnifiedEventCreationModal } from "@/components/UnifiedEventCreationModa
 import { OnboardingChecklist } from "@/components/OnboardingChecklist";
 import { StandaloneEventCreationModal } from "@/components/StandaloneEventCreationModal";
 import { PostEventFeedbackDialog } from "@/components/PostEventFeedbackDialog";
+import { DiscoveryBanner } from "@/components/DiscoveryBanner";
+import { ClaimMembershipsModal } from "@/components/ClaimMembershipsModal";
 import {
   DndContext,
   closestCenter,
@@ -269,6 +271,12 @@ export default function Dashboard() {
   const [showStandaloneEventModal, setShowStandaloneEventModal] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
 
+  // Discovery/claim memberships state
+  const [showClaimModal, setShowClaimModal] = useState(false);
+  const [discoveryDismissed, setDiscoveryDismissed] = useState(() => {
+    return localStorage.getItem('discovery_dismissed') === 'true';
+  });
+
   // Event sort mode state
   const [eventSortMode, setEventSortMode] = useState<'date' | 'group'>('date');
 
@@ -372,6 +380,22 @@ export default function Dashboard() {
     retry: 1,
     retryDelay: 1000,
   });
+
+  // Fetch discoverable memberships (groups user can claim)
+  type DiscoverableGroup = {
+    memberId: string;
+    memberName: string | null;
+    groupId: string;
+    groupName: string;
+    groupEmoji: string | null;
+    createdAt: string;
+  };
+  const { data: discoverableMemberships } = useQuery<{ groups: DiscoverableGroup[]; standaloneEvents: unknown[] }>({
+    queryKey: ["/api/user/discoverable-memberships"],
+    enabled: !!user,
+  });
+
+  const hasDiscoverableGroups = (discoverableMemberships?.groups?.length ?? 0) > 0;
 
   // Merge group events with standalone events
   const events = useMemo(() => {
@@ -1272,6 +1296,18 @@ export default function Dashboard() {
               onOpenDiscoverVenues={(groupId) => setLocation(`/group/${groupId}?action=discover`)}
             />
           </div>
+        )}
+
+        {/* Discovery Banner - show when user has unclaimed group memberships */}
+        {hasDiscoverableGroups && !discoveryDismissed && (
+          <DiscoveryBanner
+            count={discoverableMemberships?.groups?.length ?? 0}
+            onReview={() => setShowClaimModal(true)}
+            onDismiss={() => {
+              setDiscoveryDismissed(true);
+              localStorage.setItem('discovery_dismissed', 'true');
+            }}
+          />
         )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
