@@ -138,6 +138,11 @@ app.use(cors({
       return callback(null, true);
     }
 
+    // Allow kinmo.ai custom domain
+    if (origin === 'https://kinmo.ai' || origin === 'https://www.kinmo.ai') {
+      return callback(null, true);
+    }
+
     // In production, check against allowedOrigins
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
