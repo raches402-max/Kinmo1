@@ -61,6 +61,20 @@ interface GroupInsightsData {
   generatedAt: Date;
 }
 
+interface DayAttendance {
+  day: string;
+  avgAttendance: number;
+  eventCount: number;
+}
+
+interface TimePatterns {
+  bestDays: DayAttendance[];
+  worstDays: DayAttendance[];
+  sampleSize: number;
+  confidence: 'high' | 'medium' | 'low';
+  lastUpdated: Date;
+}
+
 export function GroupInsights({ groupId }: GroupInsightsProps) {
   const { toast } = useToast();
 
@@ -75,6 +89,7 @@ export function GroupInsights({ groupId }: GroupInsightsProps) {
   });
 
   const insights: GroupInsightsData | null = insightsData?.insights || null;
+  const timePatterns: TimePatterns | null = insightsData?.timePatterns || null;
 
   // Dismiss insight mutation
   const dismissMutation = useMutation({
@@ -161,7 +176,8 @@ export function GroupInsights({ groupId }: GroupInsightsProps) {
   const hasAnyInsights =
     (insights.budget.membersConcerned > 0 || insights.budget.suggestion) ||
     (insights.availability.lowTurnoutDays.length > 0 || insights.availability.bestDays.length > 0) ||
-    (insights.activityTypes.distribution.length > 0);
+    (insights.activityTypes.distribution.length > 0) ||
+    (timePatterns && (timePatterns.bestDays.length > 0 || timePatterns.worstDays.length > 0));
 
   if (!hasAnyInsights) {
     return (
@@ -281,6 +297,64 @@ export function GroupInsights({ groupId }: GroupInsightsProps) {
                 </Button>
               </div>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Time Patterns (from availability learning) */}
+      {timePatterns && (timePatterns.bestDays.length > 0 || timePatterns.worstDays.length > 0) && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" />
+              Learned Time Patterns
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Based on {timePatterns.sampleSize} event{timePatterns.sampleSize !== 1 ? 's' : ''} • {timePatterns.confidence} confidence
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {timePatterns.bestDays.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-sm font-medium text-green-700 dark:text-green-400">Best days for attendance:</p>
+                {timePatterns.bestDays.map((day) => (
+                  <div key={day.day} className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">{day.day}</span>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                        {day.avgAttendance}% avg
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        ({day.eventCount} event{day.eventCount !== 1 ? 's' : ''})
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {timePatterns.worstDays.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-sm font-medium text-amber-700 dark:text-amber-400">Days to consider avoiding:</p>
+                {timePatterns.worstDays.map((day) => (
+                  <div key={day.day} className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">{day.day}</span>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
+                        {day.avgAttendance}% avg
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        ({day.eventCount} event{day.eventCount !== 1 ? 's' : ''})
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <p className="text-xs text-muted-foreground mt-2">
+              These patterns help us schedule events at times that work best for your group.
+            </p>
           </CardContent>
         </Card>
       )}

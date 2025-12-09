@@ -81,6 +81,7 @@ import {
   Bell,
   CopyPlus,
   ChevronDown,
+  Lightbulb,
 } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
@@ -88,6 +89,22 @@ import { RefinedCard, RefinedSectionHeader, RefinedActionButton, RefinedVenueCar
 import type { AdditionalAttendeeInfo, HeadcountSummary } from "./types";
 
 type RsvpStatus = "yes" | "maybe" | "pending" | "no";
+
+interface AvailabilityInsight {
+  declinedWithAvailability: number;
+  totalDeclined: number;
+  totalMaybe: number;
+  declinersAvailability: Record<string, { morning: number; afternoon: number; evening: number }>;
+  rescheduleSuggestion: {
+    suggested: boolean;
+    bestSlot: string | null;
+    matchCount: number;
+    totalDeclined: number;
+    confidence: number;
+    reason: string;
+  } | null;
+  summary: string;
+}
 
 interface DesktopEventDetailsProps {
   event: any;
@@ -97,6 +114,7 @@ interface DesktopEventDetailsProps {
   rsvpResponse: RsvpStatus | undefined;
   guestInvites: any[];
   isLoadingGuests: boolean;
+  availabilityInsights?: AvailabilityInsight;
   // Mutations
   onOrganizerRsvp: (response: "yes" | "maybe" | "no") => void;
   onUpdateMemberRsvp: (memberId: string, response: "yes" | "maybe" | "no") => void;
@@ -266,6 +284,7 @@ export function DesktopEventDetails({
   rsvpResponse,
   guestInvites,
   isLoadingGuests,
+  availabilityInsights,
   onOrganizerRsvp,
   onUpdateMemberRsvp,
   onUpdateEventDate,
@@ -1106,6 +1125,41 @@ export function DesktopEventDetails({
                 </div>
               </div>
             </RefinedCard>
+
+            {/* Availability Insights (Organizer only, when there are declines) */}
+            {isOrganizer && availabilityInsights && (availabilityInsights.totalDeclined > 0 || availabilityInsights.totalMaybe > 0) && (
+              <RefinedCard hover={false}>
+                <RefinedSectionHeader icon={Lightbulb} title="Availability Insights" />
+                <div className="p-5 space-y-3">
+                  <p className="text-sm text-[hsl(25,15%,45%)]">
+                    {availabilityInsights.summary}
+                  </p>
+
+                  {availabilityInsights.rescheduleSuggestion?.suggested && (
+                    <div className="bg-[hsl(44,87%,63%)]/10 border border-[hsl(44,87%,63%)]/30 rounded-lg p-3">
+                      <div className="flex items-start gap-2">
+                        <Lightbulb className="h-4 w-4 text-[hsl(44,70%,35%)] mt-0.5 shrink-0" />
+                        <div>
+                          <p className="text-sm font-medium text-[hsl(25,30%,14%)]">
+                            Consider rescheduling
+                          </p>
+                          <p className="text-sm text-[hsl(25,15%,45%)] mt-0.5">
+                            {availabilityInsights.rescheduleSuggestion.reason}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Only show if there's availability data but no strong suggestion */}
+                  {availabilityInsights.declinedWithAvailability > 0 && !availabilityInsights.rescheduleSuggestion?.suggested && (
+                    <p className="text-xs text-[hsl(25,15%,55%)]">
+                      {availabilityInsights.declinedWithAvailability} {availabilityInsights.declinedWithAvailability === 1 ? 'person' : 'people'} shared availability info
+                    </p>
+                  )}
+                </div>
+              </RefinedCard>
+            )}
 
             {/* Guest Invites (Organizer only) */}
             {isOrganizer && (

@@ -80,9 +80,26 @@ export async function notifyEventInvite(params: {
   eventName: string;
   groupName?: string;
   memberIds: string[];
+  eventDate?: Date | string | null;
+  venueName?: string | null;
 }) {
-  const { itineraryId, groupId, eventName, groupName, memberIds } = params;
+  const { itineraryId, groupId, eventName, groupName, memberIds, eventDate, venueName } = params;
   const displayName = getDisplayEventName(eventName, groupName);
+
+  // Format date for title if available
+  let dateStr = '';
+  if (eventDate) {
+    const date = new Date(eventDate);
+    dateStr = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  }
+
+  // Build scannable title: "RSVP: Fri Dec 13 dinner"
+  const title = dateStr ? `RSVP: ${dateStr}` : `RSVP: ${displayName}`;
+
+  // Build concise message with venue if available
+  const message = venueName
+    ? `${venueName}${groupName ? ` · ${groupName}` : ''}`
+    : displayName;
 
   // Get member user IDs
   const memberData = await db.query.members.findMany({
@@ -95,10 +112,10 @@ export async function notifyEventInvite(params: {
       createNotification({
         userId: member.userId!,
         type: 'event_invite',
-        title: 'New Event Invitation',
-        message: `You're invited to ${displayName}`,
+        title,
+        message,
         actionUrl: `/rsvp/${itineraryId}`,
-        actionLabel: 'RSVP Now',
+        actionLabel: 'RSVP',
         metadata: {
           itineraryId,
           groupId,
@@ -122,9 +139,39 @@ export async function notifyRSVPReminder(params: {
   groupName?: string;
   memberIds: string[];
   hoursUntilDeadline: number;
+  eventDate?: Date | string | null;
+  venueName?: string | null;
 }) {
-  const { itineraryId, groupId, eventName, groupName, memberIds, hoursUntilDeadline } = params;
+  const { itineraryId, groupId, eventName, groupName, memberIds, hoursUntilDeadline, eventDate, venueName } = params;
   const displayName = getDisplayEventName(eventName, groupName);
+
+  // Format urgency for title
+  let urgencyText: string;
+  if (hoursUntilDeadline <= 2) {
+    urgencyText = 'Last call';
+  } else if (hoursUntilDeadline <= 24) {
+    urgencyText = `${hoursUntilDeadline}h left`;
+  } else {
+    const days = Math.ceil(hoursUntilDeadline / 24);
+    urgencyText = `${days}d left`;
+  }
+
+  // Format date if available
+  let dateContext = '';
+  if (eventDate) {
+    const date = new Date(eventDate);
+    dateContext = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  }
+
+  // Title: "RSVP needed · 2h left" or "Last call to RSVP"
+  const title = hoursUntilDeadline <= 2
+    ? `Last call to RSVP`
+    : `RSVP needed · ${urgencyText}`;
+
+  // Message: "Fri Dec 13 at Marufuku" or just the venue/event name
+  const message = dateContext
+    ? `${dateContext}${venueName ? ` at ${venueName}` : ''}`
+    : venueName || displayName;
 
   const memberData = await db.query.members.findMany({
     where: (members, { inArray }) => inArray(members.id, memberIds),
@@ -136,10 +183,10 @@ export async function notifyRSVPReminder(params: {
       createNotification({
         userId: member.userId!,
         type: 'rsvp_reminder',
-        title: 'RSVP Deadline Approaching',
-        message: `RSVP deadline for ${displayName} is in ${hoursUntilDeadline} hours`,
+        title,
+        message,
         actionUrl: `/rsvp/${itineraryId}`,
-        actionLabel: 'RSVP Now',
+        actionLabel: 'RSVP',
         metadata: {
           itineraryId,
           groupId,
@@ -164,9 +211,18 @@ export async function notifyTimeSelected(params: {
   groupName?: string;
   selectedTime: string;
   memberIds: string[];
+  venueName?: string | null;
 }) {
-  const { itineraryId, groupId, eventName, groupName, selectedTime, memberIds } = params;
+  const { itineraryId, groupId, eventName, groupName, selectedTime, memberIds, venueName } = params;
   const displayName = getDisplayEventName(eventName, groupName);
+
+  // Title: "Confirmed: Sat Dec 14 @ 7pm"
+  const title = `Confirmed: ${selectedTime}`;
+
+  // Message: "Marufuku Ramen · Book Club" or just the event name
+  const message = venueName
+    ? `${venueName}${groupName ? ` · ${groupName}` : ''}`
+    : displayName;
 
   const memberData = await db.query.members.findMany({
     where: (members, { inArray }) => inArray(members.id, memberIds),
@@ -178,10 +234,10 @@ export async function notifyTimeSelected(params: {
       createNotification({
         userId: member.userId!,
         type: 'time_selected',
-        title: 'Event Time Finalized',
-        message: `${displayName} is confirmed for ${selectedTime}`,
+        title,
+        message,
         actionUrl: `/rsvp/${itineraryId}`,
-        actionLabel: 'View Event',
+        actionLabel: 'View',
         metadata: {
           itineraryId,
           groupId,
@@ -205,9 +261,16 @@ export async function notifyFeedbackRequest(params: {
   eventName: string;
   groupName?: string;
   memberIds: string[];
+  venueName?: string | null;
 }) {
-  const { itineraryId, groupId, eventName, groupName, memberIds } = params;
+  const { itineraryId, groupId, eventName, groupName, memberIds, venueName } = params;
   const displayName = getDisplayEventName(eventName, groupName);
+
+  // Title: "How was Marufuku?" or "How was dinner?"
+  const title = venueName ? `How was ${venueName}?` : 'How was the event?';
+
+  // Message: "Your feedback helps pick better spots"
+  const message = 'Quick rating helps us pick better spots next time';
 
   const memberData = await db.query.members.findMany({
     where: (members, { inArray }) => inArray(members.id, memberIds),
@@ -219,10 +282,10 @@ export async function notifyFeedbackRequest(params: {
       createNotification({
         userId: member.userId!,
         type: 'feedback_request',
-        title: 'How was the event?',
-        message: `Share your feedback for ${displayName}`,
+        title,
+        message,
         actionUrl: `/event/${itineraryId}?feedback=true`,
-        actionLabel: 'Give Feedback',
+        actionLabel: 'Rate',
         metadata: {
           itineraryId,
           groupId
@@ -339,32 +402,28 @@ export async function notifyEventCancelled(params: {
   venueName?: string | null;
 }) {
   const { itineraryId, groupId, eventName, groupName, memberIds, eventDate, venueName } = params;
-  const displayName = getDisplayEventName(eventName, groupName);
 
   const memberData = await db.query.members.findMany({
     where: (members, { inArray }) => inArray(members.id, memberIds),
   });
 
-  // Build a descriptive message with date and location if available
-  let message = `${displayName} has been cancelled`;
-  const details: string[] = [];
-
+  // Format date for title
+  let dateStr = '';
   if (eventDate) {
-    const dateStr = new Date(eventDate).toLocaleDateString('en-US', {
+    dateStr = new Date(eventDate).toLocaleDateString('en-US', {
       weekday: 'short',
       month: 'short',
       day: 'numeric'
     });
-    details.push(dateStr);
   }
 
-  if (venueName) {
-    details.push(venueName);
-  }
+  // Title: "Cancelled: Fri Dec 13" or "Event cancelled"
+  const title = dateStr ? `Cancelled: ${dateStr}` : 'Event cancelled';
 
-  if (details.length > 0) {
-    message = `${displayName} (${details.join(' • ')}) has been cancelled`;
-  }
+  // Message: "Marufuku · Book Club" or just group name
+  const message = venueName
+    ? `${venueName}${groupName ? ` · ${groupName}` : ''}`
+    : groupName || 'Check group for details';
 
   const notificationPromises = memberData
     .filter(member => member.userId)
@@ -372,10 +431,10 @@ export async function notifyEventCancelled(params: {
       createNotification({
         userId: member.userId!,
         type: 'event_cancelled',
-        title: 'Event Cancelled',
+        title,
         message,
         actionUrl: `/groups/${groupId}`,
-        actionLabel: 'View Group',
+        actionLabel: 'View',
         metadata: {
           itineraryId,
           groupId,
@@ -401,19 +460,37 @@ export async function notifyEventUpdate(params: {
   groupName?: string;
   updateType: 'venue_change' | 'time_change' | 'general';
   memberIds: string[];
+  eventDate?: Date | string | null;
+  newVenueName?: string | null;
+  newTime?: string | null;
 }) {
-  const { itineraryId, groupId, eventName, groupName, updateType, memberIds } = params;
+  const { itineraryId, groupId, eventName, groupName, updateType, memberIds, eventDate, newVenueName, newTime } = params;
   const displayName = getDisplayEventName(eventName, groupName);
+
+  // Format date for context
+  let dateStr = '';
+  if (eventDate) {
+    const date = new Date(eventDate);
+    dateStr = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  }
+
+  // Build scannable title based on update type
+  const titles: Record<string, string> = {
+    venue_change: newVenueName ? `New spot: ${newVenueName}` : 'Venue changed',
+    time_change: newTime ? `New time: ${newTime}` : 'Time changed',
+    general: dateStr ? `Updated: ${dateStr}` : 'Event updated'
+  };
+
+  // Build concise message
+  const messages: Record<string, string> = {
+    venue_change: dateStr ? `${dateStr}${groupName ? ` · ${groupName}` : ''}` : displayName,
+    time_change: dateStr ? `${dateStr}${groupName ? ` · ${groupName}` : ''}` : displayName,
+    general: groupName || displayName
+  };
 
   const memberData = await db.query.members.findMany({
     where: (members, { inArray }) => inArray(members.id, memberIds),
   });
-
-  const messages: Record<string, string> = {
-    venue_change: `The venues for ${displayName} have been updated`,
-    time_change: `The time for ${displayName} has been updated`,
-    general: `${displayName} has been updated`
-  };
 
   const notificationPromises = memberData
     .filter(member => member.userId)
@@ -421,10 +498,10 @@ export async function notifyEventUpdate(params: {
       createNotification({
         userId: member.userId!,
         type: updateType === 'venue_change' ? 'venue_change' : 'event_update',
-        title: 'Event Updated',
+        title: titles[updateType],
         message: messages[updateType],
         actionUrl: `/rsvp/${itineraryId}`,
-        actionLabel: 'View Event',
+        actionLabel: 'View',
         metadata: {
           itineraryId,
           groupId,

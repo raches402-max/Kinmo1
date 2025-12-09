@@ -445,6 +445,34 @@ export default function EventDetailsPage() {
     },
   });
 
+  // Fetch availability insights for organizers (desktop only)
+  // Note: uses event?.isOrganizer to avoid issues with variable ordering
+  const { data: availabilityInsights } = useQuery<{
+    declinedWithAvailability: number;
+    totalDeclined: number;
+    totalMaybe: number;
+    declinersAvailability: Record<string, { morning: number; afternoon: number; evening: number }>;
+    rescheduleSuggestion: {
+      suggested: boolean;
+      bestSlot: string | null;
+      matchCount: number;
+      totalDeclined: number;
+      confidence: number;
+      reason: string;
+    } | null;
+    summary: string;
+  }>({
+    queryKey: ["/api/itineraries/:id/availability-insights", eventId],
+    enabled: !!eventId && !!event?.isOrganizer && !isMobile,
+    queryFn: async () => {
+      const response = await fetch(`/api/itineraries/${eventId}/availability-insights`, {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error('Failed to fetch availability insights');
+      return response.json();
+    },
+  });
+
   const organizerRsvpMutation = useMutation({
     mutationFn: async ({ response, rsvpFeedback }: { response: 'yes' | 'maybe' | 'no'; rsvpFeedback?: any }) => {
       const result = await apiRequest("POST", `/api/itineraries/${eventId}/organizer-rsvp`, {
@@ -1475,6 +1503,7 @@ export default function EventDetailsPage() {
         rsvpResponse={rsvpResponse as 'yes' | 'maybe' | 'pending' | 'no' | undefined}
         guestInvites={guestInvites}
         isLoadingGuests={isLoadingGuests}
+        availabilityInsights={availabilityInsights}
         onOrganizerRsvp={(response) => {
           if (response === 'yes') {
             organizerRsvpMutation.mutate({ response: 'yes' });

@@ -1,6 +1,6 @@
 import { IStorage } from "./storage";
 import type { Group, Itinerary, Activity, VotingEvent } from "@shared/schema";
-import { addDays } from "date-fns";
+import { addDays, getDay } from "date-fns";
 import { fromZonedTime } from "date-fns-tz";
 import { db } from "./db";
 import { venueVisitHistory, rejectedEventDates, autoScheduledEvents, itineraries } from "@shared/schema";
@@ -17,6 +17,7 @@ import {
 import { orderVenuesLogically } from "./venue-ordering-utils";
 import { selectDiverseVenues, getVenueCategory } from "./venue-diversity-utils";
 import { calculateAdaptiveTimeline, calculateInviteSendDate } from "./adaptive-timeline";
+import { analyzeGroupTimePatterns, getRecommendedDays, getDaysToAvoid } from "./availability-analyzer";
 
 /**
  * Hash a string to a 32-bit integer for PostgreSQL advisory locks

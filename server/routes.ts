@@ -30,6 +30,7 @@ import {
   notifyEventInvite,
 } from "./notifications";
 import { autoUpdateMemberConstraints, calculateEngagement, analyzeRSVPPatterns } from "./member-learning";
+import { analyzeEventAvailability, analyzeGroupTimePatterns } from "./availability-analyzer";
 import { generateGroupInsights, saveGroupInsights, dismissInsight, editInsightSuggestion } from "./group-insights";
 import { triggerInsightUpdate, triggerInsightUpdateDebounced } from "./insight-triggers";
 import { db } from "./db";
@@ -12027,6 +12028,37 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Get availability insights for an event (organizer only)
+  // Analyzes RSVP availability feedback to suggest optimal reschedule times
+  app.get("/api/itineraries/:id/availability-insights", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = await getUserId(req);
+      const { id } = req.params;
+
+      // Get the itinerary
+      const itinerary = await storage.getItinerary(id);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      // Only organizers can see availability insights
+      if (itinerary.groupId) {
+        const group = await storage.getGroup(itinerary.groupId);
+        if (!group || group.userId !== userId) {
+          return res.status(403).json({ message: "Only the organizer can view availability insights" });
+        }
+      } else if (itinerary.createdBy !== userId) {
+        return res.status(403).json({ message: "Only the event creator can view availability insights" });
+      }
+
+      const insights = await analyzeEventAvailability(id);
+      res.json(insights);
+    } catch (error: any) {
+      console.error('[Availability Insights] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Create guest invite for an itinerary
   app.post("/api/itineraries/:itineraryId/guest-invites", isAuthenticated, requireItineraryAccess(), async (req: any, res) => {
     try {
@@ -13981,9 +14013,18 @@ Looking forward to planning great activities together!
         insights = group.preferenceInsights;
       }
 
+      // Also get time patterns from availability analyzer
+      let timePatterns = null;
+      try {
+        timePatterns = await analyzeGroupTimePatterns(groupId);
+      } catch (err) {
+        console.error('[Group Insights] Error getting time patterns:', err);
+      }
+
       res.json({
         groupId,
         insights,
+        timePatterns,
       });
     } catch (error: any) {
       console.error('[Group Insights] Error:', error);
