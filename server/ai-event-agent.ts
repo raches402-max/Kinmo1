@@ -452,7 +452,7 @@ Rules:
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4o",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
@@ -479,7 +479,7 @@ Rules:
 
     const responseTime = Date.now() - startTime;
     const cost = calculateOpenAICost(
-      'gpt-4o-mini',
+      'gpt-4o',
       response.usage?.prompt_tokens || 0,
       response.usage?.completion_tokens || 0
     );
@@ -604,7 +604,7 @@ Rules:
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4o",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
@@ -631,7 +631,7 @@ Rules:
 
     const responseTime = Date.now() - startTime;
     const cost = calculateOpenAICost(
-      'gpt-4o-mini',
+      'gpt-4o',
       response.usage?.prompt_tokens || 0,
       response.usage?.completion_tokens || 0
     );

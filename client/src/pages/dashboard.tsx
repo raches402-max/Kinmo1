@@ -1022,14 +1022,17 @@ export default function Dashboard() {
   // Past events should only include events that:
   // 1. Have a date that has passed
   // 2. Were actually sent out (inviteSentAt exists) OR have a status indicating they happened
-  // 3. Are not in draft status (unless they were sent)
+  // 3. Are not in draft status (unless they were sent or user is organizer)
   const pastEvents = events.filter(e => {
     if (!e.eventDate || new Date(e.eventDate) > now) return false;
 
-    // Exclude draft events that were never sent
+    // Always show draft/saved events to the organizer (useful for tracking history)
+    if (e.isOrganizer) return true;
+
+    // Exclude draft events that were never sent (for non-organizers)
     if (e.status === 'draft' && !e.inviteSentAt) return false;
 
-    // Exclude saved events that were never sent
+    // Exclude saved events that were never sent (for non-organizers)
     if (e.status === 'saved' && !e.inviteSentAt) return false;
 
     // Include events that were sent or have a real status (proposed, scheduled, completed, rejected)
