@@ -193,7 +193,8 @@
       "Bash(git reset:*)",
       "Bash(timeout 20 npm run dev:*)",
       "Bash(timeout 25 npm run dev:*)",
-      "Bash(timeout 30 npx tsx:*)"
+      "Bash(timeout 30 npx tsx:*)",
+      "Bash(wc:*)"
     ],
     "deny": [],
     "ask": []
