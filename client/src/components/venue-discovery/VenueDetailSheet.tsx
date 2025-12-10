@@ -28,6 +28,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { VenueData, CATEGORY_CONFIG, CategoryId } from "./VenueCard";
 import { cn } from "@/lib/utils";
+import { handlePhotoError } from "@/hooks/usePhotoRefresh";
 
 interface VenueDetailSheetProps {
   venue: VenueData | null;
@@ -190,6 +191,7 @@ export function VenueDetailSheet({
               src={venue.photoUrl}
               alt={venue.name}
               className="w-full h-full object-cover"
+              onError={(e) => handlePhotoError(venue.googlePlaceId, e.currentTarget)}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-6xl bg-gradient-to-br from-muted to-muted/50">

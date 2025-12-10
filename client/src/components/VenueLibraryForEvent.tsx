@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { MapPin, Star, DollarSign, Plus, Check, Search, Filter, Heart, Clock, Globe, Loader2, Info, Trash2, X } from "lucide-react";
 import { useDebounce } from "use-debounce";
 import { AnimatePresence, motion } from "framer-motion";
+import { handlePhotoError } from "@/hooks/usePhotoRefresh";
 
 interface VenueResult {
   id?: string;
@@ -144,6 +145,7 @@ function VenueCardForEvent({
             src={venue.photoUrl}
             alt={venue.venueName}
             className="object-cover w-full h-full"
+            onError={(e) => handlePhotoError(venue.googlePlaceId, e.currentTarget)}
           />
         ) : (
           <div className="flex items-center justify-center h-full">

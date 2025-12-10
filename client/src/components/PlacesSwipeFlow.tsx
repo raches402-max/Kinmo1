@@ -28,6 +28,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { handlePhotoError } from "@/hooks/usePhotoRefresh";
 import { cn } from "@/lib/utils";
 
 // Types
@@ -271,6 +272,7 @@ function VenueSwipeCard({
               src={venue.photoUrl}
               alt={venue.title}
               className="w-full h-full object-cover"
+              onError={(e) => handlePhotoError(venue.googlePlaceId, e.currentTarget)}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-muted to-muted/50">

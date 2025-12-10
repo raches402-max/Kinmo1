@@ -1685,5 +1685,39 @@ export function startReminderScheduler(): void {
     });
   }, PLANNING_AGENT_INTERVAL_MS);
 
+  // Database Backup - runs daily
+  const BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+  const processAutoDatabaseBackup = async () => {
+    console.log('[Database Backup] Starting scheduled backup...');
+    try {
+      const backup = await storage.createDatabaseBackup(
+        'daily_auto',
+        undefined,
+        `Automated daily backup - ${new Date().toISOString().split('T')[0]}`
+      );
+      console.log(`[Database Backup] ✓ Created backup ${backup.id}`);
+
+      // Keep only last 30 auto backups
+      await storage.pruneDatabaseBackups(30);
+      console.log('[Database Backup] ✓ Cleanup complete');
+    } catch (error) {
+      console.error('[Database Backup] ✗ Backup failed:', error);
+    }
+  };
+
+  // Run after 1 minute on startup, then every 24 hours
+  setTimeout(() => {
+    processAutoDatabaseBackup().catch(err => {
+      console.error('Error in initial database backup:', err);
+    });
+  }, 60000);
+
+  setInterval(() => {
+    processAutoDatabaseBackup().catch(err => {
+      console.error('Error in scheduled database backup:', err);
+    });
+  }, BACKUP_INTERVAL_MS);
+
   console.log('Reminder scheduler started successfully');
 }

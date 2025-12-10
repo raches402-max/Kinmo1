@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Star, ExternalLink, Check, Plus, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { handlePhotoError } from "@/hooks/usePhotoRefresh";
 
 // Unified venue interface that works across all contexts
 export interface VenueData {
@@ -198,6 +199,7 @@ function VenueCardComponent({
             alt={venue.name}
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
             loading="lazy"
+            onError={(e) => handlePhotoError(venue.googlePlaceId, e.currentTarget)}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-secondary/20 via-muted to-accent/10">
