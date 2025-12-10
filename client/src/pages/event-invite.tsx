@@ -335,9 +335,11 @@ export default function EventInvitePage() {
                 <CardTitle className="text-2xl flex items-center gap-2 mb-1">
                   {event.groupEmoji} {event.name}
                 </CardTitle>
-                <CardDescription className="text-base">
-                  {event.groupName}
-                </CardDescription>
+                {event.groupName && event.groupName !== event.name && (
+                  <CardDescription className="text-base">
+                    {event.groupName}
+                  </CardDescription>
+                )}
               </div>
             </div>
             {event.eventDate && (
