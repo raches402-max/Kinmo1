@@ -91,6 +91,12 @@ case "$1" in
       echo "Saved known_marketplaces.json (marketplace registry)"
     fi
 
+    # Backup SESSION_NOTES.md if it exists
+    if [ -f "$HOME/workspace/SESSION_NOTES.md" ]; then
+      cp "$HOME/workspace/SESSION_NOTES.md" "$BACKUP_DIR/"
+      echo "Saved SESSION_NOTES.md (development progress)"
+    fi
+
     # Auto-prune old sessions
     echo ""
     prune_old_sessions "$BACKUP_DIR"
@@ -120,6 +126,17 @@ case "$1" in
       mkdir -p "$HOME/.claude"
       cp "$BACKUP_DIR/settings.json" "$CLAUDE_SETTINGS"
       echo "Restored settings.json"
+    fi
+
+    # Restore SESSION_NOTES.md
+    if [ -f "$BACKUP_DIR/SESSION_NOTES.md" ]; then
+      cp "$BACKUP_DIR/SESSION_NOTES.md" "$HOME/workspace/"
+      echo "Restored SESSION_NOTES.md (development progress)"
+      echo ""
+      echo "=== LAST SESSION NOTES ==="
+      cat "$HOME/workspace/SESSION_NOTES.md"
+      echo "==========================="
+      echo ""
     fi
 
     # Restore known_marketplaces.json and clone marketplaces
