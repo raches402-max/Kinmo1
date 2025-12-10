@@ -73,13 +73,17 @@ export function AIEventAssistant({
     setIsLoading(true);
 
     try {
-      const response = await apiRequest("POST", `/api/itineraries/${itineraryId}/ai-chat`, {
-        prompt: userMessage.content,
-        sessionId: sessionId,
-        stream: false, // Use non-streaming for simplicity
-      });
-
-      const data = await response.json();
+      // Use longer timeout for AI chat - Claude with tool calls can take a while
+      const data = await apiRequest(
+        "POST",
+        `/api/itineraries/${itineraryId}/ai-chat`,
+        {
+          prompt: userMessage.content,
+          sessionId: sessionId,
+          stream: false, // Use non-streaming for simplicity
+        },
+        { timeout: 90000 } // 90 seconds for AI responses
+      );
 
       if (data.error) {
         throw new Error(data.error);
