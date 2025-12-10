@@ -194,7 +194,8 @@
       "Bash(timeout 20 npm run dev:*)",
       "Bash(timeout 25 npm run dev:*)",
       "Bash(timeout 30 npx tsx:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(timeout 60 npm run build:*)"
     ],
     "deny": [],
     "ask": []
