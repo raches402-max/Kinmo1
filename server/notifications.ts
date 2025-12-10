@@ -114,11 +114,13 @@ export async function notifyEventInvite(params: {
         type: 'event_invite',
         title,
         message,
-        actionUrl: `/rsvp/${itineraryId}`,
+        actionUrl: `/event/${itineraryId}`,
         actionLabel: 'RSVP',
         metadata: {
           itineraryId,
           groupId,
+          eventDate: eventDate ? new Date(eventDate).toISOString() : null,
+          venueName,
         }
       })
     );
@@ -185,12 +187,14 @@ export async function notifyRSVPReminder(params: {
         type: 'rsvp_reminder',
         title,
         message,
-        actionUrl: `/rsvp/${itineraryId}`,
+        actionUrl: `/event/${itineraryId}`,
         actionLabel: 'RSVP',
         metadata: {
           itineraryId,
           groupId,
-          hoursUntilDeadline
+          hoursUntilDeadline,
+          eventDate: eventDate ? new Date(eventDate).toISOString() : null,
+          venueName,
         }
       })
     );
@@ -236,12 +240,13 @@ export async function notifyTimeSelected(params: {
         type: 'time_selected',
         title,
         message,
-        actionUrl: `/rsvp/${itineraryId}`,
+        actionUrl: `/event/${itineraryId}`,
         actionLabel: 'View',
         metadata: {
           itineraryId,
           groupId,
-          selectedTime
+          selectedTime,
+          venueName,
         }
       })
     );
@@ -500,12 +505,14 @@ export async function notifyEventUpdate(params: {
         type: updateType === 'venue_change' ? 'venue_change' : 'event_update',
         title: titles[updateType],
         message: messages[updateType],
-        actionUrl: `/rsvp/${itineraryId}`,
+        actionUrl: `/event/${itineraryId}`,
         actionLabel: 'View',
         metadata: {
           itineraryId,
           groupId,
-          updateType
+          updateType,
+          eventDate: eventDate ? new Date(eventDate).toISOString() : null,
+          venueName: newVenueName,
         }
       })
     );
