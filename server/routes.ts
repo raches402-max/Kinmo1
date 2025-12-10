@@ -12884,7 +12884,7 @@ Looking forward to planning great activities together!
   app.post("/api/standalone-events", isAuthenticated, async (req: any, res) => {
     try {
       const userId = await getUserId(req);
-      const { name, eventDate, status = 'draft' } = req.body;
+      const { name, eventDate, status = 'draft', timezone } = req.body;
 
       if (!name) {
         return res.status(400).json({ message: "Event name is required" });
@@ -12895,6 +12895,7 @@ Looking forward to planning great activities together!
         eventDate: eventDate ? new Date(eventDate) : null,
         status,
         proposedOrder: [],
+        timezone: timezone || null, // IANA timezone (e.g., "America/Los_Angeles")
       }, userId);
 
       res.json(event);

@@ -375,6 +375,7 @@ export const itineraries = pgTable("itineraries", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   groupId: varchar("group_id").references(() => groups.id, { onDelete: "cascade" }), // Nullable for standalone events
   isStandalone: boolean("is_standalone").default(false).notNull(), // True for events not tied to a group
+  timezone: text("timezone"), // IANA timezone for standalone events (e.g., "America/Los_Angeles")
   organizerId: varchar("organizer_id").references(() => users.id, { onDelete: "cascade" }), // Event owner (for standalone events)
   name: text("name"), // Optional name for saved itineraries (e.g., "SF Waterfront Day")
   status: text("status").notNull().default("draft"), // draft, saved, proposed, scheduled, rejected

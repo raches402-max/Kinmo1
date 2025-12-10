@@ -47,11 +47,15 @@ export function StandaloneEventCreationModal({
 
   const createEventMutation = useMutation({
     mutationFn: async () => {
+      // Get user's timezone (e.g., "America/Los_Angeles")
+      const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
       // Step 1: Create the standalone event
       const event = await apiRequest("POST", "/api/standalone-events", {
         name: eventName,
         eventDate: eventDate || null,
         status: "draft",
+        timezone: userTimezone, // Store user's timezone for proper date display
       });
 
       // Step 2: Add invitees if any selected
