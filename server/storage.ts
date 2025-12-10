@@ -480,6 +480,7 @@ export class DatabaseStorage implements IStorage {
           email: member.email,
           userId: member.userId,
           isOrganizer: member.isOrganizer,
+          isGuest: member.isGuest,
           profileCompleted: member.userId === userId ? member.profileCompleted : undefined
         }));
         return {

@@ -64,10 +64,14 @@ export function generateOGMetaTags(meta: OGMetaData): string {
     <meta property="og:url" content="${meta.url}" />
     <meta property="og:site_name" content="${meta.siteName}" />
     <meta property="og:type" content="${meta.type}" />
+    <meta property="og:image" content="${meta.image}" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
     <!-- Twitter Card -->
-    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="${safeTitle}" />
     <meta name="twitter:description" content="${safeDescription}" />
+    <meta name="twitter:image" content="${meta.image}" />
   `;
 }
 
@@ -157,6 +161,7 @@ export async function getGuestRsvpMeta(guestToken: string): Promise<OGMetaData |
       url: `${getBaseUrl()}/guest-rsvp/${guestToken}`,
       siteName: "Kinmo",
       type: "website",
+      image: `${getBaseUrl()}/api/og-image/rsvp/${guestToken}`,
     };
   } catch (error) {
     console.error("[OG Meta] Error fetching guest RSVP data:", error);
@@ -188,6 +193,7 @@ export async function getGroupJoinMeta(shareableLink: string): Promise<OGMetaDat
       url: `${getBaseUrl()}/join/${shareableLink}`,
       siteName: "Kinmo",
       type: "website",
+      image: `${getBaseUrl()}/api/og-image/join/${shareableLink}`,
     };
   } catch (error) {
     console.error("[OG Meta] Error fetching group join data:", error);
@@ -231,6 +237,7 @@ export async function getMemberClaimMeta(claimToken: string): Promise<OGMetaData
       url: `${getBaseUrl()}/claim/${claimToken}`,
       siteName: "Kinmo",
       type: "website",
+      image: `${getBaseUrl()}/api/og-image/claim/${claimToken}`,
     };
   } catch (error) {
     console.error("[OG Meta] Error fetching member claim data:", error);

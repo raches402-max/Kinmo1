@@ -411,6 +411,21 @@ export function MembersSection({
                             </Tooltip>
                           )}
 
+                          {member.isGuest && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge variant="outline" className="text-xs whitespace-nowrap cursor-help border-[hsl(44,70%,75%)] text-[hsl(44,60%,30%)] bg-[hsl(44,80%,95%)]">
+                                  Guest
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs">
+                                <p className="text-sm">
+                                  This person joined as a guest through an invite link. You can remove them if needed.
+                                </p>
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+
                           {/* Show edit button if: 1) user is organizer, OR 2) it's their own member record */}
                           {(isOwner || member.userId === user?.id) && (
                             <Button
