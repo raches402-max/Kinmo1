@@ -139,6 +139,10 @@ interface DesktopEventDetailsProps {
   onUpdateNote?: (note: string) => void;
   onDuplicateEvent?: () => void;
   onRemindAll?: () => void;
+  // Standalone event props
+  onAddInvitee?: (invitees: { name?: string; email?: string }[]) => void;
+  onRemoveInvitee?: (inviteeId: string) => void;
+  onSendStandaloneInvites?: () => void;
   // State
   isPending: {
     organizerRsvp: boolean;
@@ -151,6 +155,9 @@ interface DesktopEventDetailsProps {
     handOffHost: boolean;
     sendToGroup: boolean;
     deleteEvent: boolean;
+    addInvitee?: boolean;
+    removeInvitee?: boolean;
+    sendStandaloneInvites?: boolean;
   };
   canVolunteerToHost: boolean;
   isCurrentHost: boolean;
@@ -307,6 +314,9 @@ export function DesktopEventDetails({
   onUpdateNote,
   onDuplicateEvent,
   onRemindAll,
+  onAddInvitee,
+  onRemoveInvitee,
+  onSendStandaloneInvites,
   isPending,
   canVolunteerToHost,
   isCurrentHost,
@@ -315,6 +325,9 @@ export function DesktopEventDetails({
   const [guestName, setGuestName] = useState("");
   const [editingGuestId, setEditingGuestId] = useState<string | null>(null);
   const [editingGuestName, setEditingGuestName] = useState("");
+
+  // Standalone event invitee state
+  const [newInviteeName, setNewInviteeName] = useState("");
 
   // Inline editing state
   const [isEditingName, setIsEditingName] = useState(false);
@@ -350,7 +363,7 @@ export function DesktopEventDetails({
     onReorderVenues(proposedOrder);
   };
 
-  // Build attendees list
+  // Build attendees list - handles both group events and standalone events
   const attendees = useMemo(() => {
     const result: Array<{
       id: string;
@@ -360,10 +373,69 @@ export function DesktopEventDetails({
       isGuest: boolean;
       isOrganizer?: boolean;
       isHost?: boolean;
+      isStandaloneInvitee?: boolean;
       additionalAttendees?: AdditionalAttendeeInfo[];
       numberOfKids?: number;
     }> = [];
 
+    // For standalone events, use invitees instead of members
+    if (event.isStandalone) {
+      // Add organizer first for standalone events
+      if (user && isOrganizer) {
+        const organizerName = user.firstName
+          ? `${user.firstName} ${user.lastName || ""}`.trim()
+          : user.email || "You";
+        const initials = organizerName
+          .split(" ")
+          .map((n: string) => n[0])
+          .join("")
+          .toUpperCase()
+          .slice(0, 2);
+
+        result.push({
+          id: `organizer-${user.id}`,
+          name: `${organizerName} (You)`,
+          initials,
+          response: (event.rsvp?.response || event.organizerRsvp || "pending") as RsvpStatus,
+          isGuest: false,
+          isOrganizer: true,
+          isHost: true,
+        });
+      }
+
+      // Add invitees for standalone events
+      const invitees = event.invitees || itineraryDetails?.invitees || [];
+      if (invitees.length > 0) {
+        invitees.forEach((invitee: any) => {
+          const baseName = invitee.inviteeName || invitee.inviteeEmail || "Guest";
+          const initials = baseName
+            .split(" ")
+            .map((n: string) => n[0])
+            .join("")
+            .toUpperCase()
+            .slice(0, 2);
+
+          result.push({
+            id: invitee.id,
+            name: baseName,
+            initials,
+            response: (invitee.rsvpStatus || "pending") as RsvpStatus,
+            isGuest: false,
+            isOrganizer: false,
+            isHost: false,
+            isStandaloneInvitee: true,
+          });
+        });
+      }
+
+      // Sort: Going first, then Maybe, then Pending, then No
+      const order = { yes: 1, maybe: 2, pending: 3, no: 4 };
+      result.sort((a, b) => order[a.response] - order[b.response]);
+
+      return result;
+    }
+
+    // For group events, use members
     // Add organizer first
     if (event.isOrganizer && user) {
       const organizerName = user.displayName ||
@@ -435,7 +507,7 @@ export function DesktopEventDetails({
     result.sort((a, b) => order[a.response] - order[b.response]);
 
     return result;
-  }, [event, itineraryDetails, user, guestInvites]);
+  }, [event, itineraryDetails, user, guestInvites, isOrganizer]);
 
   // RSVP summary
   const rsvpSummary = useMemo(() => ({
@@ -524,7 +596,7 @@ export function DesktopEventDetails({
                         Draft
                       </Badge>
                     )}
-                    {isDraft && (
+                    {isDraft && !event.isStandalone && (
                       <Button
                         size="sm"
                         onClick={onSendToGroup}
@@ -537,6 +609,21 @@ export function DesktopEventDetails({
                       >
                         <Send className="h-4 w-4" />
                         Send to Group
+                      </Button>
+                    )}
+                    {isDraft && event.isStandalone && onSendStandaloneInvites && (
+                      <Button
+                        size="sm"
+                        onClick={onSendStandaloneInvites}
+                        disabled={isPending.sendStandaloneInvites}
+                        className={cn(
+                          "gap-2 bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)]",
+                          "hover:bg-[hsl(44,87%,58%)]",
+                          "shadow-[0_2px_8px_rgba(242,201,76,0.3)]"
+                        )}
+                      >
+                        <Send className="h-4 w-4" />
+                        Send Invites
                       </Button>
                     )}
                     {isOrganizer && (
@@ -574,10 +661,13 @@ export function DesktopEventDetails({
               <div className="p-5 space-y-4">
                 {/* Group + Event Name */}
                 <div>
-                  <div className="flex items-center gap-2 text-sm text-[hsl(25,15%,45%)] mb-1">
-                    <span className="text-lg">{event.groupEmoji || "📅"}</span>
-                    <span>{event.groupName}</span>
-                  </div>
+                  {/* Only show group name for group events, not standalone */}
+                  {event.groupId && event.groupName && (
+                    <div className="flex items-center gap-2 text-sm text-[hsl(25,15%,45%)] mb-1">
+                      <span className="text-lg">{event.groupEmoji || "📅"}</span>
+                      <span>{event.groupName}</span>
+                    </div>
+                  )}
                   {isEditingName ? (
                     <Input
                       value={editingName}
@@ -1080,7 +1170,15 @@ export function DesktopEventDetails({
                             )}
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
-                              onClick={() => attendee.isGuest ? onDeleteGuest(attendee.id) : onRemoveInvite(attendee.id)}
+                              onClick={() => {
+                                if (attendee.isGuest) {
+                                  onDeleteGuest(attendee.id);
+                                } else if (attendee.isStandaloneInvitee && onRemoveInvitee) {
+                                  onRemoveInvitee(attendee.id);
+                                } else {
+                                  onRemoveInvite(attendee.id);
+                                }
+                              }}
                               className="text-[hsl(350,60%,50%)] focus:text-[hsl(350,60%,50%)]"
                             >
                               <UserMinus className="h-4 w-4 mr-2" />
@@ -1174,8 +1272,52 @@ export function DesktopEventDetails({
               </RefinedCard>
             )}
 
-            {/* Guest Invites (Organizer only) */}
-            {isOrganizer && (
+            {/* Add Invitee Section for Standalone Events (Organizer only) */}
+            {isOrganizer && event.isStandalone && onAddInvitee && (
+              <RefinedCard hover={false}>
+                <RefinedSectionHeader icon={UserPlus} title="Add Guest" />
+                <div className="p-5 space-y-3">
+                  <div className="flex gap-2">
+                    <Input
+                      type="text"
+                      placeholder="Guest name..."
+                      value={newInviteeName}
+                      onChange={(e) => setNewInviteeName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && newInviteeName.trim()) {
+                          onAddInvitee([{ name: newInviteeName.trim() }]);
+                          setNewInviteeName("");
+                        }
+                      }}
+                      className="flex-1 h-9 text-sm border-[hsl(32,20%,88%)] focus:border-[hsl(44,70%,75%)]"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        if (newInviteeName.trim()) {
+                          onAddInvitee([{ name: newInviteeName.trim() }]);
+                          setNewInviteeName("");
+                        }
+                      }}
+                      disabled={!newInviteeName.trim() || isPending.addInvitee}
+                      className={cn(
+                        "gap-1.5 h-9 bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)]",
+                        "hover:bg-[hsl(44,87%,58%)]"
+                      )}
+                    >
+                      <UserPlus className="h-3.5 w-3.5" />
+                      Add
+                    </Button>
+                  </div>
+                  <p className="text-sm text-[hsl(25,15%,45%)]">
+                    Add people to this event. They'll appear in the attendee list above.
+                  </p>
+                </div>
+              </RefinedCard>
+            )}
+
+            {/* Guest Invites (Organizer only, for group events) */}
+            {isOrganizer && !event.isStandalone && (
               <RefinedCard hover={false}>
                 <RefinedSectionHeader icon={UserPlus} title={`Guests (${guestInvites.length})`} />
                 <div className="p-5 space-y-3">

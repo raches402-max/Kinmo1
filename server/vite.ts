@@ -5,6 +5,7 @@ import { createServer as createViteServer, createLogger } from "vite";
 import { type Server } from "http";
 import viteConfig from "../vite.config";
 import { nanoid } from "nanoid";
+import { createOGMiddlewareForVite, createOGMiddlewareForStatic } from "./og-middleware";
 
 const viteLogger = createLogger();
 
@@ -41,6 +42,10 @@ export async function setupVite(app: Express, server: Server) {
   });
 
   app.use(vite.middlewares);
+
+  // OG meta tags middleware for shareable links (must be before catch-all)
+  app.use(createOGMiddlewareForVite(vite));
+
   app.use("*", async (req, res, next) => {
     const url = req.originalUrl;
 
@@ -125,6 +130,9 @@ export function serveStatic(app: Express) {
   } catch (e) {
     console.error(`[Static] Could not list static contents:`, e);
   }
+
+  // OG meta tags middleware for shareable links (must be before catch-all)
+  app.use(createOGMiddlewareForStatic(staticPath));
 
   // Serve static files with proper headers for production
   app.use(express.static(staticPath, {

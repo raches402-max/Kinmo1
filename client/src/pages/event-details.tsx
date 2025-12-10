@@ -1597,6 +1597,14 @@ export default function EventDetailsPage() {
             description: "All pending members have been reminded",
           });
         }}
+        // Standalone event props
+        onAddInvitee={(invitees) => addStandaloneInviteeMutation.mutate(invitees)}
+        onRemoveInvitee={(inviteeId) => {
+          if (confirm("Remove this person from the event?")) {
+            removeStandaloneInviteeMutation.mutate(inviteeId);
+          }
+        }}
+        onSendStandaloneInvites={() => sendStandaloneInvitesMutation.mutate()}
         isPending={{
           organizerRsvp: organizerRsvpMutation.isPending,
           updateMemberRsvp: updateMemberRsvpMutation.isPending,
@@ -1608,6 +1616,9 @@ export default function EventDetailsPage() {
           handOffHost: handOffHostMutation.isPending,
           sendToGroup: sendToGroupMutation.isPending,
           deleteEvent: deleteEventMutation.isPending,
+          addInvitee: addStandaloneInviteeMutation.isPending,
+          removeInvitee: removeStandaloneInviteeMutation.isPending,
+          sendStandaloneInvites: sendStandaloneInvitesMutation.isPending,
         }}
         canVolunteerToHost={canVolunteerToHost}
         isCurrentHost={isCurrentHost}
