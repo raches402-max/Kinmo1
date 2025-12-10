@@ -398,7 +398,7 @@ Add to dependencies:
 import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 import { storage } from './storage';
-import { searchPlaces, getPlaceDetails } from './google-places';
+import { searchPlaces, getPlaceDetails, geocodeLocation } from './google-places';
 import { db } from '../db';
 import { eq, and, sql } from 'drizzle-orm';
 import { votingEvents, activities, itineraries, itineraryItems } from '../shared/schema';
@@ -414,6 +414,51 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   return R * c;
 }
+
+// Tool 0: Resolve location from place name/address to coordinates (CRITICAL for natural language)
+const resolveLocationTool = tool(
+  'resolveLocation',
+  'Convert a place name, address, or landmark to coordinates. Use this FIRST when user mentions a location by name.',
+  {
+    query: z.string().describe('Place name, address, or landmark (e.g., "Double Standard", "Marina District SF", "123 Main St")')
+  },
+  async (args) => {
+    try {
+      // Use Google Places text search or geocoding
+      const results = await searchPlaces(args.query, '', 50000); // Wide radius for name lookup
+
+      if (results.length === 0) {
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({ error: 'Location not found', query: args.query })
+          }]
+        };
+      }
+
+      const place = results[0];
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            name: place.name,
+            address: place.vicinity || place.formatted_address,
+            latitude: place.geometry.location.lat,
+            longitude: place.geometry.location.lng,
+            placeId: place.place_id
+          })
+        }]
+      };
+    } catch (error: any) {
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({ error: error.message })
+        }]
+      };
+    }
+  }
+);
 
 // Tool 1: Search for venues
 const searchVenuesTool = tool(
@@ -726,6 +771,7 @@ export function createKinmoMcpServer() {
   return createSdkMcpServer({
     name: 'kinmo-event-tools',
     tools: [
+      resolveLocationTool,  // MUST be first - needed for natural language location references
       searchVenuesTool,
       getGroupFavoritesTool,
       getCurrentItineraryTool,
@@ -787,7 +833,7 @@ Start by understanding what the user wants, then use your tools to help them.`;
     const agentQuery = query({
       prompt,
       options: {
-        model: 'claude-opus-4-5',
+        model: 'sonnet', // Use Sonnet for cost efficiency (~$0.03/conversation)
         systemPrompt,
         mcpServers: {
           'kinmo': {
@@ -798,7 +844,7 @@ Start by understanding what the user wants, then use your tools to help them.`;
         sessionId: actualSessionId,
         resume: resume ? actualSessionId : undefined,
         maxTurns: 15,
-        maxBudgetUsd: 2.0, // Cost control
+        maxBudgetUsd: 0.50, // Cost control - Sonnet is cheaper so lower budget works
         permissionMode: 'bypassPermissions', // Auto-approve tool use for now
         includePartialMessages: true // Stream intermediate results
       }
@@ -1254,16 +1300,18 @@ ANTHROPIC_API_KEY=your-api-key-here
 
 ## Cost Estimates
 
-**Per Conversation**:
+**Per Conversation** (using Sonnet 4.5):
 - Average: 3-5 messages
 - Tokens per message: ~2,000 input, ~500 output
 - Total: ~12,500 tokens per conversation
-- Cost: ~$0.15 per conversation (Opus 4.5 pricing)
+- Cost: ~$0.03 per conversation (Sonnet 4.5 pricing)
 
 **Monthly Estimates** (100 active groups):
 - Conversations per week: ~200
-- Monthly cost: ~$120
-- Budget controls: $2 max per session limits runaway costs
+- Monthly cost: ~$24
+- Budget controls: $0.50 max per session limits runaway costs
+
+**Note**: Using Sonnet instead of Opus provides 5x cost savings with equivalent quality for venue search tasks.
 
 ## Success Criteria
 
@@ -1272,8 +1320,8 @@ After 2 weeks of beta testing:
 - [ ] Average session: 3-5 messages (shows engagement)
 - [ ] 80%+ of AI-suggested venues stay in final itinerary (shows quality)
 - [ ] <5% error rate
-- [ ] Average response time: <3 seconds for first token
-- [ ] Cost: <$0.20 per conversation
+- [ ] Average response time: <2 seconds for first token (Sonnet is fast)
+- [ ] Cost: <$0.05 per conversation (Sonnet target)
 
 ## Rollback Plan
 
@@ -1296,70 +1344,59 @@ Once MVP is stable:
 
 # CRITICAL REVIEW: Issues & Recommendations
 
-After reviewing the plan, here are important considerations and potential issues:
+After reviewing the plan, here are important considerations and updates:
 
-## 1. Agent SDK vs. Direct API: Strategic Decision
+## 1. Architecture Decision: Agent SDK with Sonnet ✓
 
-### The Question
-The plan uses the Claude Agent SDK, but we should consider whether this is the right approach vs. using the Anthropic API directly with tool calling.
+### Decision
+**Use Agent SDK from the start, with Sonnet model.**
 
-### Agent SDK Pros
-- Built-in session management
-- MCP server abstraction is clean
-- Streaming handled for you
-- Designed for agentic workflows
+### Why Agent SDK
+- **Session management built-in** - essential for conversational UX
+- **MCP server abstraction** - clean tool organization that scales to Phase 2+
+- **Same underlying API** - Agent SDK is built on top of the Claude API, not a separate thing
+- **Less boilerplate** - handles tool-call-response loop automatically
+- **Future-proof** - architecture supports scheduling, multi-agent workflows without refactoring
 
-### Agent SDK Concerns
-- **Newer SDK** - less battle-tested in production
-- **Dependency risk** - adding another major dependency
-- **Overhead** - may be overkill for MVP scope (just venue search + add)
-- **Debugging** - another layer to debug when things go wrong
+### Why Sonnet (not Opus)
+The original plan incorrectly used Opus. **Model choice is independent of SDK choice.**
 
-### Alternative: Direct Anthropic API
-You could achieve the same with:
-```typescript
-import Anthropic from '@anthropic-ai/sdk';
-
-const response = await anthropic.messages.create({
-  model: 'claude-sonnet-4-5-20250514', // Cheaper for MVP
-  messages: conversationHistory,
-  tools: kinmoTools,
-  stream: true
-});
-```
-
-### Recommendation
-**Start with Direct API for MVP**, then migrate to Agent SDK when you need:
-- Cross-session memory persistence
-- More complex multi-step workflows
-- Subagent orchestration (Phase 3+)
-
-This reduces initial complexity and lets you validate the UX before committing to the SDK.
-
-## 2. Model Selection: Cost vs. Quality
-
-### Current Plan Issue
-Uses `claude-opus-4-5` which is:
-- Most expensive ($15 input / $75 output per million tokens)
-- Overkill for venue search tasks
-
-### Recommendation
-**Use Sonnet for MVP** (`claude-sonnet-4-5-20250514`):
-- Much cheaper (~$3 input / $15 output per million tokens)
-- Fast enough for chat UX
-- Capable enough for tool calling + venue recommendations
-
-Reserve Opus for:
-- Complex multi-venue itinerary optimization (Phase 2+)
-- Full event creation from scratch (Phase 3)
-
-### Cost Impact
 | Model | Per Conversation | Monthly (200 convos) |
 |-------|-----------------|---------------------|
 | Opus 4.5 | ~$0.15 | ~$120 |
-| Sonnet 4.5 | ~$0.03 | ~$24 |
+| **Sonnet 4.5** | **~$0.03** | **~$24** |
 
-**5x cost savings with Sonnet**
+Sonnet is:
+- 5x cheaper than Opus
+- Fast enough for chat UX (< 2s first token)
+- Fully capable of tool calling + venue recommendations
+- The right choice for MVP through Phase 2
+
+Reserve Opus for Phase 3+ (complex multi-venue optimization, full event creation from scratch).
+
+### Architecture Diagram
+```
+┌─────────────────────────────────────────────┐
+│           Your Application                   │
+└─────────────────────────────────────────────┘
+                    │
+                    ▼
+        ┌───────────────────────┐
+        │    Agent SDK          │
+        │  (High-level wrapper) │
+        │  - Session management │
+        │  - MCP integration    │
+        │  - Tool loop handling │
+        └───────────────────────┘
+                    │
+                    │ Uses internally
+                    ▼
+        ┌───────────────────────┐
+        │   Claude API          │
+        │   (Anthropic servers) │
+        │   Model: Sonnet 4.5   │
+        └───────────────────────┘
+```
 
 ## 3. Missing: Location Resolution
 
@@ -1676,19 +1713,20 @@ Based on the above, here's the recommended tool set:
 | `getVenueDetails` | Hours, phone, reviews | Nice to have |
 | `getGroupPreferences` | Budget, categories | Nice to have |
 
-## 13. Revised Cost Estimates (with Sonnet)
+## 13. Cost Estimates (with Sonnet)
 
-| Metric | Opus | Sonnet (Recommended) |
-|--------|------|---------------------|
-| Per conversation | $0.15 | $0.03 |
-| Monthly (200 convos) | $120 | $24 |
-| Budget per session | $2.00 | $0.50 |
+| Metric | Value |
+|--------|-------|
+| Per conversation | ~$0.03 |
+| Monthly (200 convos) | ~$24 |
+| Budget per session | $0.50 |
+
+Compared to Opus (~$0.15/conversation), Sonnet provides **5x cost savings** with no meaningful quality difference for venue search tasks.
 
 ## Updated Implementation Order
 
 1. **Week 1: Core Infrastructure**
-   - Direct Anthropic API (not Agent SDK)
-   - Sonnet model
+   - Agent SDK with Sonnet model
    - `resolveLocation` + `searchVenues` + `getCurrentItinerary` + `addVenueToItinerary`
    - Basic chat UI with streaming
    - Rate limiting
@@ -1706,14 +1744,14 @@ Based on the above, here's the recommended tool set:
    - Cost monitoring dashboard
    - Feature flag for gradual rollout
 
-4. **Post-MVP: Migrate to Agent SDK**
-   - When you need cross-session memory
-   - When implementing Phase 2 (scheduling)
-   - When adding complex multi-agent workflows
+4. **Phase 2+: Expand Capabilities**
+   - Add scheduling tools (availability, venue hours)
+   - Itinerary reordering and flow optimization
+   - Consider Opus for complex multi-step planning
 
 ---
 
-**Document Version**: 1.2
+**Document Version**: 1.3
 **Last Updated**: December 10, 2025
 **Author**: Claude (based on discussion with product team)
-**Status**: Plan reviewed with critical additions - ready for implementation decision
+**Status**: Ready for implementation - Agent SDK with Sonnet model confirmed
