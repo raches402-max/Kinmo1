@@ -408,7 +408,8 @@ export default function EventDetailsPage() {
           groupId: itinerary.groupId || null,
           groupName: itinerary.group?.name || null,
           groupEmoji: itinerary.group?.emoji || (itinerary.isStandalone ? "📅" : null),
-          groupTimezone: itinerary.group?.timezone || null,
+          // Use group timezone for group events, or itinerary's own timezone for standalone events
+          groupTimezone: itinerary.group?.timezone || itinerary.timezone || null,
           groupAccentColor: itinerary.group?.accentColor || "#6366f1",
           items: itinerary.items || [],
           isOrganizer: true, // Assume organizer for proposed/standalone itineraries
