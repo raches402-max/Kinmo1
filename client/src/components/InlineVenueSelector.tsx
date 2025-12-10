@@ -28,6 +28,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useDebounce } from "@/hooks/use-debounce";
+import { handlePhotoError } from "@/hooks/usePhotoRefresh";
 
 interface VenueOption {
   id: string;
@@ -82,6 +83,7 @@ function VenueCard({ venue, isSelected, onToggle }: VenueCardProps) {
             src={venue.photoUrl}
             alt={venue.name}
             className="h-full w-full object-cover"
+            onError={(e) => handlePhotoError(venue.googlePlaceId, e.currentTarget)}
           />
         ) : (
           <div className="h-full w-full flex items-center justify-center">

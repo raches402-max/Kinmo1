@@ -7,6 +7,7 @@
 import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Compass, Star } from "lucide-react";
+import { handlePhotoError } from "@/hooks/usePhotoRefresh";
 
 // ========== TYPES ==========
 
@@ -195,6 +196,7 @@ export function NearbySuggestionsCard({
                     src={suggestion.photoUrl}
                     alt={suggestion.name}
                     className="w-16 h-16 rounded object-cover flex-shrink-0"
+                    onError={(e) => handlePhotoError(suggestion.placeId, e.currentTarget)}
                   />
                 )}
                 <div className="flex-1 min-w-0">

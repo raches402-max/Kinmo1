@@ -88,6 +88,7 @@ import { Header } from "@/components/Header";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { RefinedCard, RefinedSectionHeader, RefinedActionButton, RefinedVenueCard, RefinedAttendeeCard } from "./RefinedCard";
 import type { AdditionalAttendeeInfo, HeadcountSummary } from "./types";
+import { handlePhotoError } from "@/hooks/usePhotoRefresh";
 
 type RsvpStatus = "yes" | "maybe" | "pending" | "no";
 
@@ -215,7 +216,7 @@ function SortableVenueCard({
             )}
           >
             {venue.photoUrl ? (
-              <img src={venue.photoUrl} alt={venue.venueName} className="w-full h-full object-cover" />
+              <img src={venue.photoUrl} alt={venue.venueName} className="w-full h-full object-cover" onError={(e) => handlePhotoError(venue.googlePlaceId, e.currentTarget)} />
             ) : (
               <MapPin className="h-8 w-8 text-[hsl(25,15%,65%)]" />
             )}

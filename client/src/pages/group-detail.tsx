@@ -77,6 +77,7 @@ import { HelpTooltip } from "@/components/HelpTooltip";
 import { HomeTab, GroupDetailMobileNav, ActivitiesTab, SelectedVenuesCard, ItineraryCard, AddMoreStopsCard, TimeSelectionTabs, InlineSchedulingCard, SaveItineraryDialog, SendBackupDialog, InviteGuestDialog, AutoSchedulePreviewDialog, EditAvailabilityDialog, RsvpConstraintDialog, AddVenueDialog, EditGroupDialog, MembersSection, AIPreferenceLearning, ColorPaletteSelector, AutomationSettings, ActivityPreferencesAccordion, MyPreferencesTab, BasicInfoAccordion, VenueSearchEmptyState, NearbySuggestionsCard, AIPreview, AutomationPauseControls } from "@/components/group-detail";
 import { useItineraryEditor } from "@/hooks/useItineraryEditor";
 import { useVenueSelection } from "@/hooks/useVenueSelection";
+import { handlePhotoError } from "@/hooks/usePhotoRefresh";
 import { useSchedulingFlow } from "@/hooks/useSchedulingFlow";
 
 // Type definition for user events
@@ -426,7 +427,7 @@ function SortableCartVenue({ id, index, venueName, venueType, photoUrl, onRemove
         </div>
         {photoUrl && (
           <div className="w-12 h-12 rounded overflow-hidden flex-shrink-0">
-            <img src={photoUrl} alt={venueName} className="w-full h-full object-cover" />
+            <img src={photoUrl} alt={venueName} className="w-full h-full object-cover" onError={(e) => handlePhotoError(placeId, e.currentTarget)} />
           </div>
         )}
         <div className="flex-1 min-w-0">
@@ -477,10 +478,11 @@ function SortableCartVenue({ id, index, venueName, venueType, photoUrl, onRemove
                   className="flex gap-2 flex-1 min-w-0 text-left"
                 >
                   {suggestion.photoUrl && (
-                    <img 
-                      src={suggestion.photoUrl} 
+                    <img
+                      src={suggestion.photoUrl}
                       alt={suggestion.name}
                       className="w-12 h-12 rounded object-cover flex-shrink-0"
+                      onError={(e) => handlePhotoError(suggestion.placeId, e.currentTarget)}
                     />
                   )}
                   <div className="flex-1 min-w-0">

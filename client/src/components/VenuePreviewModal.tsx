@@ -11,6 +11,7 @@ import { MapPin, Star, DollarSign, Heart, Loader2, ExternalLink, RefreshCw, Chev
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { handlePhotoError } from "@/hooks/usePhotoRefresh";
 
 interface VenuePreviewModalProps {
   open: boolean;
@@ -76,6 +77,7 @@ function VenueCard({
             src={venue.photoUrl}
             alt={venue.venueName}
             className="object-cover w-full h-full"
+            onError={(e) => handlePhotoError(venue.googlePlaceId, e.currentTarget)}
           />
         ) : (
           <div className="flex items-center justify-center h-full">

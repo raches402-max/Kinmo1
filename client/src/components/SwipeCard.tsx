@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { BADGE_COLORS } from '@/lib/tokens';
+import { handlePhotoError } from '@/hooks/usePhotoRefresh';
 
 interface SwipeVenue {
   id: string;
@@ -97,6 +98,7 @@ export function SwipeCard({ venue, onSwipe, onSkip }: SwipeCardProps) {
               src={venue.photoUrl}
               alt={venue.title}
               className="w-full h-full object-cover"
+              onError={(e) => handlePhotoError(venue.googlePlaceId, e.currentTarget)}
             />
           </div>
         ) : (

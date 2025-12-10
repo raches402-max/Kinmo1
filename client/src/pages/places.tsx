@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import { PlacesSwipeFlow } from "@/components/PlacesSwipeFlow";
 import { cn } from "@/lib/utils";
+import { handlePhotoError } from "@/hooks/usePhotoRefresh";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -183,7 +184,6 @@ export default function PlacesPage() {
   const [showSavePicker, setShowSavePicker] = useState(false);
   const [venueToSave, setVenueToSave] = useState<VenueSearchResult | null>(null);
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
-  const refreshAttempts = useRef<Set<string>>(new Set()); // Track which googlePlaceIds we've tried to refresh
 
   // Swipe mode state - check if there are unreviewed venues
   const [showSwipeMode, setShowSwipeMode] = useState<boolean | null>(null); // null = loading, true/false = show/hide
@@ -208,27 +208,11 @@ export default function PlacesPage() {
     }
   }, [swipeQueue, isLoadingSwipeQueue, showSwipeMode]);
 
-  // Handle image load errors gracefully - triggers lazy photo refresh
-  const handleImageError = (placeId: string, googlePlaceId?: string) => {
+  // Handle image load errors gracefully - triggers lazy photo refresh via shared hook
+  const handleLocalImageError = (placeId: string, googlePlaceId?: string, imgElement?: HTMLImageElement) => {
     setFailedImages(prev => new Set(prev).add(placeId));
-
-    // Trigger background photo refresh if we have a googlePlaceId and haven't tried yet
-    if (googlePlaceId && !refreshAttempts.current.has(googlePlaceId)) {
-      refreshAttempts.current.add(googlePlaceId);
-
-      // Fire-and-forget API call to refresh the photo
-      fetch(`/api/venues/${encodeURIComponent(googlePlaceId)}/refresh-photo`, {
-        method: 'POST',
-      }).then(res => {
-        if (res.ok) {
-          console.log(`[Photo Refresh] Successfully refreshed photo for ${googlePlaceId}`);
-          // Invalidate queries to get fresh data on next load
-          queryClient.invalidateQueries({ queryKey: ["/api/user/all-places"] });
-        }
-      }).catch(err => {
-        console.log(`[Photo Refresh] Failed to refresh photo for ${googlePlaceId}:`, err);
-      });
-    }
+    // Delegate to shared photo refresh mechanism
+    handlePhotoError(googlePlaceId, imgElement);
   };
 
   // Fetch all places (personal + groups)
@@ -669,7 +653,7 @@ export default function PlacesPage() {
                         src={place.photoUrl}
                         alt={place.name}
                         className="w-full h-full object-cover"
-                        onError={() => handleImageError(place.id, place.googlePlaceId)}
+                        onError={(e) => handleLocalImageError(place.id, place.googlePlaceId, e.currentTarget)}
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-muted to-muted/50">
@@ -747,7 +731,7 @@ export default function PlacesPage() {
                         src={place.photoUrl}
                         alt={place.name}
                         className="w-full h-full object-cover"
-                        onError={() => handleImageError(place.id, place.googlePlaceId)}
+                        onError={(e) => handleLocalImageError(place.id, place.googlePlaceId, e.currentTarget)}
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-muted to-muted/50">
@@ -867,7 +851,7 @@ export default function PlacesPage() {
                           src={venue.photoUrl}
                           alt={venue.name}
                           className="w-full h-full object-cover"
-                          onError={() => handleImageError(venue.placeId, venue.placeId)}
+                          onError={(e) => handleLocalImageError(venue.placeId, venue.placeId, e.currentTarget)}
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-muted to-muted/50">

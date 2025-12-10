@@ -21,6 +21,7 @@ import { useToast } from "../hooks/use-toast";
 import { Edit, Search, Sparkles, Library, Link as LinkIcon, MapPin, Star, DollarSign, Navigation2, ChevronDown, Clock, MessageCircle } from "lucide-react";
 import { AIEventAssistant } from "./AIEventAssistant";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
+import { handlePhotoError } from "@/hooks/usePhotoRefresh";
 import type { ItineraryItem } from "@shared/schema";
 
 interface EditVenueDialogProps {
@@ -687,6 +688,7 @@ export function EditVenueDialog({ open, onOpenChange, venue, itineraryId, groupI
                         src={libraryVenue.photoUrl}
                         alt=""
                         className="w-full h-full object-cover"
+                        onError={(e) => handlePhotoError(libraryVenue.googlePlaceId, e.currentTarget)}
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-muted-foreground/40">

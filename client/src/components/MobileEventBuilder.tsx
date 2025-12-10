@@ -43,6 +43,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
+import { handlePhotoError } from "@/hooks/usePhotoRefresh";
 
 // Types
 interface VenueItem {
@@ -593,7 +594,7 @@ function VenueSelectCard({
       {/* Photo or placeholder */}
       <div className="w-14 h-14 rounded-lg bg-muted overflow-hidden flex-shrink-0">
         {venue.photoUrl ? (
-          <img src={venue.photoUrl} alt={venue.name} className="w-full h-full object-cover" />
+          <img src={venue.photoUrl} alt={venue.name} className="w-full h-full object-cover" onError={(e) => handlePhotoError(venue.googlePlaceId, e.currentTarget)} />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <MapPin className="h-5 w-5 text-muted-foreground" />
