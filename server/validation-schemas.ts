@@ -178,6 +178,7 @@ export const joinGroupSchema = z.object({
     z.literal(""),
   ]).optional(),
   inviteToken: z.string().optional(),
+  shareableLink: z.string().optional(), // For "I'm not on this list" flow via invite page
 });
 
 export const claimMemberSchema = z.object({

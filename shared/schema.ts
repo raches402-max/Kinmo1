@@ -170,6 +170,7 @@ export const members = pgTable("members", {
   availability: text("availability"),
   preferences: text("preferences"),
   isOrganizer: boolean("is_organizer").default(false).notNull(),
+  isGuest: boolean("is_guest").default(false).notNull(), // Self-registered guests (not original group members)
   invitationSent: boolean("invitation_sent").default(false).notNull(),
   hasJoined: boolean("has_joined").default(false).notNull(),
   

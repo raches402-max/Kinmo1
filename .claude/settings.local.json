@@ -202,7 +202,8 @@
       "Bash(timeout 10 npx tsx -e:*)",
       "Bash(then echo \"SET - length: $#ANTHROPIC_API_KEY, prefix: $ANTHROPIC_API_KEY:0:10...\")",
       "Bash(else echo \"NOT SET\")",
-      "Bash(timeout 15 npx tsx:*)"
+      "Bash(timeout 15 npx tsx:*)",
+      "Bash(unzip:*)"
     ],
     "deny": [],
     "ask": []

@@ -197,8 +197,11 @@ export default function InvitePage() {
   // This joins the group AND claims the member in one flow
   const joinMutation = useMutation({
     mutationFn: async (data: { name: string; email?: string }) => {
-      // Step 1: Join the group (creates the member)
-      const newMember = await apiRequest("POST", `/api/groups/${group?.id}/join`, data);
+      // Step 1: Join the group (creates the member) - include shareableLink for authorization
+      const newMember = await apiRequest("POST", `/api/groups/${group?.id}/join`, {
+        ...data,
+        shareableLink: token, // Pass the shareable link from URL for authorization
+      });
 
       // Step 2: Claim the member (stores the claim token on the server)
       const newClaimToken = crypto.randomUUID();

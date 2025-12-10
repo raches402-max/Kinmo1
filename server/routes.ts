@@ -4047,14 +4047,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Join a group (requires valid invite token for security)
+  // Join a group (requires valid invite token, matching email, or shareable link for security)
   app.post("/api/groups/:id/join", async (req, res) => {
     try {
       // Validate request body
       const validatedData = safeParse(joinGroupSchema, req.body, res);
       if (!validatedData) return;
 
-      const { name, email, inviteToken } = validatedData;
+      const { name, email, inviteToken, shareableLink } = validatedData;
 
       // Verify the group exists and is not deleted
       const group = await storage.getGroup(req.params.id);
@@ -4062,7 +4062,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Group not found" });
       }
 
-      // Require invite token OR email that matches an existing invited member
+      // Require invite token OR email that matches an existing invited member OR valid shareable link
       let existingMember: any = null;
       if (inviteToken) {
         // Validate invite token by querying members with that claim token
@@ -4075,13 +4075,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(403).json({ message: "Invalid invite token" });
         }
         existingMember = memberByToken;
-      } else if (email) {
-        // Check if email was pre-invited to this group
-        const members = await storage.getGroupMembers(req.params.id);
-        existingMember = members.find(m => m.email?.toLowerCase() === email.toLowerCase());
-        if (!existingMember) {
-          return res.status(403).json({ message: "You must be invited to join this group" });
+      } else if (shareableLink) {
+        // Validate shareable link matches this group - allows "I'm not on this list" flow
+        if (group.shareableLink !== shareableLink) {
+          return res.status(403).json({ message: "Invalid invite link" });
         }
+        // Name is required for new members joining via shareable link
+        if (!name || !name.trim()) {
+          return res.status(400).json({ message: "Name is required to join" });
+        }
+        // Create new member for this group
+        const newMember = await storage.createMember({
+          groupId: req.params.id,
+          name: name.trim(),
+          email: email || null,
+          hasJoined: true,
+        });
+        return res.json(newMember);
       } else {
         return res.status(403).json({ message: "Invite token or email required to join" });
       }
@@ -5648,6 +5658,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error('[Claim Membership] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Register as a guest using a member's claim token (for people who aren't the intended member)
+  app.post("/api/members/register-guest", async (req, res) => {
+    try {
+      const { claimToken, guestName } = req.body;
+
+      if (!claimToken) {
+        return res.status(400).json({ message: "Claim token required" });
+      }
+
+      if (!guestName || typeof guestName !== 'string' || guestName.trim().length < 1) {
+        return res.status(400).json({ message: "Guest name required" });
+      }
+
+      // Find member by claim token to get the group ID
+      const members = await db
+        .select({
+          id: membersTable.id,
+          groupId: membersTable.groupId,
+        })
+        .from(membersTable)
+        .where(sql`claim_token = ${claimToken}`);
+
+      if (members.length === 0) {
+        return res.status(404).json({ message: "Invalid or expired claim token" });
+      }
+
+      const member = members[0];
+
+      // Check if a guest with this name already exists in the group
+      const existingGuests = await db
+        .select()
+        .from(membersTable)
+        .where(sql`group_id = ${member.groupId} AND is_guest = true AND LOWER(name) = LOWER(${guestName.trim()})`);
+
+      if (existingGuests.length > 0) {
+        // Guest already exists, return success with existing member
+        return res.json({
+          message: "Guest already registered",
+          member: existingGuests[0],
+        });
+      }
+
+      // Create a new guest member in the group
+      const [newGuestMember] = await db
+        .insert(membersTable)
+        .values({
+          groupId: member.groupId,
+          name: guestName.trim(),
+          isGuest: true,
+          hasJoined: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning();
+
+      console.log(`[Register Guest] Created guest member ${newGuestMember.id} in group ${member.groupId}`);
+
+      res.json({
+        message: "Guest registered successfully",
+        member: newGuestMember,
+      });
+    } catch (error: any) {
+      console.error('[Register Guest] Error:', error);
       res.status(500).json({ message: error.message });
     }
   });

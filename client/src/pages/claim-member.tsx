@@ -2,8 +2,10 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, useLocation } from "wouter";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { ResponsiveDialog as Dialog, ResponsiveDialogContent as DialogContent, ResponsiveDialogDescription as DialogDescription, ResponsiveDialogFooter as DialogFooter, ResponsiveDialogHeader as DialogHeader, ResponsiveDialogTitle as DialogTitle } from "@/components/ui/responsive-dialog";
-import { Sparkles, CheckCircle, UserPlus } from "lucide-react";
+import { Sparkles, CheckCircle, UserPlus, Users } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -29,6 +31,11 @@ export default function ClaimMemberPage() {
   const [showProfileDialog, setShowProfileDialog] = useState(false);
   const [claimedMemberId, setClaimedMemberId] = useState<string | null>(null);
 
+  // Guest registration state
+  const [showGuestForm, setShowGuestForm] = useState(false);
+  const [guestName, setGuestName] = useState("");
+  const [guestRegistered, setGuestRegistered] = useState(false);
+
   // Verify claim token and get member data
   const { data: claimData, isLoading, error } = useQuery<MemberClaimData>({
     queryKey: ["/api/members/claim/verify", claimToken],
@@ -53,6 +60,26 @@ export default function ClaimMemberPage() {
       // Show optional profile setup dialog
       setClaimedMemberId(data.id);
       setShowProfileDialog(true);
+    },
+    onError: (error: Error) => {
+      toast(getErrorToast(error));
+    },
+  });
+
+  // Guest registration mutation
+  const guestMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("POST", `/api/members/register-guest`, {
+        claimToken,
+        guestName: guestName.trim(),
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Welcome to the group!",
+        description: "You've been added as a guest",
+      });
+      setGuestRegistered(true);
     },
     onError: (error: Error) => {
       toast(getErrorToast(error));
