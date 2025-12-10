@@ -1294,7 +1294,426 @@ Once MVP is stable:
 
 ---
 
-**Document Version**: 1.1
+# CRITICAL REVIEW: Issues & Recommendations
+
+After reviewing the plan, here are important considerations and potential issues:
+
+## 1. Agent SDK vs. Direct API: Strategic Decision
+
+### The Question
+The plan uses the Claude Agent SDK, but we should consider whether this is the right approach vs. using the Anthropic API directly with tool calling.
+
+### Agent SDK Pros
+- Built-in session management
+- MCP server abstraction is clean
+- Streaming handled for you
+- Designed for agentic workflows
+
+### Agent SDK Concerns
+- **Newer SDK** - less battle-tested in production
+- **Dependency risk** - adding another major dependency
+- **Overhead** - may be overkill for MVP scope (just venue search + add)
+- **Debugging** - another layer to debug when things go wrong
+
+### Alternative: Direct Anthropic API
+You could achieve the same with:
+```typescript
+import Anthropic from '@anthropic-ai/sdk';
+
+const response = await anthropic.messages.create({
+  model: 'claude-sonnet-4-5-20250514', // Cheaper for MVP
+  messages: conversationHistory,
+  tools: kinmoTools,
+  stream: true
+});
+```
+
+### Recommendation
+**Start with Direct API for MVP**, then migrate to Agent SDK when you need:
+- Cross-session memory persistence
+- More complex multi-step workflows
+- Subagent orchestration (Phase 3+)
+
+This reduces initial complexity and lets you validate the UX before committing to the SDK.
+
+## 2. Model Selection: Cost vs. Quality
+
+### Current Plan Issue
+Uses `claude-opus-4-5` which is:
+- Most expensive ($15 input / $75 output per million tokens)
+- Overkill for venue search tasks
+
+### Recommendation
+**Use Sonnet for MVP** (`claude-sonnet-4-5-20250514`):
+- Much cheaper (~$3 input / $15 output per million tokens)
+- Fast enough for chat UX
+- Capable enough for tool calling + venue recommendations
+
+Reserve Opus for:
+- Complex multi-venue itinerary optimization (Phase 2+)
+- Full event creation from scratch (Phase 3)
+
+### Cost Impact
+| Model | Per Conversation | Monthly (200 convos) |
+|-------|-----------------|---------------------|
+| Opus 4.5 | ~$0.15 | ~$120 |
+| Sonnet 4.5 | ~$0.03 | ~$24 |
+
+**5x cost savings with Sonnet**
+
+## 3. Missing: Location Resolution
+
+### The Problem
+User says: "Find bars near Double Standard"
+
+But the agent doesn't know where "Double Standard" is. The current plan requires:
+```typescript
+location: z.object({
+  latitude: z.number(),
+  longitude: z.number()
+})
+```
+
+### Solution: Add Location Resolution Tool
+```typescript
+const resolveLocationTool = tool(
+  'resolveLocation',
+  'Convert a place name, address, or landmark to coordinates.',
+  {
+    query: z.string().describe('Place name or address (e.g., "Double Standard", "Marina District SF")')
+  },
+  async (args) => {
+    // Use Google Geocoding API or Places API text search
+    const result = await geocodeLocation(args.query);
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          name: result.name,
+          address: result.formattedAddress,
+          latitude: result.latitude,
+          longitude: result.longitude
+        })
+      }]
+    };
+  }
+);
+```
+
+**This is essential for natural language requests.**
+
+## 4. Missing: Venue Details/Hours
+
+### The Problem
+Agent suggests a venue, but doesn't know:
+- Is it open at the time of the event?
+- What are the hours?
+- Phone number for reservations?
+
+### Solution: Add Venue Details Tool
+```typescript
+const getVenueDetailsTool = tool(
+  'getVenueDetails',
+  'Get detailed information about a specific venue including hours, phone, website.',
+  {
+    placeId: z.string().describe('Google Place ID')
+  },
+  async (args) => {
+    const details = await getPlaceDetails(args.placeId);
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          name: details.name,
+          hours: details.opening_hours?.weekday_text,
+          isOpen: details.opening_hours?.open_now,
+          phone: details.formatted_phone_number,
+          website: details.website,
+          priceLevel: details.price_level,
+          rating: details.rating,
+          reviews: details.reviews?.slice(0, 2) // Top 2 reviews
+        })
+      }]
+    };
+  }
+);
+```
+
+## 5. Missing: Remove Venue Capability
+
+### The Problem
+User can ask to add venues, but not remove them through chat.
+
+### Solution
+```typescript
+const removeVenueFromItineraryTool = tool(
+  'removeVenueFromItinerary',
+  'Remove a venue from the itinerary.',
+  {
+    itineraryId: z.string(),
+    venueId: z.string().describe('The venue/item ID to remove')
+  },
+  async (args) => {
+    await db.delete(itineraryItems)
+      .where(eq(itineraryItems.id, args.venueId));
+    return { content: [{ type: 'text', text: 'Venue removed' }] };
+  }
+);
+```
+
+## 6. Session Storage: Missing Persistence
+
+### The Problem
+Current plan stores session ID in React state, but:
+- Lost on page refresh
+- Lost when dialog closes and reopens
+- No way to continue conversation later
+
+### Solution Options
+
+**Option A: Store in localStorage (Simple)**
+```typescript
+const SESSION_KEY = `kinmo-ai-session-${itineraryId}`;
+const [sessionId, setSessionId] = useState<string | null>(
+  () => localStorage.getItem(SESSION_KEY)
+);
+// Save on update
+useEffect(() => {
+  if (sessionId) localStorage.setItem(SESSION_KEY, sessionId);
+}, [sessionId]);
+```
+
+**Option B: Store in Database (Better for multi-device)**
+```sql
+CREATE TABLE ai_chat_sessions (
+  id VARCHAR PRIMARY KEY,
+  itinerary_id VARCHAR REFERENCES itineraries(id),
+  user_id VARCHAR REFERENCES users(id),
+  created_at TIMESTAMP DEFAULT NOW(),
+  last_message_at TIMESTAMP,
+  message_count INTEGER DEFAULT 0
+);
+```
+
+**Recommendation**: Start with localStorage, migrate to DB if needed.
+
+## 7. Rate Limiting: Not Addressed
+
+### The Problem
+Nothing stops a user from:
+- Spamming the chat
+- Running up API costs
+- Hitting Claude rate limits
+
+### Solution
+```typescript
+// In routes.ts
+import rateLimit from 'express-rate-limit';
+
+const aiChatLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // 10 requests per minute per user
+  keyGenerator: (req) => req.user?.id || req.ip,
+  message: { error: 'Too many requests. Please wait a moment.' }
+});
+
+app.post("/api/itineraries/:id/ai-chat", isAuthenticated, aiChatLimiter, async (req, res) => {
+  // ...
+});
+```
+
+Also add to frontend:
+```typescript
+const [cooldown, setCooldown] = useState(false);
+
+const sendMessage = async () => {
+  if (cooldown) return;
+  setCooldown(true);
+  setTimeout(() => setCooldown(false), 2000); // 2s between messages
+  // ...
+};
+```
+
+## 8. Standalone Events: Special Handling Needed
+
+### The Problem
+For standalone events (no group):
+- No group preferences to use
+- No group favorites
+- `getGroupFavorites` will fail
+
+### Solution
+Update tools to handle null groupId gracefully:
+```typescript
+if (!args.groupId) {
+  return {
+    content: [{
+      type: 'text',
+      text: JSON.stringify({
+        favorites: [],
+        count: 0,
+        note: 'This is a standalone event with no group favorites'
+      })
+    }]
+  };
+}
+```
+
+And update system prompt:
+```typescript
+const systemPrompt = `...
+${groupId
+  ? `- Group ID: ${groupId} (you can access group preferences and favorites)`
+  : '- Standalone event (no group - focus on user preferences and venue discovery)'}
+`;
+```
+
+## 9. Curated Venues: Not Utilized
+
+### The Problem
+You have a `curatedVenues` table with pre-vetted, high-quality venues, but the plan only uses Google Places.
+
+### Solution: Add Curated Venues Tool
+```typescript
+const getCuratedVenuesTool = tool(
+  'getCuratedVenues',
+  'Get pre-vetted, high-quality venues from our curated database. These are guaranteed quality.',
+  {
+    category: z.string().optional(),
+    nearLocation: z.object({
+      latitude: z.number(),
+      longitude: z.number(),
+      radiusMiles: z.number().optional()
+    }).optional()
+  },
+  async (args) => {
+    let query = db.select().from(curatedVenues);
+
+    if (args.category) {
+      query = query.where(ilike(curatedVenues.category, `%${args.category}%`));
+    }
+
+    const venues = await query;
+
+    // Filter by location if provided
+    if (args.nearLocation) {
+      // ... distance filtering
+    }
+
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          venues: venues.slice(0, 10),
+          isCurated: true,
+          note: 'These venues are pre-vetted for quality'
+        })
+      }]
+    };
+  }
+);
+```
+
+## 10. Error UX: Needs Improvement
+
+### The Problem
+Current error handling just shows the error message, which may be technical/confusing.
+
+### Solution: Friendly Error Messages
+```typescript
+const friendlyErrors: Record<string, string> = {
+  'RATE_LIMIT': "I'm thinking too fast! Give me a moment and try again.",
+  'API_ERROR': "I'm having trouble connecting. Let's try that again.",
+  'NO_RESULTS': "I couldn't find any venues matching that. Can you be more specific?",
+  'TIMEOUT': "That took too long. Let me try a simpler search."
+};
+
+// In the catch block
+const friendlyMessage = friendlyErrors[error.code] ||
+  "Something went wrong. Try rephrasing your request?";
+```
+
+## 11. Analytics: Add from Day 1
+
+### Recommendation
+Track these metrics from launch:
+```typescript
+// Log each agent interaction
+await db.insert(aiAgentLogs).values({
+  userId,
+  itineraryId,
+  sessionId,
+  prompt: userMessage,
+  responseTokens: result.usage.output_tokens,
+  inputTokens: result.usage.input_tokens,
+  toolsCalled: toolsUsed,
+  venuesAdded: venuesAddedCount,
+  durationMs: endTime - startTime,
+  success: !error,
+  errorType: error?.code || null
+});
+```
+
+This lets you:
+- Track costs per user/group
+- Identify common queries
+- Find failure patterns
+- Measure agent effectiveness
+
+## 12. Revised Tool List for MVP
+
+Based on the above, here's the recommended tool set:
+
+| Tool | Purpose | Priority |
+|------|---------|----------|
+| `resolveLocation` | Convert place names to coordinates | **Must have** |
+| `searchVenues` | Google Places search | Must have |
+| `getCuratedVenues` | High-quality pre-vetted venues | Should have |
+| `getGroupFavorites` | Group's liked venues | Should have |
+| `getCurrentItinerary` | View current state | Must have |
+| `addVenueToItinerary` | Add venue | Must have |
+| `removeVenueFromItinerary` | Remove venue | Should have |
+| `getVenueDetails` | Hours, phone, reviews | Nice to have |
+| `getGroupPreferences` | Budget, categories | Nice to have |
+
+## 13. Revised Cost Estimates (with Sonnet)
+
+| Metric | Opus | Sonnet (Recommended) |
+|--------|------|---------------------|
+| Per conversation | $0.15 | $0.03 |
+| Monthly (200 convos) | $120 | $24 |
+| Budget per session | $2.00 | $0.50 |
+
+## Updated Implementation Order
+
+1. **Week 1: Core Infrastructure**
+   - Direct Anthropic API (not Agent SDK)
+   - Sonnet model
+   - `resolveLocation` + `searchVenues` + `getCurrentItinerary` + `addVenueToItinerary`
+   - Basic chat UI with streaming
+   - Rate limiting
+   - Error handling
+
+2. **Week 2: Enhancement**
+   - `getCuratedVenues` + `getGroupFavorites`
+   - Session persistence (localStorage)
+   - Analytics logging
+   - Standalone event handling
+
+3. **Week 3: Polish & Launch**
+   - `removeVenueFromItinerary` + `getVenueDetails`
+   - UX improvements based on testing
+   - Cost monitoring dashboard
+   - Feature flag for gradual rollout
+
+4. **Post-MVP: Migrate to Agent SDK**
+   - When you need cross-session memory
+   - When implementing Phase 2 (scheduling)
+   - When adding complex multi-agent workflows
+
+---
+
+**Document Version**: 1.2
 **Last Updated**: December 10, 2025
 **Author**: Claude (based on discussion with product team)
-**Status**: Ready for implementation
+**Status**: Plan reviewed with critical additions - ready for implementation decision
