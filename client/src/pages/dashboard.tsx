@@ -484,9 +484,9 @@ export default function Dashboard() {
   const currentTime = new Date();
   const pastEventsNeedingFeedback = events.filter(event => {
     const isPast = event.eventDate && new Date(event.eventDate) < currentTime;
-    const attendedOrOrganizer = event.rsvp?.response === 'yes' || event.isOrganizer;
+    const attended = event.rsvp?.response === 'yes';
     const noFeedbackYet = !event.rsvp?.postEventFeedback;
-    return isPast && attendedOrOrganizer && noFeedbackYet;
+    return isPast && attended && noFeedbackYet;
   });
 
   // Auto-open feedback dialog for most recent past event (one-time per event)
