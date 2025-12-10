@@ -1,3 +1,6 @@
+// Load .env file before anything else
+import "dotenv/config";
+
 import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
