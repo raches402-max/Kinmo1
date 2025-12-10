@@ -297,7 +297,7 @@ Want me to add any of these to your itinerary?"
 ## Next Steps
 
 1. ✅ Document vision and strategy (this doc)
-2. Create detailed MVP implementation plan
+2. ✅ Create detailed MVP implementation plan (see below)
 3. Design chat interface mockups
 4. Implement backend agent infrastructure
 5. Build frontend chat component
@@ -308,7 +308,993 @@ Want me to add any of these to your itinerary?"
 
 ---
 
-**Document Version**: 1.0
+# MVP IMPLEMENTATION PLAN: Conversational Venue Finder with Agent SDK
+
+## Overview
+
+This plan details how to implement Phase 1 (MVP) of the AI Event Assistant using the Claude Agent SDK. The goal is to replace the current AI tab in EditVenueDialog with a conversational chat interface that can intelligently find and add venues based on natural language requests.
+
+## Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         Frontend                             │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │  AIEventAssistant.tsx (Chat Interface)                │   │
+│  │  - Text input                                         │   │
+│  │  - Message history                                    │   │
+│  │  - Streaming responses                                │   │
+│  └──────────────────────────────────────────────────────┘   │
+│                           │                                  │
+│                           │ POST /api/itineraries/:id/ai-chat│
+│                           ▼                                  │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                        Backend                               │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │  Express Route: /api/itineraries/:id/ai-chat         │   │
+│  │  - Session management                                │   │
+│  │  - Agent SDK initialization                          │   │
+│  │  - SSE streaming                                     │   │
+│  └──────────────────────────────────────────────────────┘   │
+│                           │                                  │
+│                           ▼                                  │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │  Claude Agent SDK                                    │   │
+│  │  - Model: claude-opus-4-5                            │   │
+│  │  - Session memory                                    │   │
+│  │  - Custom MCP tools                                  │   │
+│  └──────────────────────────────────────────────────────┘   │
+│                           │                                  │
+│                           ▼                                  │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │  Custom MCP Server: kinmo-event-tools                │   │
+│  │                                                       │   │
+│  │  Tools:                                              │   │
+│  │  - searchVenues()                                    │   │
+│  │  - getGroupFavorites()                               │   │
+│  │  - getCurrentItinerary()                             │   │
+│  │  - addVenueToItinerary()                             │   │
+│  │  - getGroupPreferences()                             │   │
+│  └──────────────────────────────────────────────────────┘   │
+│                           │                                  │
+│                           ▼                                  │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │  Existing Kinmo Backend Services                     │   │
+│  │  - storage.ts (database queries)                     │   │
+│  │  - google-places.ts (venue search)                   │   │
+│  │  - routes.ts (add venue endpoint)                    │   │
+│  └──────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Step-by-Step Implementation
+
+### Step 1: Install Dependencies
+
+**File**: `package.json`
+
+```bash
+npm install @anthropic-ai/claude-agent-sdk zod
+```
+
+Add to dependencies:
+```json
+{
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^latest",
+    "zod": "^3.22.4"
+  }
+}
+```
+
+### Step 2: Create MCP Server with Custom Tools
+
+**New File**: `server/agent-mcp-server.ts`
+
+```typescript
+import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk';
+import { z } from 'zod';
+import { storage } from './storage';
+import { searchPlaces, getPlaceDetails } from './google-places';
+import { db } from '../db';
+import { eq, and, sql } from 'drizzle-orm';
+import { votingEvents, activities, itineraries, itineraryItems } from '../shared/schema';
+
+// Helper: Calculate distance between two coordinates
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 3959; // Earth's radius in miles
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
+
+// Tool 1: Search for venues
+const searchVenuesTool = tool(
+  'searchVenues',
+  'Search for venues using Google Places API. Use this to discover new restaurants, bars, cafes, experiences near a location.',
+  {
+    query: z.string().describe('Search query (e.g., "craft beer bars", "Italian restaurants")'),
+    location: z.object({
+      latitude: z.number(),
+      longitude: z.number()
+    }).describe('Center point for search'),
+    radius: z.number().optional().describe('Search radius in meters (default: 1609 for 1 mile)'),
+    category: z.enum(['restaurant', 'bar', 'cafe', 'night_club', 'bakery', 'museum', 'park', 'entertainment']).optional()
+  },
+  async (args) => {
+    try {
+      const results = await searchPlaces(
+        args.query,
+        `${args.location.latitude},${args.location.longitude}`,
+        args.radius || 1609
+      );
+
+      const venues = results.slice(0, 5).map((place: any) => ({
+        name: place.name,
+        address: place.vicinity || place.formatted_address,
+        placeId: place.place_id,
+        rating: place.rating,
+        priceLevel: place.price_level,
+        category: place.types?.[0] || 'unknown',
+        latitude: place.geometry.location.lat,
+        longitude: place.geometry.location.lng,
+        photoUrl: place.photos?.[0]?.photo_reference
+          ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${place.photos[0].photo_reference}&key=${process.env.GOOGLE_MAPS_API_KEY}`
+          : null
+      }));
+
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({ venues, count: venues.length })
+        }]
+      };
+    } catch (error: any) {
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({ error: error.message, venues: [] })
+        }]
+      };
+    }
+  }
+);
+
+// Tool 2: Get group favorites (voting events)
+const getGroupFavoritesTool = tool(
+  'getGroupFavorites',
+  'Get venues that this group has favorited/liked in the past. Only use these when contextually relevant (same area, compatible category).',
+  {
+    groupId: z.string().describe('The group ID'),
+    category: z.string().optional().describe('Filter by category (e.g., "bar", "restaurant")'),
+    nearLocation: z.object({
+      latitude: z.number(),
+      longitude: z.number(),
+      maxDistanceMiles: z.number().optional()
+    }).optional().describe('Only return favorites near this location')
+  },
+  async (args) => {
+    try {
+      const favorites = await db
+        .select({
+          id: votingEvents.id,
+          name: votingEvents.title,
+          address: votingEvents.venueAddress,
+          category: votingEvents.venueType,
+          placeId: votingEvents.googlePlaceId,
+          rating: votingEvents.rating,
+          priceLevel: votingEvents.priceLevel,
+          photoUrl: votingEvents.photoUrl,
+          latitude: votingEvents.latitude,
+          longitude: votingEvents.longitude,
+          upvotes: sql<number>`COUNT(CASE WHEN vote = 'up' THEN 1 END)`,
+          downvotes: sql<number>`COUNT(CASE WHEN vote = 'down' THEN 1 END)`
+        })
+        .from(votingEvents)
+        .where(eq(votingEvents.groupId, args.groupId))
+        .groupBy(votingEvents.id);
+
+      let filtered = favorites;
+
+      // Filter by category if specified
+      if (args.category) {
+        filtered = filtered.filter(f =>
+          f.category?.toLowerCase().includes(args.category!.toLowerCase())
+        );
+      }
+
+      // Filter by location if specified
+      if (args.nearLocation) {
+        const maxDist = args.nearLocation.maxDistanceMiles || 1.0;
+        filtered = filtered.filter(f => {
+          if (!f.latitude || !f.longitude) return false;
+          const dist = calculateDistance(
+            args.nearLocation!.latitude,
+            args.nearLocation!.longitude,
+            parseFloat(f.latitude),
+            parseFloat(f.longitude)
+          );
+          return dist <= maxDist;
+        });
+      }
+
+      const favoritesData = filtered.map(f => ({
+        name: f.name,
+        address: f.address,
+        category: f.category,
+        placeId: f.placeId,
+        rating: f.rating,
+        priceLevel: f.priceLevel,
+        photoUrl: f.photoUrl,
+        upvotes: f.upvotes,
+        downvotes: f.downvotes,
+        isFavorite: true
+      }));
+
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({ favorites: favoritesData, count: favoritesData.length })
+        }]
+      };
+    } catch (error: any) {
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({ error: error.message, favorites: [] })
+        }]
+      };
+    }
+  }
+);
+
+// Tool 3: Get current itinerary state
+const getCurrentItineraryTool = tool(
+  'getCurrentItinerary',
+  'Get the current state of the itinerary including all venues already added.',
+  {
+    itineraryId: z.string().describe('The itinerary ID')
+  },
+  async (args) => {
+    try {
+      const itinerary = await storage.getItinerary(args.itineraryId);
+      if (!itinerary) {
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({ error: 'Itinerary not found' })
+          }]
+        };
+      }
+
+      const items = await db
+        .select()
+        .from(itineraryItems)
+        .where(eq(itineraryItems.itineraryId, args.itineraryId))
+        .orderBy(itineraryItems.orderIndex);
+
+      const venues = items.map(item => ({
+        id: item.id,
+        name: item.venueName,
+        address: item.venueAddress,
+        category: item.venueType,
+        latitude: item.latitude,
+        longitude: item.longitude,
+        orderIndex: item.orderIndex,
+        notes: item.notes
+      }));
+
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            itinerary: {
+              id: itinerary.id,
+              name: itinerary.name,
+              eventDate: itinerary.eventDate,
+              groupId: itinerary.groupId
+            },
+            venues,
+            venueCount: venues.length
+          })
+        }]
+      };
+    } catch (error: any) {
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({ error: error.message })
+        }]
+      };
+    }
+  }
+);
+
+// Tool 4: Add venue to itinerary
+const addVenueToItineraryTool = tool(
+  'addVenueToItinerary',
+  'Add a venue to the itinerary. This actually modifies the user\'s event.',
+  {
+    itineraryId: z.string().describe('The itinerary ID'),
+    venue: z.object({
+      name: z.string(),
+      address: z.string().optional(),
+      placeId: z.string().optional(),
+      category: z.string(),
+      latitude: z.string().optional(),
+      longitude: z.string().optional(),
+      photoUrl: z.string().optional(),
+      rating: z.string().optional(),
+      notes: z.string().optional()
+    }).describe('Venue details to add')
+  },
+  async (args) => {
+    try {
+      // Add the venue as an ad-hoc item
+      const result = await db.insert(itineraryItems).values({
+        itineraryId: args.itineraryId,
+        sourceType: 'ad_hoc',
+        sourceId: null,
+        venueName: args.venue.name,
+        venueAddress: args.venue.address || '',
+        venueType: args.venue.category,
+        googlePlaceId: args.venue.placeId || null,
+        latitude: args.venue.latitude || null,
+        longitude: args.venue.longitude || null,
+        photoUrl: args.venue.photoUrl || null,
+        rating: args.venue.rating || null,
+        notes: args.venue.notes || null,
+        orderIndex: 999 // Will be auto-adjusted by backend
+      }).returning();
+
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            success: true,
+            venueId: result[0].id,
+            message: `Added ${args.venue.name} to itinerary`
+          })
+        }]
+      };
+    } catch (error: any) {
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({ success: false, error: error.message })
+        }]
+      };
+    }
+  }
+);
+
+// Tool 5: Get group preferences
+const getGroupPreferencesTool = tool(
+  'getGroupPreferences',
+  'Get the group\'s preferences and history to understand what they like.',
+  {
+    groupId: z.string().describe('The group ID')
+  },
+  async (args) => {
+    try {
+      const group = await storage.getGroup(args.groupId);
+      if (!group) {
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({ error: 'Group not found' })
+          }]
+        };
+      }
+
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            preferences: {
+              activityPreferences: group.activityPreferences || [],
+              budgetMin: group.budgetMin,
+              budgetMax: group.budgetMax,
+              radiusMiles: group.radiusMiles,
+              centerLatitude: group.centerLatitude,
+              centerLongitude: group.centerLongitude,
+              schedulingPreferences: group.schedulingPreferences
+            }
+          })
+        }]
+      };
+    } catch (error: any) {
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({ error: error.message })
+        }]
+      };
+    }
+  }
+);
+
+// Create and export the MCP server
+export function createKinmoMcpServer() {
+  return createSdkMcpServer({
+    name: 'kinmo-event-tools',
+    tools: [
+      searchVenuesTool,
+      getGroupFavoritesTool,
+      getCurrentItineraryTool,
+      addVenueToItineraryTool,
+      getGroupPreferencesTool
+    ]
+  });
+}
+```
+
+### Step 3: Create Agent SDK Route
+
+**New File**: `server/ai-agent-chat.ts`
+
+```typescript
+import { query } from '@anthropic-ai/claude-agent-sdk';
+import { createKinmoMcpServer } from './agent-mcp-server';
+
+interface AgentChatOptions {
+  prompt: string;
+  itineraryId: string;
+  groupId: string | null;
+  sessionId?: string;
+  resume?: boolean;
+}
+
+export async function* runEventPlanningAgent(options: AgentChatOptions) {
+  const { prompt, itineraryId, groupId, sessionId, resume } = options;
+
+  // Create session ID if not provided
+  const actualSessionId = sessionId || `session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  // System prompt for the event planning agent
+  const systemPrompt = `You are an AI event planning assistant for Kinmo, helping users plan events with their friend groups.
+
+Your capabilities:
+- Search for venues using Google Places API
+- Access the group's favorite/liked venues (only use when contextually relevant!)
+- View the current itinerary
+- Add venues to the itinerary
+- Understand group preferences
+
+Key rules:
+1. **Contextual Favorites**: Only suggest favorites when they're geographically close (within 1 mile) AND in the same category as what the user is asking for
+2. **Balance Discovery**: Don't over-rely on favorites - mix in new discoveries
+3. **Be Conversational**: Ask clarifying questions, explain your reasoning
+4. **Confirm Actions**: Before adding a venue, describe it and ask if they want to add it
+5. **Geographic Awareness**: Pay attention to walkability and travel time between venues
+6. **Transparency**: Explain why you're suggesting each venue
+
+Current context:
+- Itinerary ID: ${itineraryId}
+${groupId ? `- Group ID: ${groupId}` : '- Standalone event (no group)'}
+
+Start by understanding what the user wants, then use your tools to help them.`;
+
+  try {
+    // Initialize the agent with MCP server
+    const agentQuery = query({
+      prompt,
+      options: {
+        model: 'claude-opus-4-5',
+        systemPrompt,
+        mcpServers: {
+          'kinmo': {
+            type: 'sdk',
+            instance: createKinmoMcpServer()
+          }
+        },
+        sessionId: actualSessionId,
+        resume: resume ? actualSessionId : undefined,
+        maxTurns: 15,
+        maxBudgetUsd: 2.0, // Cost control
+        permissionMode: 'bypassPermissions', // Auto-approve tool use for now
+        includePartialMessages: true // Stream intermediate results
+      }
+    });
+
+    // Stream responses
+    for await (const message of agentQuery) {
+      yield {
+        type: message.type,
+        data: message,
+        sessionId: actualSessionId
+      };
+    }
+  } catch (error: any) {
+    yield {
+      type: 'error',
+      data: { error: error.message },
+      sessionId: actualSessionId
+    };
+  }
+}
+```
+
+### Step 4: Add Express Route
+
+**File**: `server/routes.ts` (add new route)
+
+```typescript
+import { runEventPlanningAgent } from './ai-agent-chat';
+
+// Add this route after existing itinerary routes
+app.post("/api/itineraries/:id/ai-chat", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = await getUserId(req);
+    const itineraryId = req.params.id;
+    const { prompt, sessionId, resume } = req.body;
+
+    if (!prompt || typeof prompt !== 'string') {
+      return res.status(400).json({ error: 'Prompt is required' });
+    }
+
+    // Get itinerary to check access
+    const itinerary = await storage.getItinerary(itineraryId);
+    if (!itinerary) {
+      return res.status(404).json({ error: 'Itinerary not found' });
+    }
+
+    // Check user has access (is organizer or group member)
+    let hasAccess = false;
+    if (itinerary.createdBy === userId) {
+      hasAccess = true;
+    } else if (itinerary.groupId) {
+      const member = await storage.getGroupMember(itinerary.groupId, userId);
+      hasAccess = !!member;
+    }
+
+    if (!hasAccess) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    // Set up Server-Sent Events for streaming
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    // Run the agent and stream responses
+    const agentStream = runEventPlanningAgent({
+      prompt,
+      itineraryId,
+      groupId: itinerary.groupId,
+      sessionId,
+      resume: !!resume
+    });
+
+    for await (const message of agentStream) {
+      // Send each message as SSE
+      res.write(`data: ${JSON.stringify(message)}\n\n`);
+    }
+
+    res.end();
+  } catch (error: any) {
+    console.error('[AI Chat] Error:', error);
+    res.write(`data: ${JSON.stringify({ type: 'error', data: { error: error.message } })}\n\n`);
+    res.end();
+  }
+});
+```
+
+### Step 5: Create Frontend Chat Component
+
+**New File**: `client/src/components/AIEventAssistant.tsx`
+
+```typescript
+import { useState, useRef, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card } from '@/components/ui/card';
+import { Sparkles, Send, Loader2, User, Bot } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+}
+
+interface AIEventAssistantProps {
+  itineraryId: string;
+  groupId: string | null;
+  onVenueAdded?: () => void;
+}
+
+export function AIEventAssistant({ itineraryId, groupId, onVenueAdded }: AIEventAssistantProps) {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState('');
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
+
+  // Auto-scroll to bottom
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const sendMessage = async () => {
+    if (!input.trim() || isStreaming) return;
+
+    const userMessage: Message = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content: input.trim(),
+      timestamp: new Date()
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
+    setIsStreaming(true);
+
+    try {
+      const response = await fetch(`/api/itineraries/${itineraryId}/ai-chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          prompt: userMessage.content,
+          sessionId: sessionId,
+          resume: !!sessionId
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to send message');
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No response body');
+
+      const decoder = new TextDecoder();
+      let assistantMessage = '';
+      let currentSessionId = sessionId;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = JSON.parse(line.slice(6));
+
+            // Store session ID
+            if (data.sessionId && !currentSessionId) {
+              currentSessionId = data.sessionId;
+              setSessionId(currentSessionId);
+            }
+
+            // Handle different message types
+            if (data.type === 'assistant') {
+              const content = data.data.message?.content;
+              if (Array.isArray(content)) {
+                for (const block of content) {
+                  if (block.type === 'text') {
+                    assistantMessage += block.text;
+                  }
+                }
+              }
+            } else if (data.type === 'result') {
+              // Final result
+              assistantMessage = data.data.result || assistantMessage;
+            } else if (data.type === 'error') {
+              assistantMessage = `Error: ${data.data.error}`;
+            }
+
+            // Update message in real-time
+            setMessages(prev => {
+              const existing = prev.find(m => m.id === 'assistant-streaming');
+              if (existing) {
+                return prev.map(m =>
+                  m.id === 'assistant-streaming'
+                    ? { ...m, content: assistantMessage }
+                    : m
+                );
+              } else {
+                return [...prev, {
+                  id: 'assistant-streaming',
+                  role: 'assistant' as const,
+                  content: assistantMessage,
+                  timestamp: new Date()
+                }];
+              }
+            });
+          }
+        }
+      }
+
+      // Finalize message
+      setMessages(prev =>
+        prev.map(m =>
+          m.id === 'assistant-streaming'
+            ? { ...m, id: `assistant-${Date.now()}` }
+            : m
+        )
+      );
+
+      // Invalidate queries to refresh itinerary
+      queryClient.invalidateQueries({ queryKey: ['/api/user/events'] });
+      onVenueAdded?.();
+
+    } catch (error: any) {
+      console.error('Chat error:', error);
+      setMessages(prev => [...prev, {
+        id: `assistant-error-${Date.now()}`,
+        role: 'assistant',
+        content: `Sorry, I encountered an error: ${error.message}`,
+        timestamp: new Date()
+      }]);
+    } finally {
+      setIsStreaming(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="border-b border-[hsl(32,20%,88%)] p-4">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-5 w-5 text-[hsl(44,87%,63%)]" />
+          <h3 className="font-semibold text-[hsl(25,30%,14%)]">AI Event Assistant</h3>
+        </div>
+        <p className="text-sm text-[hsl(25,15%,45%)] mt-1">
+          Ask me to find venues, suggest alternatives, or help plan your event
+        </p>
+      </div>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.length === 0 ? (
+          <div className="text-center py-8">
+            <Sparkles className="h-12 w-12 text-[hsl(44,87%,63%)] mx-auto mb-3" />
+            <p className="text-sm text-[hsl(25,15%,45%)]">
+              Try asking: "Find a bar crawl near Double Standard, walkable"
+            </p>
+          </div>
+        ) : (
+          messages.map(message => (
+            <div
+              key={message.id}
+              className={cn(
+                "flex gap-3",
+                message.role === 'user' ? 'justify-end' : 'justify-start'
+              )}
+            >
+              {message.role === 'assistant' && (
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[hsl(44,87%,63%)] flex items-center justify-center">
+                  <Bot className="h-4 w-4 text-[hsl(25,30%,14%)]" />
+                </div>
+              )}
+              <div
+                className={cn(
+                  "max-w-[80%] rounded-2xl px-4 py-2",
+                  message.role === 'user'
+                    ? "bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)]"
+                    : "bg-[hsl(38,50%,97%)] text-[hsl(25,30%,14%)]"
+                )}
+              >
+                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+              </div>
+              {message.role === 'user' && (
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[hsl(220,15%,90%)] flex items-center justify-center">
+                  <User className="h-4 w-4 text-[hsl(25,30%,14%)]" />
+                </div>
+              )}
+            </div>
+          ))
+        )}
+        {isStreaming && (
+          <div className="flex gap-2 items-center text-sm text-[hsl(25,15%,45%)]">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>Thinking...</span>
+          </div>
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Input */}
+      <div className="border-t border-[hsl(32,20%,88%)] p-4">
+        <div className="flex gap-2">
+          <Input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+              }
+            }}
+            placeholder="Ask for venue suggestions..."
+            disabled={isStreaming}
+            className="flex-1"
+          />
+          <Button
+            onClick={sendMessage}
+            disabled={!input.trim() || isStreaming}
+            className={cn(
+              "gap-2 bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)]",
+              "hover:bg-[hsl(44,87%,58%)]"
+            )}
+          >
+            {isStreaming ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+### Step 6: Integrate into EditVenueDialog
+
+**File**: `client/src/components/EditVenueDialog.tsx`
+
+Replace the existing AI tab content with the new chat component:
+
+```typescript
+// Add import at top
+import { AIEventAssistant } from '@/components/AIEventAssistant';
+
+// In the AI tab section (around line 849), replace the entire AI tab content with:
+{activeTab === "ai" && (
+  <div className="h-[500px]">
+    <AIEventAssistant
+      itineraryId={itineraryId}
+      groupId={groupId || null}
+      onVenueAdded={() => {
+        queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
+      }}
+    />
+  </div>
+)}
+```
+
+### Step 7: Environment Variables
+
+**File**: `.env`
+
+Add if not already present:
+```bash
+ANTHROPIC_API_KEY=your-api-key-here
+```
+
+### Step 8: Testing Plan
+
+#### Manual Testing Checklist
+
+1. **Basic Chat Flow**
+   - [ ] Open Edit Venue dialog, switch to AI tab
+   - [ ] Send message: "Find craft beer bars near Marina"
+   - [ ] Verify streaming response appears in real-time
+   - [ ] Verify venues are suggested
+
+2. **Session Memory**
+   - [ ] Ask: "Find bars near Double Standard"
+   - [ ] Follow up: "Make them walkable"
+   - [ ] Verify agent remembers context
+
+3. **Contextual Favorites**
+   - [ ] Add some favorites to group in same area as search
+   - [ ] Ask: "Find bars near [location with favorites]"
+   - [ ] Verify favorites appear when relevant
+   - [ ] Ask: "Find bars in different city"
+   - [ ] Verify favorites don't appear when not relevant
+
+4. **Adding Venues**
+   - [ ] Agent suggests venues
+   - [ ] Confirm adding one
+   - [ ] Verify venue appears in itinerary
+   - [ ] Verify other tabs update
+
+5. **Error Handling**
+   - [ ] Test with invalid query
+   - [ ] Test with network disconnection
+   - [ ] Verify graceful error messages
+
+6. **Cost Control**
+   - [ ] Check logs for token usage
+   - [ ] Verify stays under $2 budget per session
+   - [ ] Test hitting max turns limit
+
+## Files to Create/Modify
+
+### New Files
+- `server/agent-mcp-server.ts` - Custom MCP server with Kinmo tools
+- `server/ai-agent-chat.ts` - Agent SDK integration layer
+- `client/src/components/AIEventAssistant.tsx` - Chat UI component
+
+### Modified Files
+- `package.json` - Add Agent SDK dependency
+- `server/routes.ts` - Add `/api/itineraries/:id/ai-chat` endpoint
+- `client/src/components/EditVenueDialog.tsx` - Replace AI tab with chat component
+
+### Configuration Files
+- `.env` - Add `ANTHROPIC_API_KEY`
+
+## Migration Strategy
+
+### Phase 1: Soft Launch (Week 1-2)
+1. Deploy with AI tab showing both old and new UI
+2. Add feature flag to control which version users see
+3. Beta test with select users
+4. Gather feedback and iterate
+
+### Phase 2: Full Rollout (Week 3)
+1. Remove old AI tab UI
+2. Make chat interface the default
+3. Monitor usage and costs
+4. Adjust prompts based on user behavior
+
+### Phase 3: Deprecation (Week 4)
+1. Remove old `/api/itineraries/:id/ai-suggestions` endpoint
+2. Clean up unused AI tab code
+3. Document new flow
+
+## Cost Estimates
+
+**Per Conversation**:
+- Average: 3-5 messages
+- Tokens per message: ~2,000 input, ~500 output
+- Total: ~12,500 tokens per conversation
+- Cost: ~$0.15 per conversation (Opus 4.5 pricing)
+
+**Monthly Estimates** (100 active groups):
+- Conversations per week: ~200
+- Monthly cost: ~$120
+- Budget controls: $2 max per session limits runaway costs
+
+## Success Criteria
+
+After 2 weeks of beta testing:
+- [ ] 50%+ of venue additions use AI chat (vs. manual)
+- [ ] Average session: 3-5 messages (shows engagement)
+- [ ] 80%+ of AI-suggested venues stay in final itinerary (shows quality)
+- [ ] <5% error rate
+- [ ] Average response time: <3 seconds for first token
+- [ ] Cost: <$0.20 per conversation
+
+## Rollback Plan
+
+If issues arise:
+1. Flip feature flag to show old AI tab
+2. Investigate logs for agent failures
+3. Adjust prompts or tools as needed
+4. Re-launch after fixes
+
+## Next Steps After MVP
+
+Once MVP is stable:
+1. Add Phase 2 tools (scheduling, availability)
+2. Improve prompts based on usage patterns
+3. Add analytics dashboard for agent performance
+4. Explore cheaper models for simple queries
+5. Add voice input for mobile users
+
+---
+
+**Document Version**: 1.1
 **Last Updated**: December 10, 2025
 **Author**: Claude (based on discussion with product team)
-**Status**: Vision - awaiting implementation plan
+**Status**: Ready for implementation
