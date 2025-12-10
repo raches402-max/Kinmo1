@@ -850,7 +850,7 @@ export function EditVenueDialog({ open, onOpenChange, venue, itineraryId, groupI
 
           {/* AI Chat Tab - Conversational event planning assistant */}
           {itineraryId && <TabsContent value="ai" className="mt-4">
-            <div className={`${isMobile ? 'h-[50vh]' : 'h-[450px]'} -mx-4 -mb-4`}>
+            <div className={`${isMobile ? 'h-[50vh]' : 'h-[450px]'} -mx-4 overflow-hidden`}>
               <AIEventAssistant
                 itineraryId={itineraryId}
                 groupId={groupId || null}

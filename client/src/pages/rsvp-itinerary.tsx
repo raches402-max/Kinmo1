@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, MapPin, Clock, Check, X, HelpCircle, User, Users, Baby, CalendarPlus, Star, ExternalLink } from "lucide-react";
+import { Calendar, MapPin, Clock, Check, X, HelpCircle, User, Users, Baby, CalendarPlus, Star, ExternalLink, Sparkles } from "lucide-react";
 import { format } from "date-fns";
 import { TimeSlotVoting } from "@/components/TimeSlotVoting";
 import { generateCalendarUrlFromItinerary } from "@/lib/calendar";
@@ -124,7 +124,7 @@ export default function RsvpItineraryPage() {
   });
 
   // Fetch invite info to check if it's tied to a specific member
-  const { data: inviteInfo, isLoading: inviteLoading } = useQuery<{ id: string | null; name: string; email: string | null; isOrganizer?: boolean }>({
+  const { data: inviteInfo, isLoading: inviteLoading } = useQuery<{ id: string | null; name: string; email: string | null; isOrganizer?: boolean; hasAccount?: boolean }>({
     queryKey: ["/api/members/verify-claim", inviteToken],
     queryFn: async () => {
       const response = await fetch(`/api/members/verify-claim/${inviteToken}`);
@@ -885,6 +885,41 @@ export default function RsvpItineraryPage() {
                 )}
               </div>
             </div>
+
+            {/* Create Account CTA - show after RSVP when member doesn't have an account */}
+            {(selectedResponse === 'yes' || selectedResponse === 'maybe') && claimedMemberId && !inviteInfo?.hasAccount && (
+              <div className="rounded-2xl border border-[hsl(200,70%,85%)] bg-[hsl(200,50%,97%)] shadow-[0_2px_8px_rgba(59,130,246,0.12)] overflow-hidden">
+                <div className="p-5">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full bg-[hsl(200,70%,90%)] flex items-center justify-center flex-shrink-0">
+                      <Sparkles className="h-5 w-5 text-[hsl(200,70%,45%)]" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-[hsl(200,50%,25%)] mb-1">
+                        Create an account to see all upcoming {group.name} events
+                      </h3>
+                      <p className="text-sm text-[hsl(200,40%,35%)] mb-4">
+                        View all past and future events in one place, set your preferences, and influence future scheduling.
+                      </p>
+                      <Button
+                        className="w-full bg-[hsl(200,70%,50%)] hover:bg-[hsl(200,70%,45%)] text-white"
+                        onClick={() => {
+                          // Store memberId for account linking
+                          if (claimedMemberId) {
+                            localStorage.setItem("linkMemberId", claimedMemberId);
+                            localStorage.setItem("linkReturnPath", `/rsvp/${itineraryId}/${inviteToken}`);
+                          }
+                          // Redirect to auth with return to link page
+                          window.location.href = "/auth/replit?redirect=" + encodeURIComponent("/link-member-account");
+                        }}
+                      >
+                        Create Account
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Additional Attendees and Kids Count - Only show after selecting a response */}
             {selectedResponse === "yes" && (

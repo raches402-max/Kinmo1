@@ -178,7 +178,7 @@ export function AIEventAssistant({
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-[300px]">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 ? (
           <div className="text-center py-6">
             <Sparkles className="h-10 w-10 text-[hsl(44,87%,63%)] mx-auto mb-3" />
