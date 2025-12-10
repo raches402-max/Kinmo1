@@ -484,7 +484,7 @@ export default function Dashboard() {
   const currentTime = new Date();
   const pastEventsNeedingFeedback = events.filter(event => {
     const isPast = event.eventDate && new Date(event.eventDate) < currentTime;
-    const attendedOrOrganizer = event.rsvp?.response === 'yes';
+    const attendedOrOrganizer = event.rsvp?.response === 'yes' || event.isOrganizer;
     const noFeedbackYet = !event.rsvp?.postEventFeedback;
     return isPast && attendedOrOrganizer && noFeedbackYet;
   });
