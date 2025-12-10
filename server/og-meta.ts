@@ -16,6 +16,7 @@ export type OGMetaData = {
   url: string;
   siteName: string;
   type: "website";
+  image: string;
 };
 
 /**

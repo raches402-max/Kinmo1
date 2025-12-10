@@ -183,6 +183,39 @@ export default function ClaimMemberPage() {
     );
   }
 
+  // Guest registered successfully
+  if (guestRegistered) {
+    return (
+      <div className="min-h-screen bg-[hsl(38,35%,97%)] flex items-center justify-center p-4">
+        <div className="max-w-md w-full rounded-2xl border border-[hsl(44,70%,75%)] bg-[hsl(38,50%,98%)] shadow-[0_2px_8px_rgba(242,201,76,0.12)] overflow-hidden">
+          <div className="px-6 py-5 bg-gradient-to-r from-[hsl(38,35%,97%)] to-[hsl(44,45%,96%)] border-b border-[hsl(44,70%,75%)]">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-[hsl(145,50%,50%)]/20 flex items-center justify-center">
+                <CheckCircle className="h-5 w-5 text-[hsl(145,50%,50%)]" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-[hsl(25,30%,14%)]">Welcome, {guestName}!</h2>
+                <p className="text-sm text-[hsl(25,20%,40%)]">
+                  You've joined {claimData.groupName} as a guest
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="p-5 space-y-4">
+            <p className="text-sm text-[hsl(25,20%,40%)]">
+              You'll now be included in future event invites from this group. The host can see you in their member list.
+            </p>
+            <div className="pt-2">
+              <p className="text-xs text-[hsl(25,20%,50%)] text-center">
+                You can close this page now
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[hsl(38,35%,97%)]">
       <div className="max-w-2xl mx-auto p-4 py-8">
@@ -214,48 +247,112 @@ export default function ClaimMemberPage() {
 
           {/* Card Content */}
           <div className="p-6 space-y-6">
-            <div className="bg-[hsl(35,40%,95%)] p-4 rounded-xl border border-[hsl(44,70%,75%)]/50 space-y-3">
-              <div>
-                <p className="text-sm text-[hsl(25,20%,40%)]">Your name</p>
-                <p className="font-semibold text-[hsl(25,30%,14%)]">{claimData.name}</p>
-              </div>
-              {claimData.email && (
-                <div>
-                  <p className="text-sm text-[hsl(25,20%,40%)]">Email</p>
-                  <p className="font-semibold text-[hsl(25,30%,14%)]">{claimData.email}</p>
+            {!showGuestForm ? (
+              <>
+                <div className="bg-[hsl(35,40%,95%)] p-4 rounded-xl border border-[hsl(44,70%,75%)]/50 space-y-3">
+                  <div>
+                    <p className="text-sm text-[hsl(25,20%,40%)]">Invitation for</p>
+                    <p className="font-semibold text-[hsl(25,30%,14%)]">{claimData.name}</p>
+                  </div>
+                  {claimData.email && (
+                    <div>
+                      <p className="text-sm text-[hsl(25,20%,40%)]">Email</p>
+                      <p className="font-semibold text-[hsl(25,30%,14%)]">{claimData.email}</p>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
 
-            <div className="space-y-4">
-              <p className="text-sm text-[hsl(25,20%,40%)] text-center">
-                Claim your membership to see group activities, vote on venues, and RSVP to events
-              </p>
-
-              {!user ? (
-                <div className="space-y-2">
-                  <Button
-                    className="w-full bg-[hsl(44,87%,63%)] hover:bg-[hsl(44,87%,55%)] text-[hsl(25,30%,14%)] font-semibold shadow-[0_2px_8px_rgba(242,201,76,0.3)] transition-all duration-200"
-                    onClick={() => window.location.href = "/api/login"}
-                    data-testid="button-sign-in"
-                  >
-                    Sign In with Replit
-                  </Button>
-                  <p className="text-xs text-center text-[hsl(25,20%,40%)]">
-                    Sign in to claim your membership
+                <div className="space-y-4">
+                  <p className="text-sm text-[hsl(25,20%,40%)] text-center">
+                    Claim your membership to see group activities, vote on venues, and RSVP to events
                   </p>
+
+                  {!user ? (
+                    <div className="space-y-2">
+                      <Button
+                        className="w-full bg-[hsl(44,87%,63%)] hover:bg-[hsl(44,87%,55%)] text-[hsl(25,30%,14%)] font-semibold shadow-[0_2px_8px_rgba(242,201,76,0.3)] transition-all duration-200"
+                        onClick={() => window.location.href = "/api/login"}
+                        data-testid="button-sign-in"
+                      >
+                        Sign In with Replit
+                      </Button>
+                      <p className="text-xs text-center text-[hsl(25,20%,40%)]">
+                        Sign in to claim your membership
+                      </p>
+                    </div>
+                  ) : (
+                    <Button
+                      className="w-full bg-[hsl(44,87%,63%)] hover:bg-[hsl(44,87%,55%)] text-[hsl(25,30%,14%)] font-semibold shadow-[0_2px_8px_rgba(242,201,76,0.3)] transition-all duration-200"
+                      onClick={() => claimMutation.mutate()}
+                      disabled={claimMutation.isPending}
+                      data-testid="button-claim-membership"
+                    >
+                      {claimMutation.isPending ? "Claiming..." : "Claim Your Membership"}
+                    </Button>
+                  )}
                 </div>
-              ) : (
-                <Button
-                  className="w-full bg-[hsl(44,87%,63%)] hover:bg-[hsl(44,87%,55%)] text-[hsl(25,30%,14%)] font-semibold shadow-[0_2px_8px_rgba(242,201,76,0.3)] transition-all duration-200"
-                  onClick={() => claimMutation.mutate()}
-                  disabled={claimMutation.isPending}
-                  data-testid="button-claim-membership"
-                >
-                  {claimMutation.isPending ? "Claiming..." : "Claim Your Membership"}
-                </Button>
-              )}
-            </div>
+
+                {/* Not this person? Join as guest */}
+                <div className="pt-4 border-t border-[hsl(44,70%,75%)]/50">
+                  <button
+                    onClick={() => setShowGuestForm(true)}
+                    className="w-full flex items-center justify-center gap-2 py-3 text-sm text-[hsl(25,20%,40%)] hover:text-[hsl(25,30%,14%)] transition-colors"
+                    data-testid="button-im-a-guest"
+                  >
+                    <Users className="h-4 w-4" />
+                    <span>Not {claimData.name}? Join as a guest instead</span>
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Guest registration form */}
+                <div className="space-y-4">
+                  <div className="text-center">
+                    <h3 className="font-semibold text-[hsl(25,30%,14%)]">Join as a Guest</h3>
+                    <p className="text-sm text-[hsl(25,20%,40%)] mt-1">
+                      Enter your name to join {claimData.groupName}
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="guest-name" className="text-sm text-[hsl(25,30%,14%)]">
+                      Your name
+                    </Label>
+                    <Input
+                      id="guest-name"
+                      placeholder="Enter your name"
+                      value={guestName}
+                      onChange={(e) => setGuestName(e.target.value)}
+                      className="border-[hsl(44,70%,75%)] focus:border-[hsl(44,87%,63%)] focus:ring-[hsl(44,87%,63%)]"
+                      data-testid="input-guest-name"
+                    />
+                  </div>
+
+                  <div className="flex gap-3">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowGuestForm(false);
+                        setGuestName("");
+                      }}
+                      className="flex-1 border-[hsl(44,70%,75%)]"
+                      data-testid="button-cancel-guest"
+                    >
+                      Back
+                    </Button>
+                    <Button
+                      onClick={() => guestMutation.mutate()}
+                      disabled={!guestName.trim() || guestMutation.isPending}
+                      className="flex-1 bg-[hsl(44,87%,63%)] hover:bg-[hsl(44,87%,55%)] text-[hsl(25,30%,14%)] font-semibold shadow-[0_2px_8px_rgba(242,201,76,0.3)]"
+                      data-testid="button-join-as-guest"
+                    >
+                      {guestMutation.isPending ? "Joining..." : "Join as Guest"}
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
 

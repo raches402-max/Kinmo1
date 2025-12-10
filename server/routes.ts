@@ -40,6 +40,7 @@ import pLimit from 'p-limit';
 import { validate, safeParse } from './validation-middleware';
 import { z } from 'zod';
 import rateLimit from 'express-rate-limit';
+import { generateOGImage, generateDefaultOGImage, type OGImageParams } from "./og-image";
 import {
   createGroupSchema,
   createRsvpSchema,
@@ -423,6 +424,126 @@ export async function registerRoutes(app: Express): Promise<Server> {
     message: 'Too many requests from this IP, please try again later.',
     standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
     legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  });
+
+  // OG Image generation for shareable link previews
+  // These images show in iMessage, WhatsApp, Slack, etc.
+  app.get("/api/og-image/:type/:id", async (req, res) => {
+    const { type, id } = req.params;
+
+    // Set caching headers (cache for 1 day)
+    res.setHeader("Cache-Control", "public, max-age=86400, s-maxage=86400");
+    res.setHeader("Content-Type", "image/png");
+
+    try {
+      let imageParams: OGImageParams;
+
+      if (type === "join") {
+        // Group join link
+        const group = await storage.getGroupByShareableLink(id);
+        if (!group) {
+          return res.status(404).send("Not found");
+        }
+        imageParams = {
+          groupEmoji: group.emoji || "👋",
+          groupName: group.name,
+          city: group.locationBase || undefined,
+        };
+      } else if (type === "rsvp") {
+        // Guest RSVP link - look up itinerary from guest token
+        // First check rsvps table (member guest RSVPs)
+        const [guestRsvp] = await db
+          .select()
+          .from(rsvpsTable)
+          .where(eq(rsvpsTable.guestToken, id))
+          .limit(1);
+
+        let itineraryId: string | null = null;
+
+        if (guestRsvp) {
+          itineraryId = guestRsvp.itineraryId;
+        } else {
+          // Try guestInvites table (non-member guest invites)
+          const [guestInvite] = await db
+            .select()
+            .from(guestInvites)
+            .where(eq(guestInvites.guestToken, id))
+            .limit(1);
+
+          if (guestInvite) {
+            itineraryId = guestInvite.itineraryId;
+          }
+        }
+
+        if (!itineraryId) {
+          return res.status(404).send("Not found");
+        }
+
+        const itinerary = await storage.getItinerary(itineraryId);
+        if (!itinerary || !itinerary.groupId) {
+          return res.status(404).send("Not found");
+        }
+
+        const group = await storage.getGroup(itinerary.groupId);
+        if (!group) {
+          return res.status(404).send("Not found");
+        }
+
+        // Format the event date (e.g., "Saturday, Dec 14")
+        const eventDate = itinerary.date
+          ? new Date(itinerary.date).toLocaleDateString("en-US", {
+              weekday: "long",
+              month: "short",
+              day: "numeric",
+            })
+          : undefined;
+
+        imageParams = {
+          groupEmoji: group.emoji || "📅",
+          groupName: group.name,
+          date: eventDate,
+          city: group.locationBase || undefined,
+        };
+      } else if (type === "claim") {
+        // Member claim link
+        const [member] = await db
+          .select({
+            id: membersTable.id,
+            name: membersTable.name,
+            groupId: membersTable.groupId,
+          })
+          .from(membersTable)
+          .where(sql`claim_token = ${id}`)
+          .limit(1);
+
+        if (!member) {
+          return res.status(404).send("Not found");
+        }
+
+        const group = await storage.getGroup(member.groupId);
+        if (!group) {
+          return res.status(404).send("Not found");
+        }
+
+        imageParams = {
+          groupEmoji: group.emoji || "👋",
+          groupName: `Join ${group.name}`,
+          city: group.locationBase || undefined,
+        };
+      } else if (type === "default") {
+        // Default Kinmo branding image
+        const image = await generateDefaultOGImage();
+        return res.send(image);
+      } else {
+        return res.status(400).send("Invalid type");
+      }
+
+      const image = await generateOGImage(imageParams);
+      res.send(image);
+    } catch (error) {
+      console.error("[OG Image] Error:", error);
+      res.status(500).send("Error generating image");
+    }
   });
 
   // Auth routes
@@ -4084,12 +4205,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!name || !name.trim()) {
           return res.status(400).json({ message: "Name is required to join" });
         }
-        // Create new member for this group
+        // Create new guest member for this group (not a recurring member, just for this invite)
         const newMember = await storage.createMember({
           groupId: req.params.id,
           name: name.trim(),
           email: email || null,
           hasJoined: true,
+          isGuest: true, // Mark as guest - they're not a permanent group member
         });
         return res.json(newMember);
       } else {

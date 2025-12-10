@@ -68,6 +68,7 @@ export interface MemberData {
   rsvpStatus?: string | null;
   openToHosting?: boolean;
   isOrganizer?: boolean;
+  isGuest?: boolean;
   invitationSent?: boolean;
   memberLocation?: string | null;
   memberConstraints?: unknown;
