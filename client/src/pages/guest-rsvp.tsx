@@ -5,7 +5,8 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { getErrorToast } from "@/components/ErrorDisplay";
 import { Button } from "@/components/ui/button";
-import { Calendar, MapPin, Check, X, HelpCircle, Users, Crown, Clock, CalendarPlus, Star, ExternalLink } from "lucide-react";
+import { Calendar, MapPin, Check, X, HelpCircle, Users, Crown, Clock, CalendarPlus, Star } from "lucide-react";
+import { ItineraryTimeline } from "@/components/ItineraryTimeline";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { format } from "date-fns";
 import { generateCalendarUrlFromItinerary } from "@/lib/calendar";
@@ -32,6 +33,10 @@ type GuestRsvpData = {
     rating: string | null;
     googlePlaceId: string | null;
     googleMapsUrl: string | null;
+    arrivalTime?: string | null;
+    departureTime?: string | null;
+    travelNotes?: string | null;
+    notes?: string | null;
   }>;
   group: {
     name: string;
@@ -150,38 +155,8 @@ export default function GuestRsvpPage() {
           {/* Card Content */}
           <div className="p-5 space-y-4">
             <div className="space-y-3">
-              <h3 className="font-semibold text-sm text-[hsl(25,20%,40%)]">Event Details</h3>
-              {items.map((item, idx) => (
-                <div key={item.id} className="flex gap-3 p-3 rounded-xl bg-[hsl(35,40%,95%)] border border-[hsl(44,70%,75%)]/50" data-testid={`venue-${item.id}`}>
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[hsl(44,87%,63%)]/30 flex items-center justify-center text-sm font-bold text-[hsl(25,30%,14%)]">
-                    {idx + 1}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <a
-                      href={item.googleMapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${item.venueName} ${item.venueAddress}`)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-semibold text-[hsl(25,30%,14%)] hover:underline inline-flex items-center gap-1"
-                    >
-                      {item.venueName}
-                      <ExternalLink className="h-3 w-3 text-[hsl(25,15%,55%)]" />
-                    </a>
-                    <div className="text-sm text-[hsl(25,20%,40%)]">{item.venueType}</div>
-                    {item.venueAddress && (
-                      <div className="text-xs text-[hsl(25,20%,40%)] flex items-start gap-1 mt-1">
-                        <MapPin className="h-3 w-3 mt-0.5 flex-shrink-0 text-[hsl(44,87%,63%)]" />
-                        <span>{item.venueAddress}</span>
-                      </div>
-                    )}
-                    {item.rating && (
-                      <div className="text-xs text-[hsl(25,20%,40%)] mt-1 flex items-center gap-1">
-                        <Star className="h-3 w-3 text-[hsl(44,87%,63%)] fill-[hsl(44,87%,63%)]" />
-                        <span>{item.rating}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
+              <h3 className="font-semibold text-sm text-[hsl(25,20%,40%)]">The Plan</h3>
+              <ItineraryTimeline items={items} />
             </div>
           </div>
         </div>

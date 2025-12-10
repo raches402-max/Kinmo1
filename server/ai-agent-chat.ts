@@ -8,14 +8,22 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { agentTools, executeAgentTool } from "./agent-mcp-server";
 
-// Check for API key at startup
+// Check for API key at startup - fail fast with clear error
 if (!process.env.ANTHROPIC_API_KEY) {
-  console.warn("[AI Agent] ANTHROPIC_API_KEY not set - AI chat will not work");
+  console.error("[AI Agent] ANTHROPIC_API_KEY not set - AI chat will not work");
 }
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY || "missing-key-placeholder",
-});
+// Only create client if API key exists - prevents hanging with invalid key
+const anthropic = process.env.ANTHROPIC_API_KEY
+  ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  : null;
+
+function ensureAnthropicClient(): Anthropic {
+  if (!anthropic) {
+    throw new Error("AI chat is not configured. ANTHROPIC_API_KEY is missing.");
+  }
+  return anthropic;
+}
 
 // Session storage for conversation history (in-memory for now)
 const sessionHistory: Map<string, Anthropic.MessageParam[]> = new Map();
@@ -129,7 +137,8 @@ Start by understanding what the user wants, then use your tools to help them. Be
     while (iterations < maxIterations) {
       iterations++;
 
-      const response = await anthropic.messages.create({
+      const client = ensureAnthropicClient();
+      const response = await client.messages.create({
         model: "claude-sonnet-4-20250514",
         max_tokens: 1024,
         system: systemPrompt,
@@ -313,7 +322,8 @@ Start by understanding what the user wants, then use your tools to help them. Be
       iterations++;
 
       // Use streaming for the final response
-      const stream = anthropic.messages.stream({
+      const client = ensureAnthropicClient();
+      const stream = client.messages.stream({
         model: "claude-sonnet-4-20250514",
         max_tokens: 1024,
         system: systemPrompt,

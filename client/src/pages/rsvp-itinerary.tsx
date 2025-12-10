@@ -10,7 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, MapPin, Clock, Check, X, HelpCircle, User, Users, Baby, CalendarPlus, Star, ExternalLink, Sparkles } from "lucide-react";
+import { Calendar, MapPin, Clock, Check, X, HelpCircle, User, Users, Baby, CalendarPlus, Star, Sparkles } from "lucide-react";
+import { ItineraryTimeline } from "@/components/ItineraryTimeline";
 import { format } from "date-fns";
 import { TimeSlotVoting } from "@/components/TimeSlotVoting";
 import { generateCalendarUrlFromItinerary } from "@/lib/calendar";
@@ -36,6 +37,11 @@ type Itinerary = {
     photoUrl: string | null;
     rating: string | null;
     googleMapsUrl: string | null;
+    googlePlaceId?: string | null;
+    arrivalTime?: string | null;
+    departureTime?: string | null;
+    travelNotes?: string | null;
+    notes?: string | null;
   }>;
   proposedTimeSlots?: Array<{
     id: string;
