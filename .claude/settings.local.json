@@ -191,7 +191,8 @@
       "WebFetch(domain:dns.google)",
       "Bash(timeout 20 npx tsc:*)",
       "Bash(git reset:*)",
-      "Bash(timeout 20 npm run dev:*)"
+      "Bash(timeout 20 npm run dev:*)",
+      "Bash(timeout 25 npm run dev:*)"
     ],
     "deny": [],
     "ask": []

@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Calendar as DatePicker } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { TimePicker } from "@/components/ui/time-picker";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -633,37 +634,49 @@ export function DesktopEventDetails({
                   <div className="flex-1">
                     {event.eventDate ? (
                       isOrganizer ? (
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <button className="text-left hover:text-[hsl(44,87%,45%)] transition-colors">
-                              <div className="font-semibold text-[hsl(25,30%,14%)]">
-                                {event.groupTimezone
-                                  ? formatInTimeZone(new Date(event.eventDate), event.groupTimezone, "EEEE, MMMM d, yyyy")
-                                  : format(new Date(event.eventDate), "EEEE, MMMM d, yyyy")}
-                              </div>
-                              <div className="text-sm text-[hsl(25,15%,45%)]">
-                                {event.groupTimezone
-                                  ? formatInTimeZone(new Date(event.eventDate), event.groupTimezone, "h:mm a zzz")
-                                  : format(new Date(event.eventDate), "h:mm a")}
-                              </div>
-                            </button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <DatePicker
-                              mode="single"
-                              selected={event.eventDate ? new Date(event.eventDate) : undefined}
-                              onSelect={(date) => {
-                                if (date) {
-                                  const originalDate = new Date(event.eventDate);
-                                  date.setHours(originalDate.getHours());
-                                  date.setMinutes(originalDate.getMinutes());
-                                  onUpdateEventDate(date);
-                                }
-                              }}
-                              initialFocus
-                            />
-                          </PopoverContent>
-                        </Popover>
+                        <div className="space-y-2">
+                          {/* Date row */}
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button className="text-left hover:text-[hsl(44,87%,45%)] transition-colors group">
+                                <div className="font-semibold text-[hsl(25,30%,14%)] group-hover:text-[hsl(44,70%,40%)] transition-colors">
+                                  {event.groupTimezone
+                                    ? formatInTimeZone(new Date(event.eventDate), event.groupTimezone, "EEEE, MMMM d, yyyy")
+                                    : format(new Date(event.eventDate), "EEEE, MMMM d, yyyy")}
+                                </div>
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <DatePicker
+                                mode="single"
+                                selected={event.eventDate ? new Date(event.eventDate) : undefined}
+                                onSelect={(date) => {
+                                  if (date) {
+                                    const originalDate = new Date(event.eventDate);
+                                    date.setHours(originalDate.getHours());
+                                    date.setMinutes(originalDate.getMinutes());
+                                    onUpdateEventDate(date);
+                                  }
+                                }}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+
+                          {/* Time picker row */}
+                          <TimePicker
+                            value={{
+                              hours: new Date(event.eventDate).getHours(),
+                              minutes: new Date(event.eventDate).getMinutes()
+                            }}
+                            onChange={(time) => {
+                              const newDate = new Date(event.eventDate);
+                              newDate.setHours(time.hours);
+                              newDate.setMinutes(time.minutes);
+                              onUpdateEventDate(newDate);
+                            }}
+                          />
+                        </div>
                       ) : (
                         <>
                           <div className="font-semibold text-[hsl(25,30%,14%)]">
