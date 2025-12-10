@@ -8,7 +8,7 @@
  * Members can RSVP without accounts and provide event-specific feedback
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, useLocation, useSearch, Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -19,7 +19,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Calendar, MapPin, Check, X, HelpCircle, Clock, ExternalLink, Sparkles } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Calendar, MapPin, Check, X, HelpCircle, Clock, ExternalLink, Sparkles, Users } from "lucide-react";
 import { format } from "date-fns";
 
 type Member = {
@@ -55,6 +56,19 @@ type RsvpResponse = {
   feedbackText?: string;
   alternativeDays?: string;
   alternativeTimes?: string;
+};
+
+type RsvpRecord = {
+  memberId: string;
+  memberName?: string;
+  response: string;
+};
+
+type Attendee = {
+  name: string;
+  initials: string;
+  response: string;
+  isHost: boolean;
 };
 
 export default function EventInvitePage() {
@@ -99,6 +113,31 @@ export default function EventInvitePage() {
     queryKey: [`/api/rsvps/itinerary/${eventId}/member/${selectedMemberId}`],
     enabled: !!eventId && !!selectedMemberId && memberSelectionComplete,
   });
+
+  // Fetch all RSVPs for this event (to show who's coming)
+  const { data: rsvps } = useQuery<RsvpRecord[]>({
+    queryKey: [`/api/itineraries/${eventId}/rsvps`],
+    enabled: !!eventId && memberSelectionComplete,
+  });
+
+  // Transform RSVPs to attendees format
+  const attendees = useMemo((): Attendee[] => {
+    if (!rsvps) return [];
+    return rsvps
+      .filter(r => r.response && r.response !== 'pending')
+      .map(r => {
+        const name = r.memberName || 'Unknown';
+        return {
+          name,
+          initials: name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
+          response: r.response === 'going' ? 'yes' : r.response === 'not_going' ? 'no' : r.response,
+          isHost: false,
+        };
+      });
+  }, [rsvps]);
+
+  const goingCount = attendees.filter(a => a.response === 'yes' || a.response === 'going').length;
+  const maybeCount = attendees.filter(a => a.response === 'maybe').length;
 
   // Initialize response from existing RSVP
   useEffect(() => {
@@ -397,6 +436,63 @@ export default function EventInvitePage() {
               ))}
           </CardContent>
         </Card>
+
+        {/* Who's Coming Section */}
+        {attendees.length > 0 && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                  <Users className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Who's Coming</CardTitle>
+                  <CardDescription>
+                    {goingCount > 0 && `${goingCount} going`}
+                    {goingCount > 0 && maybeCount > 0 && ' · '}
+                    {maybeCount > 0 && `${maybeCount} maybe`}
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {attendees.map((attendee, idx) => (
+                  <div key={idx} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="text-xs bg-blue-100 text-blue-700">
+                        {attendee.initials}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <span className="font-medium text-gray-900 truncate">{attendee.name}</span>
+                    </div>
+                    <div className="flex-shrink-0">
+                      {(attendee.response === 'yes' || attendee.response === 'going') && (
+                        <div className="flex items-center gap-1.5 text-green-700 text-sm px-2 py-1 rounded-full bg-green-50">
+                          <Check className="h-3.5 w-3.5" />
+                          <span>Going</span>
+                        </div>
+                      )}
+                      {attendee.response === 'maybe' && (
+                        <div className="flex items-center gap-1.5 text-amber-700 text-sm px-2 py-1 rounded-full bg-amber-50">
+                          <HelpCircle className="h-3.5 w-3.5" />
+                          <span>Maybe</span>
+                        </div>
+                      )}
+                      {(attendee.response === 'no' || attendee.response === 'not_going') && (
+                        <div className="flex items-center gap-1.5 text-red-700 text-sm px-2 py-1 rounded-full bg-red-50">
+                          <X className="h-3.5 w-3.5" />
+                          <span>Can't go</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* RSVP Section */}
         <Card>
