@@ -10326,6 +10326,11 @@ Looking forward to planning great activities together!
         return res.status(400).json({ error: "Prompt too long (max 2000 characters)" });
       }
 
+      // Check for Anthropic API key
+      if (!process.env.ANTHROPIC_API_KEY) {
+        return res.status(503).json({ error: "AI chat is not configured. Please add ANTHROPIC_API_KEY to environment secrets." });
+      }
+
       // Get itinerary (already verified by requireItineraryAccess)
       const itinerary = await storage.getItinerary(itineraryId);
       if (!itinerary) {
