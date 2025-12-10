@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
@@ -186,106 +186,92 @@ export function AvailabilityGrid({ value, onChange }: AvailabilityGridProps) {
     );
   }
 
-  // Desktop: Full 7×3 grid (enhanced layout)
+  // Desktop: Compact 7×3 grid optimized for modal display
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Summary */}
-      <div className="flex items-center justify-between text-sm px-1">
-        <span className="text-muted-foreground">
-          {totalAvailable} of 21 time slots selected
-        </span>
+      <div className="text-sm text-muted-foreground">
+        {totalAvailable} of 21 time slots selected
       </div>
 
-      <div className="overflow-x-auto -mx-2 px-2">
-        <div className="inline-block min-w-full">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr>
-                <th className="p-2 text-left text-sm font-medium text-muted-foreground w-28"></th>
-                {DAYS.map((day, idx) => {
-                  const isWeekend = idx >= 5;
-                  const daySlots = TIMES.filter(time => value[day]?.[time]).length;
-                  return (
-                    <th key={day} className="p-1 text-center">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => toggleDay(day)}
-                        className={cn(
-                          "w-full h-9 text-xs font-semibold transition-all",
-                          isWeekend && "bg-muted/50",
-                          daySlots === 3 && "text-primary"
-                        )}
-                        data-testid={`button-toggle-day-${day.toLowerCase()}`}
-                      >
-                        <span className="flex flex-col items-center gap-0.5">
-                          <span>{day}</span>
-                          {daySlots > 0 && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                          )}
-                        </span>
-                      </Button>
-                    </th>
-                  );
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              {TIMES.map(time => {
-                const TimeIcon = TIME_DETAILS[time].icon;
-                const timeSlots = DAYS.filter(day => value[day]?.[time]).length;
+      {/* Grid container - uses CSS Grid for precise column control */}
+      <div className="grid grid-cols-[auto_repeat(7,1fr)] gap-1">
+        {/* Header row: empty corner + day labels */}
+        <div className="h-8" /> {/* Empty corner cell */}
+        {DAYS.map((day, idx) => {
+          const isWeekend = idx >= 5;
+          const daySlots = TIMES.filter(time => value[day]?.[time]).length;
+          return (
+            <button
+              key={day}
+              type="button"
+              onClick={() => toggleDay(day)}
+              className={cn(
+                "h-8 rounded-md text-xs font-semibold transition-all flex flex-col items-center justify-center",
+                "hover:bg-muted/80",
+                isWeekend ? "bg-muted/40" : "bg-transparent",
+                daySlots === 3 && "text-primary"
+              )}
+              data-testid={`button-toggle-day-${day.toLowerCase()}`}
+            >
+              <span>{day}</span>
+              {daySlots > 0 && (
+                <span className="w-1 h-1 rounded-full bg-primary mt-0.5" />
+              )}
+            </button>
+          );
+        })}
+
+        {/* Time rows */}
+        {TIMES.map(time => {
+          const TimeIcon = TIME_DETAILS[time].icon;
+          const timeSlots = DAYS.filter(day => value[day]?.[time]).length;
+          return (
+            <Fragment key={time}>
+              {/* Time label button */}
+              <button
+                type="button"
+                onClick={() => toggleTime(time)}
+                className={cn(
+                  "h-12 pr-2 flex items-center gap-1.5 text-xs font-medium transition-all rounded-md hover:bg-muted/50",
+                  timeSlots === 7 && "text-primary"
+                )}
+                data-testid={`button-toggle-time-${time}`}
+              >
+                <TimeIcon className={cn("h-4 w-4 flex-shrink-0", TIME_DETAILS[time].color)} />
+                <span className="truncate">{TIME_LABELS[time]}</span>
+              </button>
+
+              {/* Day cells for this time */}
+              {DAYS.map((day, idx) => {
+                const isSelected = value[day]?.[time];
+                const isWeekend = idx >= 5;
                 return (
-                  <tr key={time}>
-                    <td className="p-1.5">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => toggleTime(time)}
-                        className={cn(
-                          "w-full h-10 justify-start gap-2 text-xs font-medium transition-all px-2",
-                          timeSlots === 7 && "text-primary"
-                        )}
-                        data-testid={`button-toggle-time-${time}`}
-                      >
-                        <TimeIcon className={cn("h-4 w-4", TIME_DETAILS[time].color)} />
-                        <span className="hidden sm:inline">{TIME_LABELS[time]}</span>
-                        <span className="sm:hidden">{TIME_LABELS[time].slice(0, 3)}</span>
-                      </Button>
-                    </td>
-                    {DAYS.map((day, idx) => {
-                      const isSelected = value[day]?.[time];
-                      const isWeekend = idx >= 5;
-                      return (
-                        <td key={`${day}-${time}`} className="p-1">
-                          <button
-                            type="button"
-                            onClick={() => toggleSlot(day, time)}
-                            className={cn(
-                              "w-full h-11 rounded-lg border-2 transition-all duration-200 flex items-center justify-center",
-                              isSelected
-                                ? "bg-primary border-primary text-primary-foreground shadow-sm"
-                                : cn(
-                                    "border-transparent hover:border-muted-foreground/20",
-                                    isWeekend ? "bg-muted/60 hover:bg-muted" : "bg-muted/30 hover:bg-muted/50"
-                                  )
-                            )}
-                            data-testid={`cell-${day.toLowerCase()}-${time}`}
-                            aria-label={`${day} ${time}`}
-                          >
-                            {isSelected && <Check className="h-4 w-4" />}
-                          </button>
-                        </td>
-                      );
-                    })}
-                  </tr>
+                  <button
+                    key={`${day}-${time}`}
+                    type="button"
+                    onClick={() => toggleSlot(day, time)}
+                    className={cn(
+                      "h-12 rounded-lg border-2 transition-all duration-150 flex items-center justify-center",
+                      isSelected
+                        ? "bg-primary border-primary text-primary-foreground shadow-sm"
+                        : cn(
+                            "border-transparent hover:border-primary/30",
+                            isWeekend ? "bg-muted/50 hover:bg-muted/70" : "bg-muted/25 hover:bg-muted/40"
+                          )
+                    )}
+                    data-testid={`cell-${day.toLowerCase()}-${time}`}
+                    aria-label={`${day} ${time}`}
+                  >
+                    {isSelected && <Check className="h-4 w-4" />}
+                  </button>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
+            </Fragment>
+          );
+        })}
       </div>
+
       <p className="text-xs text-muted-foreground text-center">
         Click cells to toggle. Click day or time headers to select entire rows/columns.
       </p>

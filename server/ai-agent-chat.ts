@@ -8,7 +8,14 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { agentTools, executeAgentTool } from "./agent-mcp-server";
 
-const anthropic = new Anthropic();
+// Check for API key at startup
+if (!process.env.ANTHROPIC_API_KEY) {
+  console.warn("[AI Agent] ANTHROPIC_API_KEY not set - AI chat will not work");
+}
+
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY || "missing-key-placeholder",
+});
 
 // Session storage for conversation history (in-memory for now)
 const sessionHistory: Map<string, Anthropic.MessageParam[]> = new Map();
