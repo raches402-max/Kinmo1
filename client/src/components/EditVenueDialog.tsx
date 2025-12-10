@@ -18,7 +18,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Badge } from "./ui/badge";
 import { Card } from "./ui/card";
 import { useToast } from "../hooks/use-toast";
-import { Edit, Search, Sparkles, Library, Link as LinkIcon, MapPin, Star, DollarSign, Navigation2, ChevronDown, Clock } from "lucide-react";
+import { Edit, Search, Sparkles, Library, Link as LinkIcon, MapPin, Star, DollarSign, Navigation2, ChevronDown, Clock, MessageCircle } from "lucide-react";
+import { AIEventAssistant } from "./AIEventAssistant";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
 import type { ItineraryItem } from "@shared/schema";
 
@@ -628,10 +629,10 @@ export function EditVenueDialog({ open, onOpenChange, venue, itineraryId, groupI
               <Search className="h-4 w-4 mr-1" />
               Find
             </TabsTrigger>
-            {hasGroupContext && (
+            {itineraryId && (
               <TabsTrigger value="ai">
-                <Sparkles className="h-4 w-4 mr-1" />
-                AI
+                <MessageCircle className="h-4 w-4 mr-1" />
+                AI Chat
               </TabsTrigger>
             )}
             <TabsTrigger value="details">
@@ -845,160 +846,17 @@ export function EditVenueDialog({ open, onOpenChange, venue, itineraryId, groupI
             </div>
           </TabsContent>
 
-          {/* AI Suggestions Tab - only shown with group context */}
-          {hasGroupContext && <TabsContent value="ai" className="space-y-4 mt-4">
-            {/* Mode Toggle */}
-            <div className="ai-mode-toggle">
-              <button
-                type="button"
-                data-active={aiMode === 'alternatives'}
-                onClick={() => setAiMode('alternatives')}
-              >
-                <Sparkles className="h-3.5 w-3.5 inline mr-1.5" />
-                Swap Venue
-              </button>
-              <button
-                type="button"
-                data-active={aiMode === 'complements'}
-                onClick={() => setAiMode('complements')}
-              >
-                + Add Stop
-              </button>
+          {/* AI Chat Tab - Conversational event planning assistant */}
+          {itineraryId && <TabsContent value="ai" className="mt-4">
+            <div className={`${isMobile ? 'h-[50vh]' : 'h-[450px]'} -mx-4 -mb-4`}>
+              <AIEventAssistant
+                itineraryId={itineraryId}
+                groupId={groupId || null}
+                onVenueAdded={() => {
+                  queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
+                }}
+              />
             </div>
-
-            {/* Loading State - Warm Thinking Animation */}
-            {aiSuggestionsMutation.isPending && (
-              <div className="text-center py-10">
-                <div className="flex justify-center gap-1.5 mb-3">
-                  <div className="ai-thinking-dot" />
-                  <div className="ai-thinking-dot" />
-                  <div className="ai-thinking-dot" />
-                </div>
-                <p className="text-muted-foreground text-sm">
-                  {aiMode === 'alternatives' ? 'Finding the perfect spot...' : 'Looking for something to add...'}
-                </p>
-              </div>
-            )}
-
-            {/* Error State with Retry */}
-            {aiError && !aiSuggestionsMutation.isPending && (
-              <div className="text-center py-10 space-y-3">
-                <div className="text-muted-foreground">
-                  <Sparkles className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                  <p className="text-sm">Couldn't generate suggestions</p>
-                  <p className="text-xs text-muted-foreground/70 mt-1">{aiError}</p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setAiError(null);
-                    aiSuggestionsMutation.mutate('both');
-                  }}
-                >
-                  Try Again
-                </Button>
-              </div>
-            )}
-
-            {/* Suggestions List */}
-            {!aiSuggestionsMutation.isPending && !aiError && (
-              <div className={`space-y-2 overflow-y-auto fade-in-stagger ${isMobile ? 'max-h-[40vh]' : 'max-h-[350px]'}`}>
-                {/* Context header for complements mode */}
-                {aiMode === 'complements' && venue && (
-                  <p className="text-sm text-muted-foreground pb-1">
-                    After {venue.venueName}...
-                  </p>
-                )}
-
-                {/* Show alternatives or complements based on mode */}
-                {(aiMode === 'alternatives' ? aiSuggestions : aiComplements).map((suggestion, idx) => {
-                  const confidenceClass = suggestion.confidence >= 90
-                    ? 'confidence-high'
-                    : suggestion.confidence >= 70
-                    ? 'confidence-medium'
-                    : 'confidence-low';
-
-                  return (
-                    <div
-                      key={suggestion.venue?.id || idx}
-                      className="ai-suggestion-card"
-                      data-selected={selectedAiSuggestion?.venue?.id === suggestion.venue?.id}
-                      onClick={() => handleSelectAiSuggestion({
-                        name: suggestion.venue?.name,
-                        address: suggestion.venue?.address,
-                        placeId: suggestion.venue?.googlePlaceId,
-                        venueType: suggestion.venue?.venueType,
-                        rating: suggestion.venue?.rating,
-                        type: suggestion.venue?.type,
-                        sourceId: suggestion.venue?.id,
-                      })}
-                    >
-                      <div className="flex gap-3 items-start">
-                        {/* Confidence Badge */}
-                        <div className={`${confidenceClass} w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm shrink-0`}>
-                          {Math.round(suggestion.confidence)}
-                        </div>
-
-                        {/* Venue Info */}
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold text-sm truncate">{suggestion.venue?.name}</h4>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {suggestion.category && <span className="capitalize">{suggestion.category}</span>}
-                            {suggestion.category && suggestion.venue?.rating && ' · '}
-                            {suggestion.venue?.rating && (
-                              <>
-                                <Star className="h-3 w-3 inline -mt-0.5" /> {suggestion.venue.rating}
-                              </>
-                            )}
-                          </p>
-                          {suggestion.venue?.address && (
-                            <p className="text-xs text-muted-foreground/70 truncate mt-0.5">
-                              {suggestion.venue.address}
-                            </p>
-                          )}
-                        </div>
-
-                        {/* Add button for complements mode */}
-                        {aiMode === 'complements' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="shrink-0 h-8 text-xs"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleSelectAiSuggestion({
-                                name: suggestion.venue?.name,
-                                address: suggestion.venue?.address,
-                                placeId: suggestion.venue?.googlePlaceId,
-                                venueType: suggestion.venue?.venueType,
-                                rating: suggestion.venue?.rating,
-                                type: suggestion.venue?.type,
-                                sourceId: suggestion.venue?.id,
-                              });
-                            }}
-                          >
-                            + Add
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {/* Empty State */}
-                {(aiMode === 'alternatives' ? aiSuggestions : aiComplements).length === 0 && aiSuggestionsMutation.isSuccess && (
-                  <div className="text-center py-10">
-                    <Library className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
-                    <p className="text-sm text-muted-foreground">
-                      {aiMode === 'alternatives'
-                        ? 'No alternatives found - try adding more venues to your Favorites'
-                        : 'No complement suggestions available'}
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
           </TabsContent>}
 
           {/* Details Tab (Manual edit with collapsible timing) */}

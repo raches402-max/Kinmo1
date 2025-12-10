@@ -10293,6 +10293,95 @@ Looking forward to planning great activities together!
     }
   });
 
+  // AI Chat for conversational event planning
+  // ============================================================================
+
+  // Rate limiter for AI chat (10 requests per minute per user)
+  const aiChatLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    // Use user ID if authenticated, otherwise skip rate limiting for this endpoint
+    // (the isAuthenticated middleware will reject unauthenticated requests anyway)
+    skip: (req: any) => !req.user?.id,
+    message: { error: "Too many requests. Please wait a moment before sending more messages." }
+  });
+
+  /**
+   * Conversational AI assistant for event planning
+   * Supports streaming responses via SSE
+   */
+  app.post("/api/itineraries/:id/ai-chat", isAuthenticated, aiChatLimiter, requireItineraryAccess(), async (req: any, res) => {
+    try {
+      const userId = await getUserId(req);
+      const itineraryId = req.params.id;
+      const { prompt, sessionId, stream = false } = req.body;
+
+      if (!prompt || typeof prompt !== "string") {
+        return res.status(400).json({ error: "Prompt is required" });
+      }
+
+      if (prompt.length > 2000) {
+        return res.status(400).json({ error: "Prompt too long (max 2000 characters)" });
+      }
+
+      // Get itinerary (already verified by requireItineraryAccess)
+      const itinerary = await storage.getItinerary(itineraryId);
+      if (!itinerary) {
+        return res.status(404).json({ error: "Itinerary not found" });
+      }
+
+      // Import the agent module
+      const { runEventPlanningAgent, streamEventPlanningAgent } = await import("./ai-agent-chat");
+
+      const agentOptions = {
+        prompt,
+        itineraryId,
+        groupId: itinerary.groupId,
+        sessionId
+      };
+
+      if (stream) {
+        // Set up Server-Sent Events for streaming
+        res.setHeader("Content-Type", "text/event-stream");
+        res.setHeader("Cache-Control", "no-cache");
+        res.setHeader("Connection", "keep-alive");
+
+        const result = await streamEventPlanningAgent(agentOptions, (chunk) => {
+          res.write(`data: ${JSON.stringify({ type: "chunk", content: chunk })}\n\n`);
+        });
+
+        // Send final message
+        res.write(`data: ${JSON.stringify({
+          type: "done",
+          sessionId: result.sessionId,
+          toolsUsed: result.toolsUsed
+        })}\n\n`);
+        res.end();
+      } else {
+        // Non-streaming response
+        const result = await runEventPlanningAgent(agentOptions);
+
+        res.json({
+          response: result.response,
+          sessionId: result.sessionId,
+          toolsUsed: result.toolsUsed
+        });
+      }
+    } catch (error: any) {
+      console.error("[AI Chat] Error:", error);
+
+      // Handle streaming errors
+      if (req.body?.stream) {
+        res.write(`data: ${JSON.stringify({ type: "error", error: error.message })}\n\n`);
+        res.end();
+      } else {
+        res.status(500).json({ error: error.message || "Failed to communicate with AI assistant" });
+      }
+    }
+  });
+
   // Create a new itinerary (used for TBD events on dashboard)
   app.post("/api/itineraries", isAuthenticated, async (req: any, res) => {
     try {
