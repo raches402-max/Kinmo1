@@ -8,9 +8,10 @@
 import { db } from "./db";
 import { storage } from "./storage";
 import { searchPlaces, getPlaceDetails, geocodeLocation } from "./google-places";
-import { eq, sql, and, isNull, desc } from "drizzle-orm";
-import { votingEvents, activities, itineraryItems, curatedVenues, votes } from "@shared/schema";
+import { eq, sql, and, isNull, desc, gte } from "drizzle-orm";
+import { votingEvents, activities, itineraryItems, curatedVenues, votes, autoScheduledEvents, itineraries, rsvps, members } from "@shared/schema";
 import { z } from "zod";
+import { suggestMultipleTimeOptions, convertAvailabilityToString } from "./ai-time-picker";
 
 // Tool definition types
 interface ToolDefinition {
@@ -216,6 +217,136 @@ export const agentTools: ToolDefinition[] = [
       },
       required: ["placeId"]
     }
+  },
+  // ============================================================================
+  // Phase 2: Pipeline Observation & Influence Tools
+  // ============================================================================
+  {
+    name: "getUpcomingEvents",
+    description: "Get upcoming events (both scheduled and pending) for a group. Shows what's in the pipeline and their status.",
+    input_schema: {
+      type: "object",
+      properties: {
+        groupId: {
+          type: "string",
+          description: "The group ID"
+        },
+        includeAutoScheduled: {
+          type: "boolean",
+          description: "Include pending auto-scheduled events (default: true)"
+        }
+      },
+      required: ["groupId"]
+    }
+  },
+  {
+    name: "getEventRsvpStatus",
+    description: "Get RSVP status for an event - who has responded, who hasn't, and their responses.",
+    input_schema: {
+      type: "object",
+      properties: {
+        itineraryId: {
+          type: "string",
+          description: "The itinerary/event ID"
+        }
+      },
+      required: ["itineraryId"]
+    }
+  },
+  {
+    name: "getMemberAvailability",
+    description: "Get availability for all members in a group - their general weekly availability patterns.",
+    input_schema: {
+      type: "object",
+      properties: {
+        groupId: {
+          type: "string",
+          description: "The group ID"
+        }
+      },
+      required: ["groupId"]
+    }
+  },
+  {
+    name: "suggestEventTimes",
+    description: "Get AI-suggested time options for an event based on group availability, venue type, and constraints.",
+    input_schema: {
+      type: "object",
+      properties: {
+        groupId: {
+          type: "string",
+          description: "The group ID"
+        },
+        venueTypes: {
+          type: "array",
+          items: { type: "string" },
+          description: "Types of venues (e.g., ['bar', 'restaurant'])"
+        },
+        constraints: {
+          type: "string",
+          description: "Optional constraints (e.g., 'prefer weekends', 'avoid Thursdays')"
+        }
+      },
+      required: ["groupId"]
+    }
+  },
+  {
+    name: "rescheduleEvent",
+    description: "Change the date/time of an existing event. Updates the itinerary with a new event date.",
+    input_schema: {
+      type: "object",
+      properties: {
+        itineraryId: {
+          type: "string",
+          description: "The itinerary/event ID to reschedule"
+        },
+        newDate: {
+          type: "string",
+          description: "New date in ISO format (YYYY-MM-DDTHH:MM:SS)"
+        },
+        reason: {
+          type: "string",
+          description: "Reason for rescheduling (for notification)"
+        }
+      },
+      required: ["itineraryId", "newDate"]
+    }
+  },
+  {
+    name: "sendRsvpReminder",
+    description: "Send a reminder to members who haven't responded to an event invitation.",
+    input_schema: {
+      type: "object",
+      properties: {
+        itineraryId: {
+          type: "string",
+          description: "The itinerary/event ID"
+        },
+        message: {
+          type: "string",
+          description: "Optional custom message to include"
+        }
+      },
+      required: ["itineraryId"]
+    }
+  },
+  {
+    name: "analyzeSchedulingConflicts",
+    description: "Check for potential scheduling conflicts - times when members are busy or have overlapping events.",
+    input_schema: {
+      type: "object",
+      properties: {
+        groupId: {
+          type: "string",
+          description: "The group ID"
+        },
+        proposedDate: {
+          type: "string",
+          description: "Proposed date to check (ISO format)"
+        }
+      },
+      required: ["groupId", "proposedDate"]
+    }
   }
 ];
 
@@ -242,6 +373,21 @@ export async function executeAgentTool(
         return await handleGetGroupPreferences(args as { groupId: string });
       case "getVenueDetails":
         return await handleGetVenueDetails(args as { placeId: string });
+      // Phase 2 tools
+      case "getUpcomingEvents":
+        return await handleGetUpcomingEvents(args as { groupId: string; includeAutoScheduled?: boolean });
+      case "getEventRsvpStatus":
+        return await handleGetEventRsvpStatus(args as { itineraryId: string });
+      case "getMemberAvailability":
+        return await handleGetMemberAvailability(args as { groupId: string });
+      case "suggestEventTimes":
+        return await handleSuggestEventTimes(args as { groupId: string; venueTypes?: string[]; constraints?: string });
+      case "rescheduleEvent":
+        return await handleRescheduleEvent(args as { itineraryId: string; newDate: string; reason?: string });
+      case "sendRsvpReminder":
+        return await handleSendRsvpReminder(args as { itineraryId: string; message?: string });
+      case "analyzeSchedulingConflicts":
+        return await handleAnalyzeSchedulingConflicts(args as { groupId: string; proposedDate: string });
       default:
         return JSON.stringify({ error: `Unknown tool: ${toolName}` });
     }
@@ -563,6 +709,422 @@ async function handleGetVenueDetails(args: { placeId: string }): Promise<string>
       priceLevel: details.priceLevel,
       hours: details.openingHours?.weekday_text,
       review: details.review
+    });
+  } catch (error: any) {
+    return JSON.stringify({ error: error.message });
+  }
+}
+
+// ============================================================================
+// Phase 2: Pipeline Observation & Influence Handlers
+// ============================================================================
+
+async function handleGetUpcomingEvents(args: {
+  groupId: string;
+  includeAutoScheduled?: boolean;
+}): Promise<string> {
+  try {
+    const includeAuto = args.includeAutoScheduled !== false;
+    const now = new Date();
+
+    // Get scheduled itineraries (filter out rejected status as soft delete)
+    const upcomingItineraries = await db
+      .select()
+      .from(itineraries)
+      .where(
+        and(
+          eq(itineraries.groupId, args.groupId),
+          gte(itineraries.eventDate, now)
+        )
+      )
+      .orderBy(itineraries.eventDate)
+      .limit(10);
+
+    // Get auto-scheduled pending events if requested
+    let pendingEvents: any[] = [];
+    if (includeAuto) {
+      pendingEvents = await db
+        .select()
+        .from(autoScheduledEvents)
+        .where(
+          and(
+            eq(autoScheduledEvents.groupId, args.groupId),
+            gte(autoScheduledEvents.proposedDate, now)
+          )
+        )
+        .orderBy(autoScheduledEvents.proposedDate)
+        .limit(5);
+    }
+
+    // Format itineraries
+    const events = upcomingItineraries.map(it => ({
+      id: it.id,
+      type: "scheduled",
+      name: it.name,
+      eventDate: it.eventDate,
+      status: it.status,
+      rsvpDeadline: it.rsvpDeadline,
+    }));
+
+    // Format pending auto events
+    const pending = pendingEvents.map(pe => ({
+      id: pe.id,
+      type: "pending_auto",
+      itineraryId: pe.itineraryId,
+      proposedDate: pe.proposedDate,
+      status: pe.status,
+      autoSendAt: pe.autoSendAt,
+      confidenceScore: pe.confidenceScore,
+      requiresReview: pe.requiresReview,
+      reviewReason: pe.reviewReason,
+    }));
+
+    return JSON.stringify({
+      upcomingEvents: events,
+      pendingAutoEvents: pending,
+      totalUpcoming: events.length,
+      totalPending: pending.length
+    });
+  } catch (error: any) {
+    return JSON.stringify({ error: error.message });
+  }
+}
+
+async function handleGetEventRsvpStatus(args: { itineraryId: string }): Promise<string> {
+  try {
+    // Get the itinerary
+    const itinerary = await storage.getItinerary(args.itineraryId);
+    if (!itinerary) {
+      return JSON.stringify({ error: "Event not found" });
+    }
+
+    // Get RSVPs
+    const eventRsvps = await db
+      .select()
+      .from(rsvps)
+      .where(eq(rsvps.itineraryId, args.itineraryId));
+
+    // Get group members if this is a group event
+    let groupMembers: any[] = [];
+    if (itinerary.groupId) {
+      groupMembers = await db
+        .select()
+        .from(members)
+        .where(eq(members.groupId, itinerary.groupId));
+    }
+
+    // Build response summary
+    const responded = eventRsvps.map(r => ({
+      memberName: r.memberName || r.guestName || "Unknown",
+      response: r.response,
+      isGuest: r.isGuest,
+      updatedAt: r.updatedAt,
+    }));
+
+    const respondedMemberIds = new Set(eventRsvps.map(r => r.memberId).filter(Boolean));
+    const notResponded = groupMembers
+      .filter(m => !respondedMemberIds.has(m.id))
+      .map(m => ({ memberId: m.id, memberName: m.name }));
+
+    const yesCount = eventRsvps.filter(r => r.response === "yes").length;
+    const maybeCount = eventRsvps.filter(r => r.response === "maybe").length;
+    const noCount = eventRsvps.filter(r => r.response === "no").length;
+
+    return JSON.stringify({
+      eventName: itinerary.name,
+      eventDate: itinerary.eventDate,
+      rsvpDeadline: itinerary.rsvpDeadline,
+      summary: {
+        yes: yesCount,
+        maybe: maybeCount,
+        no: noCount,
+        notResponded: notResponded.length,
+        totalMembers: groupMembers.length
+      },
+      responded,
+      notResponded,
+    });
+  } catch (error: any) {
+    return JSON.stringify({ error: error.message });
+  }
+}
+
+async function handleGetMemberAvailability(args: { groupId: string }): Promise<string> {
+  try {
+    const availability = await storage.getGroupMembersAvailability(args.groupId);
+
+    // Summarize availability patterns
+    const dayPatterns: Record<string, { morning: number; afternoon: number; evening: number }> = {
+      monday: { morning: 0, afternoon: 0, evening: 0 },
+      tuesday: { morning: 0, afternoon: 0, evening: 0 },
+      wednesday: { morning: 0, afternoon: 0, evening: 0 },
+      thursday: { morning: 0, afternoon: 0, evening: 0 },
+      friday: { morning: 0, afternoon: 0, evening: 0 },
+      saturday: { morning: 0, afternoon: 0, evening: 0 },
+      sunday: { morning: 0, afternoon: 0, evening: 0 },
+    };
+
+    let membersWithAvailability = 0;
+
+    for (const member of availability) {
+      if (member.availability) {
+        membersWithAvailability++;
+        for (const [day, slots] of Object.entries(member.availability)) {
+          const dayLower = day.toLowerCase();
+          if (dayPatterns[dayLower]) {
+            if (slots.morning) dayPatterns[dayLower].morning++;
+            if (slots.afternoon) dayPatterns[dayLower].afternoon++;
+            if (slots.evening) dayPatterns[dayLower].evening++;
+          }
+        }
+      }
+    }
+
+    // Find best slots (most members available)
+    const bestSlots: Array<{ day: string; period: string; count: number }> = [];
+    for (const [day, slots] of Object.entries(dayPatterns)) {
+      if (slots.morning > 0) bestSlots.push({ day, period: "morning", count: slots.morning });
+      if (slots.afternoon > 0) bestSlots.push({ day, period: "afternoon", count: slots.afternoon });
+      if (slots.evening > 0) bestSlots.push({ day, period: "evening", count: slots.evening });
+    }
+    bestSlots.sort((a, b) => b.count - a.count);
+
+    return JSON.stringify({
+      totalMembers: availability.length,
+      membersWithAvailability,
+      memberDetails: availability.map(m => ({
+        name: m.memberName,
+        hasAvailability: !!m.availability,
+        availability: m.availability
+      })),
+      patterns: dayPatterns,
+      bestSlots: bestSlots.slice(0, 5),
+    });
+  } catch (error: any) {
+    return JSON.stringify({ error: error.message });
+  }
+}
+
+async function handleSuggestEventTimes(args: {
+  groupId: string;
+  venueTypes?: string[];
+  constraints?: string;
+}): Promise<string> {
+  try {
+    const group = await storage.getGroup(args.groupId);
+    if (!group) {
+      return JSON.stringify({ error: "Group not found" });
+    }
+
+    // Get group availability
+    const availabilityString = group.availability
+      ? convertAvailabilityToString(group.availability)
+      : undefined;
+
+    // Build venues array for time picker
+    const venues = (args.venueTypes || ["restaurant"]).map(type => ({
+      name: type,
+      type: type
+    }));
+
+    // Build member constraints
+    const memberConstraints: string[] = [];
+    if (args.constraints) {
+      memberConstraints.push(args.constraints);
+    }
+
+    // Call the existing time picker
+    const result = await suggestMultipleTimeOptions({
+      generalAvailability: availabilityString,
+      venues,
+      memberConstraints: memberConstraints.length > 0 ? memberConstraints : undefined,
+      location: group.locationBase || undefined,
+      timezone: group.timezone || undefined,
+      meetingFrequency: group.meetingFrequency || undefined,
+    });
+
+    return JSON.stringify({
+      options: result.options.map(opt => ({
+        date: opt.eventDate,
+        dayLabel: opt.dayLabel,
+        timeLabel: opt.timeLabel,
+      })),
+      groupAvailability: availabilityString,
+      venueTypes: args.venueTypes || ["restaurant"],
+    });
+  } catch (error: any) {
+    return JSON.stringify({ error: error.message });
+  }
+}
+
+async function handleRescheduleEvent(args: {
+  itineraryId: string;
+  newDate: string;
+  reason?: string;
+}): Promise<string> {
+  try {
+    const itinerary = await storage.getItinerary(args.itineraryId);
+    if (!itinerary) {
+      return JSON.stringify({ error: "Event not found" });
+    }
+
+    const oldDate = itinerary.eventDate;
+    const newDate = new Date(args.newDate);
+
+    if (isNaN(newDate.getTime())) {
+      return JSON.stringify({ error: "Invalid date format" });
+    }
+
+    // Update the itinerary
+    await db
+      .update(itineraries)
+      .set({
+        eventDate: newDate
+      })
+      .where(eq(itineraries.id, args.itineraryId));
+
+    return JSON.stringify({
+      success: true,
+      eventId: args.itineraryId,
+      eventName: itinerary.name,
+      oldDate: oldDate,
+      newDate: newDate.toISOString(),
+      reason: args.reason || "Rescheduled via AI assistant",
+      message: `Event "${itinerary.name}" has been rescheduled`
+    });
+  } catch (error: any) {
+    return JSON.stringify({ success: false, error: error.message });
+  }
+}
+
+async function handleSendRsvpReminder(args: {
+  itineraryId: string;
+  message?: string;
+}): Promise<string> {
+  try {
+    const itinerary = await storage.getItinerary(args.itineraryId);
+    if (!itinerary) {
+      return JSON.stringify({ error: "Event not found" });
+    }
+
+    // Get RSVPs and members to find who hasn't responded
+    const eventRsvps = await db
+      .select()
+      .from(rsvps)
+      .where(eq(rsvps.itineraryId, args.itineraryId));
+
+    const respondedMemberIds = new Set(eventRsvps.map(r => r.memberId).filter(Boolean));
+
+    let membersToRemind: any[] = [];
+    if (itinerary.groupId) {
+      const groupMembers = await db
+        .select()
+        .from(members)
+        .where(eq(members.groupId, itinerary.groupId));
+
+      membersToRemind = groupMembers.filter(m => !respondedMemberIds.has(m.id));
+    }
+
+    // Note: In a real implementation, this would trigger actual reminder emails
+    // For now, we just return the list of members who would be reminded
+
+    return JSON.stringify({
+      success: true,
+      eventName: itinerary.name,
+      eventDate: itinerary.eventDate,
+      membersToRemind: membersToRemind.map(m => m.name),
+      reminderCount: membersToRemind.length,
+      customMessage: args.message || null,
+      note: "Reminder would be sent to these members (implementation pending)"
+    });
+  } catch (error: any) {
+    return JSON.stringify({ success: false, error: error.message });
+  }
+}
+
+async function handleAnalyzeSchedulingConflicts(args: {
+  groupId: string;
+  proposedDate: string;
+}): Promise<string> {
+  try {
+    const proposedDate = new Date(args.proposedDate);
+    if (isNaN(proposedDate.getTime())) {
+      return JSON.stringify({ error: "Invalid date format" });
+    }
+
+    // Get group availability
+    const memberAvailability = await storage.getGroupMembersAvailability(args.groupId);
+
+    // Check day of week
+    const dayOfWeek = proposedDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+    const hour = proposedDate.getHours();
+    const period = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
+
+    // Check each member's availability for this day/time
+    const conflicts: Array<{ memberName: string; reason: string }> = [];
+    const available: string[] = [];
+
+    for (const member of memberAvailability) {
+      if (!member.availability) {
+        // No availability set - assume available
+        available.push(member.memberName);
+        continue;
+      }
+
+      const dayAvail = member.availability[dayOfWeek] || member.availability[dayOfWeek.charAt(0).toUpperCase() + dayOfWeek.slice(1)];
+
+      if (!dayAvail) {
+        conflicts.push({
+          memberName: member.memberName,
+          reason: `Not available on ${dayOfWeek}s`
+        });
+      } else if (!dayAvail[period]) {
+        conflicts.push({
+          memberName: member.memberName,
+          reason: `Not available ${dayOfWeek} ${period}s`
+        });
+      } else {
+        available.push(member.memberName);
+      }
+    }
+
+    // Check for existing events on the same day
+    const startOfDay = new Date(proposedDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(proposedDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const existingEvents = await db
+      .select()
+      .from(itineraries)
+      .where(
+        and(
+          eq(itineraries.groupId, args.groupId),
+          gte(itineraries.eventDate, startOfDay)
+        )
+      );
+
+    const sameDay = existingEvents.filter(e =>
+      e.eventDate && e.eventDate <= endOfDay
+    );
+
+    return JSON.stringify({
+      proposedDate: proposedDate.toISOString(),
+      dayOfWeek,
+      period,
+      availabilityConflicts: conflicts,
+      membersAvailable: available,
+      availableCount: available.length,
+      conflictCount: conflicts.length,
+      existingEventsOnDay: sameDay.map(e => ({
+        name: e.name,
+        date: e.eventDate
+      })),
+      recommendation: conflicts.length === 0
+        ? "This time works for everyone with availability set!"
+        : conflicts.length < available.length
+          ? `${available.length} of ${memberAvailability.length} members can make this time`
+          : "Consider a different time - most members have conflicts"
     });
   } catch (error: any) {
     return JSON.stringify({ error: error.message });
