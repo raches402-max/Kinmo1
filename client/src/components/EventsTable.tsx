@@ -18,7 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -176,6 +176,7 @@ export default function EventsTable({
   onLeaveFeedback
 }: EventsTableProps) {
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const [rsvpDropdownOpen, setRsvpDropdownOpen] = useState<string | null>(null);
   const [mobileRsvpTrayOpen, setMobileRsvpTrayOpen] = useState<string | null>(null);
   const [feedbackDialogOpen, setFeedbackDialogOpen] = useState<string | null>(null);
@@ -1188,10 +1189,19 @@ export default function EventsTable({
             {/* Mobile card - EventCard handles its own Link */}
             {mobileCardContent}
 
-            {/* Desktop grid - wrapped in Link */}
-            <Link href={event.itineraryId ? `/event/${event.itineraryId}` : `/group/${event.groupId}`}>
+            {/* Desktop grid - clickable row with programmatic navigation */}
+            <div
+              onClick={(e) => {
+                // Don't navigate if clicking on interactive elements (buttons, etc.)
+                const target = e.target as HTMLElement;
+                if (target.closest('button') || target.closest('[role="button"]')) {
+                  return;
+                }
+                navigate(event.itineraryId ? `/event/${event.itineraryId}` : `/group/${event.groupId}`);
+              }}
+            >
               {rowContent}
-            </Link>
+            </div>
 
             {/* Expanded Venue List */}
             {isExpanded && hasMultipleVenues && (

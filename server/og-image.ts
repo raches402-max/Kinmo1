@@ -14,8 +14,8 @@ import type { ReactNode } from "react";
 // Load fonts at module initialization
 const fontsDir = path.join(import.meta.dirname, "fonts");
 const interFontData = fs.readFileSync(path.join(fontsDir, "Inter-SemiBold.ttf"));
-const emojiFontData = fs.readFileSync(path.join(fontsDir, "NotoColorEmoji.ttf"));
 
+// Font configuration for Satori (emoji handling done via loadAdditionalAsset)
 const satoriOptions: SatoriOptions = {
   width: 1200,
   height: 630,
@@ -26,13 +26,28 @@ const satoriOptions: SatoriOptions = {
       weight: 600,
       style: "normal",
     },
-    {
-      name: "Noto Color Emoji",
-      data: emojiFontData,
-      weight: 400,
-      style: "normal",
-    },
   ],
+  // Use emoji CDN for rendering emojis
+  loadAdditionalAsset: async (code: string, segment: string) => {
+    if (code === "emoji") {
+      // Use Twemoji (Twitter's open source emoji set) via CDN
+      const emoji = segment.codePointAt(0)?.toString(16);
+      if (emoji) {
+        try {
+          const response = await fetch(
+            `https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/${emoji}.svg`
+          );
+          if (response.ok) {
+            return `data:image/svg+xml,${encodeURIComponent(await response.text())}`;
+          }
+        } catch (e) {
+          // Fallback - just return empty
+          console.error("[OG Image] Failed to load emoji:", e);
+        }
+      }
+    }
+    return "";
+  },
 };
 
 export type OGImageParams = {

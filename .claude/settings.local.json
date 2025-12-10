@@ -204,7 +204,8 @@
       "Bash(else echo \"NOT SET\")",
       "Bash(timeout 15 npx tsx:*)",
       "Bash(unzip:*)",
-      "Bash(timeout 30 curl:*)"
+      "Bash(timeout 30 curl:*)",
+      "Bash(xxd:*)"
     ],
     "deny": [],
     "ask": []
