@@ -6200,7 +6200,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      res.json(rsvp);
+      // 🎉 Calculate "Gang's all here" status - all non-guest members RSVPed yes
+      let gangsAllHere = false;
+      let isCompletingVote = false;
+
+      if (response === "yes" && memberId && itinerary.groupId) {
+        const allMembers = await storage.getGroupMembers(itinerary.groupId);
+        const nonGuestMembers = allMembers.filter(m => !m.isGuest);
+
+        // Get all RSVPs for this itinerary
+        const allRsvps = await db
+          .select()
+          .from(rsvpsTable)
+          .where(sql`itinerary_id = ${itineraryId}`);
+
+        // Get member IDs who RSVPed yes
+        const yesRsvpMemberIds = new Set(
+          allRsvps
+            .filter(r => r.response === "yes" && r.memberId)
+            .map(r => r.memberId)
+        );
+
+        // Count how many non-guest members have RSVPed yes
+        const nonGuestYesCount = nonGuestMembers.filter(m => yesRsvpMemberIds.has(m.id)).length;
+        gangsAllHere = nonGuestYesCount === nonGuestMembers.length && nonGuestMembers.length > 0;
+
+        // Check if THIS RSVP was the one that completed the group
+        if (gangsAllHere) {
+          const wasNewYes = existingRsvps.length === 0 || existingRsvps[0].response !== "yes";
+          isCompletingVote = wasNewYes;
+        }
+      }
+
+      res.json({ ...rsvp, gangsAllHere, isCompletingVote });
     } catch (error: any) {
       console.error('[RSVP] Error:', error);
       res.status(500).json({ message: error.message });

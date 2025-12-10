@@ -17,6 +17,7 @@ import { TimeSlotVoting } from "@/components/TimeSlotVoting";
 import { generateCalendarUrlFromItinerary } from "@/lib/calendar";
 import { AvailabilityGrid } from "@/components/AvailabilityGrid";
 import { cn } from "@/lib/utils";
+import { GangsAllHereCelebration } from "@/components/GangsAllHereCelebration";
 
 type Member = {
   id: string;
@@ -110,6 +111,9 @@ export default function RsvpItineraryPage() {
     Sun: { morning: false, afternoon: false, evening: false },
   });
   const [freeformFeedback, setFreeformFeedback] = useState("");
+
+  // Gang's all here celebration state
+  const [showCelebration, setShowCelebration] = useState(false);
 
   // Fetch itinerary
   const { data: itinerary, isLoading: itineraryLoading } = useQuery<Itinerary>({
@@ -233,12 +237,18 @@ export default function RsvpItineraryPage() {
       // Return context for rollback
       return { previousResponse: selectedResponse };
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/rsvps/itinerary", itineraryId] });
-      toast({
-        title: "RSVP recorded",
-        description: "Your response has been saved",
-      });
+
+      // Check if this RSVP completed the group (all members said yes)
+      if (data.isCompletingVote && data.gangsAllHere) {
+        setShowCelebration(true);
+      } else {
+        toast({
+          title: "RSVP recorded",
+          description: "Your response has been saved",
+        });
+      }
       setShowFeedbackForm(false);
     },
     onError: (error: Error, _, context) => {
@@ -492,6 +502,18 @@ export default function RsvpItineraryPage() {
   // Step 2+: Show full event details and RSVP
   return (
     <div className="min-h-screen bg-[hsl(38,35%,97%)]">
+      {/* Gang's all here celebration */}
+      <GangsAllHereCelebration
+        show={showCelebration}
+        onComplete={() => {
+          setShowCelebration(false);
+          toast({
+            title: "RSVP recorded",
+            description: "You completed the group! Everyone's in.",
+          });
+        }}
+      />
+
       <div className="max-w-3xl mx-auto p-4 py-10 space-y-6">
         {/* Event Header with claimed identity */}
         <div className="text-center space-y-3">

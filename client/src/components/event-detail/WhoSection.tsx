@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { EventAccordionSection } from "./EventAccordionSection";
+import { GangsAllHereBadge } from "@/components/GangsAllHereBadge";
 import type { EventAttendee, RsvpStatus, RsvpCounts, HeadcountSummary } from "./types";
 
 interface AttendeeRowProps {
@@ -247,6 +248,7 @@ interface WhoSectionProps {
   onEditGuestName?: (attendee: EventAttendee) => void;
   onShareInvite?: () => void;
   headcountSummary?: HeadcountSummary;
+  gangsAllHere?: boolean;
 }
 
 export function WhoSection({
@@ -268,6 +270,7 @@ export function WhoSection({
   onEditGuestName,
   onShareInvite,
   headcountSummary,
+  gangsAllHere,
 }: WhoSectionProps) {
   const [isEditingQuorum, setIsEditingQuorum] = useState(false);
   const [localQuorum, setLocalQuorum] = useState(quorumThreshold);
@@ -331,6 +334,11 @@ export function WhoSection({
               </div>
             )}
           </div>
+
+          {/* Gang's all here badge - show when all members RSVPed yes */}
+          {gangsAllHere && (
+            <GangsAllHereBadge />
+          )}
 
           {/* Headcount Summary - only show if there are companions */}
           {headcountSummary?.hasCompanions && rsvpCounts.yes > 0 && (

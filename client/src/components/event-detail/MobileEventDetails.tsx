@@ -354,6 +354,13 @@ export function MobileEventDetails({
     );
   }, [attendees]);
 
+  // Calculate "Gang's all here" - all non-guest members RSVPed yes
+  const gangsAllHere = useMemo(() => {
+    const nonGuestMembers = attendees.filter(a => !a.isGuest);
+    if (nonGuestMembers.length === 0) return false;
+    return nonGuestMembers.every(a => a.response === "yes");
+  }, [attendees]);
+
   // Headcount summary (includes +1s and kids)
   const headcountSummary: HeadcountSummary = useMemo(() => {
     const goingAttendees = attendees.filter(a => a.response === "yes");
@@ -693,6 +700,7 @@ export function MobileEventDetails({
           }}
           onShareInvite={eventStatus !== "draft" ? onShare : undefined}
           headcountSummary={headcountSummary}
+          gangsAllHere={gangsAllHere}
         />
 
         {/* Event Note/Description - at the bottom */}
