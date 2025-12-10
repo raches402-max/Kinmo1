@@ -1079,6 +1079,29 @@ export default function EventDetailsPage() {
   // Check if event is in the past (for showing feedback dialog)
   const isEventPast = event?.eventDate && new Date(event.eventDate) < new Date();
 
+  // Helper to safely copy to clipboard
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Fallback for when document isn't focused
+      try {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textArea);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+  };
+
   // Share event functionality - shows feedback dialog for past events
   const handleShare = async () => {
     // For past events, show the feedback dialog instead of sharing
@@ -1089,6 +1112,8 @@ export default function EventDetailsPage() {
 
     // For upcoming events, share the link
     const link = `${window.location.origin}/event/${event.itineraryId}`;
+
+    // Try native share on mobile
     if (navigator.share) {
       try {
         await navigator.share({
@@ -1096,19 +1121,28 @@ export default function EventDetailsPage() {
           text: `Check out this event: ${event.itineraryName}`,
           url: link,
         });
-      } catch (err) {
-        // User cancelled or share failed, copy to clipboard instead
-        navigator.clipboard.writeText(link);
-        toast({
-          title: "Link copied!",
-          description: "Share this link with others",
-        });
+        return; // Success - don't show toast
+      } catch (err: any) {
+        // User cancelled - that's fine, just don't copy
+        if (err?.name === "AbortError") {
+          return;
+        }
+        // Other error - fall through to copy
       }
-    } else {
-      navigator.clipboard.writeText(link);
+    }
+
+    // Copy to clipboard (desktop or fallback)
+    const copied = await copyToClipboard(link);
+    if (copied) {
       toast({
         title: "Link copied!",
         description: "Share this link with others",
+      });
+    } else {
+      toast({
+        title: "Couldn't copy link",
+        description: link,
+        variant: "destructive",
       });
     }
   };
