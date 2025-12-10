@@ -9,7 +9,7 @@
  * 5. "All caught up" completion screen
  */
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { motion, useMotionValue, useTransform, PanInfo, AnimatePresence } from "framer-motion";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -417,10 +417,12 @@ function CompletionScreen({
 export function PlacesSwipeFlow({ onComplete, onSkip }: PlacesSwipeFlowProps) {
   const { toast } = useToast();
 
-  // Fetch the swipe queue
+  // Fetch the swipe queue - use long staleTime to prevent refetches during session
   const { data, isLoading } = useQuery<PlacesSwipeQueueResponse>({
     queryKey: ["/api/user/places-swipe-queue"],
     queryFn: () => apiRequest("GET", "/api/user/places-swipe-queue"),
+    staleTime: Infinity, // Don't refetch during the swipe session
+    refetchOnWindowFocus: false, // Don't refetch when user returns to tab
   });
 
   // State for tracking progress
@@ -429,18 +431,15 @@ export function PlacesSwipeFlow({ onComplete, onSkip }: PlacesSwipeFlowProps) {
   const [showGroupIntro, setShowGroupIntro] = useState(true);
   const [stats, setStats] = useState({ venuesReviewed: 0, groupsCompleted: 0, liked: 0 });
   const [isComplete, setIsComplete] = useState(false);
+  // Track swiped venue IDs locally to avoid re-fetch issues during session
+  const [swipedVenueIds, setSwipedVenueIds] = useState<Set<string>>(new Set());
 
-  // Upvote mutation
+  // Upvote mutation - DON'T invalidate during session to avoid data shifting
   const upvoteMutation = useMutation({
     mutationFn: async (venueId: string) => {
       return apiRequest("POST", `/api/voting-events/${venueId}/vote`, {
         voteType: "upvote",
       });
-    },
-    onSuccess: () => {
-      // Invalidate caches
-      queryClient.invalidateQueries({ queryKey: ["/api/user/places-swipe-queue"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/user/all-places"] });
     },
     onError: () => {
       toast({
@@ -451,21 +450,26 @@ export function PlacesSwipeFlow({ onComplete, onSkip }: PlacesSwipeFlowProps) {
     },
   });
 
-  // Downvote/pass mutation (to track that user has seen it)
+  // Downvote/pass mutation - DON'T invalidate during session
   const passMutation = useMutation({
     mutationFn: async (venueId: string) => {
       return apiRequest("POST", `/api/voting-events/${venueId}/vote`, {
         voteType: "downvote",
       });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/user/places-swipe-queue"] });
-    },
   });
 
   const groups = data?.groups || [];
   const currentGroup = groups[currentGroupIndex];
   const currentVenue = currentGroup?.venues[currentVenueIndex];
+
+  // Invalidate caches when session completes
+  useEffect(() => {
+    if (isComplete) {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/places-swipe-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/all-places"] });
+    }
+  }, [isComplete]);
 
   // Handle group intro swipe
   const handleGroupIntroSwipeRight = useCallback(() => {
