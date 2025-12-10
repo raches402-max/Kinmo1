@@ -586,64 +586,9 @@ export default function RsvpItineraryPage() {
             </div>
           </div>
 
-          {/* Card Content - Venues */}
-          <div className="p-5 space-y-3">
-            {itinerary.items.map((item, idx) => (
-              <div
-                key={item.id}
-                className={cn(
-                  "relative rounded-xl border p-4",
-                  "border-[hsl(32,20%,88%)] bg-[hsl(38,50%,99%)]",
-                  "transition-all duration-200",
-                  "hover:border-[hsl(44,70%,75%)] hover:shadow-[0_2px_8px_rgba(242,201,76,0.1)]"
-                )}
-              >
-                <div className="flex gap-4">
-                  {/* Number badge */}
-                  <div className={cn(
-                    "flex items-center justify-center w-8 h-8 rounded-full shrink-0",
-                    "bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)] text-sm font-bold",
-                    "shadow-[0_2px_6px_rgba(242,201,76,0.3)]"
-                  )}>
-                    {idx + 1}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <h4 className="font-semibold text-[hsl(25,30%,14%)]">{item.venueName}</h4>
-                      {item.rating && (
-                        <div className="flex items-center gap-1 text-sm shrink-0">
-                          <Star className="h-3.5 w-3.5 fill-[hsl(44,87%,63%)] text-[hsl(44,87%,63%)]" />
-                          <span className="text-[hsl(25,15%,45%)]">{item.rating}</span>
-                        </div>
-                      )}
-                    </div>
-                    <p className="text-sm text-[hsl(25,15%,55%)]">{item.venueType}</p>
-                    {item.venueAddress && (
-                      <div className="flex items-start gap-1 text-sm text-[hsl(25,15%,45%)] mt-1.5">
-                        <MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                        <span className="text-xs">{item.venueAddress}</span>
-                      </div>
-                    )}
-                    {item.googleMapsUrl && (
-                      <a
-                        href={item.googleMapsUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={cn(
-                          "inline-flex items-center gap-1.5 text-xs font-medium mt-2 px-2.5 py-1 rounded-full",
-                          "bg-[hsl(35,25%,93%)] text-[hsl(25,30%,30%)]",
-                          "hover:bg-[hsl(44,50%,90%)] transition-colors"
-                        )}
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        Open in Maps
-                      </a>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
+          {/* Card Content - Venues Timeline */}
+          <div className="p-5">
+            <ItineraryTimeline items={itinerary.items} />
           </div>
         </div>
 
