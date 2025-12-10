@@ -103,6 +103,7 @@ export const groups = pgTable("groups", {
   dessertEnabled: boolean("dessert_enabled").default(true).notNull(), // Dessert shops, ice cream, bakeries
   experiencesEnabled: boolean("experiences_enabled").default(true).notNull(), // Concerts, museums, outdoor activities, games, etc.
   shareableLink: text("shareable_link").notNull().unique(),
+  inviteLinkOpen: boolean("invite_link_open").default(true).notNull(), // Whether the group invite link accepts new claims/guests
   activityGenerationStatus: text("activity_generation_status").default("pending").notNull(), // pending, generating, completed, failed
   activityGenerationError: text("activity_generation_error"),
   preferenceInsights: jsonb("preference_insights"), // AI-analyzed preference patterns: [{pattern: "...", icon: "...", description: "..."}]

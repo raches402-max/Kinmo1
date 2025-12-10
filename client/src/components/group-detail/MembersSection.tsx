@@ -42,6 +42,9 @@ import {
   XCircle,
   Link as LinkIcon,
   Copy,
+  RefreshCw,
+  ToggleLeft,
+  ToggleRight,
 } from "lucide-react";
 import { HelpTooltip } from "@/components/HelpTooltip";
 
@@ -170,6 +173,22 @@ interface MembersSectionProps {
    * Whether the invite link was just copied
    */
   inviteLinkCopied?: boolean;
+  /**
+   * Whether the invite link is open (accepting new members/guests)
+   */
+  inviteLinkOpen?: boolean;
+  /**
+   * Toggle invite link open/closed
+   */
+  onToggleInviteLink?: (open: boolean) => void;
+  /**
+   * Regenerate the invite link (invalidates old link)
+   */
+  onRegenerateInviteLink?: () => void;
+  /**
+   * Whether link management actions are in progress
+   */
+  isManagingInviteLink?: boolean;
 }
 
 // ========== COMPONENT ==========
@@ -195,6 +214,10 @@ export function MembersSection({
   isSendingInvitations,
   onCopyInviteLink,
   inviteLinkCopied,
+  inviteLinkOpen,
+  onToggleInviteLink,
+  onRegenerateInviteLink,
+  isManagingInviteLink,
 }: MembersSectionProps) {
   // Find current user's member record for the "Edit My Profile" button
   const userMember = members.find((m) => m.userId === user?.id);
@@ -547,20 +570,32 @@ export function MembersSection({
         {/* Invite Link - for members to claim their name or new people to join */}
         {onCopyInviteLink && (
           <div className="pt-4 border-t">
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground flex items-center gap-1">
-                <LinkIcon className="w-3 h-3" />
-                Share invite link
-                <HelpTooltip
-                  content="Share this link with your group. Members can claim their name, and new people can add themselves."
-                  examples={["Post in a group chat", "Text to a friend"]}
-                />
-              </Label>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                  <LinkIcon className="w-3 h-3" />
+                  Group Invite Link
+                  <HelpTooltip
+                    content="Share this link with your group. Members can claim their name, and guests can add themselves."
+                    examples={["Post in a group chat", "Text to a friend"]}
+                  />
+                </Label>
+                {/* Status indicator */}
+                <div className="flex items-center gap-1.5">
+                  <div className={`w-2 h-2 rounded-full ${inviteLinkOpen !== false ? 'bg-green-500' : 'bg-gray-400'}`} />
+                  <span className="text-xs text-muted-foreground">
+                    {inviteLinkOpen !== false ? 'Open' : 'Closed'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Copy Link Button */}
               <Button
                 variant="outline"
                 size="sm"
                 className="w-full"
                 onClick={onCopyInviteLink}
+                disabled={inviteLinkOpen === false}
                 data-testid="button-copy-invite-link"
               >
                 {inviteLinkCopied ? (
@@ -575,6 +610,64 @@ export function MembersSection({
                   </>
                 )}
               </Button>
+
+              {/* Link Management Controls - only for owner */}
+              {isOwner && onToggleInviteLink && onRegenerateInviteLink && (
+                <div className="flex gap-2">
+                  {/* Toggle Open/Closed */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="flex-1 text-xs"
+                    onClick={() => onToggleInviteLink(!inviteLinkOpen)}
+                    disabled={isManagingInviteLink}
+                    data-testid="button-toggle-invite-link"
+                  >
+                    {inviteLinkOpen !== false ? (
+                      <>
+                        <ToggleRight className="mr-1.5 h-3 w-3" />
+                        Close Link
+                      </>
+                    ) : (
+                      <>
+                        <ToggleLeft className="mr-1.5 h-3 w-3" />
+                        Reopen Link
+                      </>
+                    )}
+                  </Button>
+
+                  {/* Regenerate Link */}
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="flex-1 text-xs"
+                        disabled={isManagingInviteLink}
+                        data-testid="button-regenerate-invite-link"
+                      >
+                        <RefreshCw className="mr-1.5 h-3 w-3" />
+                        New Link
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Generate New Link?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will create a new invite link. The old link will stop working immediately.
+                          Anyone who has the old link will need the new one to join.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={onRegenerateInviteLink}>
+                          Generate New Link
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              )}
             </div>
           </div>
         )}

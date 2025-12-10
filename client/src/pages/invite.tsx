@@ -12,13 +12,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { getErrorToast } from "@/components/ErrorDisplay";
-import { CheckCircle2, Circle, XCircle, MapPin, DollarSign, Calendar, Clock, UserPlus } from "lucide-react";
+import { CheckCircle2, Circle, XCircle, MapPin, DollarSign, Calendar, Clock, UserPlus, Check, Link2Off } from "lucide-react";
 
 type Member = {
   id: string;
   name: string;
   rsvpStatus: string | null;
   claimToken: string | null;
+  userId: string | null; // If set, member has been claimed
+  isGuest: boolean | null;
 };
 
 type Group = {
@@ -29,6 +31,7 @@ type Group = {
   budgetMin: number;
   budgetMax: number;
   shareableLink: string;
+  inviteLinkOpen: boolean;
 };
 
 export default function InvitePage() {
@@ -83,11 +86,26 @@ export default function InvitePage() {
     }
   };
 
+  // State for link closed error
+  const [linkClosed, setLinkClosed] = useState(false);
+
   // Fetch group by shareable link
-  const { data: group, isLoading: groupLoading } = useQuery<Group>({
+  const { data: group, isLoading: groupLoading, error: groupError } = useQuery<Group>({
     queryKey: ["/api/groups/by-link", token],
     enabled: !!token,
+    retry: (failureCount, error: any) => {
+      // Don't retry if link is closed
+      if (error?.linkClosed) return false;
+      return failureCount < 3;
+    },
   });
+
+  // Check if link is closed from error response
+  useEffect(() => {
+    if (groupError && (groupError as any)?.linkClosed) {
+      setLinkClosed(true);
+    }
+  }, [groupError]);
 
   // Fetch group members
   const { data: members = [], isLoading: membersLoading } = useQuery<Member[]>({
@@ -292,6 +310,27 @@ export default function InvitePage() {
     );
   }
 
+  // Show closed link message (privacy-first: don't expose any group details)
+  if (linkClosed || (groupError && (groupError as any)?.linkClosed)) {
+    return (
+      <div className="min-h-screen bg-[hsl(38,35%,97%)] flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardContent className="p-8">
+            <div className="text-center space-y-4">
+              <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mx-auto">
+                <Link2Off className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <h2 className="text-xl font-semibold text-foreground">Invite Link Inactive</h2>
+              <p className="text-muted-foreground">
+                This invite link is no longer active. Please contact the group organizer for a new link.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (!group) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -333,30 +372,57 @@ export default function InvitePage() {
           </CardHeader>
           <CardContent>
             <div className="grid gap-3">
-              {members.map((member) => (
-                <Button
-                  key={member.id}
-                  variant="outline"
-                  className="justify-start h-auto py-3 px-4"
-                  onClick={() => handleClaim(member.id)}
-                  disabled={claimMutation.isPending || joinMutation.isPending}
-                  data-testid={`button-claim-${member.name}`}
-                >
-                  <div className="flex items-center justify-between w-full">
-                    <span className="font-medium">{member.name}</span>
-                    {member.rsvpStatus && (
-                      <Badge variant="secondary">
-                        {member.rsvpStatus === "going" && "Going"}
-                        {member.rsvpStatus === "maybe" && "Maybe"}
-                        {member.rsvpStatus === "not_going" && "Can't make it"}
-                      </Badge>
-                    )}
-                  </div>
-                </Button>
-              ))}
+              {members.map((member) => {
+                const isClaimed = !!member.userId;
+                const isGuest = member.isGuest;
+
+                return (
+                  <Button
+                    key={member.id}
+                    variant="outline"
+                    className={`justify-start h-auto py-3 px-4 ${isClaimed ? 'opacity-60' : ''}`}
+                    onClick={() => {
+                      if (isClaimed) {
+                        // Already claimed - redirect to sign in
+                        window.location.href = "/api/login";
+                      } else {
+                        handleClaim(member.id);
+                      }
+                    }}
+                    disabled={claimMutation.isPending || joinMutation.isPending}
+                    data-testid={`button-claim-${member.name}`}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{member.name}</span>
+                        {isGuest && (
+                          <Badge variant="outline" className="text-xs border-[hsl(44,70%,75%)] text-[hsl(44,60%,30%)] bg-[hsl(44,80%,95%)]">
+                            Guest
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {isClaimed && (
+                          <Badge variant="secondary" className="flex items-center gap-1">
+                            <Check className="h-3 w-3" />
+                            Joined
+                          </Badge>
+                        )}
+                        {member.rsvpStatus && !isClaimed && (
+                          <Badge variant="secondary">
+                            {member.rsvpStatus === "going" && "Going"}
+                            {member.rsvpStatus === "maybe" && "Maybe"}
+                            {member.rsvpStatus === "not_going" && "Can't make it"}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </Button>
+                );
+              })}
             </div>
 
-            {/* "I'm not on this list" option */}
+            {/* "I'm not on this list" / Join as Guest option */}
             <Separator className="my-4" />
             {!showAddSelfForm ? (
               <Button
@@ -367,7 +433,7 @@ export default function InvitePage() {
                 data-testid="button-not-on-list"
               >
                 <UserPlus className="mr-2 h-4 w-4" />
-                I'm not on this list
+                Join as a guest
               </Button>
             ) : (
               <div className="space-y-4 p-4 bg-muted/50 rounded-lg">

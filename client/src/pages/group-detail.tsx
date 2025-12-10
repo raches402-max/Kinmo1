@@ -26,6 +26,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, ChevronRight, ChevronLeft, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell, Edit2, Edit, Compass, Home, UserCheck, MessageCircle, TrendingUp, AlertCircle, Users, Loader2, Map as MapIcon, Info, MoreVertical, Zap, Brain } from "lucide-react";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { getErrorToast } from "@/components/ErrorDisplay";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Group, Activity, Member, VotingEvent, Vote } from "@shared/schema";
 import { AvailabilityGrid, createEmptyAvailability } from "@/components/AvailabilityGrid";
@@ -1458,6 +1459,35 @@ export default function GroupDetail() {
         description: error.message,
         variant: "destructive",
       });
+    },
+  });
+
+  // Invite link management mutation
+  const inviteLinkMutation = useMutation({
+    mutationFn: async (options: { open?: boolean; regenerate?: boolean }) => {
+      return await apiRequest("PATCH", `/api/groups/${groupId}/invite-link`, options);
+    },
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId] });
+      if (variables.regenerate) {
+        toast({
+          title: "New link generated",
+          description: "The old invite link will no longer work",
+        });
+      } else if (variables.open === false) {
+        toast({
+          title: "Invite link closed",
+          description: "No one can join using this link until you reopen it",
+        });
+      } else if (variables.open === true) {
+        toast({
+          title: "Invite link reopened",
+          description: "People can now join using this link",
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast(getErrorToast(error));
     },
   });
 
@@ -3018,6 +3048,10 @@ export default function GroupDetail() {
                 isSendingInvitations={sendInvitationsMutation.isPending}
                 onCopyInviteLink={copyInviteLink}
                 inviteLinkCopied={copied}
+                inviteLinkOpen={group.inviteLinkOpen}
+                onToggleInviteLink={(open) => inviteLinkMutation.mutate({ open })}
+                onRegenerateInviteLink={() => inviteLinkMutation.mutate({ regenerate: true })}
+                isManagingInviteLink={inviteLinkMutation.isPending}
               />
 
               <AIPreferenceLearning

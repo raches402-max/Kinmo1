@@ -2798,6 +2798,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Manage group invite link (open/close, regenerate)
+  app.patch("/api/groups/:id/invite-link", isAuthenticated, requireGroupOwnership(), async (req: any, res) => {
+    try {
+      const group = await storage.getGroup(req.params.id);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      const { open, regenerate } = req.body;
+
+      const updates: any = {};
+
+      // Toggle link open/closed
+      if (typeof open === 'boolean') {
+        updates.inviteLinkOpen = open;
+      }
+
+      // Regenerate the shareable link (invalidates old link)
+      if (regenerate === true) {
+        const { randomBytes } = await import('crypto');
+        updates.shareableLink = randomBytes(16).toString('hex');
+      }
+
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ message: "No valid options provided. Use 'open' (boolean) or 'regenerate' (true)." });
+      }
+
+      const updatedGroup = await storage.updateGroup(req.params.id, updates);
+      res.json({
+        shareableLink: updatedGroup.shareableLink,
+        inviteLinkOpen: updatedGroup.inviteLinkOpen,
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Pause automation for a group
   app.post("/api/groups/:id/pause-automation", isAuthenticated, requireGroupOwnership(), async (req: any, res) => {
     try {
@@ -3548,6 +3585,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Group not found" });
       }
 
+      // If link is closed, return minimal info (don't expose group details for privacy)
+      if (!group.inviteLinkOpen) {
+        return res.status(403).json({
+          message: "This invite link is no longer active",
+          linkClosed: true
+        });
+      }
+
       // Filter sensitive fields for public group preview
       // Only return data needed for invite/join context
       const safeGroup = {
@@ -3560,6 +3605,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         meetingFrequency: group.meetingFrequency,
         generalAvailability: group.generalAvailability,
         activityCategories: group.activityCategories,
+        shareableLink: group.shareableLink,
+        inviteLinkOpen: group.inviteLinkOpen,
         // Explicitly exclude: userId, additionalInstructions, schedulingPreferences,
         // automation settings, lastEventDate, nextEventDueDate, and other internal config
       };
@@ -3589,11 +3636,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         id: m.id,
         name: m.name,
         isOrganizer: m.isOrganizer || false,
+        isGuest: m.isGuest || false,
         // For organizer, these don't exist on member record
         rsvpStatus: (m as any).rsvpStatus,
         hasJoined: (m as any).hasJoined,
         openToHosting: m.openToHosting || false,
-        // Explicitly exclude: claimToken, email, userId, memberLocation,
+        // Include userId presence to indicate if member is claimed (but not the actual value for privacy)
+        userId: m.userId ? 'claimed' : null, // Obfuscate actual userId but indicate claimed status
+        // Explicitly exclude: claimToken, email, memberLocation,
         // memberBudgetMin/Max, memberAvailability, preferences
       }));
 
@@ -4181,6 +4231,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const group = await storage.getGroup(req.params.id);
       if (!group) {
         return res.status(404).json({ message: "Group not found" });
+      }
+
+      // Check if invite link is open (reject joins via shareable link if closed)
+      if (!group.inviteLinkOpen && shareableLink) {
+        return res.status(403).json({
+          message: "This invite link is no longer active",
+          linkClosed: true
+        });
       }
 
       // Require invite token OR email that matches an existing invited member OR valid shareable link
