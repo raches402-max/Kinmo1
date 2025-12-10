@@ -941,25 +941,28 @@ export function EditVenueDialog({ open, onOpenChange, venue, itineraryId, groupI
           </TabsContent>
         </Tabs>
 
-        <DialogFooter className={isMobile ? "pt-2 pb-4 gap-2" : ""}>
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={updateVenueMutation.isPending || addVenueMutation.isPending}
-            className={isMobile ? "flex-1" : ""}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={updateVenueMutation.isPending || addVenueMutation.isPending}
-            className={isMobile ? "flex-1" : ""}
-          >
-            {updateVenueMutation.isPending || addVenueMutation.isPending
-              ? (mode === 'add' ? "Adding..." : "Saving...")
-              : (mode === 'add' ? "Add Venue" : "Save Changes")}
-          </Button>
-        </DialogFooter>
+        {/* Hide footer on AI Chat tab since it handles everything conversationally */}
+        {activeTab !== "ai" && (
+          <DialogFooter className={isMobile ? "pt-2 pb-4 gap-2" : ""}>
+            <Button
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={updateVenueMutation.isPending || addVenueMutation.isPending}
+              className={isMobile ? "flex-1" : ""}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={updateVenueMutation.isPending || addVenueMutation.isPending}
+              className={isMobile ? "flex-1" : ""}
+            >
+              {updateVenueMutation.isPending || addVenueMutation.isPending
+                ? (mode === 'add' ? "Adding..." : "Saving...")
+                : (mode === 'add' ? "Add Venue" : "Save Changes")}
+            </Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );
