@@ -5,7 +5,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { getErrorToast } from "@/components/ErrorDisplay";
 import { Button } from "@/components/ui/button";
-import { Calendar, MapPin, Check, X, HelpCircle, Users, Crown, Clock, CalendarPlus, Star } from "lucide-react";
+import { Calendar, MapPin, Check, X, HelpCircle, Users, Crown, Clock, CalendarPlus, Star, ExternalLink } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { format } from "date-fns";
 import { generateCalendarUrlFromItinerary } from "@/lib/calendar";
@@ -31,6 +31,7 @@ type GuestRsvpData = {
     photoUrl: string | null;
     rating: string | null;
     googlePlaceId: string | null;
+    googleMapsUrl: string | null;
   }>;
   group: {
     name: string;
@@ -156,7 +157,15 @@ export default function GuestRsvpPage() {
                     {idx + 1}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-[hsl(25,30%,14%)]">{item.venueName}</div>
+                    <a
+                      href={item.googleMapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${item.venueName} ${item.venueAddress}`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-semibold text-[hsl(25,30%,14%)] hover:underline inline-flex items-center gap-1"
+                    >
+                      {item.venueName}
+                      <ExternalLink className="h-3 w-3 text-[hsl(25,15%,55%)]" />
+                    </a>
                     <div className="text-sm text-[hsl(25,20%,40%)]">{item.venueType}</div>
                     {item.venueAddress && (
                       <div className="text-xs text-[hsl(25,20%,40%)] flex items-start gap-1 mt-1">
@@ -307,8 +316,8 @@ export default function GuestRsvpPage() {
               </div>
             ) : null}
 
-            {/* Add to Calendar button - shown when RSVP is yes */}
-            {guestInvite.rsvpStatus === 'yes' && itinerary.eventDate && (
+            {/* Add to Calendar button - shown when RSVP is yes or maybe */}
+            {(guestInvite.rsvpStatus === 'yes' || guestInvite.rsvpStatus === 'maybe') && itinerary.eventDate && (
               <div className="pt-4 border-t border-[hsl(44,70%,75%)]">
                 <a
                   href={generateCalendarUrlFromItinerary({

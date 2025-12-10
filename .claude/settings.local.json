@@ -198,7 +198,8 @@
       "Bash(timeout 60 npm run build:*)",
       "Bash(if [ -n \"$ANTHROPIC_API_KEY\" ])",
       "Bash(then echo \"ANTHROPIC_API_KEY is set (length: $#ANTHROPIC_API_KEY, starts with: $ANTHROPIC_API_KEY:0:7...)\")",
-      "Bash(else echo \"NOT SET in current environment\")"
+      "Bash(else echo \"NOT SET in current environment\")",
+      "Bash(timeout 10 npx tsx -e:*)"
     ],
     "deny": [],
     "ask": []
