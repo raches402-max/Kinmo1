@@ -2197,7 +2197,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           groupName: null,
           groupEmoji: null,
           groupAccentColor: null,
-          groupTimezone: null,
+          groupTimezone: itinerary.timezone, // Use itinerary's timezone for standalone events
           isOrganizer: true,
           hostMemberId: null,
           hostMemberName: null,
