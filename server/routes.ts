@@ -490,8 +490,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Format the event date (e.g., "Saturday, Dec 14")
-        const eventDate = itinerary.date
-          ? new Date(itinerary.date).toLocaleDateString("en-US", {
+        const eventDate = itinerary.eventDate
+          ? new Date(itinerary.eventDate).toLocaleDateString("en-US", {
               weekday: "long",
               month: "short",
               day: "numeric",

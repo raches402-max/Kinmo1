@@ -5,15 +5,35 @@
  * These images show in iMessage, WhatsApp, Slack, etc. previews.
  */
 
-import satori from "satori";
+import satori, { type SatoriOptions } from "satori";
 import sharp from "sharp";
 import fs from "fs";
 import path from "path";
+import type { ReactNode } from "react";
 
 // Load fonts at module initialization
 const fontsDir = path.join(import.meta.dirname, "fonts");
 const interFontData = fs.readFileSync(path.join(fontsDir, "Inter-SemiBold.ttf"));
 const emojiFontData = fs.readFileSync(path.join(fontsDir, "NotoColorEmoji.ttf"));
+
+const satoriOptions: SatoriOptions = {
+  width: 1200,
+  height: 630,
+  fonts: [
+    {
+      name: "Inter",
+      data: interFontData,
+      weight: 600,
+      style: "normal",
+    },
+    {
+      name: "Noto Color Emoji",
+      data: emojiFontData,
+      weight: 400,
+      style: "normal",
+    },
+  ],
+};
 
 export type OGImageParams = {
   groupEmoji: string;
@@ -23,28 +43,42 @@ export type OGImageParams = {
 };
 
 /**
+ * Helper to create element structure that Satori accepts
+ */
+function h(
+  type: string,
+  props: Record<string, any>,
+  ...children: any[]
+): ReactNode {
+  return {
+    type,
+    props: {
+      ...props,
+      children: children.length === 1 ? children[0] : children.length > 0 ? children : undefined,
+    },
+  } as unknown as ReactNode;
+}
+
+/**
  * Generate a PNG image for Open Graph meta tags
  */
 export async function generateOGImage(params: OGImageParams): Promise<Buffer> {
   // Build children array dynamically
-  const children: any[] = [];
+  const children: ReactNode[] = [];
 
   // Group emoji (large)
-  children.push({
-    type: "div",
-    props: {
+  children.push(
+    h("div", {
       style: {
         fontSize: 100,
         marginBottom: 8,
       },
-      children: params.groupEmoji || "📅",
-    },
-  });
+    }, params.groupEmoji || "📅")
+  );
 
   // Group name
-  children.push({
-    type: "div",
-    props: {
+  children.push(
+    h("div", {
       style: {
         fontSize: 48,
         fontWeight: 600,
@@ -53,44 +87,38 @@ export async function generateOGImage(params: OGImageParams): Promise<Buffer> {
         textAlign: "center",
         maxWidth: 1000,
       },
-      children: params.groupName,
-    },
-  });
+    }, params.groupName)
+  );
 
   // Add date if present (for RSVP links)
   if (params.date) {
-    children.push({
-      type: "div",
-      props: {
+    children.push(
+      h("div", {
         style: {
           fontSize: 32,
           color: "#1F2937",
           marginTop: 8,
         },
-        children: params.date,
-      },
-    });
+      }, params.date)
+    );
   }
 
   // Add city if present
   if (params.city) {
-    children.push({
-      type: "div",
-      props: {
+    children.push(
+      h("div", {
         style: {
           fontSize: 28,
           color: "#6B7280",
           marginTop: 8,
         },
-        children: params.city,
-      },
-    });
+      }, params.city)
+    );
   }
 
   // Kinmo branding with robot emoji at bottom
-  children.push({
-    type: "div",
-    props: {
+  children.push(
+    h("div", {
       style: {
         position: "absolute",
         bottom: 40,
@@ -100,47 +128,24 @@ export async function generateOGImage(params: OGImageParams): Promise<Buffer> {
         alignItems: "center",
         gap: 8,
       },
-      children: "🤖 kinmo.ai",
-    },
-  });
+    }, "🤖 kinmo.ai")
+  );
 
-  const svg = await satori(
-    {
-      type: "div",
-      props: {
-        style: {
-          width: 1200,
-          height: 630,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: "#FEF3C7", // Kinmo yellow/amber
-          fontFamily: "Inter",
-          position: "relative",
-        },
-        children,
-      },
-    },
-    {
+  const element = h("div", {
+    style: {
       width: 1200,
       height: 630,
-      fonts: [
-        {
-          name: "Inter",
-          data: interFontData,
-          weight: 600,
-          style: "normal",
-        },
-        {
-          name: "Noto Color Emoji",
-          data: emojiFontData,
-          weight: 400,
-          style: "normal",
-        },
-      ],
-    }
-  );
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "#FEF3C7", // Kinmo yellow/amber
+      fontFamily: "Inter",
+      position: "relative",
+    },
+  }, ...children);
+
+  const svg = await satori(element, satoriOptions);
 
   // Convert SVG to PNG using sharp
   const pngBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
@@ -152,85 +157,44 @@ export async function generateOGImage(params: OGImageParams): Promise<Buffer> {
  * Generate a default/fallback OG image for the app
  */
 export async function generateDefaultOGImage(): Promise<Buffer> {
-  const svg = await satori(
-    {
-      type: "div",
-      props: {
-        style: {
-          width: 1200,
-          height: 630,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: "#FEF3C7",
-          fontFamily: "Inter",
-          position: "relative",
-        },
-        children: [
-          {
-            type: "div",
-            props: {
-              style: { fontSize: 100, marginBottom: 16 },
-              children: "🤖",
-            },
-          },
-          {
-            type: "div",
-            props: {
-              style: {
-                fontSize: 64,
-                fontWeight: 600,
-                color: "#1F2937",
-              },
-              children: "Kinmo",
-            },
-          },
-          {
-            type: "div",
-            props: {
-              style: {
-                fontSize: 28,
-                color: "#6B7280",
-                marginTop: 16,
-              },
-              children: "AI-powered group event planning",
-            },
-          },
-          {
-            type: "div",
-            props: {
-              style: {
-                position: "absolute",
-                bottom: 40,
-                fontSize: 24,
-                color: "#9CA3AF",
-              },
-              children: "kinmo.ai",
-            },
-          },
-        ],
-      },
-    },
-    {
+  const element = h("div", {
+    style: {
       width: 1200,
       height: 630,
-      fonts: [
-        {
-          name: "Inter",
-          data: interFontData,
-          weight: 600,
-          style: "normal",
-        },
-        {
-          name: "Noto Color Emoji",
-          data: emojiFontData,
-          weight: 400,
-          style: "normal",
-        },
-      ],
-    }
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "#FEF3C7",
+      fontFamily: "Inter",
+      position: "relative",
+    },
+  },
+    h("div", { style: { fontSize: 100, marginBottom: 16 } }, "🤖"),
+    h("div", {
+      style: {
+        fontSize: 64,
+        fontWeight: 600,
+        color: "#1F2937",
+      },
+    }, "Kinmo"),
+    h("div", {
+      style: {
+        fontSize: 28,
+        color: "#6B7280",
+        marginTop: 16,
+      },
+    }, "AI-powered group event planning"),
+    h("div", {
+      style: {
+        position: "absolute",
+        bottom: 40,
+        fontSize: 24,
+        color: "#9CA3AF",
+      },
+    }, "kinmo.ai")
   );
 
+  const svg = await satori(element, satoriOptions);
   return sharp(Buffer.from(svg)).png().toBuffer();
 }
