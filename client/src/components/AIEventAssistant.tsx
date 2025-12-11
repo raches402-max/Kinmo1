@@ -163,7 +163,7 @@ export function AIEventAssistant({
             <h3 className="font-semibold text-[hsl(25,30%,14%)]">
               AI Event Assistant
             </h3>
-            <span className="px-1.5 py-px text-[10px] font-medium text-[hsl(25,15%,50%)] border border-[hsl(25,15%,75%)] rounded">
+            <span className="px-1.5 py-px text-[10px] font-medium text-teal-600/80 border border-teal-400/50 rounded">
               beta
             </span>
           </div>

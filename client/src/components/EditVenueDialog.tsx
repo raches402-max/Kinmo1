@@ -634,7 +634,7 @@ export function EditVenueDialog({ open, onOpenChange, venue, itineraryId, groupI
               <TabsTrigger value="ai" className="relative">
                 <MessageCircle className="h-4 w-4 mr-1" />
                 AI Chat
-                <span className="ml-1.5 px-1 py-px text-[9px] font-medium text-muted-foreground/70 border border-current rounded">
+                <span className="ml-1.5 px-1 py-px text-[9px] font-medium text-teal-600/80 border border-teal-400/50 rounded">
                   beta
                 </span>
               </TabsTrigger>
