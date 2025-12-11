@@ -2363,10 +2363,40 @@ export default function GroupDetail() {
     mutationFn: async (itineraryId: string) => {
       return await apiRequest("DELETE", `/api/itineraries/${itineraryId}`);
     },
+    onMutate: async (itineraryId) => {
+      // Cancel outgoing refetches to prevent race conditions
+      await queryClient.cancelQueries({ queryKey: ["/api/groups", groupId, "itineraries"] });
+      await queryClient.cancelQueries({ queryKey: ["/api/groups", groupId, "saved-itineraries"] });
+      await queryClient.cancelQueries({ queryKey: ["/api/groups", groupId, "proposed-itineraries"] });
+      await queryClient.cancelQueries({ queryKey: ["/api/groups", groupId, "auto-scheduled-events"] });
+      await queryClient.cancelQueries({ queryKey: ["/api/user/events", { groupId }] });
+
+      // Snapshot previous values for rollback
+      const previousItineraries = queryClient.getQueryData(["/api/groups", groupId, "itineraries"]);
+      const previousSaved = queryClient.getQueryData(["/api/groups", groupId, "saved-itineraries"]);
+      const previousProposed = queryClient.getQueryData(["/api/groups", groupId, "proposed-itineraries"]);
+      const previousAutoEvents = queryClient.getQueryData(["/api/groups", groupId, "auto-scheduled-events"]);
+      const previousUserEvents = queryClient.getQueryData(["/api/user/events", { groupId }]);
+
+      // Optimistically remove from all caches
+      const filterOutById = (items: any[] | undefined) => items?.filter((item: any) => item.id !== itineraryId) ?? [];
+
+      queryClient.setQueryData(["/api/groups", groupId, "itineraries"], filterOutById);
+      queryClient.setQueryData(["/api/groups", groupId, "saved-itineraries"], filterOutById);
+      queryClient.setQueryData(["/api/groups", groupId, "proposed-itineraries"], filterOutById);
+      queryClient.setQueryData(["/api/groups", groupId, "auto-scheduled-events"], filterOutById);
+      queryClient.setQueryData(["/api/user/events", { groupId }], (old: any[] | undefined) =>
+        old?.filter((e: any) => e.itineraryId !== itineraryId) ?? []
+      );
+
+      return { previousItineraries, previousSaved, previousProposed, previousAutoEvents, previousUserEvents };
+    },
     onSuccess: () => {
+      // Invalidate to ensure server state is synced
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "saved-itineraries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "proposed-itineraries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "itineraries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "auto-scheduled-events"] });
       queryClient.invalidateQueries({ queryKey: ["/api/members/me/events"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user/events", { groupId }] });
       itineraryEditor.reset();
@@ -2375,7 +2405,23 @@ export default function GroupDetail() {
         description: "The event has been removed",
       });
     },
-    onError: (error: Error) => {
+    onError: (error: Error, _itineraryId, context) => {
+      // Rollback on error
+      if (context?.previousItineraries) {
+        queryClient.setQueryData(["/api/groups", groupId, "itineraries"], context.previousItineraries);
+      }
+      if (context?.previousSaved) {
+        queryClient.setQueryData(["/api/groups", groupId, "saved-itineraries"], context.previousSaved);
+      }
+      if (context?.previousProposed) {
+        queryClient.setQueryData(["/api/groups", groupId, "proposed-itineraries"], context.previousProposed);
+      }
+      if (context?.previousAutoEvents) {
+        queryClient.setQueryData(["/api/groups", groupId, "auto-scheduled-events"], context.previousAutoEvents);
+      }
+      if (context?.previousUserEvents) {
+        queryClient.setQueryData(["/api/user/events", { groupId }], context.previousUserEvents);
+      }
       toast({
         title: "Error deleting event",
         description: error.message,
