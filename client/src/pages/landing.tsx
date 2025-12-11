@@ -75,7 +75,7 @@ function DiagonalLayout({
 }
 
 // Desktop: Subscript Caret layout (new)
-// When isKinDropping is true, "kin" animates from floating to inline position
+// When isKinDropping is true, "kin" animates from floating to inline position and grows to full size
 function SubscriptCaretLayout({
   currentWord,
   isAnimating,
@@ -101,9 +101,9 @@ function SubscriptCaretLayout({
         </span>
         {/* Subscript caret container */}
         <span className="relative mx-3">
-          {/* The word - floats above normally, drops to baseline when isKinDropping */}
+          {/* The word - floats above normally, drops to baseline and grows when isKinDropping */}
           <span
-            className={`absolute left-1/2 -translate-x-1/2 transition-all duration-700 ease-out ${
+            className={`absolute left-1/2 -translate-x-1/2 transition-all duration-700 ease-out origin-center ${
               showDropAnimation
                 ? 'bottom-0' // Dropped into line
                 : 'bottom-[calc(100%+10px)]' // Floating above
@@ -112,7 +112,11 @@ function SubscriptCaretLayout({
             }`}
           >
             <span
-              className="text-3xl lg:text-4xl xl:text-5xl font-bold whitespace-nowrap"
+              className={`font-bold whitespace-nowrap transition-all duration-700 ease-out ${
+                showDropAnimation
+                  ? 'text-5xl lg:text-6xl' // Full size when dropped (matches headline)
+                  : 'text-3xl lg:text-4xl xl:text-5xl' // Smaller when floating
+              }`}
               style={{ color: '#F5C030' }}
             >
               {currentWord}
