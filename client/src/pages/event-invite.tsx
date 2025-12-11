@@ -134,17 +134,18 @@ export default function EventInvitePage() {
     enabled: !!selectedMemberId,
   });
 
-  // Fetch existing RSVP to check if already responded
-  const { data: existingRsvp } = useQuery<{ response: string } | null>({
-    queryKey: [`/api/rsvps/itinerary/${eventId}/member/${selectedMemberId}`],
-    enabled: !!eventId && !!selectedMemberId && memberSelectionComplete,
-  });
-
   // Fetch all RSVPs for this event (to show who's coming)
   const { data: rsvps } = useQuery<RsvpRecord[]>({
     queryKey: [`/api/itineraries/${eventId}/rsvps`],
     enabled: !!eventId && memberSelectionComplete,
   });
+
+  // Get existing RSVP from the RSVPs list (avoid calling endpoint that requires invite token)
+  const existingRsvp = useMemo(() => {
+    if (!rsvps || !selectedMemberId) return null;
+    const myRsvp = rsvps.find(r => r.memberId === selectedMemberId);
+    return myRsvp ? { response: myRsvp.response } : null;
+  }, [rsvps, selectedMemberId]);
 
   // Transform RSVPs to attendees format
   const attendees = useMemo((): Attendee[] => {
@@ -571,7 +572,9 @@ export default function EventInvitePage() {
                   <h2 className="text-xl font-bold">
                     {selectedMember?.name ? `Hey ${selectedMember.name.split(' ')[0]}!` : "Can you make it?"}
                   </h2>
-                  <p className="text-muted-foreground">Let us know if you can join</p>
+                  <p className="text-muted-foreground">
+                    {existingRsvp ? "Tap to change your response" : "Let us know if you can join"}
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-3 gap-3">

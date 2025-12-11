@@ -12416,13 +12416,21 @@ Looking forward to planning great activities together!
       // Verify member exists
       const member = await storage.getMember(memberId);
       if (!member) {
+        console.log(`[Event Invite RSVP] Member not found: ${memberId}`);
         return res.status(404).json({ message: "Member not found" });
       }
 
       // Verify itinerary exists
       const itinerary = await storage.getItinerary(itineraryId);
-      if (!itinerary || !itinerary.groupId) {
+      if (!itinerary) {
+        console.log(`[Event Invite RSVP] Itinerary not found: ${itineraryId}`);
         return res.status(404).json({ message: "Event not found" });
+      }
+
+      // For group events, verify the member belongs to the group
+      if (itinerary.groupId && member.groupId !== itinerary.groupId) {
+        console.log(`[Event Invite RSVP] Member ${memberId} (group: ${member.groupId}) not in event group: ${itinerary.groupId}`);
+        return res.status(403).json({ message: "Member is not part of this group" });
       }
 
       // Check if RSVP already exists
