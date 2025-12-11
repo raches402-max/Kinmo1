@@ -10,17 +10,28 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useRoute, useLocation, useSearch, Link } from "wouter";
+import { useRoute, useSearch, Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { getErrorToast } from "@/components/ErrorDisplay";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Calendar, MapPin, Check, X, HelpCircle, Clock, ExternalLink, Sparkles, Users } from "lucide-react";
+import {
+  Calendar,
+  MapPin,
+  Check,
+  X,
+  HelpCircle,
+  ExternalLink,
+  Sparkles,
+  Users,
+  Star,
+  Clock,
+  ChevronRight,
+} from "lucide-react";
 import { format } from "date-fns";
 
 type Member = {
@@ -38,6 +49,7 @@ type ItineraryItem = {
   photoUrl: string | null;
   rating: string | null;
   googleMapsUrl: string | null;
+  googlePlaceId: string | null;
   orderIndex: number;
 };
 
@@ -71,6 +83,20 @@ type Attendee = {
   isHost: boolean;
 };
 
+// Helper to generate Google Maps URL
+function getGoogleMapsUrl(item: ItineraryItem): string | null {
+  if (item.googlePlaceId) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.venueName || item.venueAddress || 'Location')}&query_place_id=${item.googlePlaceId}`;
+  }
+  if (item.googleMapsUrl) {
+    return item.googleMapsUrl;
+  }
+  if (item.venueAddress) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.venueAddress)}`;
+  }
+  return null;
+}
+
 export default function EventInvitePage() {
   const [, params] = useRoute("/event/:eventId/invite");
   const eventId = params?.eventId;
@@ -99,7 +125,7 @@ export default function EventInvitePage() {
   // Fetch group members (for name selection dropdown)
   const { data: groupMembers, isLoading: membersLoading } = useQuery<Member[]>({
     queryKey: [`/api/groups/${event?.groupId}/members`],
-    enabled: !!event?.groupId && !memberId, // Only load if this is a generic link
+    enabled: !!event?.groupId && !memberId,
   });
 
   // Fetch selected member details
@@ -207,11 +233,9 @@ export default function EventInvitePage() {
   const handleRsvpClick = (response: "going" | "maybe" | "not_going") => {
     setRsvpResponse(response);
 
-    // Show feedback form for "maybe" and "not_going"
     if (response === "maybe" || response === "not_going") {
       setShowFeedbackForm(true);
     } else {
-      // For "going", submit immediately
       rsvpMutation.mutate({ response });
     }
   };
@@ -232,18 +256,14 @@ export default function EventInvitePage() {
     setMemberSelectionComplete(true);
   };
 
-  // Loading states
+  // Loading state
   if (eventLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <Card className="w-full max-w-2xl">
-          <CardContent className="p-12 text-center">
-            <div className="animate-pulse space-y-4">
-              <div className="h-6 bg-gray-200 rounded w-48 mx-auto"></div>
-              <div className="h-4 bg-gray-200 rounded w-64 mx-auto"></div>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/20 animate-pulse" />
+          <p className="text-muted-foreground">Loading your invitation...</p>
+        </div>
       </div>
     );
   }
@@ -251,64 +271,63 @@ export default function EventInvitePage() {
   // Error state
   if (eventError || !event) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <Card className="w-full max-w-2xl">
-          <CardContent className="p-12 text-center">
-            <X className="h-12 w-12 text-red-500 mx-auto mb-4" />
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardContent className="pt-8 pb-8 text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
+              <X className="h-8 w-8 text-muted-foreground" />
+            </div>
             <h2 className="text-xl font-semibold mb-2">Event Not Found</h2>
-            <p className="text-gray-600">This event invite link may be invalid or expired.</p>
+            <p className="text-muted-foreground">This event invite link may be invalid or expired.</p>
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  // Member selection screen (for generic links)
+  // Member selection screen
   if (!memberSelectionComplete && !memberId) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              {event.groupEmoji} {event.groupName || "Group Event"}
-            </CardTitle>
-            <CardDescription>
-              {event.name}
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="max-w-md w-full">
+          {/* Header */}
+          <div className="text-center mb-6">
+            <span className="text-5xl mb-3 block">{event.groupEmoji || '🎉'}</span>
+            <h1 className="text-2xl font-bold text-foreground">{event.groupName || "You're Invited!"}</h1>
+          </div>
+
+          <Card>
+            <CardHeader className="text-center">
+              <CardTitle className="text-lg">{event.name}</CardTitle>
               {event.eventDate && (
-                <span className="block mt-1">
-                  {format(new Date(event.eventDate), "EEEE, MMMM d, yyyy")}
-                </span>
+                <CardDescription>
+                  {format(new Date(event.eventDate), "EEEE, MMMM d")}
+                </CardDescription>
               )}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="member-select">Who are you?</Label>
-              <Select onValueChange={handleMemberSelect}>
-                <SelectTrigger id="member-select">
-                  <SelectValue placeholder="Select your name" />
-                </SelectTrigger>
-                <SelectContent>
-                  {membersLoading ? (
-                    <SelectItem value="loading" disabled>
-                      Loading members...
-                    </SelectItem>
-                  ) : groupMembers && groupMembers.length > 0 ? (
-                    groupMembers.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        {m.name}
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <SelectItem value="none" disabled>
-                      No members found
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="member-select">Who are you?</Label>
+                <Select onValueChange={handleMemberSelect}>
+                  <SelectTrigger id="member-select" className="mt-2">
+                    <SelectValue placeholder="Select your name" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {membersLoading ? (
+                      <SelectItem value="loading" disabled>Loading members...</SelectItem>
+                    ) : groupMembers && groupMembers.length > 0 ? (
+                      groupMembers.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="none" disabled>No members found</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
@@ -316,248 +335,334 @@ export default function EventInvitePage() {
   // Success screen
   if (rsvpSubmitted) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <Card className="w-full max-w-2xl">
-          <CardContent className="p-12 text-center">
-            <Check className="h-16 w-16 text-green-500 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold mb-2">You're All Set!</h2>
-            <p className="text-gray-600 mb-6">
-              Your RSVP for {event.name} has been submitted.
-              {rsvpResponse !== "going" && feedbackText && (
-                <span className="block mt-2 text-sm">
-                  Your feedback has been shared with the organizer.
-                </span>
-              )}
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="max-w-lg w-full text-center">
+          <div className="mb-6">
+            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-success flex items-center justify-center">
+              <Check className="h-10 w-10 text-success-foreground" strokeWidth={3} />
+            </div>
+            <h1 className="text-3xl font-bold mb-2">You're All Set!</h1>
+            <p className="text-muted-foreground">
+              Your RSVP for <span className="font-semibold text-foreground">{event.name}</span> has been submitted.
             </p>
+            {rsvpResponse !== "going" && feedbackText && (
+              <p className="text-muted-foreground text-sm mt-2">
+                Your feedback has been shared with the organizer.
+              </p>
+            )}
+          </div>
 
-            {/* Create Account CTA */}
-            <Card className="bg-blue-50 border-blue-200 p-6 text-left">
+          {/* Event summary */}
+          <Card className="mb-6 text-left">
+            <CardContent className="pt-5">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">{event.groupEmoji || '📅'}</span>
+                <div>
+                  <h3 className="font-semibold">{event.name}</h3>
+                  {event.eventDate && (
+                    <p className="text-sm text-muted-foreground">
+                      {format(new Date(event.eventDate), "EEEE, MMMM d 'at' h:mm a")}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Create Account CTA */}
+          <Card className="bg-accent/10 border-accent/20 text-left">
+            <CardContent className="pt-5">
               <div className="flex items-start gap-3">
-                <Sparkles className="h-5 w-5 text-blue-600 mt-1 flex-shrink-0" />
+                <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
+                  <Sparkles className="h-5 w-5 text-primary-foreground" />
+                </div>
                 <div className="flex-1">
-                  <h3 className="font-semibold text-blue-900 mb-1">
-                    Create an account to see all upcoming {event.groupName} events
+                  <h3 className="font-semibold mb-1">
+                    See all {event.groupName} events
                   </h3>
-                  <p className="text-sm text-blue-800 mb-4">
-                    View all past and future events in one place, set your preferences, and influence future scheduling.
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Create an account to view all upcoming events, set your preferences, and never miss out.
                   </p>
                   <Button
-                    variant="default"
                     className="w-full"
                     onClick={() => {
-                      // Store memberId for account linking
                       if (selectedMemberId) {
                         localStorage.setItem("linkMemberId", selectedMemberId);
                         localStorage.setItem("linkReturnPath", `/event/${eventId}/invite?member=${selectedMemberId}`);
                       }
-                      // Redirect to auth with return to link page
-                      window.location.href = "/auth/replit?redirect=" + encodeURIComponent("/link-member-account");
+                      window.location.href = "/api/login?returnTo=" + encodeURIComponent("/link-member-account");
                     }}
                   >
                     Create Account
                   </Button>
                 </div>
               </div>
-            </Card>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
 
   // Main RSVP screen
   const selectedMember = member || (groupMembers?.find(m => m.id === selectedMemberId));
+  const eventDate = event.eventDate ? new Date(event.eventDate) : null;
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-3xl mx-auto space-y-6">
-        {/* Event Header */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-start justify-between">
-              <div>
-                <CardTitle className="text-2xl flex items-center gap-2 mb-1">
-                  {event.groupEmoji} {event.name}
-                </CardTitle>
-                {event.groupName && event.groupName !== event.name && (
-                  <CardDescription className="text-base">
-                    {event.groupName}
-                  </CardDescription>
-                )}
-              </div>
-            </div>
-            {event.eventDate && (
-              <div className="flex items-center gap-2 text-lg font-medium mt-4">
-                <Calendar className="h-5 w-5 text-gray-500" />
-                {format(new Date(event.eventDate), "EEEE, MMMM d, yyyy 'at' h:mm a")}
-              </div>
-            )}
-          </CardHeader>
-        </Card>
+    <div className="min-h-screen bg-background">
+      {/* Decorative top border */}
+      <div className="h-1 bg-primary" />
 
-        {/* Itinerary */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Itinerary</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {event.items
-              .sort((a, b) => a.orderIndex - b.orderIndex)
-              .map((item, index) => (
-                <div
-                  key={item.id}
-                  className="flex items-start gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition"
-                >
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-semibold">
-                    {index + 1}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className="font-semibold">{item.venueName}</h4>
-                      <span className="text-xs bg-gray-200 px-2 py-0.5 rounded">
-                        {item.venueType}
-                      </span>
-                      {item.rating && (
-                        <span className="text-sm text-gray-600">⭐ {item.rating}</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1 text-sm text-gray-600 mt-1">
-                      <MapPin className="h-3 w-3" />
-                      <span className="truncate">{item.venueAddress}</span>
-                    </div>
-                    {item.googleMapsUrl && (
-                      <a
-                        href={item.googleMapsUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-blue-600 hover:underline flex items-center gap-1 mt-1"
-                      >
-                        View on Google Maps
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                    )}
-                  </div>
-                </div>
-              ))}
-          </CardContent>
-        </Card>
+      <div className="max-w-2xl mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary mb-4">
+            <span className="text-3xl">{event.groupEmoji || '🎉'}</span>
+          </div>
+          <h1 className="text-3xl font-bold mb-1">{event.name}</h1>
+          {event.groupName && event.groupName !== event.name && (
+            <p className="text-muted-foreground">{event.groupName}</p>
+          )}
+        </div>
 
-        {/* Who's Coming Section */}
-        {attendees.length > 0 && (
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                  <Users className="h-5 w-5 text-blue-600" />
+        {/* Date/Time Card */}
+        {eventDate && (
+          <Card className="mb-4">
+            <CardContent className="pt-5">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-xl bg-primary/10 flex flex-col items-center justify-center">
+                  <span className="text-xs font-semibold text-primary uppercase">
+                    {format(eventDate, "MMM")}
+                  </span>
+                  <span className="text-xl font-bold">
+                    {format(eventDate, "d")}
+                  </span>
                 </div>
                 <div>
-                  <CardTitle className="text-lg">Who's Coming</CardTitle>
-                  <CardDescription>
-                    {goingCount > 0 && `${goingCount} going`}
-                    {goingCount > 0 && maybeCount > 0 && ' · '}
-                    {maybeCount > 0 && `${maybeCount} maybe`}
-                  </CardDescription>
+                  <p className="font-semibold">
+                    {format(eventDate, "EEEE")}
+                  </p>
+                  <p className="text-muted-foreground flex items-center gap-1.5">
+                    <Clock className="h-4 w-4" />
+                    {format(eventDate, "h:mm a")}
+                  </p>
                 </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {attendees.map((attendee, idx) => (
-                  <div key={idx} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
-                    <Avatar className="h-8 w-8">
-                      <AvatarFallback className="text-xs bg-blue-100 text-blue-700">
-                        {attendee.initials}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <span className="font-medium text-gray-900 truncate">{attendee.name}</span>
-                    </div>
-                    <div className="flex-shrink-0">
-                      {(attendee.response === 'yes' || attendee.response === 'going') && (
-                        <div className="flex items-center gap-1.5 text-green-700 text-sm px-2 py-1 rounded-full bg-green-50">
-                          <Check className="h-3.5 w-3.5" />
-                          <span>Going</span>
-                        </div>
-                      )}
-                      {attendee.response === 'maybe' && (
-                        <div className="flex items-center gap-1.5 text-amber-700 text-sm px-2 py-1 rounded-full bg-amber-50">
-                          <HelpCircle className="h-3.5 w-3.5" />
-                          <span>Maybe</span>
-                        </div>
-                      )}
-                      {(attendee.response === 'no' || attendee.response === 'not_going') && (
-                        <div className="flex items-center gap-1.5 text-red-700 text-sm px-2 py-1 rounded-full bg-red-50">
-                          <X className="h-3.5 w-3.5" />
-                          <span>Can't go</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
               </div>
             </CardContent>
           </Card>
         )}
 
-        {/* RSVP Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              {selectedMember?.name ? `Hey ${selectedMember.name}!` : "RSVP"}
-            </CardTitle>
-            <CardDescription>
-              {showFeedbackForm
-                ? "Help us make this work better for you"
-                : "Can you make it?"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {!showFeedbackForm ? (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <Button
-                  size="lg"
-                  variant={rsvpResponse === "going" ? "default" : "outline"}
-                  className="h-20"
-                  onClick={() => handleRsvpClick("going")}
-                  disabled={rsvpMutation.isPending}
-                >
-                  <Check className="h-5 w-5 mr-2" />
-                  <span className="text-lg">I'll be there!</span>
-                </Button>
-                <Button
-                  size="lg"
-                  variant={rsvpResponse === "maybe" ? "default" : "outline"}
-                  className="h-20"
-                  onClick={() => handleRsvpClick("maybe")}
-                  disabled={rsvpMutation.isPending}
-                >
-                  <HelpCircle className="h-5 w-5 mr-2" />
-                  <span className="text-lg">Maybe</span>
-                </Button>
-                <Button
-                  size="lg"
-                  variant={rsvpResponse === "not_going" ? "default" : "outline"}
-                  className="h-20"
-                  onClick={() => handleRsvpClick("not_going")}
-                  disabled={rsvpMutation.isPending}
-                >
-                  <X className="h-5 w-5 mr-2" />
-                  <span className="text-lg">Can't make it</span>
-                </Button>
+        {/* Itinerary */}
+        {event.items && event.items.length > 0 && (
+          <Card className="mb-4">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-primary" />
+                The Plan
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {event.items
+                .sort((a, b) => a.orderIndex - b.orderIndex)
+                .map((item, index) => {
+                  const mapsUrl = getGoogleMapsUrl(item);
+                  return (
+                    <div
+                      key={item.id}
+                      className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 border border-border"
+                    >
+                      <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-semibold text-sm flex-shrink-0">
+                        {index + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-semibold">{item.venueName}</h3>
+                          {item.rating && (
+                            <span className="flex items-center gap-0.5 text-sm text-muted-foreground">
+                              <Star className="h-3.5 w-3.5 fill-primary text-primary" />
+                              {item.rating}
+                            </span>
+                          )}
+                        </div>
+                        {item.venueType && (
+                          <span className="inline-block text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full mt-1">
+                            {item.venueType}
+                          </span>
+                        )}
+                        {item.venueAddress && (
+                          <p className="text-sm text-muted-foreground mt-1 truncate">{item.venueAddress}</p>
+                        )}
+                        {mapsUrl && (
+                          <a
+                            href={mapsUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-sm text-primary hover:underline font-medium mt-2"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            View on Google Maps
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Who's Coming */}
+        {attendees.length > 0 && (
+          <Card className="mb-4">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Users className="h-4 w-4 text-primary" />
+                  Who's Coming
+                </CardTitle>
+                <span className="text-sm text-muted-foreground">
+                  {goingCount > 0 && `${goingCount} going`}
+                  {goingCount > 0 && maybeCount > 0 && ' · '}
+                  {maybeCount > 0 && `${maybeCount} maybe`}
+                </span>
               </div>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {attendees.map((attendee, idx) => (
+                <div key={idx} className="flex items-center gap-3 py-2">
+                  <Avatar className="h-9 w-9">
+                    <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+                      {attendee.initials}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="flex-1 font-medium">{attendee.name}</span>
+                  <div className="flex-shrink-0">
+                    {(attendee.response === 'yes' || attendee.response === 'going') && (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-success bg-success/10 px-2.5 py-1 rounded-full">
+                        <Check className="h-3 w-3" />
+                        Going
+                      </span>
+                    )}
+                    {attendee.response === 'maybe' && (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-warning bg-warning/10 px-2.5 py-1 rounded-full">
+                        <HelpCircle className="h-3 w-3" />
+                        Maybe
+                      </span>
+                    )}
+                    {(attendee.response === 'no' || attendee.response === 'not_going') && (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-destructive bg-destructive/10 px-2.5 py-1 rounded-full">
+                        <X className="h-3 w-3" />
+                        Can't go
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* RSVP Section */}
+        <Card className="mb-4">
+          <CardContent className="pt-6">
+            {!showFeedbackForm ? (
+              <>
+                <div className="text-center mb-6">
+                  <h2 className="text-xl font-bold">
+                    {selectedMember?.name ? `Hey ${selectedMember.name.split(' ')[0]}!` : "Can you make it?"}
+                  </h2>
+                  <p className="text-muted-foreground">Let us know if you can join</p>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <button
+                    onClick={() => handleRsvpClick("going")}
+                    disabled={rsvpMutation.isPending}
+                    className={`group relative flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${
+                      rsvpResponse === "going"
+                        ? "border-success bg-success/10"
+                        : "border-border hover:border-success/50 hover:bg-success/5"
+                    } ${rsvpMutation.isPending ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                  >
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-2 transition-colors ${
+                      rsvpResponse === "going"
+                        ? "bg-success text-success-foreground"
+                        : "bg-success/10 text-success group-hover:bg-success/20"
+                    }`}>
+                      <Check className="h-6 w-6" />
+                    </div>
+                    <span className={`font-semibold ${rsvpResponse === "going" ? "text-success" : ""}`}>
+                      Going
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => handleRsvpClick("maybe")}
+                    disabled={rsvpMutation.isPending}
+                    className={`group relative flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${
+                      rsvpResponse === "maybe"
+                        ? "border-warning bg-warning/10"
+                        : "border-border hover:border-warning/50 hover:bg-warning/5"
+                    } ${rsvpMutation.isPending ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                  >
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-2 transition-colors ${
+                      rsvpResponse === "maybe"
+                        ? "bg-warning text-warning-foreground"
+                        : "bg-warning/10 text-warning group-hover:bg-warning/20"
+                    }`}>
+                      <HelpCircle className="h-6 w-6" />
+                    </div>
+                    <span className={`font-semibold ${rsvpResponse === "maybe" ? "text-warning" : ""}`}>
+                      Maybe
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => handleRsvpClick("not_going")}
+                    disabled={rsvpMutation.isPending}
+                    className={`group relative flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${
+                      rsvpResponse === "not_going"
+                        ? "border-destructive bg-destructive/10"
+                        : "border-border hover:border-destructive/50 hover:bg-destructive/5"
+                    } ${rsvpMutation.isPending ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                  >
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-2 transition-colors ${
+                      rsvpResponse === "not_going"
+                        ? "bg-destructive text-destructive-foreground"
+                        : "bg-destructive/10 text-destructive group-hover:bg-destructive/20"
+                    }`}>
+                      <X className="h-6 w-6" />
+                    </div>
+                    <span className={`font-semibold ${rsvpResponse === "not_going" ? "text-destructive" : ""}`}>
+                      Can't Go
+                    </span>
+                  </button>
+                </div>
+
+                {rsvpMutation.isPending && (
+                  <div className="text-center mt-4 text-muted-foreground">
+                    Submitting your RSVP...
+                  </div>
+                )}
+              </>
             ) : (
               <div className="space-y-4">
+                <div className="text-center mb-4">
+                  <h2 className="text-lg font-semibold">
+                    {rsvpResponse === "maybe" ? "What would help?" : "What would work better?"}
+                  </h2>
+                  <p className="text-sm text-muted-foreground">Your feedback helps us plan better events</p>
+                </div>
+
                 <div>
                   <Label htmlFor="feedback">
-                    {rsvpResponse === "maybe"
-                      ? "What would make this work better for you?"
-                      : "What would work better?"}
+                    {rsvpResponse === "maybe" ? "What's holding you back?" : "Any feedback? (optional)"}
                   </Label>
                   <Textarea
                     id="feedback"
                     placeholder={
                       rsvpResponse === "maybe"
-                        ? "e.g., Earlier time, different venue, etc."
+                        ? "e.g., Earlier time would work better, or different location..."
                         : "Let us know what times or days would work better"
                     }
                     value={feedbackText}
@@ -570,7 +675,7 @@ export default function EventInvitePage() {
                 {rsvpResponse === "not_going" && (
                   <>
                     <div>
-                      <Label htmlFor="alt-days">Would these days work instead?</Label>
+                      <Label htmlFor="alt-days">Different days that work?</Label>
                       <Textarea
                         id="alt-days"
                         placeholder="e.g., Friday or Saturday this week"
@@ -581,7 +686,7 @@ export default function EventInvitePage() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="alt-times">Would these times work better?</Label>
+                      <Label htmlFor="alt-times">Different times that work?</Label>
                       <Textarea
                         id="alt-times"
                         placeholder="e.g., 6pm instead of 8pm"
@@ -594,7 +699,7 @@ export default function EventInvitePage() {
                   </>
                 )}
 
-                <div className="flex gap-3">
+                <div className="flex gap-3 pt-2">
                   <Button
                     onClick={handleFeedbackSubmit}
                     disabled={rsvpMutation.isPending}
@@ -612,7 +717,7 @@ export default function EventInvitePage() {
                       setAlternativeTimes("");
                     }}
                   >
-                    Cancel
+                    Back
                   </Button>
                 </div>
               </div>
@@ -620,21 +725,20 @@ export default function EventInvitePage() {
           </CardContent>
         </Card>
 
-        {/* Email CTA (for members without email) */}
+        {/* Email CTA for members without email */}
         {selectedMember && !selectedMember.email && (
-          <Card className="bg-blue-50 border-blue-200">
-            <CardContent className="p-6">
-              <h3 className="font-semibold text-blue-900 mb-2">
-                Help reduce the manual lift for your organizer
+          <Card className="mb-4 bg-secondary/10 border-secondary/20">
+            <CardContent className="pt-5">
+              <h3 className="font-semibold mb-2">
+                Get notified about future events
               </h3>
-              <p className="text-sm text-blue-800 mb-4">
-                Add your email address, and we'll let you know when the next{" "}
-                {event.groupName} event is directly—so your organizer doesn't have to drop
-                it into the group thread every time.
+              <p className="text-sm text-muted-foreground mb-3">
+                Add your email so you don't miss the next {event.groupName} event.
               </p>
               <Button variant="outline" size="sm" asChild>
                 <Link href={`/member-profile-setup?member=${selectedMemberId}`}>
                   Add Email Address
+                  <ChevronRight className="h-4 w-4 ml-1" />
                 </Link>
               </Button>
             </CardContent>
@@ -643,38 +747,45 @@ export default function EventInvitePage() {
 
         {/* Create Account CTA */}
         {!rsvpSubmitted && (
-          <Card className="bg-gradient-to-br from-purple-50 to-blue-50 border-purple-200">
-            <CardContent className="p-6">
+          <Card className="bg-accent/10 border-accent/20">
+            <CardContent className="pt-5">
               <div className="flex items-start gap-3">
-                <Sparkles className="h-5 w-5 text-purple-600 mt-1 flex-shrink-0" />
+                <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
+                  <Sparkles className="h-5 w-5 text-primary-foreground" />
+                </div>
                 <div className="flex-1">
-                  <h3 className="font-semibold text-purple-900 mb-1">
-                    Create an account to see all upcoming events
+                  <h3 className="font-semibold mb-1">
+                    See all upcoming events
                   </h3>
-                  <p className="text-sm text-purple-800 mb-3">
-                    View all past and future {event.groupName} events in one place, set
-                    standing preferences, and influence future scheduling.
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Create an account to view all {event.groupName} events, set preferences, and influence future scheduling.
                   </p>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      // Store memberId for account linking
                       if (selectedMemberId) {
                         localStorage.setItem("linkMemberId", selectedMemberId);
                         localStorage.setItem("linkReturnPath", `/event/${eventId}/invite?member=${selectedMemberId}`);
                       }
-                      // Redirect to auth with return to link page
-                      window.location.href = "/auth/replit?redirect=" + encodeURIComponent("/link-member-account");
+                      window.location.href = "/api/login?returnTo=" + encodeURIComponent("/link-member-account");
                     }}
                   >
                     Create Account
+                    <ChevronRight className="h-4 w-4 ml-1" />
                   </Button>
                 </div>
               </div>
             </CardContent>
           </Card>
         )}
+
+        {/* Footer */}
+        <div className="text-center mt-8 pb-4">
+          <p className="text-sm text-muted-foreground">
+            Powered by <span className="font-semibold text-primary">Kinmo</span>
+          </p>
+        </div>
       </div>
     </div>
   );
