@@ -632,10 +632,10 @@ export default function EventInvitePage() {
                   </div>
                   <div className="flex-1">
                     <h3 className="font-semibold mb-1">
-                      See all {event.groupName} events
+                      Find your {event.groupName} events
                     </h3>
                     <p className="text-sm text-muted-foreground mb-3">
-                      Create an account to view all upcoming events, set your preferences, and never miss out.
+                      Create an account to see all upcoming events in one place and get notified when new plans are made.
                     </p>
                     <Button
                       className="w-full"
@@ -1054,10 +1054,10 @@ export default function EventInvitePage() {
                 </div>
                 <div className="flex-1">
                   <h3 className="font-semibold mb-1">
-                    Never miss a {event.groupName} event
+                    Never miss an {event.groupName} event
                   </h3>
                   <p className="text-sm text-muted-foreground mb-3">
-                    Create an account to get notified about future events, set your preferences, and influence scheduling.
+                    Create an account to find your groups and see all upcoming events in one place.
                   </p>
                   <Button
                     variant="outline"

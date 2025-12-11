@@ -949,10 +949,10 @@ export default function RsvpItineraryPage() {
                     </div>
                     <div className="flex-1">
                       <h3 className="font-semibold text-[hsl(200,50%,25%)] mb-1">
-                        Create an account to see all upcoming {group.name} events
+                        Find your {group.name} events
                       </h3>
                       <p className="text-sm text-[hsl(200,40%,35%)] mb-4">
-                        View all past and future events in one place, set your preferences, and influence future scheduling.
+                        Create an account to see all upcoming events in one place and get notified when new plans are made.
                       </p>
                       <Button
                         className="w-full bg-[hsl(200,70%,50%)] hover:bg-[hsl(200,70%,45%)] text-white"
