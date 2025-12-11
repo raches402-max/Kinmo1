@@ -6545,15 +6545,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const invite = invites[0];
 
-      // Verify the invite is for this specific itinerary and member
-      if (invite.itineraryId !== itineraryId || invite.memberId !== memberId) {
-        return res.status(403).json({ message: "This invite is not valid for this itinerary/member" });
+      // Verify the invite is for this specific itinerary
+      if (invite.itineraryId !== itineraryId) {
+        return res.status(403).json({ message: "This invite is not valid for this itinerary" });
       }
 
       // Fetch itinerary to verify it exists
       const itinerary = await storage.getItinerary(itineraryId);
       if (!itinerary || !itinerary.groupId) {
         return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      // Verify the member matches the invite OR this is an organizer invite (memberId is null)
+      if (invite.memberId && invite.memberId !== memberId) {
+        return res.status(403).json({ message: "This invite is not valid for this member" });
+      }
+
+      // For organizer invites (memberId is null), verify the requested member is the organizer
+      if (!invite.memberId) {
+        const group = await storage.getGroup(itinerary.groupId);
+        const member = await storage.getMember(memberId);
+        // Allow if member's userId matches group organizer OR member's email matches organizer's email
+        if (!group || !member) {
+          return res.status(404).json({ message: "Group or member not found" });
+        }
+        const organizer = group.userId ? await storage.getUser(group.userId) : null;
+        const isOrganizer = member.userId === group.userId ||
+          (organizer?.email && member.email && member.email.toLowerCase() === organizer.email.toLowerCase());
+        if (!isOrganizer) {
+          return res.status(403).json({ message: "This invite is only valid for the organizer" });
+        }
       }
 
       // Get the member to check if they have a linked user account
