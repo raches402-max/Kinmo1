@@ -21,6 +21,7 @@ export default function LinkMemberAccountPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [showCelebration, setShowCelebration] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
   const [groupName, setGroupName] = useState<string>("");
   const hasAttemptedLink = useRef(false);
 
@@ -74,16 +75,7 @@ export default function LinkMemberAccountPage() {
     },
     onError: (error: Error) => {
       console.error("[Link Account] Error:", error);
-      toast({
-        title: "Link Failed",
-        description: error.message || "Failed to link account. Please try again.",
-        variant: "destructive",
-      });
-
-      // Redirect anyway after a delay
-      setTimeout(() => {
-        setLocation(returnPath);
-      }, 2000);
+      setLinkError(error.message || "Failed to link account. Please try again.");
     },
   });
 
@@ -100,7 +92,7 @@ export default function LinkMemberAccountPage() {
   useEffect(() => {
     if (!authLoading && !user) {
       // Not authenticated yet, redirect to login
-      const loginUrl = `/auth/replit?redirect=${encodeURIComponent(window.location.pathname)}`;
+      const loginUrl = `/api/login?returnTo=${encodeURIComponent(window.location.pathname)}`;
       window.location.href = loginUrl;
     }
 
@@ -217,20 +209,39 @@ export default function LinkMemberAccountPage() {
     );
   }
 
-  // Default: show error or nothing
-  return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardContent className="p-12 text-center">
-          <h2 className="text-xl font-semibold mb-2">Something went wrong</h2>
-          <p className="text-gray-600 mb-6">
-            We couldn't complete your account linking. Please try again.
-          </p>
-          <Button onClick={() => setLocation("/")}>
-            Go to Dashboard
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
-  );
+  // Error state with retry
+  if (linkError) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-12 text-center">
+            <h2 className="text-xl font-semibold mb-2">Link Failed</h2>
+            <p className="text-gray-600 mb-6">
+              {linkError}
+            </p>
+            <div className="flex gap-3 justify-center">
+              <Button
+                variant="outline"
+                onClick={() => setLocation(returnPath)}
+              >
+                Go Back
+              </Button>
+              <Button
+                onClick={() => {
+                  setLinkError(null);
+                  hasAttemptedLink.current = false;
+                  linkMutation.mutate();
+                }}
+              >
+                Try Again
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Default: nothing to show (should not reach here normally)
+  return null;
 }

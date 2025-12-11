@@ -51,13 +51,16 @@ export default function ClaimMemberPage() {
       });
     },
     onSuccess: (data: any) => {
+      // Clear claim token from localStorage AFTER successful claim
+      localStorage.removeItem('claimToken');
+
       queryClient.invalidateQueries({ queryKey: ["/api/user/groups"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
       toast({
         title: "Account claimed!",
         description: "You can now see your group's events and activities",
       });
-      
+
       // Show optional profile setup dialog
       setClaimedMemberId(data.id);
       setShowProfileDialog(true);
@@ -107,16 +110,15 @@ export default function ClaimMemberPage() {
     });
     
     if (
-      user && 
-      claimData && 
-      !claimData.alreadyClaimed && 
+      user &&
+      claimData &&
+      !claimData.alreadyClaimed &&
       !claimMutation.isPending &&
       !hasAttemptedClaim.current
     ) {
       console.log("[Claim Page] Auto-claiming membership...");
       hasAttemptedClaim.current = true;
-      // Clear claim token from localStorage after claiming
-      localStorage.removeItem('claimToken');
+      // Note: localStorage is cleared in onSuccess callback to handle network failures
       claimMutation.mutate();
     }
   }, [user, claimData, claimMutation.isPending]);

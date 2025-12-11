@@ -978,7 +978,7 @@ export default function RsvpItineraryPage() {
                             localStorage.setItem("linkReturnPath", `/rsvp/${itineraryId}/${inviteToken}`);
                           }
                           // Redirect to auth with return to link page
-                          window.location.href = "/auth/replit?redirect=" + encodeURIComponent("/link-member-account");
+                          window.location.href = "/api/login?returnTo=" + encodeURIComponent("/link-member-account");
                         }}
                       >
                         Create Account
