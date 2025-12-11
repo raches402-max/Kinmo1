@@ -724,7 +724,7 @@ export function EditVenueDialog({ open, onOpenChange, venue, itineraryId, groupI
                         <span className="flex items-center gap-0.5">
                           <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
                           {libraryVenue.rating}
-                          {libraryVenue.reviewCount && (
+                          {libraryVenue.reviewCount && !isNaN(Number(libraryVenue.reviewCount)) && (
                             <span className="opacity-60">({Number(libraryVenue.reviewCount).toLocaleString()})</span>
                           )}
                         </span>
