@@ -6331,12 +6331,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Create or update RSVP for an itinerary (no auth required, validates invite token)
   app.post("/api/rsvps", async (req, res) => {
+    console.log('[RSVP] Request received:', JSON.stringify(req.body, null, 2));
     try {
       // Validate request body
       const validatedData = safeParse(createRsvpSchema, req.body, res);
-      if (!validatedData) return;
+      if (!validatedData) {
+        console.log('[RSVP] Validation failed');
+        return;
+      }
 
       const { itineraryId, inviteToken, response, rsvpFeedback, claimedMemberId, guestName, additionalAttendees, numberOfKids } = validatedData;
+      console.log('[RSVP] Validated data:', { itineraryId, inviteToken, claimedMemberId, guestName, response });
 
       // Verify invite token
       const invites = await db
@@ -6345,42 +6350,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(sql`invite_token = ${inviteToken}`);
 
       if (invites.length === 0) {
+        console.log('[RSVP] Invalid invite token:', inviteToken);
         return res.status(401).json({ message: "Invalid invite token" });
       }
 
       const invite = invites[0];
+      console.log('[RSVP] Found invite:', { inviteId: invite.id, inviteMemberId: invite.memberId, inviteItineraryId: invite.itineraryId });
 
       // Verify the invite is for this specific itinerary (critical security check)
       if (invite.itineraryId !== itineraryId) {
+        console.log('[RSVP] Itinerary mismatch:', { inviteItineraryId: invite.itineraryId, requestedItineraryId: itineraryId });
         return res.status(403).json({ message: "This invite is not valid for this itinerary" });
       }
 
       // Verify the claimedMemberId matches the invite's memberId (authorization check)
       // This prevents someone with one invite token from RSVPing as a different member
       if (claimedMemberId && invite.memberId && claimedMemberId !== invite.memberId) {
+        console.log('[RSVP] Member mismatch:', { inviteMemberId: invite.memberId, claimedMemberId });
         return res.status(403).json({ message: "This invite is not valid for this member" });
       }
 
       // Fetch itinerary to verify it exists
       const itinerary = await storage.getItinerary(itineraryId);
       if (!itinerary || !itinerary.groupId) {
+        console.log('[RSVP] Itinerary not found:', itineraryId);
         return res.status(404).json({ message: "Itinerary not found" });
       }
+      console.log('[RSVP] Found itinerary:', { id: itinerary.id, name: itinerary.name, groupId: itinerary.groupId });
 
       // Determine which member to use
       let memberId = claimedMemberId || invite.memberId;
-      
+
       // If guest RSVP, memberId should be null
       if (guestName && !claimedMemberId) {
         memberId = null;
       }
+      console.log('[RSVP] Using memberId:', memberId);
 
       // For member RSVPs, verify member exists
       if (memberId) {
         const member = await storage.getMember(memberId);
         if (!member) {
+          console.log('[RSVP] Member not found:', memberId);
           return res.status(404).json({ message: "Member not found" });
         }
+        console.log('[RSVP] Found member:', { id: member.id, name: member.name });
       }
 
       // Check if RSVP already exists for this member/guest/itinerary combo

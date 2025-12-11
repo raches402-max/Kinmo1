@@ -284,7 +284,6 @@ export function requireCollectionOwnership() {
 export function requireMemberAccess() {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const userId = await getUserId(req);
       const memberId = req.params.id;
       const claimToken = req.body.claimToken;
 
@@ -298,20 +297,25 @@ export function requireMemberAccess() {
         return res.status(404).json({ message: "Member not found" });
       }
 
-      // Check if user owns the group
-      const group = await storage.getGroup(member.groupId);
-      if (group?.userId === userId) {
-        (req as any).member = member;
-        (req as any).group = group;
-        (req as any).isGroupOwner = true;
-        return next();
-      }
-
-      // Check if valid claim token is provided
+      // First check if valid claim token is provided (allows unauthenticated access)
       if (claimToken && member.claimToken === claimToken) {
         (req as any).member = member;
         (req as any).isGroupOwner = false;
         return next();
+      }
+
+      // Then check if user is authenticated and owns the group
+      try {
+        const userId = await getUserId(req);
+        const group = await storage.getGroup(member.groupId);
+        if (group?.userId === userId) {
+          (req as any).member = member;
+          (req as any).group = group;
+          (req as any).isGroupOwner = true;
+          return next();
+        }
+      } catch {
+        // User not authenticated - that's okay, we already checked claim token above
       }
 
       return res.status(403).json({ message: "Forbidden: You don't have access to this member" });
