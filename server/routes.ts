@@ -6388,8 +6388,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('[RSVP] Using memberId:', memberId);
 
       // For member RSVPs, verify member exists
+      let member = null;
       if (memberId) {
-        const member = await storage.getMember(memberId);
+        member = await storage.getMember(memberId);
         if (!member) {
           console.log('[RSVP] Member not found:', memberId);
           return res.status(404).json({ message: "Member not found" });
@@ -6398,14 +6399,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Check if RSVP already exists for this member/guest/itinerary combo
-      const existingRsvps = await db
+      let existingRsvps = await db
         .select()
         .from(rsvpsTable)
         .where(
-          memberId 
+          memberId
             ? sql`itinerary_id = ${itineraryId} AND member_id = ${memberId}`
             : sql`itinerary_id = ${itineraryId} AND guest_name = ${guestName}`
         );
+
+      // If no RSVP found by member_id but member has a userId, also check by userId
+      // (handles organizers who RSVPed before having a member record)
+      if (existingRsvps.length === 0 && memberId && member?.userId) {
+        existingRsvps = await db
+          .select()
+          .from(rsvpsTable)
+          .where(sql`itinerary_id = ${itineraryId} AND user_id = ${member.userId}`);
+      }
 
       let rsvp;
       const rsvpData: any = {
