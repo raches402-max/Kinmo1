@@ -1,26 +1,23 @@
 /**
- * Event Invite Page - Phase 1: Event-by-Event Invite System
+ * Event Invite Page - Unified RSVP flow for members and guests
  *
- * Supports two flows:
- * 1. Personalized: /event/:eventId/invite?member=:memberId (has email, name pre-filled)
- * 2. Generic: /event/:eventId/invite (no email, select name from dropdown)
- *
- * Members can RSVP without accounts and provide event-specific feedback
+ * Supports:
+ * 1. Personalized: /event/:eventId/invite?member=:memberId
+ * 2. Generic: /event/:eventId/invite (select name or join as guest)
  */
 
 import { useState, useEffect, useMemo } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRoute, useSearch, Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { getErrorToast } from "@/components/ErrorDisplay";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
-  Calendar,
   MapPin,
   Check,
   X,
@@ -31,6 +28,8 @@ import {
   Star,
   Clock,
   ChevronRight,
+  UserPlus,
+  ArrowLeft,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -73,6 +72,7 @@ type RsvpResponse = {
 type RsvpRecord = {
   memberId: string;
   memberName?: string;
+  guestName?: string;
   response: string;
 };
 
@@ -80,7 +80,7 @@ type Attendee = {
   name: string;
   initials: string;
   response: string;
-  isHost: boolean;
+  isGuest: boolean;
 };
 
 // Helper to generate Google Maps URL
@@ -97,16 +97,28 @@ function getGoogleMapsUrl(item: ItineraryItem): string | null {
   return null;
 }
 
+// Get initials from name
+function getInitials(name: string): string {
+  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+}
+
 export default function EventInvitePage() {
   const [, params] = useRoute("/event/:eventId/invite");
   const eventId = params?.eventId;
   const search = useSearch();
   const memberId = new URLSearchParams(search).get("member");
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  // Member selection state (for generic links)
+  // Selection mode: 'choose' | 'member' | 'guest'
+  const [mode, setMode] = useState<'choose' | 'member' | 'guest'>(memberId ? 'member' : 'choose');
+
+  // Member selection state
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(memberId);
-  const [memberSelectionComplete, setMemberSelectionComplete] = useState(!!memberId);
+
+  // Guest state
+  const [guestName, setGuestName] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
 
   // RSVP state
   const [rsvpResponse, setRsvpResponse] = useState<"going" | "maybe" | "not_going" | null>(null);
@@ -122,7 +134,7 @@ export default function EventInvitePage() {
     enabled: !!eventId,
   });
 
-  // Fetch group members (for name selection dropdown)
+  // Fetch group members (for name selection)
   const { data: groupMembers, isLoading: membersLoading } = useQuery<Member[]>({
     queryKey: [`/api/groups/${event?.groupId}/members`],
     enabled: !!event?.groupId && !memberId,
@@ -134,13 +146,13 @@ export default function EventInvitePage() {
     enabled: !!selectedMemberId,
   });
 
-  // Fetch all RSVPs for this event (to show who's coming)
+  // Fetch all RSVPs for this event
   const { data: rsvps } = useQuery<RsvpRecord[]>({
     queryKey: [`/api/itineraries/${eventId}/rsvps`],
-    enabled: !!eventId && memberSelectionComplete,
+    enabled: !!eventId && mode !== 'choose',
   });
 
-  // Get existing RSVP from the RSVPs list (avoid calling endpoint that requires invite token)
+  // Get existing RSVP from the RSVPs list
   const existingRsvp = useMemo(() => {
     if (!rsvps || !selectedMemberId) return null;
     const myRsvp = rsvps.find(r => r.memberId === selectedMemberId);
@@ -153,12 +165,12 @@ export default function EventInvitePage() {
     return rsvps
       .filter(r => r.response && r.response !== 'pending')
       .map(r => {
-        const name = r.memberName || 'Unknown';
+        const name = r.memberName || r.guestName || 'Unknown';
         return {
           name,
-          initials: name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
+          initials: getInitials(name),
           response: r.response === 'going' ? 'yes' : r.response === 'not_going' ? 'no' : r.response,
-          isHost: false,
+          isGuest: !r.memberId,
         };
       });
   }, [rsvps]);
@@ -173,25 +185,25 @@ export default function EventInvitePage() {
     }
   }, [existingRsvp]);
 
-  // Save member selection to localStorage for next time
+  // Save member selection to localStorage
   useEffect(() => {
     if (selectedMemberId && event?.groupId) {
       localStorage.setItem(`lastMemberSelection_${event.groupId}`, selectedMemberId);
     }
   }, [selectedMemberId, event?.groupId]);
 
-  // Try to restore member selection from localStorage
+  // Restore member selection from localStorage
   useEffect(() => {
-    if (!memberId && event?.groupId && !selectedMemberId) {
+    if (!memberId && event?.groupId && !selectedMemberId && mode === 'choose') {
       const lastSelection = localStorage.getItem(`lastMemberSelection_${event.groupId}`);
-      if (lastSelection) {
-        setSelectedMemberId(lastSelection);
+      if (lastSelection && groupMembers?.some(m => m.id === lastSelection)) {
+        // Don't auto-select, but we could highlight the last selection
       }
     }
-  }, [event?.groupId, memberId, selectedMemberId]);
+  }, [event?.groupId, memberId, selectedMemberId, groupMembers, mode]);
 
-  // RSVP submission mutation
-  const rsvpMutation = useMutation({
+  // Member RSVP mutation
+  const memberRsvpMutation = useMutation({
     mutationFn: async (data: RsvpResponse) => {
       if (!selectedMemberId) {
         throw new Error("Please select your name first");
@@ -221,6 +233,7 @@ export default function EventInvitePage() {
     },
     onSuccess: () => {
       setRsvpSubmitted(true);
+      queryClient.invalidateQueries({ queryKey: [`/api/itineraries/${eventId}/rsvps`] });
       toast({
         title: "RSVP Submitted!",
         description: `You're all set for ${event?.name || "this event"}!`,
@@ -231,30 +244,115 @@ export default function EventInvitePage() {
     },
   });
 
+  // Guest RSVP mutation
+  const guestRsvpMutation = useMutation({
+    mutationFn: async (data: RsvpResponse) => {
+      if (!guestName.trim()) {
+        throw new Error("Please enter your name");
+      }
+
+      const response = await fetch(`/api/itineraries/${eventId}/guest-rsvp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          guestName: guestName.trim(),
+          guestEmail: guestEmail.trim() || null,
+          response: data.response,
+          rsvpFeedback: {
+            feedbackText: data.feedbackText,
+            alternativeDays: data.alternativeDays,
+            alternativeTimes: data.alternativeTimes,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to submit RSVP");
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      setRsvpSubmitted(true);
+      queryClient.invalidateQueries({ queryKey: [`/api/itineraries/${eventId}/rsvps`] });
+      toast({
+        title: "RSVP Submitted!",
+        description: `Thanks for letting us know, ${guestName}!`,
+      });
+    },
+    onError: (error: Error) => {
+      toast(getErrorToast(error));
+    },
+  });
+
+  const isPending = memberRsvpMutation.isPending || guestRsvpMutation.isPending;
+
+  const handleMemberSelect = (id: string) => {
+    setSelectedMemberId(id);
+    setMode('member');
+  };
+
+  const handleGuestMode = () => {
+    setMode('guest');
+  };
+
+  const handleBack = () => {
+    setMode('choose');
+    setSelectedMemberId(null);
+    setGuestName("");
+    setGuestEmail("");
+    setRsvpResponse(null);
+    setShowFeedbackForm(false);
+  };
+
   const handleRsvpClick = (response: "going" | "maybe" | "not_going") => {
     setRsvpResponse(response);
 
     if (response === "maybe" || response === "not_going") {
       setShowFeedbackForm(true);
     } else {
-      rsvpMutation.mutate({ response });
+      // Submit immediately for "going"
+      if (mode === 'member') {
+        memberRsvpMutation.mutate({ response });
+      } else if (mode === 'guest') {
+        if (!guestName.trim()) {
+          toast({
+            title: "Name required",
+            description: "Please enter your name to RSVP",
+            variant: "destructive",
+          });
+          return;
+        }
+        guestRsvpMutation.mutate({ response });
+      }
     }
   };
 
   const handleFeedbackSubmit = () => {
     if (!rsvpResponse) return;
 
-    rsvpMutation.mutate({
+    const data = {
       response: rsvpResponse,
       feedbackText,
       alternativeDays,
       alternativeTimes,
-    });
-  };
+    };
 
-  const handleMemberSelect = (memberId: string) => {
-    setSelectedMemberId(memberId);
-    setMemberSelectionComplete(true);
+    if (mode === 'member') {
+      memberRsvpMutation.mutate(data);
+    } else if (mode === 'guest') {
+      if (!guestName.trim()) {
+        toast({
+          title: "Name required",
+          description: "Please enter your name to RSVP",
+          variant: "destructive",
+        });
+        return;
+      }
+      guestRsvpMutation.mutate(data);
+    }
   };
 
   // Loading state
@@ -286,48 +384,102 @@ export default function EventInvitePage() {
     );
   }
 
-  // Member selection screen
-  if (!memberSelectionComplete && !memberId) {
+  // Member/Guest selection screen
+  if (mode === 'choose') {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <div className="max-w-md w-full">
+      <div className="min-h-screen bg-background">
+        <div className="h-1 bg-primary" />
+
+        <div className="max-w-md mx-auto px-4 py-8">
           {/* Header */}
-          <div className="text-center mb-6">
-            <span className="text-5xl mb-3 block">{event.groupEmoji || '🎉'}</span>
-            <h1 className="text-2xl font-bold text-foreground">{event.groupName || "You're Invited!"}</h1>
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary mb-4">
+              <span className="text-3xl">{event.groupEmoji || '🎉'}</span>
+            </div>
+            <h1 className="text-2xl font-bold mb-1">{event.name}</h1>
+            {event.groupName && (
+              <p className="text-muted-foreground">{event.groupName}</p>
+            )}
+            {event.eventDate && (
+              <p className="text-muted-foreground mt-2">
+                {format(new Date(event.eventDate), "EEEE, MMMM d 'at' h:mm a")}
+              </p>
+            )}
           </div>
 
+          {/* Who are you? */}
           <Card>
-            <CardHeader className="text-center">
-              <CardTitle className="text-lg">{event.name}</CardTitle>
-              {event.eventDate && (
-                <CardDescription>
-                  {format(new Date(event.eventDate), "EEEE, MMMM d")}
-                </CardDescription>
-              )}
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg text-center">Who are you?</CardTitle>
+              <CardDescription className="text-center">
+                Tap your name to RSVP
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="member-select">Who are you?</Label>
-                <Select onValueChange={handleMemberSelect}>
-                  <SelectTrigger id="member-select" className="mt-2">
-                    <SelectValue placeholder="Select your name" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {membersLoading ? (
-                      <SelectItem value="loading" disabled>Loading members...</SelectItem>
-                    ) : groupMembers && groupMembers.length > 0 ? (
-                      groupMembers.map((m) => (
-                        <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="none" disabled>No members found</SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
+            <CardContent className="space-y-2">
+              {membersLoading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="h-14 rounded-lg bg-muted animate-pulse" />
+                  ))}
+                </div>
+              ) : (
+                <>
+                  {/* Member buttons */}
+                  {groupMembers && groupMembers.length > 0 && (
+                    <div className="space-y-2">
+                      {groupMembers.map((m) => (
+                        <button
+                          key={m.id}
+                          onClick={() => handleMemberSelect(m.id)}
+                          className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary hover:bg-primary/5 transition-colors text-left"
+                        >
+                          <Avatar className="h-10 w-10">
+                            <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                              {getInitials(m.name)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="font-medium flex-1">{m.name}</span>
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Divider */}
+                  <div className="relative py-4">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-border" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-card px-2 text-muted-foreground">or</span>
+                    </div>
+                  </div>
+
+                  {/* Guest option */}
+                  <button
+                    onClick={handleGuestMode}
+                    className="w-full flex items-center gap-3 p-3 rounded-lg border-2 border-dashed border-border hover:border-primary hover:bg-primary/5 transition-colors text-left"
+                  >
+                    <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+                      <UserPlus className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                    <div className="flex-1">
+                      <span className="font-medium">I'm someone else</span>
+                      <p className="text-xs text-muted-foreground">Join as a guest for this event</p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                </>
+              )}
             </CardContent>
           </Card>
+
+          {/* Footer */}
+          <div className="text-center mt-8">
+            <p className="text-sm text-muted-foreground">
+              Powered by <span className="font-semibold text-primary">Kinmo</span>
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -335,6 +487,8 @@ export default function EventInvitePage() {
 
   // Success screen
   if (rsvpSubmitted) {
+    const displayName = mode === 'member' ? member?.name : guestName;
+
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="max-w-lg w-full text-center">
@@ -344,6 +498,7 @@ export default function EventInvitePage() {
             </div>
             <h1 className="text-3xl font-bold mb-2">You're All Set!</h1>
             <p className="text-muted-foreground">
+              {displayName && `Thanks ${displayName.split(' ')[0]}! `}
               Your RSVP for <span className="font-semibold text-foreground">{event.name}</span> has been submitted.
             </p>
             {rsvpResponse !== "going" && feedbackText && (
@@ -370,51 +525,64 @@ export default function EventInvitePage() {
             </CardContent>
           </Card>
 
-          {/* Create Account CTA */}
-          <Card className="bg-accent/10 border-accent/20 text-left">
-            <CardContent className="pt-5">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
-                  <Sparkles className="h-5 w-5 text-primary-foreground" />
+          {/* Create Account CTA - only for members */}
+          {mode === 'member' && (
+            <Card className="bg-accent/10 border-accent/20 text-left">
+              <CardContent className="pt-5">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
+                    <Sparkles className="h-5 w-5 text-primary-foreground" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold mb-1">
+                      See all {event.groupName} events
+                    </h3>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Create an account to view all upcoming events, set your preferences, and never miss out.
+                    </p>
+                    <Button
+                      className="w-full"
+                      onClick={() => {
+                        if (selectedMemberId) {
+                          localStorage.setItem("linkMemberId", selectedMemberId);
+                          localStorage.setItem("linkReturnPath", `/event/${eventId}/invite?member=${selectedMemberId}`);
+                        }
+                        window.location.href = "/api/login?returnTo=" + encodeURIComponent("/link-member-account");
+                      }}
+                    >
+                      Create Account
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold mb-1">
-                    See all {event.groupName} events
-                  </h3>
-                  <p className="text-sm text-muted-foreground mb-3">
-                    Create an account to view all upcoming events, set your preferences, and never miss out.
-                  </p>
-                  <Button
-                    className="w-full"
-                    onClick={() => {
-                      if (selectedMemberId) {
-                        localStorage.setItem("linkMemberId", selectedMemberId);
-                        localStorage.setItem("linkReturnPath", `/event/${eventId}/invite?member=${selectedMemberId}`);
-                      }
-                      window.location.href = "/api/login?returnTo=" + encodeURIComponent("/link-member-account");
-                    }}
-                  >
-                    Create Account
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     );
   }
 
-  // Main RSVP screen
+  // Main RSVP screen (for both member and guest modes)
   const selectedMember = member || (groupMembers?.find(m => m.id === selectedMemberId));
   const eventDate = event.eventDate ? new Date(event.eventDate) : null;
+  const displayName = mode === 'member' ? selectedMember?.name : guestName;
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Decorative top border */}
       <div className="h-1 bg-primary" />
 
       <div className="max-w-2xl mx-auto px-4 py-8">
+        {/* Back button (if not from personalized link) */}
+        {!memberId && (
+          <button
+            onClick={handleBack}
+            className="flex items-center gap-1 text-muted-foreground hover:text-foreground mb-4 text-sm"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Change selection
+          </button>
+        )}
+
         {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary mb-4">
@@ -425,6 +593,46 @@ export default function EventInvitePage() {
             <p className="text-muted-foreground">{event.groupName}</p>
           )}
         </div>
+
+        {/* Guest name input (only in guest mode) */}
+        {mode === 'guest' && (
+          <Card className="mb-4 border-primary/30 bg-primary/5">
+            <CardContent className="pt-5">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                  <UserPlus className="h-5 w-5 text-primary" />
+                </div>
+                <div className="flex-1 space-y-3">
+                  <div>
+                    <Label htmlFor="guest-name" className="text-sm font-medium">Your name *</Label>
+                    <Input
+                      id="guest-name"
+                      type="text"
+                      placeholder="Enter your name"
+                      value={guestName}
+                      onChange={(e) => setGuestName(e.target.value)}
+                      className="mt-1.5"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="guest-email" className="text-sm font-medium">Email (optional)</Label>
+                    <Input
+                      id="guest-email"
+                      type="email"
+                      placeholder="your@email.com"
+                      value={guestEmail}
+                      onChange={(e) => setGuestEmail(e.target.value)}
+                      className="mt-1.5"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      So the organizer can reach you if plans change
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Date/Time Card */}
         {eventDate && (
@@ -532,11 +740,14 @@ export default function EventInvitePage() {
               {attendees.map((attendee, idx) => (
                 <div key={idx} className="flex items-center gap-3 py-2">
                   <Avatar className="h-9 w-9">
-                    <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+                    <AvatarFallback className={`text-sm font-semibold ${attendee.isGuest ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary'}`}>
                       {attendee.initials}
                     </AvatarFallback>
                   </Avatar>
-                  <span className="flex-1 font-medium">{attendee.name}</span>
+                  <span className="flex-1 font-medium">
+                    {attendee.name}
+                    {attendee.isGuest && <span className="text-xs text-muted-foreground ml-1">(guest)</span>}
+                  </span>
                   <div className="flex-shrink-0">
                     {(attendee.response === 'yes' || attendee.response === 'going') && (
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-success bg-success/10 px-2.5 py-1 rounded-full">
@@ -570,7 +781,9 @@ export default function EventInvitePage() {
               <>
                 <div className="text-center mb-6">
                   <h2 className="text-xl font-bold">
-                    {selectedMember?.name ? `Hey ${selectedMember.name.split(' ')[0]}!` : "Can you make it?"}
+                    {mode === 'member' && displayName
+                      ? `Hey ${displayName.split(' ')[0]}!`
+                      : "Can you make it?"}
                   </h2>
                   <p className="text-muted-foreground">
                     {existingRsvp ? "Tap to change your response" : "Let us know if you can join"}
@@ -580,12 +793,12 @@ export default function EventInvitePage() {
                 <div className="grid grid-cols-3 gap-3">
                   <button
                     onClick={() => handleRsvpClick("going")}
-                    disabled={rsvpMutation.isPending}
+                    disabled={isPending || (mode === 'guest' && !guestName.trim())}
                     className={`group relative flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${
                       rsvpResponse === "going"
                         ? "border-success bg-success/10"
                         : "border-border hover:border-success/50 hover:bg-success/5"
-                    } ${rsvpMutation.isPending ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                    } ${isPending || (mode === 'guest' && !guestName.trim()) ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
                   >
                     <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-2 transition-colors ${
                       rsvpResponse === "going"
@@ -601,12 +814,12 @@ export default function EventInvitePage() {
 
                   <button
                     onClick={() => handleRsvpClick("maybe")}
-                    disabled={rsvpMutation.isPending}
+                    disabled={isPending || (mode === 'guest' && !guestName.trim())}
                     className={`group relative flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${
                       rsvpResponse === "maybe"
                         ? "border-warning bg-warning/10"
                         : "border-border hover:border-warning/50 hover:bg-warning/5"
-                    } ${rsvpMutation.isPending ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                    } ${isPending || (mode === 'guest' && !guestName.trim()) ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
                   >
                     <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-2 transition-colors ${
                       rsvpResponse === "maybe"
@@ -622,12 +835,12 @@ export default function EventInvitePage() {
 
                   <button
                     onClick={() => handleRsvpClick("not_going")}
-                    disabled={rsvpMutation.isPending}
+                    disabled={isPending || (mode === 'guest' && !guestName.trim())}
                     className={`group relative flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${
                       rsvpResponse === "not_going"
                         ? "border-destructive bg-destructive/10"
                         : "border-border hover:border-destructive/50 hover:bg-destructive/5"
-                    } ${rsvpMutation.isPending ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                    } ${isPending || (mode === 'guest' && !guestName.trim()) ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
                   >
                     <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-2 transition-colors ${
                       rsvpResponse === "not_going"
@@ -642,7 +855,13 @@ export default function EventInvitePage() {
                   </button>
                 </div>
 
-                {rsvpMutation.isPending && (
+                {mode === 'guest' && !guestName.trim() && (
+                  <p className="text-center mt-4 text-sm text-muted-foreground">
+                    Enter your name above to RSVP
+                  </p>
+                )}
+
+                {isPending && (
                   <div className="text-center mt-4 text-muted-foreground">
                     Submitting your RSVP...
                   </div>
@@ -705,10 +924,10 @@ export default function EventInvitePage() {
                 <div className="flex gap-3 pt-2">
                   <Button
                     onClick={handleFeedbackSubmit}
-                    disabled={rsvpMutation.isPending}
+                    disabled={isPending}
                     className="flex-1"
                   >
-                    {rsvpMutation.isPending ? "Submitting..." : "Submit RSVP"}
+                    {isPending ? "Submitting..." : "Submit RSVP"}
                   </Button>
                   <Button
                     variant="outline"
@@ -729,7 +948,7 @@ export default function EventInvitePage() {
         </Card>
 
         {/* Email CTA for members without email */}
-        {selectedMember && !selectedMember.email && (
+        {mode === 'member' && selectedMember && !selectedMember.email && (
           <Card className="mb-4 bg-secondary/10 border-secondary/20">
             <CardContent className="pt-5">
               <h3 className="font-semibold mb-2">
@@ -749,7 +968,7 @@ export default function EventInvitePage() {
         )}
 
         {/* Create Account CTA */}
-        {!rsvpSubmitted && (
+        {mode === 'member' && !rsvpSubmitted && (
           <Card className="bg-accent/10 border-accent/20">
             <CardContent className="pt-5">
               <div className="flex items-start gap-3">
