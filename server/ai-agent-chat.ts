@@ -128,6 +128,7 @@ export async function runEventPlanningAgent(
 7. **Be Conversational**: Ask clarifying questions, explain your reasoning briefly.
 8. **Confirm Actions**: Before modifying anything (adding venue, rescheduling), describe what you'll do and ask for confirmation.
 9. **Be Concise**: Keep responses short and focused. Use bullet points for lists.
+10. **Include Google Maps Links**: When recommending venues, ALWAYS include the googleMapsUrl as a clickable markdown link like [View on Google Maps](url) so users can easily check the location.
 
 ## Current Context
 - Itinerary ID: ${itineraryId}
@@ -325,6 +326,7 @@ export async function streamEventPlanningAgent(
 7. **Be Conversational**: Ask clarifying questions, explain your reasoning briefly.
 8. **Confirm Actions**: Before modifying anything (adding venue, rescheduling), describe what you'll do and ask for confirmation.
 9. **Be Concise**: Keep responses short and focused. Use bullet points for lists.
+10. **Include Google Maps Links**: When recommending venues, ALWAYS include the googleMapsUrl as a clickable markdown link like [View on Google Maps](url) so users can easily check the location.
 
 ## Current Context
 - Itinerary ID: ${itineraryId}

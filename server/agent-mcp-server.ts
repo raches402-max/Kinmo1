@@ -24,6 +24,45 @@ interface ToolDefinition {
   };
 }
 
+// Helper: Generate Google Maps URL for a venue
+function generateGoogleMapsUrl(options: {
+  placeId?: string | null;
+  name?: string | null;
+  address?: string | null;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
+}): string {
+  // Best option: Use Place ID for most accurate link
+  if (options.placeId) {
+    return `https://www.google.com/maps/place/?q=place_id:${options.placeId}`;
+  }
+
+  // Second option: Use coordinates
+  if (options.latitude && options.longitude) {
+    const lat = typeof options.latitude === 'string' ? parseFloat(options.latitude) : options.latitude;
+    const lng = typeof options.longitude === 'string' ? parseFloat(options.longitude) : options.longitude;
+    if (!isNaN(lat) && !isNaN(lng)) {
+      // Include name in search if available for better pin label
+      if (options.name) {
+        return `https://www.google.com/maps/search/${encodeURIComponent(options.name)}/@${lat},${lng},17z`;
+      }
+      return `https://www.google.com/maps/@${lat},${lng},17z`;
+    }
+  }
+
+  // Third option: Search by name and address
+  if (options.name && options.address) {
+    return `https://www.google.com/maps/search/${encodeURIComponent(`${options.name} ${options.address}`)}`;
+  }
+
+  // Last resort: Search by name only
+  if (options.name) {
+    return `https://www.google.com/maps/search/${encodeURIComponent(options.name)}`;
+  }
+
+  return '';
+}
+
 // Helper: Calculate distance between two coordinates in miles
 function calculateDistanceMiles(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 3959; // Earth's radius in miles
@@ -409,7 +448,13 @@ async function handleResolveLocation(args: { query: string }): Promise<string> {
         address: geocodeResult.formattedAddress,
         latitude: geocodeResult.latitude,
         longitude: geocodeResult.longitude,
-        source: "geocoding"
+        source: "geocoding",
+        googleMapsUrl: generateGoogleMapsUrl({
+          name: args.query,
+          address: geocodeResult.formattedAddress,
+          latitude: geocodeResult.latitude,
+          longitude: geocodeResult.longitude
+        })
       });
     }
 
@@ -423,7 +468,14 @@ async function handleResolveLocation(args: { query: string }): Promise<string> {
         latitude: place.location?.lat,
         longitude: place.location?.lng,
         placeId: place.placeId,
-        source: "places"
+        source: "places",
+        googleMapsUrl: generateGoogleMapsUrl({
+          placeId: place.placeId,
+          name: place.name,
+          address: place.address,
+          latitude: place.location?.lat,
+          longitude: place.location?.lng
+        })
       });
     }
 
@@ -458,7 +510,14 @@ async function handleSearchVenues(args: {
       category: place.types?.[0] || "unknown",
       latitude: place.location?.lat,
       longitude: place.location?.lng,
-      photoUrl: place.photoUrl || null
+      photoUrl: place.photoUrl || null,
+      googleMapsUrl: generateGoogleMapsUrl({
+        placeId: place.placeId,
+        name: place.name,
+        address: place.address,
+        latitude: place.location?.lat,
+        longitude: place.location?.lng
+      })
     }));
 
     return JSON.stringify({ venues, count: venues.length });
@@ -526,7 +585,14 @@ async function handleGetGroupFavorites(args: {
       rating: f.rating,
       priceLevel: f.priceLevel,
       photoUrl: f.photoUrl,
-      isFavorite: true
+      isFavorite: true,
+      googleMapsUrl: generateGoogleMapsUrl({
+        placeId: f.placeId,
+        name: f.name,
+        address: f.address,
+        latitude: f.latitude,
+        longitude: f.longitude
+      })
     }));
 
     return JSON.stringify({
@@ -708,7 +774,12 @@ async function handleGetVenueDetails(args: { placeId: string }): Promise<string>
       rating: details.rating,
       priceLevel: details.priceLevel,
       hours: details.openingHours?.weekday_text,
-      review: details.review
+      review: details.review,
+      googleMapsUrl: generateGoogleMapsUrl({
+        placeId: args.placeId,
+        name: details.name,
+        address: details.address
+      })
     });
   } catch (error: any) {
     return JSON.stringify({ error: error.message });
