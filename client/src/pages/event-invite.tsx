@@ -1010,26 +1010,6 @@ export default function EventInvitePage() {
           </CardContent>
         </Card>
 
-        {/* Email CTA for members without email */}
-        {mode === 'member' && selectedMember && !selectedMember.email && (
-          <Card className="mb-4 bg-secondary/10 border-secondary/20">
-            <CardContent className="pt-5">
-              <h3 className="font-semibold mb-2">
-                Get notified about future events
-              </h3>
-              <p className="text-sm text-muted-foreground mb-3">
-                Add your email so you don't miss the next {event.groupName} event.
-              </p>
-              <Button variant="outline" size="sm" asChild>
-                <Link href={`/member-profile-setup?member=${selectedMemberId}`}>
-                  Add Email Address
-                  <ChevronRight className="h-4 w-4 ml-1" />
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
         {/* Create Account CTA */}
         {mode === 'member' && !rsvpSubmitted && (
           <Card className="bg-accent/10 border-accent/20">
@@ -1040,10 +1020,10 @@ export default function EventInvitePage() {
                 </div>
                 <div className="flex-1">
                   <h3 className="font-semibold mb-1">
-                    See all upcoming events
+                    Never miss a {event.groupName} event
                   </h3>
                   <p className="text-sm text-muted-foreground mb-3">
-                    Create an account to view all {event.groupName} events, set preferences, and influence future scheduling.
+                    Create an account to get notified about future events, set your preferences, and influence scheduling.
                   </p>
                   <Button
                     variant="outline"
