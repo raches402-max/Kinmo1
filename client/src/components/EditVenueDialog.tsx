@@ -303,7 +303,9 @@ export function EditVenueDialog({ open, onOpenChange, venue, itineraryId, groupI
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "Failed to update venue");
+        // Handle both { message: "..." } and { error: "...", details: [...] } formats
+        const errorMessage = error.message || error.error || "Failed to update venue";
+        throw new Error(errorMessage);
       }
 
       return response.json();
