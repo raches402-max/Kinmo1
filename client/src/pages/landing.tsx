@@ -48,6 +48,80 @@ function generateRotation(rotationIndex: number): string[] {
   ];
 }
 
+// Mobile: Diagonal layout (unchanged)
+function DiagonalLayout({
+  currentWord,
+  isAnimating,
+  className = ""
+}: {
+  currentWord: string;
+  isAnimating: boolean;
+  className?: string;
+}) {
+  return (
+    <span className={`relative block w-[280px] sm:w-[340px] h-[110px] sm:h-[140px] ${className}`}>
+      <span className="absolute top-0 -left-8 sm:-left-12 text-foreground">See your</span>
+      <span
+        className={`absolute top-[38%] left-1/2 -translate-x-1/2 transition-opacity duration-300 font-bold whitespace-nowrap ${
+          isAnimating ? "opacity-0" : "opacity-100"
+        }`}
+        style={{ color: '#F5C030' }}
+      >
+        {currentWord}
+      </span>
+      <span className="absolute bottom-0 -right-6 sm:-right-8 text-foreground">more.</span>
+    </span>
+  );
+}
+
+// Desktop: Subscript Caret layout (new)
+function SubscriptCaretLayout({
+  currentWord,
+  isAnimating,
+  className = ""
+}: {
+  currentWord: string;
+  isAnimating: boolean;
+  className?: string;
+}) {
+  return (
+    <span className={`inline-block relative pb-6 ${className}`}>
+      {/* Main text line */}
+      <span className="text-foreground flex items-baseline justify-center">
+        <span>See your</span>
+        {/* Subscript caret container */}
+        <span className="relative mx-3">
+          {/* The word floating above the text */}
+          <span
+            className={`absolute bottom-[calc(100%+10px)] left-1/2 -translate-x-1/2 transition-all duration-300 ${
+              isAnimating ? "opacity-0 translate-y-1" : "opacity-100 translate-y-0"
+            }`}
+          >
+            <span
+              className="text-3xl lg:text-4xl xl:text-5xl font-bold whitespace-nowrap"
+              style={{ color: '#F5C030' }}
+            >
+              {currentWord}
+            </span>
+          </span>
+          {/* Placeholder for spacing */}
+          <span className="invisible">^</span>
+          {/* Caret positioned as subscript */}
+          <svg
+            viewBox="0 0 24 14"
+            className="absolute left-1/2 -translate-x-1/2 top-full mt-1 w-8 h-5 lg:w-10 lg:h-6"
+            style={{ color: '#F5C030' }}
+            fill="currentColor"
+          >
+            <path d="M12 0 L24 14 L18 14 L12 6 L6 14 L0 14 Z" />
+          </svg>
+        </span>
+        <span>more.</span>
+      </span>
+    </span>
+  );
+}
+
 function RotatingHeadline() {
   const [rotationIndex, setRotationIndex] = useState(0);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -135,17 +209,38 @@ function RotatingHeadline() {
   // fadeToKinmo phase - fade out entire phrase
   if (phase === "fadeToKinmo") {
     return (
-      <span className="relative block w-[280px] sm:w-[340px] md:w-[420px] lg:w-[500px] h-[110px] sm:h-[140px] md:h-[170px] lg:h-[200px] animate-fade-out-phrase">
-        <span className="absolute top-0 -left-8 sm:-left-12 md:-left-16 lg:-left-20 text-foreground">See your</span>
-        <span className="absolute top-[38%] left-1/2 -translate-x-1/2 font-bold whitespace-nowrap" style={{ color: '#F5C030' }}>
-          kin
+      <>
+        {/* Mobile: Diagonal */}
+        <span className="md:hidden relative block w-[280px] sm:w-[340px] h-[110px] sm:h-[140px] animate-fade-out-phrase">
+          <span className="absolute top-0 -left-8 sm:-left-12 text-foreground">See your</span>
+          <span className="absolute top-[38%] left-1/2 -translate-x-1/2 font-bold whitespace-nowrap" style={{ color: '#F5C030' }}>
+            kin
+          </span>
+          <span className="absolute bottom-0 -right-6 sm:-right-8 text-foreground">more.</span>
         </span>
-        <span className="absolute bottom-0 -right-6 sm:-right-8 md:-right-10 lg:-right-12 text-foreground">more.</span>
-      </span>
+        {/* Desktop: Subscript Caret */}
+        <span className="hidden md:inline-block relative pb-6 animate-fade-out-phrase">
+          <span className="text-foreground flex items-baseline justify-center">
+            <span>See your</span>
+            <span className="relative mx-3">
+              <span className="absolute bottom-[calc(100%+10px)] left-1/2 -translate-x-1/2">
+                <span className="text-3xl lg:text-4xl xl:text-5xl font-bold whitespace-nowrap" style={{ color: '#F5C030' }}>
+                  kin
+                </span>
+              </span>
+              <span className="invisible">^</span>
+              <svg viewBox="0 0 24 14" className="absolute left-1/2 -translate-x-1/2 top-full mt-1 w-8 h-5 lg:w-10 lg:h-6" style={{ color: '#F5C030' }} fill="currentColor">
+                <path d="M12 0 L24 14 L18 14 L12 6 L6 14 L0 14 Z" />
+              </svg>
+            </span>
+            <span>more.</span>
+          </span>
+        </span>
+      </>
     );
   }
 
-  // Kinmo phase - centered, no surrounding text
+  // Kinmo phase - centered, no surrounding text (same for both)
   if (phase === "kinmo") {
     return (
       <span className="font-bold animate-kinmo-appear" style={{ color: '#F5C030' }}>
@@ -154,7 +249,7 @@ function RotatingHeadline() {
     );
   }
 
-  // fadeOut phase - fade out Kinmo
+  // fadeOut phase - fade out Kinmo (same for both)
   if (phase === "fadeOut") {
     return (
       <span className="font-bold animate-fade-out-phrase" style={{ color: '#F5C030' }}>
@@ -166,31 +261,53 @@ function RotatingHeadline() {
   // fadeIn phase - fade in the full phrase to restart
   if (phase === "fadeIn") {
     return (
-      <span className="relative block w-[280px] sm:w-[340px] md:w-[420px] lg:w-[500px] h-[110px] sm:h-[140px] md:h-[170px] lg:h-[200px] animate-fade-in-phrase">
-        <span className="absolute top-0 -left-8 sm:-left-12 md:-left-16 lg:-left-20 text-foreground">See your</span>
-        <span className="absolute top-[38%] left-1/2 -translate-x-1/2 font-bold whitespace-nowrap" style={{ color: '#F5C030' }}>
-          {currentWords[0]}
+      <>
+        {/* Mobile: Diagonal */}
+        <span className="md:hidden relative block w-[280px] sm:w-[340px] h-[110px] sm:h-[140px] animate-fade-in-phrase">
+          <span className="absolute top-0 -left-8 sm:-left-12 text-foreground">See your</span>
+          <span className="absolute top-[38%] left-1/2 -translate-x-1/2 font-bold whitespace-nowrap" style={{ color: '#F5C030' }}>
+            {currentWords[0]}
+          </span>
+          <span className="absolute bottom-0 -right-6 sm:-right-8 text-foreground">more.</span>
         </span>
-        <span className="absolute bottom-0 -right-6 sm:-right-8 md:-right-10 lg:-right-12 text-foreground">more.</span>
-      </span>
+        {/* Desktop: Subscript Caret */}
+        <span className="hidden md:inline-block relative pb-6 animate-fade-in-phrase">
+          <span className="text-foreground flex items-baseline justify-center">
+            <span>See your</span>
+            <span className="relative mx-3">
+              <span className="absolute bottom-[calc(100%+10px)] left-1/2 -translate-x-1/2">
+                <span className="text-3xl lg:text-4xl xl:text-5xl font-bold whitespace-nowrap" style={{ color: '#F5C030' }}>
+                  {currentWords[0]}
+                </span>
+              </span>
+              <span className="invisible">^</span>
+              <svg viewBox="0 0 24 14" className="absolute left-1/2 -translate-x-1/2 top-full mt-1 w-8 h-5 lg:w-10 lg:h-6" style={{ color: '#F5C030' }} fill="currentColor">
+                <path d="M12 0 L24 14 L18 14 L12 6 L6 14 L0 14 Z" />
+              </svg>
+            </span>
+            <span>more.</span>
+          </span>
+        </span>
+      </>
     );
   }
 
-  // Rotating phase - fixed diagonal layout with absolute positioning
-  // "See your" top-left, rotating word centered, "more." bottom-right
+  // Rotating phase - different layouts for mobile vs desktop
   return (
-    <span className="relative block w-[280px] sm:w-[340px] md:w-[420px] lg:w-[500px] h-[110px] sm:h-[140px] md:h-[170px] lg:h-[200px]">
-      <span className="absolute top-0 -left-8 sm:-left-12 md:-left-16 lg:-left-20 text-foreground">See your</span>
-      <span
-        className={`absolute top-[38%] left-1/2 -translate-x-1/2 transition-opacity duration-300 font-bold whitespace-nowrap ${
-          isAnimating ? "opacity-0" : "opacity-100"
-        }`}
-        style={{ color: '#F5C030' }}
-      >
-        {currentWords[currentIndex]}
-      </span>
-      <span className="absolute bottom-0 -right-6 sm:-right-8 md:-right-10 lg:-right-12 text-foreground">more.</span>
-    </span>
+    <>
+      {/* Mobile: Diagonal layout */}
+      <DiagonalLayout
+        currentWord={currentWords[currentIndex]}
+        isAnimating={isAnimating}
+        className="md:hidden"
+      />
+      {/* Desktop: Subscript Caret layout */}
+      <SubscriptCaretLayout
+        currentWord={currentWords[currentIndex]}
+        isAnimating={isAnimating}
+        className="hidden md:inline-block"
+      />
+    </>
   );
 }
 
@@ -239,7 +356,8 @@ export default function Landing() {
 
           <p className="text-sm tracking-wide uppercase text-muted-foreground mb-3">Using AI to help you</p>
           {/* Fixed height container to prevent layout shift when "Kinmo" displays */}
-          <div className="min-h-[110px] sm:min-h-[140px] md:min-h-[170px] lg:min-h-[200px] flex items-center justify-center mb-8 sm:mb-12">
+          {/* Mobile uses diagonal (taller), Desktop uses subscript caret (more compact) */}
+          <div className="min-h-[110px] sm:min-h-[140px] md:min-h-[140px] lg:min-h-[160px] flex items-center justify-center mb-8 sm:mb-12">
             <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.15]">
               <RotatingHeadline />
             </h1>
