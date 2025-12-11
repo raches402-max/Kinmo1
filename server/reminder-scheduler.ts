@@ -16,6 +16,10 @@ import { storage } from './storage';
 import { selectBestItineraryForAutoSchedule, shouldTriggerAutoSchedule, maintainEventPipeline, calculateTargetEventCount } from './auto-scheduler';
 import { calculateEventConfidence, shouldRequireReview } from './confidence-scoring';
 import { randomBytes } from 'crypto';
+import { createTrackedJob, getJobHealthStatus } from './lib/job-tracker';
+
+// Export job health status for API endpoint
+export { getJobHealthStatus };
 
 /**
  * Calculate lead days for availability pulse based on meeting frequency
@@ -1349,77 +1353,44 @@ export function startReminderScheduler(): void {
   const AUTO_SEND_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
   const AUTO_APPROVAL_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
-  console.log('Starting reminder scheduler...');
+  console.log('Starting reminder scheduler with job tracking...');
 
-  // Run reminders immediately and every 5 minutes (async, non-blocking)
-  processScheduledReminders().catch(err => {
-    console.error('Error in initial reminder processing:', err);
-  });
-  setInterval(() => {
-    processScheduledReminders().catch(err => {
-      console.error('Error in scheduled reminder processing:', err);
-    });
-  }, REMINDER_INTERVAL_MS);
+  // Create tracked job runners for all background tasks
+  const trackedReminders = createTrackedJob('scheduledReminders', processScheduledReminders);
+  const trackedAutoScheduling = createTrackedJob('autoScheduling', processAutoScheduling);
+  const trackedAutoSend = createTrackedJob('autoSend', processAutoSend);
+  const trackedAutoApproval = createTrackedJob('autoApproval', checkAndAutoApproveEvents);
+  const trackedAutoSuggestions = createTrackedJob('autoSuggestions', autoProcessSuggestions);
+  const trackedTimeSlots = createTrackedJob('timeSlotSelection', checkAndSelectTimeSlots);
+  const trackedAutoDrafts = createTrackedJob('autoDraftItineraries', processAutoDraftItineraries);
 
-  // Run auto-scheduling immediately and daily (async, non-blocking)
-  processAutoScheduling().catch(err => {
-    console.error('Error in initial auto-scheduling:', err);
-  });
-  setInterval(() => {
-    processAutoScheduling().catch(err => {
-      console.error('Error in scheduled auto-scheduling:', err);
-    });
-  }, AUTO_SCHEDULE_INTERVAL_MS);
+  // Run reminders immediately and every 5 minutes
+  trackedReminders();
+  setInterval(trackedReminders, REMINDER_INTERVAL_MS);
 
-  // Run auto-send immediately and every hour (async, non-blocking)
-  processAutoSend().catch(err => {
-    console.error('Error in initial auto-send:', err);
-  });
-  setInterval(() => {
-    processAutoSend().catch(err => {
-      console.error('Error in scheduled auto-send:', err);
-    });
-  }, AUTO_SEND_INTERVAL_MS);
+  // Run auto-scheduling immediately and daily
+  trackedAutoScheduling();
+  setInterval(trackedAutoScheduling, AUTO_SCHEDULE_INTERVAL_MS);
 
-  // Run auto-approval check immediately and every hour (async, non-blocking)
-  checkAndAutoApproveEvents().catch(err => {
-    console.error('Error in initial auto-approval check:', err);
-  });
-  setInterval(() => {
-    checkAndAutoApproveEvents().catch(err => {
-      console.error('Error in scheduled auto-approval check:', err);
-    });
-  }, AUTO_APPROVAL_INTERVAL_MS);
+  // Run auto-send immediately and every hour
+  trackedAutoSend();
+  setInterval(trackedAutoSend, AUTO_SEND_INTERVAL_MS);
 
-  // Run auto-process suggestions immediately and every hour (async, non-blocking)
-  autoProcessSuggestions().catch(err => {
-    console.error('Error in initial auto-process suggestions:', err);
-  });
-  setInterval(() => {
-    autoProcessSuggestions().catch(err => {
-      console.error('Error in scheduled auto-process suggestions:', err);
-    });
-  }, AUTO_APPROVAL_INTERVAL_MS);
+  // Run auto-approval check immediately and every hour
+  trackedAutoApproval();
+  setInterval(trackedAutoApproval, AUTO_APPROVAL_INTERVAL_MS);
 
-  // Run time slot selection immediately and daily (async, non-blocking)
-  checkAndSelectTimeSlots().catch(err => {
-    console.error('Error in initial time selection check:', err);
-  });
-  setInterval(() => {
-    checkAndSelectTimeSlots().catch(err => {
-      console.error('Error in scheduled time selection check:', err);
-    });
-  }, AUTO_SCHEDULE_INTERVAL_MS); // Run daily, same as auto-scheduling
+  // Run auto-process suggestions immediately and every hour
+  trackedAutoSuggestions();
+  setInterval(trackedAutoSuggestions, AUTO_APPROVAL_INTERVAL_MS);
 
-  // Run auto-draft itinerary creation immediately and daily (async, non-blocking)
-  processAutoDraftItineraries().catch(err => {
-    console.error('Error in initial auto-draft processing:', err);
-  });
-  setInterval(() => {
-    processAutoDraftItineraries().catch(err => {
-      console.error('Error in scheduled auto-draft processing:', err);
-    });
-  }, AUTO_SCHEDULE_INTERVAL_MS); // Run daily, same as auto-scheduling
+  // Run time slot selection immediately and daily
+  trackedTimeSlots();
+  setInterval(trackedTimeSlots, AUTO_SCHEDULE_INTERVAL_MS);
+
+  // Run auto-draft itinerary creation immediately and daily
+  trackedAutoDrafts();
+  setInterval(trackedAutoDrafts, AUTO_SCHEDULE_INTERVAL_MS);
 
   // Run weekly swipe digest (checks every day, only runs on Monday)
   const processWeeklySwipeDigest = async () => {
@@ -1429,39 +1400,25 @@ export function startReminderScheduler(): void {
     // Only run on Mondays
     if (dayOfWeek === 1) {
       const { processWeeklyDigests } = await import('./swipe-digest-worker');
-      processWeeklyDigests().catch(err => {
-        console.error('Error in weekly swipe digest:', err);
-      });
+      await processWeeklyDigests();
     }
   };
 
-  processWeeklySwipeDigest().catch(err => {
-    console.error('Error in initial weekly digest check:', err);
-  });
-  setInterval(() => {
-    processWeeklySwipeDigest().catch(err => {
-      console.error('Error in scheduled weekly digest:', err);
-    });
-  }, AUTO_SCHEDULE_INTERVAL_MS); // Check daily, runs only on Mondays
+  const trackedWeeklyDigest = createTrackedJob('weeklySwipeDigest', processWeeklySwipeDigest);
+  trackedWeeklyDigest();
+  setInterval(trackedWeeklyDigest, AUTO_SCHEDULE_INTERVAL_MS);
 
   // Auto-Refresh Stale Activities - runs daily
   const ACTIVITY_REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
   const processActivityRefresh = async () => {
     const { refreshStaleActivityPools } = await import('./activity-refresh-worker');
-    refreshStaleActivityPools().catch(err => {
-      console.error('Error in activity refresh:', err);
-    });
+    await refreshStaleActivityPools();
   };
 
-  processActivityRefresh().catch(err => {
-    console.error('Error in initial activity refresh:', err);
-  });
-  setInterval(() => {
-    processActivityRefresh().catch(err => {
-      console.error('Error in scheduled activity refresh:', err);
-    });
-  }, ACTIVITY_REFRESH_INTERVAL_MS);
+  const trackedActivityRefresh = createTrackedJob('activityRefresh', processActivityRefresh);
+  trackedActivityRefresh();
+  setInterval(trackedActivityRefresh, ACTIVITY_REFRESH_INTERVAL_MS);
 
   // Auto-Cleanup Old Pending Events - runs daily
   const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -1511,48 +1468,34 @@ export function startReminderScheduler(): void {
     }
   };
 
-  processOldEventCleanup().catch(err => {
-    console.error('Error in initial event cleanup:', err);
-  });
-  setInterval(() => {
-    processOldEventCleanup().catch(err => {
-      console.error('Error in scheduled event cleanup:', err);
-    });
-  }, CLEANUP_INTERVAL_MS);
+  const trackedEventCleanup = createTrackedJob('eventCleanup', processOldEventCleanup);
+  trackedEventCleanup();
+  setInterval(trackedEventCleanup, CLEANUP_INTERVAL_MS);
 
   // Cleanup past rejected dates - runs daily alongside event cleanup
   const cleanupPastRejectedDates = async () => {
-    try {
-      console.log('[Rejected Dates Cleanup] Cleaning up past rejected dates...');
+    console.log('[Rejected Dates Cleanup] Cleaning up past rejected dates...');
 
-      const now = new Date();
-      // Delete rejected dates that are more than 7 days in the past
-      const sevenDaysAgo = new Date(now);
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const now = new Date();
+    // Delete rejected dates that are more than 7 days in the past
+    const sevenDaysAgo = new Date(now);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-      const deletedDates = await db
-        .delete(rejectedEventDates)
-        .where(lt(rejectedEventDates.rejectedDate, sevenDaysAgo))
-        .returning();
+    const deletedDates = await db
+      .delete(rejectedEventDates)
+      .where(lt(rejectedEventDates.rejectedDate, sevenDaysAgo))
+      .returning();
 
-      if (deletedDates.length > 0) {
-        console.log(`[Rejected Dates Cleanup] Removed ${deletedDates.length} old rejected date(s)`);
-      } else {
-        console.log('[Rejected Dates Cleanup] No old rejected dates to clean up');
-      }
-    } catch (error) {
-      console.error('[Rejected Dates Cleanup] Error:', error);
+    if (deletedDates.length > 0) {
+      console.log(`[Rejected Dates Cleanup] Removed ${deletedDates.length} old rejected date(s)`);
+    } else {
+      console.log('[Rejected Dates Cleanup] No old rejected dates to clean up');
     }
   };
 
-  cleanupPastRejectedDates().catch(err => {
-    console.error('Error in initial rejected dates cleanup:', err);
-  });
-  setInterval(() => {
-    cleanupPastRejectedDates().catch(err => {
-      console.error('Error in scheduled rejected dates cleanup:', err);
-    });
-  }, CLEANUP_INTERVAL_MS);
+  const trackedRejectedDatesCleanup = createTrackedJob('rejectedDatesCleanup', cleanupPastRejectedDates);
+  trackedRejectedDatesCleanup();
+  setInterval(trackedRejectedDatesCleanup, CLEANUP_INTERVAL_MS);
 
   // Post-Event Feedback Request - runs daily
   const FEEDBACK_REQUEST_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -1650,74 +1593,47 @@ export function startReminderScheduler(): void {
     }
   };
 
-  processPostEventFeedbackRequests().catch(err => {
-    console.error('Error in initial feedback request processing:', err);
-  });
-  setInterval(() => {
-    processPostEventFeedbackRequests().catch(err => {
-      console.error('Error in scheduled feedback request processing:', err);
-    });
-  }, FEEDBACK_REQUEST_INTERVAL_MS);
+  const trackedFeedbackRequests = createTrackedJob('feedbackRequests', processPostEventFeedbackRequests);
+  trackedFeedbackRequests();
+  setInterval(trackedFeedbackRequests, FEEDBACK_REQUEST_INTERVAL_MS);
 
   // Planning Agent - runs daily to generate proactive insights
   const PLANNING_AGENT_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
   const runPlanningAgentTask = async () => {
-    try {
-      console.log('[Planning Agent] Starting scheduled run...');
-      const { runPlanningAgent } = await import('./planning-agent');
-      await runPlanningAgent();
-    } catch (error) {
-      console.error('[Planning Agent] Error in scheduled run:', error);
-    }
+    console.log('[Planning Agent] Starting scheduled run...');
+    const { runPlanningAgent } = await import('./planning-agent');
+    await runPlanningAgent();
   };
 
-  // Run after a short delay on startup (give other systems time to initialize)
-  setTimeout(() => {
-    runPlanningAgentTask().catch(err => {
-      console.error('Error in initial planning agent run:', err);
-    });
-  }, 60000); // 1 minute after startup
+  const trackedPlanningAgent = createTrackedJob('planningAgent', runPlanningAgentTask);
 
-  setInterval(() => {
-    runPlanningAgentTask().catch(err => {
-      console.error('Error in scheduled planning agent run:', err);
-    });
-  }, PLANNING_AGENT_INTERVAL_MS);
+  // Run after a short delay on startup (give other systems time to initialize)
+  setTimeout(trackedPlanningAgent, 60000); // 1 minute after startup
+  setInterval(trackedPlanningAgent, PLANNING_AGENT_INTERVAL_MS);
 
   // Database Backup - runs daily
   const BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
   const processAutoDatabaseBackup = async () => {
     console.log('[Database Backup] Starting scheduled backup...');
-    try {
-      const backup = await storage.createDatabaseBackup(
-        'daily_auto',
-        undefined,
-        `Automated daily backup - ${new Date().toISOString().split('T')[0]}`
-      );
-      console.log(`[Database Backup] ✓ Created backup ${backup.id}`);
+    const backup = await storage.createDatabaseBackup(
+      'daily_auto',
+      undefined,
+      `Automated daily backup - ${new Date().toISOString().split('T')[0]}`
+    );
+    console.log(`[Database Backup] ✓ Created backup ${backup.id}`);
 
-      // Keep only last 30 auto backups
-      await storage.pruneDatabaseBackups(30);
-      console.log('[Database Backup] ✓ Cleanup complete');
-    } catch (error) {
-      console.error('[Database Backup] ✗ Backup failed:', error);
-    }
+    // Keep only last 30 auto backups
+    await storage.pruneDatabaseBackups(30);
+    console.log('[Database Backup] ✓ Cleanup complete');
   };
 
-  // Run after 1 minute on startup, then every 24 hours
-  setTimeout(() => {
-    processAutoDatabaseBackup().catch(err => {
-      console.error('Error in initial database backup:', err);
-    });
-  }, 60000);
+  const trackedDatabaseBackup = createTrackedJob('databaseBackup', processAutoDatabaseBackup);
 
-  setInterval(() => {
-    processAutoDatabaseBackup().catch(err => {
-      console.error('Error in scheduled database backup:', err);
-    });
-  }, BACKUP_INTERVAL_MS);
+  // Run after 1 minute on startup, then every 24 hours
+  setTimeout(trackedDatabaseBackup, 60000);
+  setInterval(trackedDatabaseBackup, BACKUP_INTERVAL_MS);
 
   console.log('Reminder scheduler started successfully');
 }

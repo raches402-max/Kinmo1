@@ -1,6 +1,7 @@
 // Reference: javascript_log_in_with_replit blueprint
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import * as Sentry from "@sentry/node";
 import { storage } from "./storage";
 import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberSchema, insertVotingEventSchema, updateVotingEventSchema, insertItinerarySchema, updateItinerarySchema, updateUserProfileSchema, activities as activitiesTable, groups as groupsTable, members as membersTable, itineraryInvites, guestInvites, rsvps as rsvpsTable, itineraries, itineraryItems, proposedTimeSlots, users, userProfiles, photosCache, geocodingCache, hostAssignments, curatedVenues, votingEvents as votingEventsTable, activitySwipes, activities, votingEvents, swipeSessions, venueVisitHistory, autoScheduledEvents, rejectedEventDates, userSavedPlaces, groupSavedPlaces, standaloneEventInvitees, type UpdateItinerary, type ItineraryItem } from "@shared/schema";
 import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue, categorizeVenuesBatch, analyzePreferencePatterns, parseSchedulingPrompt, parseSchedulingPromptWithHistory, detectCategory, getPromptCacheStats, validateVenueForCategory, type SchedulingParams } from "./openai";
@@ -41,6 +42,8 @@ import { validate, safeParse } from './validation-middleware';
 import { z } from 'zod';
 import rateLimit from 'express-rate-limit';
 import { generateOGImage, generateDefaultOGImage, type OGImageParams } from "./og-image";
+import { getJobHealthStatus } from "./lib/job-tracker";
+import { withTimeout } from "./lib/retry";
 import {
   createGroupSchema,
   createRsvpSchema,
@@ -1443,8 +1446,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...ownedGroups.map(g => g.id)
       ]);
 
-      // Get full group details for all groups
-      const groups = await Promise.all(
+      // Get full group details for all groups (using Promise.allSettled for resilience)
+      const groupResults = await Promise.allSettled(
         Array.from(allGroupIds).map(async (groupId) => {
           const [group] = await db
             .select()
@@ -1491,6 +1494,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           };
         })
       );
+
+      // Extract successful results, log failures
+      const groups = groupResults
+        .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled')
+        .map(r => r.value);
+
+      const failedGroups = groupResults.filter(r => r.status === 'rejected');
+      if (failedGroups.length > 0) {
+        console.error(`[Dashboard] ${failedGroups.length}/${allGroupIds.size} group fetches failed`);
+      }
 
       // Filter out nulls
       const validGroups = groups.filter(g => g !== null);
@@ -1817,9 +1830,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Fetch RSVP status and itinerary items for each invite
-      const events = await Promise.all(verifiedInvites.map(async (invite) => {
-        try {
+      // Fetch RSVP status and itinerary items for each invite (using Promise.allSettled for resilience)
+      const eventResults = await Promise.allSettled(verifiedInvites.map(async (invite) => {
         // Get RSVP if it exists
         let rsvp = null;
         if (invite.isOrganizer) {
@@ -2066,17 +2078,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
             travelNotes: item.travelNotes,
           })),
         };
-        } catch (error: any) {
-          console.error('[User Events] Error processing invite:', {
-            itineraryId: invite.itineraryId,
-            itineraryName: invite.itineraryName,
-            groupId: invite.groupId,
-            error: error.message,
-            stack: error.stack
-          });
-          throw error; // Re-throw to be caught by outer catch
-        }
       }));
+
+      // Extract successful results, log failures
+      const events = eventResults
+        .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled')
+        .map(r => r.value);
+
+      const failedEvents = eventResults.filter(r => r.status === 'rejected');
+      if (failedEvents.length > 0) {
+        console.error(`[User Events] ${failedEvents.length}/${verifiedInvites.length} event fetches failed`);
+        failedEvents.forEach((f, i) => {
+          if (f.status === 'rejected') {
+            console.error(`[User Events] Failed event ${i}:`, f.reason);
+          }
+        });
+      }
 
       // Add draft and proposed itineraries (auto-created for scheduled groups, or manually created but not yet sent)
       // Only include itineraries that don't already have invites (to avoid duplicates)
@@ -2573,7 +2590,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Generate AI activity suggestions in background
-      generateAndStoreActivities(group.id, validatedGroup);
+      generateAndStoreActivities(group.id, validatedGroup).catch((error) => {
+        console.error(`[Activity Generation] Failed for group ${group.id}:`, error);
+        Sentry.captureException(error, {
+          tags: { groupId: group.id, operation: 'generateActivities' },
+          level: 'error'
+        });
+      });
 
       // Send welcome emails to new members in background
       if (members && members.length > 0) {
@@ -2599,6 +2622,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           } catch (error) {
             console.error('Error sending welcome emails:', error);
+            Sentry.captureException(error, {
+              tags: { groupId: group.id, operation: 'sendWelcomeEmails' },
+              level: 'warning'
+            });
           }
         });
       }
@@ -5272,7 +5299,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       });
 
-      const venueLibrary = await Promise.all(venueLibraryPromises);
+      const venueLibraryResults = await Promise.allSettled(venueLibraryPromises);
+      const venueLibrary = venueLibraryResults
+        .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled')
+        .map(r => r.value);
+
+      const failedLibrary = venueLibraryResults.filter(r => r.status === 'rejected');
+      if (failedLibrary.length > 0) {
+        console.error(`[All Places] ${failedLibrary.length}/${userGroups.length} venue library fetches failed`);
+      }
 
       console.log(`[All Places] Found ${userGroups.length} groups, venueLibrary totals: ${venueLibrary.map(g => `${g.groupName}:${g.places.length}`).join(', ')}`);
 
@@ -5287,7 +5322,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       });
 
-      const groupPlaces = await Promise.all(groupPlacesPromises);
+      const groupPlacesResults = await Promise.allSettled(groupPlacesPromises);
+      const groupPlaces = groupPlacesResults
+        .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled')
+        .map(r => r.value);
+
+      const failedPlaces = groupPlacesResults.filter(r => r.status === 'rejected');
+      if (failedPlaces.length > 0) {
+        console.error(`[All Places] ${failedPlaces.length}/${userGroups.length} group places fetches failed`);
+      }
 
       res.json({
         personal: personalPlaces,
@@ -6811,8 +6854,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const groupMembers = await storage.getGroupMembers(req.params.groupId);
       const memberMap = new Map(groupMembers.map(m => [m.userId, m.name]));
 
-      // Fetch upvotes for each event and map to member names
-      const eventsWithLikedBy = await Promise.all(events.map(async (event) => {
+      // Fetch upvotes for each event and map to member names (using Promise.allSettled for resilience)
+      const eventsWithLikedByResults = await Promise.allSettled(events.map(async (event) => {
         const eventVotes = await storage.getEventVotes(event.id);
         const upvoters = eventVotes
           .filter(v => v.voteType === 'upvote')
@@ -6824,6 +6867,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           likedBy: upvoters,
         };
       }));
+
+      const eventsWithLikedBy = eventsWithLikedByResults
+        .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled')
+        .map(r => r.value);
+
+      const failedVotes = eventsWithLikedByResults.filter(r => r.status === 'rejected');
+      if (failedVotes.length > 0) {
+        console.error(`[Voting Events] ${failedVotes.length}/${events.length} vote fetches failed`);
+      }
 
       res.json(eventsWithLikedBy);
     } catch (error: any) {
@@ -7118,6 +7170,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         drinksEnabled: group.drinksEnabled,
         dessertEnabled: group.dessertEnabled,
         experiencesEnabled: group.experiencesEnabled,
+      }).catch((error) => {
+        console.error(`[Activity Regeneration] Failed for group ${req.params.id}:`, error);
+        Sentry.captureException(error, {
+          tags: { groupId: req.params.id, operation: 'regenerateActivities' },
+          level: 'error'
+        });
       });
 
       res.json({ success: true, message: "Activity generation restarted" });
@@ -14783,6 +14841,42 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Admin endpoint to check background job health
+  app.get("/api/admin/job-health", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = await getUserId(req);
+      const user = await storage.getUser(userId);
+
+      const adminEmails = getAdminEmails();
+      if (!user || !adminEmails.includes(user.email || '')) {
+        return res.status(403).json({ message: "Unauthorized: Admin access required" });
+      }
+
+      const jobHealth = getJobHealthStatus();
+
+      // Calculate overall status
+      const jobs = Object.values(jobHealth);
+      const failingJobs = jobs.filter(j => j.status === 'failing').length;
+      const degradedJobs = jobs.filter(j => j.status === 'degraded').length;
+
+      const overallStatus = failingJobs > 0 ? 'failing' : degradedJobs > 0 ? 'degraded' : 'healthy';
+
+      res.json({
+        overallStatus,
+        summary: {
+          total: jobs.length,
+          healthy: jobs.filter(j => j.status === 'healthy').length,
+          degraded: degradedJobs,
+          failing: failingJobs,
+        },
+        jobs: jobHealth,
+      });
+    } catch (error: any) {
+      console.error("Error fetching job health:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Admin endpoint to create database backup
   app.post("/api/admin/create-backup", isAuthenticated, async (req: any, res) => {
     try {
@@ -16528,9 +16622,9 @@ export async function generateAndStoreActivities(groupId: string, groupData: any
       await storage.updateGroupStatus(groupId, "generating", `Generating suggestions (attempt ${attempt} of ${maxAttempts})`);
 
       // Generate AI suggestions with feedback and list of venues to avoid
-      // Add 120-second timeout to prevent infinite hanging
+      // Use 90-second timeout to prevent infinite hanging (background task, can be longer)
       const aiPromptStart = Date.now();
-      const suggestions = await Promise.race([
+      const suggestions = await withTimeout(
         generateActivitySuggestions({
           locationBase: groupData.locationBase,
           budgetMin: groupData.budgetMin,
@@ -16560,10 +16654,9 @@ export async function generateAndStoreActivities(groupId: string, groupData: any
           dessertEnabled: groupData.dessertEnabled ?? true,
           experiencesEnabled: groupData.experiencesEnabled ?? true,
         }),
-        new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('AI generation timed out after 180 seconds')), 180000)
-        )
-      ]);
+        90000, // 90 second timeout
+        'AI activity generation timed out'
+      );
 
       const aiPromptEnd = Date.now();
 

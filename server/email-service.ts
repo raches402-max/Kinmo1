@@ -1,9 +1,49 @@
 import { Resend } from 'resend';
+import { withRetry } from './lib/retry';
 
 // ✅ EMAIL ENABLED - kinmo.ai domain verified in Resend
 const EMAIL_ENABLED = true;
 
 const resend = new Resend(process.env.RESEND_API_KEY);
+
+// Email-specific retry options
+const EMAIL_RETRY_OPTIONS = {
+  maxRetries: 3,
+  initialDelay: 1000,
+  maxDelay: 10000,
+  shouldRetry: (error: any) => {
+    // Retry on rate limits and server errors
+    const status = error.status || error.statusCode;
+    if (status === 429 || (status >= 500 && status < 600)) return true;
+    // Retry on network errors
+    if (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT') return true;
+    // Don't retry on client errors (bad email, etc.)
+    if (status >= 400 && status < 500) return false;
+    return true;
+  },
+  onRetry: (error: any, attempt: number, delay: number) => {
+    console.log(`[EMAIL Retry] Attempt ${attempt} failed, retrying in ${delay}ms:`, error.message);
+  },
+};
+
+/**
+ * Send email with automatic retry on transient failures
+ */
+async function sendEmailWithRetry(emailConfig: Parameters<typeof resend.emails.send>[0]) {
+  return withRetry(
+    async () => {
+      const result = await resend.emails.send(emailConfig);
+      // Treat Resend API-level errors as failures that should be retried
+      if (result.error) {
+        const error = new Error(result.error.message) as any;
+        error.status = 500; // Treat as server error to trigger retry
+        throw error;
+      }
+      return result;
+    },
+    EMAIL_RETRY_OPTIONS
+  );
+}
 
 export interface EmailRecipient {
   email: string;
@@ -93,7 +133,7 @@ export async function sendItineraryInvite(
       return normalized.replace(/\b\w/g, c => c.toUpperCase());
     };
 
-    const result = await resend.emails.send({
+    const result = await sendEmailWithRetry({
       from: 'Kinmo <invites@kinmo.ai>',
       to: recipient.email,
       subject: `${data.organizerName} invited you · ${data.groupName}`,
@@ -207,17 +247,10 @@ export async function sendItineraryInvite(
       `,
     });
 
-    console.log('[EMAIL] Resend response:', JSON.stringify(result, null, 2));
-
-    if (result.error) {
-      console.error('[EMAIL] Resend error:', result.error);
-      return { success: false, error: result.error.message };
-    }
-
     console.log(`[EMAIL] Successfully sent invite to ${recipient.email}, id: ${result.data?.id}`);
     return { success: true };
   } catch (error) {
-    console.error('[EMAIL] Error sending invite email:', error);
+    console.error('[EMAIL] Error sending invite email (after retries):', error);
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }
@@ -232,7 +265,7 @@ export async function sendGentleNudge(
   }
   try {
     const eventsUrl = getEventsUrl(data.rsvpLink);
-    await resend.emails.send({
+    await sendEmailWithRetry({
       from: 'Kinmo.ai <invites@kinmo.ai>',
       to: recipient.email,
       subject: `Reminder: ${data.groupName} - Haven't heard from you yet!`,
@@ -305,7 +338,7 @@ export async function sendFinalCall(
   }
   try {
     const eventsUrl = getEventsUrl(data.rsvpLink);
-    await resend.emails.send({
+    await sendEmailWithRetry({
       from: 'Kinmo.ai <invites@kinmo.ai>',
       to: recipient.email,
       subject: `Final call! ${data.groupName} - RSVP needed`,
@@ -380,7 +413,7 @@ export async function sendDayBeforeReminder(
   }
   try {
     const eventsUrl = getEventsUrl(data.rsvpLink);
-    await resend.emails.send({
+    await sendEmailWithRetry({
       from: 'Kinmo.ai <invites@kinmo.ai>',
       to: recipient.email,
       subject: `Tomorrow! ${data.groupName} - See you soon 🎉`,
@@ -461,7 +494,7 @@ export async function sendMemberWelcome(
   }
   try {
     const eventsUrl = getEventsUrl(data.claimLink);
-    await resend.emails.send({
+    await sendEmailWithRetry({
       from: 'Kinmo.ai <invites@kinmo.ai>',
       to: recipient.email,
       subject: `Welcome to ${data.groupName}!`,
@@ -559,7 +592,7 @@ export async function sendItineraryReschedule(
   }
   try {
     const eventsUrl = getEventsUrl(data.rsvpLink);
-    await resend.emails.send({
+    await sendEmailWithRetry({
       from: 'Kinmo.ai <invites@kinmo.ai>',
       to: recipient.email,
       subject: `Updated time! ${data.groupName} - New schedule`,
@@ -666,7 +699,7 @@ export async function sendAvailabilityPulseRequest(
     const formattedTarget = targetDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
     const formattedDeadline = deadlineDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
-    await resend.emails.send({
+    await sendEmailWithRetry({
       from: 'Kinmo.ai <invites@kinmo.ai>',
       to: recipient.email,
       subject: `When works for you? · ${data.groupName}`,

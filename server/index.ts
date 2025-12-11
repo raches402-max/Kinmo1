@@ -12,6 +12,7 @@ import { env } from "./config"; // Validate environment variables at startup
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { startReminderScheduler } from "./reminder-scheduler";
+import { pool } from "./db";
 
 // Initialize Sentry for error monitoring (only if DSN is configured)
 if (process.env.SENTRY_DSN) {
@@ -84,8 +85,21 @@ const app = express();
 
 // CRITICAL: Health check endpoints must be FIRST and respond immediately
 // Replit autoscale requires very fast health check responses
-app.get('/__health', (_req, res) => {
-  res.status(200).send('OK');
+app.get('/__health', async (_req, res) => {
+  try {
+    // Quick DB check with 2-second timeout to verify database connectivity
+    const client = await Promise.race([
+      pool.connect(),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('DB connection timeout')), 2000)
+      )
+    ]);
+    client.release();
+    res.status(200).send('OK');
+  } catch (error) {
+    console.error('[Health] DB check failed:', error);
+    res.status(503).send('DB_UNAVAILABLE');
+  }
 });
 
 // Root health check - respond immediately for any request to /
