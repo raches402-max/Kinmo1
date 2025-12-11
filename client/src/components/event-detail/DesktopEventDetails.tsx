@@ -278,6 +278,13 @@ function SortableVenueCard({
                 <ExternalLink className="h-3 w-3 shrink-0" />
               </a>
             )}
+
+            {/* Notes if exists */}
+            {venue.notes && (
+              <p className="text-xs text-[hsl(25,15%,55%)] italic mt-2 bg-[hsl(35,25%,95%)] rounded-lg px-2.5 py-1.5">
+                "{venue.notes}"
+              </p>
+            )}
           </div>
         </div>
       </RefinedVenueCard>
