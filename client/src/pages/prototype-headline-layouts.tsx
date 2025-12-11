@@ -969,32 +969,163 @@ function Option19BounceCaret() {
 }
 
 // ============================================
-// Main Page Component
+// COMPARISON: Subscript Caret for Desktop
+// ============================================
+function SubscriptCaretDesktop() {
+  const { currentWord, isAnimating } = useRotatingWords(2200);
+
+  return (
+    <div className="text-center">
+      <div className="inline-block relative pb-6">
+        {/* Main text line */}
+        <p className="text-4xl lg:text-5xl xl:text-6xl font-bold text-foreground leading-tight flex items-baseline justify-center">
+          <span>See your</span>
+          {/* Subscript caret container */}
+          <span className="relative mx-3">
+            {/* The word floating above the text */}
+            <span
+              className={`absolute bottom-[calc(100%+10px)] left-1/2 -translate-x-1/2 transition-all duration-300 ${
+                isAnimating ? "opacity-0 translate-y-1" : "opacity-100 translate-y-0"
+              }`}
+            >
+              <span
+                className="text-3xl lg:text-4xl xl:text-5xl font-bold whitespace-nowrap"
+                style={{ color: '#F5C030' }}
+              >
+                {currentWord}
+              </span>
+            </span>
+            {/* Placeholder for spacing */}
+            <span className="invisible text-4xl lg:text-5xl xl:text-6xl">^</span>
+            {/* Caret positioned as subscript */}
+            <svg
+              viewBox="0 0 24 14"
+              className="absolute left-1/2 -translate-x-1/2 top-full mt-1 w-8 h-5 lg:w-10 lg:h-6"
+              style={{ color: '#F5C030' }}
+              fill="currentColor"
+            >
+              <path d="M12 0 L24 14 L18 14 L12 6 L6 14 L0 14 Z" />
+            </svg>
+          </span>
+          <span>more.</span>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// COMPARISON: Subscript Caret for Mobile
+// ============================================
+function SubscriptCaretMobile() {
+  const { currentWord, isAnimating } = useRotatingWords(2200);
+
+  return (
+    <div className="text-center">
+      <div className="inline-block relative pb-4">
+        {/* Main text line - mobile sized */}
+        <p className="text-2xl font-bold text-foreground leading-tight flex items-baseline justify-center">
+          <span>See your</span>
+          {/* Subscript caret container */}
+          <span className="relative mx-1.5">
+            {/* The word floating above the text */}
+            <span
+              className={`absolute bottom-[calc(100%+6px)] left-1/2 -translate-x-1/2 transition-all duration-300 ${
+                isAnimating ? "opacity-0 translate-y-1" : "opacity-100 translate-y-0"
+              }`}
+            >
+              <span
+                className="text-xl font-bold whitespace-nowrap"
+                style={{ color: '#F5C030' }}
+              >
+                {currentWord}
+              </span>
+            </span>
+            {/* Placeholder for spacing */}
+            <span className="invisible text-2xl">^</span>
+            {/* Caret positioned as subscript */}
+            <svg
+              viewBox="0 0 24 14"
+              className="absolute left-1/2 -translate-x-1/2 top-full mt-0.5 w-4 h-2.5"
+              style={{ color: '#F5C030' }}
+              fill="currentColor"
+            >
+              <path d="M12 0 L24 14 L18 14 L12 6 L6 14 L0 14 Z" />
+            </svg>
+          </span>
+          <span>more.</span>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// COMPARISON: Diagonal Layout for Desktop (Current)
+// ============================================
+function DiagonalDesktop() {
+  const { currentWord, isAnimating } = useRotatingWords(2200);
+
+  return (
+    <div className="text-center">
+      <div className="relative inline-block w-[420px] lg:w-[500px] xl:w-[580px] h-[170px] lg:h-[200px] xl:h-[230px]">
+        <span className="absolute top-0 left-0 text-4xl lg:text-5xl xl:text-6xl font-bold text-foreground">
+          See your
+        </span>
+        <span
+          className={`absolute top-[38%] left-1/2 -translate-x-1/2 text-4xl lg:text-5xl xl:text-6xl transition-opacity duration-300 font-bold whitespace-nowrap ${
+            isAnimating ? "opacity-0" : "opacity-100"
+          }`}
+          style={{ color: '#F5C030' }}
+        >
+          {currentWord}
+        </span>
+        <span className="absolute bottom-0 right-0 text-4xl lg:text-5xl xl:text-6xl font-bold text-foreground">
+          more.
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// COMPARISON: Diagonal Layout for Mobile (Current)
+// ============================================
+function DiagonalMobile() {
+  const { currentWord, isAnimating } = useRotatingWords(2200);
+
+  return (
+    <div className="text-center">
+      <div className="relative inline-block w-[260px] h-[100px]">
+        <span className="absolute top-0 left-0 text-2xl font-bold text-foreground">
+          See your
+        </span>
+        <span
+          className={`absolute top-[38%] left-1/2 -translate-x-1/2 text-2xl transition-opacity duration-300 font-bold whitespace-nowrap ${
+            isAnimating ? "opacity-0" : "opacity-100"
+          }`}
+          style={{ color: '#F5C030' }}
+        >
+          {currentWord}
+        </span>
+        <span className="absolute bottom-0 right-0 text-2xl font-bold text-foreground">
+          more.
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// Main Page Component - Focused Comparison
 // ============================================
 export default function PrototypeHeadlineLayouts() {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
 
-  const options = [
-    // Insertion caret variations (what you're exploring)
-    { id: "inline-no-line", name: "Inline Caret (No Line)", component: Option14InlineNoLine, recommended: true },
-    { id: "caret-below", name: "Caret Below Baseline", component: Option12CaretBelowBaseline, recommended: true },
-    { id: "subscript-caret", name: "Subscript Caret (Lower)", component: Option18SubscriptCaret, recommended: true },
-    { id: "thin-caret", name: "Thin/Subtle Caret", component: Option15ThinCaret, recommended: false },
-    { id: "wide-caret", name: "Wide Flat Caret", component: Option16WideCaret, recommended: false },
-    { id: "glow-caret", name: "Caret with Glow", component: Option17CaretWithGlow, recommended: false },
-    { id: "bounce-caret", name: "Bouncing Caret", component: Option19BounceCaret, recommended: false },
-    { id: "insertion-line", name: "With Connecting Line", component: Option11InsertionWithLine, recommended: false },
-    { id: "three-tier", name: "Three-Tier Stack", component: Option13CaretWellBelow, recommended: false },
-    // Original insertion caret options
-    { id: "insertion-caret", name: "Original Insertion (^)", component: Option9InsertionCaret, recommended: false },
-    { id: "insertion-caret-b", name: "Inline ^ Character", component: Option10InsertionCaretB, recommended: false },
-    // Other layout options (for comparison)
-    { id: "diagonal", name: "Diagonal (Current)", component: Option7Diagonal, recommended: false },
-    { id: "fixed-center", name: "Fixed Width (Center)", component: Option3FixedCenter, recommended: false },
-    { id: "vertical", name: "Vertical Carousel", component: Option5Vertical, recommended: false },
-  ];
+  // Keep for backwards compatibility but we won't display these
+  const options: { id: string; name: string; component: React.ComponentType; recommended: boolean }[] = [];
 
-  return (
+return (
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b">
@@ -1006,113 +1137,195 @@ export default function PrototypeHeadlineLayouts() {
           </Link>
           <div className="flex items-center gap-2">
             <KinmoIcon size={22} color="hsl(var(--primary))" />
-            <span className="font-semibold">Headline Layout Explorer</span>
+            <span className="font-semibold">Headline Comparison</span>
           </div>
         </div>
       </header>
 
       {/* Intro */}
-      <section className="py-10 px-6 border-b bg-muted/30">
+      <section className="py-8 px-6 border-b bg-muted/30">
         <div className="max-w-3xl mx-auto text-center">
           <h1 className="text-2xl md:text-3xl font-bold mb-3">
-            Single-Line Headline Options
+            Subscript Caret vs. Diagonal Layout
           </h1>
           <p className="text-muted-foreground leading-relaxed">
-            Each option below shows a different approach to keeping{" "}
-            <strong>"See your"</strong> and <strong>"more."</strong> fixed while the
-            yellow text rotates through words of varying widths.
-          </p>
-          <p className="text-sm text-muted-foreground mt-2">
-            Words rotate through: {rotatingWords.slice(0, 4).join(", ")}... including "{rotatingWords[4]}"
+            Comparing the new <strong>Subscript Caret</strong> approach with your current <strong>Diagonal</strong> layout.
+            Both shown at desktop and mobile sizes.
           </p>
         </div>
       </section>
 
-      {/* Options Grid */}
-      <section className="py-12 px-6">
-        <div className="max-w-6xl mx-auto space-y-16">
-          {options.map((option, index) => {
-            const Component = option.component;
-            return (
-              <div
-                key={option.id}
-                className={`relative p-8 rounded-2xl border-2 transition-all ${
-                  selectedOption === option.id
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-primary/50"
-                }`}
-                onClick={() => setSelectedOption(option.id)}
-              >
-                {/* Option header */}
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-mono text-muted-foreground">
-                      {String(index + 1).padStart(2, '0')}
-                    </span>
-                    <h2 className="text-lg font-semibold">{option.name}</h2>
-                    {option.recommended && (
-                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
-                        Recommended
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    className={`text-sm px-3 py-1 rounded-full transition-colors ${
-                      selectedOption === option.id
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted hover:bg-muted/80"
-                    }`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedOption(selectedOption === option.id ? null : option.id);
-                    }}
-                  >
-                    {selectedOption === option.id ? "Selected" : "Select"}
-                  </button>
-                </div>
+      {/* DESKTOP COMPARISON */}
+      <section className="py-12 px-6 border-b">
+        <div className="max-w-6xl mx-auto">
+          <h2 className="text-xl font-bold mb-8 text-center flex items-center justify-center gap-2">
+            <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-medium">Desktop</span>
+          </h2>
 
-                {/* Component preview */}
-                <div className="py-8">
-                  <Component />
+          <div className="grid lg:grid-cols-2 gap-8">
+            {/* Option A: Subscript Caret */}
+            <div className="rounded-2xl border-2 border-primary bg-primary/5 overflow-hidden">
+              <div className="bg-primary/10 px-6 py-3 border-b border-primary/20">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded-full font-medium">NEW</span>
+                  <h3 className="font-semibold">Subscript Caret</h3>
                 </div>
               </div>
-            );
-          })}
+              <div className="p-8 min-h-[280px] flex items-center justify-center bg-background">
+                <SubscriptCaretDesktop />
+              </div>
+            </div>
+
+            {/* Option B: Diagonal (Current) */}
+            <div className="rounded-2xl border-2 border-border overflow-hidden">
+              <div className="bg-muted/50 px-6 py-3 border-b">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs bg-muted-foreground/20 text-muted-foreground px-2 py-0.5 rounded-full font-medium">CURRENT</span>
+                  <h3 className="font-semibold">Diagonal Layout</h3>
+                </div>
+              </div>
+              <div className="p-8 min-h-[280px] flex items-center justify-center bg-background">
+                <DiagonalDesktop />
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* Summary */}
-      <section className="py-12 px-6 bg-muted/30 border-t">
-        <div className="max-w-3xl mx-auto">
-          <h2 className="text-xl font-bold mb-6 text-center">Quick Comparison</h2>
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="bg-background rounded-xl p-5 border">
-              <h3 className="font-semibold text-green-600 mb-2">✓ Best for stability</h3>
-              <p className="text-sm text-muted-foreground">
-                <strong>Fixed Width (Center)</strong>, <strong>Vertical Carousel</strong>, and <strong>Yellow Pill</strong>
-                keep the layout rock-solid regardless of word length.
-              </p>
+      {/* MOBILE COMPARISON */}
+      <section className="py-12 px-6 border-b bg-muted/20">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-xl font-bold mb-8 text-center flex items-center justify-center gap-2">
+            <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-medium">Mobile</span>
+          </h2>
+
+          <div className="grid md:grid-cols-2 gap-8 justify-center">
+            {/* Mobile: Subscript Caret */}
+            <div className="flex flex-col items-center">
+              <div className="w-[320px] rounded-[2rem] border-[8px] border-gray-800 bg-background overflow-hidden shadow-xl">
+                {/* Phone notch */}
+                <div className="bg-gray-800 h-6 flex justify-center items-end pb-1">
+                  <div className="w-20 h-4 bg-black rounded-b-xl"></div>
+                </div>
+                {/* Screen content */}
+                <div className="p-6 min-h-[200px] flex items-center justify-center">
+                  <SubscriptCaretMobile />
+                </div>
+              </div>
+              <p className="mt-4 text-sm font-medium text-primary">Subscript Caret</p>
             </div>
-            <div className="bg-background rounded-xl p-5 border">
-              <h3 className="font-semibold text-blue-600 mb-2">✓ Best for engagement</h3>
-              <p className="text-sm text-muted-foreground">
-                <strong>Typewriter</strong> and <strong>Vertical Carousel</strong> are
-                most eye-catching and feel interactive.
-              </p>
+
+            {/* Mobile: Diagonal */}
+            <div className="flex flex-col items-center">
+              <div className="w-[320px] rounded-[2rem] border-[8px] border-gray-800 bg-background overflow-hidden shadow-xl">
+                {/* Phone notch */}
+                <div className="bg-gray-800 h-6 flex justify-center items-end pb-1">
+                  <div className="w-20 h-4 bg-black rounded-b-xl"></div>
+                </div>
+                {/* Screen content */}
+                <div className="p-6 min-h-[200px] flex items-center justify-center">
+                  <DiagonalMobile />
+                </div>
+              </div>
+              <p className="mt-4 text-sm font-medium text-muted-foreground">Diagonal (Current)</p>
             </div>
-            <div className="bg-background rounded-xl p-5 border">
-              <h3 className="font-semibold text-amber-600 mb-2">✓ Best for warmth</h3>
-              <p className="text-sm text-muted-foreground">
-                <strong>Yellow Pill</strong> adds a soft highlight that feels
-                friendly and inviting, matching Kinmo's brand.
-              </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ANALYSIS */}
+      <section className="py-12 px-6">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-xl font-bold mb-8 text-center">Analysis: What to Consider</h2>
+
+          <div className="grid md:grid-cols-2 gap-8">
+            {/* Subscript Caret Analysis */}
+            <div className="rounded-2xl border-2 border-primary/30 bg-primary/5 p-6">
+              <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                <span style={{ color: '#F5C030' }}>▲</span> Subscript Caret
+              </h3>
+
+              <div className="space-y-4">
+                <div>
+                  <h4 className="font-semibold text-green-600 mb-2">Strengths</h4>
+                  <ul className="text-sm text-muted-foreground space-y-1.5">
+                    <li>• <strong>Compact:</strong> Takes less vertical space than diagonal</li>
+                    <li>• <strong>Readable:</strong> "See your ^ more." reads naturally as a sentence</li>
+                    <li>• <strong>Clever:</strong> The caret metaphor (insert missing word) is charming and human</li>
+                    <li>• <strong>Stable:</strong> Black text never moves regardless of word length</li>
+                    <li>• <strong>Unique:</strong> Distinctive, not a common pattern</li>
+                  </ul>
+                </div>
+
+                <div>
+                  <h4 className="font-semibold text-amber-600 mb-2">Considerations</h4>
+                  <ul className="text-sm text-muted-foreground space-y-1.5">
+                    <li>• <strong>Visual hierarchy:</strong> The rotating word competes with the caret for attention</li>
+                    <li>• <strong>Caret meaning:</strong> Not everyone may immediately "get" the insertion metaphor</li>
+                    <li>• <strong>Mobile:</strong> Tighter spacing means less breathing room for long words</li>
+                  </ul>
+                </div>
+              </div>
             </div>
-            <div className="bg-background rounded-xl p-5 border">
-              <h3 className="font-semibold text-purple-600 mb-2">✓ Simplest CSS</h3>
-              <p className="text-sm text-muted-foreground">
-                <strong>Fixed Width (Center/Left)</strong> requires minimal code —
-                just a fixed-width inline-block container.
-              </p>
+
+            {/* Diagonal Analysis */}
+            <div className="rounded-2xl border-2 border-border bg-muted/30 p-6">
+              <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                <span className="text-muted-foreground">↘</span> Diagonal Layout
+              </h3>
+
+              <div className="space-y-4">
+                <div>
+                  <h4 className="font-semibold text-green-600 mb-2">Strengths</h4>
+                  <ul className="text-sm text-muted-foreground space-y-1.5">
+                    <li>• <strong>Dramatic:</strong> The diagonal creates visual energy and movement</li>
+                    <li>• <strong>Breathing room:</strong> Plenty of space for even the longest words</li>
+                    <li>• <strong>Hero presence:</strong> Takes up more space, feels more "hero section"</li>
+                    <li>• <strong>Proven:</strong> Already tested and working in production</li>
+                  </ul>
+                </div>
+
+                <div>
+                  <h4 className="font-semibold text-amber-600 mb-2">Considerations</h4>
+                  <ul className="text-sm text-muted-foreground space-y-1.5">
+                    <li>• <strong>Space:</strong> Takes more vertical real estate</li>
+                    <li>• <strong>Reading flow:</strong> Eye has to jump around (not linear left-to-right)</li>
+                    <li>• <strong>Mobile:</strong> The diagonal can feel cramped on small screens</li>
+                    <li>• <strong>Less unique:</strong> Staggered text is a more common pattern</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Recommendation */}
+          <div className="mt-10 p-6 rounded-2xl bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20">
+            <h3 className="font-bold text-lg mb-3">My Take</h3>
+            <p className="text-muted-foreground leading-relaxed mb-4">
+              The <strong>Subscript Caret</strong> is more distinctive and creates a tighter, more readable layout.
+              The "handwritten insertion" metaphor fits Kinmo's warm, human brand — it's like you're
+              filling in the blank for who you want to see more.
+            </p>
+            <p className="text-muted-foreground leading-relaxed">
+              <strong>For mobile:</strong> You could use the Subscript Caret on both, or keep Diagonal on mobile
+              where the extra vertical space isn't as costly. The caret works at mobile size, but it's tighter.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Quick decision helper */}
+      <section className="py-10 px-6 bg-muted/30 border-t">
+        <div className="max-w-2xl mx-auto text-center">
+          <h3 className="font-bold mb-4">Quick Decision Guide</h3>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="bg-background rounded-xl p-4 border">
+              <p className="font-medium mb-2">Choose Subscript Caret if...</p>
+              <p className="text-muted-foreground">You want compact, unique, and a clever "fill in the blank" feel</p>
+            </div>
+            <div className="bg-background rounded-xl p-4 border">
+              <p className="font-medium mb-2">Keep Diagonal if...</p>
+              <p className="text-muted-foreground">You want dramatic presence and maximum breathing room for text</p>
             </div>
           </div>
         </div>
@@ -1121,7 +1334,7 @@ export default function PrototypeHeadlineLayouts() {
       {/* Footer */}
       <footer className="py-8 px-6 border-t">
         <div className="max-w-3xl mx-auto text-center text-sm text-muted-foreground">
-          <p>Click any option to select it. Let me know which direction you'd like to explore further!</p>
+          <p>Let me know which direction you'd like to go, or if you want to see any adjustments!</p>
         </div>
       </footer>
     </div>
