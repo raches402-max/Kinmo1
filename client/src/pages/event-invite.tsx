@@ -128,6 +128,19 @@ export default function EventInvitePage() {
   const [alternativeTimes, setAlternativeTimes] = useState("");
   const [rsvpSubmitted, setRsvpSubmitted] = useState(false);
 
+  // Stored RSVP token for returning users
+  const [storedRsvpToken, setStoredRsvpToken] = useState<string | null>(null);
+
+  // Check for stored RSVP token on mount
+  useEffect(() => {
+    if (eventId) {
+      const token = localStorage.getItem(`rsvp_token_${eventId}`);
+      if (token) {
+        setStoredRsvpToken(token);
+      }
+    }
+  }, [eventId]);
+
   // Fetch event/itinerary
   const { data: event, isLoading: eventLoading, error: eventError } = useQuery<Itinerary>({
     queryKey: [`/api/itineraries/${eventId}`],
@@ -150,6 +163,20 @@ export default function EventInvitePage() {
   const { data: rsvps } = useQuery<RsvpRecord[]>({
     queryKey: [`/api/itineraries/${eventId}/rsvps`],
     enabled: !!eventId && mode !== 'choose',
+  });
+
+  // Fetch existing RSVP by stored token (for returning users)
+  type StoredRsvpData = {
+    id: string;
+    response: string;
+    guestName?: string;
+    guestEmail?: string;
+    memberId?: string;
+    memberName?: string;
+  };
+  const { data: storedRsvp, isLoading: storedRsvpLoading } = useQuery<StoredRsvpData>({
+    queryKey: [`/api/guest-rsvp/${storedRsvpToken}`],
+    enabled: !!storedRsvpToken && mode === 'choose',
   });
 
   // Get existing RSVP from the RSVPs list
@@ -231,9 +258,13 @@ export default function EventInvitePage() {
 
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       setRsvpSubmitted(true);
       queryClient.invalidateQueries({ queryKey: [`/api/itineraries/${eventId}/rsvps`] });
+      // Store RSVP token for returning users
+      if (data?.guestToken && eventId) {
+        localStorage.setItem(`rsvp_token_${eventId}`, data.guestToken);
+      }
       toast({
         title: "RSVP Submitted!",
         description: `You're all set for ${event?.name || "this event"}!`,
@@ -274,9 +305,13 @@ export default function EventInvitePage() {
 
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       setRsvpSubmitted(true);
       queryClient.invalidateQueries({ queryKey: [`/api/itineraries/${eventId}/rsvps`] });
+      // Store RSVP token for returning users
+      if (data?.guestToken && eventId) {
+        localStorage.setItem(`rsvp_token_${eventId}`, data.guestToken);
+      }
       toast({
         title: "RSVP Submitted!",
         description: `Thanks for letting us know, ${guestName}!`,
@@ -407,16 +442,44 @@ export default function EventInvitePage() {
             )}
           </div>
 
+          {/* Existing RSVP found - show status */}
+          {storedRsvp && (
+            <Card className="mb-4 border-success/30 bg-success/5">
+              <CardContent className="pt-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-success/20 flex items-center justify-center">
+                    <Check className="h-6 w-6 text-success" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-success">You've already RSVP'd!</p>
+                    <p className="text-sm text-muted-foreground">
+                      {storedRsvp.guestName || storedRsvp.memberName || 'You'} responded: {' '}
+                      <span className="font-medium">
+                        {storedRsvp.response === 'going' || storedRsvp.response === 'yes' ? 'Going' :
+                         storedRsvp.response === 'maybe' ? 'Maybe' : "Can't go"}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground mt-3">
+                  Want to change your response? Select your name below.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Who are you? */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-lg text-center">Who are you?</CardTitle>
+              <CardTitle className="text-lg text-center">
+                {storedRsvp ? "Change your RSVP" : "Who are you?"}
+              </CardTitle>
               <CardDescription className="text-center">
-                Tap your name to RSVP
+                {storedRsvp ? "Select your name to update your response" : "Tap your name to RSVP"}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
-              {membersLoading ? (
+              {membersLoading || storedRsvpLoading ? (
                 <div className="space-y-2">
                   {[1, 2, 3].map(i => (
                     <div key={i} className="h-14 rounded-lg bg-muted animate-pulse" />

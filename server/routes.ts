@@ -6405,20 +6405,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       if (existingRsvps.length > 0) {
-        // Update existing RSVP
+        // Update existing RSVP - generate token if not exists
+        const updateData: any = { ...rsvpData };
+        if (!existingRsvps[0].guestToken) {
+          updateData.guestToken = guestName
+            ? `guest_${crypto.randomUUID()}`
+            : `member_${crypto.randomUUID()}`;
+        }
         const updated = await db
           .update(rsvpsTable)
-          .set(rsvpData)
+          .set(updateData)
           .where(sql`id = ${existingRsvps[0].id}`)
           .returning();
         rsvp = updated[0];
       } else {
-        // Create new RSVP
+        // Create new RSVP with token for later retrieval
+        const rsvpToken = guestName
+          ? `guest_${crypto.randomUUID()}`
+          : `member_${crypto.randomUUID()}`;
         const inserted = await db
           .insert(rsvpsTable)
           .values({
             itineraryId,
             memberId: memberId || null,
+            guestToken: rsvpToken,
             ...rsvpData,
           })
           .returning();
@@ -12447,20 +12457,26 @@ Looking forward to planning great activities together!
       };
 
       if (existingRsvps.length > 0) {
-        // Update existing RSVP
+        // Update existing RSVP - generate token if not exists
+        const updateData: any = { ...rsvpData };
+        if (!existingRsvps[0].guestToken) {
+          updateData.guestToken = `member_${crypto.randomUUID()}`;
+        }
         const updated = await db
           .update(rsvpsTable)
-          .set(rsvpData)
+          .set(updateData)
           .where(sql`id = ${existingRsvps[0].id}`)
           .returning();
         rsvp = updated[0];
       } else {
-        // Create new RSVP
+        // Create new RSVP with token for later retrieval
+        const rsvpToken = `member_${crypto.randomUUID()}`;
         const inserted = await db
           .insert(rsvpsTable)
           .values({
             itineraryId,
             memberId,
+            guestToken: rsvpToken, // Reuse guestToken field for member RSVPs too
             ...rsvpData,
           })
           .returning();

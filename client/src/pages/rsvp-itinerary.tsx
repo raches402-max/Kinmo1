@@ -76,11 +76,24 @@ type AdditionalAttendee = {
   name: string;
 };
 
+// Type for stored RSVP data retrieved by token
+type StoredRsvpData = {
+  id: string;
+  response: string;
+  guestName: string | null;
+  memberName?: string | null;
+  memberId?: string | null;
+  createdAt: string;
+};
+
 export default function RsvpItineraryPage() {
   const [, params] = useRoute("/rsvp/:itineraryId/:inviteToken");
   const itineraryId = params?.itineraryId;
   const inviteToken = params?.inviteToken;
   const { toast } = useToast();
+
+  // Stored RSVP token for returning users
+  const [storedRsvpToken, setStoredRsvpToken] = useState<string | null>(null);
 
   // Identity claiming state
   const [identityClaimed, setIdentityClaimed] = useState(false);
@@ -114,6 +127,22 @@ export default function RsvpItineraryPage() {
 
   // Gang's all here celebration state
   const [showCelebration, setShowCelebration] = useState(false);
+
+  // Check for stored RSVP token on mount
+  useEffect(() => {
+    if (itineraryId) {
+      const token = localStorage.getItem(`rsvp_token_${itineraryId}`);
+      if (token) {
+        setStoredRsvpToken(token);
+      }
+    }
+  }, [itineraryId]);
+
+  // Fetch existing RSVP by stored token (for returning users)
+  const { data: storedRsvp, isLoading: storedRsvpLoading } = useQuery<StoredRsvpData>({
+    queryKey: [`/api/guest-rsvp/${storedRsvpToken}`],
+    enabled: !!storedRsvpToken && !identityClaimed,
+  });
 
   // Fetch itinerary
   const { data: itinerary, isLoading: itineraryLoading } = useQuery<Itinerary>({
@@ -240,6 +269,12 @@ export default function RsvpItineraryPage() {
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/rsvps/itinerary", itineraryId] });
 
+      // Store RSVP token for returning users
+      if (data?.guestToken && itineraryId) {
+        localStorage.setItem(`rsvp_token_${itineraryId}`, data.guestToken);
+        setStoredRsvpToken(data.guestToken);
+      }
+
       // Check if this RSVP completed the group (all members said yes)
       if (data.isCompletingVote && data.gangsAllHere) {
         setShowCelebration(true);
@@ -331,7 +366,7 @@ export default function RsvpItineraryPage() {
   const availableMembers = groupMembers?.filter(m => m.id !== claimedMemberId) || [];
 
   // Loading state
-  if (itineraryLoading || groupLoading || membersLoading || inviteLoading) {
+  if (itineraryLoading || groupLoading || membersLoading || inviteLoading || storedRsvpLoading) {
     return (
       <div className="min-h-screen bg-[hsl(38,35%,97%)] flex items-center justify-center">
         <div className="text-center">
