@@ -1307,7 +1307,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(preferenceSignals.createdAt));
   }
 
-  async createItinerary(insertItinerary: InsertItinerary, userId: string, itemsData: Array<{sourceType: 'activity' | 'voting_event' | 'ad_hoc', sourceId: string, adHocData?: any}>): Promise<Itinerary> {
+  async createItinerary(insertItinerary: InsertItinerary, userId: string, itemsData: Array<{sourceType: 'activity' | 'voting_event' | 'ad_hoc' | 'google_place', sourceId: string, adHocData?: any}>): Promise<Itinerary> {
     // Validation: proposed itineraries must have an eventDate
     if (insertItinerary.status === 'proposed' && !insertItinerary.eventDate) {
       throw new Error('Cannot create proposed itinerary without eventDate. Proposed itineraries must have a scheduled date.');
@@ -1359,11 +1359,11 @@ export class DatabaseStorage implements IStorage {
             rating = votingEvent.rating;
             photoUrl = votingEvent.photoUrl;
           }
-        } else if (item.sourceType === 'ad_hoc' && item.adHocData) {
-          // Handle ad-hoc venue
+        } else if ((item.sourceType === 'ad_hoc' || item.sourceType === 'google_place') && item.adHocData) {
+          // Handle ad-hoc venue or Google Place venue (both use adHocData)
           venueName = item.adHocData.name;
           venueAddress = item.adHocData.address || '';
-          venueType = 'venue';
+          venueType = item.adHocData.type || 'venue';
           googlePlaceId = item.adHocData.googlePlaceId || null;
           notes = item.adHocData.notes || null;
           googleMapsUrl = item.adHocData.googleMapsUrl || null;
@@ -1380,7 +1380,7 @@ export class DatabaseStorage implements IStorage {
                 longitude = geocoded.longitude.toString();
               }
             } catch (error) {
-              console.error('[Create Itinerary] Error geocoding ad-hoc venue:', error);
+              console.error('[Create Itinerary] Error geocoding venue:', error);
             }
           }
         }
@@ -1388,7 +1388,7 @@ export class DatabaseStorage implements IStorage {
         itemsToInsert.push({
           itineraryId: itinerary.id,
           sourceType: item.sourceType,
-          sourceId: item.sourceType === 'ad_hoc' ? null : item.sourceId,
+          sourceId: (item.sourceType === 'ad_hoc' || item.sourceType === 'google_place') ? null : item.sourceId,
           venueName,
           venueAddress,
           venueType,

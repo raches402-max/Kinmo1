@@ -57,6 +57,19 @@ export function calculateOpenAICost(model: string, inputTokens: number, outputTo
 }
 
 /**
+ * Safely parse JSON from OpenAI response with fallback
+ * Prevents crashes from malformed AI responses
+ */
+function safeParseJSON<T>(content: string | null | undefined, fallback: T, context: string): T {
+  try {
+    return JSON.parse(content || JSON.stringify(fallback));
+  } catch (parseError) {
+    console.error(`[OpenAI] JSON parse error in ${context}:`, parseError);
+    return fallback;
+  }
+}
+
+/**
  * Simple in-memory cache with TTL for AI responses
  * Reduces API costs by caching deterministic results
  */
@@ -636,7 +649,7 @@ Return JSON:
         max_completion_tokens: 2000,
       });
 
-      const result = JSON.parse(response.choices[0].message.content || '{}');
+      const result = safeParseJSON(response.choices[0].message.content, { suggestions: [] }, 'category-specific suggestions');
       console.log(`[OpenAI] ✅ Category-specific: Received ${result.suggestions?.length || 0} suggestions`);
       
       if (!result.suggestions || result.suggestions.length === 0) {
@@ -736,7 +749,7 @@ Return JSON:
     });
     const responseTimeMs = Date.now() - startTime;
 
-    const result = JSON.parse(response.choices[0].message.content || '{}');
+    const result = safeParseJSON(response.choices[0].message.content, { suggestions: [] }, 'activity suggestions');
     const suggestionsCount = result.suggestions?.length || 0;
     console.log(`[OpenAI] ✅ Received response with ${suggestionsCount} suggestions (target: 20)`);
 
@@ -912,7 +925,7 @@ Return JSON:
     });
     const responseTimeMs = Date.now() - startTime;
 
-    const result = JSON.parse(response.choices[0].message.content || '{}');
+    const result = safeParseJSON(response.choices[0].message.content, { concepts: [] }, 'swipe concepts');
 
     if (!result.concepts || result.concepts.length === 0) {
       throw new Error("OpenAI returned no swipe concepts. The response may be empty or malformed.");
@@ -1172,8 +1185,8 @@ Category must be: meal, cafes, drinks, dessert, or experiences`;
     });
     const responseTimeMs = Date.now() - startTime;
 
-    const result = JSON.parse(response.choices[0].message.content || '{}');
-    
+    const result = safeParseJSON(response.choices[0].message.content, {} as { category?: string }, 'venue categorization');
+
     // Validate that we got a category in the response
     if (!result.category) {
       console.error(`[AI Categorization] No category in response for "${venueName}":`, result);
@@ -1389,7 +1402,7 @@ Is this venue appropriate for the "${requestedCategory}" category?`
     );
 
     const duration = Date.now() - startTime;
-    const result = JSON.parse(response.choices[0].message.content || '{"isValid": false, "reasoning": "No response"}');
+    const result = safeParseJSON(response.choices[0].message.content, { isValid: false, reasoning: "No response" }, 'venue category validation');
 
     console.log(`[AI Validation] ${venueName} for category "${requestedCategory}": ${result.isValid ? '✅ VALID' : '❌ INVALID'} - ${result.reasoning} (${duration}ms)`);
 
@@ -1558,7 +1571,7 @@ Return JSON:
     });
     const responseTimeMs = Date.now() - startTime;
 
-    const result = JSON.parse(response.choices[0].message.content || '{"patterns": []}');
+    const result = safeParseJSON(response.choices[0].message.content, { patterns: [] }, 'preference patterns');
     const patterns = result.patterns || [];
 
     // Log successful API call
@@ -1684,7 +1697,7 @@ Return your response as a JSON object with these fields.`;
     });
     const responseTimeMs = Date.now() - startTime;
 
-    const result = JSON.parse(response.choices[0].message.content || '{}');
+    const result = safeParseJSON(response.choices[0].message.content, {} as Record<string, any>, 'scheduling prompt');
 
     // Log successful API call
     const inputTokens = response.usage?.prompt_tokens || 0;
@@ -1972,7 +1985,7 @@ Return your response as a JSON object with these fields: activityType, category,
     });
     const responseTimeMs = Date.now() - startTime;
 
-    const result = JSON.parse(response.choices[0].message.content || '{}');
+    const result = safeParseJSON(response.choices[0].message.content, {} as Record<string, any>, 'scheduling prompt with history');
 
     console.log(`[AI Scheduling A/B w/ ${selectedModel}] Parsed params with history:`, result);
     console.log(`[AI Scheduling A/B w/ ${selectedModel}] Response time: ${responseTimeMs}ms`);
@@ -2452,7 +2465,7 @@ Return JSON:
     });
     const responseTimeMs = Date.now() - startTime;
 
-    const result = JSON.parse(response.choices[0].message.content || '{}');
+    const result = safeParseJSON(response.choices[0].message.content, { venues: [] as { index?: number; category?: string }[] }, 'batch venue categorization');
     const categorizations = result.venues || [];
 
     // Process results and update caches
@@ -2611,8 +2624,8 @@ Is this a valid venue for social gatherings? Respond with JSON containing "isVal
     });
     const responseTimeMs = Date.now() - startTime;
 
-    const result = JSON.parse(response.choices[0].message.content || '{}');
-    
+    const result = safeParseJSON(response.choices[0].message.content, {} as { isValid?: boolean; reasoning?: string }, 'social venue validation');
+
     // Strict validation: isValid MUST be a boolean
     if (typeof result.isValid !== 'boolean') {
       console.error(`[AI Validation] Invalid response format for ${venueName}:`, result);
@@ -2720,7 +2733,7 @@ Assess the niche level (1-5) and suggest a category for this relationship term.`
     });
     const responseTimeMs = Date.now() - startTime;
 
-    const result = JSON.parse(response.choices[0].message.content || '{}');
+    const result = safeParseJSON(response.choices[0].message.content, { nicheScore: 3, suggestedCategory: 'activity', reasoning: '' }, 'word niche assessment');
 
     // Log API call
     const inputTokens = response.usage?.prompt_tokens || 0;

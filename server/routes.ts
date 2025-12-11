@@ -162,6 +162,7 @@ async function getGroupMembersWithOrganizer(groupId: string, organizerUserId: st
       email: membersTable.email,
       openToHosting: membersTable.openToHosting,
       userId: membersTable.userId,
+      isGuest: membersTable.isGuest,
     })
     .from(membersTable)
     .where(eq(membersTable.groupId, groupId));
@@ -182,6 +183,8 @@ async function getGroupMembersWithOrganizer(groupId: string, organizerUserId: st
     email: organizerEmail,
     openToHosting: false,
     isOrganizer: true,
+    isGuest: false,
+    userId: organizerUserId,
   };
 
   return [
@@ -192,6 +195,8 @@ async function getGroupMembersWithOrganizer(groupId: string, organizerUserId: st
       email: m.email,
       openToHosting: m.openToHosting || false,
       isOrganizer: false,
+      isGuest: m.isGuest || false,
+      userId: m.userId || null,
     })),
   ];
 }
@@ -11103,9 +11108,11 @@ Looking forward to planning great activities together!
       const itineraryName = itinerary.name || '';
       if (itineraryName.includes('Auto-scheduled') || itineraryName.includes('TBD')) {
         const venueSummary = items.map((v: any) => v.venueName).join(', ');
-        const newName = items.length === 1
-          ? items[0].venueName
-          : `${items[0].venueName} + ${items.length - 1} more`;
+        const newName = items.length === 0
+          ? 'Event'
+          : items.length === 1
+            ? items[0].venueName
+            : `${items[0].venueName} + ${items.length - 1} more`;
 
         await storage.updateItinerary(itineraryId, {
           name: newName.length > 100 ? newName.substring(0, 97) + '...' : newName
