@@ -409,6 +409,47 @@ export default function RsvpItineraryPage() {
             <p className="text-[hsl(25,15%,45%)]">from {group.name}</p>
           </div>
 
+          {/* Show existing RSVP status if found */}
+          {storedRsvp && (
+            <div className={cn(
+              "rounded-2xl border overflow-hidden",
+              storedRsvp.response === 'yes' && "border-[hsl(145,50%,70%)] bg-[hsl(145,50%,97%)]",
+              storedRsvp.response === 'maybe' && "border-[hsl(44,70%,70%)] bg-[hsl(44,80%,97%)]",
+              storedRsvp.response === 'no' && "border-[hsl(350,50%,70%)] bg-[hsl(350,50%,97%)]"
+            )}>
+              <div className="p-5">
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "flex items-center justify-center w-10 h-10 rounded-full",
+                    storedRsvp.response === 'yes' && "bg-[hsl(145,50%,45%)] text-white",
+                    storedRsvp.response === 'maybe' && "bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)]",
+                    storedRsvp.response === 'no' && "bg-[hsl(350,50%,50%)] text-white"
+                  )}>
+                    {storedRsvp.response === 'yes' && <Check className="h-5 w-5" />}
+                    {storedRsvp.response === 'maybe' && <HelpCircle className="h-5 w-5" />}
+                    {storedRsvp.response === 'no' && <X className="h-5 w-5" />}
+                  </div>
+                  <div className="flex-1">
+                    <p className={cn(
+                      "font-semibold",
+                      storedRsvp.response === 'yes' && "text-[hsl(145,50%,25%)]",
+                      storedRsvp.response === 'maybe' && "text-[hsl(44,60%,25%)]",
+                      storedRsvp.response === 'no' && "text-[hsl(350,50%,30%)]"
+                    )}>
+                      You already RSVP'd: {storedRsvp.response === 'yes' ? "Going" : storedRsvp.response === 'maybe' ? "Maybe" : "Can't make it"}
+                    </p>
+                    <p className="text-sm text-[hsl(25,15%,45%)]">
+                      as {storedRsvp.memberName || storedRsvp.guestName || 'Guest'}
+                    </p>
+                  </div>
+                </div>
+                <p className="text-sm text-[hsl(25,15%,50%)] mt-3">
+                  Select your name below to update your response
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Identity Claiming Card */}
           <div className={cn(
             "rounded-2xl border bg-white overflow-hidden",

@@ -379,7 +379,11 @@ export const createRsvpSchema = z.object({
   }).optional(),
   claimedMemberId: z.string().nullish(),
   guestName: z.string().nullish(),
-  additionalAttendees: z.array(z.string()).nullish(),
+  additionalAttendees: z.array(z.object({
+    type: z.enum(['member', 'guest']),
+    memberId: z.string().optional(),
+    name: z.string(),
+  })).nullish(),
   numberOfKids: z.number().int().min(0).nullish(),
 });
 
