@@ -55,6 +55,7 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
+import { Header } from "@/components/Header";
 
 // Types
 interface SavedPlace {
@@ -511,48 +512,56 @@ export default function PlacesPage() {
 
   if (isLoading || isLoadingSwipeQueue) {
     return (
-      <div className="min-h-screen bg-background p-4 pb-24">
-        <div className="max-w-4xl mx-auto space-y-4">
-          <Skeleton className="h-10 w-48" />
-          <div className="flex gap-2">
-            <Skeleton className="h-8 w-16" />
-            <Skeleton className="h-8 w-16" />
-            <Skeleton className="h-8 w-16" />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Skeleton className="h-48" />
-            <Skeleton className="h-48" />
-            <Skeleton className="h-48" />
-            <Skeleton className="h-48" />
+      <>
+        <Header />
+        <div className="min-h-screen bg-background p-4 pb-24">
+          <div className="max-w-4xl mx-auto space-y-4">
+            <Skeleton className="h-10 w-48" />
+            <div className="flex gap-2">
+              <Skeleton className="h-8 w-16" />
+              <Skeleton className="h-8 w-16" />
+              <Skeleton className="h-8 w-16" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Skeleton className="h-48" />
+              <Skeleton className="h-48" />
+              <Skeleton className="h-48" />
+              <Skeleton className="h-48" />
+            </div>
           </div>
         </div>
-      </div>
+      </>
     );
   }
 
   // Show swipe mode if there are unreviewed venues
   if (showSwipeMode) {
     return (
-      <div className="h-[calc(100vh-4rem)] bg-background">
-        <PlacesSwipeFlow
-          onComplete={() => {
-            setShowSwipeMode(false);
-            // Refresh the places list
-            queryClient.invalidateQueries({ queryKey: ["/api/user/all-places"] });
-            queryClient.invalidateQueries({ queryKey: ["/api/user/places-swipe-queue"] });
-          }}
-          onSkip={() => setShowSwipeMode(false)}
-        />
-      </div>
+      <>
+        <Header />
+        <div className="h-[calc(100vh-4rem)] bg-background">
+          <PlacesSwipeFlow
+            onComplete={() => {
+              setShowSwipeMode(false);
+              // Refresh the places list
+              queryClient.invalidateQueries({ queryKey: ["/api/user/all-places"] });
+              queryClient.invalidateQueries({ queryKey: ["/api/user/places-swipe-queue"] });
+            }}
+            onSkip={() => setShowSwipeMode(false)}
+          />
+        </div>
+      </>
     );
   }
 
   const isEmpty = filteredPlaces.length === 0;
 
   return (
-    <div className="min-h-screen bg-background pb-24 overflow-x-hidden">
-      {/* Header */}
-      <div className="sticky top-0 z-30 bg-background border-b">
+    <>
+      <Header />
+      <div className="min-h-screen bg-background pb-24 overflow-x-hidden">
+        {/* Page Header */}
+        <div className="sticky top-0 z-30 bg-background border-b md:top-[73px]">
         <div className="max-w-4xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-2 mb-3">
             <h1 className="text-xl font-bold truncate">Places</h1>
@@ -948,6 +957,7 @@ export default function PlacesPage() {
           </Button>
         </SheetContent>
       </Sheet>
-    </div>
+      </div>
+    </>
   );
 }
