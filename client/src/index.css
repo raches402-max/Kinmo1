@@ -518,6 +518,29 @@
   animation: fadeInPhrase 0.6s ease-out forwards;
 }
 
+/* Kin drops down from above and squeezes into place */
+@keyframes kinDropIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-30px) scale(0.9);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(4px) scale(1.02);
+  }
+  70% {
+    transform: translateY(-2px) scale(1);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-kin-drop-in {
+  animation: kinDropIn 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
 /* Subtle pulse for sun rays */
 @keyframes pulseSubtle {
   0%, 100% { opacity: 1; }
