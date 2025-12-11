@@ -13447,7 +13447,22 @@ Looking forward to planning great activities together!
   app.get("/api/standalone-events", isAuthenticated, async (req: any, res) => {
     try {
       const userId = await getUserId(req);
-      const events = await storage.getUserStandaloneEvents(userId);
+
+      // Get events where user is organizer
+      const organizerEvents = await storage.getUserStandaloneEvents(userId);
+
+      // Get events where user was invited AND responded (RSVP'd)
+      const invitedEvents = await storage.getStandaloneEventsUserRespondedTo(userId);
+
+      // Merge and dedupe (organizer events take priority)
+      const seenIds = new Set(organizerEvents.map(e => e.id));
+      const events = [...organizerEvents];
+      for (const event of invitedEvents) {
+        if (!seenIds.has(event.id)) {
+          events.push(event);
+          seenIds.add(event.id);
+        }
+      }
 
       // Fetch items and invitees for each event
       const eventsWithDetails = await Promise.all(events.map(async (event) => {

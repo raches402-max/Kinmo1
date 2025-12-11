@@ -3660,6 +3660,45 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(itineraries.createdAt));
   }
 
+  /**
+   * Get standalone events where the user was invited AND responded (RSVP'd)
+   * This allows invitees to see past standalone events they participated in
+   */
+  async getStandaloneEventsUserRespondedTo(userId: string): Promise<Itinerary[]> {
+    // First get the user's email for matching by email
+    const user = await this.getUser(userId);
+    if (!user) return [];
+
+    // Find events where user was invited (by userId or email) AND responded
+    const invitedEventIds = await db
+      .selectDistinct({ itineraryId: standaloneEventInvitees.itineraryId })
+      .from(standaloneEventInvitees)
+      .where(
+        and(
+          isNotNull(standaloneEventInvitees.rsvpStatus),
+          or(
+            eq(standaloneEventInvitees.userId, userId),
+            eq(standaloneEventInvitees.inviteeEmail, user.email)
+          )
+        )
+      );
+
+    if (invitedEventIds.length === 0) return [];
+
+    // Get the actual itinerary records
+    const eventIds = invitedEventIds.map(e => e.itineraryId);
+    return await db
+      .select()
+      .from(itineraries)
+      .where(
+        and(
+          eq(itineraries.isStandalone, true),
+          inArray(itineraries.id, eventIds)
+        )
+      )
+      .orderBy(desc(itineraries.createdAt));
+  }
+
   async getStandaloneEvent(id: string): Promise<(Itinerary & { items: ItineraryItem[], invitees: StandaloneEventInvitee[] }) | undefined> {
     const [itinerary] = await db
       .select()
