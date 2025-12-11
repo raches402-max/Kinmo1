@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ResponsiveDialog as Dialog, ResponsiveDialogContent as DialogContent } from "@/components/ui/responsive-dialog";
-import { Check, Users, Link as LinkIcon, Sparkles, Calendar, Share2 } from "lucide-react";
+import { Check, Users, Link as LinkIcon, Calendar, Share2 } from "lucide-react";
+import { KinmoIcon } from "@/components/KinmoLogo";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 
@@ -101,7 +102,7 @@ export function GroupCreatedSuccess({
                 </div>
                 <div className="flex-1">
                   <h3 className="font-medium flex items-center gap-2">
-                    <Sparkles className="h-4 w-4" />
+                    <KinmoIcon size={16} />
                     Swipe on Venue Suggestions (Optional)
                   </h3>
                   <p className="text-sm text-muted-foreground mt-1">
@@ -149,7 +150,7 @@ export function GroupCreatedSuccess({
               className="flex-1"
               onClick={onContinue}
             >
-              <Sparkles className="h-4 w-4 mr-2" />
+              <KinmoIcon size={16} className="mr-2" />
               Swipe on Venues
             </Button>
           </div>

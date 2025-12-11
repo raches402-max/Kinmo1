@@ -13,7 +13,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { getErrorToast } from "@/components/ErrorDisplay";
-import { Users, Sparkles, Mail, CheckCircle2, UserPlus, Compass, HelpCircle } from "lucide-react";
+import { Users, Mail, CheckCircle2, UserPlus, Compass, HelpCircle } from "lucide-react";
+import { KinmoIcon } from "@/components/KinmoLogo";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 import type { Group } from "@shared/schema";
@@ -143,7 +144,7 @@ export default function JoinGroup() {
 
                 <div className="space-y-3">
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 text-left">
-                    <Sparkles className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <KinmoIcon size={20} color="hsl(145 60% 40%)" className="shrink-0" />
                     <div className="text-sm">
                       <p className="font-medium text-zinc-900 dark:text-zinc-100">What's next?</p>
                       <p className="text-zinc-600 dark:text-zinc-400">Discover new places, create events, and start planning your next outing!</p>
@@ -219,7 +220,7 @@ export default function JoinGroup() {
               {group.name}
             </h1>
             <p className="text-zinc-500 dark:text-zinc-400 flex items-center justify-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5" />
+              <KinmoIcon size={14} />
               You've been invited to join
             </p>
           </div>

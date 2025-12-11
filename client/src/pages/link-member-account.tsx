@@ -13,7 +13,8 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Sparkles, Calendar, Check } from "lucide-react";
+import { Loader2, Calendar, Check } from "lucide-react";
+import { KinmoIcon } from "@/components/KinmoLogo";
 
 export default function LinkMemberAccountPage() {
   const { user, isLoading: authLoading } = useAuth();
@@ -130,13 +131,13 @@ export default function LinkMemberAccountPage() {
       <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 flex items-center justify-center p-4">
         <Card className="w-full max-w-2xl border-2 border-purple-200 shadow-2xl">
           <CardContent className="p-12 text-center">
-            {/* Animated sparkles */}
+            {/* Animated Kinmo sun */}
             <div className="relative mb-6">
               <div className="absolute inset-0 flex items-center justify-center">
-                <Sparkles className="h-20 w-20 text-purple-400 animate-pulse" />
+                <KinmoIcon size={80} color="hsl(280 60% 65%)" className="animate-pulse" />
               </div>
               <div className="absolute inset-0 flex items-center justify-center animate-ping">
-                <Sparkles className="h-16 w-16 text-blue-400 opacity-40" />
+                <KinmoIcon size={64} color="hsl(210 70% 60%)" className="opacity-40" />
               </div>
             </div>
 
@@ -178,7 +179,7 @@ export default function LinkMemberAccountPage() {
               <div className="bg-white rounded-lg p-4 border border-green-100 shadow-sm">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="bg-green-100 rounded-full p-2">
-                    <Sparkles className="h-5 w-5 text-green-600" />
+                    <KinmoIcon size={20} color="hsl(145 60% 40%)" />
                   </div>
                   <h3 className="font-semibold">Vote on Venues</h3>
                 </div>

@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ResponsiveDialog as Dialog, ResponsiveDialogContent as DialogContent, ResponsiveDialogDescription as DialogDescription, ResponsiveDialogFooter as DialogFooter, ResponsiveDialogHeader as DialogHeader, ResponsiveDialogTitle as DialogTitle } from "@/components/ui/responsive-dialog";
-import { Sparkles, CheckCircle, UserPlus, Users } from "lucide-react";
+import { CheckCircle, UserPlus, Users } from "lucide-react";
+import { KinmoIcon } from "@/components/KinmoLogo";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -223,7 +224,7 @@ export default function ClaimMemberPage() {
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-4">
             <div className="w-12 h-12 rounded-full bg-[hsl(44,87%,63%)]/20 flex items-center justify-center shadow-[0_2px_8px_rgba(242,201,76,0.3)]">
-              <Sparkles className="h-6 w-6 text-[hsl(44,87%,63%)]" />
+              <KinmoIcon size={24} color="hsl(44 87% 63%)" />
             </div>
           </div>
           <h1 className="text-3xl font-bold text-[hsl(25,30%,14%)]">Kinmo.ai</h1>
