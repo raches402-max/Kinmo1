@@ -206,7 +206,8 @@
       "Bash(unzip:*)",
       "Bash(timeout 30 curl:*)",
       "Bash(xxd:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(for place in \"ChIJqTapwQF9hYARMI8LsxUieOE\" \"ChIJgdIXeKuAj4ARi_2-TyWvn-Q\" \"ChIJ_47cEe2Hj4ARRuLZzfKprQw\")"
     ],
     "deny": [],
     "ask": []
