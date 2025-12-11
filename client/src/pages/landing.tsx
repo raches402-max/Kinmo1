@@ -96,7 +96,7 @@ function SubscriptCaretLayout({
       {/* Main text line */}
       <span className="text-foreground flex items-baseline justify-center">
         {/* "See your" - slides left when kin drops */}
-        <span className={`transition-transform duration-700 ease-out ${showDropAnimation ? '-translate-x-4' : ''}`}>
+        <span className={`transition-transform duration-700 ease-out ${showDropAnimation ? '-translate-x-6' : ''}`}>
           See your
         </span>
         {/* Subscript caret container */}
@@ -114,7 +114,7 @@ function SubscriptCaretLayout({
             <span
               className={`font-bold whitespace-nowrap transition-all duration-700 ease-out ${
                 showDropAnimation
-                  ? 'text-5xl lg:text-6xl px-2' // Full size when dropped + horizontal padding for spacing
+                  ? 'text-5xl lg:text-6xl mx-3' // Full size when dropped + margin for word spacing
                   : 'text-3xl lg:text-4xl xl:text-5xl' // Smaller when floating
               }`}
               style={{ color: '#F5C030' }}
@@ -137,7 +137,7 @@ function SubscriptCaretLayout({
           </svg>
         </span>
         {/* "more." - slides right when kin drops */}
-        <span className={`transition-transform duration-700 ease-out ${showDropAnimation ? 'translate-x-4' : ''}`}>
+        <span className={`transition-transform duration-700 ease-out ${showDropAnimation ? 'translate-x-6' : ''}`}>
           more.
         </span>
       </span>
