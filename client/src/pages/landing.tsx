@@ -75,26 +75,40 @@ function DiagonalLayout({
 }
 
 // Desktop: Subscript Caret layout (new)
+// When isKinDropping is true, "kin" animates from floating to inline position
 function SubscriptCaretLayout({
   currentWord,
   isAnimating,
+  isKinDropping = false,
+  isKinSettled = false,
   className = ""
 }: {
   currentWord: string;
   isAnimating: boolean;
+  isKinDropping?: boolean;
+  isKinSettled?: boolean;
   className?: string;
 }) {
+  const showDropAnimation = isKinDropping || isKinSettled;
+
   return (
     <span className={`inline-block relative pb-6 ${className}`}>
       {/* Main text line */}
       <span className="text-foreground flex items-baseline justify-center">
-        <span>See your</span>
+        {/* "See your" - slides left when kin drops */}
+        <span className={`transition-transform duration-700 ease-out ${showDropAnimation ? '-translate-x-2' : ''}`}>
+          See your
+        </span>
         {/* Subscript caret container */}
         <span className="relative mx-3">
-          {/* The word floating above the text */}
+          {/* The word - floats above normally, drops to baseline when isKinDropping */}
           <span
-            className={`absolute bottom-[calc(100%+10px)] left-1/2 -translate-x-1/2 transition-all duration-300 ${
-              isAnimating ? "opacity-0 translate-y-1" : "opacity-100 translate-y-0"
+            className={`absolute left-1/2 -translate-x-1/2 transition-all duration-700 ease-out ${
+              showDropAnimation
+                ? 'bottom-0' // Dropped into line
+                : 'bottom-[calc(100%+10px)]' // Floating above
+            } ${
+              isAnimating ? "opacity-0" : "opacity-100"
             }`}
           >
             <span
@@ -106,17 +120,22 @@ function SubscriptCaretLayout({
           </span>
           {/* Placeholder for spacing */}
           <span className="invisible">^</span>
-          {/* Caret positioned as subscript */}
+          {/* Caret - fades out when kin drops */}
           <svg
             viewBox="0 0 24 14"
-            className="absolute left-1/2 -translate-x-1/2 top-full mt-1 w-8 h-5 lg:w-10 lg:h-6"
+            className={`absolute left-1/2 -translate-x-1/2 top-full mt-1 w-8 h-5 lg:w-10 lg:h-6 transition-opacity duration-500 ${
+              showDropAnimation ? 'opacity-0' : 'opacity-100'
+            }`}
             style={{ color: '#F5C030' }}
             fill="currentColor"
           >
             <path d="M12 0 L24 14 L18 14 L12 6 L6 14 L0 14 Z" />
           </svg>
         </span>
-        <span>more.</span>
+        {/* "more." - slides right when kin drops */}
+        <span className={`transition-transform duration-700 ease-out ${showDropAnimation ? 'translate-x-2' : ''}`}>
+          more.
+        </span>
       </span>
     </span>
   );
@@ -221,96 +240,6 @@ function RotatingHeadline() {
     return () => clearTimeout(timeout);
   }, [phase, rotationIndex]);
 
-  // kinDropIn phase - "kin" drops down and squeezes into the line (desktop only)
-  if (phase === "kinDropIn") {
-    return (
-      <>
-        {/* Mobile: Same as before, just show diagonal with kin */}
-        <span className="md:hidden relative block w-[280px] sm:w-[340px] h-[110px] sm:h-[140px]">
-          <span className="absolute top-0 -left-8 sm:-left-12 text-foreground">See your</span>
-          <span className="absolute top-[38%] left-1/2 -translate-x-1/2 font-bold whitespace-nowrap" style={{ color: '#F5C030' }}>
-            kin
-          </span>
-          <span className="absolute bottom-0 -right-6 sm:-right-8 text-foreground">more.</span>
-        </span>
-        {/* Desktop: Kin drops down and text spreads apart */}
-        <span className="hidden md:inline-block relative pb-6">
-          <span className="text-foreground flex items-baseline justify-center">
-            {/* "See your" slides left */}
-            <span className="transition-transform duration-700 ease-out -translate-x-2">See your</span>
-            {/* Kin drops down from above into the line */}
-            <span
-              className="mx-1 font-bold whitespace-nowrap transition-all duration-700 ease-out animate-kin-drop-in"
-              style={{ color: '#F5C030' }}
-            >
-              kin
-            </span>
-            {/* "more." slides right */}
-            <span className="transition-transform duration-700 ease-out translate-x-2">more.</span>
-          </span>
-        </span>
-      </>
-    );
-  }
-
-  // kinSettled phase - "See your kin more." is settled inline (desktop)
-  if (phase === "kinSettled") {
-    return (
-      <>
-        {/* Mobile: Same diagonal */}
-        <span className="md:hidden relative block w-[280px] sm:w-[340px] h-[110px] sm:h-[140px]">
-          <span className="absolute top-0 -left-8 sm:-left-12 text-foreground">See your</span>
-          <span className="absolute top-[38%] left-1/2 -translate-x-1/2 font-bold whitespace-nowrap" style={{ color: '#F5C030' }}>
-            kin
-          </span>
-          <span className="absolute bottom-0 -right-6 sm:-right-8 text-foreground">more.</span>
-        </span>
-        {/* Desktop: Settled state - all inline */}
-        <span className="hidden md:inline-block relative pb-6">
-          <span className="text-foreground flex items-baseline justify-center">
-            <span className="-translate-x-2">See your</span>
-            <span
-              className="mx-1 font-bold whitespace-nowrap"
-              style={{ color: '#F5C030' }}
-            >
-              kin
-            </span>
-            <span className="translate-x-2">more.</span>
-          </span>
-        </span>
-      </>
-    );
-  }
-
-  // fadeToKinmo phase - fade out entire phrase
-  if (phase === "fadeToKinmo") {
-    return (
-      <>
-        {/* Mobile: Diagonal */}
-        <span className="md:hidden relative block w-[280px] sm:w-[340px] h-[110px] sm:h-[140px] animate-fade-out-phrase">
-          <span className="absolute top-0 -left-8 sm:-left-12 text-foreground">See your</span>
-          <span className="absolute top-[38%] left-1/2 -translate-x-1/2 font-bold whitespace-nowrap" style={{ color: '#F5C030' }}>
-            kin
-          </span>
-          <span className="absolute bottom-0 -right-6 sm:-right-8 text-foreground">more.</span>
-        </span>
-        {/* Desktop: Fade out the settled inline state */}
-        <span className="hidden md:inline-block relative pb-6 animate-fade-out-phrase">
-          <span className="text-foreground flex items-baseline justify-center">
-            <span className="-translate-x-2">See your</span>
-            <span
-              className="mx-1 font-bold whitespace-nowrap"
-              style={{ color: '#F5C030' }}
-            >
-              kin
-            </span>
-            <span className="translate-x-2">more.</span>
-          </span>
-        </span>
-      </>
-    );
-  }
-
   // Kinmo phase - centered, no surrounding text (same for both)
   if (phase === "kinmo") {
     return (
@@ -329,55 +258,33 @@ function RotatingHeadline() {
     );
   }
 
-  // fadeIn phase - fade in the full phrase to restart
-  if (phase === "fadeIn") {
-    return (
-      <>
-        {/* Mobile: Diagonal */}
-        <span className="md:hidden relative block w-[280px] sm:w-[340px] h-[110px] sm:h-[140px] animate-fade-in-phrase">
-          <span className="absolute top-0 -left-8 sm:-left-12 text-foreground">See your</span>
-          <span className="absolute top-[38%] left-1/2 -translate-x-1/2 font-bold whitespace-nowrap" style={{ color: '#F5C030' }}>
-            {currentWords[0]}
-          </span>
-          <span className="absolute bottom-0 -right-6 sm:-right-8 text-foreground">more.</span>
-        </span>
-        {/* Desktop: Subscript Caret */}
-        <span className="hidden md:inline-block relative pb-6 animate-fade-in-phrase">
-          <span className="text-foreground flex items-baseline justify-center">
-            <span>See your</span>
-            <span className="relative mx-3">
-              <span className="absolute bottom-[calc(100%+10px)] left-1/2 -translate-x-1/2">
-                <span className="text-3xl lg:text-4xl xl:text-5xl font-bold whitespace-nowrap" style={{ color: '#F5C030' }}>
-                  {currentWords[0]}
-                </span>
-              </span>
-              <span className="invisible">^</span>
-              <svg viewBox="0 0 24 14" className="absolute left-1/2 -translate-x-1/2 top-full mt-1 w-8 h-5 lg:w-10 lg:h-6" style={{ color: '#F5C030' }} fill="currentColor">
-                <path d="M12 0 L24 14 L18 14 L12 6 L6 14 L0 14 Z" />
-              </svg>
-            </span>
-            <span>more.</span>
-          </span>
-        </span>
-      </>
-    );
-  }
+  // All other phases use the same component structure for smooth CSS transitions
+  // Determine the current word and animation states based on phase
+  const isKinPhase = phase === "kinDropIn" || phase === "kinSettled" || phase === "fadeToKinmo";
+  const displayWord = isKinPhase ? "kin" : (phase === "fadeIn" ? currentWords[0] : currentWords[currentIndex]);
+  const shouldAnimate = phase === "rotating" && isAnimating;
+  const isDropping = phase === "kinDropIn";
+  const isSettled = phase === "kinSettled" || phase === "fadeToKinmo";
+  const fadeClass = phase === "fadeToKinmo" ? "animate-fade-out-phrase" : (phase === "fadeIn" ? "animate-fade-in-phrase" : "");
 
-  // Rotating phase - different layouts for mobile vs desktop
   return (
     <>
       {/* Mobile: Diagonal layout */}
-      <DiagonalLayout
-        currentWord={currentWords[currentIndex]}
-        isAnimating={isAnimating}
-        className="md:hidden"
-      />
-      {/* Desktop: Subscript Caret layout */}
-      <SubscriptCaretLayout
-        currentWord={currentWords[currentIndex]}
-        isAnimating={isAnimating}
-        className="hidden md:inline-block"
-      />
+      <span className={`md:hidden ${fadeClass}`}>
+        <DiagonalLayout
+          currentWord={displayWord}
+          isAnimating={shouldAnimate}
+        />
+      </span>
+      {/* Desktop: Subscript Caret layout - same component for all phases enables smooth CSS transitions */}
+      <span className={`hidden md:inline-block ${fadeClass}`}>
+        <SubscriptCaretLayout
+          currentWord={displayWord}
+          isAnimating={shouldAnimate}
+          isKinDropping={isDropping}
+          isKinSettled={isSettled}
+        />
+      </span>
     </>
   );
 }
