@@ -148,7 +148,7 @@ export function AIEventAssistant({
   // Example prompts for empty state
   const examplePrompts = [
     "Find craft beer bars near the Marina",
-    "Suggest a bar crawl route from Double Standard",
+    "Replace the second stop with something quieter",
     "What's in our itinerary so far?",
     "Add a dessert spot after dinner",
   ];
@@ -163,6 +163,9 @@ export function AIEventAssistant({
             <h3 className="font-semibold text-[hsl(25,30%,14%)]">
               AI Event Assistant
             </h3>
+            <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full bg-gradient-to-r from-amber-400 to-orange-400 text-amber-950 shadow-sm ring-1 ring-amber-500/20">
+              Beta
+            </span>
           </div>
           {messages.length > 0 && (
             <Button
@@ -178,6 +181,9 @@ export function AIEventAssistant({
         </div>
         <p className="text-sm text-[hsl(25,15%,45%)] mt-1">
           Ask me to find venues, suggest alternatives, or help plan your event
+        </p>
+        <p className="text-xs text-[hsl(25,15%,60%)] mt-1 italic">
+          Early preview — responses may vary in quality
         </p>
       </div>
 

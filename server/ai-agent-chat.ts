@@ -39,10 +39,24 @@ setInterval(() => {
   }
 }, 15 * 60 * 1000); // Every 15 minutes
 
+interface GroupContext {
+  name: string;
+  locationBase: string;
+  latitude: string | null;
+  longitude: string | null;
+  searchRadius: number | null;
+  budgetMin: number | null;
+  budgetMax: number | null;
+  enabledCategories: string[];
+  additionalInstructions: string | null;
+  timezone: string | null;
+}
+
 interface AgentChatOptions {
   prompt: string;
   itineraryId: string;
   groupId: string | null;
+  groupContext?: GroupContext | null;
   sessionId?: string;
 }
 
@@ -61,7 +75,7 @@ interface AgentChatResult {
 export async function runEventPlanningAgent(
   options: AgentChatOptions
 ): Promise<AgentChatResult> {
-  const { prompt, itineraryId, groupId, sessionId } = options;
+  const { prompt, itineraryId, groupId, groupContext, sessionId } = options;
 
   // Generate or use existing session ID
   const actualSessionId =
@@ -118,6 +132,17 @@ export async function runEventPlanningAgent(
 ## Current Context
 - Itinerary ID: ${itineraryId}
 ${groupId ? `- Group ID: ${groupId}` : "- Standalone event (no group - scheduling tools unavailable)"}
+${groupContext ? `
+## Your Group's Info
+- **Group**: ${groupContext.name}
+- **Location**: ${groupContext.locationBase}${groupContext.latitude && groupContext.longitude ? ` (${groupContext.latitude}, ${groupContext.longitude})` : ''}
+- **Search Radius**: ${groupContext.searchRadius || 5} miles
+- **Budget**: ${groupContext.budgetMin != null || groupContext.budgetMax != null ? `$${groupContext.budgetMin || 0} - $${groupContext.budgetMax || '∞'}` : 'No preference'}
+- **Categories**: ${groupContext.enabledCategories.length > 0 ? groupContext.enabledCategories.join(', ') : 'All'}
+${groupContext.additionalInstructions ? `- **Special Instructions**: ${groupContext.additionalInstructions}` : ''}
+${groupContext.timezone ? `- **Timezone**: ${groupContext.timezone}` : ''}
+
+**IMPORTANT**: This group is based in **${groupContext.locationBase}**. When searching for venues or resolving locations, assume they mean places in or near ${groupContext.locationBase} unless they explicitly specify a different location.` : ''}
 
 Start by understanding what the user wants, then use your tools to help them. Be friendly but efficient.`;
 
@@ -250,7 +275,7 @@ export async function streamEventPlanningAgent(
   options: AgentChatOptions,
   onChunk: (chunk: string) => void
 ): Promise<AgentChatResult> {
-  const { prompt, itineraryId, groupId, sessionId } = options;
+  const { prompt, itineraryId, groupId, groupContext, sessionId } = options;
 
   const actualSessionId =
     sessionId || `session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -304,6 +329,17 @@ export async function streamEventPlanningAgent(
 ## Current Context
 - Itinerary ID: ${itineraryId}
 ${groupId ? `- Group ID: ${groupId}` : "- Standalone event (no group - scheduling tools unavailable)"}
+${groupContext ? `
+## Your Group's Info
+- **Group**: ${groupContext.name}
+- **Location**: ${groupContext.locationBase}${groupContext.latitude && groupContext.longitude ? ` (${groupContext.latitude}, ${groupContext.longitude})` : ''}
+- **Search Radius**: ${groupContext.searchRadius || 5} miles
+- **Budget**: ${groupContext.budgetMin != null || groupContext.budgetMax != null ? `$${groupContext.budgetMin || 0} - $${groupContext.budgetMax || '∞'}` : 'No preference'}
+- **Categories**: ${groupContext.enabledCategories.length > 0 ? groupContext.enabledCategories.join(', ') : 'All'}
+${groupContext.additionalInstructions ? `- **Special Instructions**: ${groupContext.additionalInstructions}` : ''}
+${groupContext.timezone ? `- **Timezone**: ${groupContext.timezone}` : ''}
+
+**IMPORTANT**: This group is based in **${groupContext.locationBase}**. When searching for venues or resolving locations, assume they mean places in or near ${groupContext.locationBase} unless they explicitly specify a different location.` : ''}
 
 Start by understanding what the user wants, then use your tools to help them. Be friendly but efficient.`;
 
