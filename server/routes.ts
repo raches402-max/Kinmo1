@@ -4351,25 +4351,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get individual member by ID (public for event invite flow)
-  // Returns only safe, non-sensitive fields
-  app.get("/api/members/:id", publicEndpointLimiter, async (req, res) => {
+  // Returns only safe, non-sensitive fields for public access
+  // Returns additional fields (userId, profile data) for authenticated users
+  app.get("/api/members/:id", publicEndpointLimiter, async (req: any, res) => {
     try {
       const member = await storage.getMember(req.params.id);
       if (!member) {
         return res.status(404).json({ message: "Member not found" });
       }
 
-      // Return only safe fields - explicitly exclude sensitive data
-      const safeMember = {
+      // Check if user is authenticated
+      let authenticatedUserId: string | null = null;
+      try {
+        authenticatedUserId = await getUserId(req);
+      } catch {
+        // Not authenticated, that's fine for public access
+      }
+
+      // Base safe fields for public access
+      const safeMember: any = {
         id: member.id,
         name: member.name,
         groupId: member.groupId,
         isOrganizer: member.isOrganizer,
         openToHosting: member.openToHosting,
         hasJoined: member.hasJoined,
-        // Explicitly excluded: claimToken, email, userId, memberLocation,
-        // memberBudgetMin/Max, memberAvailability, memberConstraints
       };
+
+      // If authenticated, include userId and profile fields for ownership verification
+      if (authenticatedUserId) {
+        safeMember.userId = member.userId;
+        safeMember.homeBaseLocation = member.homeBaseLocation;
+        safeMember.homeBaseLatitude = member.homeBaseLatitude;
+        safeMember.homeBaseLongitude = member.homeBaseLongitude;
+        safeMember.activityPreferences = member.activityPreferences;
+        safeMember.personalAvailability = member.personalAvailability;
+        safeMember.profileCompleted = member.profileCompleted;
+      }
 
       res.json(safeMember);
     } catch (error: any) {

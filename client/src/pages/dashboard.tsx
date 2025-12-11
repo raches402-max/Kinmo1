@@ -1599,13 +1599,13 @@ export default function Dashboard() {
                         <Sparkles className="h-5 w-5 text-primary" />
                       </div>
                       <div className="flex-1">
-                        <h3 className="font-semibold mb-1">Complete Your Profile</h3>
+                        <h3 className="font-semibold mb-1">Get Personalized Suggestions</h3>
                         <p className="text-sm text-muted-foreground mb-3">
-                          Complete your profile to get personalized activity suggestions
+                          Add your preferences to help us find activities you'll love
                         </p>
                         <Link href={`/member-profile-setup/${groups.find(g => g.members.find(m => m.profileCompleted === false))?.members.find(m => m.profileCompleted === false)?.id}`}>
                           <Button size="sm" data-testid="button-banner-complete-profile">
-                            Complete Profile
+                            Set Up
                           </Button>
                         </Link>
                       </div>
