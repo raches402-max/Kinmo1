@@ -36,6 +36,7 @@ const MemberEventsPage = lazy(() => import("@/pages/member-events"));
 const Profile = lazy(() => import("@/pages/profile"));
 const MemberProfileSetup = lazy(() => import("@/pages/member-profile-setup"));
 const EventDetailsPage = lazy(() => import("@/pages/event-details"));
+const PublicEventPage = lazy(() => import("@/pages/public-event"));
 const Admin = lazy(() => import("@/pages/admin"));
 const LearningInsights = lazy(() => import("@/pages/learning-insights"));
 const Preferences = lazy(() => import("@/pages/preferences"));
@@ -111,6 +112,7 @@ function Router() {
                 <Route path="/invite/:token" component={InvitePage} />
                 <Route path="/event/:eventId/invite" component={EventInvitePage} />
                 <Route path="/event/:eventId/guest" component={GuestEventInvitePage} />
+                <Route path="/event/:id" component={PublicEventPage} />
                 <Route path="/rsvp/:itineraryId/:inviteToken" component={RsvpItineraryPage} />
                 <Route path="/guest-rsvp/:guestToken" component={GuestRsvpPage} />
                 <Route path="/availability/:pulseId/:responseToken" component={AvailabilityPulsePage} />
