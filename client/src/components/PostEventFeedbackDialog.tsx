@@ -1,110 +1,240 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Calendar, Check, X, MapPin, Sparkles, Heart } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Check, X, ChevronRight, ChevronLeft, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
-  ResponsiveDialogHeader,
-  ResponsiveDialogTitle,
-  ResponsiveDialogFooter,
 } from "@/components/ui/responsive-dialog";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { getErrorToast } from "@/components/ErrorDisplay";
 import { apiRequest } from "@/lib/queryClient";
 
-// Celebration component with floating particles
+// ============================================
+// CELEBRATION OVERLAY
+// ============================================
 function CelebrationOverlay({ onComplete }: { onComplete: () => void }) {
   useEffect(() => {
-    const timer = setTimeout(onComplete, 2500);
+    const timer = setTimeout(onComplete, 2800);
     return () => clearTimeout(timer);
   }, [onComplete]);
 
-  // Generate random particles
-  const particles = Array.from({ length: 20 }, (_, i) => ({
-    id: i,
-    left: Math.random() * 100,
-    delay: Math.random() * 0.5,
-    duration: 1.5 + Math.random() * 1,
-    size: 6 + Math.random() * 8,
-    type: ['sparkle', 'heart', 'dot'][Math.floor(Math.random() * 3)] as 'sparkle' | 'heart' | 'dot',
-  }));
-
   return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/95 z-50 overflow-hidden">
-      {/* Floating particles */}
-      {particles.map((particle) => (
-        <div
-          key={particle.id}
-          className="absolute animate-float-up pointer-events-none"
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="absolute inset-0 flex flex-col items-center justify-center z-50 overflow-hidden"
+      style={{
+        background: "linear-gradient(135deg, hsl(145 30% 96%) 0%, hsl(44 60% 97%) 50%, hsl(350 40% 97%) 100%)",
+      }}
+    >
+      {/* Floating shapes */}
+      {[...Array(12)].map((_, i) => (
+        <motion.div
+          key={i}
+          className="absolute rounded-full"
           style={{
-            left: `${particle.left}%`,
-            bottom: '-20px',
-            animationDelay: `${particle.delay}s`,
-            animationDuration: `${particle.duration}s`,
+            width: 8 + Math.random() * 16,
+            height: 8 + Math.random() * 16,
+            left: `${10 + Math.random() * 80}%`,
+            background: [
+              "hsl(44 91% 57%)",
+              "hsl(145 25% 72%)",
+              "hsl(350 45% 72%)",
+            ][i % 3],
           }}
-        >
-          {particle.type === 'sparkle' && (
-            <Sparkles
-              className="text-primary"
-              style={{ width: particle.size, height: particle.size }}
-            />
-          )}
-          {particle.type === 'heart' && (
-            <Heart
-              className="text-accent fill-accent/50"
-              style={{ width: particle.size, height: particle.size }}
-            />
-          )}
-          {particle.type === 'dot' && (
-            <div
-              className="rounded-full bg-secondary"
-              style={{ width: particle.size * 0.6, height: particle.size * 0.6 }}
-            />
-          )}
-        </div>
+          initial={{ y: 400, opacity: 0, scale: 0 }}
+          animate={{
+            y: -100,
+            opacity: [0, 1, 1, 0],
+            scale: [0, 1, 1, 0.5],
+            rotate: Math.random() * 360,
+          }}
+          transition={{
+            duration: 2 + Math.random(),
+            delay: Math.random() * 0.5,
+            ease: "easeOut",
+          }}
+        />
       ))}
 
       {/* Center content */}
-      <div className="relative z-10 text-center animate-in zoom-in-50 fade-in duration-500">
-        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center animate-pulse">
-          <Sparkles className="w-8 h-8 text-primary" />
-        </div>
-        <h3 className="text-xl font-bold mb-2">Thanks for sharing!</h3>
-        <p className="text-muted-foreground text-sm max-w-[200px] mx-auto">
-          Your feedback helps us plan even better events for your group
+      <motion.div
+        className="relative z-10 text-center px-6"
+        initial={{ scale: 0.8, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+      >
+        <motion.div
+          className="w-20 h-20 mx-auto mb-5 rounded-full flex items-center justify-center"
+          style={{ background: "linear-gradient(135deg, hsl(44 91% 57%) 0%, hsl(44 91% 67%) 100%)" }}
+          initial={{ rotate: -10 }}
+          animate={{ rotate: [0, -5, 5, 0] }}
+          transition={{ delay: 0.5, duration: 0.5 }}
+        >
+          <Sparkles className="w-10 h-10 text-black/80" />
+        </motion.div>
+        <h3 className="text-2xl font-bold text-[hsl(25,30%,14%)] mb-2" style={{ fontFamily: "var(--font-display)" }}>
+          Thanks for sharing!
+        </h3>
+        <p className="text-[hsl(25,15%,45%)] text-sm max-w-[240px] mx-auto leading-relaxed">
+          Your feedback helps us plan better events for your group
         </p>
-      </div>
+      </motion.div>
+    </motion.div>
+  );
+}
 
-      {/* Styles for float animation */}
-      <style>{`
-        @keyframes float-up {
-          0% {
-            transform: translateY(0) rotate(0deg) scale(1);
-            opacity: 0;
-          }
-          10% {
-            opacity: 1;
-          }
-          90% {
-            opacity: 1;
-          }
-          100% {
-            transform: translateY(-400px) rotate(360deg) scale(0.5);
-            opacity: 0;
-          }
-        }
-        .animate-float-up {
-          animation: float-up ease-out forwards;
-        }
-      `}</style>
+// ============================================
+// EMOJI RATING BUTTON
+// ============================================
+function EmojiButton({
+  emoji,
+  label,
+  selected,
+  onClick,
+}: {
+  emoji: string;
+  label: string;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <motion.button
+      type="button"
+      onClick={onClick}
+      className="flex flex-col items-center gap-1.5 group"
+      whileTap={{ scale: 0.95 }}
+    >
+      <motion.div
+        className={cn(
+          "w-14 h-14 rounded-2xl flex items-center justify-center text-2xl",
+          "transition-all duration-200 border-2",
+          selected
+            ? "bg-[hsl(44,91%,57%)] border-[hsl(44,91%,47%)] shadow-lg shadow-[hsl(44,91%,57%)]/25"
+            : "bg-white border-[hsl(32,20%,88%)] hover:border-[hsl(32,20%,78%)] hover:bg-[hsl(38,45%,98%)]"
+        )}
+        animate={selected ? { scale: [1, 1.1, 1.05] } : {}}
+        transition={{ duration: 0.2 }}
+      >
+        {emoji}
+      </motion.div>
+      <span
+        className={cn(
+          "text-xs text-center leading-tight transition-colors max-w-[60px]",
+          selected ? "text-[hsl(25,30%,14%)] font-medium" : "text-[hsl(25,15%,50%)]"
+        )}
+      >
+        {label}
+      </span>
+    </motion.button>
+  );
+}
+
+// ============================================
+// STEP INDICATOR
+// ============================================
+function StepIndicator({ current, total }: { current: number; total: number }) {
+  return (
+    <div className="flex items-center justify-center gap-1.5 py-2">
+      {[...Array(total)].map((_, i) => (
+        <motion.div
+          key={i}
+          className={cn(
+            "h-1.5 rounded-full transition-all duration-300",
+            i === current
+              ? "w-6 bg-[hsl(44,91%,57%)]"
+              : i < current
+              ? "w-1.5 bg-[hsl(145,25%,72%)]"
+              : "w-1.5 bg-[hsl(32,20%,88%)]"
+          )}
+          initial={false}
+          animate={{ scale: i === current ? 1 : 0.9 }}
+        />
+      ))}
     </div>
   );
 }
 
+// ============================================
+// PILL CHOICE BUTTON
+// ============================================
+function PillChoice({
+  label,
+  selected,
+  onClick,
+}: {
+  label: string;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <motion.button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-200 border-2",
+        selected
+          ? "bg-[hsl(350,45%,72%)] border-[hsl(350,45%,62%)] text-white"
+          : "bg-white border-[hsl(32,20%,88%)] text-[hsl(25,30%,14%)] hover:border-[hsl(350,45%,72%)] hover:bg-[hsl(350,50%,97%)]"
+      )}
+      whileTap={{ scale: 0.97 }}
+    >
+      {label}
+    </motion.button>
+  );
+}
+
+// ============================================
+// SLIDER SCALE
+// ============================================
+function SliderScale({
+  value,
+  onChange,
+  leftLabel,
+  rightLabel,
+}: {
+  value: number;
+  onChange: (value: number) => void;
+  leftLabel: string;
+  rightLabel: string;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-between gap-2">
+        {[1, 2, 3, 4, 5].map((v) => (
+          <motion.button
+            key={v}
+            type="button"
+            onClick={() => onChange(v)}
+            className={cn(
+              "flex-1 h-12 rounded-xl border-2 transition-all duration-200 font-medium",
+              value === v
+                ? "bg-[hsl(44,91%,57%)] border-[hsl(44,91%,47%)] text-black shadow-md"
+                : "bg-white border-[hsl(32,20%,88%)] text-[hsl(25,15%,50%)] hover:border-[hsl(44,91%,57%)] hover:bg-[hsl(44,80%,97%)]"
+            )}
+            whileTap={{ scale: 0.95 }}
+          >
+            {v}
+          </motion.button>
+        ))}
+      </div>
+      <div className="flex justify-between text-xs text-[hsl(25,15%,50%)] px-1">
+        <span>{leftLabel}</span>
+        <span>{rightLabel}</span>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// MAIN COMPONENT
+// ============================================
 interface PostEventFeedbackDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -117,122 +247,16 @@ interface PostEventFeedbackDialogProps {
   } | null;
 }
 
-interface FeedbackData {
-  attended: boolean | null;
-  didNotAttendReason?: string;
-  overallRating: number;
-  venueRating: number;
-  budgetRating: number;
-  activityFit: number;
-  timingRating: number;
-  frequencyPreference: number;
-  notes?: string;
-}
-
-// Emoji rating option component
-function EmojiOption({
-  emoji,
-  label,
-  selected,
-  onClick
-}: {
-  emoji: string;
-  label: string;
-  selected: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "flex flex-col items-center gap-1 p-1.5 rounded-xl transition-all duration-200",
-        "hover:bg-muted/50",
-        selected && "bg-muted"
-      )}
-    >
-      <div className={cn(
-        "w-11 h-11 rounded-full flex items-center justify-center text-xl",
-        "bg-card border-2 transition-all duration-200",
-        selected
-          ? "border-primary shadow-md scale-110"
-          : "border-border/40 hover:border-border"
-      )}>
-        {emoji}
-      </div>
-      <span className={cn(
-        "text-[10px] leading-tight text-center max-w-[52px] transition-colors",
-        selected
-          ? "text-foreground font-medium"
-          : "text-muted-foreground/70"
-      )}>
-        {label}
-      </span>
-    </button>
-  );
-}
-
-// Slider scale component
-function SliderScale({
-  value,
-  onChange,
-  leftLabel,
-  centerLabel,
-  rightLabel,
-}: {
-  value: number;
-  onChange: (value: number) => void;
-  leftLabel: string;
-  centerLabel: string;
-  rightLabel: string;
-}) {
-  return (
-    <div className="space-y-2">
-      <div className="relative pt-4 pb-2">
-        {/* Track with gradient */}
-        <div className="h-1.5 rounded-full bg-gradient-to-r from-accent/60 via-muted to-secondary/60" />
-
-        {/* Dots */}
-        <div className="absolute top-2 left-0 right-0 flex justify-between px-1">
-          {[1, 2, 3, 4, 5].map((v) => (
-            <button
-              key={v}
-              type="button"
-              onClick={() => onChange(v)}
-              className={cn(
-                "w-6 h-6 rounded-full border-2 transition-all duration-200",
-                "flex items-center justify-center",
-                "hover:border-primary hover:scale-110",
-                value === v
-                  ? "bg-primary border-primary scale-115 shadow-md"
-                  : "bg-background border-border"
-              )}
-            >
-              {value === v && (
-                <div className="w-2 h-2 rounded-full bg-primary-foreground" />
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Labels */}
-      <div className="flex justify-between text-xs text-muted-foreground">
-        <span>{leftLabel}</span>
-        <span>{centerLabel}</span>
-        <span>{rightLabel}</span>
-      </div>
-    </div>
-  );
-}
-
 export function PostEventFeedbackDialog({
   open,
   onOpenChange,
-  event
+  event,
 }: PostEventFeedbackDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Step management
+  const [step, setStep] = useState(0);
 
   // Form state
   const [attended, setAttended] = useState<boolean | null>(null);
@@ -249,6 +273,7 @@ export function PostEventFeedbackDialog({
   const [showCelebration, setShowCelebration] = useState(false);
 
   const resetForm = () => {
+    setStep(0);
     setAttended(null);
     setDidNotAttendReason("");
     setOverallRating(0);
@@ -260,6 +285,9 @@ export function PostEventFeedbackDialog({
     setNotes("");
     setShowCelebration(false);
   };
+
+  // Determine total steps based on attendance
+  const totalSteps = attended === true ? 5 : attended === false ? 2 : 1;
 
   // Mutation
   const feedbackMutation = useMutation({
@@ -279,7 +307,6 @@ export function PostEventFeedbackDialog({
         actuallyAttended: data.actuallyAttended,
       };
 
-      // Only include fields with values
       if (data.didNotAttendReason) requestBody.didNotAttendReason = data.didNotAttendReason;
       if (data.overallRating) requestBody.overallRating = data.overallRating;
       if (data.venueRating) requestBody.venueRating = data.venueRating;
@@ -295,7 +322,6 @@ export function PostEventFeedbackDialog({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/user/events"] });
-      // Show celebration instead of immediately closing
       setShowCelebration(true);
     },
     onError: (error: any) => {
@@ -332,242 +358,451 @@ export function PostEventFeedbackDialog({
     onOpenChange(newOpen);
   };
 
-  // Only require the attendance question
-  const isValid = attended !== null;
+  const canProceed = () => {
+    if (step === 0) return attended !== null;
+    if (attended === false && step === 1) return true; // Reason is optional
+    return true;
+  };
+
+  const handleNext = () => {
+    if (step < totalSteps - 1) {
+      setStep(step + 1);
+    } else {
+      handleSubmit();
+    }
+  };
+
+  const handleBack = () => {
+    if (step > 0) {
+      setStep(step - 1);
+    }
+  };
+
+  // Animation variants
+  const slideVariants = {
+    enter: (direction: number) => ({
+      x: direction > 0 ? 100 : -100,
+      opacity: 0,
+    }),
+    center: {
+      x: 0,
+      opacity: 1,
+    },
+    exit: (direction: number) => ({
+      x: direction < 0 ? 100 : -100,
+      opacity: 0,
+    }),
+  };
+
+  const [direction, setDirection] = useState(0);
+
+  useEffect(() => {
+    setDirection(1);
+  }, [step]);
+
+  const goNext = () => {
+    setDirection(1);
+    handleNext();
+  };
+
+  const goBack = () => {
+    setDirection(-1);
+    handleBack();
+  };
 
   return (
     <ResponsiveDialog open={open} onOpenChange={handleOpenChange}>
-      <ResponsiveDialogContent className="max-w-md relative overflow-hidden">
+      <ResponsiveDialogContent className="max-w-md p-0 overflow-hidden bg-[hsl(38,35%,97%)] border-[hsl(32,25%,85%)]">
         {/* Celebration overlay */}
-        {showCelebration && (
-          <CelebrationOverlay onComplete={handleCelebrationComplete} />
-        )}
+        <AnimatePresence>
+          {showCelebration && (
+            <CelebrationOverlay onComplete={handleCelebrationComplete} />
+          )}
+        </AnimatePresence>
 
-        <ResponsiveDialogHeader>
-          <ResponsiveDialogTitle className="text-2xl font-bold">How was it?</ResponsiveDialogTitle>
-          <p className="text-sm text-muted-foreground">Quick feedback helps plan better events</p>
-
+        {/* Header */}
+        <div className="px-6 pt-6 pb-4">
           {/* Event pill */}
           {event && (
-            <div className="flex items-center gap-2 bg-muted rounded-xl px-3 py-2.5 mt-3 text-sm">
-              <MapPin className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-              <span className="font-medium truncate">{event.itineraryName}</span>
-              {event.eventDate && (
-                <>
-                  <span className="text-muted-foreground">•</span>
-                  <Calendar className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                  <span className="text-muted-foreground">{format(new Date(event.eventDate), 'MMM d')}</span>
-                </>
-              )}
+            <div className="flex items-center gap-2 mb-4">
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center text-lg"
+                style={{ background: "linear-gradient(135deg, hsl(44 91% 57%) 0%, hsl(44 91% 67%) 100%)" }}
+              >
+                {event.eventDate ? format(new Date(event.eventDate), "d") : "?"}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-[hsl(25,30%,14%)] truncate">{event.itineraryName}</p>
+                <p className="text-xs text-[hsl(25,15%,50%)]">
+                  {event.eventDate ? format(new Date(event.eventDate), "EEEE, MMM d") : "Past event"}
+                </p>
+              </div>
             </div>
           )}
-        </ResponsiveDialogHeader>
 
-        <div className="space-y-6 max-h-[60vh] overflow-y-auto py-2">
-          {/* Question 1: Did you attend? */}
-          <div className="space-y-3">
-            <label className="text-base font-semibold">Did you make it?</label>
-            <div className="flex gap-3">
-              <Button
-                type="button"
-                variant={attended === true ? "default" : "outline"}
-                className={cn(
-                  "flex-1 gap-2",
-                  attended === true && "bg-secondary text-secondary-foreground hover:bg-secondary/90"
-                )}
-                onClick={() => setAttended(true)}
-              >
-                <Check className="h-4 w-4" /> Yes
-              </Button>
-              <Button
-                type="button"
-                variant={attended === false ? "default" : "outline"}
-                className={cn(
-                  "flex-1 gap-2",
-                  attended === false && "bg-accent text-accent-foreground hover:bg-accent/90"
-                )}
-                onClick={() => setAttended(false)}
-              >
-                <X className="h-4 w-4" /> No
-              </Button>
-            </div>
-          </div>
+          <StepIndicator current={step} total={totalSteps} />
+        </div>
 
-          {/* If didn't attend - quick reason */}
-          {attended === false && (
-            <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <label className="text-base font-semibold">What happened?</label>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { value: 'cancelled', label: 'Event cancelled' },
-                  { value: 'conflict', label: 'Schedule conflict' },
-                  { value: 'forgot', label: 'Forgot' },
-                  { value: 'other', label: 'Other' }
-                ].map(reason => (
-                  <button
-                    key={reason.value}
-                    type="button"
-                    onClick={() => setDidNotAttendReason(reason.value)}
-                    className={cn(
-                      "px-3.5 py-2 rounded-full text-sm border-2 transition-all duration-200",
-                      didNotAttendReason === reason.value
-                        ? "bg-accent border-accent text-accent-foreground"
-                        : "bg-background border-border hover:border-accent/50"
-                    )}
+        {/* Content area with fixed height */}
+        <div className="px-6 min-h-[320px] relative">
+          <AnimatePresence mode="wait" custom={direction}>
+            {/* Step 0: Attendance */}
+            {step === 0 && (
+              <motion.div
+                key="step-0"
+                custom={direction}
+                variants={slideVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                className="space-y-6"
+              >
+                <div className="text-center">
+                  <h2
+                    className="text-2xl font-bold text-[hsl(25,30%,14%)] mb-2"
+                    style={{ fontFamily: "var(--font-display)" }}
                   >
-                    {reason.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+                    Did you make it?
+                  </h2>
+                  <p className="text-[hsl(25,15%,50%)] text-sm">
+                    Quick check-in about the event
+                  </p>
+                </div>
 
-          {/* Questions for attendees */}
-          {attended === true && (
-            <>
-              {/* Overall experience - emoji scale */}
-              <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300" style={{ animationDelay: '100ms' }}>
-                <label className="text-base font-semibold">Overall experience</label>
-                <div className="flex justify-between items-start">
+                <div className="flex gap-4 justify-center pt-4">
+                  <motion.button
+                    type="button"
+                    onClick={() => setAttended(true)}
+                    className={cn(
+                      "w-28 h-28 rounded-3xl border-3 flex flex-col items-center justify-center gap-2 transition-all duration-200",
+                      attended === true
+                        ? "bg-[hsl(145,25%,72%)] border-[hsl(145,25%,62%)] shadow-lg shadow-[hsl(145,25%,72%)]/30"
+                        : "bg-white border-[hsl(32,20%,88%)] hover:border-[hsl(145,25%,72%)] hover:bg-[hsl(145,30%,97%)]"
+                    )}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <Check
+                      className={cn(
+                        "w-10 h-10 transition-colors",
+                        attended === true ? "text-white" : "text-[hsl(145,25%,60%)]"
+                      )}
+                      strokeWidth={2.5}
+                    />
+                    <span
+                      className={cn(
+                        "font-semibold transition-colors",
+                        attended === true ? "text-white" : "text-[hsl(25,30%,14%)]"
+                      )}
+                    >
+                      Yes!
+                    </span>
+                  </motion.button>
+
+                  <motion.button
+                    type="button"
+                    onClick={() => setAttended(false)}
+                    className={cn(
+                      "w-28 h-28 rounded-3xl border-3 flex flex-col items-center justify-center gap-2 transition-all duration-200",
+                      attended === false
+                        ? "bg-[hsl(350,45%,72%)] border-[hsl(350,45%,62%)] shadow-lg shadow-[hsl(350,45%,72%)]/30"
+                        : "bg-white border-[hsl(32,20%,88%)] hover:border-[hsl(350,45%,72%)] hover:bg-[hsl(350,50%,97%)]"
+                    )}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <X
+                      className={cn(
+                        "w-10 h-10 transition-colors",
+                        attended === false ? "text-white" : "text-[hsl(350,45%,65%)]"
+                      )}
+                      strokeWidth={2.5}
+                    />
+                    <span
+                      className={cn(
+                        "font-semibold transition-colors",
+                        attended === false ? "text-white" : "text-[hsl(25,30%,14%)]"
+                      )}
+                    >
+                      No
+                    </span>
+                  </motion.button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Step 1 (non-attendee): Reason */}
+            {step === 1 && attended === false && (
+              <motion.div
+                key="step-1-no"
+                custom={direction}
+                variants={slideVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                className="space-y-6"
+              >
+                <div className="text-center">
+                  <h2
+                    className="text-2xl font-bold text-[hsl(25,30%,14%)] mb-2"
+                    style={{ fontFamily: "var(--font-display)" }}
+                  >
+                    What happened?
+                  </h2>
+                  <p className="text-[hsl(25,15%,50%)] text-sm">
+                    No worries - just helps us understand
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-3 justify-center pt-4">
                   {[
-                    { value: 1, emoji: '😔', label: 'Poor' },
-                    { value: 2, emoji: '😕', label: 'Meh' },
-                    { value: 3, emoji: '🙂', label: 'Okay' },
-                    { value: 4, emoji: '😊', label: 'Good' },
-                    { value: 5, emoji: '🤩', label: 'Great!' }
-                  ].map(option => (
-                    <EmojiOption
-                      key={option.value}
-                      emoji={option.emoji}
-                      label={option.label}
-                      selected={overallRating === option.value}
-                      onClick={() => setOverallRating(option.value)}
+                    { value: "conflict", label: "Schedule conflict" },
+                    { value: "cancelled", label: "Event cancelled" },
+                    { value: "sick", label: "Wasn't feeling well" },
+                    { value: "forgot", label: "Forgot" },
+                    { value: "other", label: "Other" },
+                  ].map((reason) => (
+                    <PillChoice
+                      key={reason.value}
+                      label={reason.label}
+                      selected={didNotAttendReason === reason.value}
+                      onClick={() => setDidNotAttendReason(reason.value)}
                     />
                   ))}
                 </div>
-              </div>
+              </motion.div>
+            )}
 
-              {/* Venue rating - emoji scale */}
-              <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300" style={{ animationDelay: '200ms' }}>
+            {/* Step 1 (attendee): Overall + Venue */}
+            {step === 1 && attended === true && (
+              <motion.div
+                key="step-1-yes"
+                custom={direction}
+                variants={slideVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                className="space-y-8"
+              >
                 <div>
-                  <label className="text-base font-semibold">The venue</label>
-                  <p className="text-sm text-muted-foreground">Would you go back?</p>
+                  <h3 className="text-lg font-semibold text-[hsl(25,30%,14%)] mb-4">
+                    How was the overall experience?
+                  </h3>
+                  <div className="flex justify-between">
+                    {[
+                      { value: 1, emoji: "😔", label: "Not great" },
+                      { value: 2, emoji: "😕", label: "Meh" },
+                      { value: 3, emoji: "🙂", label: "Okay" },
+                      { value: 4, emoji: "😊", label: "Good!" },
+                      { value: 5, emoji: "🤩", label: "Amazing!" },
+                    ].map((option) => (
+                      <EmojiButton
+                        key={option.value}
+                        emoji={option.emoji}
+                        label={option.label}
+                        selected={overallRating === option.value}
+                        onClick={() => setOverallRating(option.value)}
+                      />
+                    ))}
+                  </div>
                 </div>
-                <div className="flex justify-between items-start">
-                  {[
-                    { value: 1, emoji: '👎', label: 'Nope' },
-                    { value: 2, emoji: '😬', label: 'Probably not' },
-                    { value: 3, emoji: '🤷', label: 'Maybe' },
-                    { value: 4, emoji: '👍', label: 'Yes' },
-                    { value: 5, emoji: '❤️', label: 'Love it!' }
-                  ].map(option => (
-                    <EmojiOption
-                      key={option.value}
-                      emoji={option.emoji}
-                      label={option.label}
-                      selected={venueRating === option.value}
-                      onClick={() => setVenueRating(option.value)}
-                    />
-                  ))}
-                </div>
-              </div>
 
-              {/* Budget - emoji scale */}
-              <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300" style={{ animationDelay: '300ms' }}>
                 <div>
-                  <label className="text-base font-semibold">The budget</label>
-                  <p className="text-sm text-muted-foreground">How did the cost feel?</p>
+                  <h3 className="text-lg font-semibold text-[hsl(25,30%,14%)] mb-4">
+                    Would you go back to this venue?
+                  </h3>
+                  <div className="flex justify-between">
+                    {[
+                      { value: 1, emoji: "👎", label: "Nope" },
+                      { value: 2, emoji: "😬", label: "Probably not" },
+                      { value: 3, emoji: "🤷", label: "Maybe" },
+                      { value: 4, emoji: "👍", label: "Yes" },
+                      { value: 5, emoji: "❤️", label: "Love it!" },
+                    ].map((option) => (
+                      <EmojiButton
+                        key={option.value}
+                        emoji={option.emoji}
+                        label={option.label}
+                        selected={venueRating === option.value}
+                        onClick={() => setVenueRating(option.value)}
+                      />
+                    ))}
+                  </div>
                 </div>
-                <div className="flex justify-between items-start">
-                  {[
-                    { value: 1, emoji: '😰', label: 'Too pricey' },
-                    { value: 2, emoji: '😕', label: 'A bit much' },
-                    { value: 3, emoji: '👌', label: 'Just right' },
-                    { value: 4, emoji: '🙌', label: 'Good deal' },
-                    { value: 5, emoji: '🤑', label: 'Great value' }
-                  ].map(option => (
-                    <EmojiOption
-                      key={option.value}
-                      emoji={option.emoji}
-                      label={option.label}
-                      selected={budgetRating === option.value}
-                      onClick={() => setBudgetRating(option.value)}
-                    />
-                  ))}
-                </div>
-              </div>
+              </motion.div>
+            )}
 
-              {/* Activity fit - slider scale */}
-              <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300" style={{ animationDelay: '400ms' }}>
+            {/* Step 2 (attendee): Budget + Activity */}
+            {step === 2 && attended === true && (
+              <motion.div
+                key="step-2-yes"
+                custom={direction}
+                variants={slideVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                className="space-y-8"
+              >
                 <div>
-                  <label className="text-base font-semibold">This type of activity?</label>
-                  <p className="text-sm text-muted-foreground">For you...</p>
+                  <h3 className="text-lg font-semibold text-[hsl(25,30%,14%)] mb-4">
+                    How did the cost feel?
+                  </h3>
+                  <div className="flex justify-between">
+                    {[
+                      { value: 1, emoji: "😰", label: "Too pricey" },
+                      { value: 2, emoji: "😕", label: "A bit much" },
+                      { value: 3, emoji: "👌", label: "Just right" },
+                      { value: 4, emoji: "🙌", label: "Good deal" },
+                      { value: 5, emoji: "🤑", label: "Great value" },
+                    ].map((option) => (
+                      <EmojiButton
+                        key={option.value}
+                        emoji={option.emoji}
+                        label={option.label}
+                        selected={budgetRating === option.value}
+                        onClick={() => setBudgetRating(option.value)}
+                      />
+                    ))}
+                  </div>
                 </div>
-                <SliderScale
-                  value={activityFit}
-                  onChange={setActivityFit}
-                  leftLabel="Not my thing"
-                  centerLabel="Works for me"
-                  rightLabel="More of this"
-                />
-              </div>
 
-              {/* Timing - slider scale */}
-              <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300" style={{ animationDelay: '500ms' }}>
-                <label className="text-base font-semibold">The timing</label>
-                <SliderScale
-                  value={timingRating}
-                  onChange={setTimingRating}
-                  leftLabel="Too early"
-                  centerLabel="Just right"
-                  rightLabel="Too late"
-                />
-              </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-[hsl(25,30%,14%)] mb-3">
+                    This type of activity for you?
+                  </h3>
+                  <SliderScale
+                    value={activityFit}
+                    onChange={setActivityFit}
+                    leftLabel="Not my thing"
+                    rightLabel="More of this!"
+                  />
+                </div>
+              </motion.div>
+            )}
 
-              {/* Frequency - slider scale */}
-              <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300" style={{ animationDelay: '600ms' }}>
-                <label className="text-base font-semibold">How often would you want to meet?</label>
-                <SliderScale
-                  value={frequencyPreference}
-                  onChange={setFrequencyPreference}
-                  leftLabel="Less often"
-                  centerLabel="About right"
-                  rightLabel="More often"
-                />
-              </div>
+            {/* Step 3 (attendee): Timing + Frequency */}
+            {step === 3 && attended === true && (
+              <motion.div
+                key="step-3-yes"
+                custom={direction}
+                variants={slideVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                className="space-y-8"
+              >
+                <div>
+                  <h3 className="text-lg font-semibold text-[hsl(25,30%,14%)] mb-3">
+                    How was the timing?
+                  </h3>
+                  <SliderScale
+                    value={timingRating}
+                    onChange={setTimingRating}
+                    leftLabel="Too early"
+                    rightLabel="Too late"
+                  />
+                </div>
 
-              {/* Optional notes */}
-              <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300" style={{ animationDelay: '600ms' }}>
-                <label className="text-base font-semibold">Anything else?</label>
+                <div>
+                  <h3 className="text-lg font-semibold text-[hsl(25,30%,14%)] mb-3">
+                    How often would you want to meet?
+                  </h3>
+                  <SliderScale
+                    value={frequencyPreference}
+                    onChange={setFrequencyPreference}
+                    leftLabel="Less often"
+                    rightLabel="More often"
+                  />
+                </div>
+              </motion.div>
+            )}
+
+            {/* Step 4 (attendee): Notes */}
+            {step === 4 && attended === true && (
+              <motion.div
+                key="step-4-yes"
+                custom={direction}
+                variants={slideVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                className="space-y-6"
+              >
+                <div className="text-center">
+                  <h2
+                    className="text-2xl font-bold text-[hsl(25,30%,14%)] mb-2"
+                    style={{ fontFamily: "var(--font-display)" }}
+                  >
+                    Anything else?
+                  </h2>
+                  <p className="text-[hsl(25,15%,50%)] text-sm">
+                    Optional - suggestions or thoughts for next time
+                  </p>
+                </div>
+
                 <Textarea
-                  placeholder="Optional - suggestions for next time..."
-                  className="min-h-[80px] resize-none"
+                  placeholder="The dessert was incredible, we should go back just for that..."
+                  className="min-h-[120px] resize-none bg-white border-[hsl(32,20%,88%)] rounded-xl text-[hsl(25,30%,14%)] placeholder:text-[hsl(25,15%,60%)] focus:border-[hsl(44,91%,57%)] focus:ring-[hsl(44,91%,57%)]"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                 />
-              </div>
-            </>
-          )}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
-        <ResponsiveDialogFooter className="flex gap-3 pt-4">
-          <Button
-            type="button"
-            variant="ghost"
-            className="flex-1"
-            onClick={() => handleOpenChange(false)}
-          >
-            Skip
-          </Button>
-          <Button
-            type="button"
-            className="flex-[2]"
-            disabled={!isValid || feedbackMutation.isPending}
-            onClick={handleSubmit}
-          >
-            {feedbackMutation.isPending ? "Submitting..." : "Submit"}
-          </Button>
-        </ResponsiveDialogFooter>
+        {/* Footer */}
+        <div className="px-6 py-5 bg-white border-t border-[hsl(32,20%,90%)]">
+          <div className="flex gap-3">
+            {step > 0 ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="flex-1 text-[hsl(25,15%,50%)] hover:text-[hsl(25,30%,14%)] hover:bg-[hsl(38,35%,95%)]"
+                onClick={goBack}
+              >
+                <ChevronLeft className="w-4 h-4 mr-1" />
+                Back
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="ghost"
+                className="flex-1 text-[hsl(25,15%,50%)] hover:text-[hsl(25,30%,14%)] hover:bg-[hsl(38,35%,95%)]"
+                onClick={() => handleOpenChange(false)}
+              >
+                Skip
+              </Button>
+            )}
+
+            <Button
+              type="button"
+              className={cn(
+                "flex-[2] font-semibold transition-all",
+                canProceed()
+                  ? "bg-[hsl(44,91%,57%)] hover:bg-[hsl(44,91%,52%)] text-black shadow-md hover:shadow-lg"
+                  : "bg-[hsl(32,20%,88%)] text-[hsl(25,15%,60%)] cursor-not-allowed"
+              )}
+              disabled={!canProceed() || feedbackMutation.isPending}
+              onClick={goNext}
+            >
+              {feedbackMutation.isPending ? (
+                "Submitting..."
+              ) : step === totalSteps - 1 ? (
+                "Submit"
+              ) : (
+                <>
+                  Continue
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
       </ResponsiveDialogContent>
     </ResponsiveDialog>
   );
