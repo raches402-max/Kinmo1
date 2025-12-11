@@ -969,6 +969,105 @@ function Option19BounceCaret() {
 }
 
 // ============================================
+// FONT COMPARISON: Warm geometric fonts with circular O
+// ============================================
+const fontOptions = [
+  {
+    name: "Nunito",
+    family: "'Nunito', sans-serif",
+    description: "Very rounded, friendly. Soft terminals give it warmth.",
+    googleImport: "Nunito:wght@700;800"
+  },
+  {
+    name: "Outfit",
+    family: "'Outfit', sans-serif",
+    description: "Modern geometric with subtle warmth. Clean and contemporary.",
+    googleImport: "Outfit:wght@600;700"
+  },
+  {
+    name: "Sora",
+    family: "'Sora', sans-serif",
+    description: "Geometric with personality. Slightly wider letterforms.",
+    googleImport: "Sora:wght@600;700"
+  },
+  {
+    name: "Plus Jakarta Sans",
+    family: "'Plus Jakarta Sans', sans-serif",
+    description: "Current font. Clean geometric, professional.",
+    googleImport: null // already loaded
+  },
+];
+
+function FontComparisonCard({ font, showKinmo = false }: { font: typeof fontOptions[0], showKinmo?: boolean }) {
+  const { currentWord, isAnimating } = useRotatingWords(2500);
+
+  return (
+    <div className="rounded-xl border bg-background overflow-hidden">
+      <div className="px-4 py-3 border-b bg-muted/30">
+        <h3 className="font-semibold">{font.name}</h3>
+        <p className="text-xs text-muted-foreground mt-0.5">{font.description}</p>
+      </div>
+      <div className="p-6 min-h-[180px] flex items-center justify-center">
+        {showKinmo ? (
+          // Show "Kinmo" with sun as O
+          <div className="text-center">
+            <p
+              className="text-4xl lg:text-5xl font-bold text-foreground flex items-center justify-center"
+              style={{ fontFamily: font.family }}
+            >
+              <span>Kinm</span>
+              {/* Sun icon as the O */}
+              <span className="relative inline-flex items-center justify-center mx-[-2px]">
+                <svg
+                  width="48"
+                  height="48"
+                  viewBox="0 0 48 48"
+                  fill="none"
+                  className="relative"
+                  style={{
+                    filter: 'drop-shadow(0 0 8px rgba(245, 192, 48, 0.4))'
+                  }}
+                >
+                  <circle cx="24" cy="24" r="14" fill="#F5C030" />
+                  <path d="M19 5 A4 4 0 0 1 29 5 L24 5 Z" fill="#F5C030" />
+                  <path d="M38 10 A4 4 0 0 1 43 19 L40 14 Z" fill="#F5C030" />
+                  <path d="M43 29 A4 4 0 0 1 38 38 L40 34 Z" fill="#F5C030" />
+                  <path d="M29 43 A4 4 0 0 1 19 43 L24 43 Z" fill="#F5C030" />
+                  <path d="M10 38 A4 4 0 0 1 5 29 L8 34 Z" fill="#F5C030" />
+                  <path d="M5 19 A4 4 0 0 1 10 10 L8 14 Z" fill="#F5C030" />
+                </svg>
+              </span>
+            </p>
+            <p className="text-xs text-muted-foreground mt-3">Sun icon as the "O"</p>
+          </div>
+        ) : (
+          // Show rotating headline
+          <div className="text-center">
+            <p
+              className="text-3xl lg:text-4xl font-bold text-foreground leading-tight flex items-baseline justify-center flex-wrap"
+              style={{ fontFamily: font.family }}
+            >
+              <span>See your</span>
+              <span className="relative mx-2">
+                <span
+                  className={`transition-all duration-300 font-bold whitespace-nowrap ${
+                    isAnimating ? "opacity-0" : "opacity-100"
+                  }`}
+                  style={{ color: '#F5C030' }}
+                >
+                  {currentWord}
+                </span>
+              </span>
+              <span>more.</span>
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================
 // POLISHED: Hero with design improvements
 // ============================================
 function PolishedHeroDesktop() {
@@ -1257,15 +1356,66 @@ return (
         </div>
       </header>
 
+      {/* Load fonts for comparison */}
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@700;800&family=Outfit:wght@600;700&family=Sora:wght@600;700&display=swap');
+      `}</style>
+
       {/* Intro */}
       <section className="py-8 px-6 border-b bg-muted/30">
         <div className="max-w-3xl mx-auto text-center">
           <h1 className="text-2xl md:text-3xl font-bold mb-3">
-            Hero Polish Mockup
+            Font Exploration: Warm Geometric Fonts
           </h1>
           <p className="text-muted-foreground leading-relaxed">
-            Comparing a <strong>polished version</strong> with design improvements against the current implementation.
+            Comparing fonts that have a <strong>circular O</strong> shape (for sun → Kinmo animation)
+            while being <strong>warmer/friendlier</strong> than the current font.
           </p>
+        </div>
+      </section>
+
+      {/* FONT COMPARISON - Headline View */}
+      <section className="py-12 px-6 border-b">
+        <div className="max-w-6xl mx-auto">
+          <h2 className="text-xl font-bold mb-2 text-center">
+            Headline Comparison
+          </h2>
+          <p className="text-center text-muted-foreground mb-8 text-sm">
+            "See your [word] more." in each font
+          </p>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            {fontOptions.map((font) => (
+              <FontComparisonCard key={font.name} font={font} showKinmo={false} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* FONT COMPARISON - Kinmo View with Sun as O */}
+      <section className="py-12 px-6 border-b bg-muted/20">
+        <div className="max-w-6xl mx-auto">
+          <h2 className="text-xl font-bold mb-2 text-center">
+            "Kinmo" with Sun as O
+          </h2>
+          <p className="text-center text-muted-foreground mb-8 text-sm">
+            How the sun icon could morph into the "O" of Kinmo
+          </p>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            {fontOptions.map((font) => (
+              <FontComparisonCard key={font.name + "-kinmo"} font={font} showKinmo={true} />
+            ))}
+          </div>
+
+          <div className="mt-8 p-6 rounded-xl bg-gradient-to-r from-primary/10 to-transparent border border-primary/20">
+            <h3 className="font-bold mb-2">💡 The Animation Idea</h3>
+            <p className="text-sm text-muted-foreground">
+              After "kin" drops into "See your kin more." and it fades to "Kinmo" —
+              the spinning sun icon could <strong>shrink and slide</strong> into position as the "O",
+              completing the transformation. The circular O shape in these fonts makes this feel natural.
+            </p>
+          </div>
         </div>
       </section>
 
