@@ -661,15 +661,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ message: "Google API key not configured" });
       }
 
-      // NEW Places API Photo Media endpoint
-      // https://places.googleapis.com/v1/{photoName}/media?key=API_KEY&maxWidthPx=400
-      const photoUrl = `https://places.googleapis.com/v1/${photoName}/media?maxWidthPx=400`;
-
-      const photoResponse = await fetch(photoUrl, {
-        headers: {
-          'X-Goog-Api-Key': apiKey,
-        },
+      // Try to fetch using the provided photo name first
+      let photoUrl = `https://places.googleapis.com/v1/${photoName}/media?maxWidthPx=400`;
+      let photoResponse = await fetch(photoUrl, {
+        headers: { 'X-Goog-Api-Key': apiKey },
       });
+
+      let actualPhotoName = photoName;
+
+      // If the photo ID is stale/invalid, try to get a fresh photo from the place
+      if (!photoResponse.ok && placeId) {
+        console.log(`[Photo Cache v1] Stale photo ID, fetching fresh photo for place ${placeId}`);
+
+        // Fetch place details to get current photo references
+        const placeDetailsUrl = `https://places.googleapis.com/v1/places/${placeId}?fields=photos&languageCode=en`;
+        const placeResponse = await fetch(placeDetailsUrl, {
+          headers: {
+            'X-Goog-Api-Key': apiKey,
+            'X-Goog-FieldMask': 'photos',
+          },
+        });
+
+        if (placeResponse.ok) {
+          const placeData = await placeResponse.json();
+          if (placeData.photos && placeData.photos.length > 0) {
+            // Get the first photo's name (format: places/{placeId}/photos/{photoId})
+            actualPhotoName = placeData.photos[0].name;
+            console.log(`[Photo Cache v1] Got fresh photo: ${actualPhotoName}`);
+
+            // Fetch the actual photo using the fresh photo name
+            photoUrl = `https://places.googleapis.com/v1/${actualPhotoName}/media?maxWidthPx=400`;
+            photoResponse = await fetch(photoUrl, {
+              headers: { 'X-Goog-Api-Key': apiKey },
+            });
+          }
+        }
+      }
 
       if (!photoResponse.ok) {
         console.error(`[Photo Cache v1] Failed to fetch photo: ${photoResponse.status}`);
@@ -680,14 +707,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const contentType = photoResponse.headers.get('content-type') || 'image/jpeg';
       const base64Data = Buffer.from(photoBuffer).toString('base64');
 
-      // Cache it (use photoName as key, also store placeId for fallback lookups)
+      // Cache it using the actual photo name (may be different from requested if we refreshed)
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 30); // 30 days
 
       await db
         .insert(photosCache)
         .values({
-          photoReference: photoName,
+          photoReference: actualPhotoName,
           placeId: placeId,
           imageData: base64Data,
           contentType,
@@ -703,7 +730,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           },
         });
 
-      console.log(`[Photo Cache v1] SAVED - ${photoName} (placeId: ${placeId}, expires in 30 days)`);
+      console.log(`[Photo Cache v1] SAVED - ${actualPhotoName} (placeId: ${placeId}, expires in 30 days)`);
 
       // Return the photo
       res.set('Content-Type', contentType);
