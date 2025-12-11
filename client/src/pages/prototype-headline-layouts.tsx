@@ -430,19 +430,163 @@ function Option8TwoLine() {
 }
 
 // ============================================
+// OPTION 9: Handwritten Insertion Caret (^)
+// Like when you forgot a word and draw ^ to insert it above
+// ============================================
+function Option9InsertionCaret() {
+  const { currentWord, isAnimating } = useRotatingWords(2200);
+
+  return (
+    <div className="text-center">
+      {/* Container for the two-level layout */}
+      <div className="inline-flex flex-col items-center">
+        {/* Rotating word floats above */}
+        <div className="h-[1.4em] flex items-end justify-center mb-1">
+          <span
+            className={`text-2xl md:text-3xl lg:text-4xl font-bold whitespace-nowrap transition-all duration-300 ${
+              isAnimating ? "opacity-0 translate-y-2" : "opacity-100 translate-y-0"
+            }`}
+            style={{ color: '#F5C030' }}
+          >
+            {currentWord}
+          </span>
+        </div>
+
+        {/* Main line with caret pointing up */}
+        <p className="text-3xl md:text-4xl lg:text-5xl font-bold text-foreground leading-tight flex items-baseline">
+          <span>See your</span>
+          {/* The insertion caret ^ */}
+          <span className="mx-2 flex flex-col items-center" style={{ color: '#F5C030' }}>
+            <svg
+              viewBox="0 0 24 12"
+              className="w-6 h-3 md:w-8 md:h-4"
+              fill="currentColor"
+            >
+              <path d="M12 0 L24 12 L20 12 L12 4 L4 12 L0 12 Z" />
+            </svg>
+          </span>
+          <span>more.</span>
+        </p>
+      </div>
+      <p className="mt-6 text-sm text-muted-foreground">
+        ✓ Handwritten "insertion" feel — like squeezing in a forgotten word
+      </p>
+    </div>
+  );
+}
+
+// ============================================
+// OPTION 10: Handwritten Insertion Caret (Variation B - inline caret)
+// Caret sits in the text line, word hovers above it
+// ============================================
+function Option10InsertionCaretB() {
+  const { currentWord, isAnimating } = useRotatingWords(2200);
+
+  return (
+    <div className="text-center">
+      <div className="inline-block relative">
+        {/* Main text line */}
+        <p className="text-3xl md:text-4xl lg:text-5xl font-bold text-foreground leading-tight flex items-baseline justify-center">
+          <span>See your</span>
+          {/* Caret container with floating word */}
+          <span className="relative mx-1">
+            {/* The word floating above */}
+            <span
+              className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-1 text-2xl md:text-3xl lg:text-4xl font-bold whitespace-nowrap transition-all duration-300 ${
+                isAnimating ? "opacity-0 scale-95" : "opacity-100 scale-100"
+              }`}
+              style={{ color: '#F5C030' }}
+            >
+              {currentWord}
+            </span>
+            {/* The ^ caret character */}
+            <span
+              className="text-3xl md:text-4xl lg:text-5xl font-bold"
+              style={{ color: '#F5C030' }}
+            >
+              ^
+            </span>
+          </span>
+          <span>more.</span>
+        </p>
+      </div>
+      <p className="mt-6 text-sm text-muted-foreground">
+        ✓ Simple ^ character as caret — word appears where it "belongs"
+      </p>
+    </div>
+  );
+}
+
+// ============================================
+// OPTION 11: Handwritten Insertion with Line
+// Like editor's insertion mark with a line connecting to the word
+// ============================================
+function Option11InsertionWithLine() {
+  const { currentWord, isAnimating } = useRotatingWords(2200);
+
+  return (
+    <div className="text-center">
+      <div className="inline-block relative">
+        {/* Main text line */}
+        <p className="text-3xl md:text-4xl lg:text-5xl font-bold text-foreground leading-tight flex items-baseline justify-center">
+          <span>See your</span>
+          {/* Caret container with floating word and connecting line */}
+          <span className="relative mx-2">
+            {/* The word floating above with connecting line */}
+            <span
+              className={`absolute bottom-[calc(100%+8px)] left-1/2 -translate-x-1/2 flex flex-col items-center transition-all duration-300 ${
+                isAnimating ? "opacity-0" : "opacity-100"
+              }`}
+            >
+              <span
+                className="text-2xl md:text-3xl lg:text-4xl font-bold whitespace-nowrap"
+                style={{ color: '#F5C030' }}
+              >
+                {currentWord}
+              </span>
+              {/* Connecting line from word to caret */}
+              <span
+                className="w-[2px] h-2 mt-1"
+                style={{ backgroundColor: '#F5C030' }}
+              />
+            </span>
+            {/* The ^ caret */}
+            <svg
+              viewBox="0 0 24 14"
+              className="w-5 h-3 md:w-7 md:h-4"
+              style={{ color: '#F5C030' }}
+              fill="currentColor"
+            >
+              <path d="M12 0 L24 14 L18 14 L12 6 L6 14 L0 14 Z" />
+            </svg>
+          </span>
+          <span>more.</span>
+        </p>
+      </div>
+      <p className="mt-6 text-sm text-muted-foreground">
+        ✓ Editor's insertion mark — line connects the caret to the word
+      </p>
+    </div>
+  );
+}
+
+// ============================================
 // Main Page Component
 // ============================================
 export default function PrototypeHeadlineLayouts() {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
 
   const options = [
-    { id: "caret", name: "Caret/Cursor", component: Option1Caret, recommended: false },
+    { id: "insertion-caret", name: "Insertion Caret (^)", component: Option9InsertionCaret, recommended: true },
+    { id: "insertion-caret-b", name: "Insertion Caret (Inline ^)", component: Option10InsertionCaretB, recommended: true },
+    { id: "insertion-line", name: "Insertion with Line", component: Option11InsertionWithLine, recommended: false },
+    { id: "caret", name: "Blinking Cursor", component: Option1Caret, recommended: false },
     { id: "fixed-left", name: "Fixed Width (Left)", component: Option2FixedLeft, recommended: false },
-    { id: "fixed-center", name: "Fixed Width (Center)", component: Option3FixedCenter, recommended: true },
-    { id: "pill", name: "Yellow Pill", component: Option4Pill, recommended: true },
+    { id: "fixed-center", name: "Fixed Width (Center)", component: Option3FixedCenter, recommended: false },
+    { id: "pill", name: "Yellow Pill", component: Option4Pill, recommended: false },
     { id: "underline", name: "Underline Accent", component: Option4Underline, recommended: false },
     { id: "brackets", name: "Decorative Brackets", component: Option4Brackets, recommended: false },
-    { id: "vertical", name: "Vertical Carousel", component: Option5Vertical, recommended: true },
+    { id: "vertical", name: "Vertical Carousel", component: Option5Vertical, recommended: false },
     { id: "typewriter", name: "Typewriter Effect", component: Option6Typewriter, recommended: false },
     { id: "diagonal", name: "Diagonal (Current)", component: Option7Diagonal, recommended: false },
     { id: "two-line", name: "Two-Line", component: Option8TwoLine, recommended: false },
