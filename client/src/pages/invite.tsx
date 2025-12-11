@@ -119,6 +119,7 @@ export default function InvitePage() {
       const newClaimToken = crypto.randomUUID();
       const response = await apiRequest("POST", `/api/members/${memberId}/claim`, {
         claimToken: newClaimToken,
+        groupId: group?.id, // Needed for organizer virtual IDs
       });
       return { member: response, claimToken: newClaimToken };
     },

@@ -4575,14 +4575,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Claim a member identity (no auth required)
   app.post("/api/members/:id/claim", async (req, res) => {
     try {
-      const { claimToken } = req.body;
-      
+      const { claimToken, groupId } = req.body;
+
       if (!claimToken) {
         return res.status(400).json({ message: "Claim token required" });
       }
 
+      let memberId = req.params.id;
+
+      // Handle virtual organizer IDs (format: "organizer-{userId}")
+      // These are created by getGroupMembersWithOrganizer() for display purposes
+      // but don't exist in the database - we need to create a real member record
+      if (memberId.startsWith("organizer-")) {
+        const organizerUserId = memberId.replace("organizer-", "");
+
+        if (!groupId) {
+          return res.status(400).json({ message: "Group ID required for organizer claim" });
+        }
+
+        // Verify the group exists and the user is actually the organizer
+        const group = await storage.getGroup(groupId);
+        if (!group || group.userId !== organizerUserId) {
+          return res.status(403).json({ message: "Invalid organizer claim" });
+        }
+
+        // Get organizer info
+        const [organizerInfo] = await db
+          .select({
+            displayName: userProfiles.displayName,
+            firstName: users.firstName,
+            lastName: users.lastName,
+            email: users.email,
+          })
+          .from(users)
+          .leftJoin(userProfiles, eq(userProfiles.userId, users.id))
+          .where(eq(users.id, organizerUserId));
+
+        const organizerName = organizerInfo?.displayName ||
+          (organizerInfo?.firstName && organizerInfo?.lastName
+            ? `${organizerInfo.firstName} ${organizerInfo.lastName}`
+            : organizerInfo?.firstName || organizerInfo?.email?.split('@')[0] || 'Organizer');
+
+        // Check if there's already a member record for this organizer
+        const existingOrganizerMember = await db
+          .select()
+          .from(membersTable)
+          .where(and(
+            eq(membersTable.groupId, groupId),
+            eq(membersTable.userId, organizerUserId)
+          ))
+          .limit(1);
+
+        if (existingOrganizerMember.length > 0) {
+          // Use the existing member record
+          memberId = existingOrganizerMember[0].id;
+        } else {
+          // Create a new member record for the organizer
+          const newMember = await storage.createMember({
+            groupId,
+            name: organizerName,
+            email: organizerInfo?.email || null,
+            userId: organizerUserId,
+            hasJoined: true,
+            isGuest: false, // Organizer is not a guest
+          });
+          memberId = newMember.id;
+        }
+      }
+
       // Check if member exists and if already claimed
-      const existingMember = await storage.getMember(req.params.id);
+      const existingMember = await storage.getMember(memberId);
       if (!existingMember) {
         return res.status(404).json({ message: "Member not found" });
       }
@@ -4597,7 +4659,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // If not claimed yet, or re-claiming with same token, allow it
-      const member = await storage.updateMember(req.params.id, {
+      const member = await storage.updateMember(memberId, {
         claimToken,
         hasJoined: true,
       });
