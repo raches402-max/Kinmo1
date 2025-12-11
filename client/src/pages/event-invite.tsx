@@ -166,9 +166,14 @@ export default function EventInvitePage() {
   // RSVP submission mutation
   const rsvpMutation = useMutation({
     mutationFn: async (data: RsvpResponse) => {
+      if (!selectedMemberId) {
+        throw new Error("Please select your name first");
+      }
+
       const response = await fetch(`/api/itineraries/${eventId}/rsvp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           memberId: selectedMemberId,
           response: data.response,

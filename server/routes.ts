@@ -12629,11 +12629,30 @@ Looking forward to planning great activities together!
     }
   });
 
-  // Get RSVPs for an itinerary
+  // Get RSVPs for an itinerary (with member names)
   app.get("/api/itineraries/:id/rsvps", async (req, res) => {
     try {
       const rsvps = await storage.getItineraryRsvps(req.params.id);
-      res.json(rsvps);
+
+      // Enrich RSVPs with member names
+      const enrichedRsvps = await Promise.all(
+        rsvps.map(async (rsvp) => {
+          let memberName = rsvp.memberName || rsvp.guestName;
+
+          // If no name stored but has memberId, look up the member
+          if (!memberName && rsvp.memberId) {
+            const member = await storage.getMember(rsvp.memberId);
+            memberName = member?.name || null;
+          }
+
+          return {
+            ...rsvp,
+            memberName: memberName || 'Unknown',
+          };
+        })
+      );
+
+      res.json(enrichedRsvps);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
