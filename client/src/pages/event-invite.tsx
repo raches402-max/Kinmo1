@@ -746,7 +746,7 @@ export default function EventInvitePage() {
                 </div>
                 <div>
                   <p className="font-semibold">
-                    {format(eventDate, "EEEE")}
+                    {format(eventDate, eventDate < new Date() ? "EEEE, MMMM d, yyyy" : "EEEE, MMMM d")}
                   </p>
                   <p className="text-muted-foreground flex items-center gap-1.5">
                     <Clock className="h-4 w-4" />
