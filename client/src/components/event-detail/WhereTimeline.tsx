@@ -138,7 +138,7 @@ function TimelineVenueCard({
                   className="flex items-center gap-1.5 mt-2 text-xs text-muted-foreground hover:text-primary transition-colors group"
                 >
                   <Navigation className="h-3 w-3 shrink-0" />
-                  <span className="truncate">{venue.address}</span>
+                  <span className="break-words whitespace-normal leading-relaxed">{venue.address}</span>
                   <ExternalLink className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100 shrink-0" />
                 </a>
               )}

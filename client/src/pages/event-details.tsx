@@ -181,7 +181,7 @@ function SortableVenueCard({ venue, idx, isOrganizer, toast, queryClient, onEdit
               )}
             </div>
             {venue.venueAddress && (
-              <p className="text-xs text-muted-foreground truncate">{venue.venueAddress}</p>
+              <p className="text-xs text-muted-foreground break-words whitespace-normal leading-relaxed">{venue.venueAddress}</p>
             )}
           </div>
           <div className="flex items-center gap-1 shrink-0">

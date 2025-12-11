@@ -242,7 +242,7 @@ function VenueCardComponent({
           title={`${venue.address} — Open in Google Maps`}
         >
           <MapPin className={cn(config.icon, "flex-shrink-0")} />
-          <span className="truncate">{compactAddress}</span>
+          <span className="break-words whitespace-normal leading-relaxed">{compactAddress}</span>
           <ExternalLink className={cn(config.icon, "flex-shrink-0 opacity-50")} />
         </button>
 
