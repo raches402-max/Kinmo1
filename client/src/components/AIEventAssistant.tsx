@@ -163,8 +163,8 @@ export function AIEventAssistant({
             <h3 className="font-semibold text-[hsl(25,30%,14%)]">
               AI Event Assistant
             </h3>
-            <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full bg-gradient-to-r from-amber-400 to-orange-400 text-amber-950 shadow-sm ring-1 ring-amber-500/20">
-              Beta
+            <span className="px-1.5 py-px text-[10px] font-medium text-[hsl(25,15%,50%)] border border-[hsl(25,15%,75%)] rounded">
+              beta
             </span>
           </div>
           {messages.length > 0 && (

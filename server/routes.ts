@@ -10785,6 +10785,33 @@ Looking forward to planning great activities together!
         return res.status(404).json({ error: "Itinerary not found" });
       }
 
+      // Fetch group data to provide context to the AI
+      let groupContext = null;
+      if (itinerary.groupId) {
+        const group = await storage.getGroup(itinerary.groupId);
+        if (group) {
+          const enabledCategories: string[] = [];
+          if (group.mealEnabled !== false) enabledCategories.push('meals');
+          if (group.cafeEnabled !== false) enabledCategories.push('cafes');
+          if (group.drinksEnabled !== false) enabledCategories.push('drinks');
+          if (group.dessertEnabled !== false) enabledCategories.push('dessert');
+          if (group.experiencesEnabled !== false) enabledCategories.push('experiences');
+
+          groupContext = {
+            name: group.name,
+            locationBase: group.locationBase,
+            latitude: group.latitude,
+            longitude: group.longitude,
+            searchRadius: group.searchRadius,
+            budgetMin: group.budgetMin,
+            budgetMax: group.budgetMax,
+            enabledCategories,
+            additionalInstructions: group.additionalInstructions,
+            timezone: group.timezone
+          };
+        }
+      }
+
       // Import the agent module
       const { runEventPlanningAgent, streamEventPlanningAgent } = await import("./ai-agent-chat");
 
@@ -10792,6 +10819,7 @@ Looking forward to planning great activities together!
         prompt,
         itineraryId,
         groupId: itinerary.groupId,
+        groupContext,
         sessionId
       };
 
