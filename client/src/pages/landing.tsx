@@ -354,7 +354,7 @@ export default function Landing() {
             </svg>
           </div>
 
-          <p className="text-sm tracking-wide uppercase text-muted-foreground mb-3">Using AI to help you</p>
+          <p className="text-sm tracking-wide uppercase text-muted-foreground mb-6 md:mb-8">Using AI to help you</p>
           {/* Fixed height container to prevent layout shift when "Kinmo" displays */}
           {/* Mobile uses diagonal (taller), Desktop uses subscript caret (more compact) */}
           <div className="min-h-[110px] sm:min-h-[140px] md:min-h-[140px] lg:min-h-[160px] flex items-center justify-center mb-8 sm:mb-12">
