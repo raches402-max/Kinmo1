@@ -12834,17 +12834,26 @@ Looking forward to planning great activities together!
         .where(eq(itineraries.id, itineraryId))
         .limit(1);
 
-      if (!itinerary || !itinerary.groupId) {
+      if (!itinerary) {
         return res.status(404).json({ message: "Event not found" });
       }
 
-      // Get the group to check ownership
-      const group = await storage.getGroup(itinerary.groupId);
-      if (!group) {
-        return res.status(404).json({ message: "Group not found" });
-      }
+      // Handle both group-based events and standalone events
+      let group = null;
+      let isGroupOwner = false;
+      let isEventOrganizer = false;
 
-      const isGroupOwner = group.userId === userId;
+      if (itinerary.groupId) {
+        // Group-based event: check group ownership
+        group = await storage.getGroup(itinerary.groupId);
+        if (!group) {
+          return res.status(404).json({ message: "Group not found" });
+        }
+        isGroupOwner = group.userId === userId;
+      } else {
+        // Standalone event: check if user is the organizer
+        isEventOrganizer = itinerary.organizerId === userId;
+      }
 
       // Find the user's RSVP for this itinerary
       let rsvp = await db
@@ -12858,8 +12867,8 @@ Looking forward to planning great activities together!
         )
         .limit(1);
 
-      // If no RSVP exists and user is the group owner, create one
-      if ((!rsvp || rsvp.length === 0) && isGroupOwner) {
+      // If no RSVP exists and user is the group owner or event organizer, create one
+      if ((!rsvp || rsvp.length === 0) && (isGroupOwner || isEventOrganizer)) {
         rsvp = await db
           .insert(rsvpsTable)
           .values({
@@ -12920,73 +12929,76 @@ Looking forward to planning great activities together!
         wouldReturnToVenue === 'no' ||
         wouldDoAgain === 'no';
 
-      if (actuallyAttended && shouldBlacklistVenue) {
-        try {
-          // Get itinerary items to extract venue info
-          const fetchedItems = await db
-            .select()
-            .from(itineraryItems)
-            .where(eq(itineraryItems.itineraryId, itineraryId));
+      // Group-specific learning features (only for group-based events)
+      if (itinerary.groupId) {
+        if (actuallyAttended && shouldBlacklistVenue) {
+          try {
+            // Get itinerary items to extract venue info
+            const fetchedItems = await db
+              .select()
+              .from(itineraryItems)
+              .where(eq(itineraryItems.itineraryId, itineraryId));
 
-          for (const item of fetchedItems) {
-            if (item.venueName) {
-              const reason = venueRating && venueRating <= 2
-                ? `lowRating:${venueRating}`
-                : wouldReturnToVenue === 'no'
-                  ? 'wouldNotReturn'
-                  : 'wouldNotDoAgain';
-              console.log(`🚫 Auto-blacklisting venue "${item.venueName}" (reason: ${reason})`);
-              await storage.addRejectedVenue(itinerary.groupId, item.venueName);
+            for (const item of fetchedItems) {
+              if (item.venueName) {
+                const reason = venueRating && venueRating <= 2
+                  ? `lowRating:${venueRating}`
+                  : wouldReturnToVenue === 'no'
+                    ? 'wouldNotReturn'
+                    : 'wouldNotDoAgain';
+                console.log(`🚫 Auto-blacklisting venue "${item.venueName}" (reason: ${reason})`);
+                await storage.addRejectedVenue(itinerary.groupId, item.venueName);
+              }
             }
+          } catch (error) {
+            console.error('[Auto-blacklist] Error adding rejected venue:', error);
+            // Don't fail the request if blacklisting fails
           }
-        } catch (error) {
-          console.error('[Auto-blacklist] Error adding rejected venue:', error);
-          // Don't fail the request if blacklisting fails
         }
-      }
 
-      // 🎯 LEARNING: Log timing feedback for future scheduling improvements
-      // New format: timingRating 1-2 = too early, 4-5 = too late, 3 = just right
-      // Legacy format: timingFeedback enum
-      if (timingRating && timingRating !== 3) {
-        const timingDescription = timingRating <= 2 ? 'too_early' : 'too_late';
-        console.log(`⏰ [Timing Feedback] Group ${itinerary.groupId}: ${timingDescription} (rating: ${timingRating})`);
-      } else if (timingFeedback && timingFeedback !== 'just_right') {
-        console.log(`⏰ [Timing Feedback] Group ${itinerary.groupId}: ${timingFeedback}`);
-      }
-
-      // 🎯 LEARNING: Log activity match feedback for activity selection
-      // New format: activityFit 1-2 = not a good fit
-      // Legacy format: activityMatch enum
-      if (activityFit && activityFit <= 2) {
-        console.log(`🔄 [Activity Feedback] Group ${itinerary.groupId}: wants different activities (fit rating: ${activityFit})`);
-      } else if (activityMatch === 'try_something_different') {
-        console.log(`🔄 [Activity Feedback] Group ${itinerary.groupId}: wants different activities`);
-      }
-
-      // 🎯 LEARNING: Log budget feedback
-      if (budgetRating && budgetRating <= 2) {
-        console.log(`💰 [Budget Feedback] Group ${itinerary.groupId}: too expensive (rating: ${budgetRating})`);
-      }
-
-      // 🎯 INSIGHT TRIGGER: Update group insights after post-event feedback
-      // This is a significant data point - trigger update immediately
-      triggerInsightUpdate(itinerary.groupId, 'post-event-feedback').catch(err => {
-        console.error(`[Post Event Feedback] Insight update failed:`, err);
-      });
-
-      // 🔄 FREQUENCY LEARNING: Analyze frequency feedback and auto-adjust if needed
-      // Import the frequency adjuster at the top of the file
-      const { analyzeAndAdjustFrequency } = await import('./frequency-adjuster');
-      analyzeAndAdjustFrequency(itinerary.groupId).then(result => {
-        if (result && result.applied) {
-          console.log(`[Frequency Adjuster] ✅ ${result.reason}`);
-        } else if (result) {
-          console.log(`[Frequency Adjuster] ℹ️  ${result.reason}`);
+        // 🎯 LEARNING: Log timing feedback for future scheduling improvements
+        // New format: timingRating 1-2 = too early, 4-5 = too late, 3 = just right
+        // Legacy format: timingFeedback enum
+        if (timingRating && timingRating !== 3) {
+          const timingDescription = timingRating <= 2 ? 'too_early' : 'too_late';
+          console.log(`⏰ [Timing Feedback] Group ${itinerary.groupId}: ${timingDescription} (rating: ${timingRating})`);
+        } else if (timingFeedback && timingFeedback !== 'just_right') {
+          console.log(`⏰ [Timing Feedback] Group ${itinerary.groupId}: ${timingFeedback}`);
         }
-      }).catch(err => {
-        console.error(`[Frequency Adjuster] Error:`, err);
-      });
+
+        // 🎯 LEARNING: Log activity match feedback for activity selection
+        // New format: activityFit 1-2 = not a good fit
+        // Legacy format: activityMatch enum
+        if (activityFit && activityFit <= 2) {
+          console.log(`🔄 [Activity Feedback] Group ${itinerary.groupId}: wants different activities (fit rating: ${activityFit})`);
+        } else if (activityMatch === 'try_something_different') {
+          console.log(`🔄 [Activity Feedback] Group ${itinerary.groupId}: wants different activities`);
+        }
+
+        // 🎯 LEARNING: Log budget feedback
+        if (budgetRating && budgetRating <= 2) {
+          console.log(`💰 [Budget Feedback] Group ${itinerary.groupId}: too expensive (rating: ${budgetRating})`);
+        }
+
+        // 🎯 INSIGHT TRIGGER: Update group insights after post-event feedback
+        // This is a significant data point - trigger update immediately
+        triggerInsightUpdate(itinerary.groupId, 'post-event-feedback').catch(err => {
+          console.error(`[Post Event Feedback] Insight update failed:`, err);
+        });
+
+        // 🔄 FREQUENCY LEARNING: Analyze frequency feedback and auto-adjust if needed
+        // Import the frequency adjuster at the top of the file
+        const { analyzeAndAdjustFrequency } = await import('./frequency-adjuster');
+        analyzeAndAdjustFrequency(itinerary.groupId).then(result => {
+          if (result && result.applied) {
+            console.log(`[Frequency Adjuster] ✅ ${result.reason}`);
+          } else if (result) {
+            console.log(`[Frequency Adjuster] ℹ️  ${result.reason}`);
+          }
+        }).catch(err => {
+          console.error(`[Frequency Adjuster] Error:`, err);
+        });
+      }
 
       res.json(updated[0]);
     } catch (error: any) {
