@@ -571,25 +571,427 @@ function Option11InsertionWithLine() {
 }
 
 // ============================================
+// OPTION 12: Caret Below Baseline (no line)
+// Caret drops below the text line, word floats above
+// ============================================
+function Option12CaretBelowBaseline() {
+  const { currentWord, isAnimating } = useRotatingWords(2200);
+
+  return (
+    <div className="text-center">
+      <div className="inline-block relative">
+        {/* Main text line */}
+        <p className="text-3xl md:text-4xl lg:text-5xl font-bold text-foreground leading-tight flex items-end justify-center">
+          <span>See your</span>
+          {/* Caret container - caret sits below baseline */}
+          <span className="relative mx-2 flex flex-col items-center">
+            {/* The word floating above the text line */}
+            <span
+              className={`absolute bottom-[calc(100%+12px)] left-1/2 -translate-x-1/2 transition-all duration-300 ${
+                isAnimating ? "opacity-0 translate-y-1" : "opacity-100 translate-y-0"
+              }`}
+            >
+              <span
+                className="text-2xl md:text-3xl lg:text-4xl font-bold whitespace-nowrap"
+                style={{ color: '#F5C030' }}
+              >
+                {currentWord}
+              </span>
+            </span>
+            {/* The ^ caret - positioned below baseline */}
+            <svg
+              viewBox="0 0 24 14"
+              className="w-6 h-4 md:w-8 md:h-5 translate-y-2"
+              style={{ color: '#F5C030' }}
+              fill="currentColor"
+            >
+              <path d="M12 0 L24 14 L18 14 L12 6 L6 14 L0 14 Z" />
+            </svg>
+          </span>
+          <span>more.</span>
+        </p>
+      </div>
+      <p className="mt-8 text-sm text-muted-foreground">
+        ✓ Caret drops below the baseline — more visual separation
+      </p>
+    </div>
+  );
+}
+
+// ============================================
+// OPTION 13: Caret Below with Gap (dramatic)
+// Caret well below text, creates clear visual hierarchy
+// ============================================
+function Option13CaretWellBelow() {
+  const { currentWord, isAnimating } = useRotatingWords(2200);
+
+  return (
+    <div className="text-center">
+      <div className="inline-flex flex-col items-center">
+        {/* Rotating word at top */}
+        <div className="mb-2">
+          <span
+            className={`text-2xl md:text-3xl lg:text-4xl font-bold whitespace-nowrap transition-all duration-300 ${
+              isAnimating ? "opacity-0 scale-95" : "opacity-100 scale-100"
+            }`}
+            style={{ color: '#F5C030' }}
+          >
+            {currentWord}
+          </span>
+        </div>
+
+        {/* Main text line */}
+        <p className="text-3xl md:text-4xl lg:text-5xl font-bold text-foreground leading-tight flex items-center justify-center">
+          <span>See your</span>
+          <span className="mx-2" style={{ color: '#F5C030' }}>
+            <svg
+              viewBox="0 0 24 14"
+              className="w-6 h-4 md:w-8 md:h-5"
+              fill="currentColor"
+            >
+              <path d="M12 0 L24 14 L18 14 L12 6 L6 14 L0 14 Z" />
+            </svg>
+          </span>
+          <span>more.</span>
+        </p>
+      </div>
+      <p className="mt-6 text-sm text-muted-foreground">
+        ✓ Three-tier stack — word, then caret inline with text
+      </p>
+    </div>
+  );
+}
+
+// ============================================
+// OPTION 14: Inline Caret No Line (clean)
+// Simple ^ inline, word above, no connecting line
+// ============================================
+function Option14InlineNoLine() {
+  const { currentWord, isAnimating } = useRotatingWords(2200);
+
+  return (
+    <div className="text-center">
+      <div className="inline-block relative">
+        {/* Main text line */}
+        <p className="text-3xl md:text-4xl lg:text-5xl font-bold text-foreground leading-tight flex items-baseline justify-center">
+          <span>See your</span>
+          {/* Caret with word floating above - no line */}
+          <span className="relative mx-2">
+            {/* The word floating above */}
+            <span
+              className={`absolute bottom-[calc(100%+6px)] left-1/2 -translate-x-1/2 transition-all duration-300 ${
+                isAnimating ? "opacity-0" : "opacity-100"
+              }`}
+            >
+              <span
+                className="text-2xl md:text-3xl lg:text-4xl font-bold whitespace-nowrap"
+                style={{ color: '#F5C030' }}
+              >
+                {currentWord}
+              </span>
+            </span>
+            {/* Clean ^ caret */}
+            <svg
+              viewBox="0 0 24 14"
+              className="w-5 h-3 md:w-7 md:h-4"
+              style={{ color: '#F5C030' }}
+              fill="currentColor"
+            >
+              <path d="M12 0 L24 14 L18 14 L12 6 L6 14 L0 14 Z" />
+            </svg>
+          </span>
+          <span>more.</span>
+        </p>
+      </div>
+      <p className="mt-6 text-sm text-muted-foreground">
+        ✓ Clean caret inline — no connecting line, word floats freely
+      </p>
+    </div>
+  );
+}
+
+// ============================================
+// OPTION 15: Thin/Subtle Caret
+// Delicate caret that doesn't dominate
+// ============================================
+function Option15ThinCaret() {
+  const { currentWord, isAnimating } = useRotatingWords(2200);
+
+  return (
+    <div className="text-center">
+      <div className="inline-block relative">
+        {/* Main text line */}
+        <p className="text-3xl md:text-4xl lg:text-5xl font-bold text-foreground leading-tight flex items-baseline justify-center">
+          <span>See your</span>
+          {/* Thin caret with word above */}
+          <span className="relative mx-3">
+            {/* The word floating above */}
+            <span
+              className={`absolute bottom-[calc(100%+4px)] left-1/2 -translate-x-1/2 transition-all duration-300 ${
+                isAnimating ? "opacity-0" : "opacity-100"
+              }`}
+            >
+              <span
+                className="text-2xl md:text-3xl lg:text-4xl font-bold whitespace-nowrap"
+                style={{ color: '#F5C030' }}
+              >
+                {currentWord}
+              </span>
+            </span>
+            {/* Thin ^ caret - just lines */}
+            <svg
+              viewBox="0 0 24 12"
+              className="w-4 h-2 md:w-6 md:h-3"
+              style={{ color: '#F5C030' }}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M2 10 L12 2 L22 10" />
+            </svg>
+          </span>
+          <span>more.</span>
+        </p>
+      </div>
+      <p className="mt-6 text-sm text-muted-foreground">
+        ✓ Delicate line caret — subtle, doesn't compete with the word
+      </p>
+    </div>
+  );
+}
+
+// ============================================
+// OPTION 16: Wide/Flat Caret
+// Broader, flatter caret shape
+// ============================================
+function Option16WideCaret() {
+  const { currentWord, isAnimating } = useRotatingWords(2200);
+
+  return (
+    <div className="text-center">
+      <div className="inline-block relative">
+        {/* Main text line */}
+        <p className="text-3xl md:text-4xl lg:text-5xl font-bold text-foreground leading-tight flex items-baseline justify-center">
+          <span>See your</span>
+          {/* Wide flat caret */}
+          <span className="relative mx-2">
+            {/* The word floating above */}
+            <span
+              className={`absolute bottom-[calc(100%+6px)] left-1/2 -translate-x-1/2 transition-all duration-300 ${
+                isAnimating ? "opacity-0" : "opacity-100"
+              }`}
+            >
+              <span
+                className="text-2xl md:text-3xl lg:text-4xl font-bold whitespace-nowrap"
+                style={{ color: '#F5C030' }}
+              >
+                {currentWord}
+              </span>
+            </span>
+            {/* Wide ^ caret */}
+            <svg
+              viewBox="0 0 32 10"
+              className="w-8 h-3 md:w-10 md:h-4"
+              style={{ color: '#F5C030' }}
+              fill="currentColor"
+            >
+              <path d="M16 0 L32 10 L26 10 L16 4 L6 10 L0 10 Z" />
+            </svg>
+          </span>
+          <span>more.</span>
+        </p>
+      </div>
+      <p className="mt-6 text-sm text-muted-foreground">
+        ✓ Wide flat caret — more horizontal presence
+      </p>
+    </div>
+  );
+}
+
+// ============================================
+// OPTION 17: Caret with Soft Glow
+// Caret has a subtle glow/shadow effect
+// ============================================
+function Option17CaretWithGlow() {
+  const { currentWord, isAnimating } = useRotatingWords(2200);
+
+  return (
+    <div className="text-center">
+      <div className="inline-block relative">
+        {/* Main text line */}
+        <p className="text-3xl md:text-4xl lg:text-5xl font-bold text-foreground leading-tight flex items-baseline justify-center">
+          <span>See your</span>
+          {/* Caret with glow */}
+          <span className="relative mx-2">
+            {/* The word floating above */}
+            <span
+              className={`absolute bottom-[calc(100%+6px)] left-1/2 -translate-x-1/2 transition-all duration-300 ${
+                isAnimating ? "opacity-0" : "opacity-100"
+              }`}
+            >
+              <span
+                className="text-2xl md:text-3xl lg:text-4xl font-bold whitespace-nowrap"
+                style={{ color: '#F5C030' }}
+              >
+                {currentWord}
+              </span>
+            </span>
+            {/* Caret with glow effect */}
+            <svg
+              viewBox="0 0 24 14"
+              className="w-6 h-4 md:w-8 md:h-5"
+              style={{
+                color: '#F5C030',
+                filter: 'drop-shadow(0 0 4px rgba(245, 192, 48, 0.5))'
+              }}
+              fill="currentColor"
+            >
+              <path d="M12 0 L24 14 L18 14 L12 6 L6 14 L0 14 Z" />
+            </svg>
+          </span>
+          <span>more.</span>
+        </p>
+      </div>
+      <p className="mt-6 text-sm text-muted-foreground">
+        ✓ Soft glow on caret — warm, inviting feel
+      </p>
+    </div>
+  );
+}
+
+// ============================================
+// OPTION 18: Subscript Caret (truly below)
+// Caret sits as a subscript, well below the baseline
+// ============================================
+function Option18SubscriptCaret() {
+  const { currentWord, isAnimating } = useRotatingWords(2200);
+
+  return (
+    <div className="text-center">
+      <div className="inline-block relative pb-4">
+        {/* Main text line */}
+        <p className="text-3xl md:text-4xl lg:text-5xl font-bold text-foreground leading-tight flex items-baseline justify-center">
+          <span>See your</span>
+          {/* Subscript caret container */}
+          <span className="relative mx-2">
+            {/* The word floating above the text */}
+            <span
+              className={`absolute bottom-[calc(100%+8px)] left-1/2 -translate-x-1/2 transition-all duration-300 ${
+                isAnimating ? "opacity-0 translate-y-1" : "opacity-100 translate-y-0"
+              }`}
+            >
+              <span
+                className="text-2xl md:text-3xl lg:text-4xl font-bold whitespace-nowrap"
+                style={{ color: '#F5C030' }}
+              >
+                {currentWord}
+              </span>
+            </span>
+            {/* Placeholder for spacing */}
+            <span className="invisible">^</span>
+            {/* Caret positioned as subscript */}
+            <svg
+              viewBox="0 0 24 14"
+              className="absolute left-1/2 -translate-x-1/2 top-full mt-1 w-5 h-3 md:w-7 md:h-4"
+              style={{ color: '#F5C030' }}
+              fill="currentColor"
+            >
+              <path d="M12 0 L24 14 L18 14 L12 6 L6 14 L0 14 Z" />
+            </svg>
+          </span>
+          <span>more.</span>
+        </p>
+      </div>
+      <p className="mt-6 text-sm text-muted-foreground">
+        ✓ Subscript caret — sits below the text baseline
+      </p>
+    </div>
+  );
+}
+
+// ============================================
+// OPTION 19: Animated Bounce Caret
+// Caret has a subtle bounce animation
+// ============================================
+function Option19BounceCaret() {
+  const { currentWord, isAnimating } = useRotatingWords(2200);
+
+  return (
+    <div className="text-center">
+      <style>{`
+        @keyframes subtle-bounce {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-3px); }
+        }
+        .bounce-caret {
+          animation: subtle-bounce 2s ease-in-out infinite;
+        }
+      `}</style>
+      <div className="inline-block relative">
+        {/* Main text line */}
+        <p className="text-3xl md:text-4xl lg:text-5xl font-bold text-foreground leading-tight flex items-baseline justify-center">
+          <span>See your</span>
+          {/* Bouncing caret */}
+          <span className="relative mx-2">
+            {/* The word floating above */}
+            <span
+              className={`absolute bottom-[calc(100%+6px)] left-1/2 -translate-x-1/2 transition-all duration-300 ${
+                isAnimating ? "opacity-0" : "opacity-100"
+              }`}
+            >
+              <span
+                className="text-2xl md:text-3xl lg:text-4xl font-bold whitespace-nowrap"
+                style={{ color: '#F5C030' }}
+              >
+                {currentWord}
+              </span>
+            </span>
+            {/* Bouncing ^ caret */}
+            <svg
+              viewBox="0 0 24 14"
+              className="w-5 h-3 md:w-7 md:h-4 bounce-caret"
+              style={{ color: '#F5C030' }}
+              fill="currentColor"
+            >
+              <path d="M12 0 L24 14 L18 14 L12 6 L6 14 L0 14 Z" />
+            </svg>
+          </span>
+          <span>more.</span>
+        </p>
+      </div>
+      <p className="mt-6 text-sm text-muted-foreground">
+        ✓ Gentle bounce animation — draws attention to the insertion point
+      </p>
+    </div>
+  );
+}
+
+// ============================================
 // Main Page Component
 // ============================================
 export default function PrototypeHeadlineLayouts() {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
 
   const options = [
-    { id: "insertion-caret", name: "Insertion Caret (^)", component: Option9InsertionCaret, recommended: true },
-    { id: "insertion-caret-b", name: "Insertion Caret (Inline ^)", component: Option10InsertionCaretB, recommended: true },
-    { id: "insertion-line", name: "Insertion with Line", component: Option11InsertionWithLine, recommended: false },
-    { id: "caret", name: "Blinking Cursor", component: Option1Caret, recommended: false },
-    { id: "fixed-left", name: "Fixed Width (Left)", component: Option2FixedLeft, recommended: false },
-    { id: "fixed-center", name: "Fixed Width (Center)", component: Option3FixedCenter, recommended: false },
-    { id: "pill", name: "Yellow Pill", component: Option4Pill, recommended: false },
-    { id: "underline", name: "Underline Accent", component: Option4Underline, recommended: false },
-    { id: "brackets", name: "Decorative Brackets", component: Option4Brackets, recommended: false },
-    { id: "vertical", name: "Vertical Carousel", component: Option5Vertical, recommended: false },
-    { id: "typewriter", name: "Typewriter Effect", component: Option6Typewriter, recommended: false },
+    // Insertion caret variations (what you're exploring)
+    { id: "inline-no-line", name: "Inline Caret (No Line)", component: Option14InlineNoLine, recommended: true },
+    { id: "caret-below", name: "Caret Below Baseline", component: Option12CaretBelowBaseline, recommended: true },
+    { id: "subscript-caret", name: "Subscript Caret (Lower)", component: Option18SubscriptCaret, recommended: true },
+    { id: "thin-caret", name: "Thin/Subtle Caret", component: Option15ThinCaret, recommended: false },
+    { id: "wide-caret", name: "Wide Flat Caret", component: Option16WideCaret, recommended: false },
+    { id: "glow-caret", name: "Caret with Glow", component: Option17CaretWithGlow, recommended: false },
+    { id: "bounce-caret", name: "Bouncing Caret", component: Option19BounceCaret, recommended: false },
+    { id: "insertion-line", name: "With Connecting Line", component: Option11InsertionWithLine, recommended: false },
+    { id: "three-tier", name: "Three-Tier Stack", component: Option13CaretWellBelow, recommended: false },
+    // Original insertion caret options
+    { id: "insertion-caret", name: "Original Insertion (^)", component: Option9InsertionCaret, recommended: false },
+    { id: "insertion-caret-b", name: "Inline ^ Character", component: Option10InsertionCaretB, recommended: false },
+    // Other layout options (for comparison)
     { id: "diagonal", name: "Diagonal (Current)", component: Option7Diagonal, recommended: false },
-    { id: "two-line", name: "Two-Line", component: Option8TwoLine, recommended: false },
+    { id: "fixed-center", name: "Fixed Width (Center)", component: Option3FixedCenter, recommended: false },
+    { id: "vertical", name: "Vertical Carousel", component: Option5Vertical, recommended: false },
   ];
 
   return (
