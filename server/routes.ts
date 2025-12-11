@@ -1956,9 +1956,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           // Only add if we have a name, response, and haven't already added this person
           const nameLower = name.toLowerCase();
-          if (name && r.response && !processedNames.has(nameLower)) {
+          // Normalize response: 'going' -> 'yes' for backwards compatibility
+          const normalizedResponse = r.response === 'going' ? 'yes' : r.response;
+          if (name && normalizedResponse && !processedNames.has(nameLower) && rsvpSummary[normalizedResponse as 'yes' | 'maybe' | 'no']) {
             processedNames.add(nameLower);
-            rsvpSummary[r.response as 'yes' | 'maybe' | 'no'].push(name);
+            rsvpSummary[normalizedResponse as 'yes' | 'maybe' | 'no'].push(name);
 
             // Add detailed RSVP info
             detailedRsvps.push({
