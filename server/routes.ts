@@ -6848,16 +6848,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           // Merge Google Places data if found
           if (places.length > 0) {
-            const place = places[0];
-
-            // Validate venue name match
+            // CRITICAL FIX: Rank places by name similarity and only use matches above threshold
             const { calculateNameSimilarity } = await import('./google-places');
-            const similarity = calculateNameSimilarity(validatedEvent.title, place.name);
+            const SIMILARITY_THRESHOLD = 0.5;
 
-            // Warn if similarity is low (but don't block - user explicitly added this)
-            if (similarity < 0.5) {
-              console.warn(`[Voting Event] LOW SIMILARITY WARNING: User requested "${validatedEvent.title}" but top Google result is "${place.name}"`);
+            const rankedPlaces = places.map(p => ({
+              place: p,
+              similarity: calculateNameSimilarity(validatedEvent.title, p.name)
+            })).sort((a, b) => b.similarity - a.similarity);
+
+            const bestMatch = rankedPlaces[0];
+
+            // Reject if no good name match found - don't use wrong venue data!
+            if (bestMatch.similarity < SIMILARITY_THRESHOLD) {
+              console.warn(`[Voting Event] NAME MISMATCH: User requested "${validatedEvent.title}" but best match is "${bestMatch.place.name}" (${(bestMatch.similarity * 100).toFixed(0)}% similarity) - rejecting to prevent data corruption`);
+              enrichmentStatus = 'no_results';
+
+              return res.json({
+                enrichmentStatus,
+                warning: `Could not find an exact match for "${validatedEvent.title}". The closest result was "${bestMatch.place.name}". Please verify the venue name or add it manually.`
+              });
             }
+
+            const place = bestMatch.place;
+            console.log(`[Voting Event] ✅ Matched "${validatedEvent.title}" to "${place.name}" (${(bestMatch.similarity * 100).toFixed(0)}% similarity)`);
 
             // Check for suspicious types (tour operators, etc.)
             const suspiciousTypes = ['travel_agency', 'tour_operator'];
@@ -10238,11 +10252,23 @@ Looking forward to planning great activities together!
             );
 
             if (places.length > 0) {
-              const topResult = places[0];
-              console.log(`[Add Ad-hoc Venue] Found venue via search: ${topResult.name} (${topResult.placeId})`);
-              googlePlaceId = topResult.placeId;
-              name = topResult.name;
-              address = topResult.address;
+              // Rank by name similarity to find best match
+              const { calculateNameSimilarity } = await import('./google-places');
+              const rankedPlaces = places.map(p => ({
+                place: p,
+                similarity: calculateNameSimilarity(parsedPlace.placeName!, p.name)
+              })).sort((a, b) => b.similarity - a.similarity);
+
+              const bestMatch = rankedPlaces[0];
+              if (bestMatch.similarity >= 0.5) {
+                const topResult = bestMatch.place;
+                console.log(`[Add Ad-hoc Venue] Found venue via search: ${topResult.name} (${topResult.placeId}) - ${(bestMatch.similarity * 100).toFixed(0)}% match`);
+                googlePlaceId = topResult.placeId;
+                name = topResult.name;
+                address = topResult.address;
+              } else {
+                console.warn(`[Add Ad-hoc Venue] Best match "${bestMatch.place.name}" has low similarity (${(bestMatch.similarity * 100).toFixed(0)}%) to "${parsedPlace.placeName}"`);
+              }
             } else {
               console.warn(`[Add Ad-hoc Venue] No venues found for "${parsedPlace.placeName}"`);
             }
@@ -10252,11 +10278,23 @@ Looking forward to planning great activities together!
             const places = await searchPlaces(parsedPlace.placeName, '');
 
             if (places.length > 0) {
-              const topResult = places[0];
-              console.log(`[Add Ad-hoc Venue] Found venue via search: ${topResult.name} (${topResult.placeId})`);
-              googlePlaceId = topResult.placeId;
-              name = topResult.name;
-              address = topResult.address;
+              // Rank by name similarity to find best match
+              const { calculateNameSimilarity } = await import('./google-places');
+              const rankedPlaces = places.map(p => ({
+                place: p,
+                similarity: calculateNameSimilarity(parsedPlace.placeName!, p.name)
+              })).sort((a, b) => b.similarity - a.similarity);
+
+              const bestMatch = rankedPlaces[0];
+              if (bestMatch.similarity >= 0.5) {
+                const topResult = bestMatch.place;
+                console.log(`[Add Ad-hoc Venue] Found venue via search: ${topResult.name} (${topResult.placeId}) - ${(bestMatch.similarity * 100).toFixed(0)}% match`);
+                googlePlaceId = topResult.placeId;
+                name = topResult.name;
+                address = topResult.address;
+              } else {
+                console.warn(`[Add Ad-hoc Venue] Best match "${bestMatch.place.name}" has low similarity (${(bestMatch.similarity * 100).toFixed(0)}%) to "${parsedPlace.placeName}"`);
+              }
             }
           }
         } catch (error) {
@@ -16589,16 +16627,14 @@ export async function generateAndStoreActivities(groupId: string, groupData: any
           // Only use venues that meet quality AND budget standards
           let finalPlaces = drinksFiltered;
 
-          // Check if we have curated venues - use TYPE-BASED matching instead of name matching
+          // Check if we have curated venues - ONLY use if name matches well
           let useCuratedVenue = false;
           let curatedPlace = null;
-          
+
           if (finalPlaces.length > 0) {
-            // STRATEGY: Use any high-quality curated venue instead of requiring name match
-            // Since AI suggests specific names but we want to maximize cache hits,
-            // we'll use the best-rated cached venue of the right type
-            
-            // First, try exact/fuzzy name match (faster when AI suggests known venues)
+            // CRITICAL FIX: Only use curated venues if name similarity is above threshold
+            // TYPE-BASED matching was causing data corruption (e.g., "Baklavastory" getting "The Native Experience" data)
+
             const rankedPlaces = finalPlaces.map(place => ({
               place,
               similarity: calculateNameSimilarity(suggestion.venueName, place.name)
@@ -16607,21 +16643,17 @@ export async function generateAndStoreActivities(groupId: string, groupData: any
             const bestMatch = rankedPlaces[0];
             const SIMILARITY_THRESHOLD = 0.6;
 
-            // Try name matching first
+            // ONLY use curated venue if name similarity is good enough
             if (bestMatch.similarity >= SIMILARITY_THRESHOLD) {
               console.log(`[Venue Matching] ✅ Matched "${bestMatch.place.name}" to AI suggestion "${suggestion.venueName}" with ${(bestMatch.similarity * 100).toFixed(0)}% similarity`);
               curatedPlace = bestMatch.place;
               useCuratedVenue = true;
             } else {
-              // No good name match - use TYPE-BASED matching instead
-              // Return highest-rated venue from our cache (already filtered by type during search)
-              const bestRatedPlace = finalPlaces.sort((a, b) => 
-                (parseFloat(b.rating || '0') - parseFloat(a.rating || '0'))
-              )[0];
-              
-              console.log(`[Venue Matching] 🎯 TYPE-BASED MATCH: Using cached "${bestRatedPlace.name}" (${bestRatedPlace.rating}⭐) for AI suggestion "${suggestion.venueName}" (${suggestion.venueType})`);
-              curatedPlace = bestRatedPlace;
-              useCuratedVenue = true;
+              // No good name match - DO NOT fall back to TYPE-BASED matching!
+              // This was causing venues like "Baklavastory" to get data from "The Native Experience"
+              // Instead, fall through to the API search below
+              console.log(`[Venue Matching] ❌ No good name match for "${suggestion.venueName}" in curated venues (best: "${bestMatch.place.name}" at ${(bestMatch.similarity * 100).toFixed(0)}%) - falling back to API`);
+              useCuratedVenue = false;
             }
           }
 
