@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Calendar, Compass, Plus, Sparkles, Clock, Sun, Sunrise, CalendarDays, CalendarClock } from "lucide-react";
+import { Calendar, Compass, Sparkles, Clock, Sun, Sunrise, CalendarDays, CalendarClock } from "lucide-react";
 import EventsTable from "@/components/EventsTable";
 
 // Time-based event grouping utilities
@@ -107,61 +107,36 @@ export function HomeTab({
 }: HomeTabProps) {
   return (
     <div className="max-w-6xl mx-auto space-y-8">
-      {/* Hero Action Section - More distinctive */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-background to-accent/10 p-6 sm:p-8 border border-primary/20">
-        {/* Decorative elements */}
-        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-        <div className="absolute bottom-0 left-0 w-24 h-24 bg-accent/10 rounded-full blur-2xl translate-y-1/2 -translate-x-1/2" />
-
-        <div className="relative">
-          <h2 className="text-xl sm:text-2xl font-bold mb-2">Ready for your next gathering?</h2>
-          <p className="text-muted-foreground mb-6 max-w-md">
-            Plan something memorable with your group
-          </p>
-
-          <div className="flex flex-col sm:flex-row gap-3">
-            <Button
-              onClick={onOpenEventCreation}
-              size="lg"
-              className="gap-2 glow-primary press-scale shadow-lg"
-              data-testid="button-schedule-event"
-            >
-              <Calendar className="h-5 w-5" />
-              Schedule Event
-            </Button>
-            <Button
-              onClick={onOpenDiscoverVenues}
-              size="lg"
-              variant="outline"
-              className="gap-2 hover-lift bg-background/80 backdrop-blur-sm"
-              data-testid="button-discover-venues"
-            >
-              <Compass className="h-5 w-5" />
-              Discover Venues
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* Events Overview - Empty State */}
+      {/* Empty State - Only shows when no events */}
       {!eventsLoading && allGroupEvents.length === 0 && (
         <Card className="border-dashed border-2 bg-gradient-to-b from-muted/30 to-background">
-          <CardContent className="py-16 text-center">
-            <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-primary/10 flex items-center justify-center">
-              <Sparkles className="h-8 w-8 text-primary" />
+          <CardContent className="py-12 text-center">
+            <div className="w-14 h-14 mx-auto mb-5 rounded-2xl bg-primary/10 flex items-center justify-center">
+              <Sparkles className="h-7 w-7 text-primary" />
             </div>
-            <h3 className="text-xl font-semibold mb-2">No Events Yet</h3>
+            <h3 className="text-xl font-semibold mb-2">Ready to plan something?</h3>
             <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
-              Your group is ready! Create your first event and start making memories together.
+              Create your first event or discover new venues for your group.
             </p>
-            <Button
-              onClick={onOpenEventCreation}
-              className="glow-primary"
-              data-testid="button-create-first-event"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Create First Event
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Button
+                onClick={onOpenEventCreation}
+                className="gap-2"
+                data-testid="button-create-first-event"
+              >
+                <Calendar className="h-4 w-4" />
+                Schedule Event
+              </Button>
+              <Button
+                onClick={onOpenDiscoverVenues}
+                variant="outline"
+                className="gap-2"
+                data-testid="button-discover-venues"
+              >
+                <Compass className="h-4 w-4" />
+                Discover Venues
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
