@@ -48,6 +48,9 @@ function generateRotation(rotationIndex: number): string[] {
   ];
 }
 
+// Nunito font for warm, friendly headlines
+const headlineFont = "'Nunito', sans-serif";
+
 // Mobile: Diagonal layout (unchanged)
 function DiagonalLayout({
   currentWord,
@@ -59,7 +62,10 @@ function DiagonalLayout({
   className?: string;
 }) {
   return (
-    <span className={`relative block w-[280px] sm:w-[340px] h-[110px] sm:h-[140px] ${className}`}>
+    <span
+      className={`relative block w-[280px] sm:w-[340px] h-[110px] sm:h-[140px] ${className}`}
+      style={{ fontFamily: headlineFont }}
+    >
       <span className="absolute top-0 -left-8 sm:-left-12 text-foreground">See your</span>
       <span
         className={`absolute top-[38%] left-1/2 -translate-x-1/2 transition-opacity duration-300 font-bold whitespace-nowrap ${
@@ -92,7 +98,7 @@ function SubscriptCaretLayout({
   const showDropAnimation = isKinDropping || isKinSettled;
 
   return (
-    <span className={`inline-block relative pb-6 ${className}`}>
+    <span className={`inline-block relative pb-6 ${className}`} style={{ fontFamily: headlineFont }}>
       {/* Main text line */}
       <span className="text-foreground flex items-baseline justify-center">
         {/* "See your" - slides left when kin drops */}
@@ -247,7 +253,7 @@ function RotatingHeadline() {
   // Kinmo phase - centered, no surrounding text (same for both)
   if (phase === "kinmo") {
     return (
-      <span className="font-bold animate-kinmo-appear" style={{ color: '#F5C030' }}>
+      <span className="font-bold animate-kinmo-appear" style={{ color: '#F5C030', fontFamily: headlineFont }}>
         Kinmo
       </span>
     );
@@ -256,7 +262,7 @@ function RotatingHeadline() {
   // fadeOut phase - fade out Kinmo (same for both)
   if (phase === "fadeOut") {
     return (
-      <span className="font-bold animate-fade-out-phrase" style={{ color: '#F5C030' }}>
+      <span className="font-bold animate-fade-out-phrase" style={{ color: '#F5C030', fontFamily: headlineFont }}>
         Kinmo
       </span>
     );
