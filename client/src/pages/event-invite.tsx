@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { generateCalendarUrlFromItinerary } from "@/lib/calendar";
+import { useKinmoConfetti } from "@/hooks/useKinmoConfetti";
 
 type Member = {
   id: string;
@@ -132,6 +133,9 @@ export default function EventInvitePage() {
 
   // Stored RSVP token for returning users
   const [storedRsvpToken, setStoredRsvpToken] = useState<string | null>(null);
+
+  // Kinmo confetti celebration - auto-fires when RSVP is submitted
+  useKinmoConfetti({ autoFire: rsvpSubmitted, autoFireDelay: 150 });
 
   // Check for stored RSVP token on mount
   useEffect(() => {
@@ -558,7 +562,13 @@ export default function EventInvitePage() {
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="max-w-lg w-full text-center">
           <div className="mb-6">
-            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-success flex items-center justify-center">
+            <div
+              className="w-20 h-20 mx-auto mb-4 rounded-full bg-success flex items-center justify-center animate-pulse"
+              style={{
+                boxShadow: '0 0 30px rgba(242, 201, 76, 0.4), 0 0 60px rgba(242, 201, 76, 0.2)',
+                animation: 'pulse 2s ease-in-out infinite',
+              }}
+            >
               <Check className="h-10 w-10 text-success-foreground" strokeWidth={3} />
             </div>
             <h1 className="text-3xl font-bold mb-2">You're All Set!</h1>

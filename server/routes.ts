@@ -6540,13 +6540,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
-      // Fetch RSVP
-      const rsvps = await db
+      // Get the member to check if they have a linked user account
+      const member = await storage.getMember(memberId);
+
+      // Fetch RSVP - check by member_id OR user_id (for organizers who RSVP'd before member record existed)
+      let rsvps = await db
         .select()
         .from(rsvpsTable)
         .where(
           sql`itinerary_id = ${itineraryId} AND member_id = ${memberId}`
         );
+
+      // If no RSVP found by member_id but member has a userId, check by userId too
+      if (rsvps.length === 0 && member?.userId) {
+        rsvps = await db
+          .select()
+          .from(rsvpsTable)
+          .where(
+            sql`itinerary_id = ${itineraryId} AND user_id = ${member.userId}`
+          );
+      }
 
       if (rsvps.length === 0) {
         return res.status(404).json({ message: "RSVP not found" });

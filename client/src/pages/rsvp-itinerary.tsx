@@ -18,6 +18,7 @@ import { generateCalendarUrlFromItinerary } from "@/lib/calendar";
 import { AvailabilityGrid } from "@/components/AvailabilityGrid";
 import { cn } from "@/lib/utils";
 import { GangsAllHereCelebration } from "@/components/GangsAllHereCelebration";
+import { fireKinmoConfetti } from "@/lib/kinmo-confetti";
 
 type Member = {
   id: string;
@@ -279,6 +280,8 @@ export default function RsvpItineraryPage() {
       if (data.isCompletingVote && data.gangsAllHere) {
         setShowCelebration(true);
       } else {
+        // Fire Kinmo confetti celebration for successful RSVP
+        fireKinmoConfetti();
         toast({
           title: "RSVP recorded",
           description: "Your response has been saved",
@@ -352,8 +355,9 @@ export default function RsvpItineraryPage() {
     if (claimedIdentity === 'guest') {
       return guestName;
     } else if (claimedMemberId) {
-      // Use inviteInfo name if available (more reliable for personal invites)
-      if (inviteMemberLocked && inviteInfo?.name) {
+      // Always prefer inviteInfo name if available (handles case where organizer's
+      // member record is filtered from groupMembers list)
+      if (inviteInfo?.name) {
         return inviteInfo.name;
       }
       const member = groupMembers?.find(m => m.id === claimedMemberId);
