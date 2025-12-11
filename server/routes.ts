@@ -596,10 +596,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/photos/v1/:photoName(*)', async (req, res) => {
     try {
       const photoName = decodeURIComponent(req.params.photoName);
-      
+
       if (!photoName) {
         return res.status(400).json({ message: "Photo name is required" });
       }
+
+      // Extract placeId from photoName format: "places/{placeId}/photos/{photoId}"
+      const placeIdMatch = photoName.match(/^places\/([^\/]+)\/photos\//);
+      const placeId = placeIdMatch ? placeIdMatch[1] : null;
 
       // Check cache first (use photoName as key)
       const cached = await db
@@ -610,7 +614,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (cached.length > 0) {
         const cachedPhoto = cached[0];
-        
+
         // Check if expired
         if (new Date() > cachedPhoto.expiresAt) {
           console.log(`[Photo Cache v1] EXPIRED - ${photoName}`);
@@ -624,9 +628,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // Fallback: Try to find a cached photo for the same placeId (handles ephemeral photo IDs)
+      if (placeId) {
+        const placeIdCached = await db
+          .select()
+          .from(photosCache)
+          .where(eq(photosCache.placeId, placeId))
+          .limit(1);
+
+        if (placeIdCached.length > 0) {
+          const cachedPhoto = placeIdCached[0];
+
+          // Check if expired
+          if (new Date() > cachedPhoto.expiresAt) {
+            console.log(`[Photo Cache v1] EXPIRED (placeId fallback) - ${placeId}`);
+            await db.delete(photosCache).where(eq(photosCache.photoReference, cachedPhoto.photoReference));
+          } else {
+            console.log(`[Photo Cache v1] HIT (placeId fallback) - ${placeId}`);
+            const imageBuffer = Buffer.from(cachedPhoto.imageData, 'base64');
+            res.set('Content-Type', cachedPhoto.contentType);
+            res.set('Cache-Control', 'public, max-age=2592000'); // 30 days
+            return res.send(imageBuffer);
+          }
+        }
+      }
+
       // Not in cache or expired - download from Google using NEW Photos API
       console.log(`[Photo Cache v1] MISS - downloading ${photoName}`);
-      
+
       const apiKey = process.env.GOOGLE_PLACES_API_KEY_2 || process.env.GOOGLE_PLACES_API_KEY;
       if (!apiKey) {
         return res.status(500).json({ message: "Google API key not configured" });
@@ -635,7 +664,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // NEW Places API Photo Media endpoint
       // https://places.googleapis.com/v1/{photoName}/media?key=API_KEY&maxWidthPx=400
       const photoUrl = `https://places.googleapis.com/v1/${photoName}/media?maxWidthPx=400`;
-      
+
       const photoResponse = await fetch(photoUrl, {
         headers: {
           'X-Goog-Api-Key': apiKey,
@@ -651,7 +680,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const contentType = photoResponse.headers.get('content-type') || 'image/jpeg';
       const base64Data = Buffer.from(photoBuffer).toString('base64');
 
-      // Cache it (use photoName as key)
+      // Cache it (use photoName as key, also store placeId for fallback lookups)
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 30); // 30 days
 
@@ -659,6 +688,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .insert(photosCache)
         .values({
           photoReference: photoName,
+          placeId: placeId,
           imageData: base64Data,
           contentType,
           expiresAt,
@@ -666,13 +696,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .onConflictDoUpdate({
           target: photosCache.photoReference,
           set: {
+            placeId: placeId,
             imageData: base64Data,
             contentType,
             expiresAt,
           },
         });
 
-      console.log(`[Photo Cache v1] SAVED - ${photoName} (expires in 30 days)`);
+      console.log(`[Photo Cache v1] SAVED - ${photoName} (placeId: ${placeId}, expires in 30 days)`);
 
       // Return the photo
       res.set('Content-Type', contentType);

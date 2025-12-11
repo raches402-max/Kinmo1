@@ -205,7 +205,8 @@
       "Bash(timeout 15 npx tsx:*)",
       "Bash(unzip:*)",
       "Bash(timeout 30 curl:*)",
-      "Bash(xxd:*)"
+      "Bash(xxd:*)",
+      "Bash(timeout:*)"
     ],
     "deny": [],
     "ask": []

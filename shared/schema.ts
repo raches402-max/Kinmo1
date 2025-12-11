@@ -764,6 +764,7 @@ export const scrapedVenuesImport = pgTable("scraped_venues_import", {
 // Google Place Photos API cache - cache downloaded photos for 30 days
 export const photosCache = pgTable("photos_cache", {
   photoReference: text("photo_reference").primaryKey(), // Google photo reference ID
+  placeId: text("place_id"), // Google place ID for fallback lookups when photo IDs change
   imageData: text("image_data").notNull(), // Base64 encoded image data
   contentType: text("content_type").notNull().default("image/jpeg"), // MIME type
   createdAt: timestamp("created_at").defaultNow().notNull(),
