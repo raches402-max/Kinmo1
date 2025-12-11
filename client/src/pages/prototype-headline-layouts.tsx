@@ -969,6 +969,124 @@ function Option19BounceCaret() {
 }
 
 // ============================================
+// POLISHED: Hero with design improvements
+// ============================================
+function PolishedHeroDesktop() {
+  const { currentWord, isAnimating } = useRotatingWords(2200);
+
+  return (
+    <div className="relative w-full">
+      {/* Subtle warm radial gradient background */}
+      <div
+        className="absolute inset-0 -z-10"
+        style={{
+          background: 'radial-gradient(ellipse 80% 60% at 50% 40%, rgba(245, 192, 48, 0.08) 0%, transparent 70%)',
+        }}
+      />
+
+      <div className="text-center py-12 px-8">
+        {/* Spinning icon with glow */}
+        <div className="mb-6">
+          <div
+            className="mx-auto animate-slow-spin"
+            style={{
+              filter: 'drop-shadow(0 0 12px rgba(245, 192, 48, 0.3))'
+            }}
+          >
+            <svg
+              width="64"
+              height="64"
+              viewBox="0 0 48 48"
+              fill="none"
+              aria-hidden="true"
+            >
+              <circle cx="24" cy="24" r="14" fill="#F5C030" />
+              <path d="M19 5 A4 4 0 0 1 29 5 L24 5 Z" fill="#F5C030" />
+              <path d="M38 10 A4 4 0 0 1 43 19 L40 14 Z" fill="#F5C030" />
+              <path d="M43 29 A4 4 0 0 1 38 38 L40 34 Z" fill="#F5C030" />
+              <path d="M29 43 A4 4 0 0 1 19 43 L24 43 Z" fill="#F5C030" />
+              <path d="M10 38 A4 4 0 0 1 5 29 L8 34 Z" fill="#F5C030" />
+              <path d="M5 19 A4 4 0 0 1 10 10 L8 14 Z" fill="#F5C030" />
+            </svg>
+          </div>
+        </div>
+
+        {/* Subheading */}
+        <p className="text-sm tracking-wide uppercase text-muted-foreground mb-6">
+          Using AI to help you
+        </p>
+
+        {/* Main headline with Fraunces serif */}
+        <div className="inline-block relative pb-6">
+          <p
+            className="text-4xl lg:text-5xl xl:text-6xl font-bold text-foreground leading-tight flex items-baseline justify-center"
+            style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+          >
+            <span>See your</span>
+            {/* Subscript caret container */}
+            <span className="relative mx-3">
+              {/* The word floating above the text */}
+              <span
+                className={`absolute bottom-[calc(100%+10px)] left-1/2 -translate-x-1/2 transition-all duration-300 ${
+                  isAnimating ? "opacity-0 translate-y-1" : "opacity-100 translate-y-0"
+                }`}
+              >
+                <span
+                  className="text-3xl lg:text-4xl xl:text-5xl font-bold whitespace-nowrap"
+                  style={{ color: '#F5C030', fontFamily: "'Fraunces', Georgia, serif" }}
+                >
+                  {currentWord}
+                </span>
+              </span>
+              {/* Placeholder for spacing */}
+              <span className="invisible text-4xl lg:text-5xl xl:text-6xl">^</span>
+              {/* Caret positioned as subscript with subtle glow */}
+              <svg
+                viewBox="0 0 24 14"
+                className="absolute left-1/2 -translate-x-1/2 top-full mt-1 w-8 h-5 lg:w-10 lg:h-6"
+                style={{
+                  color: '#F5C030',
+                  filter: 'drop-shadow(0 0 4px rgba(245, 192, 48, 0.4))'
+                }}
+                fill="currentColor"
+              >
+                <path d="M12 0 L24 14 L18 14 L12 6 L6 14 L0 14 Z" />
+              </svg>
+            </span>
+            <span>more.</span>
+          </p>
+        </div>
+
+        {/* CTAs with polished button */}
+        <div className="flex flex-col sm:flex-row gap-4 justify-center mt-8">
+          <button
+            className="px-8 py-3 rounded-lg font-semibold text-base transition-all duration-200 ease-out hover:scale-[1.02] active:scale-[0.98]"
+            style={{
+              backgroundColor: '#F5C030',
+              color: '#000',
+              boxShadow: '0 4px 14px -4px rgba(245, 192, 48, 0.5)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.boxShadow = '0 6px 20px -4px rgba(245, 192, 48, 0.6)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.boxShadow = '0 4px 14px -4px rgba(245, 192, 48, 0.5)';
+            }}
+          >
+            Get Started →
+          </button>
+          <button
+            className="px-8 py-3 rounded-lg font-medium text-base border border-border bg-transparent transition-all duration-200 hover:bg-muted/50"
+          >
+            See How It Works
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
 // COMPARISON: Subscript Caret for Desktop
 // ============================================
 function SubscriptCaretDesktop() {
@@ -1146,12 +1264,145 @@ return (
       <section className="py-8 px-6 border-b bg-muted/30">
         <div className="max-w-3xl mx-auto text-center">
           <h1 className="text-2xl md:text-3xl font-bold mb-3">
-            Subscript Caret vs. Diagonal Layout
+            Hero Polish Mockup
           </h1>
           <p className="text-muted-foreground leading-relaxed">
-            Comparing the new <strong>Subscript Caret</strong> approach with your current <strong>Diagonal</strong> layout.
-            Both shown at desktop and mobile sizes.
+            Comparing a <strong>polished version</strong> with design improvements against the current implementation.
           </p>
+        </div>
+      </section>
+
+      {/* POLISHED HERO SECTION */}
+      <section className="py-12 px-6 border-b">
+        <div className="max-w-6xl mx-auto">
+          <h2 className="text-xl font-bold mb-6 text-center flex items-center justify-center gap-2">
+            <span className="bg-gradient-to-r from-amber-100 to-yellow-100 text-amber-700 px-3 py-1 rounded-full text-sm font-medium">✨ Polished Hero</span>
+          </h2>
+          <p className="text-center text-muted-foreground mb-8 max-w-2xl mx-auto text-sm">
+            This version includes: <strong>Fraunces serif font</strong> for warmth, <strong>subtle radial gradient</strong> background,
+            <strong> glowing sun icon</strong>, and <strong>polished CTA button</strong> with gold shadow + hover scale.
+          </p>
+
+          {/* Full-width polished hero mockup */}
+          <div className="rounded-2xl border-2 border-primary overflow-hidden bg-background">
+            <div className="bg-gradient-to-r from-primary/10 to-primary/5 px-6 py-3 border-b border-primary/20">
+              <div className="flex items-center gap-2">
+                <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded-full font-medium">POLISHED</span>
+                <h3 className="font-semibold">Hero with Design Improvements</h3>
+              </div>
+            </div>
+            <PolishedHeroDesktop />
+          </div>
+        </div>
+      </section>
+
+      {/* CURRENT HERO FOR COMPARISON */}
+      <section className="py-12 px-6 border-b bg-muted/20">
+        <div className="max-w-6xl mx-auto">
+          <h2 className="text-xl font-bold mb-6 text-center flex items-center justify-center gap-2">
+            <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-sm font-medium">Current Hero</span>
+          </h2>
+          <p className="text-center text-muted-foreground mb-8 max-w-2xl mx-auto text-sm">
+            For comparison: the current implementation without the polish improvements.
+          </p>
+
+          {/* Current hero representation */}
+          <div className="rounded-2xl border-2 border-border overflow-hidden bg-background">
+            <div className="bg-muted/30 px-6 py-3 border-b">
+              <div className="flex items-center gap-2">
+                <span className="text-xs bg-muted-foreground/20 text-muted-foreground px-2 py-0.5 rounded-full font-medium">CURRENT</span>
+                <h3 className="font-semibold">Subscript Caret (No Polish)</h3>
+              </div>
+            </div>
+            <div className="py-12 px-8">
+              <div className="text-center">
+                {/* Icon without glow */}
+                <div className="mb-6">
+                  <svg
+                    width="64"
+                    height="64"
+                    viewBox="0 0 48 48"
+                    fill="none"
+                    className="mx-auto animate-slow-spin"
+                    aria-hidden="true"
+                  >
+                    <circle cx="24" cy="24" r="14" fill="#F5C030" />
+                    <path d="M19 5 A4 4 0 0 1 29 5 L24 5 Z" fill="#F5C030" />
+                    <path d="M38 10 A4 4 0 0 1 43 19 L40 14 Z" fill="#F5C030" />
+                    <path d="M43 29 A4 4 0 0 1 38 38 L40 34 Z" fill="#F5C030" />
+                    <path d="M29 43 A4 4 0 0 1 19 43 L24 43 Z" fill="#F5C030" />
+                    <path d="M10 38 A4 4 0 0 1 5 29 L8 34 Z" fill="#F5C030" />
+                    <path d="M5 19 A4 4 0 0 1 10 10 L8 14 Z" fill="#F5C030" />
+                  </svg>
+                </div>
+                <p className="text-sm tracking-wide uppercase text-muted-foreground mb-6">
+                  Using AI to help you
+                </p>
+                <SubscriptCaretDesktop />
+                {/* Standard buttons */}
+                <div className="flex flex-col sm:flex-row gap-4 justify-center mt-8">
+                  <button
+                    className="px-8 py-3 rounded-lg font-semibold text-base"
+                    style={{ backgroundColor: '#F5C030', color: '#000' }}
+                  >
+                    Get Started →
+                  </button>
+                  <button className="px-8 py-3 rounded-lg font-medium text-base border border-border bg-transparent">
+                    See How It Works
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* IMPROVEMENTS BREAKDOWN */}
+      <section className="py-12 px-6 border-b">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-xl font-bold mb-8 text-center">What Changed</h2>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="rounded-xl border p-5 bg-gradient-to-br from-primary/5 to-transparent">
+              <div className="flex items-center gap-3 mb-3">
+                <span className="text-2xl">🎨</span>
+                <h3 className="font-semibold">Background Gradient</h3>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Subtle warm radial gradient radiating from center. Creates depth and atmosphere without being distracting.
+              </p>
+            </div>
+
+            <div className="rounded-xl border p-5 bg-gradient-to-br from-primary/5 to-transparent">
+              <div className="flex items-center gap-3 mb-3">
+                <span className="text-2xl">✒️</span>
+                <h3 className="font-semibold">Fraunces Serif Font</h3>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Switched headline from Plus Jakarta Sans to Fraunces. Adds warmth and personality while maintaining readability.
+              </p>
+            </div>
+
+            <div className="rounded-xl border p-5 bg-gradient-to-br from-primary/5 to-transparent">
+              <div className="flex items-center gap-3 mb-3">
+                <span className="text-2xl">☀️</span>
+                <h3 className="font-semibold">Icon Glow</h3>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Added soft gold drop-shadow to the spinning sun. Creates a halo effect that draws attention.
+              </p>
+            </div>
+
+            <div className="rounded-xl border p-5 bg-gradient-to-br from-primary/5 to-transparent">
+              <div className="flex items-center gap-3 mb-3">
+                <span className="text-2xl">🔘</span>
+                <h3 className="font-semibold">Button Polish</h3>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Gold shadow glow on primary button, subtle scale on hover (1.02×), press feedback on click (0.98×).
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 
