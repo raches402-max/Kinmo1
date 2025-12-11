@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, X, ChevronRight, ChevronLeft, Sparkles } from "lucide-react";
+import { Check, X, ChevronRight, ChevronLeft } from "lucide-react";
+import { KinmoIcon } from "@/components/KinmoLogo";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -72,12 +73,12 @@ function CelebrationOverlay({ onComplete }: { onComplete: () => void }) {
       >
         <motion.div
           className="w-20 h-20 mx-auto mb-5 rounded-full flex items-center justify-center"
-          style={{ background: "linear-gradient(135deg, hsl(44 91% 57%) 0%, hsl(44 91% 67%) 100%)" }}
+          style={{ background: "linear-gradient(135deg, hsl(38 35% 97%) 0%, hsl(44 60% 95%) 100%)" }}
           initial={{ rotate: -10 }}
           animate={{ rotate: [0, -5, 5, 0] }}
           transition={{ delay: 0.5, duration: 0.5 }}
         >
-          <Sparkles className="w-10 h-10 text-black/80" />
+          <KinmoIcon size={48} color="hsl(44 91% 57%)" />
         </motion.div>
         <h3 className="text-2xl font-bold text-[hsl(25,30%,14%)] mb-2" style={{ fontFamily: "var(--font-display)" }}>
           Thanks for sharing!
