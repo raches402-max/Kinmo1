@@ -167,21 +167,27 @@ async function getGroupMembersWithOrganizer(groupId: string, organizerUserId: st
     .from(membersTable)
     .where(eq(membersTable.groupId, groupId));
 
-  // Filter out members where the organizer added themselves (by email match or userId match)
+  // Find if organizer has a real member record in this group
+  const organizerMemberRecord = regularMembers.find(m =>
+    m.userId === organizerUserId ||
+    (organizerEmail && m.email && m.email.toLowerCase() === organizerEmail.toLowerCase())
+  );
+
+  // Filter out the organizer's member record (we'll add it back with isOrganizer flag)
   const filteredMembers = regularMembers.filter(m => {
-    // If member has userId and it matches organizer, exclude
+    // If member has userId and it matches organizer, exclude (will be re-added as organizer)
     if (m.userId === organizerUserId) return false;
-    // If member email matches organizer email (case insensitive), exclude
+    // If member email matches organizer email (case insensitive), exclude (will be re-added as organizer)
     if (organizerEmail && m.email && m.email.toLowerCase() === organizerEmail.toLowerCase()) return false;
     return true;
   });
 
-  // Build the final members array with organizer first
+  // Build the organizer entry - use real member ID if available, otherwise virtual ID
   const organizer = {
-    id: `organizer-${organizerUserId}`, // Virtual ID for organizer
-    name: organizerName,
-    email: organizerEmail,
-    openToHosting: false,
+    id: organizerMemberRecord?.id || `organizer-${organizerUserId}`, // Use real ID if available
+    name: organizerMemberRecord?.name || organizerName,
+    email: organizerMemberRecord?.email || organizerEmail,
+    openToHosting: organizerMemberRecord?.openToHosting || false,
     isOrganizer: true,
     isGuest: false,
     userId: organizerUserId,

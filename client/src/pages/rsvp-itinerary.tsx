@@ -24,6 +24,7 @@ type Member = {
   id: string;
   name: string;
   email: string | null;
+  isOrganizer?: boolean;
 };
 
 type Itinerary = {
@@ -178,15 +179,29 @@ export default function RsvpItineraryPage() {
 
   // Auto-select member if invite is for a specific person
   useEffect(() => {
-    if (inviteInfo?.id && !identityClaimed) {
-      // Personal invite - auto-select the member and lock the selection
+    if (identityClaimed) return;
+
+    if (inviteInfo?.id) {
+      // Personal invite with member ID - auto-select the member and lock the selection
       setClaimedMemberId(inviteInfo.id);
       setClaimedIdentity('member');
       setInviteMemberLocked(true);
-      // Auto-continue to RSVP step
       setIdentityClaimed(true);
+    } else if (inviteInfo?.isOrganizer && groupMembers) {
+      // Organizer invite (no member ID in invite) - find organizer's member record from the group
+      // The organizer entry in groupMembers now has their real member ID (if they have one)
+      const organizerEntry = groupMembers.find(m => m.isOrganizer);
+
+      if (organizerEntry && !organizerEntry.id.startsWith('organizer-')) {
+        // Organizer has a real member ID - auto-select them
+        setClaimedMemberId(organizerEntry.id);
+        setClaimedIdentity('member');
+        setInviteMemberLocked(true);
+        setIdentityClaimed(true);
+      }
+      // If organizer only has virtual ID, let them choose manually
     }
-  }, [inviteInfo, identityClaimed]);
+  }, [inviteInfo, identityClaimed, groupMembers]);
 
   // Fetch existing RSVP - only if identity is claimed
   const { data: existingRsvp } = useQuery<RsvpData>({
