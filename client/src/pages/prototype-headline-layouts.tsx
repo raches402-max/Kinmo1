@@ -987,28 +987,25 @@ function PolishedHeroDesktop() {
       <div className="text-center py-12 px-8">
         {/* Spinning icon with glow */}
         <div className="mb-6">
-          <div
+          <svg
+            width="64"
+            height="64"
+            viewBox="0 0 48 48"
+            fill="none"
             className="mx-auto animate-slow-spin"
             style={{
               filter: 'drop-shadow(0 0 12px rgba(245, 192, 48, 0.3))'
             }}
+            aria-hidden="true"
           >
-            <svg
-              width="64"
-              height="64"
-              viewBox="0 0 48 48"
-              fill="none"
-              aria-hidden="true"
-            >
-              <circle cx="24" cy="24" r="14" fill="#F5C030" />
-              <path d="M19 5 A4 4 0 0 1 29 5 L24 5 Z" fill="#F5C030" />
-              <path d="M38 10 A4 4 0 0 1 43 19 L40 14 Z" fill="#F5C030" />
-              <path d="M43 29 A4 4 0 0 1 38 38 L40 34 Z" fill="#F5C030" />
-              <path d="M29 43 A4 4 0 0 1 19 43 L24 43 Z" fill="#F5C030" />
-              <path d="M10 38 A4 4 0 0 1 5 29 L8 34 Z" fill="#F5C030" />
-              <path d="M5 19 A4 4 0 0 1 10 10 L8 14 Z" fill="#F5C030" />
-            </svg>
-          </div>
+            <circle cx="24" cy="24" r="14" fill="#F5C030" />
+            <path d="M19 5 A4 4 0 0 1 29 5 L24 5 Z" fill="#F5C030" />
+            <path d="M38 10 A4 4 0 0 1 43 19 L40 14 Z" fill="#F5C030" />
+            <path d="M43 29 A4 4 0 0 1 38 38 L40 34 Z" fill="#F5C030" />
+            <path d="M29 43 A4 4 0 0 1 19 43 L24 43 Z" fill="#F5C030" />
+            <path d="M10 38 A4 4 0 0 1 5 29 L8 34 Z" fill="#F5C030" />
+            <path d="M5 19 A4 4 0 0 1 10 10 L8 14 Z" fill="#F5C030" />
+          </svg>
         </div>
 
         {/* Subheading */}
