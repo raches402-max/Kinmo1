@@ -51,6 +51,7 @@ const PrototypePlaces = lazy(() => import("@/pages/prototype-places"));
 const PrototypeAvailabilityGrid = lazy(() => import("@/pages/prototype-availability-grid"));
 const PrototypeTimelineInfo = lazy(() => import("@/pages/prototype-timeline-info"));
 const PrototypeKinmoText = lazy(() => import("@/pages/prototype-kinmo-text"));
+const PrototypeHeadlineLayouts = lazy(() => import("@/pages/prototype-headline-layouts"));
 const BottomNavConcepts = lazy(() => import("@/components/BottomNavConcepts"));
 const Places = lazy(() => import("@/pages/places"));
 const FeedbackMockup = lazy(() => import("@/pages/feedback-mockup"));
@@ -116,6 +117,7 @@ function Router() {
                 <Route path="/claim/:claimToken" component={ClaimMemberPage} />
                 <Route path="/events" component={MemberEventsPage} />
                 <Route path="/prototype/kinmo-text" component={PrototypeKinmoText} />
+                <Route path="/prototype/headline-layouts" component={PrototypeHeadlineLayouts} />
                 <Route path="/prototype/group-details-desktop" component={PrototypeGroupDetailsDesktop} />
                 <Route path="/prototype/feedback-mockup" component={FeedbackMockup} />
                 <Route path="/privacy" component={Privacy} />
@@ -156,6 +158,7 @@ function Router() {
                 <Route path="/prototype/availability-grid" component={PrototypeAvailabilityGrid} />
                 <Route path="/prototype/timeline-info" component={PrototypeTimelineInfo} />
                 <Route path="/prototype/kinmo-text" component={PrototypeKinmoText} />
+                <Route path="/prototype/headline-layouts" component={PrototypeHeadlineLayouts} />
                 <Route path="/prototype/nav" component={BottomNavConcepts} />
                 <Route path="/prototype/feedback-mockup" component={FeedbackMockup} />
                 <Route path="/privacy" component={Privacy} />
