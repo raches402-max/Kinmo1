@@ -93,7 +93,7 @@ export function ItineraryTimeline({ items, className }: ItineraryTimelineProps) 
                   {item.venueAddress && (
                     <div className="text-xs text-[hsl(25,20%,40%)] flex items-start gap-1 mt-1">
                       <MapPin className="h-3 w-3 mt-0.5 flex-shrink-0 text-[hsl(44,87%,63%)]" />
-                      <span>{item.venueAddress}</span>
+                      <span className="break-words whitespace-normal leading-relaxed">{item.venueAddress}</span>
                     </div>
                   )}
 
