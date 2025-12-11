@@ -1,9 +1,10 @@
 import { format, formatDistanceToNow, isPast, isFuture } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
-import { Calendar, CalendarClock, Edit2, Plus } from "lucide-react";
+import { Calendar, CalendarClock, CalendarPlus, Edit2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { EventAccordionSection } from "./EventAccordionSection";
+import { generateCalendarUrlFromItinerary } from "@/lib/calendar";
 
 interface WhenSectionProps {
   isExpanded: boolean;
@@ -15,6 +16,10 @@ interface WhenSectionProps {
   isOrganizer: boolean;
   onEditDate?: () => void;
   onEditDeadline?: () => void;
+  // For calendar link
+  eventName?: string;
+  groupName?: string;
+  venues?: Array<{ venueName: string; venueAddress?: string | null }>;
 }
 
 export function WhenSection({
@@ -27,6 +32,9 @@ export function WhenSection({
   isOrganizer,
   onEditDate,
   onEditDeadline,
+  eventName,
+  groupName,
+  venues,
 }: WhenSectionProps) {
   const hasDate = !!eventDate;
   const date = eventDate ? new Date(eventDate) : null;
@@ -115,6 +123,24 @@ export function WhenSection({
               )}
             </div>
           </button>
+
+          {/* Add to Calendar link */}
+          {eventDate && (
+            <a
+              href={generateCalendarUrlFromItinerary({
+                groupName: groupName || 'Event',
+                eventName: eventName || groupName || 'Event',
+                eventDate: eventDate,
+                venues: venues || [],
+              })}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors mt-2"
+            >
+              <CalendarPlus className="h-4 w-4" />
+              Add to Google Calendar
+            </a>
+          )}
 
           {/* RSVP deadline */}
           {deadlineDisplay && (

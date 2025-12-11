@@ -648,6 +648,9 @@ export function MobileEventDetails({
           isOrganizer={isOrganizer}
           onEditDate={onEditDate}
           onEditDeadline={onEditDeadline}
+          eventName={event.itineraryName}
+          groupName={event.groupName || undefined}
+          venues={event.items?.map(v => ({ venueName: v.venueName, venueAddress: v.address }))}
         />
 
         {/* WHERE Section */}

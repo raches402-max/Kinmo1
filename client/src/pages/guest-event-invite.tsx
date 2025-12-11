@@ -15,8 +15,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar, MapPin, Check, X, HelpCircle, ExternalLink, User } from "lucide-react";
+import { Calendar, MapPin, Check, X, HelpCircle, ExternalLink, User, CalendarPlus } from "lucide-react";
 import { format } from "date-fns";
+import { generateCalendarUrlFromItinerary } from "@/lib/calendar";
 
 type ItineraryItem = {
   id: string;
@@ -268,6 +269,28 @@ export default function GuestEventInvitePage() {
               <p className="text-sm text-gray-500 mt-2">
                 Your feedback has been shared with the organizer.
               </p>
+            )}
+            {/* Add to Calendar link */}
+            {event.eventDate && (
+              <div className="mt-6 pt-4 border-t border-gray-200">
+                <a
+                  href={generateCalendarUrlFromItinerary({
+                    groupName: event.groupName || 'Event',
+                    eventName: event.name,
+                    eventDate: event.eventDate,
+                    venues: event.items?.map(item => ({
+                      venueName: item.venueName,
+                      venueAddress: item.venueAddress,
+                    })) || [],
+                  })}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-primary transition-colors"
+                >
+                  <CalendarPlus className="h-4 w-4" />
+                  Add to Google Calendar
+                </a>
+              </div>
             )}
             <p className="text-sm text-gray-500 mt-4">
               You can close this page now. See you there!

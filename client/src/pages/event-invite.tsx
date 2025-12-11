@@ -30,8 +30,10 @@ import {
   ChevronRight,
   UserPlus,
   ArrowLeft,
+  CalendarPlus,
 } from "lucide-react";
 import { format } from "date-fns";
+import { generateCalendarUrlFromItinerary } from "@/lib/calendar";
 
 type Member = {
   id: string;
@@ -585,6 +587,28 @@ export default function EventInvitePage() {
                   )}
                 </div>
               </div>
+              {/* Add to Calendar link */}
+              {event.eventDate && (
+                <div className="mt-4 pt-4 border-t">
+                  <a
+                    href={generateCalendarUrlFromItinerary({
+                      groupName: event.groupName || 'Event',
+                      eventName: event.name,
+                      eventDate: event.eventDate,
+                      venues: event.items?.map(item => ({
+                        venueName: item.venueName,
+                        venueAddress: item.venueAddress,
+                      })) || [],
+                    })}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    <CalendarPlus className="h-4 w-4" />
+                    Add to Google Calendar
+                  </a>
+                </div>
+              )}
             </CardContent>
           </Card>
 

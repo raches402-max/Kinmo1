@@ -910,8 +910,8 @@ export default function RsvpItineraryPage() {
                   </div>
                 )}
 
-                {/* Add to Calendar button - shown when RSVP is yes or maybe */}
-                {(selectedResponse === 'yes' || selectedResponse === 'maybe') && itinerary.eventDate && (
+                {/* Add to Calendar button - shown for all RSVP responses */}
+                {selectedResponse && itinerary.eventDate && (
                   <div className="mt-4 pt-4 border-t border-[hsl(44,70%,75%)]">
                     <a
                       href={generateCalendarUrlFromItinerary({

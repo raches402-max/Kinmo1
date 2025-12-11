@@ -291,8 +291,8 @@ export default function GuestRsvpPage() {
               </div>
             ) : null}
 
-            {/* Add to Calendar button - shown when RSVP is yes or maybe */}
-            {(guestInvite.rsvpStatus === 'yes' || guestInvite.rsvpStatus === 'maybe') && itinerary.eventDate && (
+            {/* Add to Calendar button - shown for all RSVP responses */}
+            {guestInvite.rsvpStatus && itinerary.eventDate && (
               <div className="pt-4 border-t border-[hsl(44,70%,75%)]">
                 <a
                   href={generateCalendarUrlFromItinerary({
