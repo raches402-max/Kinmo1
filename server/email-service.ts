@@ -298,7 +298,7 @@ export async function sendGentleNudge(
                           Hey ${recipient.name},
                         </p>
                         <p style="margin: 0 0 28px; font-size: 16px; color: #3d3d3d; line-height: 1.6;">
-                          Can you let us know if you're coming? It helps the group plan.
+                          Hope you can make it! Just let us know when you get a chance — it helps us plan.
                         </p>
 
                         <!-- Date/Time card -->
@@ -347,7 +347,7 @@ export async function sendGentleNudge(
                     <tr>
                       <td style="background-color: #faf7f2; padding: 24px 40px; text-align: center; border-top: 1px solid #f0ebe3;">
                         <p style="margin: 0 0 8px; font-size: 13px; color: #a09080;">
-                          Yes or no both help — we just need a headcount.
+                          Either way works — just helps to know.
                         </p>
                         <p style="margin: 0; font-size: 12px; color: #c0b0a0;">
                           <a href="${eventsUrl}" style="color: #8b7355; text-decoration: none;">View all your events</a> · Sent via <a href="https://kinmo.ai" style="color: #8b7355; text-decoration: none;">Kinmo</a>
@@ -414,7 +414,7 @@ export async function sendFinalCall(
                           Hey ${recipient.name},
                         </p>
                         <p style="margin: 0 0 28px; font-size: 16px; color: #3d3d3d; line-height: 1.6;">
-                          This is coming up soon. Can you respond so we can finalize the headcount?
+                          This is coming up soon — would love to know if you can join! A quick response helps us get everything ready.
                         </p>
 
                         <!-- Date/Time card -->
@@ -463,7 +463,7 @@ export async function sendFinalCall(
                     <tr>
                       <td style="background-color: #faf7f2; padding: 24px 40px; text-align: center; border-top: 1px solid #f0ebe3;">
                         <p style="margin: 0 0 8px; font-size: 13px; color: #a09080;">
-                          A quick yes or no is all we need.
+                          No pressure — just let us know when you can.
                         </p>
                         <p style="margin: 0; font-size: 12px; color: #c0b0a0;">
                           <a href="${eventsUrl}" style="color: #8b7355; text-decoration: none;">View all your events</a> · Sent via <a href="https://kinmo.ai" style="color: #8b7355; text-decoration: none;">Kinmo</a>
@@ -530,7 +530,7 @@ export async function sendDayBeforeReminder(
                           Hey ${recipient.name},
                         </p>
                         <p style="margin: 0 0 28px; font-size: 16px; color: #3d3d3d; line-height: 1.6;">
-                          Quick reminder — this is tomorrow.
+                          Just a friendly reminder — this is happening tomorrow. Hope to see you there!
                         </p>
 
                         <!-- Date/Time card -->
