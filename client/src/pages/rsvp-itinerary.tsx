@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, MapPin, Clock, Check, X, HelpCircle, User, Users, Baby, CalendarPlus, Star, Sparkles, ChevronRight, UserPlus, Minus, Plus } from "lucide-react";
+import { Calendar, MapPin, Clock, Check, X, HelpCircle, User, Users, Baby, CalendarPlus, Star, Sparkles, ChevronRight, UserPlus, Minus, Plus, Lock, PartyPopper } from "lucide-react";
 import { ItineraryTimeline } from "@/components/ItineraryTimeline";
 import { format } from "date-fns";
 import { TimeSlotVoting } from "@/components/TimeSlotVoting";
@@ -87,6 +87,22 @@ type StoredRsvpData = {
   memberName?: string | null;
   memberId?: string | null;
   createdAt: string;
+};
+
+// Type for guest list data
+type GuestListData = {
+  guestList: Array<{
+    id: string;
+    response: string;
+    name: string;
+    additionalName: string | null;
+    numberOfKids: number;
+  }>;
+  counts: {
+    yes: number;
+    maybe: number;
+    no: number;
+  };
 };
 
 export default function RsvpItineraryPage() {
@@ -201,7 +217,8 @@ export default function RsvpItineraryPage() {
     enabled: !!inviteToken,
   });
 
-  // Auto-select member if invite is for a specific person
+  // Auto-select member if invite is for a specific person (personal invite only)
+  // Shareable links (isOrganizer with id=null) should NOT auto-select - let user pick
   useEffect(() => {
     if (identityClaimed) return;
 
@@ -211,20 +228,9 @@ export default function RsvpItineraryPage() {
       setClaimedIdentity('member');
       setInviteMemberLocked(true);
       setIdentityClaimed(true);
-    } else if (inviteInfo?.isOrganizer && groupMembers) {
-      // Organizer invite (no member ID in invite) - find organizer's member record from the group
-      // The organizer entry in groupMembers now has their real member ID (if they have one)
-      const organizerEntry = groupMembers.find(m => m.isOrganizer);
-
-      if (organizerEntry && !organizerEntry.id.startsWith('organizer-')) {
-        // Organizer has a real member ID - auto-select them
-        setClaimedMemberId(organizerEntry.id);
-        setClaimedIdentity('member');
-        setInviteMemberLocked(true);
-        setIdentityClaimed(true);
-      }
-      // If organizer only has virtual ID, let them choose manually
     }
+    // Note: Shareable links (inviteInfo?.isOrganizer && !inviteInfo?.id) should NOT auto-select
+    // Users should see the member picker to choose who they are
   }, [inviteInfo, identityClaimed, groupMembers]);
 
   // Fetch existing RSVP - only if identity is claimed (works with or without token)
@@ -244,6 +250,17 @@ export default function RsvpItineraryPage() {
       return response.json();
     },
     enabled: !!itineraryId && !!claimedMemberId && identityClaimed && claimedIdentity === 'member',
+  });
+
+  // Fetch guest list (RSVPs) - always fetch but only show after user RSVPs
+  const { data: guestListData, refetch: refetchGuestList } = useQuery<GuestListData>({
+    queryKey: ["/api/itineraries", itineraryId, "guest-list"],
+    queryFn: async () => {
+      const response = await fetch(`/api/itineraries/${itineraryId}/guest-list`);
+      if (!response.ok) throw new Error("Failed to fetch guest list");
+      return response.json();
+    },
+    enabled: !!itineraryId,
   });
 
   // Update local response state when existing RSVP loads
@@ -314,6 +331,9 @@ export default function RsvpItineraryPage() {
     },
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/rsvps/itinerary", itineraryId] });
+
+      // Refetch guest list to show updated attendees
+      refetchGuestList();
 
       // Store RSVP token for returning users
       if (data?.guestToken && itineraryId) {
@@ -799,12 +819,31 @@ export default function RsvpItineraryPage() {
                 </h1>
                 <p className="text-sm text-[hsl(25,15%,45%)] mt-0.5">from {group.name}</p>
 
-                {/* Claimed identity badge */}
-                <div className="inline-flex items-center gap-1.5 mt-2 px-3 py-1 rounded-full bg-[hsl(44,80%,95%)] border border-[hsl(44,60%,85%)]">
-                  <User className="h-3.5 w-3.5 text-[hsl(44,70%,45%)]" />
-                  <span className="text-xs font-medium text-[hsl(44,60%,30%)]" data-testid="text-claimed-identity">
-                    {claimedIdentity === 'guest' ? guestName : getDisplayName()}
-                  </span>
+                {/* Claimed identity badge with optional change button */}
+                <div className="flex items-center gap-2 mt-2">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[hsl(44,80%,95%)] border border-[hsl(44,60%,85%)]">
+                    <User className="h-3.5 w-3.5 text-[hsl(44,70%,45%)]" />
+                    <span className="text-xs font-medium text-[hsl(44,60%,30%)]" data-testid="text-claimed-identity">
+                      {claimedIdentity === 'guest' ? guestName : getDisplayName()}
+                    </span>
+                  </div>
+                  {/* Show change button if not locked to a specific member */}
+                  {!inviteMemberLocked && (
+                    <button
+                      onClick={() => {
+                        setIdentityClaimed(false);
+                        setClaimedMemberId(null);
+                        setClaimedIdentity('member');
+                        setGuestName("");
+                        setGuestEmail("");
+                        setTempGuestName("");
+                        setTempGuestEmail("");
+                      }}
+                      className="text-xs text-[hsl(44,70%,40%)] hover:text-[hsl(44,80%,35%)] underline underline-offset-2"
+                    >
+                      Change
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -1320,6 +1359,164 @@ export default function RsvpItineraryPage() {
                     >
                       {rsvpMutation.isPending ? "Saving..." : "Save RSVP"}
                     </Button>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Guest List Section */}
+              {guestListData && (guestListData.counts.yes > 0 || guestListData.counts.maybe > 0) && (
+                <motion.div
+                  className="rounded-3xl border border-[hsl(32,25%,88%)] bg-white overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.06)]"
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  {/* Header */}
+                  <div className="relative px-5 sm:px-6 py-4 border-b border-[hsl(32,20%,92%)] bg-gradient-to-r from-[hsl(38,45%,98%)] to-[hsl(44,50%,97%)]">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-[hsl(350,55%,62%)] to-[hsl(350,50%,55%)] text-white shadow-[0_2px_8px_rgba(220,100,120,0.25)]">
+                          <PartyPopper className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <span className="text-sm font-bold text-[hsl(25,30%,14%)]">Who's Coming</span>
+                          <p className="text-xs text-[hsl(25,15%,50%)]">
+                            {guestListData.counts.yes} going{guestListData.counts.maybe > 0 ? `, ${guestListData.counts.maybe} maybe` : ''}
+                          </p>
+                        </div>
+                      </div>
+                      {!selectedResponse && (
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[hsl(25,20%,92%)] text-[hsl(25,20%,45%)]">
+                          <Lock className="h-3 w-3" />
+                          <span className="text-xs font-medium">RSVP to see</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Content */}
+                  <div className="p-5 sm:p-6">
+                    <AnimatePresence mode="wait">
+                      {!selectedResponse ? (
+                        /* Locked state - blurred teaser */
+                        <motion.div
+                          key="locked"
+                          className="relative"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                        >
+                          {/* Blurred avatar row */}
+                          <div className="flex items-center gap-2 blur-sm select-none pointer-events-none">
+                            {[...Array(Math.min(guestListData.counts.yes + guestListData.counts.maybe, 5))].map((_, i) => (
+                              <div
+                                key={i}
+                                className="w-10 h-10 rounded-full bg-gradient-to-br from-[hsl(44,60%,85%)] to-[hsl(38,55%,80%)] flex items-center justify-center"
+                              >
+                                <span className="text-sm font-bold text-[hsl(44,50%,40%)]">
+                                  {String.fromCharCode(65 + i)}
+                                </span>
+                              </div>
+                            ))}
+                            {(guestListData.counts.yes + guestListData.counts.maybe) > 5 && (
+                              <div className="w-10 h-10 rounded-full bg-[hsl(25,15%,90%)] flex items-center justify-center">
+                                <span className="text-xs font-medium text-[hsl(25,20%,50%)]">
+                                  +{(guestListData.counts.yes + guestListData.counts.maybe) - 5}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          {/* Overlay message */}
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full border border-[hsl(32,20%,88%)] shadow-sm">
+                              <p className="text-sm font-medium text-[hsl(25,25%,30%)]">
+                                RSVP to see who's coming
+                              </p>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ) : (
+                        /* Unlocked state - full guest list */
+                        <motion.div
+                          key="unlocked"
+                          className="space-y-3"
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ duration: 0.3 }}
+                        >
+                          {/* Going section */}
+                          {guestListData.guestList.filter(g => g.response === 'yes' || g.response === 'going').length > 0 && (
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <div className="w-5 h-5 rounded-full bg-[hsl(145,50%,92%)] flex items-center justify-center">
+                                  <Check className="h-3 w-3 text-[hsl(145,50%,40%)]" />
+                                </div>
+                                <span className="text-xs font-semibold uppercase tracking-wide text-[hsl(145,40%,35%)]">Going</span>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {guestListData.guestList
+                                  .filter(g => g.response === 'yes' || g.response === 'going')
+                                  .map((guest, i) => (
+                                    <motion.div
+                                      key={guest.id}
+                                      className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-[hsl(145,45%,95%)] to-[hsl(145,40%,93%)] border border-[hsl(145,35%,85%)]"
+                                      initial={{ opacity: 0, x: -10 }}
+                                      animate={{ opacity: 1, x: 0 }}
+                                      transition={{ delay: i * 0.05 }}
+                                    >
+                                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[hsl(145,50%,60%)] to-[hsl(145,45%,50%)] flex items-center justify-center text-white text-xs font-bold shadow-sm">
+                                        {guest.name.charAt(0).toUpperCase()}
+                                      </div>
+                                      <span className="text-sm font-medium text-[hsl(145,40%,25%)]">{guest.name}</span>
+                                      {guest.additionalName && (
+                                        <span className="text-xs text-[hsl(145,30%,40%)]">+{guest.additionalName}</span>
+                                      )}
+                                      {guest.numberOfKids > 0 && (
+                                        <span className="text-xs text-[hsl(145,30%,45%)] flex items-center gap-0.5">
+                                          <Baby className="h-3 w-3" />{guest.numberOfKids}
+                                        </span>
+                                      )}
+                                    </motion.div>
+                                  ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Maybe section */}
+                          {guestListData.guestList.filter(g => g.response === 'maybe' || g.response === 'tentative').length > 0 && (
+                            <div className="space-y-2 pt-2">
+                              <div className="flex items-center gap-2">
+                                <div className="w-5 h-5 rounded-full bg-[hsl(44,60%,92%)] flex items-center justify-center">
+                                  <HelpCircle className="h-3 w-3 text-[hsl(44,60%,40%)]" />
+                                </div>
+                                <span className="text-xs font-semibold uppercase tracking-wide text-[hsl(44,50%,35%)]">Maybe</span>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {guestListData.guestList
+                                  .filter(g => g.response === 'maybe' || g.response === 'tentative')
+                                  .map((guest, i) => (
+                                    <motion.div
+                                      key={guest.id}
+                                      className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-[hsl(44,55%,96%)] to-[hsl(44,50%,94%)] border border-[hsl(44,45%,85%)]"
+                                      initial={{ opacity: 0, x: -10 }}
+                                      animate={{ opacity: 1, x: 0 }}
+                                      transition={{ delay: i * 0.05 + 0.2 }}
+                                    >
+                                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[hsl(44,70%,60%)] to-[hsl(44,65%,50%)] flex items-center justify-center text-[hsl(25,30%,20%)] text-xs font-bold shadow-sm">
+                                        {guest.name.charAt(0).toUpperCase()}
+                                      </div>
+                                      <span className="text-sm font-medium text-[hsl(44,40%,25%)]">{guest.name}</span>
+                                      {guest.additionalName && (
+                                        <span className="text-xs text-[hsl(44,30%,40%)]">+{guest.additionalName}</span>
+                                      )}
+                                    </motion.div>
+                                  ))}
+                              </div>
+                            </div>
+                          )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 </motion.div>
               )}

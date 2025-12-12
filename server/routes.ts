@@ -12806,6 +12806,82 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Get guest list (RSVPs with names) for an itinerary (public - for RSVP page)
+  // Returns simplified RSVP data with member names for displaying who's coming
+  app.get("/api/itineraries/:id/guest-list", async (req, res) => {
+    try {
+      const itineraryId = req.params.id;
+
+      // Verify itinerary exists
+      const itinerary = await storage.getItinerary(itineraryId);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      // Get all RSVPs for this itinerary
+      const rsvps = await db
+        .select({
+          id: rsvpsTable.id,
+          response: rsvpsTable.response,
+          memberId: rsvpsTable.memberId,
+          guestName: rsvpsTable.guestName,
+          additionalMemberId: rsvpsTable.additionalMemberId,
+          additionalGuestName: rsvpsTable.additionalGuestName,
+          numberOfKids: rsvpsTable.numberOfKids,
+        })
+        .from(rsvpsTable)
+        .where(sql`itinerary_id = ${itineraryId}`);
+
+      // Get member details for RSVPs with memberId
+      const memberIds = rsvps
+        .filter(r => r.memberId)
+        .map(r => r.memberId as string);
+
+      // Also get additional member IDs
+      const additionalMemberIds = rsvps
+        .filter(r => r.additionalMemberId)
+        .map(r => r.additionalMemberId as string);
+
+      const allMemberIds = [...new Set([...memberIds, ...additionalMemberIds])];
+
+      let membersMap: Record<string, { name: string | null; email: string | null }> = {};
+      if (allMemberIds.length > 0) {
+        const members = await db
+          .select({ id: membersTable.id, name: membersTable.name, email: membersTable.email })
+          .from(membersTable)
+          .where(sql`id IN ${allMemberIds}`);
+
+        membersMap = Object.fromEntries(members.map(m => [m.id, { name: m.name, email: m.email }]));
+      }
+
+      // Build guest list with names
+      const guestList = rsvps.map(rsvp => {
+        const member = rsvp.memberId ? membersMap[rsvp.memberId] : null;
+        const additionalMember = rsvp.additionalMemberId ? membersMap[rsvp.additionalMemberId] : null;
+
+        return {
+          id: rsvp.id,
+          response: rsvp.response,
+          name: member?.name || rsvp.guestName || member?.email || 'Someone',
+          additionalName: additionalMember?.name || rsvp.additionalGuestName || additionalMember?.email || null,
+          numberOfKids: rsvp.numberOfKids || 0,
+        };
+      });
+
+      // Count responses
+      const counts = {
+        yes: guestList.filter(g => isPositiveRsvp(g.response)).length,
+        maybe: guestList.filter(g => isTentativeRsvp(g.response)).length,
+        no: guestList.filter(g => isNegativeRsvp(g.response)).length,
+      };
+
+      res.json({ guestList, counts });
+    } catch (error: any) {
+      console.error('[Guest List] Error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Get invite summary with RSVP counts and shareable link
   app.get("/api/itineraries/:id/invite-summary", isAuthenticated, async (req, res) => {
     try {
