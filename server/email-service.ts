@@ -266,56 +266,99 @@ export async function sendGentleNudge(
   try {
     const eventsUrl = getEventsUrl(data.rsvpLink);
     await sendEmailWithRetry({
-      from: 'Kinmo.ai <invites@kinmo.ai>',
+      from: 'Kinmo <invites@kinmo.ai>',
       to: recipient.email,
-      subject: `Reminder: ${data.groupName} - Haven't heard from you yet!`,
+      subject: `${data.groupName} · ${data.eventDate}`,
       html: `
         <!DOCTYPE html>
         <html>
           <head>
-            <style>
-              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.6; color: #333; }
-              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-              .header { background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%); color: white; padding: 30px; border-radius: 8px; margin-bottom: 20px; text-align: center; }
-              .content { background: #f9fafb; padding: 30px; border-radius: 8px; }
-              .button { display: inline-block; background: #7c3aed; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
-              .footer { text-align: center; color: #6b7280; font-size: 14px; margin-top: 30px; }
-            </style>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
           </head>
-          <body>
-            <div class="container">
-              <div class="header">
-                <h1 style="margin: 0;">👋 Quick reminder!</h1>
-              </div>
-              
-              <div class="content">
-                <p>Hi ${recipient.name}!</p>
-                
-                <p>Just checking in - we haven't heard back from you yet about ${data.groupName} on <strong>${data.eventDate}</strong>.</p>
-                
-                <p>${data.organizerName} would love to know if you can join!</p>
-                
-                ${data.rsvpDeadline ? `
-                  <p><strong>⏰ Please RSVP by ${data.rsvpDeadline}</strong></p>
-                ` : ''}
-                
-                <center>
-                  <a href="${data.rsvpLink}" class="button">RSVP Now</a>
-                </center>
-                
-                <p style="font-size: 14px; color: #6b7280; margin-top: 30px;">
-                  Takes just a moment - click the button above to let us know!
-                </p>
-                
-                <p style="font-size: 14px; color: #6b7280; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 20px; margin-top: 20px;">
-                  💡 View all your upcoming events anytime at <a href="${eventsUrl}" style="color: #7c3aed;">kinmo.ai/events</a>
-                </p>
-              </div>
-              
-              <div class="footer">
-                <p>Powered by Kinmo.ai</p>
-              </div>
-            </div>
+          <body style="margin: 0; padding: 0; background-color: #f5f0e8; font-family: 'DM Sans', -apple-system, sans-serif;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f0e8; padding: 40px 20px;">
+              <tr>
+                <td align="center">
+                  <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 520px; background-color: #fffdf9; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.06);">
+
+                    <!-- Header with warm accent -->
+                    <tr>
+                      <td style="background: linear-gradient(135deg, #d4a574 0%, #c9956a 100%); padding: 32px 40px; text-align: center;">
+                        <p style="margin: 0 0 8px 0; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; color: rgba(255,255,255,0.85); font-weight: 500;">Coming up</p>
+                        <h1 style="margin: 0; font-family: 'Fraunces', Georgia, serif; font-size: 28px; font-weight: 500; color: #ffffff; line-height: 1.2;">${data.groupName}</h1>
+                      </td>
+                    </tr>
+
+                    <!-- Main content -->
+                    <tr>
+                      <td style="padding: 36px 40px 24px;">
+                        <p style="margin: 0 0 20px; font-size: 16px; color: #3d3d3d; line-height: 1.6;">
+                          Hey ${recipient.name},
+                        </p>
+                        <p style="margin: 0 0 28px; font-size: 16px; color: #3d3d3d; line-height: 1.6;">
+                          We're getting excited about this one! It would be great to know if you can make it.
+                        </p>
+
+                        <!-- Date/Time card -->
+                        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #faf7f2; border-radius: 12px; margin-bottom: 24px;">
+                          <tr>
+                            <td style="padding: 20px 24px;">
+                              <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td width="48" valign="top">
+                                    <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #d4a574 0%, #c9956a 100%); border-radius: 10px; text-align: center; line-height: 40px; font-size: 18px;">📅</div>
+                                  </td>
+                                  <td valign="top" style="padding-left: 12px;">
+                                    <p style="margin: 0 0 2px; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: #8b7355; font-weight: 500;">When</p>
+                                    <p style="margin: 0; font-family: 'Fraunces', Georgia, serif; font-size: 18px; color: #1a1a1a; font-weight: 500;">${data.eventDate}</p>
+                                    <p style="margin: 4px 0 0; font-size: 15px; color: #5c5c5c;">${data.eventTime}</p>
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+
+                    <!-- CTA Section -->
+                    <tr>
+                      <td style="padding: 8px 40px 36px;">
+                        <table width="100%" cellpadding="0" cellspacing="0">
+                          <tr>
+                            <td align="center">
+                              <a href="${data.rsvpLink}" style="display: inline-block; background: linear-gradient(135deg, #d4a574 0%, #b8895f 100%); color: #ffffff; text-decoration: none; padding: 16px 48px; border-radius: 50px; font-size: 15px; font-weight: 500; letter-spacing: 0.5px; box-shadow: 0 4px 12px rgba(212,165,116,0.35);">Let us know</a>
+                            </td>
+                          </tr>
+                          ${data.rsvpDeadline ? `
+                          <tr>
+                            <td align="center" style="padding-top: 16px;">
+                              <p style="margin: 0; font-size: 13px; color: #a09080;">RSVPs help us plan · by <strong style="color: #5c5c5c;">${data.rsvpDeadline}</strong></p>
+                            </td>
+                          </tr>
+                          ` : ''}
+                        </table>
+                      </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                      <td style="background-color: #faf7f2; padding: 24px 40px; text-align: center; border-top: 1px solid #f0ebe3;">
+                        <p style="margin: 0 0 8px; font-size: 13px; color: #a09080;">
+                          No worries if you can't make it — just let us know either way.
+                        </p>
+                        <p style="margin: 0; font-size: 12px; color: #c0b0a0;">
+                          <a href="${eventsUrl}" style="color: #8b7355; text-decoration: none;">View all your events</a> · Sent via <a href="https://kinmo.ai" style="color: #8b7355; text-decoration: none;">Kinmo</a>
+                        </p>
+                      </td>
+                    </tr>
+
+                  </table>
+                </td>
+              </tr>
+            </table>
           </body>
         </html>
       `,
@@ -339,58 +382,99 @@ export async function sendFinalCall(
   try {
     const eventsUrl = getEventsUrl(data.rsvpLink);
     await sendEmailWithRetry({
-      from: 'Kinmo.ai <invites@kinmo.ai>',
+      from: 'Kinmo <invites@kinmo.ai>',
       to: recipient.email,
-      subject: `Final call! ${data.groupName} - RSVP needed`,
+      subject: `This ${data.eventDate.split(',')[0]} · ${data.groupName}`,
       html: `
         <!DOCTYPE html>
         <html>
           <head>
-            <style>
-              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.6; color: #333; }
-              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-              .header { background: linear-gradient(135deg, #dc2626 0%, #f97316 100%); color: white; padding: 30px; border-radius: 8px; margin-bottom: 20px; text-align: center; }
-              .content { background: #f9fafb; padding: 30px; border-radius: 8px; }
-              .button { display: inline-block; background: #dc2626; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
-              .footer { text-align: center; color: #6b7280; font-size: 14px; margin-top: 30px; }
-              .urgent { background: #fee2e2; border-left: 4px solid #dc2626; padding: 15px; margin: 20px 0; border-radius: 4px; }
-            </style>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
           </head>
-          <body>
-            <div class="container">
-              <div class="header">
-                <h1 style="margin: 0;">⏰ Final Call!</h1>
-              </div>
-              
-              <div class="content">
-                <p>Hi ${recipient.name}!</p>
-                
-                <div class="urgent">
-                  <strong>This is the last chance to RSVP!</strong><br>
-                  <span style="font-size: 14px;">The RSVP deadline for ${data.groupName} is coming up soon.</span>
-                </div>
-                
-                <p><strong>Event:</strong> ${data.eventDate} at ${data.eventTime}</p>
-                
-                <p>We need to finalize the headcount - please let ${data.organizerName} know if you can make it!</p>
-                
-                <center>
-                  <a href="${data.rsvpLink}" class="button">RSVP Right Now</a>
-                </center>
-                
-                <p style="font-size: 14px; color: #6b7280; margin-top: 30px;">
-                  Even if you can't make it, please respond so we can plan accordingly. Thanks!
-                </p>
-                
-                <p style="font-size: 14px; color: #6b7280; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 20px; margin-top: 20px;">
-                  💡 View all your upcoming events anytime at <a href="${eventsUrl}" style="color: #dc2626;">kinmo.ai/events</a>
-                </p>
-              </div>
-              
-              <div class="footer">
-                <p>Powered by Kinmo.ai</p>
-              </div>
-            </div>
+          <body style="margin: 0; padding: 0; background-color: #f5f0e8; font-family: 'DM Sans', -apple-system, sans-serif;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f0e8; padding: 40px 20px;">
+              <tr>
+                <td align="center">
+                  <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 520px; background-color: #fffdf9; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.06);">
+
+                    <!-- Header with warm coral accent -->
+                    <tr>
+                      <td style="background: linear-gradient(135deg, #e07a5f 0%, #d4a574 100%); padding: 32px 40px; text-align: center;">
+                        <p style="margin: 0 0 8px 0; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; color: rgba(255,255,255,0.85); font-weight: 500;">Coming up soon</p>
+                        <h1 style="margin: 0; font-family: 'Fraunces', Georgia, serif; font-size: 28px; font-weight: 500; color: #ffffff; line-height: 1.2;">${data.groupName}</h1>
+                      </td>
+                    </tr>
+
+                    <!-- Main content -->
+                    <tr>
+                      <td style="padding: 36px 40px 24px;">
+                        <p style="margin: 0 0 20px; font-size: 16px; color: #3d3d3d; line-height: 1.6;">
+                          Hey ${recipient.name},
+                        </p>
+                        <p style="margin: 0 0 28px; font-size: 16px; color: #3d3d3d; line-height: 1.6;">
+                          This one's coming up soon! It'd really help to know if you can join us so we can plan accordingly.
+                        </p>
+
+                        <!-- Date/Time card -->
+                        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #faf7f2; border-radius: 12px; margin-bottom: 24px;">
+                          <tr>
+                            <td style="padding: 20px 24px;">
+                              <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td width="48" valign="top">
+                                    <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #e07a5f 0%, #d4a574 100%); border-radius: 10px; text-align: center; line-height: 40px; font-size: 18px;">📅</div>
+                                  </td>
+                                  <td valign="top" style="padding-left: 12px;">
+                                    <p style="margin: 0 0 2px; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: #8b7355; font-weight: 500;">When</p>
+                                    <p style="margin: 0; font-family: 'Fraunces', Georgia, serif; font-size: 18px; color: #1a1a1a; font-weight: 500;">${data.eventDate}</p>
+                                    <p style="margin: 4px 0 0; font-size: 15px; color: #5c5c5c;">${data.eventTime}</p>
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+
+                    <!-- CTA Section -->
+                    <tr>
+                      <td style="padding: 8px 40px 36px;">
+                        <table width="100%" cellpadding="0" cellspacing="0">
+                          <tr>
+                            <td align="center">
+                              <a href="${data.rsvpLink}" style="display: inline-block; background: linear-gradient(135deg, #e07a5f 0%, #c96a50 100%); color: #ffffff; text-decoration: none; padding: 16px 48px; border-radius: 50px; font-size: 15px; font-weight: 500; letter-spacing: 0.5px; box-shadow: 0 4px 12px rgba(224,122,95,0.35);">Count me in (or out)</a>
+                            </td>
+                          </tr>
+                          ${data.rsvpDeadline ? `
+                          <tr>
+                            <td align="center" style="padding-top: 16px;">
+                              <p style="margin: 0; font-size: 13px; color: #a09080;">Helps us finalize plans · by <strong style="color: #5c5c5c;">${data.rsvpDeadline}</strong></p>
+                            </td>
+                          </tr>
+                          ` : ''}
+                        </table>
+                      </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                      <td style="background-color: #faf7f2; padding: 24px 40px; text-align: center; border-top: 1px solid #f0ebe3;">
+                        <p style="margin: 0 0 8px; font-size: 13px; color: #a09080;">
+                          Either way is totally fine — knowing helps us plan better.
+                        </p>
+                        <p style="margin: 0; font-size: 12px; color: #c0b0a0;">
+                          <a href="${eventsUrl}" style="color: #8b7355; text-decoration: none;">View all your events</a> · Sent via <a href="https://kinmo.ai" style="color: #8b7355; text-decoration: none;">Kinmo</a>
+                        </p>
+                      </td>
+                    </tr>
+
+                  </table>
+                </td>
+              </tr>
+            </table>
           </body>
         </html>
       `,
@@ -414,57 +498,92 @@ export async function sendDayBeforeReminder(
   try {
     const eventsUrl = getEventsUrl(data.rsvpLink);
     await sendEmailWithRetry({
-      from: 'Kinmo.ai <invites@kinmo.ai>',
+      from: 'Kinmo <invites@kinmo.ai>',
       to: recipient.email,
-      subject: `Tomorrow! ${data.groupName} - See you soon 🎉`,
+      subject: `Tomorrow · ${data.groupName}`,
       html: `
         <!DOCTYPE html>
         <html>
           <head>
-            <style>
-              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.6; color: #333; }
-              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-              .header { background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%); color: white; padding: 30px; border-radius: 8px; margin-bottom: 20px; text-align: center; }
-              .content { background: #f9fafb; padding: 30px; border-radius: 8px; }
-              .button { display: inline-block; background: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
-              .footer { text-align: center; color: #6b7280; font-size: 14px; margin-top: 30px; }
-              .highlight { background: #dbeafe; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0; border-radius: 4px; }
-            </style>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
           </head>
-          <body>
-            <div class="container">
-              <div class="header">
-                <h1 style="margin: 0;">🎉 Tomorrow's the day!</h1>
-              </div>
-              
-              <div class="content">
-                <p>Hi ${recipient.name}!</p>
-                
-                <p>This is a friendly reminder that <strong>${data.groupName}</strong> is happening <strong>tomorrow</strong>!</p>
-                
-                <div class="highlight">
-                  <strong>📅 When:</strong> ${data.eventDate} at ${data.eventTime}
-                </div>
-                
-                <p>Looking forward to seeing you there! 🎉</p>
-                
-                <center>
-                  <a href="${data.rsvpLink}" class="button">View Event Details</a>
-                </center>
-                
-                <p style="font-size: 14px; color: #6b7280; margin-top: 30px;">
-                  Questions? Reply to this email or check the event page for full details.
-                </p>
-                
-                <p style="font-size: 14px; color: #6b7280; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 20px; margin-top: 20px;">
-                  💡 View all your upcoming events anytime at <a href="${eventsUrl}" style="color: #10b981;">kinmo.ai/events</a>
-                </p>
-              </div>
-              
-              <div class="footer">
-                <p>Powered by Kinmo.ai</p>
-              </div>
-            </div>
+          <body style="margin: 0; padding: 0; background-color: #f5f0e8; font-family: 'DM Sans', -apple-system, sans-serif;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f0e8; padding: 40px 20px;">
+              <tr>
+                <td align="center">
+                  <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 520px; background-color: #fffdf9; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.06);">
+
+                    <!-- Header with sage/green accent for positive vibes -->
+                    <tr>
+                      <td style="background: linear-gradient(135deg, #7c9a7e 0%, #a3b899 100%); padding: 32px 40px; text-align: center;">
+                        <p style="margin: 0 0 8px 0; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; color: rgba(255,255,255,0.85); font-weight: 500;">See you tomorrow</p>
+                        <h1 style="margin: 0; font-family: 'Fraunces', Georgia, serif; font-size: 28px; font-weight: 500; color: #ffffff; line-height: 1.2;">${data.groupName}</h1>
+                      </td>
+                    </tr>
+
+                    <!-- Main content -->
+                    <tr>
+                      <td style="padding: 36px 40px 24px;">
+                        <p style="margin: 0 0 20px; font-size: 16px; color: #3d3d3d; line-height: 1.6;">
+                          Hey ${recipient.name},
+                        </p>
+                        <p style="margin: 0 0 28px; font-size: 16px; color: #3d3d3d; line-height: 1.6;">
+                          Just a heads up — we're hanging out tomorrow! Here are the details:
+                        </p>
+
+                        <!-- Date/Time card -->
+                        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #faf7f2; border-radius: 12px; margin-bottom: 24px;">
+                          <tr>
+                            <td style="padding: 20px 24px;">
+                              <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td width="48" valign="top">
+                                    <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #7c9a7e 0%, #a3b899 100%); border-radius: 10px; text-align: center; line-height: 40px; font-size: 18px;">📅</div>
+                                  </td>
+                                  <td valign="top" style="padding-left: 12px;">
+                                    <p style="margin: 0 0 2px; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: #8b7355; font-weight: 500;">Tomorrow</p>
+                                    <p style="margin: 0; font-family: 'Fraunces', Georgia, serif; font-size: 18px; color: #1a1a1a; font-weight: 500;">${data.eventDate}</p>
+                                    <p style="margin: 4px 0 0; font-size: 15px; color: #5c5c5c;">${data.eventTime}</p>
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+
+                    <!-- CTA Section -->
+                    <tr>
+                      <td style="padding: 8px 40px 36px;">
+                        <table width="100%" cellpadding="0" cellspacing="0">
+                          <tr>
+                            <td align="center">
+                              <a href="${data.rsvpLink}" style="display: inline-block; background: linear-gradient(135deg, #7c9a7e 0%, #6b8a6d 100%); color: #ffffff; text-decoration: none; padding: 16px 48px; border-radius: 50px; font-size: 15px; font-weight: 500; letter-spacing: 0.5px; box-shadow: 0 4px 12px rgba(124,154,126,0.35);">View details</a>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                      <td style="background-color: #faf7f2; padding: 24px 40px; text-align: center; border-top: 1px solid #f0ebe3;">
+                        <p style="margin: 0 0 8px; font-size: 13px; color: #a09080;">
+                          Looking forward to it!
+                        </p>
+                        <p style="margin: 0; font-size: 12px; color: #c0b0a0;">
+                          <a href="${eventsUrl}" style="color: #8b7355; text-decoration: none;">View all your events</a> · Sent via <a href="https://kinmo.ai" style="color: #8b7355; text-decoration: none;">Kinmo</a>
+                        </p>
+                      </td>
+                    </tr>
+
+                  </table>
+                </td>
+              </tr>
+            </table>
           </body>
         </html>
       `,
