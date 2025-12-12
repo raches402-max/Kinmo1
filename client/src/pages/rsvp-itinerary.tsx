@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, MapPin, Clock, Check, X, HelpCircle, User, Users, Baby, CalendarPlus, Star, Sparkles } from "lucide-react";
+import { Calendar, MapPin, Clock, Check, X, HelpCircle, User, Users, Baby, CalendarPlus, Star, Sparkles, ChevronRight } from "lucide-react";
 import { ItineraryTimeline } from "@/components/ItineraryTimeline";
 import { format } from "date-fns";
 import { TimeSlotVoting } from "@/components/TimeSlotVoting";
@@ -19,6 +19,7 @@ import { AvailabilityGrid } from "@/components/AvailabilityGrid";
 import { cn } from "@/lib/utils";
 import { GangsAllHereCelebration } from "@/components/GangsAllHereCelebration";
 import { fireKinmoConfetti } from "@/lib/kinmo-confetti";
+import { motion, AnimatePresence } from "framer-motion";
 
 type Member = {
   id: string;
@@ -416,13 +417,22 @@ export default function RsvpItineraryPage() {
 
   // Loading state - only wait for inviteLoading if there's a token
   const isLoading = itineraryLoading || groupLoading || membersLoading || storedRsvpLoading || (inviteToken && inviteLoading);
+
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[hsl(38,35%,97%)] flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[hsl(44,87%,63%)] mx-auto mb-4"></div>
-          <p className="text-[hsl(25,15%,45%)]">Loading event details...</p>
-        </div>
+      <div className="min-h-screen bg-gradient-to-b from-[hsl(38,40%,97%)] to-[hsl(35,35%,94%)] flex items-center justify-center">
+        <motion.div
+          className="text-center"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+        >
+          <div className="relative">
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[hsl(44,91%,57%)] to-[hsl(38,85%,52%)] mx-auto mb-4 animate-pulse shadow-[0_4px_20px_rgba(245,192,48,0.35)]" />
+            <div className="absolute inset-0 w-16 h-16 rounded-full border-2 border-[hsl(44,91%,57%)] mx-auto animate-ping opacity-20" />
+          </div>
+          <p className="text-[hsl(25,20%,40%)] font-medium">Loading event details...</p>
+        </motion.div>
       </div>
     );
   }
@@ -430,99 +440,168 @@ export default function RsvpItineraryPage() {
   // Error states
   if (!itinerary || !group) {
     return (
-      <div className="min-h-screen bg-[hsl(38,35%,97%)] flex items-center justify-center p-4">
-        <div className={cn(
-          "max-w-md w-full rounded-2xl border bg-white overflow-hidden p-6",
-          "border-[hsl(32,20%,88%)] shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
-        )}>
-          <h2 className="text-xl font-bold text-[hsl(25,30%,14%)]">Event not found</h2>
-          <p className="text-[hsl(25,15%,45%)] mt-2">This event link may be invalid or expired</p>
-        </div>
+      <div className="min-h-screen bg-gradient-to-b from-[hsl(38,40%,97%)] to-[hsl(35,35%,94%)] flex items-center justify-center p-4">
+        <motion.div
+          className="max-w-md w-full"
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.3 }}
+        >
+          <div className="rounded-3xl border-2 border-[hsl(350,40%,85%)] bg-white p-8 text-center shadow-[0_8px_32px_rgba(0,0,0,0.08)]">
+            <div className="w-16 h-16 rounded-full bg-[hsl(350,45%,95%)] flex items-center justify-center mx-auto mb-4">
+              <X className="h-8 w-8 text-[hsl(350,50%,55%)]" />
+            </div>
+            <h2 className="text-2xl font-bold text-[hsl(25,30%,14%)] font-display">Event not found</h2>
+            <p className="text-[hsl(25,15%,45%)] mt-2">This event link may be invalid or expired</p>
+          </div>
+        </motion.div>
       </div>
     );
   }
 
+  // Format event date for display
+  const eventDate = itinerary.eventDate ? new Date(itinerary.eventDate) : null;
+  const isPastEvent = eventDate && eventDate < new Date();
+
   // Step 1: Identity Claiming (show first, before event details)
   if (!identityClaimed) {
     return (
-      <div className="min-h-screen bg-[hsl(38,35%,97%)]">
-        <div className="max-w-2xl mx-auto p-4 py-10 space-y-8">
-          {/* Event Header */}
-          <div className="text-center space-y-3">
-            <div className={cn(
-              "inline-flex items-center justify-center w-20 h-20 rounded-full",
-              "bg-[hsl(44,87%,63%)] shadow-[0_4px_20px_rgba(242,201,76,0.4)]"
-            )}>
-              <span className="text-4xl">{group.emoji}</span>
+      <div className="min-h-screen bg-gradient-to-b from-[hsl(38,40%,97%)] to-[hsl(35,35%,94%)]">
+        {/* Decorative background elements */}
+        <div className="fixed inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-24 -right-24 w-64 h-64 rounded-full bg-[hsl(44,91%,57%)] opacity-[0.08] blur-3xl" />
+          <div className="absolute top-1/3 -left-32 w-48 h-48 rounded-full bg-[hsl(350,45%,72%)] opacity-[0.06] blur-3xl" />
+          <div className="absolute bottom-0 right-1/4 w-56 h-56 rounded-full bg-[hsl(145,25%,72%)] opacity-[0.05] blur-3xl" />
+        </div>
+
+        <div className="relative max-w-2xl mx-auto p-4 py-8 sm:py-12 space-y-6">
+          {/* Event Header Card */}
+          <motion.div
+            className="relative overflow-hidden rounded-3xl bg-white border border-[hsl(32,25%,88%)] shadow-[0_8px_32px_rgba(0,0,0,0.08)]"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            {/* Gold accent stripe */}
+            <div className="h-1.5 bg-gradient-to-r from-[hsl(44,91%,57%)] via-[hsl(38,85%,52%)] to-[hsl(44,91%,57%)]" />
+
+            <div className="p-6 sm:p-8 text-center">
+              {/* Group emoji */}
+              <motion.div
+                className="inline-flex items-center justify-center w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br from-[hsl(44,91%,57%)] to-[hsl(38,85%,52%)] shadow-[0_8px_24px_rgba(245,192,48,0.4)] mb-5"
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.2 }}
+              >
+                <span className="text-4xl sm:text-5xl">{group.emoji}</span>
+              </motion.div>
+
+              {/* Event name */}
+              <motion.h1
+                className="text-2xl sm:text-3xl font-bold text-[hsl(25,30%,14%)] mb-2 font-display leading-tight"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+              >
+                {itinerary.name}
+              </motion.h1>
+
+              {/* Group name */}
+              <motion.p
+                className="text-[hsl(25,15%,45%)] mb-4"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.4 }}
+              >
+                from <span className="font-semibold text-[hsl(25,25%,35%)]">{group.name}</span>
+              </motion.p>
+
+              {/* Date/Time pill */}
+              {eventDate && (
+                <motion.div
+                  className="inline-flex items-center gap-3 px-5 py-2.5 rounded-full bg-[hsl(44,80%,96%)] border border-[hsl(44,60%,85%)]"
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.5 }}
+                >
+                  <div className="flex items-center gap-1.5 text-[hsl(25,30%,25%)]">
+                    <Calendar className="h-4 w-4 text-[hsl(44,87%,50%)]" />
+                    <span className="font-semibold text-sm">{format(eventDate, "EEE, MMM d")}</span>
+                  </div>
+                  <div className="w-px h-4 bg-[hsl(44,60%,80%)]" />
+                  <div className="flex items-center gap-1.5 text-[hsl(25,30%,25%)]">
+                    <Clock className="h-4 w-4 text-[hsl(44,87%,50%)]" />
+                    <span className="font-semibold text-sm">{format(eventDate, "h:mm a")}</span>
+                  </div>
+                </motion.div>
+              )}
             </div>
-            <h1 className="text-3xl font-black text-[hsl(25,30%,14%)]">{itinerary.name}</h1>
-            <p className="text-[hsl(25,15%,45%)]">from {group.name}</p>
-          </div>
+          </motion.div>
 
           {/* Show existing RSVP status if found */}
-          {storedRsvp && (
-            <div className={cn(
-              "rounded-2xl border overflow-hidden",
-              storedRsvp.response === 'yes' && "border-[hsl(145,50%,70%)] bg-[hsl(145,50%,97%)]",
-              storedRsvp.response === 'maybe' && "border-[hsl(44,70%,70%)] bg-[hsl(44,80%,97%)]",
-              storedRsvp.response === 'no' && "border-[hsl(350,50%,70%)] bg-[hsl(350,50%,97%)]"
-            )}>
-              <div className="p-5">
-                <div className="flex items-center gap-3">
-                  <div className={cn(
-                    "flex items-center justify-center w-10 h-10 rounded-full",
-                    storedRsvp.response === 'yes' && "bg-[hsl(145,50%,45%)] text-white",
-                    storedRsvp.response === 'maybe' && "bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)]",
-                    storedRsvp.response === 'no' && "bg-[hsl(350,50%,50%)] text-white"
-                  )}>
-                    {storedRsvp.response === 'yes' && <Check className="h-5 w-5" />}
-                    {storedRsvp.response === 'maybe' && <HelpCircle className="h-5 w-5" />}
-                    {storedRsvp.response === 'no' && <X className="h-5 w-5" />}
-                  </div>
-                  <div className="flex-1">
-                    <p className={cn(
-                      "font-semibold",
-                      storedRsvp.response === 'yes' && "text-[hsl(145,50%,25%)]",
-                      storedRsvp.response === 'maybe' && "text-[hsl(44,60%,25%)]",
-                      storedRsvp.response === 'no' && "text-[hsl(350,50%,30%)]"
+          <AnimatePresence>
+            {storedRsvp && (
+              <motion.div
+                className={cn(
+                  "rounded-2xl border-2 overflow-hidden",
+                  storedRsvp.response === 'yes' && "border-[hsl(145,45%,65%)] bg-[hsl(145,50%,97%)]",
+                  storedRsvp.response === 'maybe' && "border-[hsl(44,60%,70%)] bg-[hsl(44,80%,97%)]",
+                  storedRsvp.response === 'no' && "border-[hsl(350,45%,70%)] bg-[hsl(350,50%,97%)]"
+                )}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.6 }}
+              >
+                <div className="p-5">
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "flex items-center justify-center w-11 h-11 rounded-full",
+                      storedRsvp.response === 'yes' && "bg-[hsl(145,50%,45%)] text-white",
+                      storedRsvp.response === 'maybe' && "bg-[hsl(44,87%,55%)] text-[hsl(25,30%,14%)]",
+                      storedRsvp.response === 'no' && "bg-[hsl(350,50%,50%)] text-white"
                     )}>
-                      You already RSVP'd: {storedRsvp.response === 'yes' ? "Going" : storedRsvp.response === 'maybe' ? "Maybe" : "Can't make it"}
-                    </p>
-                    <p className="text-sm text-[hsl(25,15%,45%)]">
-                      as {storedRsvp.memberName || storedRsvp.guestName || 'Guest'}
-                    </p>
+                      {storedRsvp.response === 'yes' && <Check className="h-5 w-5" />}
+                      {storedRsvp.response === 'maybe' && <HelpCircle className="h-5 w-5" />}
+                      {storedRsvp.response === 'no' && <X className="h-5 w-5" />}
+                    </div>
+                    <div className="flex-1">
+                      <p className={cn(
+                        "font-semibold text-base",
+                        storedRsvp.response === 'yes' && "text-[hsl(145,50%,25%)]",
+                        storedRsvp.response === 'maybe' && "text-[hsl(44,60%,25%)]",
+                        storedRsvp.response === 'no' && "text-[hsl(350,50%,30%)]"
+                      )}>
+                        You RSVP'd: {storedRsvp.response === 'yes' ? "Going!" : storedRsvp.response === 'maybe' ? "Maybe" : "Can't make it"}
+                      </p>
+                      <p className="text-sm text-[hsl(25,15%,45%)]">
+                        as {storedRsvp.memberName || storedRsvp.guestName || 'Guest'}
+                      </p>
+                    </div>
                   </div>
+                  <p className="text-sm text-[hsl(25,15%,50%)] mt-3 pl-14">
+                    Select your name below to update your response
+                  </p>
                 </div>
-                <p className="text-sm text-[hsl(25,15%,50%)] mt-3">
-                  Select your name below to update your response
-                </p>
-              </div>
-            </div>
-          )}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Identity Claiming Card */}
-          <div className={cn(
-            "rounded-2xl border bg-white overflow-hidden",
-            "border-[hsl(32,20%,88%)] shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
-          )}>
+          <motion.div
+            className="rounded-3xl border border-[hsl(32,25%,88%)] bg-white overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.08)]"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+          >
             {/* Card Header */}
-            <div
-              className="relative px-6 py-5 border-b border-[hsl(32,20%,88%)]"
-              style={{
-                background: "linear-gradient(135deg, hsla(44, 87%, 63%, 0.06) 0%, hsla(44, 87%, 63%, 0.02) 50%, hsl(35, 40%, 95%) 100%)",
-              }}
-            >
+            <div className="relative px-6 py-5 border-b border-[hsl(32,20%,90%)] bg-gradient-to-r from-[hsl(38,45%,98%)] to-[hsl(44,50%,97%)]">
               <div className="flex items-center gap-3">
-                <div className={cn(
-                  "flex items-center justify-center w-10 h-10 rounded-full",
-                  "bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)]",
-                  "shadow-[0_2px_8px_rgba(242,201,76,0.3)]"
-                )}>
+                <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-gradient-to-br from-[hsl(44,91%,57%)] to-[hsl(38,85%,52%)] text-[hsl(25,30%,14%)] shadow-[0_4px_12px_rgba(245,192,48,0.3)]">
                   <User className="h-5 w-5" />
                 </div>
                 <div>
                   <h2 className="text-lg font-bold text-[hsl(25,30%,14%)]">Who's RSVPing?</h2>
-                  <p className="text-sm text-[hsl(25,15%,45%)]">Select your name or enter as a guest</p>
+                  <p className="text-sm text-[hsl(25,15%,45%)]">Select your name to continue</p>
                 </div>
               </div>
             </div>
@@ -542,99 +621,135 @@ export default function RsvpItineraryPage() {
                 }}
               >
                 {groupMembers && groupMembers.length > 0 && (
-                  <div className="space-y-3">
-                    <Label className="text-xs font-bold uppercase tracking-wide text-[hsl(25,15%,45%)]">Group Members</Label>
-                    {groupMembers.map((member) => (
-                      <label
+                  <div className="space-y-2.5">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-[hsl(25,15%,50%)]">Group Members</Label>
+                    {groupMembers.map((member, index) => (
+                      <motion.label
                         key={member.id}
                         htmlFor={`member-${member.id}`}
                         className={cn(
-                          "flex items-center gap-3 p-3 rounded-xl cursor-pointer",
-                          "border border-[hsl(32,20%,88%)] bg-[hsl(38,50%,99%)]",
-                          "transition-all duration-200",
-                          "hover:border-[hsl(44,70%,75%)] hover:bg-[hsl(35,40%,97%)]",
-                          claimedMemberId === member.id && "border-[hsl(44,87%,63%)] bg-[hsl(44,80%,97%)]"
+                          "flex items-center gap-3 p-4 rounded-2xl cursor-pointer",
+                          "border-2 transition-all duration-200",
+                          claimedMemberId === member.id
+                            ? "border-[hsl(44,91%,57%)] bg-gradient-to-r from-[hsl(44,85%,97%)] to-[hsl(44,80%,95%)] shadow-[0_2px_12px_rgba(245,192,48,0.15)]"
+                            : "border-[hsl(32,20%,90%)] bg-[hsl(38,50%,99%)] hover:border-[hsl(44,70%,75%)] hover:bg-[hsl(38,60%,98%)]"
                         )}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.5 + index * 0.05 }}
                       >
                         <RadioGroupItem
                           value={member.id}
                           id={`member-${member.id}`}
                           data-testid={`radio-member-${member.id}`}
-                          className="border-[hsl(32,20%,80%)] text-[hsl(44,87%,50%)]"
+                          className="border-[hsl(32,20%,80%)] text-[hsl(44,91%,50%)] h-5 w-5"
                         />
-                        <span className="font-medium text-[hsl(25,30%,14%)]">
+                        <span className={cn(
+                          "font-medium",
+                          claimedMemberId === member.id ? "text-[hsl(25,35%,18%)]" : "text-[hsl(25,25%,25%)]"
+                        )}>
                           I'm {member.name || member.email}
                         </span>
-                      </label>
+                        {claimedMemberId === member.id && (
+                          <Check className="h-4 w-4 ml-auto text-[hsl(44,87%,45%)]" />
+                        )}
+                      </motion.label>
                     ))}
                   </div>
                 )}
 
-                <div className="pt-5 border-t border-[hsl(32,20%,88%)] space-y-3">
-                  <label
+                <div className="pt-5 border-t border-[hsl(32,20%,90%)] space-y-3">
+                  <motion.label
                     htmlFor="guest"
                     className={cn(
-                      "flex items-center gap-3 p-3 rounded-xl cursor-pointer",
-                      "border border-[hsl(32,20%,88%)] bg-[hsl(38,50%,99%)]",
-                      "transition-all duration-200",
-                      "hover:border-[hsl(44,70%,75%)] hover:bg-[hsl(35,40%,97%)]",
-                      claimedIdentity === 'guest' && "border-[hsl(44,87%,63%)] bg-[hsl(44,80%,97%)]"
+                      "flex items-center gap-3 p-4 rounded-2xl cursor-pointer",
+                      "border-2 transition-all duration-200",
+                      claimedIdentity === 'guest'
+                        ? "border-[hsl(350,45%,72%)] bg-gradient-to-r from-[hsl(350,50%,98%)] to-[hsl(350,45%,96%)]"
+                        : "border-[hsl(32,20%,90%)] bg-[hsl(38,50%,99%)] hover:border-[hsl(350,40%,80%)] hover:bg-[hsl(350,50%,99%)]"
                     )}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.7 }}
                   >
                     <RadioGroupItem
                       value="guest"
                       id="guest"
                       data-testid="radio-guest"
-                      className="border-[hsl(32,20%,80%)] text-[hsl(44,87%,50%)]"
+                      className="border-[hsl(32,20%,80%)] text-[hsl(350,50%,60%)] h-5 w-5"
                     />
-                    <span className="font-medium text-[hsl(25,30%,14%)]">I'm a guest</span>
-                  </label>
+                    <span className={cn(
+                      "font-medium",
+                      claimedIdentity === 'guest' ? "text-[hsl(350,40%,30%)]" : "text-[hsl(25,25%,25%)]"
+                    )}>I'm a guest (not on the list)</span>
+                  </motion.label>
 
-                  {claimedIdentity === 'guest' && (
-                    <div className="ml-4 space-y-3">
-                      <div className="space-y-2">
-                        <Label htmlFor="guest-name" className="text-sm text-[hsl(25,30%,14%)]">Your name</Label>
-                        <Input
-                          id="guest-name"
-                          placeholder="Enter your name"
-                          value={tempGuestName}
-                          onChange={(e) => setTempGuestName(e.target.value)}
-                          data-testid="input-guest-name"
-                          className="border-[hsl(32,20%,88%)] focus:border-[hsl(44,70%,75%)] focus:ring-[hsl(44,87%,63%)]"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="guest-email" className="text-sm text-[hsl(25,30%,14%)]">Email (optional)</Label>
-                        <Input
-                          id="guest-email"
-                          type="email"
-                          placeholder="your@email.com"
-                          value={tempGuestEmail}
-                          onChange={(e) => setTempGuestEmail(e.target.value)}
-                          data-testid="input-guest-email"
-                          className="border-[hsl(32,20%,88%)] focus:border-[hsl(44,70%,75%)] focus:ring-[hsl(44,87%,63%)]"
-                        />
-                        <p className="text-xs text-[hsl(25,15%,50%)]">Get updates about this event</p>
-                      </div>
-                    </div>
-                  )}
+                  <AnimatePresence>
+                    {claimedIdentity === 'guest' && (
+                      <motion.div
+                        className="ml-4 space-y-3 pl-4 border-l-2 border-[hsl(350,40%,85%)]"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <div className="space-y-2">
+                          <Label htmlFor="guest-name" className="text-sm font-medium text-[hsl(25,30%,20%)]">Your name</Label>
+                          <Input
+                            id="guest-name"
+                            placeholder="Enter your name"
+                            value={tempGuestName}
+                            onChange={(e) => setTempGuestName(e.target.value)}
+                            data-testid="input-guest-name"
+                            className="border-[hsl(32,20%,85%)] focus:border-[hsl(350,50%,70%)] focus:ring-[hsl(350,45%,72%)] h-12 text-base rounded-xl"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="guest-email" className="text-sm font-medium text-[hsl(25,30%,20%)]">Email <span className="text-[hsl(25,15%,55%)] font-normal">(optional)</span></Label>
+                          <Input
+                            id="guest-email"
+                            type="email"
+                            placeholder="your@email.com"
+                            value={tempGuestEmail}
+                            onChange={(e) => setTempGuestEmail(e.target.value)}
+                            data-testid="input-guest-email"
+                            className="border-[hsl(32,20%,85%)] focus:border-[hsl(350,50%,70%)] focus:ring-[hsl(350,45%,72%)] h-12 text-base rounded-xl"
+                          />
+                          <p className="text-sm text-[hsl(25,15%,50%)]">Get updates about this event</p>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               </RadioGroup>
 
               <Button
                 onClick={handleContinueIdentity}
                 className={cn(
-                  "w-full h-12 text-base font-semibold",
-                  "bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)]",
-                  "hover:bg-[hsl(44,87%,58%)]",
-                  "shadow-[0_2px_8px_rgba(242,201,76,0.3)]"
+                  "w-full h-14 text-base font-bold rounded-2xl",
+                  "bg-gradient-to-r from-[hsl(44,91%,57%)] to-[hsl(38,85%,52%)]",
+                  "text-[hsl(25,30%,14%)]",
+                  "hover:from-[hsl(44,91%,52%)] hover:to-[hsl(38,85%,47%)]",
+                  "shadow-[0_4px_16px_rgba(245,192,48,0.35)]",
+                  "transition-all duration-200 hover:shadow-[0_6px_20px_rgba(245,192,48,0.45)]"
                 )}
                 data-testid="button-continue-identity"
               >
-                Continue
+                Continue to RSVP
+                <ChevronRight className="h-5 w-5 ml-1" />
               </Button>
             </div>
-          </div>
+          </motion.div>
+
+          {/* Kinmo branding */}
+          <motion.p
+            className="text-center text-sm text-[hsl(25,15%,55%)]"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.8 }}
+          >
+            Powered by <span className="font-semibold text-[hsl(44,87%,45%)]">Kinmo</span>
+          </motion.p>
         </div>
       </div>
     );
@@ -642,7 +757,13 @@ export default function RsvpItineraryPage() {
 
   // Step 2+: Show full event details and RSVP
   return (
-    <div className="min-h-screen bg-[hsl(38,35%,97%)]">
+    <div className="min-h-screen bg-gradient-to-b from-[hsl(38,40%,97%)] to-[hsl(35,35%,94%)]">
+      {/* Decorative background elements */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-24 -right-24 w-64 h-64 rounded-full bg-[hsl(44,91%,57%)] opacity-[0.08] blur-3xl" />
+        <div className="absolute top-1/2 -left-32 w-48 h-48 rounded-full bg-[hsl(145,30%,65%)] opacity-[0.06] blur-3xl" />
+      </div>
+
       {/* Gang's all here celebration */}
       <GangsAllHereCelebration
         show={showCelebration}
@@ -655,62 +776,76 @@ export default function RsvpItineraryPage() {
         }}
       />
 
-      <div className="max-w-3xl mx-auto p-4 py-10 space-y-6">
-        {/* Event Header with claimed identity */}
-        <div className="text-center space-y-3">
-          <div className={cn(
-            "inline-flex items-center justify-center w-20 h-20 rounded-full",
-            "bg-[hsl(44,87%,63%)] shadow-[0_4px_20px_rgba(242,201,76,0.4)]"
-          )}>
-            <span className="text-4xl">{group.emoji}</span>
-          </div>
-          <h1 className="text-3xl font-black text-[hsl(25,30%,14%)]">{itinerary.name}</h1>
-          <p className="text-[hsl(25,15%,45%)]">from {group.name}</p>
-          <div
-            className="inline-block px-4 py-1.5 rounded-full bg-[hsl(44,80%,95%)] border border-[hsl(44,70%,80%)]"
-            data-testid="text-claimed-identity"
-          >
-            <span className="text-sm font-medium text-[hsl(44,60%,30%)]">
-              {claimedIdentity === 'guest' ? `RSVP as guest: ${guestName}` : `RSVP for ${getDisplayName()}`}
-            </span>
-          </div>
-        </div>
+      <div className="relative max-w-3xl mx-auto p-4 py-8 sm:py-12 space-y-5">
+        {/* Compact Event Header */}
+        <motion.div
+          className="relative overflow-hidden rounded-3xl bg-white border border-[hsl(32,25%,88%)] shadow-[0_8px_32px_rgba(0,0,0,0.08)]"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+        >
+          <div className="h-1.5 bg-gradient-to-r from-[hsl(44,91%,57%)] via-[hsl(38,85%,52%)] to-[hsl(44,91%,57%)]" />
 
-        {/* Event Date/Time */}
-        {itinerary.eventDate && (
-          <div className={cn(
-            "rounded-2xl border bg-white overflow-hidden",
-            "border-[hsl(32,20%,88%)] shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
-          )}>
-            <div className="p-5">
-              <div className="flex flex-wrap items-center gap-4 justify-center">
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center justify-center w-9 h-9 rounded-full bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)]">
-                    <Calendar className="h-4 w-4" />
-                  </div>
-                  <span className="font-semibold text-[hsl(25,30%,14%)]">
-                    {format(new Date(itinerary.eventDate), "EEEE, MMMM d, yyyy")}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center justify-center w-9 h-9 rounded-full bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)]">
-                    <Clock className="h-4 w-4" />
-                  </div>
-                  <span className="font-semibold text-[hsl(25,30%,14%)]">
-                    {format(new Date(itinerary.eventDate), "h:mm a")}
+          <div className="p-5 sm:p-6">
+            <div className="flex items-start gap-4">
+              {/* Group emoji */}
+              <div className="flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-[hsl(44,91%,57%)] to-[hsl(38,85%,52%)] shadow-[0_4px_16px_rgba(245,192,48,0.35)] shrink-0">
+                <span className="text-2xl sm:text-3xl">{group.emoji}</span>
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <h1 className="text-xl sm:text-2xl font-bold text-[hsl(25,30%,14%)] font-display leading-tight truncate">
+                  {itinerary.name}
+                </h1>
+                <p className="text-sm text-[hsl(25,15%,45%)] mt-0.5">from {group.name}</p>
+
+                {/* Claimed identity badge */}
+                <div className="inline-flex items-center gap-1.5 mt-2 px-3 py-1 rounded-full bg-[hsl(44,80%,95%)] border border-[hsl(44,60%,85%)]">
+                  <User className="h-3.5 w-3.5 text-[hsl(44,70%,45%)]" />
+                  <span className="text-xs font-medium text-[hsl(44,60%,30%)]" data-testid="text-claimed-identity">
+                    {claimedIdentity === 'guest' ? guestName : getDisplayName()}
                   </span>
                 </div>
               </div>
             </div>
+
+            {/* Date/Time row */}
+            {eventDate && (
+              <div className="flex items-center gap-4 mt-4 pt-4 border-t border-[hsl(32,20%,92%)]">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-[hsl(44,80%,94%)]">
+                    <Calendar className="h-4 w-4 text-[hsl(44,80%,45%)]" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-[hsl(25,30%,20%)]">
+                      {format(eventDate, "EEEE, MMMM d")}
+                    </p>
+                    {isPastEvent && (
+                      <p className="text-xs text-[hsl(350,50%,50%)]">Past event</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-[hsl(44,80%,94%)]">
+                    <Clock className="h-4 w-4 text-[hsl(44,80%,45%)]" />
+                  </div>
+                  <p className="text-sm font-semibold text-[hsl(25,30%,20%)]">
+                    {format(eventDate, "h:mm a")}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
-        )}
+        </motion.div>
 
         {/* Time Slot Voting */}
         {itinerary.proposedTimeSlots && itinerary.proposedTimeSlots.length > 0 && claimedMemberId && (
-          <div className={cn(
-            "rounded-2xl border bg-white overflow-hidden",
-            "border-[hsl(32,20%,88%)] shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
-          )}>
+          <motion.div
+            className="rounded-3xl border border-[hsl(32,25%,88%)] bg-white overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.06)]"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
             <div className="p-5">
               <TimeSlotVoting
                 itineraryId={itinerary.id}
@@ -719,32 +854,25 @@ export default function RsvpItineraryPage() {
                 isHost={false}
               />
             </div>
-          </div>
+          </motion.div>
         )}
 
         {/* Itinerary Items */}
-        <div className={cn(
-          "rounded-2xl border bg-white overflow-hidden",
-          "border-[hsl(32,20%,88%)] shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
-        )}>
+        <motion.div
+          className="rounded-3xl border border-[hsl(32,25%,88%)] bg-white overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.06)]"
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+        >
           {/* Card Header */}
-          <div
-            className="relative px-6 py-4 border-b border-[hsl(32,20%,88%)]"
-            style={{
-              background: "linear-gradient(135deg, hsla(44, 87%, 63%, 0.06) 0%, hsla(44, 87%, 63%, 0.02) 50%, hsl(35, 40%, 95%) 100%)",
-            }}
-          >
+          <div className="relative px-5 sm:px-6 py-4 border-b border-[hsl(32,20%,92%)] bg-gradient-to-r from-[hsl(38,45%,98%)] to-[hsl(44,50%,97%)]">
             <div className="flex items-center gap-3">
-              <div className={cn(
-                "flex items-center justify-center w-9 h-9 rounded-full",
-                "bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)]",
-                "shadow-[0_2px_8px_rgba(242,201,76,0.3)]"
-              )}>
+              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-[hsl(145,35%,60%)] to-[hsl(145,40%,50%)] text-white shadow-[0_2px_8px_rgba(120,180,130,0.3)]">
                 <MapPin className="h-4 w-4" />
               </div>
               <div>
-                <span className="text-[13px] font-bold uppercase tracking-[0.08em] text-[hsl(25,30%,14%)]">Plan</span>
-                <p className="text-sm text-[hsl(25,15%,45%)]">Here's what we'll do</p>
+                <span className="text-sm font-bold text-[hsl(25,30%,14%)]">The Plan</span>
+                <p className="text-xs text-[hsl(25,15%,50%)]">{itinerary.items.length} {itinerary.items.length === 1 ? 'stop' : 'stops'}</p>
               </div>
             </div>
           </div>
@@ -753,411 +881,451 @@ export default function RsvpItineraryPage() {
           <div className="p-5">
             <ItineraryTimeline items={itinerary.items} />
           </div>
-        </div>
+        </motion.div>
 
         {/* RSVP Section */}
-        {showFeedbackForm ? (
-          <div className={cn(
-            "rounded-2xl border bg-white overflow-hidden",
-            "border-[hsl(32,20%,88%)] shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
-          )}>
-            {/* Card Header */}
-            <div
-              className="relative px-6 py-4 border-b border-[hsl(32,20%,88%)]"
-              style={{
-                background: "linear-gradient(135deg, hsla(44, 87%, 63%, 0.06) 0%, hsla(44, 87%, 63%, 0.02) 50%, hsl(35, 40%, 95%) 100%)",
-              }}
+        <AnimatePresence mode="wait">
+          {showFeedbackForm ? (
+            <motion.div
+              key="feedback"
+              className="rounded-3xl border border-[hsl(32,25%,88%)] bg-white overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.06)]"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.3 }}
             >
-              <div className="flex items-center gap-3">
-                <div className={cn(
-                  "flex items-center justify-center w-9 h-9 rounded-full",
-                  "bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)]",
-                  "shadow-[0_2px_8px_rgba(242,201,76,0.3)]"
-                )}>
-                  <Clock className="h-4 w-4" />
-                </div>
-                <div>
-                  <span className="text-[13px] font-bold uppercase tracking-[0.08em] text-[hsl(25,30%,14%)]">When works for you?</span>
-                  <p className="text-sm text-[hsl(25,15%,45%)]">Help us find a better time (optional)</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Card Content */}
-            <div className="p-5 space-y-5">
-              {/* Availability Grid */}
-              <div className="space-y-3">
-                <Label className="text-sm font-medium text-[hsl(25,30%,14%)]">Your availability</Label>
-                <AvailabilityGrid
-                  value={feedbackAvailability}
-                  onChange={setFeedbackAvailability}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="feedback" className="text-sm font-medium text-[hsl(25,30%,14%)]">Additional notes (optional)</Label>
-                <Textarea
-                  id="feedback"
-                  placeholder="Any other constraints or preferences?"
-                  value={freeformFeedback}
-                  onChange={(e) => setFreeformFeedback(e.target.value)}
-                  data-testid="textarea-feedback"
-                  rows={2}
-                  className="border-[hsl(32,20%,88%)] focus:border-[hsl(44,70%,75%)]"
-                />
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <Button
-                  onClick={handleSubmitFeedback}
-                  disabled={rsvpMutation.isPending}
-                  className={cn(
-                    "flex-1 h-11 font-semibold",
-                    "bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)]",
-                    "hover:bg-[hsl(44,87%,58%)]",
-                    "shadow-[0_2px_8px_rgba(242,201,76,0.3)]"
-                  )}
-                  data-testid="button-submit-feedback"
-                >
-                  {rsvpMutation.isPending ? "Submitting..." : "Submit Response"}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setShowFeedbackForm(false)}
-                  data-testid="button-cancel-feedback"
-                  className="border-[hsl(32,20%,88%)] text-[hsl(25,30%,30%)] hover:bg-[hsl(35,40%,97%)]"
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <>
-            {/* RSVP Response Buttons */}
-            <div className={cn(
-              "rounded-2xl border bg-white overflow-hidden",
-              "border-[hsl(32,20%,88%)] shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
-            )}>
               {/* Card Header */}
-              <div
-                className="relative px-6 py-4 border-b border-[hsl(32,20%,88%)]"
-                style={{
-                  background: "linear-gradient(135deg, hsla(44, 87%, 63%, 0.06) 0%, hsla(44, 87%, 63%, 0.02) 50%, hsl(35, 40%, 95%) 100%)",
-                }}
-              >
+              <div className="relative px-5 sm:px-6 py-4 border-b border-[hsl(32,20%,92%)] bg-gradient-to-r from-[hsl(38,45%,98%)] to-[hsl(44,50%,97%)]">
                 <div className="flex items-center gap-3">
-                  <div className={cn(
-                    "flex items-center justify-center w-9 h-9 rounded-full",
-                    "bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)]",
-                    "shadow-[0_2px_8px_rgba(242,201,76,0.3)]"
-                  )}>
-                    <User className="h-4 w-4" />
+                  <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-[hsl(44,91%,57%)] to-[hsl(38,85%,52%)] text-[hsl(25,30%,14%)] shadow-[0_2px_8px_rgba(245,192,48,0.3)]">
+                    <Clock className="h-4 w-4" />
                   </div>
                   <div>
-                    <span className="text-[13px] font-bold uppercase tracking-[0.08em] text-[hsl(25,30%,14%)]">Can you make it?</span>
-                    <p className="text-sm text-[hsl(25,15%,45%)]">
-                      {selectedResponse ? "You can update your response anytime" : "Let us know if you can join"}
-                    </p>
+                    <span className="text-sm font-bold text-[hsl(25,30%,14%)]">When works for you?</span>
+                    <p className="text-xs text-[hsl(25,15%,50%)]">Help us find a better time (optional)</p>
                   </div>
                 </div>
               </div>
 
               {/* Card Content */}
-              <div className="p-5 space-y-3">
-                {/* Yes Button */}
-                <button
-                  onClick={() => handleRsvp("yes")}
-                  disabled={rsvpMutation.isPending}
-                  data-testid="button-rsvp-yes"
-                  className={cn(
-                    "w-full flex items-center gap-4 p-4 rounded-xl",
-                    "border transition-all duration-200",
-                    selectedResponse === "yes"
-                      ? "border-[hsl(145,50%,50%)] bg-[hsl(145,50%,97%)]"
-                      : "border-[hsl(32,20%,88%)] bg-[hsl(38,50%,99%)] hover:border-[hsl(145,40%,70%)] hover:bg-[hsl(145,50%,98%)]"
-                  )}
-                >
-                  <div className={cn(
-                    "flex items-center justify-center w-10 h-10 rounded-full",
-                    selectedResponse === "yes"
-                      ? "bg-[hsl(145,50%,45%)] text-white"
-                      : "bg-[hsl(145,40%,90%)] text-[hsl(145,50%,35%)]"
-                  )}>
-                    <Check className="h-5 w-5" />
-                  </div>
-                  <div className="text-left">
-                    <div className={cn(
-                      "font-semibold",
-                      selectedResponse === "yes" ? "text-[hsl(145,50%,30%)]" : "text-[hsl(25,30%,14%)]"
-                    )}>Yes, I'll be there!</div>
-                    <div className="text-xs text-[hsl(25,15%,50%)]">Count me in</div>
-                  </div>
-                </button>
-
-                {/* Maybe Button */}
-                <button
-                  onClick={() => handleRsvp("maybe")}
-                  disabled={rsvpMutation.isPending}
-                  data-testid="button-rsvp-maybe"
-                  className={cn(
-                    "w-full flex items-center gap-4 p-4 rounded-xl",
-                    "border transition-all duration-200",
-                    selectedResponse === "maybe"
-                      ? "border-[hsl(44,70%,60%)] bg-[hsl(44,80%,97%)]"
-                      : "border-[hsl(32,20%,88%)] bg-[hsl(38,50%,99%)] hover:border-[hsl(44,70%,75%)] hover:bg-[hsl(44,80%,98%)]"
-                  )}
-                >
-                  <div className={cn(
-                    "flex items-center justify-center w-10 h-10 rounded-full",
-                    selectedResponse === "maybe"
-                      ? "bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)]"
-                      : "bg-[hsl(44,60%,90%)] text-[hsl(44,60%,35%)]"
-                  )}>
-                    <HelpCircle className="h-5 w-5" />
-                  </div>
-                  <div className="text-left">
-                    <div className={cn(
-                      "font-semibold",
-                      selectedResponse === "maybe" ? "text-[hsl(44,60%,25%)]" : "text-[hsl(25,30%,14%)]"
-                    )}>Maybe</div>
-                    <div className="text-xs text-[hsl(25,15%,50%)]">Not sure about this time</div>
-                  </div>
-                </button>
-
-                {/* No Button */}
-                <button
-                  onClick={() => handleRsvp("no")}
-                  disabled={rsvpMutation.isPending}
-                  data-testid="button-rsvp-no"
-                  className={cn(
-                    "w-full flex items-center gap-4 p-4 rounded-xl",
-                    "border transition-all duration-200",
-                    selectedResponse === "no"
-                      ? "border-[hsl(350,50%,60%)] bg-[hsl(350,50%,97%)]"
-                      : "border-[hsl(32,20%,88%)] bg-[hsl(38,50%,99%)] hover:border-[hsl(350,40%,75%)] hover:bg-[hsl(350,50%,98%)]"
-                  )}
-                >
-                  <div className={cn(
-                    "flex items-center justify-center w-10 h-10 rounded-full",
-                    selectedResponse === "no"
-                      ? "bg-[hsl(350,50%,50%)] text-white"
-                      : "bg-[hsl(350,40%,92%)] text-[hsl(350,50%,40%)]"
-                  )}>
-                    <X className="h-5 w-5" />
-                  </div>
-                  <div className="text-left">
-                    <div className={cn(
-                      "font-semibold",
-                      selectedResponse === "no" ? "text-[hsl(350,50%,35%)]" : "text-[hsl(25,30%,14%)]"
-                    )}>Can't make it</div>
-                    <div className="text-xs text-[hsl(25,15%,50%)]">This time doesn't work</div>
-                  </div>
-                </button>
-
-                {selectedResponse && (
-                  <div className={cn(
-                    "mt-2 p-3 rounded-xl text-sm",
-                    selectedResponse === "yes" && "bg-[hsl(145,50%,95%)] border border-[hsl(145,40%,80%)]",
-                    selectedResponse === "maybe" && "bg-[hsl(44,80%,95%)] border border-[hsl(44,60%,80%)]",
-                    selectedResponse === "no" && "bg-[hsl(350,50%,96%)] border border-[hsl(350,40%,85%)]"
-                  )}>
-                    <p className={cn(
-                      "font-medium",
-                      selectedResponse === "yes" && "text-[hsl(145,50%,30%)]",
-                      selectedResponse === "maybe" && "text-[hsl(44,60%,25%)]",
-                      selectedResponse === "no" && "text-[hsl(350,50%,35%)]"
-                    )}>Your response: {
-                      selectedResponse === "yes" ? "Going" :
-                      selectedResponse === "maybe" ? "Maybe" :
-                      "Can't make it"
-                    }</p>
-                  </div>
-                )}
-
-                {/* Add to Calendar button - shown for all RSVP responses */}
-                {selectedResponse && itinerary.eventDate && (
-                  <div className="mt-4 pt-4 border-t border-[hsl(44,70%,75%)]">
-                    <a
-                      href={generateCalendarUrlFromItinerary({
-                        groupName: group.name,
-                        eventName: itinerary.name || group.name,
-                        eventDate: itinerary.eventDate,
-                        venues: itinerary.items.map(item => ({
-                          venueName: item.venueName,
-                          venueAddress: item.venueAddress,
-                        })),
-                      })}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl border-2 border-dashed border-[hsl(44,70%,75%)] text-[hsl(25,30%,14%)] hover:bg-[hsl(44,87%,63%)]/10 hover:border-[hsl(44,87%,63%)] transition-all duration-200"
-                    >
-                      <CalendarPlus className="h-5 w-5 text-[hsl(44,87%,63%)]" />
-                      <span className="font-medium">Add to Google Calendar</span>
-                    </a>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Create Account CTA - show after RSVP when member doesn't have an account */}
-            {(selectedResponse === 'yes' || selectedResponse === 'maybe') && claimedMemberId && !inviteInfo?.hasAccount && (
-              <div className="rounded-2xl border border-[hsl(200,70%,85%)] bg-[hsl(200,50%,97%)] shadow-[0_2px_8px_rgba(59,130,246,0.12)] overflow-hidden">
-                <div className="p-5">
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-full bg-[hsl(200,70%,90%)] flex items-center justify-center flex-shrink-0">
-                      <Sparkles className="h-5 w-5 text-[hsl(200,70%,45%)]" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-[hsl(200,50%,25%)] mb-1">
-                        Find your {group.name} events
-                      </h3>
-                      <p className="text-sm text-[hsl(200,40%,35%)] mb-4">
-                        Create an account to see all upcoming events in one place and get notified when new plans are made.
-                      </p>
-                      <Button
-                        className="w-full bg-[hsl(200,70%,50%)] hover:bg-[hsl(200,70%,45%)] text-white"
-                        onClick={() => {
-                          // Store memberId for account linking
-                          if (claimedMemberId) {
-                            localStorage.setItem("linkMemberId", claimedMemberId);
-                            localStorage.setItem("linkReturnPath", `/rsvp/${itineraryId}/${inviteToken}`);
-                          }
-                          // Redirect to auth with return to link page
-                          window.location.href = "/api/login?returnTo=" + encodeURIComponent("/link-member-account");
-                        }}
-                      >
-                        Create Account
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Additional Attendees and Kids Count - Only show after selecting a response */}
-            {selectedResponse === "yes" && (
-              <div className="rounded-2xl border border-[hsl(44,70%,75%)] bg-[hsl(38,50%,98%)] shadow-[0_2px_8px_rgba(242,201,76,0.12)] overflow-hidden">
-                {/* Header with gradient */}
-                <div className="px-5 py-4 bg-gradient-to-r from-[hsl(38,35%,97%)] to-[hsl(44,45%,96%)] border-b border-[hsl(44,70%,75%)]">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-[hsl(44,87%,63%)]/20 flex items-center justify-center">
-                      <Users className="h-5 w-5 text-[hsl(44,87%,63%)]" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-[hsl(25,30%,14%)]">Additional Details</h3>
-                      <p className="text-sm text-[hsl(25,20%,40%)]">Let us know if you're bringing anyone else</p>
-                    </div>
-                  </div>
+              <div className="p-5 space-y-5">
+                {/* Availability Grid */}
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold text-[hsl(25,30%,14%)]">Your availability</Label>
+                  <AvailabilityGrid
+                    value={feedbackAvailability}
+                    onChange={setFeedbackAvailability}
+                  />
                 </div>
 
-                <div className="p-5 space-y-6">
-                  {/* Additional Attendees */}
-                  <div className="space-y-3">
-                    <Label htmlFor="additional-attendee" className="text-base font-semibold text-[hsl(25,30%,14%)]">
-                      Also RSVPing for (optional)
-                    </Label>
-                    <p className="text-sm text-[hsl(25,20%,40%)]">
-                      Maximum 2 people total including yourself
-                    </p>
+                <div className="space-y-2">
+                  <Label htmlFor="feedback" className="text-sm font-semibold text-[hsl(25,30%,14%)]">Additional notes <span className="font-normal text-[hsl(25,15%,50%)]">(optional)</span></Label>
+                  <Textarea
+                    id="feedback"
+                    placeholder="Any other constraints or preferences?"
+                    value={freeformFeedback}
+                    onChange={(e) => setFreeformFeedback(e.target.value)}
+                    data-testid="textarea-feedback"
+                    rows={2}
+                    className="border-[hsl(32,20%,88%)] focus:border-[hsl(44,70%,75%)] rounded-xl resize-none"
+                  />
+                </div>
 
-                    <Select
-                      value={additionalAttendeeType}
-                      onValueChange={(value: 'none' | 'member' | 'guest') => {
-                        setAdditionalAttendeeType(value);
-                        if (value === 'none') {
-                          setAdditionalMemberId("");
-                          setAdditionalGuestName("");
-                        }
-                      }}
-                    >
-                      <SelectTrigger
-                        data-testid="select-additional-attendee-type"
-                        className="border-[hsl(44,70%,75%)] bg-white focus:ring-[hsl(44,87%,63%)] focus:border-[hsl(44,87%,63%)]"
-                      >
-                        <SelectValue placeholder="Select an option" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">No one else</SelectItem>
-                        <SelectItem value="member">A group member</SelectItem>
-                        <SelectItem value="guest">A guest</SelectItem>
-                      </SelectContent>
-                    </Select>
-
-                    {additionalAttendeeType === 'member' && (
-                      <div className="space-y-2">
-                        <Label htmlFor="additional-member" className="text-[hsl(25,30%,14%)]">Select member</Label>
-                        <Select
-                          value={additionalMemberId}
-                          onValueChange={setAdditionalMemberId}
-                        >
-                          <SelectTrigger
-                            data-testid="select-additional-member"
-                            className="border-[hsl(44,70%,75%)] bg-white focus:ring-[hsl(44,87%,63%)] focus:border-[hsl(44,87%,63%)]"
-                          >
-                            <SelectValue placeholder="Choose a member" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {availableMembers.map((member) => (
-                              <SelectItem key={member.id} value={member.id}>
-                                {member.name || member.email}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-
-                    {additionalAttendeeType === 'guest' && (
-                      <div className="space-y-2">
-                        <Label htmlFor="additional-guest-name" className="text-[hsl(25,30%,14%)]">Guest name</Label>
-                        <Input
-                          id="additional-guest-name"
-                          placeholder="Enter guest name"
-                          value={additionalGuestName}
-                          onChange={(e) => setAdditionalGuestName(e.target.value)}
-                          data-testid="input-additional-guest-name"
-                          className="border-[hsl(44,70%,75%)] bg-white focus:ring-[hsl(44,87%,63%)] focus:border-[hsl(44,87%,63%)]"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Kids Count */}
-                  <div className="space-y-3">
-                    <Label htmlFor="kids-count" className="text-base font-semibold text-[hsl(25,30%,14%)] flex items-center gap-2">
-                      <Baby className="h-4 w-4 text-[hsl(44,87%,63%)]" />
-                      Number of kids (optional)
-                    </Label>
-                    <Input
-                      id="kids-count"
-                      type="number"
-                      min="0"
-                      max="10"
-                      value={numberOfKids}
-                      onChange={(e) => setNumberOfKids(Math.min(10, Math.max(0, parseInt(e.target.value) || 0)))}
-                      data-testid="input-kids-count"
-                      className="border-[hsl(44,70%,75%)] bg-white focus:ring-[hsl(44,87%,63%)] focus:border-[hsl(44,87%,63%)]"
-                    />
-                    <p className="text-xs text-[hsl(25,20%,40%)]">
-                      Ages 0-12
-                    </p>
-                  </div>
-
-                  {/* Submit Button for Additional Details */}
+                <div className="flex gap-3 pt-2">
                   <Button
-                    onClick={() => rsvpMutation.mutate({ response: selectedResponse })}
+                    onClick={handleSubmitFeedback}
                     disabled={rsvpMutation.isPending}
-                    className="w-full bg-[hsl(44,87%,63%)] hover:bg-[hsl(44,87%,55%)] text-[hsl(25,30%,14%)] font-semibold shadow-[0_2px_8px_rgba(242,201,76,0.3)] transition-all duration-200"
-                    data-testid="button-submit-rsvp"
+                    className={cn(
+                      "flex-1 h-12 font-bold rounded-xl",
+                      "bg-gradient-to-r from-[hsl(44,91%,57%)] to-[hsl(38,85%,52%)]",
+                      "text-[hsl(25,30%,14%)]",
+                      "hover:from-[hsl(44,91%,52%)] hover:to-[hsl(38,85%,47%)]",
+                      "shadow-[0_4px_16px_rgba(245,192,48,0.3)]"
+                    )}
+                    data-testid="button-submit-feedback"
                   >
-                    {rsvpMutation.isPending ? "Saving..." : "Save RSVP"}
+                    {rsvpMutation.isPending ? "Submitting..." : "Submit Response"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowFeedbackForm(false)}
+                    data-testid="button-cancel-feedback"
+                    className="border-[hsl(32,20%,88%)] text-[hsl(25,30%,30%)] hover:bg-[hsl(35,40%,97%)] rounded-xl"
+                  >
+                    Cancel
                   </Button>
                 </div>
               </div>
-            )}
-          </>
-        )}
+            </motion.div>
+          ) : (
+            <motion.div
+              key="rsvp"
+              className="space-y-5"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              {/* RSVP Response Buttons */}
+              <motion.div
+                className="rounded-3xl border border-[hsl(32,25%,88%)] bg-white overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.06)]"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+              >
+                {/* Card Header */}
+                <div className="relative px-5 sm:px-6 py-4 border-b border-[hsl(32,20%,92%)] bg-gradient-to-r from-[hsl(38,45%,98%)] to-[hsl(44,50%,97%)]">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-[hsl(44,91%,57%)] to-[hsl(38,85%,52%)] text-[hsl(25,30%,14%)] shadow-[0_2px_8px_rgba(245,192,48,0.3)]">
+                      <Star className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <span className="text-sm font-bold text-[hsl(25,30%,14%)]">Can you make it?</span>
+                      <p className="text-xs text-[hsl(25,15%,50%)]">
+                        {selectedResponse ? "Tap to update your response" : "Let us know if you can join"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card Content */}
+                <div className="p-5 space-y-3">
+                  {/* Yes Button */}
+                  <motion.button
+                    onClick={() => handleRsvp("yes")}
+                    disabled={rsvpMutation.isPending}
+                    data-testid="button-rsvp-yes"
+                    className={cn(
+                      "w-full flex items-center gap-4 p-4 rounded-2xl",
+                      "border-2 transition-all duration-200",
+                      selectedResponse === "yes"
+                        ? "border-[hsl(145,50%,50%)] bg-gradient-to-r from-[hsl(145,50%,97%)] to-[hsl(145,45%,95%)] shadow-[0_2px_12px_rgba(100,180,120,0.15)]"
+                        : "border-[hsl(32,20%,90%)] bg-[hsl(38,50%,99%)] hover:border-[hsl(145,40%,70%)] hover:bg-[hsl(145,50%,98%)]"
+                    )}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <div className={cn(
+                      "flex items-center justify-center w-12 h-12 rounded-xl transition-colors",
+                      selectedResponse === "yes"
+                        ? "bg-[hsl(145,50%,45%)] text-white"
+                        : "bg-[hsl(145,40%,92%)] text-[hsl(145,50%,35%)]"
+                    )}>
+                      <Check className="h-6 w-6" />
+                    </div>
+                    <div className="text-left flex-1">
+                      <div className={cn(
+                        "font-bold text-base",
+                        selectedResponse === "yes" ? "text-[hsl(145,50%,28%)]" : "text-[hsl(25,30%,14%)]"
+                      )}>Yes, I'll be there!</div>
+                      <div className="text-sm text-[hsl(25,15%,50%)]">Count me in</div>
+                    </div>
+                    {selectedResponse === "yes" && (
+                      <div className="shrink-0 w-6 h-6 rounded-full bg-[hsl(145,50%,45%)] flex items-center justify-center">
+                        <Check className="h-3.5 w-3.5 text-white" />
+                      </div>
+                    )}
+                  </motion.button>
+
+                  {/* Maybe Button */}
+                  <motion.button
+                    onClick={() => handleRsvp("maybe")}
+                    disabled={rsvpMutation.isPending}
+                    data-testid="button-rsvp-maybe"
+                    className={cn(
+                      "w-full flex items-center gap-4 p-4 rounded-2xl",
+                      "border-2 transition-all duration-200",
+                      selectedResponse === "maybe"
+                        ? "border-[hsl(44,70%,55%)] bg-gradient-to-r from-[hsl(44,80%,97%)] to-[hsl(44,75%,95%)] shadow-[0_2px_12px_rgba(245,200,80,0.15)]"
+                        : "border-[hsl(32,20%,90%)] bg-[hsl(38,50%,99%)] hover:border-[hsl(44,70%,70%)] hover:bg-[hsl(44,80%,98%)]"
+                    )}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <div className={cn(
+                      "flex items-center justify-center w-12 h-12 rounded-xl transition-colors",
+                      selectedResponse === "maybe"
+                        ? "bg-[hsl(44,87%,55%)] text-[hsl(25,30%,14%)]"
+                        : "bg-[hsl(44,60%,92%)] text-[hsl(44,60%,40%)]"
+                    )}>
+                      <HelpCircle className="h-6 w-6" />
+                    </div>
+                    <div className="text-left flex-1">
+                      <div className={cn(
+                        "font-bold text-base",
+                        selectedResponse === "maybe" ? "text-[hsl(44,60%,22%)]" : "text-[hsl(25,30%,14%)]"
+                      )}>Maybe</div>
+                      <div className="text-sm text-[hsl(25,15%,50%)]">Not sure about this time</div>
+                    </div>
+                    {selectedResponse === "maybe" && (
+                      <div className="shrink-0 w-6 h-6 rounded-full bg-[hsl(44,87%,55%)] flex items-center justify-center">
+                        <Check className="h-3.5 w-3.5 text-[hsl(25,30%,14%)]" />
+                      </div>
+                    )}
+                  </motion.button>
+
+                  {/* No Button */}
+                  <motion.button
+                    onClick={() => handleRsvp("no")}
+                    disabled={rsvpMutation.isPending}
+                    data-testid="button-rsvp-no"
+                    className={cn(
+                      "w-full flex items-center gap-4 p-4 rounded-2xl",
+                      "border-2 transition-all duration-200",
+                      selectedResponse === "no"
+                        ? "border-[hsl(350,50%,60%)] bg-gradient-to-r from-[hsl(350,50%,97%)] to-[hsl(350,45%,95%)] shadow-[0_2px_12px_rgba(200,120,120,0.15)]"
+                        : "border-[hsl(32,20%,90%)] bg-[hsl(38,50%,99%)] hover:border-[hsl(350,40%,75%)] hover:bg-[hsl(350,50%,98%)]"
+                    )}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <div className={cn(
+                      "flex items-center justify-center w-12 h-12 rounded-xl transition-colors",
+                      selectedResponse === "no"
+                        ? "bg-[hsl(350,50%,50%)] text-white"
+                        : "bg-[hsl(350,40%,93%)] text-[hsl(350,50%,45%)]"
+                    )}>
+                      <X className="h-6 w-6" />
+                    </div>
+                    <div className="text-left flex-1">
+                      <div className={cn(
+                        "font-bold text-base",
+                        selectedResponse === "no" ? "text-[hsl(350,50%,32%)]" : "text-[hsl(25,30%,14%)]"
+                      )}>Can't make it</div>
+                      <div className="text-sm text-[hsl(25,15%,50%)]">This time doesn't work</div>
+                    </div>
+                    {selectedResponse === "no" && (
+                      <div className="shrink-0 w-6 h-6 rounded-full bg-[hsl(350,50%,50%)] flex items-center justify-center">
+                        <Check className="h-3.5 w-3.5 text-white" />
+                      </div>
+                    )}
+                  </motion.button>
+
+                  {/* Add to Calendar button - shown for all RSVP responses */}
+                  {selectedResponse && itinerary.eventDate && (
+                    <motion.div
+                      className="mt-4 pt-4 border-t border-[hsl(32,20%,92%)]"
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.1 }}
+                    >
+                      <a
+                        href={generateCalendarUrlFromItinerary({
+                          groupName: group.name,
+                          eventName: itinerary.name || group.name,
+                          eventDate: itinerary.eventDate,
+                          venues: itinerary.items.map(item => ({
+                            venueName: item.venueName,
+                            venueAddress: item.venueAddress,
+                          })),
+                        })}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 w-full py-3.5 px-4 rounded-xl border-2 border-dashed border-[hsl(44,60%,80%)] text-[hsl(25,30%,20%)] hover:bg-[hsl(44,85%,96%)] hover:border-[hsl(44,70%,65%)] transition-all duration-200"
+                      >
+                        <CalendarPlus className="h-5 w-5 text-[hsl(44,80%,45%)]" />
+                        <span className="font-semibold">Add to Google Calendar</span>
+                      </a>
+                    </motion.div>
+                  )}
+                </div>
+              </motion.div>
+
+              {/* Create Account CTA - show after RSVP when member doesn't have an account */}
+              {(selectedResponse === 'yes' || selectedResponse === 'maybe') && claimedMemberId && !inviteInfo?.hasAccount && (
+                <motion.div
+                  className="rounded-3xl border-2 border-[hsl(200,60%,82%)] bg-gradient-to-br from-[hsl(200,60%,98%)] to-[hsl(200,50%,96%)] overflow-hidden shadow-[0_4px_20px_rgba(59,130,246,0.1)]"
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  <div className="p-5 sm:p-6">
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[hsl(200,70%,55%)] to-[hsl(200,65%,45%)] flex items-center justify-center flex-shrink-0 shadow-[0_4px_12px_rgba(59,130,246,0.25)]">
+                        <Sparkles className="h-5 w-5 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-bold text-[hsl(200,50%,25%)] text-lg mb-1">
+                          Find your {group.name} events
+                        </h3>
+                        <p className="text-sm text-[hsl(200,35%,40%)] mb-4">
+                          Create an account to see all upcoming events in one place and get notified when new plans are made.
+                        </p>
+                        <Button
+                          className="w-full h-12 font-bold rounded-xl bg-gradient-to-r from-[hsl(200,70%,50%)] to-[hsl(200,65%,45%)] hover:from-[hsl(200,70%,45%)] hover:to-[hsl(200,65%,40%)] text-white shadow-[0_4px_16px_rgba(59,130,246,0.3)]"
+                          onClick={() => {
+                            // Store memberId for account linking
+                            if (claimedMemberId) {
+                              localStorage.setItem("linkMemberId", claimedMemberId);
+                              localStorage.setItem("linkReturnPath", `/rsvp/${itineraryId}/${inviteToken}`);
+                            }
+                            // Redirect to auth with return to link page
+                            window.location.href = "/api/login?returnTo=" + encodeURIComponent("/link-member-account");
+                          }}
+                        >
+                          Create Account
+                          <ChevronRight className="h-4 w-4 ml-1" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Additional Attendees and Kids Count - Only show after selecting a response */}
+              {selectedResponse === "yes" && (
+                <motion.div
+                  className="rounded-3xl border border-[hsl(44,60%,80%)] bg-gradient-to-br from-white to-[hsl(44,60%,99%)] overflow-hidden shadow-[0_4px_20px_rgba(245,192,48,0.08)]"
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.25 }}
+                >
+                  {/* Header with gradient */}
+                  <div className="px-5 sm:px-6 py-4 bg-gradient-to-r from-[hsl(38,50%,98%)] to-[hsl(44,55%,96%)] border-b border-[hsl(44,50%,88%)]">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[hsl(44,91%,57%)] to-[hsl(38,85%,52%)] flex items-center justify-center shadow-[0_2px_8px_rgba(245,192,48,0.25)]">
+                        <Users className="h-5 w-5 text-[hsl(25,30%,14%)]" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-bold text-[hsl(25,30%,14%)]">Additional Details</h3>
+                        <p className="text-sm text-[hsl(25,20%,45%)]">Bringing anyone else?</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-5 sm:p-6 space-y-6">
+                    {/* Additional Attendees */}
+                    <div className="space-y-3">
+                      <Label htmlFor="additional-attendee" className="text-sm font-bold text-[hsl(25,30%,14%)]">
+                        Also RSVPing for <span className="font-normal text-[hsl(25,15%,50%)]">(optional)</span>
+                      </Label>
+                      <p className="text-sm text-[hsl(25,20%,45%)]">
+                        Maximum 2 people total including yourself
+                      </p>
+
+                      <Select
+                        value={additionalAttendeeType}
+                        onValueChange={(value: 'none' | 'member' | 'guest') => {
+                          setAdditionalAttendeeType(value);
+                          if (value === 'none') {
+                            setAdditionalMemberId("");
+                            setAdditionalGuestName("");
+                          }
+                        }}
+                      >
+                        <SelectTrigger
+                          data-testid="select-additional-attendee-type"
+                          className="border-[hsl(44,50%,82%)] bg-white focus:ring-[hsl(44,91%,57%)] focus:border-[hsl(44,91%,57%)] h-12 rounded-xl"
+                        >
+                          <SelectValue placeholder="Select an option" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No one else</SelectItem>
+                          <SelectItem value="member">A group member</SelectItem>
+                          <SelectItem value="guest">A guest</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <AnimatePresence>
+                        {additionalAttendeeType === 'member' && (
+                          <motion.div
+                            className="space-y-2"
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                          >
+                            <Label htmlFor="additional-member" className="text-sm text-[hsl(25,30%,20%)]">Select member</Label>
+                            <Select
+                              value={additionalMemberId}
+                              onValueChange={setAdditionalMemberId}
+                            >
+                              <SelectTrigger
+                                data-testid="select-additional-member"
+                                className="border-[hsl(44,50%,82%)] bg-white focus:ring-[hsl(44,91%,57%)] focus:border-[hsl(44,91%,57%)] h-12 rounded-xl"
+                              >
+                                <SelectValue placeholder="Choose a member" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {availableMembers.map((member) => (
+                                  <SelectItem key={member.id} value={member.id}>
+                                    {member.name || member.email}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </motion.div>
+                        )}
+
+                        {additionalAttendeeType === 'guest' && (
+                          <motion.div
+                            className="space-y-2"
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                          >
+                            <Label htmlFor="additional-guest-name" className="text-sm text-[hsl(25,30%,20%)]">Guest name</Label>
+                            <Input
+                              id="additional-guest-name"
+                              placeholder="Enter guest name"
+                              value={additionalGuestName}
+                              onChange={(e) => setAdditionalGuestName(e.target.value)}
+                              data-testid="input-additional-guest-name"
+                              className="border-[hsl(44,50%,82%)] bg-white focus:ring-[hsl(44,91%,57%)] focus:border-[hsl(44,91%,57%)] h-12 rounded-xl"
+                            />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
+                    {/* Kids Count */}
+                    <div className="space-y-3">
+                      <Label htmlFor="kids-count" className="text-sm font-bold text-[hsl(25,30%,14%)] flex items-center gap-2">
+                        <Baby className="h-4 w-4 text-[hsl(44,80%,50%)]" />
+                        Number of kids <span className="font-normal text-[hsl(25,15%,50%)]">(optional)</span>
+                      </Label>
+                      <Input
+                        id="kids-count"
+                        type="number"
+                        min="0"
+                        max="10"
+                        value={numberOfKids}
+                        onChange={(e) => setNumberOfKids(Math.min(10, Math.max(0, parseInt(e.target.value) || 0)))}
+                        data-testid="input-kids-count"
+                        className="border-[hsl(44,50%,82%)] bg-white focus:ring-[hsl(44,91%,57%)] focus:border-[hsl(44,91%,57%)] h-12 rounded-xl w-24"
+                      />
+                      <p className="text-xs text-[hsl(25,20%,50%)]">
+                        Ages 0-12
+                      </p>
+                    </div>
+
+                    {/* Submit Button for Additional Details */}
+                    <Button
+                      onClick={() => rsvpMutation.mutate({ response: selectedResponse })}
+                      disabled={rsvpMutation.isPending}
+                      className={cn(
+                        "w-full h-14 font-bold text-base rounded-2xl",
+                        "bg-gradient-to-r from-[hsl(44,91%,57%)] to-[hsl(38,85%,52%)]",
+                        "text-[hsl(25,30%,14%)]",
+                        "hover:from-[hsl(44,91%,52%)] hover:to-[hsl(38,85%,47%)]",
+                        "shadow-[0_4px_16px_rgba(245,192,48,0.35)]",
+                        "transition-all duration-200"
+                      )}
+                      data-testid="button-submit-rsvp"
+                    >
+                      {rsvpMutation.isPending ? "Saving..." : "Save RSVP"}
+                    </Button>
+                  </div>
+                </motion.div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Kinmo branding */}
+        <motion.p
+          className="text-center text-sm text-[hsl(25,15%,55%)] pt-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+        >
+          Powered by <span className="font-semibold text-[hsl(44,87%,45%)]">Kinmo</span>
+        </motion.p>
       </div>
     </div>
   );
