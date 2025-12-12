@@ -316,6 +316,17 @@ export async function sendGentleNudge(
                                     <p style="margin: 4px 0 0; font-size: 15px; color: #5c5c5c;">${data.eventTime}</p>
                                   </td>
                                 </tr>
+                                ${data.rsvpDeadline ? `
+                                <tr>
+                                  <td width="48" valign="top" style="padding-top: 16px;">
+                                    <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #c9956a 0%, #b8895f 100%); border-radius: 10px; text-align: center; line-height: 40px; font-size: 18px;">⏰</div>
+                                  </td>
+                                  <td valign="top" style="padding-left: 12px; padding-top: 16px;">
+                                    <p style="margin: 0 0 2px; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: #8b7355; font-weight: 500;">RSVP by</p>
+                                    <p style="margin: 0; font-family: 'Fraunces', Georgia, serif; font-size: 18px; color: #1a1a1a; font-weight: 500;">${data.rsvpDeadline}</p>
+                                  </td>
+                                </tr>
+                                ` : ''}
                               </table>
                             </td>
                           </tr>
@@ -332,13 +343,6 @@ export async function sendGentleNudge(
                               <a href="${data.rsvpLink}" style="display: inline-block; background: linear-gradient(135deg, #d4a574 0%, #b8895f 100%); color: #ffffff; text-decoration: none; padding: 16px 48px; border-radius: 50px; font-size: 15px; font-weight: 500; letter-spacing: 0.5px; box-shadow: 0 4px 12px rgba(212,165,116,0.35);">RSVP</a>
                             </td>
                           </tr>
-                          ${data.rsvpDeadline ? `
-                          <tr>
-                            <td align="center" style="padding-top: 16px;">
-                              <p style="margin: 0; font-size: 13px; color: #a09080;">By <strong style="color: #5c5c5c;">${data.rsvpDeadline}</strong> if you can</p>
-                            </td>
-                          </tr>
-                          ` : ''}
                         </table>
                       </td>
                     </tr>
@@ -432,6 +436,17 @@ export async function sendFinalCall(
                                     <p style="margin: 4px 0 0; font-size: 15px; color: #5c5c5c;">${data.eventTime}</p>
                                   </td>
                                 </tr>
+                                ${data.rsvpDeadline ? `
+                                <tr>
+                                  <td width="48" valign="top" style="padding-top: 16px;">
+                                    <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #d4a574 0%, #c96a50 100%); border-radius: 10px; text-align: center; line-height: 40px; font-size: 18px;">⏰</div>
+                                  </td>
+                                  <td valign="top" style="padding-left: 12px; padding-top: 16px;">
+                                    <p style="margin: 0 0 2px; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: #8b7355; font-weight: 500;">RSVP by</p>
+                                    <p style="margin: 0; font-family: 'Fraunces', Georgia, serif; font-size: 18px; color: #1a1a1a; font-weight: 500;">${data.rsvpDeadline}</p>
+                                  </td>
+                                </tr>
+                                ` : ''}
                               </table>
                             </td>
                           </tr>
@@ -448,13 +463,6 @@ export async function sendFinalCall(
                               <a href="${data.rsvpLink}" style="display: inline-block; background: linear-gradient(135deg, #e07a5f 0%, #c96a50 100%); color: #ffffff; text-decoration: none; padding: 16px 48px; border-radius: 50px; font-size: 15px; font-weight: 500; letter-spacing: 0.5px; box-shadow: 0 4px 12px rgba(224,122,95,0.35);">RSVP</a>
                             </td>
                           </tr>
-                          ${data.rsvpDeadline ? `
-                          <tr>
-                            <td align="center" style="padding-top: 16px;">
-                              <p style="margin: 0; font-size: 13px; color: #a09080;">By <strong style="color: #5c5c5c;">${data.rsvpDeadline}</strong></p>
-                            </td>
-                          </tr>
-                          ` : ''}
                         </table>
                       </td>
                     </tr>
