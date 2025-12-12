@@ -20,6 +20,7 @@ import { Plus, Sparkles, Users, MapPin, Calendar, CheckCircle, XCircle, HelpCirc
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
