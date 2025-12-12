@@ -8,6 +8,7 @@ import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, c
 import { searchPlaces, searchNearbyPlaces, geocodeLocation, clearPlacesCache, getCacheStats, getPlaceDetails, detectAndParseGoogleMapsUrl, getBestVenueType, getBestVenueTypeSync } from "./google-places";
 import { planEventWithAgent, type VenueForAgent } from "./ai-event-agent";
 import { setupAuth, isAuthenticated } from "./replitAuth";
+import { setupGoogleAuth } from "./googleAuth";
 import {
   requireGroupOwnership,
   requireGroupAccess,
@@ -425,6 +426,7 @@ function assignGroupColor(groupId: string): string {
 export async function registerRoutes(app: Express): Promise<Server> {
   // Set up authentication
   await setupAuth(app);
+  await setupGoogleAuth(app);
 
   // Health check endpoint (for monitoring and load balancers)
   app.get('/api/health', async (req, res) => {
@@ -3770,6 +3772,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(safeGroup);
     } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get join preview data for group invite flow (includes social proof)
+  app.get("/api/groups/join-preview/:shareableLink", publicEndpointLimiter, async (req, res) => {
+    try {
+      const group = await storage.getGroupByShareableLink(req.params.shareableLink);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      // If link is closed, return minimal info
+      if (!group.inviteLinkOpen) {
+        return res.status(403).json({
+          message: "This invite link is no longer active",
+          linkClosed: true
+        });
+      }
+
+      // Get all members to calculate social proof
+      const allMembers = group.userId
+        ? await getGroupMembersWithOrganizer(group.id, group.userId)
+        : await storage.getGroupMembers(group.id);
+
+      // Count total members and those who have joined (have userId)
+      const totalMembers = allMembers.length;
+      const joinedMembers = allMembers.filter(m => m.userId !== null);
+      const joinedCount = joinedMembers.length;
+      const joinedPercentage = totalMembers > 0 ? (joinedCount / totalMembers) * 100 : 0;
+
+      // Social proof: show names if 50%+ have joined AND at least 2 have joined
+      const showSocialProof = joinedPercentage >= 50 && joinedCount >= 2;
+      let socialProofNames: string[] = [];
+      if (showSocialProof) {
+        // Get first 3 names of joined members
+        socialProofNames = joinedMembers
+          .slice(0, 3)
+          .map(m => m.name);
+      }
+
+      // Get upcoming event (if any)
+      const upcomingEvents = await storage.getUpcomingItineraries(group.id, 1);
+      const upcomingEvent = upcomingEvents.length > 0 ? {
+        title: upcomingEvents[0].title,
+        eventDate: upcomingEvents[0].eventDate,
+        eventTime: upcomingEvents[0].eventTime,
+      } : null;
+
+      // Get count of venues being considered (voting events)
+      const votingEventsCount = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(votingEventsTable)
+        .where(eq(votingEventsTable.groupId, group.id))
+        .then(rows => rows[0]?.count || 0);
+
+      res.json({
+        group: {
+          id: group.id,
+          name: group.name,
+          emoji: group.emoji,
+          locationBase: group.locationBase,
+        },
+        memberStats: {
+          total: totalMembers,
+          joined: joinedCount,
+          percentage: Math.round(joinedPercentage),
+        },
+        socialProof: showSocialProof ? {
+          names: socialProofNames,
+          remainingCount: joinedCount - socialProofNames.length,
+        } : null,
+        upcomingEvent,
+        venuesBeingConsidered: Number(votingEventsCount),
+      });
+    } catch (error: any) {
+      console.error("[JoinPreview] Error:", error);
       res.status(500).json({ message: error.message });
     }
   });

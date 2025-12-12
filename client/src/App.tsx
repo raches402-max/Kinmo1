@@ -1,5 +1,5 @@
 // Reference: javascript_log_in_with_replit blueprint
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route, useLocation, Redirect, useRoute } from "wouter";
 import { lazy, Suspense } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -24,7 +24,7 @@ const CreateGroup = lazy(() => import("@/pages/create-group"));
 const GroupDetail = lazy(() => import("@/pages/group-detail"));
 const JoinEntry = lazy(() => import("@/pages/join-entry"));
 const JoinGroup = lazy(() => import("@/pages/join-group"));
-const InvitePage = lazy(() => import("@/pages/invite"));
+// InvitePage deprecated - /invite/:token now redirects to /join/:token
 const RsvpItineraryPage = lazy(() => import("@/pages/rsvp-itinerary"));
 const GuestEventInvitePage = lazy(() => import("@/pages/guest-event-invite"));
 const GuestRsvpPage = lazy(() => import("@/pages/guest-rsvp"));
@@ -57,6 +57,13 @@ const Places = lazy(() => import("@/pages/places"));
 const FeedbackMockup = lazy(() => import("@/pages/feedback-mockup"));
 const PrototypeDashboardRedesign = lazy(() => import("@/pages/prototype-dashboard-redesign"));
 const PrototypeDashboardV2 = lazy(() => import("@/pages/prototype-dashboard-v2"));
+
+// Redirect component for deprecated /invite/:token route
+function InviteRedirect() {
+  const [, params] = useRoute("/invite/:token");
+  const token = params?.token;
+  return <Redirect to={`/join/${token}`} />;
+}
 
 function Router() {
   const { isAuthenticated, isLoading, error } = useAuth();
@@ -110,7 +117,7 @@ function Router() {
                 <Route path="/" component={Landing} />
                 <Route path="/join-entry" component={JoinEntry} />
                 <Route path="/join/:shareableLink" component={JoinGroup} />
-                <Route path="/invite/:token" component={InvitePage} />
+                <Route path="/invite/:token" component={InviteRedirect} />
                 <Route path="/event/:eventId/guest" component={GuestEventInvitePage} />
                 <Route path="/event/:id" component={PublicEventPage} />
                 <Route path="/rsvp/:itineraryId/:inviteToken" component={RsvpItineraryPage} />
@@ -138,7 +145,7 @@ function Router() {
                 <Route path="/groups/:id/learning" component={LearningInsights} />
                 <Route path="/join-entry" component={JoinEntry} />
                 <Route path="/join/:shareableLink" component={JoinGroup} />
-                <Route path="/invite/:token" component={InvitePage} />
+                <Route path="/invite/:token" component={InviteRedirect} />
                 <Route path="/event/:eventId/guest" component={GuestEventInvitePage} />
                 <Route path="/rsvp/:itineraryId/:inviteToken" component={RsvpItineraryPage} />
                 <Route path="/rsvp/:itineraryId" component={RsvpItineraryPage} />

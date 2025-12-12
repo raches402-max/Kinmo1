@@ -300,16 +300,23 @@ export class DatabaseStorage implements IStorage {
       }
 
       // Update the existing user record
+      const updateData: any = {
+        firstName: userData.firstName || existingUser.firstName,
+        lastName: userData.lastName || existingUser.lastName,
+        profileImageUrl: userData.profileImageUrl || existingUser.profileImageUrl,
+        oidcSub: newOidcSub,
+        legacyOidcSubs: legacyOidcSubs.length > 0 ? legacyOidcSubs as any : null,
+        updatedAt: new Date(),
+      };
+
+      // Handle Google ID if provided
+      if ((userData as any).googleId) {
+        updateData.googleId = (userData as any).googleId;
+      }
+
       const [updatedUser] = await db
         .update(users)
-        .set({
-          firstName: userData.firstName || existingUser.firstName,
-          lastName: userData.lastName || existingUser.lastName,
-          profileImageUrl: userData.profileImageUrl || existingUser.profileImageUrl,
-          oidcSub: newOidcSub,
-          legacyOidcSubs: legacyOidcSubs.length > 0 ? legacyOidcSubs as any : null,
-          updatedAt: new Date(),
-        })
+        .set(updateData)
         .where(eq(users.id, existingUser.id))
         .returning();
 
@@ -320,17 +327,24 @@ export class DatabaseStorage implements IStorage {
 
       const newOidcSub = (userData as any).oidcSub || userData.id;
 
+      const insertData: any = {
+        id: userData.id, // Keep the stable ID
+        email: userData.email,
+        oidcSub: newOidcSub,
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        profileImageUrl: userData.profileImageUrl,
+        legacyOidcSubs: null,
+      };
+
+      // Handle Google ID if provided
+      if ((userData as any).googleId) {
+        insertData.googleId = (userData as any).googleId;
+      }
+
       const [newUser] = await db
         .insert(users)
-        .values({
-          id: userData.id, // Keep the stable ID
-          email: userData.email,
-          oidcSub: newOidcSub,
-          firstName: userData.firstName,
-          lastName: userData.lastName,
-          profileImageUrl: userData.profileImageUrl,
-          legacyOidcSubs: null,
-        })
+        .values(insertData)
         .returning();
 
       return newUser;

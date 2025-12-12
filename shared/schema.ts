@@ -20,6 +20,7 @@ export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: varchar("email").unique().notNull(), // Email is the stable identifier
   oidcSub: varchar("oidc_sub").unique(), // Current OAuth subject ID from Replit (can change!)
+  googleId: varchar("google_id").unique(), // Google OAuth ID
   legacyOidcSubs: jsonb("legacy_oidc_subs"), // Array of previous OAuth subject IDs (for migration tracking)
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
