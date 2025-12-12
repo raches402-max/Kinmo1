@@ -1,5 +1,86 @@
 # Kinmo Development Session Notes
 
+## Session: December 12, 2025
+
+### What We Did Today
+
+**1. Fixed RSVP Bugs for Rachel L. Account**
+- Fixed Zod validation schema for `additionalAttendees` in `server/validation-schemas.ts`
+- Fixed `requireMemberAccess()` middleware ordering in `server/authorization.ts` (check claim token before getUserId)
+- Fixed `getDisplayName()` in `rsvp-itinerary.tsx` to use `inviteInfo.name` when available
+- Fixed RSVP lookup to check by `user_id` if no result by `member_id` (for organizers)
+
+**2. Fixed Address Truncation on Mobile**
+- Fixed 4 files where addresses were being cut off with `truncate` class
+- Applied `break-words whitespace-normal leading-relaxed` pattern to:
+  - `ItineraryTimeline.tsx`
+  - `VenueCard.tsx`
+  - `event-details.tsx`
+  - `WhereTimeline.tsx`
+
+**3. Fixed Copy Issues on RSVP Pages**
+- Grammar: "never miss a event" → "never miss an event"
+- Updated CTA copy to be friendlier: "Find your groups" instead of tactical language
+- Updated in both `event-invite.tsx` and `rsvp-itinerary.tsx`
+
+**4. Comprehensive User Flow Audit**
+- Launched 3 parallel exploration agents to audit all user flows
+- Identified 4 critical issues, 14 high priority UX issues, and many polish opportunities
+- Created detailed audit document at `/home/runner/.claude/plans/glittery-sniffing-lagoon.md`
+
+**5. Fixed 3 Critical Issues from Audit**
+
+| Issue | File | Fix |
+|-------|------|-----|
+| Auth endpoint inconsistency | `rsvp-itinerary.tsx`, `link-member-account.tsx` | Standardized to `/api/login?returnTo=...` |
+| localStorage race condition | `claim-member.tsx` | Moved `removeItem` to `onSuccess` callback |
+| Link error still redirects | `link-member-account.tsx` | Added error state with retry button |
+
+**Deferred**: Event cancellation feature (requires backend + frontend + email notifications)
+
+---
+
+### Key Findings from User Flow Audit
+
+**Critical Issues:**
+1. ~~Auth endpoint inconsistency~~ ✅ Fixed
+2. ~~localStorage race condition~~ ✅ Fixed
+3. ~~Link error still redirects~~ ✅ Fixed
+4. No event cancellation (deferred - larger feature)
+
+**High Priority UX Issues to Address:**
+- RSVP: Locked identity has no "Not you?" escape
+- RSVP: Create Account CTA appears before completing form
+- Event creation: No back button from mobile builder
+- Group creation: Empty member rows allowed
+- Account linking: Guest registration is dead end
+
+**Missing Features Identified:**
+- Event editing after send
+- Draft event management
+- Standalone event email notifications
+- Granular email preferences
+- Co-organizer roles
+- Past event history page
+
+---
+
+### Files Modified Today
+
+- `server/validation-schemas.ts` - RSVP additionalAttendees schema
+- `server/authorization.ts` - requireMemberAccess middleware order
+- `server/routes.ts` - RSVP lookup by userId fallback
+- `client/src/pages/rsvp-itinerary.tsx` - Display name fix, auth endpoint, copy updates
+- `client/src/pages/event-invite.tsx` - Copy updates
+- `client/src/pages/claim-member.tsx` - localStorage race condition fix
+- `client/src/pages/link-member-account.tsx` - Error handling with retry
+- `client/src/components/ItineraryTimeline.tsx` - Address wrapping
+- `client/src/components/venue-discovery/VenueCard.tsx` - Address wrapping
+- `client/src/pages/event-details.tsx` - Address wrapping
+- `client/src/components/event-detail/WhereTimeline.tsx` - Address wrapping
+
+---
+
 ## Session: December 10, 2025
 
 ### What We Did Today
