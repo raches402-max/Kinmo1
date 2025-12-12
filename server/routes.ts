@@ -1883,14 +1883,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Get RSVP if it exists
         let rsvp = null;
         if (invite.isOrganizer) {
-          // For organizers, check for RSVP by userId (no memberId)
-          const rsvps = await db
+          // For organizers, check for RSVP by userId OR by their linked member record
+          // First try userId-based RSVP (no memberId)
+          let rsvps = await db
             .select()
             .from(rsvpsTable)
             .where(
               sql`itinerary_id = ${invite.itineraryId} AND user_id = ${userId} AND member_id IS NULL`
             );
           rsvp = rsvps[0] || null;
+
+          // If no userId-based RSVP, check if organizer has a linked member record with an RSVP
+          if (!rsvp && invite.groupId) {
+            const organizerMember = await db
+              .select({ id: membersTable.id })
+              .from(membersTable)
+              .where(sql`group_id = ${invite.groupId} AND user_id = ${userId}`)
+              .limit(1);
+
+            if (organizerMember.length > 0) {
+              rsvps = await db
+                .select()
+                .from(rsvpsTable)
+                .where(
+                  sql`itinerary_id = ${invite.itineraryId} AND member_id = ${organizerMember[0].id}`
+                );
+              rsvp = rsvps[0] || null;
+            }
+          }
         } else if (invite.memberId) {
           // For members, check by memberId
           const rsvps = await db
