@@ -90,11 +90,13 @@ type StoredRsvpData = {
 
 export default function RsvpItineraryPage() {
   // Support both /rsvp/:itineraryId/:inviteToken and /rsvp/:itineraryId (no token)
-  const [, paramsWithToken] = useRoute("/rsvp/:itineraryId/:inviteToken");
-  const [, paramsNoToken] = useRoute("/rsvp/:itineraryId");
-  const params = paramsWithToken || paramsNoToken;
+  const [matchedWithToken, paramsWithToken] = useRoute("/rsvp/:itineraryId/:inviteToken");
+  const [matchedNoToken, paramsNoToken] = useRoute("/rsvp/:itineraryId");
+
+  // Prefer the more specific match (with token) if it matched
+  const params = matchedWithToken ? paramsWithToken : paramsNoToken;
   const itineraryId = params?.itineraryId;
-  const inviteToken = paramsWithToken?.inviteToken || null; // null if no token in URL
+  const inviteToken = matchedWithToken ? paramsWithToken?.inviteToken : null;
   const { toast } = useToast();
 
   // Stored RSVP token for returning users
@@ -267,9 +269,13 @@ export default function RsvpItineraryPage() {
         }];
       }
 
+      console.log('[RSVP Submit] inviteToken:', inviteToken, 'itineraryId:', itineraryId);
+      if (!inviteToken) {
+        throw new Error("Invite token is missing from URL");
+      }
       return await apiRequest("POST", `/api/rsvps`, {
         itineraryId,
-        inviteToken: inviteToken || undefined, // Don't send null, send undefined to omit
+        inviteToken,
         claimedMemberId: claimedIdentity === 'member' ? claimedMemberId : null,
         guestName: claimedIdentity === 'guest' ? guestName : null,
         guestEmail: claimedIdentity === 'guest' && guestEmail ? guestEmail : null,
