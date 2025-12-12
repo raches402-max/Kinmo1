@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, MapPin, Clock, Check, X, HelpCircle, User, Users, Baby, CalendarPlus, Star, Sparkles, ChevronRight } from "lucide-react";
+import { Calendar, MapPin, Clock, Check, X, HelpCircle, User, Users, Baby, CalendarPlus, Star, Sparkles, ChevronRight, UserPlus, Minus, Plus } from "lucide-react";
 import { ItineraryTimeline } from "@/components/ItineraryTimeline";
 import { format } from "date-fns";
 import { TimeSlotVoting } from "@/components/TimeSlotVoting";
@@ -1135,70 +1135,81 @@ export default function RsvpItineraryPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.25 }}
                 >
-                  {/* Header with gradient */}
-                  <div className="px-5 sm:px-6 py-4 bg-gradient-to-r from-[hsl(38,50%,98%)] to-[hsl(44,55%,96%)] border-b border-[hsl(44,50%,88%)]">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[hsl(44,91%,57%)] to-[hsl(38,85%,52%)] flex items-center justify-center shadow-[0_2px_8px_rgba(245,192,48,0.25)]">
-                        <Users className="h-5 w-5 text-[hsl(25,30%,14%)]" />
-                      </div>
-                      <div>
-                        <h3 className="text-base font-bold text-[hsl(25,30%,14%)]">Additional Details</h3>
-                        <p className="text-sm text-[hsl(25,20%,45%)]">Bringing anyone else?</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="p-5 sm:p-6 space-y-6">
-                    {/* Additional Attendees */}
+                  <div className="p-5 sm:p-6 space-y-5">
+                    {/* Compact +1 Section */}
                     <div className="space-y-3">
-                      <Label htmlFor="additional-attendee" className="text-sm font-bold text-[hsl(25,30%,14%)]">
-                        Also RSVPing for <span className="font-normal text-[hsl(25,15%,50%)]">(optional)</span>
-                      </Label>
-                      <p className="text-sm text-[hsl(25,20%,45%)]">
-                        Maximum 2 people total including yourself
-                      </p>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[hsl(44,85%,92%)] to-[hsl(38,80%,88%)] flex items-center justify-center">
+                            <UserPlus className="h-4 w-4 text-[hsl(44,70%,40%)]" />
+                          </div>
+                          <span className="text-sm font-semibold text-[hsl(25,30%,18%)]">Bringing a +1?</span>
+                        </div>
+                        <span className="text-xs text-[hsl(25,15%,55%)]">optional</span>
+                      </div>
 
-                      <Select
-                        value={additionalAttendeeType}
-                        onValueChange={(value: 'none' | 'member' | 'guest') => {
-                          setAdditionalAttendeeType(value);
-                          if (value === 'none') {
-                            setAdditionalMemberId("");
+                      {/* Toggle chips instead of dropdown */}
+                      <div className="flex flex-wrap gap-2">
+                        <motion.button
+                          type="button"
+                          onClick={() => {
+                            setAdditionalAttendeeType('member');
                             setAdditionalGuestName("");
-                          }
-                        }}
-                      >
-                        <SelectTrigger
-                          data-testid="select-additional-attendee-type"
-                          className="border-[hsl(44,50%,82%)] bg-white focus:ring-[hsl(44,91%,57%)] focus:border-[hsl(44,91%,57%)] h-12 rounded-xl"
+                          }}
+                          className={cn(
+                            "px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-200",
+                            additionalAttendeeType === 'member'
+                              ? "bg-gradient-to-r from-[hsl(44,91%,57%)] to-[hsl(38,85%,52%)] text-[hsl(25,30%,14%)] shadow-[0_2px_8px_rgba(245,192,48,0.3)]"
+                              : "bg-[hsl(38,40%,96%)] text-[hsl(25,25%,35%)] hover:bg-[hsl(38,50%,93%)] border border-[hsl(44,40%,88%)]"
+                          )}
+                          whileTap={{ scale: 0.97 }}
+                          data-testid="chip-add-member"
                         >
-                          <SelectValue placeholder="Select an option" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">No one else</SelectItem>
-                          <SelectItem value="member">A group member</SelectItem>
-                          <SelectItem value="guest">A guest</SelectItem>
-                        </SelectContent>
-                      </Select>
+                          <span className="flex items-center gap-1.5">
+                            <Users className="h-3.5 w-3.5" />
+                            Group member
+                          </span>
+                        </motion.button>
+                        <motion.button
+                          type="button"
+                          onClick={() => {
+                            setAdditionalAttendeeType('guest');
+                            setAdditionalMemberId("");
+                          }}
+                          className={cn(
+                            "px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-200",
+                            additionalAttendeeType === 'guest'
+                              ? "bg-gradient-to-r from-[hsl(44,91%,57%)] to-[hsl(38,85%,52%)] text-[hsl(25,30%,14%)] shadow-[0_2px_8px_rgba(245,192,48,0.3)]"
+                              : "bg-[hsl(38,40%,96%)] text-[hsl(25,25%,35%)] hover:bg-[hsl(38,50%,93%)] border border-[hsl(44,40%,88%)]"
+                          )}
+                          whileTap={{ scale: 0.97 }}
+                          data-testid="chip-add-guest"
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <User className="h-3.5 w-3.5" />
+                            Outside guest
+                          </span>
+                        </motion.button>
+                      </div>
 
+                      {/* Conditional input based on selection */}
                       <AnimatePresence>
                         {additionalAttendeeType === 'member' && (
                           <motion.div
-                            className="space-y-2"
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: "auto" }}
                             exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.2 }}
                           >
-                            <Label htmlFor="additional-member" className="text-sm text-[hsl(25,30%,20%)]">Select member</Label>
                             <Select
                               value={additionalMemberId}
                               onValueChange={setAdditionalMemberId}
                             >
                               <SelectTrigger
                                 data-testid="select-additional-member"
-                                className="border-[hsl(44,50%,82%)] bg-white focus:ring-[hsl(44,91%,57%)] focus:border-[hsl(44,91%,57%)] h-12 rounded-xl"
+                                className="border-[hsl(44,50%,82%)] bg-white focus:ring-[hsl(44,91%,57%)] focus:border-[hsl(44,91%,57%)] h-11 rounded-xl mt-2"
                               >
-                                <SelectValue placeholder="Choose a member" />
+                                <SelectValue placeholder="Who's coming with you?" />
                               </SelectTrigger>
                               <SelectContent>
                                 {availableMembers.map((member) => (
@@ -1208,57 +1219,97 @@ export default function RsvpItineraryPage() {
                                 ))}
                               </SelectContent>
                             </Select>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAdditionalAttendeeType('none');
+                                setAdditionalMemberId("");
+                              }}
+                              className="mt-2 text-xs text-[hsl(25,20%,50%)] hover:text-[hsl(25,30%,35%)] transition-colors"
+                            >
+                              Never mind, just me
+                            </button>
                           </motion.div>
                         )}
 
                         {additionalAttendeeType === 'guest' && (
                           <motion.div
-                            className="space-y-2"
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: "auto" }}
                             exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.2 }}
                           >
-                            <Label htmlFor="additional-guest-name" className="text-sm text-[hsl(25,30%,20%)]">Guest name</Label>
                             <Input
                               id="additional-guest-name"
-                              placeholder="Enter guest name"
+                              placeholder="Guest's name"
                               value={additionalGuestName}
                               onChange={(e) => setAdditionalGuestName(e.target.value)}
                               data-testid="input-additional-guest-name"
-                              className="border-[hsl(44,50%,82%)] bg-white focus:ring-[hsl(44,91%,57%)] focus:border-[hsl(44,91%,57%)] h-12 rounded-xl"
+                              className="border-[hsl(44,50%,82%)] bg-white focus:ring-[hsl(44,91%,57%)] focus:border-[hsl(44,91%,57%)] h-11 rounded-xl mt-2"
                             />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAdditionalAttendeeType('none');
+                                setAdditionalGuestName("");
+                              }}
+                              className="mt-2 text-xs text-[hsl(25,20%,50%)] hover:text-[hsl(25,30%,35%)] transition-colors"
+                            >
+                              Never mind, just me
+                            </button>
                           </motion.div>
                         )}
                       </AnimatePresence>
                     </div>
 
-                    {/* Kids Count */}
-                    <div className="space-y-3">
-                      <Label htmlFor="kids-count" className="text-sm font-bold text-[hsl(25,30%,14%)] flex items-center gap-2">
-                        <Baby className="h-4 w-4 text-[hsl(44,80%,50%)]" />
-                        Number of kids <span className="font-normal text-[hsl(25,15%,50%)]">(optional)</span>
-                      </Label>
-                      <Input
-                        id="kids-count"
-                        type="number"
-                        min="0"
-                        max="10"
-                        value={numberOfKids}
-                        onChange={(e) => setNumberOfKids(Math.min(10, Math.max(0, parseInt(e.target.value) || 0)))}
-                        data-testid="input-kids-count"
-                        className="border-[hsl(44,50%,82%)] bg-white focus:ring-[hsl(44,91%,57%)] focus:border-[hsl(44,91%,57%)] h-12 rounded-xl w-24"
-                      />
-                      <p className="text-xs text-[hsl(25,20%,50%)]">
-                        Ages 0-12
-                      </p>
+                    {/* Compact Kids Section - inline stepper style */}
+                    <div className="flex items-center justify-between py-3 px-4 rounded-xl bg-[hsl(38,45%,97%)] border border-[hsl(44,40%,90%)]">
+                      <div className="flex items-center gap-2">
+                        <Baby className="h-4 w-4 text-[hsl(44,70%,45%)]" />
+                        <span className="text-sm font-medium text-[hsl(25,30%,20%)]">Kids</span>
+                        <span className="text-xs text-[hsl(25,15%,55%)]">(ages 0-12)</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <motion.button
+                          type="button"
+                          onClick={() => setNumberOfKids(Math.max(0, numberOfKids - 1))}
+                          disabled={numberOfKids === 0}
+                          className={cn(
+                            "w-8 h-8 rounded-full flex items-center justify-center transition-all",
+                            numberOfKids === 0
+                              ? "bg-[hsl(38,30%,92%)] text-[hsl(25,15%,70%)] cursor-not-allowed"
+                              : "bg-white border border-[hsl(44,50%,80%)] text-[hsl(25,30%,30%)] hover:border-[hsl(44,70%,65%)] active:scale-95"
+                          )}
+                          whileTap={numberOfKids > 0 ? { scale: 0.9 } : {}}
+                        >
+                          <Minus className="h-3.5 w-3.5" />
+                        </motion.button>
+                        <span className="w-8 text-center font-semibold text-[hsl(25,30%,18%)]" data-testid="kids-count-display">
+                          {numberOfKids}
+                        </span>
+                        <motion.button
+                          type="button"
+                          onClick={() => setNumberOfKids(Math.min(10, numberOfKids + 1))}
+                          disabled={numberOfKids >= 10}
+                          className={cn(
+                            "w-8 h-8 rounded-full flex items-center justify-center transition-all",
+                            numberOfKids >= 10
+                              ? "bg-[hsl(38,30%,92%)] text-[hsl(25,15%,70%)] cursor-not-allowed"
+                              : "bg-white border border-[hsl(44,50%,80%)] text-[hsl(25,30%,30%)] hover:border-[hsl(44,70%,65%)] active:scale-95"
+                          )}
+                          whileTap={numberOfKids < 10 ? { scale: 0.9 } : {}}
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </motion.button>
+                      </div>
                     </div>
 
-                    {/* Submit Button for Additional Details */}
+                    {/* Submit Button */}
                     <Button
                       onClick={() => rsvpMutation.mutate({ response: selectedResponse })}
                       disabled={rsvpMutation.isPending}
                       className={cn(
-                        "w-full h-14 font-bold text-base rounded-2xl",
+                        "w-full h-12 font-bold text-base rounded-2xl",
                         "bg-gradient-to-r from-[hsl(44,91%,57%)] to-[hsl(38,85%,52%)]",
                         "text-[hsl(25,30%,14%)]",
                         "hover:from-[hsl(44,91%,52%)] hover:to-[hsl(38,85%,47%)]",
