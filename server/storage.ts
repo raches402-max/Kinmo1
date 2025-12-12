@@ -412,22 +412,25 @@ export class DatabaseStorage implements IStorage {
           .where(inArray(groups.id, orphanedGroups.map(g => g.id)));
       }
 
-      // 2. Auto-link Tier 1 members: email match + invitation was sent
-      // These are explicit invites, so we auto-claim without user confirmation
+      // 2. Auto-link Tier 1 members: email match + (invitation was sent OR joined as guest via shareable link)
+      // These are explicit invites or self-joins, so we auto-claim without user confirmation
       const tier1Members = await db
         .select()
         .from(members)
         .where(and(
           isNull(members.userId),
           eq(members.email, user.email),
-          eq(members.invitationSent, true) // Only auto-link if explicitly invited
+          or(
+            eq(members.invitationSent, true), // Explicitly invited via email
+            eq(members.isGuest, true) // Joined as guest via shareable link (gave consent by joining)
+          )
         ));
 
       if (tier1Members.length > 0) {
         console.log(`[Auto-Link] Linking ${tier1Members.length} Tier 1 member records to user ${userId} (${user.email})`);
         await db
           .update(members)
-          .set({ userId, hasJoined: true, claimedAt: new Date() })
+          .set({ userId, hasJoined: true, isGuest: false, claimedAt: new Date() })
           .where(inArray(members.id, tier1Members.map(m => m.id)));
       }
 
