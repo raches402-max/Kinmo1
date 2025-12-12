@@ -26,7 +26,6 @@ const JoinEntry = lazy(() => import("@/pages/join-entry"));
 const JoinGroup = lazy(() => import("@/pages/join-group"));
 const InvitePage = lazy(() => import("@/pages/invite"));
 const RsvpItineraryPage = lazy(() => import("@/pages/rsvp-itinerary"));
-const EventInvitePage = lazy(() => import("@/pages/event-invite"));
 const GuestEventInvitePage = lazy(() => import("@/pages/guest-event-invite"));
 const GuestRsvpPage = lazy(() => import("@/pages/guest-rsvp"));
 const AvailabilityPulsePage = lazy(() => import("@/pages/availability-pulse"));
@@ -110,10 +109,10 @@ function Router() {
                 <Route path="/join-entry" component={JoinEntry} />
                 <Route path="/join/:shareableLink" component={JoinGroup} />
                 <Route path="/invite/:token" component={InvitePage} />
-                <Route path="/event/:eventId/invite" component={EventInvitePage} />
                 <Route path="/event/:eventId/guest" component={GuestEventInvitePage} />
                 <Route path="/event/:id" component={PublicEventPage} />
                 <Route path="/rsvp/:itineraryId/:inviteToken" component={RsvpItineraryPage} />
+                <Route path="/rsvp/:itineraryId" component={RsvpItineraryPage} />
                 <Route path="/guest-rsvp/:guestToken" component={GuestRsvpPage} />
                 <Route path="/availability/:pulseId/:responseToken" component={AvailabilityPulsePage} />
                 <Route path="/claim/:claimToken" component={ClaimMemberPage} />
@@ -136,9 +135,9 @@ function Router() {
                 <Route path="/join-entry" component={JoinEntry} />
                 <Route path="/join/:shareableLink" component={JoinGroup} />
                 <Route path="/invite/:token" component={InvitePage} />
-                <Route path="/event/:eventId/invite" component={EventInvitePage} />
                 <Route path="/event/:eventId/guest" component={GuestEventInvitePage} />
                 <Route path="/rsvp/:itineraryId/:inviteToken" component={RsvpItineraryPage} />
+                <Route path="/rsvp/:itineraryId" component={RsvpItineraryPage} />
                 <Route path="/guest-rsvp/:guestToken" component={GuestRsvpPage} />
                 <Route path="/availability/:pulseId/:responseToken" component={AvailabilityPulsePage} />
                 <Route path="/claim/:claimToken" component={ClaimMemberPage} />

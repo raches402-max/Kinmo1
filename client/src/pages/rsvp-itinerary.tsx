@@ -89,9 +89,12 @@ type StoredRsvpData = {
 };
 
 export default function RsvpItineraryPage() {
-  const [, params] = useRoute("/rsvp/:itineraryId/:inviteToken");
+  // Support both /rsvp/:itineraryId/:inviteToken and /rsvp/:itineraryId (no token)
+  const [, paramsWithToken] = useRoute("/rsvp/:itineraryId/:inviteToken");
+  const [, paramsNoToken] = useRoute("/rsvp/:itineraryId");
+  const params = paramsWithToken || paramsNoToken;
   const itineraryId = params?.itineraryId;
-  const inviteToken = params?.inviteToken;
+  const inviteToken = paramsWithToken?.inviteToken || null; // null if no token in URL
   const { toast } = useToast();
 
   // Stored RSVP token for returning users
@@ -102,7 +105,9 @@ export default function RsvpItineraryPage() {
   const [claimedMemberId, setClaimedMemberId] = useState<string | null>(null);
   const [claimedIdentity, setClaimedIdentity] = useState<'member' | 'guest'>('member');
   const [guestName, setGuestName] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
   const [tempGuestName, setTempGuestName] = useState("");
+  const [tempGuestEmail, setTempGuestEmail] = useState("");
   const [inviteMemberLocked, setInviteMemberLocked] = useState(false);
 
   // RSVP state
@@ -203,12 +208,13 @@ export default function RsvpItineraryPage() {
     }
   }, [inviteInfo, identityClaimed, groupMembers]);
 
-  // Fetch existing RSVP - only if identity is claimed
+  // Fetch existing RSVP - only if identity is claimed (works with or without token)
   const { data: existingRsvp } = useQuery<RsvpData>({
-    queryKey: ["/api/rsvps/itinerary", itineraryId, "member", claimedMemberId, "token", inviteToken],
+    queryKey: ["/api/rsvps/itinerary", itineraryId, "member", claimedMemberId, "token", inviteToken || "none"],
     queryFn: async () => {
       if (!claimedMemberId || claimedIdentity === 'guest') return null;
-      const url = `/api/rsvps/itinerary/${itineraryId}/member/${claimedMemberId}?inviteToken=${inviteToken}`;
+      const tokenParam = inviteToken ? `?inviteToken=${inviteToken}` : '';
+      const url = `/api/rsvps/itinerary/${itineraryId}/member/${claimedMemberId}${tokenParam}`;
       const response = await fetch(url);
       if (!response.ok) {
         if (response.status === 404) {
@@ -218,7 +224,7 @@ export default function RsvpItineraryPage() {
       }
       return response.json();
     },
-    enabled: !!itineraryId && !!claimedMemberId && !!inviteToken && identityClaimed && claimedIdentity === 'member',
+    enabled: !!itineraryId && !!claimedMemberId && identityClaimed && claimedIdentity === 'member',
   });
 
   // Update local response state when existing RSVP loads
@@ -263,9 +269,10 @@ export default function RsvpItineraryPage() {
 
       return await apiRequest("POST", `/api/rsvps`, {
         itineraryId,
-        inviteToken,
+        inviteToken: inviteToken || undefined, // Don't send null, send undefined to omit
         claimedMemberId: claimedIdentity === 'member' ? claimedMemberId : null,
         guestName: claimedIdentity === 'guest' ? guestName : null,
+        guestEmail: claimedIdentity === 'guest' && guestEmail ? guestEmail : null,
         response,
         rsvpFeedback: feedback,
         additionalAttendees,
@@ -324,6 +331,7 @@ export default function RsvpItineraryPage() {
         return;
       }
       setGuestName(tempGuestName.trim());
+      setGuestEmail(tempGuestEmail.trim());
     } else if (!claimedMemberId) {
       toast({
         title: "Selection required",
@@ -384,8 +392,9 @@ export default function RsvpItineraryPage() {
   // Get available members for additional attendees (exclude claimed member)
   const availableMembers = groupMembers?.filter(m => m.id !== claimedMemberId) || [];
 
-  // Loading state
-  if (itineraryLoading || groupLoading || membersLoading || inviteLoading || storedRsvpLoading) {
+  // Loading state - only wait for inviteLoading if there's a token
+  const isLoading = itineraryLoading || groupLoading || membersLoading || storedRsvpLoading || (inviteToken && inviteLoading);
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-[hsl(38,35%,97%)] flex items-center justify-center">
         <div className="text-center">
@@ -560,16 +569,31 @@ export default function RsvpItineraryPage() {
                   </label>
 
                   {claimedIdentity === 'guest' && (
-                    <div className="ml-4 space-y-2">
-                      <Label htmlFor="guest-name" className="text-sm text-[hsl(25,30%,14%)]">Your name</Label>
-                      <Input
-                        id="guest-name"
-                        placeholder="Enter your name"
-                        value={tempGuestName}
-                        onChange={(e) => setTempGuestName(e.target.value)}
-                        data-testid="input-guest-name"
-                        className="border-[hsl(32,20%,88%)] focus:border-[hsl(44,70%,75%)] focus:ring-[hsl(44,87%,63%)]"
-                      />
+                    <div className="ml-4 space-y-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="guest-name" className="text-sm text-[hsl(25,30%,14%)]">Your name</Label>
+                        <Input
+                          id="guest-name"
+                          placeholder="Enter your name"
+                          value={tempGuestName}
+                          onChange={(e) => setTempGuestName(e.target.value)}
+                          data-testid="input-guest-name"
+                          className="border-[hsl(32,20%,88%)] focus:border-[hsl(44,70%,75%)] focus:ring-[hsl(44,87%,63%)]"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="guest-email" className="text-sm text-[hsl(25,30%,14%)]">Email (optional)</Label>
+                        <Input
+                          id="guest-email"
+                          type="email"
+                          placeholder="your@email.com"
+                          value={tempGuestEmail}
+                          onChange={(e) => setTempGuestEmail(e.target.value)}
+                          data-testid="input-guest-email"
+                          className="border-[hsl(32,20%,88%)] focus:border-[hsl(44,70%,75%)] focus:ring-[hsl(44,87%,63%)]"
+                        />
+                        <p className="text-xs text-[hsl(25,15%,50%)]">Get updates about this event</p>
+                      </div>
                     </div>
                   )}
                 </div>

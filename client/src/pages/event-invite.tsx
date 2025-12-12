@@ -1,7 +1,19 @@
 /**
+ * @deprecated This page has been consolidated into rsvp-itinerary.tsx
+ *
+ * The /event/:eventId/invite route now redirects to /rsvp/:itineraryId
+ * which provides the same functionality plus additional features like:
+ * - Time slot voting
+ * - Availability grid
+ * - +1 and kids support
+ *
+ * This file is kept for reference but is no longer used.
+ * See: client/src/pages/rsvp-itinerary.tsx
+ *
+ * Original description:
  * Event Invite Page - Unified RSVP flow for members and guests
  *
- * Supports:
+ * Supported:
  * 1. Personalized: /event/:eventId/invite?member=:memberId
  * 2. Generic: /event/:eventId/invite (select name or join as guest)
  */

@@ -218,8 +218,8 @@ export default function PublicEventPage() {
                 size="lg"
                 className="w-full"
                 onClick={() => {
-                  // Go to guest invite flow
-                  setLocation(`/event/${eventId}/invite`);
+                  // Go to consolidated RSVP flow
+                  setLocation(`/rsvp/${eventId}`);
                 }}
               >
                 <UserPlus className="h-4 w-4 mr-2" />
