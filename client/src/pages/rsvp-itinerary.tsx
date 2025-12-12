@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useRoute } from "wouter";
+import { useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { getErrorToast } from "@/components/ErrorDisplay";
@@ -89,15 +89,17 @@ type StoredRsvpData = {
 };
 
 export default function RsvpItineraryPage() {
-  // Support both /rsvp/:itineraryId/:inviteToken and /rsvp/:itineraryId (no token)
-  const [matchedWithToken, paramsWithToken] = useRoute("/rsvp/:itineraryId/:inviteToken");
-  const [matchedNoToken, paramsNoToken] = useRoute("/rsvp/:itineraryId");
-
-  // Prefer the more specific match (with token) if it matched
-  const params = matchedWithToken ? paramsWithToken : paramsNoToken;
-  const itineraryId = params?.itineraryId;
-  const inviteToken = matchedWithToken ? paramsWithToken?.inviteToken : null;
+  const [location] = useLocation();
   const { toast } = useToast();
+
+  // Parse URL directly to avoid wouter's useRoute edge cases
+  // URL pattern: /rsvp/:itineraryId or /rsvp/:itineraryId/:inviteToken
+  const pathParts = location.split('/').filter(Boolean);
+  // pathParts[0] = "rsvp", pathParts[1] = itineraryId, pathParts[2] = inviteToken (optional)
+  const itineraryId = pathParts[1] || null;
+  const inviteToken = pathParts[2] || null;
+
+  console.log('[RSVP Page] URL:', location, 'itineraryId:', itineraryId, 'inviteToken:', inviteToken);
 
   // Stored RSVP token for returning users
   const [storedRsvpToken, setStoredRsvpToken] = useState<string | null>(null);
