@@ -416,6 +416,14 @@ async function sendReminderEmails(
     const membersWithEmails = groupMembers.filter(m => m.email);
 
     if (membersWithEmails.length === 0) {
+      // Log that this reminder was processed (even with no emails) to prevent re-triggering
+      await db.insert(reminderLogs).values({
+        itineraryId: itinerary.id,
+        reminderType,
+        recipientEmail: 'no-recipients',
+        emailStatus: 'skipped',
+      });
+      console.log(`[Reminders] No email recipients for ${reminderType} reminder, logged as skipped`);
       return;
     }
 

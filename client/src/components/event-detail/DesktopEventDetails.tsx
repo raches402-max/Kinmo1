@@ -730,17 +730,16 @@ export function DesktopEventDetails({
                     <Calendar className="h-5 w-5" />
                   </div>
                   <div className="flex-1">
-                    {event.eventDate ? (
-                      isOrganizer ? (
+                    {event.eventDate ? (() => {
+                      const tz = event.groupTimezone || "America/Los_Angeles";
+                      return isOrganizer ? (
                         <div className="space-y-2">
                           {/* Date row */}
                           <Popover>
                             <PopoverTrigger asChild>
                               <button className="text-left hover:text-[hsl(44,87%,45%)] transition-colors group">
                                 <div className="font-semibold text-[hsl(25,30%,14%)] group-hover:text-[hsl(44,70%,40%)] transition-colors">
-                                  {event.groupTimezone
-                                    ? formatInTimeZone(new Date(event.eventDate), event.groupTimezone, "EEEE, MMMM d, yyyy")
-                                    : format(new Date(event.eventDate), "EEEE, MMMM d, yyyy")}
+                                  {formatInTimeZone(new Date(event.eventDate), tz, "EEEE, MMMM d, yyyy")} ({formatInTimeZone(new Date(event.eventDate), tz, "zzz")})
                                 </div>
                               </button>
                             </PopoverTrigger>
@@ -778,18 +777,14 @@ export function DesktopEventDetails({
                       ) : (
                         <>
                           <div className="font-semibold text-[hsl(25,30%,14%)]">
-                            {event.groupTimezone
-                              ? formatInTimeZone(new Date(event.eventDate), event.groupTimezone, "EEEE, MMMM d, yyyy")
-                              : format(new Date(event.eventDate), "EEEE, MMMM d, yyyy")}
+                            {formatInTimeZone(new Date(event.eventDate), tz, "EEEE, MMMM d, yyyy")} ({formatInTimeZone(new Date(event.eventDate), tz, "zzz")})
                           </div>
                           <div className="text-sm text-[hsl(25,15%,45%)]">
-                            {event.groupTimezone
-                              ? formatInTimeZone(new Date(event.eventDate), event.groupTimezone, "h:mm a zzz")
-                              : format(new Date(event.eventDate), "h:mm a")}
+                            {formatInTimeZone(new Date(event.eventDate), tz, "h:mm a zzz")}
                           </div>
                         </>
-                      )
-                    ) : (
+                      );
+                    })() : (
                       <div className="text-[hsl(25,15%,45%)]">Date not set</div>
                     )}
                   </div>

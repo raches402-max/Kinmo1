@@ -179,28 +179,48 @@ export async function notifyRSVPReminder(params: {
     where: (members, { inArray }) => inArray(members.id, memberIds),
   });
 
-  const notificationPromises = memberData
-    .filter(member => member.userId)
-    .map(member =>
-      createNotification({
-        userId: member.userId!,
-        type: 'rsvp_reminder',
-        title,
-        message,
-        actionUrl: `/event/${itineraryId}`,
-        actionLabel: 'RSVP',
-        metadata: {
-          itineraryId,
-          groupId,
-          hoursUntilDeadline,
-          eventDate: eventDate ? new Date(eventDate).toISOString() : null,
-          venueName,
-        }
+  const membersWithUsers = memberData.filter(member => member.userId);
+  const userIds = membersWithUsers.map(m => m.userId!);
+
+  // Deduplication: Check for existing RSVP reminder notifications for this itinerary
+  const existingNotifications = userIds.length > 0
+    ? await db.query.notifications.findMany({
+        where: (notifs, { and, eq, inArray, sql }) => and(
+          inArray(notifs.userId, userIds),
+          eq(notifs.type, 'rsvp_reminder'),
+          sql`${notifs.metadata}::jsonb->>'itineraryId' = ${itineraryId}`
+        ),
       })
-    );
+    : [];
+
+  const usersWithExistingNotification = new Set(existingNotifications.map(n => n.userId));
+  const membersToNotify = membersWithUsers.filter(m => !usersWithExistingNotification.has(m.userId!));
+
+  if (membersToNotify.length === 0) {
+    console.log(`[Notifications] Skipped RSVP reminders - all ${userIds.length} users already have notifications for itinerary ${itineraryId}`);
+    return [];
+  }
+
+  const notificationPromises = membersToNotify.map(member =>
+    createNotification({
+      userId: member.userId!,
+      type: 'rsvp_reminder',
+      title,
+      message,
+      actionUrl: `/event/${itineraryId}`,
+      actionLabel: 'RSVP',
+      metadata: {
+        itineraryId,
+        groupId,
+        hoursUntilDeadline,
+        eventDate: eventDate ? new Date(eventDate).toISOString() : null,
+        venueName,
+      }
+    })
+  );
 
   const results = await Promise.all(notificationPromises);
-  console.log(`[Notifications] Created ${results.length} RSVP reminder notifications`);
+  console.log(`[Notifications] Created ${results.length} RSVP reminder notifications (skipped ${usersWithExistingNotification.size} existing)`);
 
   return results;
 }
