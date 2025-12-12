@@ -36,6 +36,9 @@ export function WhenSection({
   groupName,
   venues,
 }: WhenSectionProps) {
+  // Handle null timezone - use default if not provided
+  const tz = timezone || "America/Los_Angeles";
+
   const hasDate = !!eventDate;
   const date = eventDate ? new Date(eventDate) : null;
   const endDate = eventEndTime ? new Date(eventEndTime) : null;
@@ -47,27 +50,25 @@ export function WhenSection({
     : null;
 
   // Format display date with timezone abbreviation
-  const tzAbbrev = date ? formatInTimeZone(date, timezone, "zzz") : null;
+  const tzAbbrev = date ? formatInTimeZone(date, tz, "zzz") : null;
   const dateDisplay = date
-    ? `${formatInTimeZone(date, timezone, "EEEE, MMMM d")} (${tzAbbrev})`
+    ? `${formatInTimeZone(date, tz, "EEEE, MMMM d")} (${tzAbbrev})`
     : null;
 
   // Format time range
   const startTime = date
-    ? formatInTimeZone(date, timezone, "h:mm a")
+    ? formatInTimeZone(date, tz, "h:mm a")
     : null;
   const endTime = endDate
-    ? formatInTimeZone(endDate, timezone, "h:mm a")
+    ? formatInTimeZone(endDate, tz, "h:mm a")
     : null;
 
   // Get timezone display name
-  const timezoneDisplay = timezone
-    ? timezone.replace(/_/g, " ").split("/").pop() || timezone
-    : "Local Time";
+  const timezoneDisplay = tz.replace(/_/g, " ").split("/").pop() || tz;
 
   // Format deadline with timezone
   const deadlineDisplay = deadlineDate
-    ? formatInTimeZone(deadlineDate, timezone, "MMMM d, yyyy")
+    ? formatInTimeZone(deadlineDate, tz, "MMMM d, yyyy")
     : null;
 
   return (
