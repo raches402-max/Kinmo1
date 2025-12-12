@@ -2105,6 +2105,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           status: invite.status,
           inviteSentAt: itinerary?.inviteSentAt || null,
           rsvpDeadline: itinerary?.rsvpDeadline || null,
+          note: itinerary?.note || null,
           groupId: invite.groupId,
           groupName: invite.groupName,
           groupEmoji: invite.groupEmoji,
@@ -2191,6 +2192,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .select({
           itineraryId: itineraries.id,
           itineraryName: itineraries.name,
+          note: itineraries.note,
           eventDate: itineraries.eventDate,
           status: itineraries.status,
           groupId: itineraries.groupId,
@@ -2233,6 +2235,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           inviteToken: null,
           itineraryId: draft.itineraryId,
           itineraryName: draft.itineraryName,
+          note: draft.note || null,
           eventDate: draft.eventDate,
           status: draft.status,
           groupId: draft.groupId,
@@ -2504,7 +2507,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             memberId: inv.memberId,
             sourceGroupId: inv.sourceGroupId,
           })),
-          note: null, // Not stored in itineraries table
+          note: itinerary.note || null,
           quorumThreshold: null, // Not stored in itineraries table
           rsvpDeadline: itinerary.rsvpDeadline,
           autoScheduleConfig: itinerary.autoScheduleConfig,
