@@ -380,6 +380,7 @@ export const itineraries = pgTable("itineraries", {
   timezone: text("timezone"), // IANA timezone for standalone events (e.g., "America/Los_Angeles")
   organizerId: varchar("organizer_id").references(() => users.id, { onDelete: "cascade" }), // Event owner (for standalone events)
   name: text("name"), // Optional name for saved itineraries (e.g., "SF Waterfront Day")
+  note: text("note"), // Optional note or description for the event
   status: text("status").notNull().default("draft"), // draft, saved, proposed, scheduled, rejected
   isSaved: boolean("is_saved").default(false).notNull(), // Is this a saved template for reuse
   isPrimary: boolean("is_primary").default(false).notNull(), // Is this the primary proposed plan

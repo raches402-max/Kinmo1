@@ -22,6 +22,7 @@ import {
   Clock,
   Sparkles
 } from "lucide-react";
+import { formatInTimeZone, toZonedTime } from "date-fns-tz";
 import type { Group, GroupCollection } from "@shared/schema";
 
 type SafeMember = {
@@ -82,17 +83,25 @@ function formatMeetingFrequency(frequency: string): string {
   return `${num}x/${unit}`;
 }
 
-function formatEventDate(dateStr: string): string {
+function formatEventDate(dateStr: string, timezone?: string | null): string {
   const date = new Date(dateStr);
-  const now = new Date();
-  const diffDays = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  const tz = timezone || "America/Los_Angeles";
+
+  // Get the date in the group's timezone
+  const zonedDate = toZonedTime(date, tz);
+  const nowInTz = toZonedTime(new Date(), tz);
+
+  // Calculate difference in days based on calendar dates in the group's timezone
+  const eventDay = new Date(zonedDate.getFullYear(), zonedDate.getMonth(), zonedDate.getDate());
+  const today = new Date(nowInTz.getFullYear(), nowInTz.getMonth(), nowInTz.getDate());
+  const diffDays = Math.round((eventDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
   if (diffDays === 0) return "Today";
   if (diffDays === 1) return "Tomorrow";
-  if (diffDays < 7) {
-    return date.toLocaleDateString('en-US', { weekday: 'short' });
+  if (diffDays > 0 && diffDays < 7) {
+    return formatInTimeZone(date, tz, "EEE");
   }
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return formatInTimeZone(date, tz, "MMM d");
 }
 
 export function GroupCard({
@@ -126,7 +135,7 @@ export function GroupCard({
             }}
           >
             <Sparkles className="w-3 h-3" />
-            <span>Next up: {formatEventDate(nextEventDate)}</span>
+            <span>Next up: {formatEventDate(nextEventDate, group.timezone)}</span>
           </div>
         )}
 
