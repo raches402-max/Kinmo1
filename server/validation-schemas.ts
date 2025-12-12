@@ -400,7 +400,10 @@ export const createItineraryRsvpSchema = z.object({
   memberId: z.string().optional(),
   userId: z.string().optional(),
   memberName: z.string().optional(),
-});
+}).refine(
+  (data) => !!(data.memberId || data.userId),
+  { message: "Either memberId or userId is required" }
+);
 
 export const guestRsvpSchema = z.object({
   guestName: z.string().min(1, "Guest name is required"),

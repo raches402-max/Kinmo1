@@ -12514,11 +12514,17 @@ Looking forward to planning great activities together!
   // Create an RSVP for an itinerary
   app.post("/api/itineraries/:id/rsvps", async (req, res) => {
     try {
-      // Validate request body
+      // Validate request body (schema requires memberId or userId)
       const validatedData = safeParse(createItineraryRsvpSchema, req.body, res);
       if (!validatedData) return;
 
       const { response, constraintText, memberId, userId, memberName } = validatedData;
+
+      // Extra safety check to prevent orphaned RSVPs
+      if (!memberId && !userId) {
+        return res.status(400).json({ message: "Either memberId or userId is required" });
+      }
+
       const rsvp = await storage.createRsvp({
         itineraryId: req.params.id,
         response,

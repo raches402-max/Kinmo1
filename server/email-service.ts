@@ -298,7 +298,7 @@ export async function sendGentleNudge(
                           Hey ${recipient.name},
                         </p>
                         <p style="margin: 0 0 28px; font-size: 16px; color: #3d3d3d; line-height: 1.6;">
-                          We're getting excited about this one! It would be great to know if you can make it.
+                          Can you let us know if you're coming? It helps the group plan.
                         </p>
 
                         <!-- Date/Time card -->
@@ -329,13 +329,13 @@ export async function sendGentleNudge(
                         <table width="100%" cellpadding="0" cellspacing="0">
                           <tr>
                             <td align="center">
-                              <a href="${data.rsvpLink}" style="display: inline-block; background: linear-gradient(135deg, #d4a574 0%, #b8895f 100%); color: #ffffff; text-decoration: none; padding: 16px 48px; border-radius: 50px; font-size: 15px; font-weight: 500; letter-spacing: 0.5px; box-shadow: 0 4px 12px rgba(212,165,116,0.35);">Let us know</a>
+                              <a href="${data.rsvpLink}" style="display: inline-block; background: linear-gradient(135deg, #d4a574 0%, #b8895f 100%); color: #ffffff; text-decoration: none; padding: 16px 48px; border-radius: 50px; font-size: 15px; font-weight: 500; letter-spacing: 0.5px; box-shadow: 0 4px 12px rgba(212,165,116,0.35);">RSVP</a>
                             </td>
                           </tr>
                           ${data.rsvpDeadline ? `
                           <tr>
                             <td align="center" style="padding-top: 16px;">
-                              <p style="margin: 0; font-size: 13px; color: #a09080;">RSVPs help us plan · by <strong style="color: #5c5c5c;">${data.rsvpDeadline}</strong></p>
+                              <p style="margin: 0; font-size: 13px; color: #a09080;">By <strong style="color: #5c5c5c;">${data.rsvpDeadline}</strong> if you can</p>
                             </td>
                           </tr>
                           ` : ''}
@@ -347,7 +347,7 @@ export async function sendGentleNudge(
                     <tr>
                       <td style="background-color: #faf7f2; padding: 24px 40px; text-align: center; border-top: 1px solid #f0ebe3;">
                         <p style="margin: 0 0 8px; font-size: 13px; color: #a09080;">
-                          No worries if you can't make it — just let us know either way.
+                          Yes or no both help — we just need a headcount.
                         </p>
                         <p style="margin: 0; font-size: 12px; color: #c0b0a0;">
                           <a href="${eventsUrl}" style="color: #8b7355; text-decoration: none;">View all your events</a> · Sent via <a href="https://kinmo.ai" style="color: #8b7355; text-decoration: none;">Kinmo</a>
@@ -414,7 +414,7 @@ export async function sendFinalCall(
                           Hey ${recipient.name},
                         </p>
                         <p style="margin: 0 0 28px; font-size: 16px; color: #3d3d3d; line-height: 1.6;">
-                          This one's coming up soon! It'd really help to know if you can join us so we can plan accordingly.
+                          This is coming up soon. Can you respond so we can finalize the headcount?
                         </p>
 
                         <!-- Date/Time card -->
@@ -445,13 +445,13 @@ export async function sendFinalCall(
                         <table width="100%" cellpadding="0" cellspacing="0">
                           <tr>
                             <td align="center">
-                              <a href="${data.rsvpLink}" style="display: inline-block; background: linear-gradient(135deg, #e07a5f 0%, #c96a50 100%); color: #ffffff; text-decoration: none; padding: 16px 48px; border-radius: 50px; font-size: 15px; font-weight: 500; letter-spacing: 0.5px; box-shadow: 0 4px 12px rgba(224,122,95,0.35);">Count me in (or out)</a>
+                              <a href="${data.rsvpLink}" style="display: inline-block; background: linear-gradient(135deg, #e07a5f 0%, #c96a50 100%); color: #ffffff; text-decoration: none; padding: 16px 48px; border-radius: 50px; font-size: 15px; font-weight: 500; letter-spacing: 0.5px; box-shadow: 0 4px 12px rgba(224,122,95,0.35);">RSVP</a>
                             </td>
                           </tr>
                           ${data.rsvpDeadline ? `
                           <tr>
                             <td align="center" style="padding-top: 16px;">
-                              <p style="margin: 0; font-size: 13px; color: #a09080;">Helps us finalize plans · by <strong style="color: #5c5c5c;">${data.rsvpDeadline}</strong></p>
+                              <p style="margin: 0; font-size: 13px; color: #a09080;">By <strong style="color: #5c5c5c;">${data.rsvpDeadline}</strong></p>
                             </td>
                           </tr>
                           ` : ''}
@@ -463,7 +463,7 @@ export async function sendFinalCall(
                     <tr>
                       <td style="background-color: #faf7f2; padding: 24px 40px; text-align: center; border-top: 1px solid #f0ebe3;">
                         <p style="margin: 0 0 8px; font-size: 13px; color: #a09080;">
-                          Either way is totally fine — knowing helps us plan better.
+                          A quick yes or no is all we need.
                         </p>
                         <p style="margin: 0; font-size: 12px; color: #c0b0a0;">
                           <a href="${eventsUrl}" style="color: #8b7355; text-decoration: none;">View all your events</a> · Sent via <a href="https://kinmo.ai" style="color: #8b7355; text-decoration: none;">Kinmo</a>
@@ -530,7 +530,7 @@ export async function sendDayBeforeReminder(
                           Hey ${recipient.name},
                         </p>
                         <p style="margin: 0 0 28px; font-size: 16px; color: #3d3d3d; line-height: 1.6;">
-                          Just a heads up — we're hanging out tomorrow! Here are the details:
+                          Quick reminder — this is tomorrow.
                         </p>
 
                         <!-- Date/Time card -->
@@ -572,7 +572,7 @@ export async function sendDayBeforeReminder(
                     <tr>
                       <td style="background-color: #faf7f2; padding: 24px 40px; text-align: center; border-top: 1px solid #f0ebe3;">
                         <p style="margin: 0 0 8px; font-size: 13px; color: #a09080;">
-                          Looking forward to it!
+                          See you there.
                         </p>
                         <p style="margin: 0; font-size: 12px; color: #c0b0a0;">
                           <a href="${eventsUrl}" style="color: #8b7355; text-decoration: none;">View all your events</a> · Sent via <a href="https://kinmo.ai" style="color: #8b7355; text-decoration: none;">Kinmo</a>
