@@ -63,6 +63,58 @@ function getRsvpCounts(event: Event): { yes: number; maybe: number; no: number; 
   return { yes: yesCount, maybe: maybeCount, no: noCount, pending: pendingCount };
 }
 
+// Helper function to calculate total headcount including +1s and kids
+function getHeadcount(event: Event): { totalAdults: number; totalKids: number; grandTotal: number; hasExtras: boolean } {
+  if (!event.detailedRsvps) {
+    const yesCount = event.rsvpSummary?.yes?.length || 0;
+    return { totalAdults: yesCount, totalKids: 0, grandTotal: yesCount, hasExtras: false };
+  }
+
+  let totalAdults = 0;
+  let totalKids = 0;
+
+  event.detailedRsvps
+    .filter(rsvp => rsvp.response === 'yes')
+    .forEach(rsvp => {
+      totalAdults += 1; // The person themselves
+      if (rsvp.additionalAttendees?.length > 0) {
+        totalAdults += rsvp.additionalAttendees.length;
+      }
+      if (rsvp.numberOfKids > 0) {
+        totalKids += rsvp.numberOfKids;
+      }
+    });
+
+  const yesCount = event.rsvpSummary?.yes?.length || 0;
+  const hasExtras = totalAdults > yesCount || totalKids > 0;
+
+  return { totalAdults, totalKids, grandTotal: totalAdults + totalKids, hasExtras };
+}
+
+// Helper function to get companion info for a specific person
+function getCompanionText(name: string, event: Event): string | null {
+  if (!event.detailedRsvps) return null;
+
+  const rsvp = event.detailedRsvps.find(r => r.name === name);
+  if (!rsvp) return null;
+
+  const parts: string[] = [];
+
+  if (rsvp.additionalAttendees?.length > 0) {
+    const guestName = rsvp.additionalAttendees[0]?.name;
+    parts.push(guestName ? `+${guestName}` : '+1');
+    if (rsvp.additionalAttendees.length > 1) {
+      parts[0] = `+${rsvp.additionalAttendees.length}`;
+    }
+  }
+
+  if (rsvp.numberOfKids > 0) {
+    parts.push(`${rsvp.numberOfKids} kid${rsvp.numberOfKids !== 1 ? 's' : ''}`);
+  }
+
+  return parts.length > 0 ? parts.join(', ') : null;
+}
+
 // Helper function to get members who haven't responded
 function getMembersWithoutRsvp(event: Event): string[] {
   if (!event.members || !event.rsvpSummary) return [];
@@ -1048,6 +1100,7 @@ export default function EventsTable({
 
                     // Collapsed view: Show pills
                     if (!isAttendanceExpanded) {
+                      const headcount = getHeadcount(event);
                       return (
                         <button
                           onClick={(e) => {
@@ -1059,6 +1112,17 @@ export default function EventsTable({
                           {counts.yes > 0 && (
                             <Badge variant="outline" className={`text-xs px-2 py-0.5 ${getResponsePillColor('yes')}`}>
                               ✅ {counts.yes} yes
+                            </Badge>
+                          )}
+                          {/* Show headcount pill if there are +1s or kids */}
+                          {headcount.hasExtras && (
+                            <Badge variant="outline" className="text-xs px-2 py-0.5 bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800">
+                              👥 {headcount.grandTotal} total
+                              {headcount.totalKids > 0 && (
+                                <span className="ml-1 opacity-75">
+                                  ({headcount.totalKids} kid{headcount.totalKids !== 1 ? 's' : ''})
+                                </span>
+                              )}
                             </Badge>
                           )}
                           {counts.maybe > 0 && (
@@ -1083,6 +1147,22 @@ export default function EventsTable({
 
                     // Expanded view: Show detailed list
                     const pendingMembers = getMembersWithoutRsvp(event);
+                    const headcount = getHeadcount(event);
+
+                    // Helper to render name with companion info
+                    const renderNameWithCompanions = (name: string, baseColor: string) => {
+                      const companion = getCompanionText(name, event);
+                      return (
+                        <span key={name}>
+                          {formatNameWithLastInitial(name)}
+                          {companion && (
+                            <span className={`ml-0.5 opacity-70 font-normal`}>
+                              ({companion})
+                            </span>
+                          )}
+                        </span>
+                      );
+                    };
 
                     return (
                       <div className="space-y-2 py-1">
@@ -1099,11 +1179,22 @@ export default function EventsTable({
 
                         {counts.yes > 0 && (
                           <div>
-                            <div className="text-xs font-medium text-green-700 mb-1">
-                              ✅ Yes ({counts.yes})
+                            <div className="text-xs font-medium text-green-700 mb-1 flex items-center gap-2">
+                              <span>✅ Yes ({counts.yes})</span>
+                              {headcount.hasExtras && (
+                                <span className="font-normal text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 px-1.5 py-0.5 rounded">
+                                  👥 {headcount.grandTotal} attending
+                                  {headcount.totalKids > 0 && ` · ${headcount.totalKids} kid${headcount.totalKids !== 1 ? 's' : ''}`}
+                                </span>
+                              )}
                             </div>
-                            <div className="text-xs text-green-600">
-                              {event.rsvpSummary?.yes?.map(name => formatNameWithLastInitial(name)).join(', ')}
+                            <div className="text-xs text-green-600 flex flex-wrap gap-x-1">
+                              {event.rsvpSummary?.yes?.map((name, i, arr) => (
+                                <span key={name}>
+                                  {renderNameWithCompanions(name, 'green')}
+                                  {i < arr.length - 1 && ','}
+                                </span>
+                              ))}
                             </div>
                           </div>
                         )}
@@ -1132,10 +1223,10 @@ export default function EventsTable({
 
                         {counts.pending > 0 && (
                           <div>
-                            <div className="text-xs font-medium text-gray-900 mb-1">
+                            <div className="text-xs font-medium text-gray-900 dark:text-gray-100 mb-1">
                               ⏳ No Response ({counts.pending})
                             </div>
-                            <div className="text-xs text-gray-700">
+                            <div className="text-xs text-gray-700 dark:text-gray-300">
                               {pendingMembers.map(name => formatNameWithLastInitial(name)).join(', ')}
                             </div>
                           </div>
