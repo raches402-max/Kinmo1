@@ -12784,6 +12784,28 @@ Looking forward to planning great activities together!
     }
   });
 
+  // Get shareable invite token for an itinerary (public - for group chat links)
+  // Returns the invite token where member_id IS NULL (the shareable one)
+  app.get("/api/itineraries/:id/shareable-token", async (req, res) => {
+    try {
+      const itineraryId = req.params.id;
+
+      // Get the shareable invite (member_id = NULL)
+      const [shareableInvite] = await db
+        .select({ inviteToken: itineraryInvites.inviteToken })
+        .from(itineraryInvites)
+        .where(sql`itinerary_id = ${itineraryId} AND member_id IS NULL`);
+
+      if (!shareableInvite) {
+        return res.status(404).json({ message: "No shareable invite found for this event" });
+      }
+
+      res.json({ inviteToken: shareableInvite.inviteToken });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Get invite summary with RSVP counts and shareable link
   app.get("/api/itineraries/:id/invite-summary", isAuthenticated, async (req, res) => {
     try {

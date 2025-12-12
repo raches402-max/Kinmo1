@@ -97,9 +97,23 @@ export default function RsvpItineraryPage() {
   const pathParts = location.split('/').filter(Boolean);
   // pathParts[0] = "rsvp", pathParts[1] = itineraryId, pathParts[2] = inviteToken (optional)
   const itineraryId = pathParts[1] || null;
-  const inviteToken = pathParts[2] || null;
+  const urlInviteToken = pathParts[2] || null;
 
-  console.log('[RSVP Page] URL:', location, 'itineraryId:', itineraryId, 'inviteToken:', inviteToken);
+  console.log('[RSVP Page] URL:', location, 'itineraryId:', itineraryId, 'urlInviteToken:', urlInviteToken);
+
+  // Fetch shareable invite token if URL doesn't have one (for group chat links like /rsvp/:itineraryId)
+  const { data: shareableTokenData } = useQuery<{ inviteToken: string }>({
+    queryKey: ["/api/itineraries", itineraryId, "shareable-token"],
+    queryFn: async () => {
+      const response = await fetch(`/api/itineraries/${itineraryId}/shareable-token`);
+      if (!response.ok) throw new Error("No shareable token found");
+      return response.json();
+    },
+    enabled: !!itineraryId && !urlInviteToken,
+  });
+
+  // Use URL token if available, otherwise use fetched shareable token
+  const inviteToken = urlInviteToken || shareableTokenData?.inviteToken || null;
 
   // Stored RSVP token for returning users
   const [storedRsvpToken, setStoredRsvpToken] = useState<string | null>(null);
