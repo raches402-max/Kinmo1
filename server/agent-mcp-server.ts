@@ -13,6 +13,24 @@ import { votingEvents, activities, itineraryItems, curatedVenues, votes, autoSch
 import { z } from "zod";
 import { suggestMultipleTimeOptions, convertAvailabilityToString } from "./ai-time-picker";
 
+// RSVP Response Helpers (normalize legacy values)
+function isPositiveRsvp(response: string | null | undefined): boolean {
+  if (!response) return false;
+  const r = response.toLowerCase();
+  return r === 'yes' || r === 'going';
+}
+
+function isTentativeRsvp(response: string | null | undefined): boolean {
+  if (!response) return false;
+  return response.toLowerCase() === 'maybe';
+}
+
+function isNegativeRsvp(response: string | null | undefined): boolean {
+  if (!response) return false;
+  const r = response.toLowerCase();
+  return r === 'no' || r === 'not_going';
+}
+
 // Tool definition types
 interface ToolDefinition {
   name: string;
@@ -897,9 +915,9 @@ async function handleGetEventRsvpStatus(args: { itineraryId: string }): Promise<
       .filter(m => !respondedMemberIds.has(m.id))
       .map(m => ({ memberId: m.id, memberName: m.name }));
 
-    const yesCount = eventRsvps.filter(r => r.response === "yes").length;
-    const maybeCount = eventRsvps.filter(r => r.response === "maybe").length;
-    const noCount = eventRsvps.filter(r => r.response === "no").length;
+    const yesCount = eventRsvps.filter(r => isPositiveRsvp(r.response)).length;
+    const maybeCount = eventRsvps.filter(r => isTentativeRsvp(r.response)).length;
+    const noCount = eventRsvps.filter(r => isNegativeRsvp(r.response)).length;
 
     return JSON.stringify({
       eventName: itinerary.name,

@@ -75,6 +75,43 @@ import {
   suggestAlternativesSchema,
 } from './validation-schemas';
 
+/**
+ * Normalize RSVP response values to standard format.
+ * Handles legacy values like 'going' -> 'yes', 'not_going' -> 'no'
+ */
+function normalizeRsvpResponse(response: string | null | undefined): 'yes' | 'maybe' | 'no' | null {
+  if (!response) return null;
+  const r = response.toLowerCase();
+  if (r === 'yes' || r === 'going') return 'yes';
+  if (r === 'maybe') return 'maybe';
+  if (r === 'no' || r === 'not_going') return 'no';
+  return null; // Unknown response type
+}
+
+/**
+ * Check if a response is a positive RSVP (yes/going)
+ */
+function isPositiveRsvp(response: string | null | undefined): boolean {
+  const normalized = normalizeRsvpResponse(response);
+  return normalized === 'yes';
+}
+
+/**
+ * Check if a response is a tentative RSVP (maybe)
+ */
+function isTentativeRsvp(response: string | null | undefined): boolean {
+  const normalized = normalizeRsvpResponse(response);
+  return normalized === 'maybe';
+}
+
+/**
+ * Check if a response is a negative RSVP (no/not_going)
+ */
+function isNegativeRsvp(response: string | null | undefined): boolean {
+  const normalized = normalizeRsvpResponse(response);
+  return normalized === 'no';
+}
+
 // San Francisco neighborhood coordinate boundaries for accurate geographic filtering
 // Each boundary defines a rectangular region with min/max latitude and longitude
 const SF_NEIGHBORHOOD_BOUNDS: Record<string, { minLat: number; maxLat: number; minLng: number; maxLng: number }> = {
@@ -1586,7 +1623,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           eventDate: itinerary.eventDate,
           rsvpStatus: rsvp?.response || null,
           isOrganizer: group.isOrganizer,
-          attended: rsvp?.response === 'yes',
+          attended: isPositiveRsvp(rsvp?.response),
           venues: items.map(item => ({
             name: item.venueName,
             type: item.venueType,
@@ -1595,7 +1632,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         totalInvited++;
         if (rsvp?.response) totalResponded++;
-        if (rsvp?.response === 'yes') totalAttended++;
+        if (isPositiveRsvp(rsvp?.response)) totalAttended++;
 
         if (isPast) {
           pastEvents.push(eventData);
@@ -1956,16 +1993,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           // Only add if we have a name, response, and haven't already added this person
           const nameLower = name.toLowerCase();
-          // Normalize response: 'going' -> 'yes' for backwards compatibility
-          const normalizedResponse = r.response === 'going' ? 'yes' : r.response;
-          if (name && normalizedResponse && !processedNames.has(nameLower) && rsvpSummary[normalizedResponse as 'yes' | 'maybe' | 'no']) {
+          const normalizedResponse = normalizeRsvpResponse(r.response);
+          if (name && normalizedResponse && !processedNames.has(nameLower)) {
             processedNames.add(nameLower);
-            rsvpSummary[normalizedResponse as 'yes' | 'maybe' | 'no'].push(name);
+            rsvpSummary[normalizedResponse].push(name);
 
             // Add detailed RSVP info
             detailedRsvps.push({
               name,
-              response: r.response,
+              response: normalizedResponse,
               additionalAttendees: Array.isArray(r.additionalAttendees) ? r.additionalAttendees : [],
               numberOfKids: r.numberOfKids || 0,
               isGuest: !!r.guestName,
@@ -6303,7 +6339,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } else if (itinerary.eventDate && new Date(itinerary.eventDate) < now) {
           // Event date in past
           past.push(eventData);
-        } else if (rsvp.response === 'yes' || rsvp.response === 'maybe') {
+        } else if (isPositiveRsvp(rsvp.response) || isTentativeRsvp(rsvp.response)) {
           // RSVP'd yes/maybe and event is in future (or no date set)
           upcoming.push(eventData);
         } else {
@@ -6490,7 +6526,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let gangsAllHere = false;
       let isCompletingVote = false;
 
-      if (response === "yes" && memberId && itinerary.groupId) {
+      if (isPositiveRsvp(response) && memberId && itinerary.groupId) {
         const allMembers = await storage.getGroupMembers(itinerary.groupId);
         const nonGuestMembers = allMembers.filter(m => !m.isGuest);
 
@@ -6503,7 +6539,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Get member IDs who RSVPed yes
         const yesRsvpMemberIds = new Set(
           allRsvps
-            .filter(r => r.response === "yes" && r.memberId)
+            .filter(r => isPositiveRsvp(r.response) && r.memberId)
             .map(r => r.memberId)
         );
 
@@ -6513,7 +6549,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Check if THIS RSVP was the one that completed the group
         if (gangsAllHere) {
-          const wasNewYes = existingRsvps.length === 0 || existingRsvps[0].response !== "yes";
+          const wasNewYes = existingRsvps.length === 0 || !isPositiveRsvp(existingRsvps[0].response);
           isCompletingVote = wasNewYes;
         }
       }
@@ -11935,10 +11971,10 @@ Looking forward to planning great activities together!
         return;
       }
 
-      // Count responses
-      const yesCount = rsvps.filter(r => r.response === 'yes').length;
-      const maybeCount = rsvps.filter(r => r.response === 'maybe').length;
-      const noCount = rsvps.filter(r => r.response === 'no').length;
+      // Count responses (normalize for legacy values like 'going', 'not_going')
+      const yesCount = rsvps.filter(r => isPositiveRsvp(r.response)).length;
+      const maybeCount = rsvps.filter(r => isTentativeRsvp(r.response)).length;
+      const noCount = rsvps.filter(r => isNegativeRsvp(r.response)).length;
       const totalResponses = rsvps.length;
 
       // Trigger reschedule if:
@@ -12765,11 +12801,11 @@ Looking forward to planning great activities together!
       // Get all RSVPs
       const rsvps = await storage.getItineraryRsvps(req.params.id);
       
-      // Count RSVP responses
+      // Count RSVP responses (normalize for legacy values)
       const rsvpCounts = {
-        yes: rsvps.filter(r => r.response === 'yes').length,
-        maybe: rsvps.filter(r => r.response === 'maybe').length,
-        no: rsvps.filter(r => r.response === 'no').length,
+        yes: rsvps.filter(r => isPositiveRsvp(r.response)).length,
+        maybe: rsvps.filter(r => isTentativeRsvp(r.response)).length,
+        no: rsvps.filter(r => isNegativeRsvp(r.response)).length,
         pending: invites.length - rsvps.length,
       };
 

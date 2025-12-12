@@ -13,6 +13,27 @@ import { rsvps, itineraries, members } from "@shared/schema";
 import { eq, and, inArray, sql, desc } from "drizzle-orm";
 
 // ============================================================================
+// RSVP Response Helpers (normalize legacy values)
+// ============================================================================
+
+function isPositiveRsvp(response: string | null | undefined): boolean {
+  if (!response) return false;
+  const r = response.toLowerCase();
+  return r === 'yes' || r === 'going';
+}
+
+function isTentativeRsvp(response: string | null | undefined): boolean {
+  if (!response) return false;
+  return response.toLowerCase() === 'maybe';
+}
+
+function isNegativeRsvp(response: string | null | undefined): boolean {
+  if (!response) return false;
+  const r = response.toLowerCase();
+  return r === 'no' || r === 'not_going';
+}
+
+// ============================================================================
 // Types
 // ============================================================================
 
@@ -244,8 +265,8 @@ export async function analyzeEventAvailability(
     .where(eq(rsvps.itineraryId, itineraryId));
 
   // Filter declined (no) and maybe responses
-  const declinedRsvps = eventRsvps.filter(r => r.response === 'no' || r.response === 'not_going');
-  const maybeRsvps = eventRsvps.filter(r => r.response === 'maybe');
+  const declinedRsvps = eventRsvps.filter(r => isNegativeRsvp(r.response));
+  const maybeRsvps = eventRsvps.filter(r => isTentativeRsvp(r.response));
   const nonYesRsvps = [...declinedRsvps, ...maybeRsvps];
 
   // Count how many provided availability
@@ -346,7 +367,7 @@ export async function analyzeGroupTimePatterns(
     const event = eventMap.get(key)!;
     if (row.response) {
       event.totalCount++;
-      if (row.response === 'yes' || row.response === 'going') {
+      if (isPositiveRsvp(row.response)) {
         event.yesCount++;
       }
     }

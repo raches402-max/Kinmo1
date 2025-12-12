@@ -10,6 +10,13 @@ import { db } from './db.js';
 import { members as membersTable, rsvps as rsvpsTable, itineraries } from '../shared/schema.js';
 import { eq, and, desc, sql } from 'drizzle-orm';
 
+// RSVP Response Helpers (normalize legacy values)
+function isPositiveRsvp(response: string | null | undefined): boolean {
+  if (!response) return false;
+  const r = response.toLowerCase();
+  return r === 'yes' || r === 'going';
+}
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -249,7 +256,7 @@ export async function calculateEngagement(
   const totalResponded = responded.length;
 
   // Count attendance (actually attended after saying yes)
-  const yesRSVPs = allRSVPs.filter(r => r.response === 'yes');
+  const yesRSVPs = allRSVPs.filter(r => isPositiveRsvp(r.response));
   const attended = allRSVPs.filter(r => {
     if (!r.postEventFeedback) return false;
     const feedback = r.postEventFeedback as any;

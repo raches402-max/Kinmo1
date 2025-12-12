@@ -17,6 +17,13 @@ import {
 } from '../shared/schema.js';
 import { eq, and, desc, gte, sql } from 'drizzle-orm';
 
+// RSVP Response Helpers (normalize legacy values)
+function isPositiveRsvp(response: string | null | undefined): boolean {
+  if (!response) return false;
+  const r = response.toLowerCase();
+  return r === 'yes' || r === 'going';
+}
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -161,7 +168,7 @@ export async function generateAvailabilityInsights(groupId: string): Promise<Ava
       .from(rsvps)
       .where(eq(rsvps.itineraryId, event.id));
 
-    const yesRsvps = eventRsvps.filter(r => r.response === 'yes').length;
+    const yesRsvps = eventRsvps.filter(r => isPositiveRsvp(r.response)).length;
     const totalRsvps = eventRsvps.length;
 
     if (!dayStats[dayOfWeek]) {

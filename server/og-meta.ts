@@ -10,6 +10,13 @@ import { storage } from "./storage";
 import { rsvps as rsvpsTable, members as membersTable, guestInvites } from "@shared/schema";
 import { eq, sql, and } from "drizzle-orm";
 
+// RSVP Response Helper (normalize legacy values)
+function isPositiveRsvp(response: string | null | undefined): boolean {
+  if (!response) return false;
+  const r = response.toLowerCase();
+  return r === 'yes' || r === 'going';
+}
+
 export type OGMetaData = {
   title: string;
   description: string;
@@ -138,7 +145,7 @@ export async function getGuestRsvpMeta(guestToken: string): Promise<OGMetaData |
 
     // Get RSVP count for "X going"
     const rsvps = await storage.getItineraryRsvps(itineraryId);
-    const goingCount = rsvps.filter(r => r.response === "yes").length;
+    const goingCount = rsvps.filter(r => isPositiveRsvp(r.response)).length;
 
     // Get first venue name
     const firstVenue = itinerary.items?.[0];
