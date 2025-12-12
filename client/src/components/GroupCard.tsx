@@ -83,7 +83,7 @@ function formatMeetingFrequency(frequency: string): string {
   return `${num}x/${unit}`;
 }
 
-function formatEventDate(dateStr: string, timezone?: string | null): string {
+function formatEventDate(dateStr: string, timezone?: string | null): { label: string; tzAbbrev: string } {
   const date = new Date(dateStr);
   const tz = timezone || "America/Los_Angeles";
 
@@ -96,12 +96,16 @@ function formatEventDate(dateStr: string, timezone?: string | null): string {
   const today = new Date(nowInTz.getFullYear(), nowInTz.getMonth(), nowInTz.getDate());
   const diffDays = Math.round((eventDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
-  if (diffDays === 0) return "Today";
-  if (diffDays === 1) return "Tomorrow";
-  if (diffDays > 0 && diffDays < 7) {
-    return formatInTimeZone(date, tz, "EEE");
-  }
-  return formatInTimeZone(date, tz, "MMM d");
+  // Get timezone abbreviation (e.g., PST, EST)
+  const tzAbbrev = formatInTimeZone(date, tz, "zzz");
+
+  let label: string;
+  if (diffDays === 0) label = "Today";
+  else if (diffDays === 1) label = "Tomorrow";
+  else if (diffDays > 0 && diffDays < 7) label = formatInTimeZone(date, tz, "EEE");
+  else label = formatInTimeZone(date, tz, "MMM d");
+
+  return { label, tzAbbrev };
 }
 
 export function GroupCard({
@@ -135,7 +139,10 @@ export function GroupCard({
             }}
           >
             <Sparkles className="w-3 h-3" />
-            <span>Next up: {formatEventDate(nextEventDate, group.timezone)}</span>
+            <span>Next up: {(() => {
+              const { label, tzAbbrev } = formatEventDate(nextEventDate, group.timezone);
+              return `${label} (${tzAbbrev})`;
+            })()}</span>
           </div>
         )}
 

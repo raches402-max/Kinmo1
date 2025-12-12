@@ -46,9 +46,10 @@ export function WhenSection({
     ? formatDistanceToNow(date, { addSuffix: true })
     : null;
 
-  // Format display date
+  // Format display date with timezone abbreviation
+  const tzAbbrev = date ? formatInTimeZone(date, timezone, "zzz") : null;
   const dateDisplay = date
-    ? formatInTimeZone(date, timezone, "EEEE, MMMM d")
+    ? `${formatInTimeZone(date, timezone, "EEEE, MMMM d")} (${tzAbbrev})`
     : null;
 
   // Format time range
@@ -64,9 +65,9 @@ export function WhenSection({
     ? timezone.replace(/_/g, " ").split("/").pop() || timezone
     : "Local Time";
 
-  // Format deadline
+  // Format deadline with timezone
   const deadlineDisplay = deadlineDate
-    ? format(deadlineDate, "MMMM d, yyyy")
+    ? formatInTimeZone(deadlineDate, timezone, "MMMM d, yyyy")
     : null;
 
   return (

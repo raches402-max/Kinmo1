@@ -1303,7 +1303,8 @@ export default function Dashboard() {
                 const rsvpDeadline = firstInvite.rsvpDeadline ? new Date(firstInvite.rsvpDeadline) : null;
                 const hostName = firstInvite.hostMemberName;
                 const tz = firstInvite.groupTimezone || "America/Los_Angeles";
-                const formattedDate = eventDate ? formatInTimeZone(eventDate, tz, "EEEE, MMM d") : null;
+                const tzAbbrev = eventDate ? formatInTimeZone(eventDate, tz, "zzz") : null;
+                const formattedDate = eventDate ? `${formatInTimeZone(eventDate, tz, "EEEE, MMM d")} (${tzAbbrev})` : null;
                 const formattedDeadline = rsvpDeadline ? formatInTimeZone(rsvpDeadline, tz, "EEEE, MMM d") : null;
 
                 return (
