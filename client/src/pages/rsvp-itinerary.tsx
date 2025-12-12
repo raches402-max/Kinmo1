@@ -1127,47 +1127,6 @@ export default function RsvpItineraryPage() {
                 </div>
               </motion.div>
 
-              {/* Create Account CTA - show after RSVP when member doesn't have an account */}
-              {(selectedResponse === 'yes' || selectedResponse === 'maybe') && claimedMemberId && !inviteInfo?.hasAccount && (
-                <motion.div
-                  className="rounded-3xl border-2 border-[hsl(200,60%,82%)] bg-gradient-to-br from-[hsl(200,60%,98%)] to-[hsl(200,50%,96%)] overflow-hidden shadow-[0_4px_20px_rgba(59,130,246,0.1)]"
-                  initial={{ opacity: 0, y: 15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
-                >
-                  <div className="p-5 sm:p-6">
-                    <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[hsl(200,70%,55%)] to-[hsl(200,65%,45%)] flex items-center justify-center flex-shrink-0 shadow-[0_4px_12px_rgba(59,130,246,0.25)]">
-                        <Sparkles className="h-5 w-5 text-white" />
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-bold text-[hsl(200,50%,25%)] text-lg mb-1">
-                          Find your {group.name} events
-                        </h3>
-                        <p className="text-sm text-[hsl(200,35%,40%)] mb-4">
-                          Create an account to see all upcoming events in one place and get notified when new plans are made.
-                        </p>
-                        <Button
-                          className="w-full h-12 font-bold rounded-xl bg-gradient-to-r from-[hsl(200,70%,50%)] to-[hsl(200,65%,45%)] hover:from-[hsl(200,70%,45%)] hover:to-[hsl(200,65%,40%)] text-white shadow-[0_4px_16px_rgba(59,130,246,0.3)]"
-                          onClick={() => {
-                            // Store memberId for account linking
-                            if (claimedMemberId) {
-                              localStorage.setItem("linkMemberId", claimedMemberId);
-                              localStorage.setItem("linkReturnPath", `/rsvp/${itineraryId}/${inviteToken}`);
-                            }
-                            // Redirect to auth with return to link page
-                            window.location.href = "/api/login?returnTo=" + encodeURIComponent("/link-member-account");
-                          }}
-                        >
-                          Create Account
-                          <ChevronRight className="h-4 w-4 ml-1" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-
               {/* Additional Attendees and Kids Count - Only show after selecting a response */}
               {selectedResponse === "yes" && (
                 <motion.div
@@ -1310,6 +1269,53 @@ export default function RsvpItineraryPage() {
                     >
                       {rsvpMutation.isPending ? "Saving..." : "Save RSVP"}
                     </Button>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Join Group CTA - show after RSVP details when member doesn't have an account */}
+              {(selectedResponse === 'yes' || selectedResponse === 'maybe') && claimedMemberId && !inviteInfo?.hasAccount && (
+                <motion.div
+                  className="rounded-3xl border-2 border-[hsl(44,70%,78%)] bg-gradient-to-br from-[hsl(44,70%,98%)] to-[hsl(38,60%,96%)] overflow-hidden shadow-[0_4px_20px_rgba(245,192,48,0.12)]"
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.35 }}
+                >
+                  <div className="p-5 sm:p-6">
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[hsl(44,91%,57%)] to-[hsl(38,85%,48%)] flex items-center justify-center flex-shrink-0 shadow-[0_4px_12px_rgba(245,192,48,0.3)]">
+                        <Sparkles className="h-5 w-5 text-[hsl(25,35%,18%)]" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-bold text-[hsl(25,35%,18%)] text-lg mb-1">
+                          Join {group.name}
+                        </h3>
+                        <p className="text-sm text-[hsl(25,20%,40%)] mb-4">
+                          Create an account to see all your {group.name} events in one place and get notified when new plans are made.
+                        </p>
+                        <Button
+                          className={cn(
+                            "w-full h-12 font-bold rounded-xl",
+                            "bg-gradient-to-r from-[hsl(44,91%,57%)] to-[hsl(38,85%,52%)]",
+                            "text-[hsl(25,30%,14%)]",
+                            "hover:from-[hsl(44,91%,52%)] hover:to-[hsl(38,85%,47%)]",
+                            "shadow-[0_4px_16px_rgba(245,192,48,0.35)]"
+                          )}
+                          onClick={() => {
+                            // Store memberId for account linking
+                            if (claimedMemberId) {
+                              localStorage.setItem("linkMemberId", claimedMemberId);
+                              localStorage.setItem("linkReturnPath", `/rsvp/${itineraryId}/${inviteToken}`);
+                            }
+                            // Redirect to auth with return to link page
+                            window.location.href = "/api/login?returnTo=" + encodeURIComponent("/link-member-account");
+                          }}
+                        >
+                          Create Account
+                          <ChevronRight className="h-4 w-4 ml-1" />
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 </motion.div>
               )}
