@@ -55,6 +55,7 @@ const PrototypeHeadlineLayouts = lazy(() => import("@/pages/prototype-headline-l
 const BottomNavConcepts = lazy(() => import("@/components/BottomNavConcepts"));
 const Places = lazy(() => import("@/pages/places"));
 const FeedbackMockup = lazy(() => import("@/pages/feedback-mockup"));
+const PrototypeDashboardRedesign = lazy(() => import("@/pages/prototype-dashboard-redesign"));
 
 function Router() {
   const { isAuthenticated, isLoading, error } = useAuth();
@@ -121,6 +122,7 @@ function Router() {
                 <Route path="/prototype/headline-layouts" component={PrototypeHeadlineLayouts} />
                 <Route path="/prototype/group-details-desktop" component={PrototypeGroupDetailsDesktop} />
                 <Route path="/prototype/feedback-mockup" component={FeedbackMockup} />
+                <Route path="/prototype/dashboard-redesign" component={PrototypeDashboardRedesign} />
                 <Route path="/privacy" component={Privacy} />
                 <Route path="/terms" component={Terms} />
               </>
@@ -162,6 +164,7 @@ function Router() {
                 <Route path="/prototype/headline-layouts" component={PrototypeHeadlineLayouts} />
                 <Route path="/prototype/nav" component={BottomNavConcepts} />
                 <Route path="/prototype/feedback-mockup" component={FeedbackMockup} />
+                <Route path="/prototype/dashboard-redesign" component={PrototypeDashboardRedesign} />
                 <Route path="/privacy" component={Privacy} />
                 <Route path="/terms" component={Terms} />
               </>
