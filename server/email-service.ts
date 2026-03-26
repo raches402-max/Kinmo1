@@ -1,10 +1,10 @@
 import { Resend } from 'resend';
 import { withRetry } from './lib/retry';
 
-// ✅ EMAIL ENABLED - kinmo.ai domain verified in Resend
-const EMAIL_ENABLED = true;
+// Email is enabled only if RESEND_API_KEY is configured
+const EMAIL_ENABLED = !!process.env.RESEND_API_KEY;
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = new Resend(process.env.RESEND_API_KEY || 'stub_key_not_used');
 
 // Email-specific retry options
 const EMAIL_RETRY_OPTIONS = {

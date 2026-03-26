@@ -1,6 +1,8 @@
 import passport from "passport";
 import { Strategy as GoogleStrategy, Profile } from "passport-google-oauth20";
-import type { Express } from "express";
+import session from "express-session";
+import connectPg from "connect-pg-simple";
+import type { Express, RequestHandler } from "express";
 import { storage } from "./storage";
 
 // Custom domains - must match replitAuth.ts for consistent domain handling
@@ -151,3 +153,67 @@ export async function setupGoogleAuth(app: Express) {
 
   console.log("[GoogleAuth] Google OAuth configured successfully");
 }
+
+/**
+ * Session setup for Google OAuth (replaces replitAuth.getSession)
+ * Uses connect-pg-simple to store sessions in Neon PostgreSQL
+ */
+export function getSession() {
+  const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
+  const pgStore = connectPg(session);
+  const sessionStore = new pgStore({
+    conString: process.env.DATABASE_URL,
+    createTableIfMissing: false,
+    ttl: sessionTtl,
+    tableName: "sessions",
+  });
+  return session({
+    secret: process.env.SESSION_SECRET!,
+    store: sessionStore,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      maxAge: sessionTtl,
+    },
+  });
+}
+
+/**
+ * Combined auth setup: session + passport + Google OAuth routes
+ * Drop-in replacement for replitAuth.setupAuth
+ */
+export async function setupAuth(app: Express) {
+  app.set("trust proxy", 1);
+  app.use(getSession());
+  app.use(passport.initialize());
+  app.use(passport.session());
+
+  passport.serializeUser((user: Express.User, cb) => cb(null, user));
+  passport.deserializeUser((user: Express.User, cb) => cb(null, user));
+
+  await setupGoogleAuth(app);
+}
+
+/**
+ * Middleware: require authenticated session
+ * Drop-in replacement for replitAuth.isAuthenticated
+ */
+export const isAuthenticated: RequestHandler = async (req, res, next) => {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  const user = req.user as any;
+
+  // Check token expiry if set
+  if (user?.expires_at) {
+    const now = Math.floor(Date.now() / 1000);
+    if (now > user.expires_at) {
+      return res.status(401).json({ message: "Session expired" });
+    }
+  }
+
+  return next();
+};

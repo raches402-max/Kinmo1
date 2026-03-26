@@ -8,17 +8,21 @@ const envSchema = z.object({
   // Database
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
 
-  // External APIs
-  OPENAI_API_KEY: z.string().min(1, 'OPENAI_API_KEY is required'),
+  // External APIs (optional in development — stub mode if missing)
+  OPENAI_API_KEY: z.string().optional(),
   GOOGLE_PLACES_API_KEY: z.string().optional(),
   GOOGLE_PLACES_API_KEY_2: z.string().optional(),
-  RESEND_API_KEY: z.string().min(1, 'RESEND_API_KEY is required'),
+  RESEND_API_KEY: z.string().optional(),
 
-  // Authentication (Replit)
+  // Authentication (Google OAuth)
   SESSION_SECRET: z.string().min(32, 'SESSION_SECRET must be at least 32 characters'),
-  REPLIT_DOMAINS: z.string().min(1, 'REPLIT_DOMAINS is required'),
-  CUSTOM_DOMAINS: z.string().optional(), // Custom domains like kinmo.ai (comma-separated)
-  REPL_ID: z.string().min(1, 'REPL_ID is required'),
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+
+  // Legacy Replit env vars (optional — kept for backward compat during migration)
+  REPLIT_DOMAINS: z.string().optional(),
+  CUSTOM_DOMAINS: z.string().optional(),
+  REPL_ID: z.string().optional(),
   ISSUER_URL: z.string().url().optional().default('https://replit.com/oidc'),
 
   // Server Configuration
@@ -33,13 +37,7 @@ const envSchema = z.object({
   // Error Monitoring (optional - Sentry)
   SENTRY_DSN: z.string().optional(),
   SENTRY_ENABLED: z.string().optional(), // Set to 'true' to enable in development
-}).refine(
-  (data) => data.GOOGLE_PLACES_API_KEY || data.GOOGLE_PLACES_API_KEY_2,
-  {
-    message: 'At least one Google Places API key is required (GOOGLE_PLACES_API_KEY or GOOGLE_PLACES_API_KEY_2)',
-    path: ['GOOGLE_PLACES_API_KEY'],
-  }
-);
+});
 
 export type Env = z.infer<typeof envSchema>;
 

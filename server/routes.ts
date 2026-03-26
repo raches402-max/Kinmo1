@@ -7,8 +7,7 @@ import { insertGroupSchema, insertMemberSchema, updateGroupSchema, updateMemberS
 import { generateActivitySuggestions, generateSwipeConcepts, categorizeByTime, categorizeVenue, categorizeVenuesBatch, analyzePreferencePatterns, parseSchedulingPrompt, parseSchedulingPromptWithHistory, detectCategory, getPromptCacheStats, validateVenueForCategory, type SchedulingParams } from "./openai";
 import { searchPlaces, searchNearbyPlaces, geocodeLocation, clearPlacesCache, getCacheStats, getPlaceDetails, detectAndParseGoogleMapsUrl, getBestVenueType, getBestVenueTypeSync } from "./google-places";
 import { planEventWithAgent, type VenueForAgent } from "./ai-event-agent";
-import { setupAuth, isAuthenticated } from "./replitAuth";
-import { setupGoogleAuth } from "./googleAuth";
+import { setupAuth, isAuthenticated } from "./googleAuth";
 import {
   requireGroupOwnership,
   requireGroupAccess,
@@ -424,9 +423,8 @@ function assignGroupColor(groupId: string): string {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Set up authentication
+  // Set up authentication (Google OAuth)
   await setupAuth(app);
-  await setupGoogleAuth(app);
 
   // Health check endpoint (for monitoring and load balancers)
   app.get('/api/health', async (req, res) => {
