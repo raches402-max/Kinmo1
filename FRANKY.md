@@ -323,6 +323,48 @@ Under 500 words.
 
 ---
 
+## 🛣️ Lanes & Coordination (added 2026-05-12)
+
+Two agents (Franky + Claude) plus Rachel are now editing this repo. Without explicit lanes, sessions overlap — as happened today, when Franky reverted the Batch API while Claude was mid-implementation of the same revert. To prevent that:
+
+### Workstream ownership
+
+| Workstream | Owner | Notes |
+|---|---|---|
+| W2 — Replit cleanup leftovers | Franky | If anything new surfaces |
+| W3 — API cost control | Claude | Tiers 0–4 shipped (`0583809..ccf5928`); Batch API reverted, may reattempt later |
+| W4 — Architecture cleanup (routes split, etc.) | Claude | Slice 2 shipped (`7506c88`); slices 1/3/4 still open |
+| W5 — Code hygiene | Franky | Sentry catches, dead code removal, etc. |
+| W6 — Security & data integrity | Franky | Sub-tracks A/B/C/F shipped; D/E/G/H remain |
+| PLAN.md edits | Rachel (or whoever has freshest state) | Append-only mental model; rev number must increment |
+| FRANKY.md task assignments | Rachel | Adding/closing tasks |
+| Railway dashboard / env vars / Google Cloud Console | Rachel | Agents do not have access |
+
+If a task crosses lanes (e.g., a W3 cost change that touches W5 hygiene), the owner with the most context starts it and pings Rachel before committing.
+
+### Review-before-commit (re-emphasis of guardrail #5)
+
+**Default: do not commit.** Run `git diff`, paste to Rachel, wait for go-ahead. This is what guardrail #5 says.
+
+Franky has been chaining tasks and committing autonomously today. Some of that was useful (the Batch API revert needed to happen fast), but it also caused the duplicate-revert situation. Going forward:
+- For tasks already on this list with clear scope (e.g., "lock down 6 unprotected GET routes"), autonomous commit is acceptable IF typecheck passes and the diff stays in the named scope
+- For anything cross-cutting, anything touching production state, or anything that contradicts another in-flight session, **stop and check in with Rachel first**
+
+### Shared files — coordinate explicitly
+
+These files are touched by everyone. Assume your in-memory view is stale and re-read before editing:
+
+- `PLAN.md` — bump the rev number and date on every edit so it's obvious which version is freshest
+- `FRANKY.md` — Rachel manages task assignments; everyone may add to the Progress Log
+- `shared/schema.ts` — schema changes need a matching migration file AND need to be pushed to Railway (not just Neon) AND need to be communicated to other agents before they wire code to the new columns
+- `migrations/*.sql` — apply to BOTH Railway and Neon (Franky has been doing this); record which DBs each migration was applied to in the commit message
+
+### Git-author note
+
+All commits in this repo are attributed to `Franky Cho <frankycho@Frankys-Mac-mini.local>` because that's the local git config, even when Claude or Rachel wrote the commit. This means `git log --author=Franky` is not a reliable filter for "what Franky did" — you have to read commit messages and content. If we ever want clean attribution, configure separate git identities per agent (out of scope for now; flagging).
+
+---
+
 ## 📜 Progress Log
 
 > Franky: append a line here after each task. Format: `YYYY-MM-DD HH:MM — Task N — <one-line summary of what you did>`
