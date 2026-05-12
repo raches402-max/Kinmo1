@@ -18,8 +18,7 @@ import {
 import { LocationFairnessAnalyzer } from './analyzers/location-fairness';
 import { VenueDateGapAnalyzer } from './analyzers/venue-date-gap';
 import { CadenceHealthAnalyzer } from './analyzers/cadence-health';
-import { buildInsightRequestPayload } from './message-generator';
-import { queueBatchRequest } from '../ai-batch';
+import { generateInsightMessage } from './message-generator';
 import { isGroupActive } from '../job-gating';
 
 // Registry of all analyzers
@@ -106,18 +105,13 @@ export async function analyzeGroup(
     return 0;
   }
 
-  // Queue insight generation for batch processing (50% Batch API discount).
-  // The batch processor runs hydrateInsightFromResponse + saveInsight when
-  // the result returns. Latency is acceptable for daily-cadence insights.
+  // Generate LLM messages and save insights
   for (const rawInsight of newInsights) {
     try {
-      await queueBatchRequest(
-        'planning_insight',
-        buildInsightRequestPayload(rawInsight),
-        { groupId: rawInsight.groupId, rawInsight },
-      );
+      const insightData = await generateInsightMessage(rawInsight);
+      await saveInsight(insightData);
     } catch (error) {
-      console.error(`[Planning Agent] Error queueing insight:`, error);
+      console.error(`[Planning Agent] Error saving insight:`, error);
     }
   }
 
@@ -160,10 +154,9 @@ async function deduplicateInsights(
 }
 
 /**
- * Save an insight to the database. Exported so the batch processor can use it
- * after async insight generation completes.
+ * Save an insight to the database
  */
-export async function saveInsight(insightData: PlanningInsightData): Promise<void> {
+async function saveInsight(insightData: PlanningInsightData): Promise<void> {
   await db.insert(planningInsights).values({
     groupId: insightData.groupId,
     memberId: insightData.memberId,
