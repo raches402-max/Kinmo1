@@ -328,15 +328,13 @@ export function requireMemberAccess() {
 /**
  * Middleware: Require admin access
  * Checks against ADMIN_EMAILS environment variable (comma-separated list)
- * Falls back to hardcoded default for backwards compatibility
  */
 function getAdminEmails(): string[] {
   const envAdmins = process.env.ADMIN_EMAILS;
   if (envAdmins) {
     return envAdmins.split(',').map(email => email.trim().toLowerCase());
   }
-  // Fallback to default admin
-  return ['raches402@gmail.com'];
+  return [];
 }
 
 export function requireAdmin() {

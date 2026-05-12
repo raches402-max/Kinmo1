@@ -4414,6 +4414,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Trigger auto-reschedule check (non-blocking)
       checkAndReschedule(itineraryId).catch(err => {
         console.error(`[RSVP] Auto-reschedule check failed:`, err);
+        Sentry.captureException(err);
       });
 
       // 🤖 LEARNING LOOP #3: Auto-update member constraints from RSVP patterns
@@ -4421,12 +4422,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (memberId && rsvpFeedback && itinerary.groupId) {
         autoUpdateMemberConstraints(memberId, itinerary.groupId).catch(err => {
           console.error(`[RSVP] Pattern analysis failed:`, err);
+          Sentry.captureException(err);
         });
 
         // 🎯 INSIGHT TRIGGER: Update group insights after RSVP with feedback
         // Debounced to avoid excessive regeneration (max once per 6 hours)
         triggerInsightUpdateDebounced(itinerary.groupId, 'rsvp-collected', 6).catch(err => {
           console.error(`[RSVP] Insight update failed:`, err);
+          Sentry.captureException(err);
         });
       }
 
