@@ -4859,18 +4859,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Voting Events Routes
 
-  // Get all voting events (top 10 with vote counts)
-  app.get("/api/voting-events", async (req, res) => {
-    try {
-      const events = await storage.getVotingEvents();
-      res.json(events);
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
-    }
-  });
-
   // Get group-specific voting events (top 10 with vote counts)
-  app.get("/api/groups/:groupId/voting-events", async (req, res) => {
+  app.get("/api/groups/:groupId/voting-events", isAuthenticated, requireGroupAccess(), async (req: any, res) => {
     try {
       // Validate that the group exists and is active
       const group = await storage.getGroup(req.params.groupId);
@@ -4996,7 +4986,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get votes for an event
-  app.get("/api/voting-events/:id/votes", async (req, res) => {
+  app.get("/api/voting-events/:id/votes", isAuthenticated, requireVotingEventAccess(), async (req: any, res) => {
     try {
       const votes = await storage.getEventVotes(req.params.id);
       res.json(votes);
@@ -7605,7 +7595,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get group itineraries
-  app.get("/api/groups/:groupId/itineraries", async (req, res) => {
+  app.get("/api/groups/:groupId/itineraries", isAuthenticated, requireGroupAccess(), async (req: any, res) => {
     try {
       const itineraries = await storage.getGroupItineraries(req.params.groupId);
       res.json(itineraries);
@@ -9715,7 +9705,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get pending auto-scheduled events for a group
-  app.get("/api/groups/:groupId/auto-scheduled-events", async (req, res) => {
+  app.get("/api/groups/:groupId/auto-scheduled-events", isAuthenticated, requireGroupAccess(), async (req: any, res) => {
     try {
       const events = await storage.getPendingAutoScheduledEvents(req.params.groupId);
       res.json(events);
@@ -9725,7 +9715,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get auto-scheduled events timeline for a group (past 90 days + all future)
-  app.get("/api/groups/:groupId/auto-scheduled-events/timeline", async (req, res) => {
+  app.get("/api/groups/:groupId/auto-scheduled-events/timeline", isAuthenticated, requireGroupAccess(), async (req: any, res) => {
     try {
       const events = await storage.getAutoScheduledEventsTimeline(req.params.groupId);
       res.json(events);
@@ -9735,7 +9725,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get auto-schedule queue with AI validation
-  app.get("/api/groups/:groupId/auto-schedule-queue", async (req, res) => {
+  app.get("/api/groups/:groupId/auto-schedule-queue", isAuthenticated, requireGroupAccess(), async (req: any, res) => {
     try {
       const { generateAutoScheduleQueue } = await import("./smart-event-pairing");
       const queue = await generateAutoScheduleQueue(req.params.groupId, storage);
