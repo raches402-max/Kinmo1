@@ -10,7 +10,7 @@
     "client": "vite",
     "dev:replit": "./start-replit.sh",
     "build": "vite build && node scripts/postprocess-index.mjs && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist && cp -r server/fonts dist/fonts",
-    "start": "PORT=5000 NODE_ENV=production node dist/index.js",
+    "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc",
     "db:push": "drizzle-kit push",
     "backfill:itineraries": "tsx server/backfill-auto-event-itineraries.ts",
