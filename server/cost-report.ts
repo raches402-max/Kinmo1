@@ -9,6 +9,7 @@
 
 import { db } from "./db";
 import { sql } from "drizzle-orm";
+import { checkBudget } from "./cost-budget";
 
 interface CostRow extends Record<string, unknown> {
   service: string;
@@ -86,5 +87,25 @@ export async function generateDailyCostReport(
   console.log(
     `[Cost Report] ${"TOTAL".padEnd(14)} ${"".padEnd(28)} ${String(totalCalls).padStart(7)} ${"".padStart(6)} ${totalCost.toFixed(4).padStart(10)}`,
   );
+
+  // Budget tripwire — if soft/hard caps are configured, compare and shout.
+  const budget = await checkBudget(windowHours);
+  if (budget.hardCap !== null && !budget.underHard) {
+    console.error(
+      `[Cost Report] 🚨 HARD CAP EXCEEDED: $${budget.spent.toFixed(4)} >= $${budget.hardCap.toFixed(2)} (${windowHours}h). Callsites using checkBudgetOrThrow will refuse to spend.`,
+    );
+  } else if (budget.softCap !== null && !budget.underSoft) {
+    console.warn(
+      `[Cost Report] ⚠️  SOFT CAP EXCEEDED: $${budget.spent.toFixed(4)} >= $${budget.softCap.toFixed(2)} (${windowHours}h). Review whether spend is expected.`,
+    );
+  } else if (budget.softCap !== null || budget.hardCap !== null) {
+    const capStr = [
+      budget.softCap !== null ? `soft $${budget.softCap}` : null,
+      budget.hardCap !== null ? `hard $${budget.hardCap}` : null,
+    ]
+      .filter(Boolean)
+      .join(", ");
+    console.log(`[Cost Report] Under budget (${capStr})`);
+  }
   console.log(`[Cost Report] === end ===\n`);
 }
