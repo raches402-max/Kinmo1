@@ -134,7 +134,7 @@ export function Header({ testAccounts = [], onShowTestAccountDialog }: HeaderPro
                 Profile Settings
               </Link>
             </DropdownMenuItem>
-            {user.email === 'raches402@gmail.com' && (
+            {user.isAdmin && (
               <>
                 <DropdownMenuItem asChild data-testid="menu-admin">
                   <Link href="/admin" className="flex items-center">
@@ -249,7 +249,7 @@ export function Header({ testAccounts = [], onShowTestAccountDialog }: HeaderPro
           </Link>
 
           {/* Admin Link (if applicable) */}
-          {user.email === 'raches402@gmail.com' && (
+          {user.isAdmin && (
             <>
               <div className="my-2 border-t" />
               <Link href="/admin">

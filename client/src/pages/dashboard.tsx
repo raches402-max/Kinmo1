@@ -233,7 +233,7 @@ function groupEventsByGroup(events: UserEvent[]): GroupedByGroup[] {
 }
 
 export default function Dashboard() {
-  const { user } = useAuth() as { user: User | undefined };
+  const { user } = useAuth() as { user: (User & { isAdmin?: boolean }) | undefined };
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const searchString = useSearch(); // Reactive hook for URL query params
@@ -340,7 +340,7 @@ export default function Dashboard() {
   const [postEventData, setPostEventData] = useState<UserEvent | null>(null);
   
   // Test account switcher state (admin only)
-  const isAdmin = user?.email === 'raches402@gmail.com';
+  const isAdmin = !!user?.isAdmin;
   const { data: testAccounts = [] } = useQuery<Array<{id: string, email: string, firstName: string | null, lastName: string | null}>>({
     queryKey: ["/api/admin/test-accounts"],
     enabled: isAdmin,

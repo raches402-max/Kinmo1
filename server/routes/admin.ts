@@ -42,6 +42,7 @@ import { isAuthenticated, } from "../googleAuth";
 import {
   requireAdmin,
   getUserId,
+  getAdminEmails,
 } from "../authorization";
 import { safeParse } from "../validation-middleware";
 import { importVenuesSchema, switchUserSchema } from "../validation-schemas";
@@ -61,14 +62,6 @@ import { getJobHealthStatus } from "../lib/job-tracker";
 const router = Router();
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
-
-function getAdminEmails(): string[] {
-  const prodAdmins = ['raches402@gmail.com'];
-  if (process.env.NODE_ENV === 'development') {
-    return [...prodAdmins, 'test-admin@example.com'];
-  }
-  return prodAdmins;
-}
 
 async function requireAdminAccess(req: any, res: any): Promise<string | null> {
   const userId = await getUserId(req);

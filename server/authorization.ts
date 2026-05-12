@@ -329,12 +329,20 @@ export function requireMemberAccess() {
  * Middleware: Require admin access
  * Checks against ADMIN_EMAILS environment variable (comma-separated list)
  */
-function getAdminEmails(): string[] {
+export function getAdminEmails(): string[] {
   const envAdmins = process.env.ADMIN_EMAILS;
   if (envAdmins) {
     return envAdmins.split(',').map(email => email.trim().toLowerCase());
   }
   return [];
+}
+
+/**
+ * Check if a given email is in the admin list. Lowercases for safety.
+ */
+export function isAdminEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  return getAdminEmails().includes(email.toLowerCase());
 }
 
 export function requireAdmin() {

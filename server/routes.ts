@@ -18,7 +18,8 @@ import {
   requireAdmin,
   getUserId,
   userOwnsGroup,
-  userIsMemberOfGroup
+  userIsMemberOfGroup,
+  getAdminEmails
 } from "./authorization";
 import { validateItinerary } from "./itinerary-validation";
 import { sendMemberWelcome, type EmailRecipient, type MemberWelcomeData } from "./email-service";
@@ -148,21 +149,6 @@ function isInNeighborhood(lat: number, lng: number, neighborhood: string): boole
 
   return lat >= bounds.minLat && lat <= bounds.maxLat &&
          lng >= bounds.minLng && lng <= bounds.maxLng;
-}
-
-/**
- * Get list of admin emails based on environment
- * In development: includes test admin for automated testing
- * In production: only real admin emails
- */
-function getAdminEmails(): string[] {
-  const prodAdmins = ['raches402@gmail.com'];
-
-  if (process.env.NODE_ENV === 'development') {
-    return [...prodAdmins, 'test-admin@example.com'];
-  }
-
-  return prodAdmins;
 }
 
 /**

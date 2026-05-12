@@ -10,7 +10,7 @@
 
 import { Router } from "express";
 import { isAuthenticated } from "../googleAuth";
-import { getUserId } from "../authorization";
+import { getUserId, isAdminEmail } from "../authorization";
 import { storage } from "../storage";
 
 const router = Router();
@@ -33,7 +33,7 @@ router.get("/user", isAuthenticated, async (req: any, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    res.json(user);
+    res.json({ ...user, isAdmin: isAdminEmail(user.email) });
   } catch (error) {
     console.error("[Auth] Error fetching user:", error);
     res.status(500).json({ message: "Internal server error" });
