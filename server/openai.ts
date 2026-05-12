@@ -491,22 +491,27 @@ export async function generateActivitySuggestions(groupData: {
       categoriesContext = `\nActivity Interests: ${selectedCategories}`;
     }
 
-    // Format previously suggested venues to avoid repeats
+    // Format previously suggested venues to avoid repeats.
+    // Cap at the 10 most-recent — older entries bloat prompt tokens for little gain.
     let avoidVenuesContext = '';
     if (groupData.previouslySuggestedVenues && groupData.previouslySuggestedVenues.length > 0) {
-      avoidVenuesContext = `\n\nIMPORTANT - DO NOT suggest these venues again (already suggested): ${groupData.previouslySuggestedVenues.join(', ')}`;
+      const recent = groupData.previouslySuggestedVenues.slice(-10);
+      avoidVenuesContext = `\n\nIMPORTANT - DO NOT suggest these venues again (recently suggested): ${recent.join(', ')}`;
     }
 
-    // Format seen venues to prevent repetitive suggestions
+    // Format seen venues to prevent repetitive suggestions. Cap at 10 most-recent.
     let seenVenuesContext = '';
     if (groupData.seenVenues && groupData.seenVenues.length > 0) {
-      seenVenuesContext = `\n\n🚫 CRITICAL - ALREADY SHOWN TO GROUP - These venues have already been presented to this group. DO NOT suggest them again: ${groupData.seenVenues.join(', ')}`;
+      const recent = groupData.seenVenues.slice(-10);
+      seenVenuesContext = `\n\n🚫 ALREADY SHOWN TO GROUP - do not suggest again: ${recent.join(', ')}`;
     }
 
-    // Format rejected venues (venues that don't exist in Google Places)
+    // Format rejected venues (venues that don't exist in Google Places).
+    // Keep more of these (25) — re-suggesting one wastes a Places API call.
     let rejectedVenuesContext = '';
     if (groupData.rejectedVenues && groupData.rejectedVenues.length > 0) {
-      rejectedVenuesContext = `\n\nCRITICAL - These venues DO NOT EXIST in Google Places. NEVER suggest them: ${groupData.rejectedVenues.join(', ')}`;
+      const recent = groupData.rejectedVenues.slice(-25);
+      rejectedVenuesContext = `\n\nThese venues DO NOT EXIST in Google Places. NEVER suggest them: ${recent.join(', ')}`;
     }
 
     // Format target categories for focused generation

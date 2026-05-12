@@ -450,11 +450,11 @@ Return ONLY a JSON object with this exact structure:
   ]
 }`;
 
-    console.log('[AI Time Picker] Using GPT-4o for multiple time options with better constraint handling');
+    console.log('[AI Time Picker] Using GPT-4o-mini for multiple time options');
     const startTime = Date.now();
 
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o', // Upgraded from mini for better day-of-week constraint adherence
+      model: 'gpt-4o-mini',
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.7, // Higher temp for variety
       max_tokens: 300,
@@ -462,7 +462,7 @@ Return ONLY a JSON object with this exact structure:
     });
 
     const responseTime = Date.now() - startTime;
-    console.log(`[AI Time Picker] GPT-4o multiple options response time: ${responseTime}ms`);
+    console.log(`[AI Time Picker] response time: ${responseTime}ms`);
 
     // Log API call with cost tracking
     const inputTokens = response.usage?.prompt_tokens || 0;
@@ -858,11 +858,11 @@ Return ONLY a JSON object with this exact structure:
   "reasoning": "[Actual day] at [time] works well for [actual meal type] at [venue name]"
 }`;
 
-    console.log('[AI Time Picker] Using GPT-4o for enhanced multi-constraint reasoning');
+    console.log('[AI Time Picker] Using GPT-4o-mini for time recommendation');
     const startTime = Date.now();
 
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o', // Upgraded from mini for better constraint handling and fewer retries
+      model: 'gpt-4o-mini',
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.3,
       max_tokens: 200,
@@ -870,7 +870,7 @@ Return ONLY a JSON object with this exact structure:
     });
 
     const responseTime = Date.now() - startTime;
-    console.log(`[AI Time Picker] GPT-4o response time: ${responseTime}ms (attempt ${attempt}/${maxRetries})`);
+    console.log(`[AI Time Picker] response time: ${responseTime}ms (attempt ${attempt}/${maxRetries})`);
 
     // Log API call with cost tracking
     const inputTokens = response.usage?.prompt_tokens || 0;

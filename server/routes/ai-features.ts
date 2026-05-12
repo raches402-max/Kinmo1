@@ -1277,9 +1277,32 @@ router.get("/groups/:id/swipe-deck", isAuthenticated, async (req: any, res) => {
         experiencesEnabled: group.experiencesEnabled ?? true,
       });
 
+      // Drop concepts whose search queries normalize to the same key — Text
+      // Search on "wine bar" vs "bar with wine" returns the same venues but
+      // costs $32/1k each. Keep the first concept per key.
+      const STOPWORDS = new Set([
+        'a', 'an', 'the', 'in', 'on', 'at', 'with', 'for', 'and', 'or', 'of', 'to',
+      ]);
+      const seenConceptKeys = new Set<string>();
+      const uniqueConcepts = concepts.filter((c) => {
+        const key = (c.searchQuery || '')
+          .toLowerCase()
+          .replace(/[^a-z0-9\s]/g, ' ')
+          .split(/\s+/)
+          .filter((w) => w && !STOPWORDS.has(w))
+          .sort()
+          .join(' ');
+        if (!key || seenConceptKeys.has(key)) return false;
+        seenConceptKeys.add(key);
+        return true;
+      });
+      if (uniqueConcepts.length < concepts.length) {
+        console.log(`[Swipe Deck] Deduped ${concepts.length - uniqueConcepts.length} redundant concept searches`);
+      }
+
       // Convert concepts to venue-style cards and enrich with Google Places
       const enrichedConcepts = await Promise.all(
-        concepts.slice(0, neededCount * 2).map(async (concept) => {
+        uniqueConcepts.slice(0, neededCount * 2).map(async (concept) => {
           // Use the searchQuery field for Google Places search
 
           try {
