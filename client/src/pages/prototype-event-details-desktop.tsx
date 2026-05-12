@@ -100,7 +100,7 @@ function RefinedCard({
         "rounded-2xl border bg-white overflow-hidden",
         "border-[hsl(32,20%,88%)]",
         "shadow-[0_2px_8px_rgba(0,0,0,0.04)]",
-        hover && "transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
+        hover && "transition-all duration-300 ease-in-out",
         hover && "hover:border-[hsl(44,70%,75%)] hover:shadow-[0_4px_16px_rgba(242,201,76,0.12)]",
         className
       )}
@@ -163,7 +163,7 @@ function VenueCard({ venue }: { venue: typeof mockEvent.venues[0] }) {
       className={cn(
         "group relative rounded-xl border p-4",
         "border-[hsl(32,20%,88%)] bg-[hsl(38,50%,98%)]",
-        "transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
+        "transition-all duration-300 ease-in-out",
         "hover:border-[hsl(44,70%,75%)] hover:shadow-[0_4px_12px_rgba(242,201,76,0.1)]"
       )}
     >
@@ -288,7 +288,7 @@ function AttendeeCard({
     <div
       className={cn(
         "flex items-center gap-3 p-3 rounded-xl border",
-        "transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
+        "transition-all duration-300 ease-in-out",
         styles.bg,
         styles.border,
         isCurrentUser && "ring-2 ring-[hsl(44,87%,63%)]/25 ring-offset-1"
@@ -359,7 +359,7 @@ function RefinedActionButton({
         "w-full flex items-center gap-3 px-4 py-3 rounded-xl",
         "border border-[hsl(32,20%,88%)] bg-white",
         "text-[hsl(25,30%,14%)] text-sm font-medium",
-        "transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
+        "transition-all duration-300 ease-in-out",
         "hover:border-[hsl(44,70%,75%)] hover:bg-[hsl(35,40%,97%)]",
         "hover:shadow-[0_2px_8px_rgba(242,201,76,0.1)]",
         "active:scale-[0.98]"
@@ -562,7 +562,7 @@ export default function PrototypeEventDetailsDesktop() {
                       onClick={() => setUserRsvp(status)}
                       className={cn(
                         "h-11 rounded-xl font-medium text-sm",
-                        "transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
+                        "transition-all duration-300 ease-in-out",
                         "border",
                         userRsvp === status
                           ? status === "yes"

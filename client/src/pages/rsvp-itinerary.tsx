@@ -41,7 +41,7 @@ type Itinerary = {
     photoUrl: string | null;
     rating: string | null;
     googleMapsUrl: string | null;
-    googlePlaceId?: string | null;
+    googlePlaceId: string | null;
     arrivalTime?: string | null;
     departureTime?: string | null;
     travelNotes?: string | null;

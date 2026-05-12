@@ -484,7 +484,7 @@ function RefinedCollapsibleCard({
       transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
       className={cn(
         "rounded-2xl border bg-white overflow-hidden",
-        "transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
+        "transition-all duration-300 ease-in-out",
         isExpanded
           ? "border-[hsl(44,70%,75%)] shadow-[0_4px_16px_rgba(242,201,76,0.12)]"
           : "border-[hsl(32,20%,88%)] shadow-[0_2px_8px_rgba(0,0,0,0.04)]",
@@ -495,7 +495,7 @@ function RefinedCollapsibleCard({
         onClick={() => setIsExpanded(!isExpanded)}
         className={cn(
           "w-full relative px-5 py-4 flex items-center justify-between",
-          "transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
+          "transition-all duration-300 ease-in-out",
           isExpanded ? "bg-[hsl(35,40%,95%)]" : "bg-white hover:bg-[hsl(38,50%,99%)]"
         )}
         style={
@@ -513,7 +513,7 @@ function RefinedCollapsibleCard({
           <div
             className={cn(
               "flex items-center justify-center w-9 h-9 rounded-full",
-              "transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
+              "transition-all duration-300 ease-in-out",
               isExpanded
                 ? badgeVariant === "purple"
                   ? "bg-[hsl(280,60%,60%)] text-white shadow-[0_2px_8px_rgba(147,112,219,0.3)] scale-105"
@@ -742,7 +742,7 @@ function RefinedCategoryPill({
       onClick={onToggle}
       className={cn(
         "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium",
-        "transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]",
+        "transition-all duration-200 ease-in-out",
         category.enabled
           ? "bg-[hsl(44,87%,63%)] text-[hsl(25,30%,14%)]"
           : "bg-[hsl(35,25%,93%)] text-[hsl(25,15%,45%)]",

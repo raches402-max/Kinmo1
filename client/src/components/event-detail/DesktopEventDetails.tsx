@@ -944,7 +944,7 @@ export function DesktopEventDetails({
                         disabled={isPending.organizerRsvp}
                         className={cn(
                           "h-11 rounded-xl font-medium text-sm",
-                          "transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
+                          "transition-all duration-300 ease-in-out",
                           "border disabled:opacity-50",
                           rsvpResponse === status
                             ? status === "yes"
