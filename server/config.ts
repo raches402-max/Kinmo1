@@ -19,11 +19,7 @@ const envSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
 
-  // Legacy Replit env vars (optional — kept for backward compat during migration)
-  REPLIT_DOMAINS: z.string().optional(),
   CUSTOM_DOMAINS: z.string().optional(),
-  REPL_ID: z.string().optional(),
-  ISSUER_URL: z.string().url().optional().default('https://replit.com/oidc'),
 
   // Server Configuration
   PORT: z.string().optional().default('5000'),
@@ -32,7 +28,6 @@ const envSchema = z.object({
   // CORS and Frontend URLs
   ALLOWED_ORIGINS: z.string().optional(),
   FRONTEND_URL: z.string().optional(),
-  REPLIT_DEV_DOMAIN: z.string().optional(),
 
   // Error Monitoring (optional - Sentry)
   SENTRY_DSN: z.string().optional(),

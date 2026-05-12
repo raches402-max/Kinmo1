@@ -49,12 +49,14 @@ function truncate(text: string, maxLength: number): string {
  * Get the base URL for the app
  */
 function getBaseUrl(): string {
-  // Use the Replit domain in production
-  if (process.env.REPLIT_DEV_DOMAIN) {
-    return `https://${process.env.REPLIT_DEV_DOMAIN}`;
+  const configuredBaseUrl = process.env.FRONTEND_URL || process.env.BASE_URL;
+  if (configuredBaseUrl) {
+    return configuredBaseUrl.replace(/\/$/, "");
   }
-  // Fallback for production deployment
-  return process.env.BASE_URL || "https://kinmo.ai";
+
+  return process.env.NODE_ENV === "production"
+    ? "https://kinmo.ai"
+    : "http://localhost:5000";
 }
 
 /**

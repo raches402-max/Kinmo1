@@ -9,8 +9,6 @@ import { storage } from "./storage";
 const HARDCODED_CUSTOM_DOMAINS = ["kinmo.ai"];
 
 function getAllDomains(): string[] {
-  const replitDomains =
-    process.env.REPLIT_DOMAINS?.split(",").map((d) => d.trim()) || [];
   const envCustomDomains =
     process.env.CUSTOM_DOMAINS?.split(",").map((d) => d.trim()) || [];
   // In non-production, register a strategy for localhost so local dev OAuth works.
@@ -20,7 +18,6 @@ function getAllDomains(): string[] {
     ...new Set([
       ...HARDCODED_CUSTOM_DOMAINS,
       ...envCustomDomains,
-      ...replitDomains,
       ...localDomains,
     ]),
   ];

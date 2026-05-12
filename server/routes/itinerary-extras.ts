@@ -1474,8 +1474,9 @@ router.get("/itineraries/:id/invite-summary", isAuthenticated, async (req, res) 
     };
 
     // Get shareable link using first invite token
+    const requestBaseUrl = `${req.protocol}://${req.get("host")}`;
     const shareableLink = invites.length > 0
-      ? `${process.env.REPLIT_DEV_DOMAIN || 'http://localhost:5000'}/rsvp/${itinerary.id}/${invites[0].inviteToken}`
+      ? `${requestBaseUrl}/rsvp/${itinerary.id}/${invites[0].inviteToken}`
       : null;
 
     res.json({
