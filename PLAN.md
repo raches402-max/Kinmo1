@@ -1,6 +1,6 @@
 # Kinmo V2 — Master Plan
 
-_Last updated: 2026-05-12 (rev 5 — Franky cleanup tasks 2-5 completed; production on Railway)_
+_Last updated: 2026-05-12 (rev 6 — W3 cost control shipped end-to-end; W6 sub-tracks A/B/C done; migrations 0014/0015 live on Neon and Railway)_
 
 ## Context
 
@@ -16,11 +16,11 @@ This document is the working plan for getting Kinmo V2 production-ready: off Rep
 |---|---|---|
 | 0 | Dead code purge | ✅ **DONE** (2026-05-11; 47 files, 13,341 LOC, 14 npm deps removed) |
 | 1 | Hosting migration off Replit | ✅ **DONE** (2026-05-12; live on Railway at https://kinmo-production.up.railway.app, Postgres + Google OAuth + 8,800 rows migrated) |
-| 2 | Finish auth migration | 🟡 **Mostly done** — production OAuth works; Replit script/env cleanup completed |
-| 3 | API cost control | ⏭️ Not started — recommended next |
-| 4 | Architecture cleanup | 🔄 **In progress** — Slice 2 (split routes.ts) ~75% done as pre-existing WIP: 31 route files in `server/routes/`, routes.ts shrunk from ~14,400 → 14,056 LOC; not yet committed |
-| 5 | Code hygiene | 🔄 Ongoing — initial Sentry/error-handling fixes completed; more cleanup still possible |
-| 6 | Security & data-integrity hardening | 🔄 Started — hardcoded admin fallback removed; auth/data-integrity follow-ups remain |
+| 2 | Finish auth migration | ✅ **DONE** (production OAuth works; Replit script/env cleanup shipped in `9c6fef0`; only manual logout flow test remains) |
+| 3 | API cost control | ✅ **DONE** (tiers 0/1/2/3/4 shipped in `0583809..ccf5928` + Batch API in `ac78be8`; ai_batch_requests table live on Railway via migration `0015`) |
+| 4 | Architecture cleanup | 🔄 **In progress** — Slice 2 (split routes.ts) **COMMITTED** (`7506c88`); slices 1/3/4 remain |
+| 5 | Code hygiene | 🔄 Ongoing — Sentry on 3 RSVP fire-and-forget catches done (`771f1f7`); frontend Sentry verified by Franky; env validation + advisory lock TTL remain |
+| 6 | Security & data-integrity hardening | 🔄 In progress — sub-tracks A (`67b286f`), B (admin fallback, `771f1f7`), C (vote unique constraints, `0d1b819`) all shipped + applied to Neon and Railway; D/E/F/G/H remain |
 
 **Production cost:** ~$10/mo on Railway (app + Postgres). API keys (OpenAI, Resend, Google Places) currently set to placeholders — features depending on them won't work until real keys are added.
 
@@ -168,7 +168,9 @@ Same pattern for `client/src/`:
 
 ---
 
-## Workstream 3 — API cost control
+## Workstream 3 — API cost control ✅ DONE
+
+**Status update 2026-05-12:** Shipped end-to-end by Franky across 6 commits — `0583809` (tier 0+1 env-gate kill switch + activity-gate cron jobs), `f45eed8` (tier 2 per-call cost cuts), `7fabc61` (tier 3 observability + cache normalization), `2038af3` (tier 4 architecture review), `ccf5928` (tier 4 daily budget tripwire), `ac78be8` (tier 4 #9 OpenAI Batch API integration). Migration `0015_add_ai_batch_requests.sql` (`2aeddd8`) created the supporting table on Neon and Railway. Tool-use batching for auto-scheduler + activity-refresh batching are deferred to follow-up commits per Franky's notes in `ac78be8`.
 
 **Goal:** Cut monthly API spend significantly without losing user-visible quality.
 
@@ -232,7 +234,7 @@ Several tables grow without bound and will tank query performance over time:
 
 ## Workstream 4 — Architecture cleanup 🔄 In progress
 
-**Status update 2026-05-12:** Slice 2 (split `routes.ts`) is ~75% done as **uncommitted WIP** — 31 route modules exist in `server/routes/`, `routes.ts` shrunk from ~14,400 → 14,056 LOC. The WIP also includes `server/auto-reschedule.ts` (245 LOC, related to the refactor) and a `SPLIT_PLAN.md` inside the new folder. Needs review + commit as a Workstream 4 milestone before continuing.
+**Status update 2026-05-12:** Slice 2 (split `routes.ts`) **committed in `7506c88`** — 31 route modules now live in `server/routes/`. Slices 1 (group server/ by domain), 3 (split storage.ts), and 4 (standardize error responses) still open.
 
 **Goal:** Make `server/` and `routes.ts` modifiable without dread.
 
@@ -297,35 +299,23 @@ Routes today return three inconsistent shapes: `{ message }`, `{ success: true, 
 
 **Goal:** Close real security gaps and prevent data corruption before any real users land.
 
-### Sub-track A: Auth/authorization gaps (verified)
+### Sub-track A: Auth/authorization gaps ✅ DONE
 
-The following routes are public but should require auth + group-membership check. Confirmed by reading the code at each line:
+**Shipped in `67b286f` (2026-05-12).** All 6 unprotected GETs locked down with `isAuthenticated + requireGroupAccess()` (or `requireVotingEventAccess()` for the by-vote-id route). The dead global `GET /api/voting-events` handler was deleted — no frontend read callers, couldn't be safely scoped.
 
-- `server/routes.ts:5404` — `GET /api/voting-events` (lists ALL voting events globally, no filter)
-- `server/routes.ts:5414` — `GET /api/groups/:groupId/voting-events`
-- `server/routes.ts:5540` — `GET /api/voting-events/:id/votes`
-- `server/routes.ts:8149` — `GET /api/groups/:groupId/itineraries`
-- `server/routes.ts:10259, 10269, 10279` — three `/api/groups/:groupId/auto-scheduled-*` endpoints
+### Sub-track B: Hardcoded admin fallback ✅ DONE
 
-**Action:** Add `isAuthenticated` middleware + group-membership check (use existing `requireGroupMember` pattern from `server/authorization.ts`). For `/api/voting-events`, scope to the user's groups or remove the endpoint entirely.
+**Shipped in `771f1f7` (2026-05-12; Franky Task 4a).** `getAdminEmails()` in `server/authorization.ts` now returns `[]` when `ADMIN_EMAILS` is unset — fails closed instead of granting access to `raches402@gmail.com`. Set `ADMIN_EMAILS` in env to restore admin access.
 
-### Sub-track B: Hardcoded admin fallback
+### Sub-track C: Data integrity — duplicate-vote race ✅ DONE
 
-`server/authorization.ts:339` grants admin access to a hardcoded email (`raches402@gmail.com`) if `ADMIN_EMAILS` env var is missing. Should fail-closed instead.
+**Shipped in `0d1b819` (2026-05-12).** Migration `0014_add_vote_unique_constraints.sql` adds 1 plain + 4 partial unique indexes covering both logged-in (`userId`) and anonymous (`memberId`) voting paths. `castVote()` and `voteForTimeSlot()` converted to race-free upserts. Pre-flight clean on both Neon and Railway; indexes live on both. `memberName`-only votes intentionally not constrained at DB level — see name-resolution feature for the upstream fix.
 
-**Action:** Remove the fallback. Validate `ADMIN_EMAILS` is set at startup in `server/config.ts`. Fail loudly if missing.
+### Sub-track D: Missing indexes 🟡 Partial
 
-### Sub-track C: Data integrity — duplicate-vote race
-
-`votes`, `itineraryOptionVotes`, `timeSlotVotes` in `shared/schema.ts` have no unique constraints. Two concurrent requests from the same user can insert duplicate votes.
-
-**Action:** Add unique constraints — e.g., `unique("uniq_vote_user_event").on(table.userId, table.eventId)` and equivalent on the other vote tables. Handle the constraint violation as "vote already exists, update instead" in storage functions.
-
-### Sub-track D: Missing indexes (executed in Workstream 1 Phase 1.1)
-
-Cross-listed here for security/perf; the actual index-add work happens during the Supabase migration:
+Vote-table indexes were added in migration `0014` (W6 Sub-track C). Still open:
 - `members.userId` — no index, full-table scans on user lookup
-- `rsvps.userId`, `votes.userId` — same
+- `rsvps.userId` — same
 - `deletedAt` columns — only `curatedVenues` has one; add for `groups`, `members`, etc.
 
 ### Sub-track E: Soft-delete consistency
@@ -371,12 +361,13 @@ No `/api/user/delete` endpoint exists. Users can't delete their account or data.
 
 1. ⏭️ **Add real API keys to Railway** — `OPENAI_API_KEY` (replace `stub_not_used`), `RESEND_API_KEY`, `GOOGLE_PLACES_API_KEY`. Stops the log spam, unlocks AI/email/venue features.
 2. ✅ ~~Verify Google OAuth login works locally~~ — works in production; localhost support added in `e37fb58`
-3. ⏭️ **Pull 30-day API cost report** — first concrete W3 step (query `apiCallLogs` grouped by endpoint)
+3. ✅ ~~Pull 30-day API cost report~~ — done as part of W3 diagnosis (drove the tier 0-4 implementation)
 4. ✅ ~~Spike a Railway deploy~~ — way past spiking, fully deployed
-5. ✅ ~~Fix hardcoded admin fallback~~ (`server/authorization.ts:339`) — completed in Franky Task 4a
-6. ⏭️ **Add unique constraints to vote tables** — schema change + migration, prevents real duplicate-vote bugs (W6)
+5. ✅ ~~Fix hardcoded admin fallback~~ (`server/authorization.ts:339`) — completed in Franky Task 4a (`771f1f7`)
+6. ✅ ~~Add unique constraints to vote tables~~ — shipped in `0d1b819` + migration `0014` applied to Neon and Railway
 7. ✅ ~~Run `npx knip`~~ — done, drove W0
-8. ⏭️ **Commit the routes.ts split WIP** — Workstream 4 Slice 2 milestone (Rachel commits her own work)
+8. ✅ ~~Commit the routes.ts split WIP~~ — shipped in `7506c88` (W4 Slice 2)
+9. ⏭️ **Apply 0014 + 0015 migrations whenever a new DB is provisioned** — both are hand-written SQL with idempotent applier scripts (`scripts/apply-migration-0014.ts`, `scripts/apply-migration-0015.ts`). Run via `railway run --service=Postgres -- bash -c 'DATABASE_URL="$DATABASE_PUBLIC_URL" npx tsx scripts/apply-migration-NNNN.ts'`.
 
 ---
 
