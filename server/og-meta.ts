@@ -56,7 +56,7 @@ function getBaseUrl(): string {
 
   return process.env.NODE_ENV === "production"
     ? "https://kinmo.ai"
-    : "http://localhost:5000";
+    : "http://localhost:3000";
 }
 
 /**
