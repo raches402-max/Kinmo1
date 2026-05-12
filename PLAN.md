@@ -1,6 +1,6 @@
 # Kinmo V2 — Master Plan
 
-_Last updated: 2026-05-12 (rev 7 — W3 cost control shipped through tier 4; Batch API was reverted in `6d618ac`; W6 sub-tracks A/B/C/F done; migration 0014 live on Neon + Railway; migration 0015 applied but currently orphan after revert)_
+_Last updated: 2026-05-12 (rev 8 — W3 cost control shipped through tier 4; Batch API **paused** after revert in `6d618ac` per Franky; W6 sub-tracks A/B/C/F done; migration 0014 live on Neon + Railway; migration 0015 table kept in place intentionally)_
 
 ## Context
 
@@ -17,7 +17,7 @@ This document is the working plan for getting Kinmo V2 production-ready: off Rep
 | 0 | Dead code purge | ✅ **DONE** (2026-05-11; 47 files, 13,341 LOC, 14 npm deps removed) |
 | 1 | Hosting migration off Replit | ✅ **DONE** (2026-05-12; live on Railway at https://kinmo-production.up.railway.app, Postgres + Google OAuth + 8,800 rows migrated) |
 | 2 | Finish auth migration | ✅ **DONE** (production OAuth works; Replit script/env cleanup shipped in `9c6fef0`; only manual logout flow test remains) |
-| 3 | API cost control | ✅ **DONE** through tier 4 (`0583809..ccf5928`). Batch API (`ac78be8`) was reverted in `6d618ac`; the `ai_batch_requests` table created by migration `0015` is **orphan on both Neon and Railway** until that work is reattempted. |
+| 3 | API cost control | ✅ **DONE** through tier 4 (`0583809..ccf5928`). Batch API (`ac78be8`) was reverted in `6d618ac` as a scope/coordination rollback (per Franky, not a known bug). **Status: paused, not abandoned.** The `ai_batch_requests` table from migration `0015` is kept on Neon + Railway intentionally — if Batch API is reopened, the migration is reusable as-is. If later abandoned, do it via a tracked DROP migration, not an ad-hoc DB change. **Do not touch this area until explicitly reopened.** |
 | 4 | Architecture cleanup | 🔄 **In progress** — Slice 2 (split routes.ts) **COMMITTED** (`7506c88`); slices 1/3/4 remain |
 | 5 | Code hygiene | 🔄 Ongoing — Sentry on 3 RSVP fire-and-forget catches done (`771f1f7`); frontend Sentry verified by Franky; env validation + advisory lock TTL remain |
 | 6 | Security & data-integrity hardening | 🔄 In progress — sub-tracks A (`67b286f`), B (admin fallback, `771f1f7`), C (vote unique constraints, `0d1b819`), F (`dc8f207`) shipped; D/E/G/H remain |
@@ -172,9 +172,13 @@ Same pattern for `client/src/`:
 
 **Status update 2026-05-12:** Shipped through tier 4 by Franky in 5 commits — `0583809` (tier 0+1 env-gate kill switch + activity-gate cron jobs), `f45eed8` (tier 2 per-call cost cuts), `7fabc61` (tier 3 observability + cache normalization), `2038af3` (tier 4 architecture review), `ccf5928` (tier 4 daily budget tripwire).
 
-**Reverted:** the Batch API integration (`ac78be8`, tier 4 #9) was rolled back in `6d618ac` later the same day. The supporting migration `0015_add_ai_batch_requests.sql` (`2aeddd8`) had already been applied to both Neon and Railway — the `ai_batch_requests` table now exists in both DBs with no code referencing it. **Orphan-table cleanup options:** (a) leave it, harmless; (b) `DROP TABLE ai_batch_requests` if/when we want a clean slate. Re-attempting Batch API later can re-use migration 0015 (it's idempotent).
+**Batch API paused (not abandoned):** the Batch API integration (`ac78be8`, tier 4 #9) was rolled back in `6d618ac` later the same day. The supporting migration `0015_add_ai_batch_requests.sql` (`2aeddd8`) had already been applied to both Neon and Railway, so the `ai_batch_requests` table exists in both DBs with no code referencing it currently.
 
-Tool-use batching for auto-scheduler + activity-refresh batching also still open — they were the deferred follow-ups from Franky's reverted commit, not yet attempted.
+Per Franky (2026-05-12), the revert was a scope/coordination rollback — no specific bug was recorded. Treat the planning agent as staying synchronous indefinitely unless we make a deliberate call to reopen this work. **The orphan table is kept on purpose.** If Batch API is reopened, migration 0015 is reusable as-is (the SQL is idempotent). If we later decide Batch is off the roadmap entirely, clean up via a tracked DROP migration (not an ad-hoc DB change).
+
+**Do not touch this area until explicitly reopened** — that's the coordination rule.
+
+Tool-use batching for auto-scheduler + activity-refresh batching are out of scope while Batch is paused.
 
 **Goal:** Cut monthly API spend significantly without losing user-visible quality.
 
