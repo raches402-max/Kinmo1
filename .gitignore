@@ -29,5 +29,13 @@ attached_assets/
 claude_backups/
 .claude-backup/
 
+# Personal Claude Code tooling (not Kinmo)
+claude-backup.sh
+setup-claude-plugins.sh
+Screenshots for Claude Code
+
+# Legacy Replit config (Kinmo is on Railway now)
+.replit
+
 # Design mockups
 client/public/mockups/
