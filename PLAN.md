@@ -1,12 +1,28 @@
 # Kinmo V2 — Master Plan
 
-_Last updated: 2026-05-11 (rev 3 — added Workstream 0 dead-code purge, delete-first principle)_
+_Last updated: 2026-05-12 (rev 4 — Workstreams 0 + 1 complete; production on Railway)_
 
 ## Context
 
 This document is the working plan for getting Kinmo V2 production-ready: off Replit, on a sustainable hosting stack, with API costs under control and a codebase we can actually maintain. No live users yet — we can move fast and break things, then stabilize.
 
 **Working sequence:** Dead code purge → hosting migration → finish auth → API cost control → architecture cleanup. Deletion happens BEFORE refactor — every line deleted is one we don't migrate, refactor, or test.
+
+---
+
+## Status snapshot
+
+| # | Workstream | Status |
+|---|---|---|
+| 0 | Dead code purge | ✅ **DONE** (2026-05-11; 47 files, 13,341 LOC, 14 npm deps removed) |
+| 1 | Hosting migration off Replit | ✅ **DONE** (2026-05-12; live on Railway at https://kinmo-production.up.railway.app, Postgres + Google OAuth + 8,800 rows migrated) |
+| 2 | Finish auth migration | 🟡 **Mostly done** — production OAuth works; cleanup queued for Franky (Task 2: Replit script/env cleanup) |
+| 3 | API cost control | ⏭️ Not started — recommended next |
+| 4 | Architecture cleanup | 🔄 **In progress** — Slice 2 (split routes.ts) ~75% done as pre-existing WIP: 31 route files in `server/routes/`, routes.ts shrunk from ~14,400 → 14,056 LOC; not yet committed |
+| 5 | Code hygiene | 🔄 Ongoing — Sentry/error-handling fixes queued for Franky (Task 4) |
+| 6 | Security & data-integrity hardening | 🔄 Started — admin email + auth gaps + Sentry queued for Franky (Task 4) |
+
+**Production cost:** ~$10/mo on Railway (app + Postgres). API keys (OpenAI, Resend, Google Places) currently set to placeholders — features depending on them won't work until real keys are added.
 
 ---
 
@@ -21,9 +37,15 @@ We're not rewriting. The schema, product logic, AI prompts, and stack are all wo
 
 ---
 
-## Workstream 0 — Dead code purge (do this BEFORE anything else)
+## Workstream 0 — Dead code purge ✅ DONE
 
-**Goal:** Shrink the codebase by 20-30% before touching anything else.
+**Completed 2026-05-11** in commit `224b3fa`. Removed 47 unused files + 14 npm deps (44 packages incl. transitive). Net: −13,341 LOC. Knip used to identify candidates; each spot-checked before deletion. App still builds and runs.
+
+**What was kept that knip flagged:** `scripts/audit-route-split.mjs` (useful for W4), `server/google-places-stub.ts` (useful for W3 cost testing).
+
+**What was NOT delete-able despite suspicion:** the 8 `ai-*` server files — they ARE imported into the runtime, so they're product features, not dead code. Decision to retire them is a product call deferred to W4 or later.
+
+**Original goal:** Shrink the codebase by 20-30% before touching anything else.
 
 ### Phase 0.1 — Suspect modules (verify each before deleting)
 
@@ -62,9 +84,33 @@ Same pattern for `client/src/`:
 
 ---
 
-## Workstream 1 — Hosting migration off Replit
+## Workstream 1 — Hosting migration off Replit ✅ DONE
 
-**Goal:** Run Kinmo on infrastructure we own, with a DB we control.
+**Completed 2026-05-12.** Production live at https://kinmo-production.up.railway.app.
+
+**Final stack:**
+- Hosting: **Railway** (project `affectionate-passion`, ~$5/mo Hobby plan)
+- Database: **Railway Postgres** (~$5/mo) — chose over Supabase for simplicity (one bill, one dashboard, auto-wired DATABASE_URL)
+- Auth: **Google OAuth** via Passport (production OAuth client in Google Cloud `Kinmo.ai Auth`)
+- Migration: 8,800 rows copied via `scripts/migrate-neon-to-railway.ts` (kept in repo for reference)
+
+**Real gotchas hit + fixed in this workstream:**
+1. `vercel.json` was prepped but won't work — Kinmo has 10 long-running `setInterval` schedulers incompatible with serverless. Railway runs Express as a long-lived process, no refactor needed.
+2. PORT was hardcoded to 5000 in `package.json` `start` script — broke Railway's port assignment. Fixed in commit `350657a`.
+3. `scripts/postprocess-index.mjs` was referenced by the build script but never committed. Fixed in `aef6af4`.
+4. Code used `@neondatabase/serverless` (WebSocket-based) — won't connect to Railway TCP Postgres. Swapped to `pg` + `drizzle-orm/node-postgres` in `e085d95`.
+5. OAuth strategies only registered for `kinmo.ai`, not the Railway URL — added `CUSTOM_DOMAINS=kinmo-production.up.railway.app` env var.
+6. Frontend was hitting `/api/login` (Replit-era), server only exposed `/api/auth/google`. Added redirect alias in `e37fb58`.
+7. OpenAI SDK crashed on missing API key — added placeholder `OPENAI_API_KEY=stub_not_used` (server's optional check passes empty strings but not undefined).
+8. Schema drift between Neon and Railway — Neon had columns no longer in `shared/schema.ts` (`disengagement_strikes`, `quorum_threshold`, `phone_number`). Migration script filters to common columns. ~100 rows skipped on JSON parse errors (acceptable).
+
+**Still pending in this workstream area** (deferred but documented):
+- Hook up `kinmo.ai` custom domain (Railway → Networking → Custom Domain + DNS CNAME + Google OAuth additional redirect URI)
+- Add real API keys to Railway: `OPENAI_API_KEY`, `RESEND_API_KEY`, `GOOGLE_PLACES_API_KEY`, `VITE_GOOGLE_MAPS_API_KEY`
+- Delete leftover `vercel.json` from working tree (Franky Task 2)
+- Switch from `drizzle-kit push` to versioned migrations — punted to a later workstream
+
+**Original goal:** Run Kinmo on infrastructure we own, with a DB we control.
 
 ### Decision needed first: Vercel vs. Railway (vs. hybrid)
 
@@ -108,17 +154,17 @@ Same pattern for `client/src/`:
 
 ---
 
-## Workstream 2 — Finish auth migration (Replit OIDC → Google OAuth)
+## Workstream 2 — Finish auth migration 🟡 Mostly done
 
-**Status:** Partially done in commit `b77bf14`. See `../v2-migration-plan.md` for detailed steps already documented.
+**Status update 2026-05-12:** Production OAuth fully working on Railway. Most items below complete. Cleanup queued for Franky Task 2.
 
 ### Remaining tasks
-1. Verify `setupGoogleAuth` is wired correctly in `server/routes.ts` and `server/index.ts`
-2. Remove `REPLIT_DOMAINS`, `REPL_ID`, `ISSUER_URL` from `server/config.ts` requirements
-3. Delete `server/replitAuth.ts` once googleAuth flow is verified end-to-end
-4. Set up Google OAuth credentials in Google Cloud Console (web app type, redirect URI matches deploy URL)
-5. Test full login → session → logout flow on localhost
-6. Test on first production deploy
+1. ✅ ~~Verify `setupGoogleAuth` is wired correctly~~ — done in `e37fb58`, also added localhost support + graceful fallback
+2. ⏭️ Remove `REPLIT_DOMAINS`, `REPL_ID`, `ISSUER_URL` from `server/config.ts` (Franky Task 2)
+3. ✅ ~~Delete `server/replitAuth.ts`~~ — done in `224b3fa`
+4. ✅ ~~Set up Google OAuth credentials~~ — `Kinmo.ai Auth` OAuth client created, Railway URL + localhost both registered
+5. ⏭️ Test full login → session → **logout** flow on localhost (login confirmed working in prod; logout untested)
+6. ✅ ~~Test on first production deploy~~ — login works at https://kinmo-production.up.railway.app
 
 ---
 
@@ -184,7 +230,9 @@ Several tables grow without bound and will tank query performance over time:
 
 ---
 
-## Workstream 4 — Architecture cleanup
+## Workstream 4 — Architecture cleanup 🔄 In progress
+
+**Status update 2026-05-12:** Slice 2 (split `routes.ts`) is ~75% done as **uncommitted WIP** — 31 route modules exist in `server/routes/`, `routes.ts` shrunk from ~14,400 → 14,056 LOC. The WIP also includes `server/auto-reschedule.ts` (245 LOC, related to the refactor) and a `SPLIT_PLAN.md` inside the new folder. Needs review + commit as a Workstream 4 milestone before continuing.
 
 **Goal:** Make `server/` and `routes.ts` modifiable without dread.
 
@@ -308,12 +356,12 @@ No `/api/user/delete` endpoint exists. Users can't delete their account or data.
 
 | # | Decision | Status | Notes |
 |---|---|---|---|
-| 1 | Hosting: Vercel / Railway / hybrid | Open | Spike both, decide after Phase 1.2 |
-| 2 | Keep Google Places or replace it | Open | Decide after API audit |
+| 1 | Hosting: Vercel / Railway / hybrid | ✅ **Decided: Railway** | Code's long-running schedulers made Vercel infeasible; deployed 2026-05-12 |
+| 2 | Keep Google Places or replace it | Open | Decide after API audit (W3 Sub-track A) |
 | 3 | gpt-4o vs gpt-4o-mini per feature | Open | A/B test before flipping |
 | 4 | Keep curated venues as primary, Places as fallback? | Open | Likely yes |
-| 5 | Drop `replitAuth.ts` entirely or keep as reference | Open | Drop once Google OAuth verified |
-| 6 | Drop `drizzle-kit push` in favor of versioned migrations | Open | Switch during Supabase migration in W1 |
+| 5 | Drop `replitAuth.ts` entirely or keep as reference | ✅ **Decided: Dropped** | Deleted in commit `224b3fa` (W0 purge) |
+| 6 | Drop `drizzle-kit push` in favor of versioned migrations | Open | Deferred (W1 used push); revisit before public launch |
 | 7 | Pick one canonical API response shape | Open | Recommend `{ success, data?, error? }` |
 | 8 | Acceptable retention window for `apiCallLogs` | Open | Suggest 90 days; depends on cost analysis in W3 |
 
@@ -321,13 +369,14 @@ No `/api/user/delete` endpoint exists. Users can't delete their account or data.
 
 ## Quick wins (do this week)
 
-1. **Add a real `OPENAI_API_KEY` to `.env`** (or guard the background jobs) — stops the log spam, lets you see real issues
-2. **Verify Google OAuth login works locally** — confirms Workstream 2 isn't blocked
-3. **Pull 30-day API cost report** — gives you data to drive Workstream 3
-4. **Spike a Railway deploy** of just the Express server — fastest way to learn what Workstream 1 actually needs
-5. **Fix the hardcoded admin fallback** (`server/authorization.ts:339`) — one-line change, removes a real risk
-6. **Add unique constraints to vote tables** — schema change + migration, prevents real duplicate-vote bugs
-7. **Run `npx knip` against the repo** — gives you a starter list for Workstream 0 in ~30 seconds
+1. ⏭️ **Add real API keys to Railway** — `OPENAI_API_KEY` (replace `stub_not_used`), `RESEND_API_KEY`, `GOOGLE_PLACES_API_KEY`. Stops the log spam, unlocks AI/email/venue features.
+2. ✅ ~~Verify Google OAuth login works locally~~ — works in production; localhost support added in `e37fb58`
+3. ⏭️ **Pull 30-day API cost report** — first concrete W3 step (query `apiCallLogs` grouped by endpoint)
+4. ✅ ~~Spike a Railway deploy~~ — way past spiking, fully deployed
+5. ⏭️ **Fix hardcoded admin fallback** (`server/authorization.ts:339`) — queued for Franky Task 4
+6. ⏭️ **Add unique constraints to vote tables** — schema change + migration, prevents real duplicate-vote bugs (W6)
+7. ✅ ~~Run `npx knip`~~ — done, drove W0
+8. ⏭️ **Commit the routes.ts split WIP** — Workstream 4 Slice 2 milestone (Rachel commits her own work)
 
 ---
 
