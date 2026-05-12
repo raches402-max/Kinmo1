@@ -803,8 +803,6 @@ router.get("/itineraries/:id", async (req, res) => {
 router.post("/itineraries", isAuthenticated, async (req: any, res) => {
   try {
     const userId = await getUserId(req);
-    console.log('[Create Itinerary] Received request body:', JSON.stringify(req.body, null, 2));
-
     const bodyWithDateConversion = { ...req.body };
     if (bodyWithDateConversion.eventDate && typeof bodyWithDateConversion.eventDate === 'string') {
       bodyWithDateConversion.eventDate = new Date(bodyWithDateConversion.eventDate);
@@ -812,7 +810,7 @@ router.post("/itineraries", isAuthenticated, async (req: any, res) => {
 
     const validatedData = safeParse(insertItinerarySchema, bodyWithDateConversion, res);
     if (!validatedData) {
-      console.log('[Create Itinerary] Validation failed for body:', JSON.stringify(req.body, null, 2));
+      console.log('[Create Itinerary] Validation failed');
       return;
     }
 

@@ -86,7 +86,7 @@ router.patch("/members/:id/rsvp", requireMemberAccess(), async (req: any, res) =
 
 // POST /rsvps — submit RSVP with invite token
 router.post("/rsvps", async (req, res) => {
-  console.log('[RSVP] Request received:', JSON.stringify(req.body, null, 2));
+  console.log('[RSVP] Request received:', { itineraryId: req.body?.itineraryId, hasInviteToken: !!req.body?.inviteToken, response: req.body?.response });
   try {
     const validatedData = safeParse(createRsvpSchema, req.body, res);
     if (!validatedData) {
@@ -339,11 +339,11 @@ router.get("/rsvps/itinerary/:itineraryId", isAuthenticated, async (req, res) =>
 
 // POST /itineraries/:itineraryId/organizer-rsvp — organizer RSVP
 router.post("/itineraries/:itineraryId/organizer-rsvp", isAuthenticated, async (req: any, res) => {
-  console.log('[Organizer RSVP] Request received:', { params: req.params, body: req.body });
+  console.log('[Organizer RSVP] Request received:', { itineraryId: req.params.itineraryId, response: req.body?.response });
   try {
     const validatedData = safeParse(organizerRsvpSchema, req.body, res);
     if (!validatedData) {
-      console.log('[Organizer RSVP] Validation failed for body:', req.body);
+      console.log('[Organizer RSVP] Validation failed');
       return;
     }
 

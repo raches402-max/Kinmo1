@@ -4285,7 +4285,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Create or update RSVP for an itinerary (no auth required, validates invite token)
   app.post("/api/rsvps", async (req, res) => {
-    console.log('[RSVP] Request received:', JSON.stringify(req.body, null, 2));
+    console.log('[RSVP] Request received:', { itineraryId: req.body?.itineraryId, hasInviteToken: !!req.body?.inviteToken, response: req.body?.response });
     try {
       // Validate request body
       const validatedData = safeParse(createRsvpSchema, req.body, res);
@@ -4577,12 +4577,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Organizer RSVP - allows authenticated group owners to RSVP to their own events
   app.post("/api/itineraries/:itineraryId/organizer-rsvp", isAuthenticated, async (req: any, res) => {
-    console.log('[Organizer RSVP] Request received:', { params: req.params, body: req.body });
+    console.log('[Organizer RSVP] Request received:', { itineraryId: req.params.itineraryId, response: req.body?.response });
     try {
       // Validate request body
       const validatedData = safeParse(organizerRsvpSchema, req.body, res);
       if (!validatedData) {
-        console.log('[Organizer RSVP] Validation failed for body:', req.body);
+        console.log('[Organizer RSVP] Validation failed');
         return;
       }
 
@@ -8456,8 +8456,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = await getUserId(req);
 
-      console.log('[Create Itinerary] Received request body:', JSON.stringify(req.body, null, 2));
-
       // Convert eventDate string to Date object if provided (drizzle-zod expects Date objects)
       const bodyWithDateConversion = { ...req.body };
       if (bodyWithDateConversion.eventDate && typeof bodyWithDateConversion.eventDate === 'string') {
@@ -8467,7 +8465,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate request body
       const validatedData = safeParse(insertItinerarySchema, bodyWithDateConversion, res);
       if (!validatedData) {
-        console.log('[Create Itinerary] Validation failed for body:', JSON.stringify(req.body, null, 2));
+        console.log('[Create Itinerary] Validation failed');
         return;
       }
 
