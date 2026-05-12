@@ -24,6 +24,7 @@ import { formatInTimeZone } from "date-fns-tz";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { isPastDated, isPastDisplayableEvent } from "@/lib/events";
 import { getErrorToast, ErrorDisplay } from "@/components/ErrorDisplay";
 import { LoadingState, SkeletonCard } from "@/components/LoadingState";
 import type { Group, User, UserProfile, GroupCollection, Itinerary, StandaloneEventInvitee } from "@shared/schema";
@@ -484,10 +485,10 @@ export default function Dashboard() {
   // Calculate past events needing feedback
   const currentTime = new Date();
   const pastEventsNeedingFeedback = events.filter(event => {
-    const isPast = event.eventDate && new Date(event.eventDate) < currentTime;
+    if (!isPastDated(event, currentTime)) return false;
     const attended = event.rsvp?.response === 'yes';
     const noFeedbackYet = !event.rsvp?.postEventFeedback;
-    return isPast && attended && noFeedbackYet;
+    return attended && noFeedbackYet;
   });
 
   // Auto-open feedback dialog for most recent past event (one-time per event)
@@ -1020,25 +1021,7 @@ export default function Dashboard() {
 
   const { events: displayedUpcomingEvents, hiddenCount: hiddenEventsCount } = limitEventsPerGroup(upcomingEvents);
 
-  // Past events should only include events that:
-  // 1. Have a date that has passed
-  // 2. Were actually sent out (inviteSentAt exists) OR have a status indicating they happened
-  // 3. Are not in draft status (unless they were sent or user is organizer)
-  const pastEvents = events.filter(e => {
-    if (!e.eventDate || new Date(e.eventDate) > now) return false;
-
-    // Always show draft/saved events to the organizer (useful for tracking history)
-    if (e.isOrganizer) return true;
-
-    // Exclude draft events that were never sent (for non-organizers)
-    if (e.status === 'draft' && !e.inviteSentAt) return false;
-
-    // Exclude saved events that were never sent (for non-organizers)
-    if (e.status === 'saved' && !e.inviteSentAt) return false;
-
-    // Include events that were sent or have a real status (proposed, scheduled, completed, rejected)
-    return true;
-  });
+  const pastEvents = events.filter(e => isPastDisplayableEvent(e, now));
 
   // Split past events into recent (last 90 days) and archived (older)
   const ninetyDaysAgo = new Date();

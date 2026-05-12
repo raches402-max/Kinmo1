@@ -28,6 +28,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { getErrorToast } from "@/components/ErrorDisplay";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { isPastDated } from "@/lib/events";
 import type { Group, Activity, Member, VotingEvent, Vote } from "@shared/schema";
 import { AvailabilityGrid, createEmptyAvailability } from "@/components/AvailabilityGrid";
 import { ReadOnlyAvailabilityGrid } from "@/components/ReadOnlyAvailabilityGrid";
@@ -1039,7 +1040,7 @@ export default function GroupDetail() {
         if (e.isOrganizer) return isFutureOrTBD;
         return e.rsvp && e.rsvp.response !== 'no' && isFutureOrTBD;
       }),
-      pastEvents: allGroupEvents.filter(e => e.eventDate && new Date(e.eventDate) <= now)
+      pastEvents: allGroupEvents.filter(e => isPastDated(e, now))
     };
   }, [allGroupEvents]);
 
