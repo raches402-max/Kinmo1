@@ -1,6 +1,6 @@
 # Kinmo V2 — Master Plan
 
-_Last updated: 2026-05-12 (rev 4 — Workstreams 0 + 1 complete; production on Railway)_
+_Last updated: 2026-05-12 (rev 5 — Franky cleanup tasks 2-5 completed; production on Railway)_
 
 ## Context
 
@@ -16,11 +16,11 @@ This document is the working plan for getting Kinmo V2 production-ready: off Rep
 |---|---|---|
 | 0 | Dead code purge | ✅ **DONE** (2026-05-11; 47 files, 13,341 LOC, 14 npm deps removed) |
 | 1 | Hosting migration off Replit | ✅ **DONE** (2026-05-12; live on Railway at https://kinmo-production.up.railway.app, Postgres + Google OAuth + 8,800 rows migrated) |
-| 2 | Finish auth migration | 🟡 **Mostly done** — production OAuth works; cleanup queued for Franky (Task 2: Replit script/env cleanup) |
+| 2 | Finish auth migration | 🟡 **Mostly done** — production OAuth works; Replit script/env cleanup completed |
 | 3 | API cost control | ⏭️ Not started — recommended next |
 | 4 | Architecture cleanup | 🔄 **In progress** — Slice 2 (split routes.ts) ~75% done as pre-existing WIP: 31 route files in `server/routes/`, routes.ts shrunk from ~14,400 → 14,056 LOC; not yet committed |
-| 5 | Code hygiene | 🔄 Ongoing — Sentry/error-handling fixes queued for Franky (Task 4) |
-| 6 | Security & data-integrity hardening | 🔄 Started — admin email + auth gaps + Sentry queued for Franky (Task 4) |
+| 5 | Code hygiene | 🔄 Ongoing — initial Sentry/error-handling fixes completed; more cleanup still possible |
+| 6 | Security & data-integrity hardening | 🔄 Started — hardcoded admin fallback removed; auth/data-integrity follow-ups remain |
 
 **Production cost:** ~$10/mo on Railway (app + Postgres). API keys (OpenAI, Resend, Google Places) currently set to placeholders — features depending on them won't work until real keys are added.
 
@@ -107,7 +107,7 @@ Same pattern for `client/src/`:
 **Still pending in this workstream area** (deferred but documented):
 - Hook up `kinmo.ai` custom domain (Railway → Networking → Custom Domain + DNS CNAME + Google OAuth additional redirect URI)
 - Add real API keys to Railway: `OPENAI_API_KEY`, `RESEND_API_KEY`, `GOOGLE_PLACES_API_KEY`, `VITE_GOOGLE_MAPS_API_KEY`
-- Delete leftover `vercel.json` from working tree (Franky Task 2)
+- ~~Delete leftover `vercel.json` from working tree~~ — completed in Franky Task 2
 - Switch from `drizzle-kit push` to versioned migrations — punted to a later workstream
 
 **Original goal:** Run Kinmo on infrastructure we own, with a DB we control.
@@ -156,11 +156,11 @@ Same pattern for `client/src/`:
 
 ## Workstream 2 — Finish auth migration 🟡 Mostly done
 
-**Status update 2026-05-12:** Production OAuth fully working on Railway. Most items below complete. Cleanup queued for Franky Task 2.
+**Status update 2026-05-12:** Production OAuth fully working on Railway. Replit cleanup tasks are complete; only functional follow-up testing remains.
 
 ### Remaining tasks
 1. ✅ ~~Verify `setupGoogleAuth` is wired correctly~~ — done in `e37fb58`, also added localhost support + graceful fallback
-2. ⏭️ Remove `REPLIT_DOMAINS`, `REPL_ID`, `ISSUER_URL` from `server/config.ts` (Franky Task 2)
+2. ✅ ~~Remove `REPLIT_DOMAINS`, `REPL_ID`, `ISSUER_URL` from `server/config.ts`~~ — completed in Franky Task 2
 3. ✅ ~~Delete `server/replitAuth.ts`~~ — done in `224b3fa`
 4. ✅ ~~Set up Google OAuth credentials~~ — `Kinmo.ai Auth` OAuth client created, Railway URL + localhost both registered
 5. ⏭️ Test full login → session → **logout** flow on localhost (login confirmed working in prod; logout untested)
@@ -373,7 +373,7 @@ No `/api/user/delete` endpoint exists. Users can't delete their account or data.
 2. ✅ ~~Verify Google OAuth login works locally~~ — works in production; localhost support added in `e37fb58`
 3. ⏭️ **Pull 30-day API cost report** — first concrete W3 step (query `apiCallLogs` grouped by endpoint)
 4. ✅ ~~Spike a Railway deploy~~ — way past spiking, fully deployed
-5. ⏭️ **Fix hardcoded admin fallback** (`server/authorization.ts:339`) — queued for Franky Task 4
+5. ✅ ~~Fix hardcoded admin fallback~~ (`server/authorization.ts:339`) — completed in Franky Task 4a
 6. ⏭️ **Add unique constraints to vote tables** — schema change + migration, prevents real duplicate-vote bugs (W6)
 7. ✅ ~~Run `npx knip`~~ — done, drove W0
 8. ⏭️ **Commit the routes.ts split WIP** — Workstream 4 Slice 2 milestone (Rachel commits her own work)
@@ -387,3 +387,38 @@ No `/api/user/delete` endpoint exists. Users can't delete their account or data.
 - Public launch / marketing — out of scope until infra is solid.
 - Anything that doesn't reduce risk, cost, or maintenance burden.
 - **Comprehensive test suite.** Acknowledging the gap: there are zero `vitest`/`jest`/`playwright` test files in this repo. We're deferring rather than denying. When the codebase stabilizes post-refactor, add at minimum: scheduler integration tests, auth flow tests, and storage-layer tests.
+
+---
+
+## Franky notes — delete later / review later candidates (added 2026-05-12)
+
+> These are my cleanup notes from the Task 5 AI-file inventory. They are intentionally annotated as **Franky notes** so it's clear these are my suggestions, not settled product decisions.
+
+### Likely removable later
+
+- **[Franky note] `server/ai-event-validator.ts`**
+  - Best delete-later candidate.
+  - Only used by `server/smart-event-pairing.ts` as a legacy AI validation layer.
+  - Likely removable or mergeable into `smart-event-pairing.ts` once Rachel decides that extra AI validation is not a must-have feature.
+
+- **[Franky note] `server/ai-venue-selector.ts`**
+  - Good delete-later candidate.
+  - Only used by `server/auto-scheduler.ts` as a fallback after the newer `ai-event-agent` path.
+  - If we keep the main agent path + algorithmic fallback, this middle fallback layer may be unnecessary.
+
+### Product-dependent delete-later candidates
+
+- **[Franky note] `server/ai-agent-chat.ts`**
+  - Remove only if the conversational AI chat feature is not a product priority.
+  - Powers `/api/itineraries/:id/ai-chat`.
+  - Depends on Anthropic rather than the main OpenAI flow, which makes it a reasonable simplification candidate if we want fewer AI surfaces.
+
+- **[Franky note] `server/agent-mcp-server.ts`**
+  - Treat as paired with `server/ai-agent-chat.ts`.
+  - If AI chat is cut, this tool layer is probably removable too.
+
+### Keep for now
+
+- **[Franky note] Keep `server/ai-event-agent.ts`** — central to real planning flows; high-risk to remove.
+- **[Franky note] Keep `server/ai-time-picker.ts`** — used across scheduling, rescheduling, reminders; high-risk to remove.
+- **[Franky note] Keep `server/ai-itinerary-naming.ts` and `server/ai-scheduling.ts` for now** — smaller, but still wired into live user-facing flows.
