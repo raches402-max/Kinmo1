@@ -567,11 +567,13 @@ router.get("/user/events", isAuthenticated, async (req: any, res) => {
       }
     }
 
-    // Standalone events
-    const standaloneItineraries = await db
-      .select()
-      .from(itineraries)
-      .where(and(eq(itineraries.createdBy, userId), eq(itineraries.isStandalone, true)));
+    // Standalone events — skip entirely when a group filter is set; standalones have no group.
+    const standaloneItineraries = filterGroupId
+      ? []
+      : await db
+          .select()
+          .from(itineraries)
+          .where(and(eq(itineraries.createdBy, userId), eq(itineraries.isStandalone, true)));
 
     const standaloneEvents = await Promise.all(standaloneItineraries.map(async (itinerary) => {
       const items = await db

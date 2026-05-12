@@ -1350,16 +1350,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Fetch standalone events created by this user
-      const standaloneItineraries = await db
-        .select()
-        .from(itineraries)
-        .where(
-          and(
-            eq(itineraries.createdBy, userId),
-            eq(itineraries.isStandalone, true)
-          )
-        );
+      // Fetch standalone events created by this user — skip when group-filtered; standalones have no group.
+      const standaloneItineraries = filterGroupId
+        ? []
+        : await db
+            .select()
+            .from(itineraries)
+            .where(
+              and(
+                eq(itineraries.createdBy, userId),
+                eq(itineraries.isStandalone, true)
+              )
+            );
 
       const standaloneEvents = await Promise.all(standaloneItineraries.map(async (itinerary) => {
         // Get itinerary items
