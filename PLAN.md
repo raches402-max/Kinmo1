@@ -1,6 +1,6 @@
 # Kinmo V2 — Master Plan
 
-_Last updated: 2026-05-12 (rev 6 — W3 cost control shipped end-to-end; W6 sub-tracks A/B/C done; migrations 0014/0015 live on Neon and Railway)_
+_Last updated: 2026-05-12 (rev 7 — W3 cost control shipped through tier 4; Batch API was reverted in `6d618ac`; W6 sub-tracks A/B/C/F done; migration 0014 live on Neon + Railway; migration 0015 applied but currently orphan after revert)_
 
 ## Context
 
@@ -17,10 +17,10 @@ This document is the working plan for getting Kinmo V2 production-ready: off Rep
 | 0 | Dead code purge | ✅ **DONE** (2026-05-11; 47 files, 13,341 LOC, 14 npm deps removed) |
 | 1 | Hosting migration off Replit | ✅ **DONE** (2026-05-12; live on Railway at https://kinmo-production.up.railway.app, Postgres + Google OAuth + 8,800 rows migrated) |
 | 2 | Finish auth migration | ✅ **DONE** (production OAuth works; Replit script/env cleanup shipped in `9c6fef0`; only manual logout flow test remains) |
-| 3 | API cost control | ✅ **DONE** (tiers 0/1/2/3/4 shipped in `0583809..ccf5928` + Batch API in `ac78be8`; ai_batch_requests table live on Railway via migration `0015`) |
+| 3 | API cost control | ✅ **DONE** through tier 4 (`0583809..ccf5928`). Batch API (`ac78be8`) was reverted in `6d618ac`; the `ai_batch_requests` table created by migration `0015` is **orphan on both Neon and Railway** until that work is reattempted. |
 | 4 | Architecture cleanup | 🔄 **In progress** — Slice 2 (split routes.ts) **COMMITTED** (`7506c88`); slices 1/3/4 remain |
 | 5 | Code hygiene | 🔄 Ongoing — Sentry on 3 RSVP fire-and-forget catches done (`771f1f7`); frontend Sentry verified by Franky; env validation + advisory lock TTL remain |
-| 6 | Security & data-integrity hardening | 🔄 In progress — sub-tracks A (`67b286f`), B (admin fallback, `771f1f7`), C (vote unique constraints, `0d1b819`) all shipped + applied to Neon and Railway; D/E/F/G/H remain |
+| 6 | Security & data-integrity hardening | 🔄 In progress — sub-tracks A (`67b286f`), B (admin fallback, `771f1f7`), C (vote unique constraints, `0d1b819`), F (`dc8f207`) shipped; D/E/G/H remain |
 
 **Production cost:** ~$10/mo on Railway (app + Postgres). API keys (OpenAI, Resend, Google Places) currently set to placeholders — features depending on them won't work until real keys are added.
 
@@ -170,7 +170,11 @@ Same pattern for `client/src/`:
 
 ## Workstream 3 — API cost control ✅ DONE
 
-**Status update 2026-05-12:** Shipped end-to-end by Franky across 6 commits — `0583809` (tier 0+1 env-gate kill switch + activity-gate cron jobs), `f45eed8` (tier 2 per-call cost cuts), `7fabc61` (tier 3 observability + cache normalization), `2038af3` (tier 4 architecture review), `ccf5928` (tier 4 daily budget tripwire), `ac78be8` (tier 4 #9 OpenAI Batch API integration). Migration `0015_add_ai_batch_requests.sql` (`2aeddd8`) created the supporting table on Neon and Railway. Tool-use batching for auto-scheduler + activity-refresh batching are deferred to follow-up commits per Franky's notes in `ac78be8`.
+**Status update 2026-05-12:** Shipped through tier 4 by Franky in 5 commits — `0583809` (tier 0+1 env-gate kill switch + activity-gate cron jobs), `f45eed8` (tier 2 per-call cost cuts), `7fabc61` (tier 3 observability + cache normalization), `2038af3` (tier 4 architecture review), `ccf5928` (tier 4 daily budget tripwire).
+
+**Reverted:** the Batch API integration (`ac78be8`, tier 4 #9) was rolled back in `6d618ac` later the same day. The supporting migration `0015_add_ai_batch_requests.sql` (`2aeddd8`) had already been applied to both Neon and Railway — the `ai_batch_requests` table now exists in both DBs with no code referencing it. **Orphan-table cleanup options:** (a) leave it, harmless; (b) `DROP TABLE ai_batch_requests` if/when we want a clean slate. Re-attempting Batch API later can re-use migration 0015 (it's idempotent).
+
+Tool-use batching for auto-scheduler + activity-refresh batching also still open — they were the deferred follow-ups from Franky's reverted commit, not yet attempted.
 
 **Goal:** Cut monthly API spend significantly without losing user-visible quality.
 
