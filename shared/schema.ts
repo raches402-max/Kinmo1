@@ -311,6 +311,7 @@ export const votingEvents = pgTable("voting_events", {
 });
 
 // Votes table to track upvotes/downvotes
+// Unique (user_id, event_id) — see migrations/0014_add_vote_unique_constraints.sql
 export const votes = pgTable("votes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   eventId: varchar("event_id").notNull().references(() => votingEvents.id, { onDelete: "cascade" }),
@@ -559,6 +560,8 @@ export const itineraryOptions = pgTable("itinerary_options", {
 });
 
 // Itinerary option votes - member votes on itinerary options
+// Partial uniques on (user_id, auto_event_id) and (member_id, auto_event_id) —
+// see migrations/0014_add_vote_unique_constraints.sql
 export const itineraryOptionVotes = pgTable("itinerary_option_votes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   optionId: varchar("option_id").notNull().references(() => itineraryOptions.id, { onDelete: "cascade" }),
@@ -657,6 +660,9 @@ export const proposedTimeSlots = pgTable("proposed_time_slots", {
 });
 
 // Time slot votes - track which members/users vote for which time slots
+// Partial uniques on (user_id, time_slot_id) and (member_id, time_slot_id) —
+// see migrations/0014_add_vote_unique_constraints.sql. memberName-only rows
+// (both ids null) are not constrained at the DB layer.
 export const timeSlotVotes = pgTable("time_slot_votes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   timeSlotId: varchar("time_slot_id").notNull().references(() => proposedTimeSlots.id, { onDelete: "cascade" }),

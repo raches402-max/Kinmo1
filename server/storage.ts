@@ -1265,23 +1265,13 @@ export class DatabaseStorage implements IStorage {
 
   // Votes operations
   async castVote(eventId: string, userId: string, voteType: 'upvote' | 'downvote'): Promise<Vote> {
-    const existingVote = await this.getUserVote(eventId, userId);
-
-    if (existingVote) {
-      if (existingVote.voteType === voteType) {
-        return existingVote;
-      }
-      const [vote] = await db
-        .update(votes)
-        .set({ voteType })
-        .where(and(eq(votes.eventId, eventId), eq(votes.userId, userId)))
-        .returning();
-      return vote;
-    }
-
     const [vote] = await db
       .insert(votes)
       .values({ eventId, userId, voteType })
+      .onConflictDoUpdate({
+        target: [votes.userId, votes.eventId],
+        set: { voteType, createdAt: new Date() },
+      })
       .returning();
     return vote;
   }
@@ -2412,17 +2402,41 @@ export class DatabaseStorage implements IStorage {
 
   // Time Slot Votes
   async voteForTimeSlot(vote: InsertTimeSlotVote): Promise<TimeSlotVote> {
-    const existing = await this.getUserTimeSlotVote(vote.timeSlotId, vote.userId || undefined, vote.memberId || undefined);
-    
-    if (existing) {
+    const setOnConflict = {
+      voteType: vote.voteType,
+      memberName: vote.memberName ?? null,
+      createdAt: new Date(),
+    };
+
+    if (vote.userId) {
       const [result] = await db
-        .update(timeSlotVotes)
-        .set({ ...vote, createdAt: new Date() })
-        .where(eq(timeSlotVotes.id, existing.id))
+        .insert(timeSlotVotes)
+        .values(vote)
+        .onConflictDoUpdate({
+          target: [timeSlotVotes.userId, timeSlotVotes.timeSlotId],
+          targetWhere: sql`${timeSlotVotes.userId} IS NOT NULL`,
+          set: setOnConflict,
+        })
         .returning();
       return result;
     }
 
+    if (vote.memberId) {
+      const [result] = await db
+        .insert(timeSlotVotes)
+        .values(vote)
+        .onConflictDoUpdate({
+          target: [timeSlotVotes.memberId, timeSlotVotes.timeSlotId],
+          targetWhere: sql`${timeSlotVotes.memberId} IS NOT NULL`,
+          set: setOnConflict,
+        })
+        .returning();
+      return result;
+    }
+
+    // memberName-only vote: no unique index covers this path by design.
+    // See migrations/0014_add_vote_unique_constraints.sql and the
+    // project-name-resolution-feature memory for the upstream fix.
     const [result] = await db.insert(timeSlotVotes).values(vote).returning();
     return result;
   }
