@@ -1657,5 +1657,17 @@ export function startReminderScheduler(): void {
   setTimeout(trackedDatabaseBackup, 60000);
   setInterval(trackedDatabaseBackup, BACKUP_INTERVAL_MS);
 
+  // Daily API cost report - aggregates api_call_logs and prints a per-service
+  // summary. Closes the observability gap so "is the system efficient now?"
+  // has an answer in Railway logs once a day.
+  const COST_REPORT_INTERVAL_MS = 24 * 60 * 60 * 1000;
+  const runCostReport = async () => {
+    const { generateDailyCostReport } = await import('./cost-report');
+    await generateDailyCostReport(24);
+  };
+  const trackedCostReport = createTrackedJob('dailyCostReport', runCostReport);
+  setTimeout(trackedCostReport, 90000); // 1.5 min after startup, after backup
+  setInterval(trackedCostReport, COST_REPORT_INTERVAL_MS);
+
   console.log('Reminder scheduler started successfully');
 }

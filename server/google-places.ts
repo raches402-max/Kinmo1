@@ -3,6 +3,25 @@ import { db } from "./db";
 import { placesCache, searchCache, geocodingCache, curatedVenues, apiCallLogs } from "@shared/schema";
 import { eq, and, or, sql as drizzleSql, like, desc, ilike, inArray } from "drizzle-orm";
 
+// Cache-key normalization. So "wine bar Brooklyn" and "Brooklyn wine bar"
+// share a cache entry, and minor punctuation/casing differences don't fan out
+// into separate paid Text Search calls.
+const QUERY_STOPWORDS = new Set([
+  "a", "an", "the", "in", "on", "at", "with", "for", "and", "or", "of", "to",
+]);
+function normalizeCacheQuery(s: string): string {
+  return (s || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w && !QUERY_STOPWORDS.has(w))
+    .sort()
+    .join(" ");
+}
+function normalizeCacheLocation(s: string): string {
+  return (s || "").toLowerCase().trim().replace(/\s+/g, " ");
+}
+
 // Legacy client for Geocoding and Timezone (still using old API)
 const legacyClient = new Client({});
 
@@ -602,13 +621,15 @@ async function savePlaceDetailsToDB(placeId: string, placeData: PlaceResult): Pr
 
 async function getSearchResultsFromDB(searchQuery: string, searchLocation: string, searchRadius: number): Promise<any[] | null> {
   try {
+    const normQuery = normalizeCacheQuery(searchQuery);
+    const normLocation = normalizeCacheLocation(searchLocation);
     const cached = await db
       .select()
       .from(searchCache)
       .where(
         and(
-          eq(searchCache.searchQuery, searchQuery),
-          eq(searchCache.searchLocation, searchLocation),
+          eq(searchCache.searchQuery, normQuery),
+          eq(searchCache.searchLocation, normLocation),
           eq(searchCache.searchRadius, searchRadius)
         )
       )
@@ -644,8 +665,8 @@ async function saveSearchResultsToDB(searchQuery: string, searchLocation: string
     await db
       .insert(searchCache)
       .values({
-        searchQuery,
-        searchLocation,
+        searchQuery: normalizeCacheQuery(searchQuery),
+        searchLocation: normalizeCacheLocation(searchLocation),
         searchRadius,
         searchResults: results as any,
         expiresAt,
@@ -1598,7 +1619,7 @@ export async function searchPlaces(
 
     // If forceComprehensiveSearch is true and we have 9+ curated results, log that we're calling API anyway
     if (curatedResults.length >= 9 && forceComprehensiveSearch) {
-      console.log(`[Comprehensive Search] Found ${curatedResults.length} curated venues but forceComprehensiveSearch=true, will also call Google API for complete results`);
+      console.warn(`[Comprehensive Search] 💰 PAID API CALL: Found ${curatedResults.length} curated venues but forceComprehensiveSearch=true forces a $32/1k Text Search anyway. Confirm caller really needs comprehensive results.`);
     }
     
     // If we have some curated results but not enough (<9), we'll merge them with API results
@@ -1609,8 +1630,9 @@ export async function searchPlaces(
 
   }
   
-  // Create cache key from search parameters
-  const cacheKey = `${query}|${location}|${radiusMiles}|${coordinates?.lat}|${coordinates?.lng}`;
+  // Create cache key from normalized search parameters so casing, punctuation,
+  // and term order don't fan out into separate cache entries.
+  const cacheKey = `${normalizeCacheQuery(query)}|${normalizeCacheLocation(location)}|${radiusMiles}|${coordinates?.lat}|${coordinates?.lng}`;
   
   // Skip ALL caching when skipCurated is true (force fresh API call)
   if (!skipCurated) {
