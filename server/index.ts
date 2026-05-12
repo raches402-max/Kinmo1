@@ -279,6 +279,11 @@ app.use((req, res, next) => {
   }, () => {
     log(`serving on port ${port}`);
 
+    if (process.env.ENABLE_BACKGROUND_JOBS === "false") {
+      console.log(`[Startup] Background jobs disabled via ENABLE_BACKGROUND_JOBS=false`);
+      return;
+    }
+
     // CRITICAL: Delay scheduler startup for autoscale deployments
     // This ensures health checks pass before heavy background tasks run
     // In development, start immediately; in production, delay 15 seconds

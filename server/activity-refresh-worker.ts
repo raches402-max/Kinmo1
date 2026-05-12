@@ -3,6 +3,7 @@ import { db } from './db';
 import { groups, activities } from '../shared/schema';
 import { eq, and, isNull, sql } from 'drizzle-orm';
 import { storage } from './storage';
+import { isGroupActive } from './job-gating';
 
 /**
  * Main worker function that checks all groups with auto-activities enabled
@@ -22,6 +23,15 @@ export async function refreshStaleActivityPools(): Promise<void> {
 
     for (const group of autoEnabledGroups) {
       try {
+        // Skip groups with no member-driven activity in the engagement window.
+        // Refreshing for a dormant group spends Places + OpenAI tokens on
+        // suggestions no one will ever see.
+        const active = await isGroupActive(group.id);
+        if (!active) {
+          console.log(`[Activity Refresh] ⏭️  Skipping dormant group "${group.name}" (${group.id}) — no activity in window`);
+          continue;
+        }
+
         const isStale = await isActivityPoolStale(group.id, group);
 
         if (isStale.stale) {

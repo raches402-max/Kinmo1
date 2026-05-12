@@ -17,6 +17,7 @@ import { selectBestItineraryForAutoSchedule, shouldTriggerAutoSchedule, maintain
 import { calculateEventConfidence, shouldRequireReview } from './confidence-scoring';
 import { randomBytes } from 'crypto';
 import { createTrackedJob, getJobHealthStatus } from './lib/job-tracker';
+import { isGroupActive } from './job-gating';
 
 // Export job health status for API endpoint
 export { getJobHealthStatus };
@@ -577,6 +578,12 @@ export async function processAutoScheduling(): Promise<void> {
         continue;
       }
 
+      // Skip dormant groups so we don't burn 3x gpt-4o per day for nothing.
+      if (!(await isGroupActive(group.id))) {
+        console.log(`[Auto-Schedule] ⏭️  Skipping dormant group "${group.name}" (${group.id}) — no activity in window`);
+        continue;
+      }
+
       // Try to trigger an availability pulse if we're in the right window
       // This gives members a chance to submit their real calendar availability before we pick a date
       try {
@@ -1004,6 +1011,13 @@ export async function processAutoDraftItineraries(): Promise<void> {
       // Skip if group doesn't have auto-itinerary enabled
       if (!group.autoItineraryEnabled) {
         console.log(`[Auto-Draft] Skipping ${group.name} - autoItineraryEnabled is false`);
+        continue;
+      }
+
+      // Skip dormant groups — drafting AI itineraries for groups no one is using
+      // wastes OpenAI tokens on plans that will never be reviewed.
+      if (!(await isGroupActive(group.id))) {
+        console.log(`[Auto-Draft] ⏭️  Skipping dormant group "${group.name}" (${group.id}) — no activity in window`);
         continue;
       }
 

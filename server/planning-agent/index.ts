@@ -19,6 +19,7 @@ import { LocationFairnessAnalyzer } from './analyzers/location-fairness';
 import { VenueDateGapAnalyzer } from './analyzers/venue-date-gap';
 import { CadenceHealthAnalyzer } from './analyzers/cadence-health';
 import { generateInsightMessage } from './message-generator';
+import { isGroupActive } from '../job-gating';
 
 // Registry of all analyzers
 const ANALYZERS: Analyzer[] = [
@@ -47,6 +48,13 @@ export async function runPlanningAgent(config: PlanningAgentConfig = DEFAULT_CON
 
     for (const group of activeGroups) {
       try {
+        // Skip dormant groups — generating proactive insights for groups
+        // no one is using burns OpenAI tokens on observations no one will read.
+        if (!(await isGroupActive(group.id))) {
+          console.log(`[Planning Agent] ⏭️  Skipping dormant group "${group.name}" (${group.id}) — no activity in window`);
+          continue;
+        }
+
         const insightCount = await analyzeGroup(group.id, config);
         totalInsights += insightCount;
         if (insightCount > 0) {
