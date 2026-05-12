@@ -451,8 +451,12 @@ Rules:
 - Return exactly 3 suggestions`;
 
   try {
+    // Fallback/additive call — fires when the primary pick is unavailable.
+    // Downgraded to gpt-4o-mini per "decision quality budget" framing:
+    // these are substitute suggestions, not the primary venue list. Revert
+    // to gpt-4o if alternatives start landing visibly off-target.
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o-mini",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
@@ -603,8 +607,11 @@ Rules:
 - Return exactly 3 suggestions`;
 
   try {
+    // Additive call — suggests complementary venues (dessert after dinner,
+    // drinks after a meal, etc.). Downgraded to gpt-4o-mini for cost; revert
+    // to gpt-4o if complementary picks start feeling generic.
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o-mini",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },

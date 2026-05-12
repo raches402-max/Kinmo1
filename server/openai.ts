@@ -984,6 +984,39 @@ export function clearCategorizationCache() {
   console.log(`[AI Categorization] Cleared ${size} cached categorizations`);
 }
 
+// Deterministic categorization shared by single + batch paths.
+// First tries Google Place Types (most reliable), then falls back to keyword
+// matching on the venueType string.
+function categorizeDeterministic(
+  venueName: string,
+  venueType: string,
+  googleTypes?: string[],
+): 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences' {
+  if (googleTypes && googleTypes.length > 0) {
+    const typeString = googleTypes.join(',').toLowerCase();
+
+    const dessertTypes = ['ice_cream_shop', 'dessert_shop', 'bakery', 'candy_store', 'chocolate_shop', 'donut_shop', 'frozen_yogurt_shop', 'bubble_tea_shop'];
+    if (dessertTypes.some((t) => typeString.includes(t))) return 'dessert';
+
+    if (typeString.includes('cafe') || typeString.includes('coffee_shop')) return 'cafes';
+
+    // Experiences before drinks so a performing-arts venue with a `night_club` tag still lands here
+    const experienceTypes = ['museum', 'art_gallery', 'amusement_park', 'aquarium', 'zoo', 'bowling_alley', 'movie_theater', 'park', 'tourist_attraction', 'stadium', 'performing_arts_theater'];
+    if (experienceTypes.some((t) => typeString.includes(t))) return 'experiences';
+
+    const drinksTypes = ['bar', 'night_club', 'brewery', 'winery', 'wine_bar', 'cocktail_bar', 'tapas_bar', 'sports_bar'];
+    if (drinksTypes.some((t) => typeString.includes(t))) {
+      // sushi_bar / ramen_bar / "bar+restaurant" should be meal, not drinks
+      if (typeString.includes('sushi') || typeString.includes('ramen') || typeString.includes('restaurant')) return 'meal';
+      return 'drinks';
+    }
+
+    if (typeString.includes('restaurant')) return 'meal';
+  }
+
+  return keywordCategorize(venueType);
+}
+
 // Keyword-based fallback categorization
 function keywordCategorize(venueType: string): 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences' {
   const lowerType = venueType.toLowerCase();
@@ -1081,206 +1114,29 @@ export async function categorizeVenue(
     // Continue to API call on cache error
   }
 
-  // PRIORITY 1: Use Google Place types as strong hints (most reliable)
-  if (googleTypes && googleTypes.length > 0) {
-    const typeString = googleTypes.join(',').toLowerCase();
-    
-    // Debug logging for troubleshooting
-    if (venueName.toLowerCase().includes('fugazi') || venueName.toLowerCase().includes('philmore') || venueName.toLowerCase().includes("mo's")) {
-      console.log(`[AI Categorization DEBUG] "${venueName}" - typeString: "${typeString}"`);
-    }
-    
-    // Dessert types - very specific, high confidence
-    const dessertTypes = ['ice_cream_shop', 'dessert_shop', 'bakery', 'candy_store', 'chocolate_shop', 'donut_shop', 'frozen_yogurt_shop', 'bubble_tea_shop'];
-    if (dessertTypes.some(type => typeString.includes(type))) {
-      console.log(`[AI Categorization] Google type hint: "${venueName}" → dessert (matched: ${dessertTypes.find(t => typeString.includes(t))})`);
-      categorizationCache.set(cacheKey, 'dessert');
-      return 'dessert';
-    }
-    
-    // Cafe types
-    if (typeString.includes('cafe') || typeString.includes('coffee_shop')) {
-      console.log(`[AI Categorization] Google type hint: "${venueName}" → cafes (matched: cafe/coffee_shop)`);
-      categorizationCache.set(cacheKey, 'cafes');
-      return 'cafes';
-    }
-    
-    // Experiences types - Check BEFORE drinks to prioritize entertainment venues
-    // (e.g., performing arts theaters with night_club tags should be experiences)
-    const experienceTypes = ['museum', 'art_gallery', 'amusement_park', 'aquarium', 'zoo', 'bowling_alley', 'movie_theater', 'park', 'tourist_attraction', 'stadium', 'performing_arts_theater'];
-    if (experienceTypes.some(type => typeString.includes(type))) {
-      console.log(`[AI Categorization] Google type hint: "${venueName}" → experiences (matched: ${experienceTypes.find(t => typeString.includes(t))})`);
-      categorizationCache.set(cacheKey, 'experiences');
-      return 'experiences';
-    }
-    
-    // Drinks types
-    const drinksTypes = ['bar', 'night_club', 'brewery', 'winery', 'wine_bar', 'cocktail_bar', 'tapas_bar', 'sports_bar'];
-    const matchedDrink = drinksTypes.find(type => typeString.includes(type));
-    if (matchedDrink) {
-      // Exception: sushi_bar, ramen_bar should be meal
-      if (typeString.includes('sushi') || typeString.includes('ramen') || typeString.includes('restaurant')) {
-        console.log(`[AI Categorization] Google type hint: "${venueName}" → meal (bar+restaurant exception)`);
-        categorizationCache.set(cacheKey, 'meal');
-        return 'meal';
-      }
-      console.log(`[AI Categorization] Google type hint: "${venueName}" → drinks (matched: ${matchedDrink})`);
-      categorizationCache.set(cacheKey, 'drinks');
-      return 'drinks';
-    }
-    
-    // Restaurant types (fallback to meal)
-    if (typeString.includes('restaurant')) {
-      console.log(`[AI Categorization] Google type hint: "${venueName}" → meal (matched: restaurant)`);
-      categorizationCache.set(cacheKey, 'meal');
-      return 'meal';
-    }
-  }
+  // Cache miss — categorize deterministically (Google Place Types first,
+  // then keyword fallback on venueType). Used to be a paid gpt-4o call;
+  // removed because the rule-based path handles the long tail well enough
+  // and a single AI call per venue was not justified by quality gains.
+  const category = categorizeDeterministic(venueName, venueType, googleTypes);
+  categorizationCache.set(cacheKey, category);
 
-  try {
-    // Build context from all available information
-    let context = `Venue name: "${venueName}"\nVenue type: "${venueType}"`;
-    if (googleTypes && googleTypes.length > 0) {
-      context += `\nGoogle types: ${googleTypes.join(', ')}`;
-    }
+  await logApiCall({
+    service: 'openai',
+    method: 'categorizeVenue',
+    cacheStatus: 'miss',
+    status: 'success',
+    responseTimeMs: 0,
+    costEstimate: 0,
+    parameters: { venueName, venueType },
+    metadata: {
+      strategy: 'deterministic',
+      hasGoogleTypes: !!googleTypes && googleTypes.length > 0,
+      category,
+    },
+  });
 
-    const prompt = `Categorize venue by PRIMARY purpose.
-
-${context}
-
-Categories:
-- meal: Restaurants, food halls, dining (lunch/dinner)
-- cafes: Coffee shops (coffee/tea + light snacks)
-- drinks: Bars, breweries, wine bars, cocktail lounges
-- dessert: Ice cream, gelato, bakeries, boba, sweets
-- experiences: Museums, parks, sports, events, shows
-
-Rules:
-1. Entertainment venues = experiences (even if food served)
-   - "Murder Mystery Dinner" → experiences
-   - "Concert Hall" → experiences
-2. Dining = meal
-3. Drinks = drinks
-4. Desserts/sweets = dessert (NOT meal)
-   - Ice cream, bakeries, boba → dessert
-
-Return JSON:
-{
-  "category": "meal"
-}
-
-Category must be: meal, cafes, drinks, dessert, or experiences`;
-
-    const startTime = Date.now();
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o", // Upgraded from mini for better edge case categorization (wine bars, museum cafes, hybrid venues)
-      messages: [
-        {
-          role: "system",
-          content: "You categorize venues by their PRIMARY purpose. Entertainment/shows = experiences even if food is served. Always respond with valid JSON."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.3, // Lower temperature for consistent categorization
-      max_completion_tokens: 150, // Increased for reasoning on edge cases
-    });
-    const responseTimeMs = Date.now() - startTime;
-
-    const result = safeParseJSON(response.choices[0].message.content, {} as { category?: string }, 'venue categorization');
-
-    // Validate that we got a category in the response
-    if (!result.category) {
-      console.error(`[AI Categorization] No category in response for "${venueName}":`, result);
-      console.log(`[AI Categorization] Falling back to keyword categorization`);
-      const fallbackCategory = keywordCategorize(venueType);
-      categorizationCache.set(cacheKey, fallbackCategory);
-      return fallbackCategory;
-    }
-    
-    const category = result.category;
-    
-    // Validate it's one of the expected categories
-    const validCategories = ['meal', 'cafes', 'drinks', 'dessert', 'experiences'];
-    if (!validCategories.includes(category)) {
-      console.error(`[AI Categorization] Invalid category "${category}" for "${venueName}". Falling back to keyword categorization.`);
-      const fallbackCategory = keywordCategorize(venueType);
-      categorizationCache.set(cacheKey, fallbackCategory);
-      return fallbackCategory;
-    }
-    
-    // Cache the result in memory
-    categorizationCache.set(cacheKey, category);
-
-    // Cache the result in database (persistent across restarts)
-    try {
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiration
-
-      await db.insert(aiCategorizationCache).values({
-        cacheKey,
-        category,
-        venueName,
-        venueType,
-        expiresAt,
-      }).onConflictDoUpdate({
-        target: aiCategorizationCache.cacheKey,
-        set: {
-          category,
-          venueName,
-          venueType,
-          expiresAt,
-        },
-      });
-    } catch (error) {
-      console.error('[AI Categorization] Failed to write to database cache:', error);
-      // Continue even if cache write fails
-    }
-
-    console.log(`[AI Categorization] "${venueName}" → ${category}`);
-
-    // Log successful API call
-    const inputTokens = response.usage?.prompt_tokens || 0;
-    const outputTokens = response.usage?.completion_tokens || 0;
-    await logApiCall({
-      service: 'openai',
-      method: 'categorizeVenue',
-      cacheStatus: 'miss',
-      status: 'success',
-      responseTimeMs,
-      costEstimate: calculateOpenAICost('gpt-4o-mini', inputTokens, outputTokens),
-      parameters: { venueName, venueType },
-      metadata: {
-        model: 'gpt-4o-mini',
-        inputTokens,
-        outputTokens,
-        totalTokens: inputTokens + outputTokens,
-        category,
-        hasGoogleTypes: !!googleTypes && googleTypes.length > 0,
-      },
-    });
-
-    return category as 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences';
-  } catch (error) {
-    console.error("Error categorizing venue:", error);
-    console.log(`[AI Categorization] Exception occurred, falling back to keyword categorization`);
-
-    // Log API call failure
-    await logApiCall({
-      service: 'openai',
-      method: 'categorizeVenue',
-      cacheStatus: 'miss',
-      status: 'error',
-      parameters: { venueName, venueType },
-      errorMessage: (error as Error).message,
-    });
-
-    const fallbackCategory = keywordCategorize(venueType);
-    return fallbackCategory;
-  }
+  return category;
 }
 
 /**
@@ -1771,17 +1627,13 @@ const promptCache = new Map<string, CachedPromptResult>();
 const PROMPT_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour cache
 const MAX_PROMPT_CACHE_SIZE = 1000;
 
-// A/B Testing Configuration
-// Set to percentage of requests that should use GPT-4o (0-100)
-// If set to 50, half the requests will use GPT-4o, half will use mini
-// Set to 100 to always use GPT-4o, 0 to always use mini
-//
-// DECISION: Use GPT-4o for parsing (100%) - better understanding of nuanced time language like "weeknight"
-//   - Time generation (suggestOptimalTime) - needs multi-constraint reasoning (GPT-4o)
-//   - Venue suggestions (generateActivitySuggestions) - needs context understanding (GPT-4o)
-//   - Prompt parsing (parseSchedulingPromptWithHistory) - nuanced language (GPT-4o)
-// Cost: +$4 per 10K events for significantly better "weeknight", "not too late", etc. parsing
-const AB_TEST_GPT4O_PERCENTAGE = 100; // Always use GPT-4o for parsing
+// A/B test scaffolding kept for `forceModel` escape hatch, but the A/B
+// itself is closed: 0 = always use gpt-4o-mini for prompt parsing.
+// Parsing extracts structured intent from a short natural-language scheduling
+// prompt; mini handles this fine. Venue discovery and itinerary planning stay
+// on gpt-4o per the "decision quality budget" framing — those shape what users
+// see, parsing does not.
+const AB_TEST_GPT4O_PERCENTAGE = 0;
 
 function generatePromptCacheKey(prompt: string, groupHistory: any): string {
   // Create a hash from prompt + relevant history
@@ -2425,146 +2277,53 @@ export async function categorizeVenuesBatch(
     return results;
   }
 
-  // Batch categorize uncached venues
-  try {
-    const venueList = uncachedVenues.map((v, i) =>
-      `${i + 1}. Name: "${v.venueName}"\n   Type: "${v.venueType}"${v.googleTypes && v.googleTypes.length > 0 ? `\n   Google Types: ${v.googleTypes.join(', ')}` : ''}`
-    ).join('\n\n');
+  // Categorize uncached venues deterministically (no AI call).
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiration
 
-    const prompt = `Categorize ${uncachedVenues.length} venues by PRIMARY purpose.
+  for (const venue of uncachedVenues) {
+    const category = categorizeDeterministic(venue.venueName, venue.venueType, venue.googleTypes);
+    results.set(venue.cacheKey, category);
+    categorizationCache.set(venue.cacheKey, category);
 
-${venueList}
-
-Categories: meal, cafes, drinks, dessert, experiences
-
-Rules:
-1. One category per venue
-2. Based on PRIMARY purpose
-3. Entertainment = experiences (even if serves food)
-4. Ice cream/boba/bakeries = dessert (NOT meal)
-
-Return JSON:
-{
-  "venues": [
-    {"index": 1, "category": "meal"},
-    {"index": 2, "category": "cafes"}
-  ]
-}`;
-
-    const startTime = Date.now();
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o", // Upgraded from mini for better edge case categorization (wine bars, museum cafes, hybrid venues)
-      messages: [
-        {
-          role: "system",
-          content: "You categorize venues by their PRIMARY purpose. Always respond with valid JSON."
+    try {
+      await db.insert(aiCategorizationCache).values({
+        cacheKey: venue.cacheKey,
+        category,
+        venueName: venue.venueName,
+        venueType: venue.venueType,
+        expiresAt,
+      }).onConflictDoUpdate({
+        target: aiCategorizationCache.cacheKey,
+        set: {
+          category,
+          venueName: venue.venueName,
+          venueType: venue.venueType,
+          expiresAt,
         },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.3, // Lower temperature for consistent categorization
-      max_completion_tokens: uncachedVenues.length * 30, // Increased from 20 to allow reasoning per venue
-    });
-    const responseTimeMs = Date.now() - startTime;
-
-    const result = safeParseJSON(response.choices[0].message.content, { venues: [] as { index?: number; category?: string }[] }, 'batch venue categorization');
-    const categorizations = result.venues || [];
-
-    // Process results and update caches
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiration
-
-    for (const cat of categorizations) {
-      if (cat.index && cat.category) {
-        const venueIndex = cat.index - 1; // Convert to 0-based
-        if (venueIndex >= 0 && venueIndex < uncachedVenues.length) {
-          const venue = uncachedVenues[venueIndex];
-          const category = cat.category as 'meal' | 'cafes' | 'drinks' | 'dessert' | 'experiences';
-
-          // Store in results
-          results.set(venue.cacheKey, category);
-
-          // Update in-memory cache
-          categorizationCache.set(venue.cacheKey, category);
-
-          // Update database cache
-          try {
-            await db.insert(aiCategorizationCache).values({
-              cacheKey: venue.cacheKey,
-              category,
-              venueName: venue.venueName,
-              venueType: venue.venueType,
-              expiresAt,
-            }).onConflictDoUpdate({
-              target: aiCategorizationCache.cacheKey,
-              set: {
-                category,
-                venueName: venue.venueName,
-                venueType: venue.venueType,
-                expiresAt,
-              },
-            });
-          } catch (error) {
-            console.error('[Batch Categorization] Failed to write to database cache:', error);
-          }
-        }
-      }
+      });
+    } catch (error) {
+      console.error('[Batch Categorization] Failed to write to database cache:', error);
     }
-
-    console.log(`[Batch Categorization] Categorized ${categorizations.length}/${uncachedVenues.length} venues`);
-
-    // Log successful API call
-    const inputTokens = response.usage?.prompt_tokens || 0;
-    const outputTokens = response.usage?.completion_tokens || 0;
-    await logApiCall({
-      service: 'openai',
-      method: 'categorizeVenuesBatch',
-      cacheStatus: 'miss',
-      status: 'success',
-      responseTimeMs,
-      costEstimate: calculateOpenAICost('gpt-4o-mini', inputTokens, outputTokens),
-      parameters: { totalVenues: venues.length, uncachedVenues: uncachedVenues.length },
-      metadata: {
-        model: 'gpt-4o-mini',
-        inputTokens,
-        outputTokens,
-        totalTokens: inputTokens + outputTokens,
-        categorizedCount: categorizations.length,
-      },
-    });
-
-    return results;
-  } catch (error) {
-    console.error("Error in batch categorization:", error);
-
-    // Log API call failure
-    await logApiCall({
-      service: 'openai',
-      method: 'categorizeVenuesBatch',
-      cacheStatus: 'miss',
-      status: 'error',
-      parameters: { totalVenues: venues.length, uncachedVenues: uncachedVenues.length },
-      errorMessage: (error as Error).message,
-    });
-
-    // On error, fall back to individual categorization for uncached venues
-    console.log('[Batch Categorization] Falling back to individual categorization');
-    for (const venue of uncachedVenues) {
-      try {
-        const category = await categorizeVenue(venue.venueName, venue.venueType, venue.googleTypes);
-        results.set(venue.cacheKey, category);
-      } catch (venueError) {
-        console.error(`[Batch Categorization] Failed to categorize ${venue.venueName}:`, venueError);
-        // Default to 'meal' on error
-        results.set(venue.cacheKey, 'meal');
-      }
-    }
-
-    return results;
   }
+
+  console.log(`[Batch Categorization] Categorized ${uncachedVenues.length} venues deterministically`);
+
+  await logApiCall({
+    service: 'openai',
+    method: 'categorizeVenuesBatch',
+    cacheStatus: 'miss',
+    status: 'success',
+    responseTimeMs: 0,
+    costEstimate: 0,
+    parameters: { totalVenues: venues.length, uncachedVenues: uncachedVenues.length },
+    metadata: {
+      strategy: 'deterministic',
+      categorizedCount: uncachedVenues.length,
+    },
+  });
+
+  return results;
 }
 
 // Validate if a venue is suitable for social gatherings using AI
