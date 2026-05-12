@@ -15,7 +15,7 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 export async function logApiCall(params: {
   service: string;
   method: string;
-  cacheStatus: 'hit' | 'miss' | 'write';
+  cacheStatus: 'hit' | 'miss' | 'write' | 'batch_submit' | 'batch_complete';
   status: 'success' | 'error';
   responseTimeMs?: number;
   costEstimate?: number;

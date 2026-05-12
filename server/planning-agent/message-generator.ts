@@ -17,23 +17,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-/**
- * Generate a friendly message for an insight using LLM
- */
-export async function generateInsightMessage(
-  rawInsight: RawInsight
-): Promise<PlanningInsightData> {
-  const startTime = Date.now();
-
-  try {
-    const prompt = buildPrompt(rawInsight);
-
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: `You are a friendly group planning assistant. Generate brief, warm insight messages.
+const INSIGHT_SYSTEM_PROMPT = `You are a friendly group planning assistant. Generate brief, warm insight messages.
 
 Rules:
 - Title: 2-4 words, friendly tone (e.g., "Time to reconnect", "Mix it up?")
@@ -43,29 +27,83 @@ Rules:
 - Skip filler like "Hey friends" or "it looks like"
 - One emoji max, only if it fits naturally
 
-Output format: JSON with "title" and "message"`,
-        },
-        { role: 'user', content: prompt },
-      ],
-      temperature: 0.7,
-      max_tokens: 150,
-      response_format: { type: 'json_object' },
-    });
+Output format: JSON with "title" and "message"`;
 
-    const content = response.choices[0]?.message?.content;
-    let parsed: { title: string; message: string };
+/**
+ * Build the exact chat.completions.create request body for an insight.
+ * Shared by the sync path (generateInsightMessage) and the batch queue path
+ * (planning-agent/batch-processor.ts) so prompt drift is impossible.
+ */
+export function buildInsightRequestPayload(rawInsight: RawInsight): Record<string, unknown> {
+  return {
+    model: 'gpt-4o-mini',
+    messages: [
+      { role: 'system', content: INSIGHT_SYSTEM_PROMPT },
+      { role: 'user', content: buildPrompt(rawInsight) },
+    ],
+    temperature: 0.7,
+    max_tokens: 150,
+    response_format: { type: 'json_object' },
+  };
+}
 
-    try {
-      parsed = JSON.parse(content || '{}');
-    } catch {
-      // Fallback if JSON parsing fails
-      parsed = {
-        title: getDefaultTitle(rawInsight.type),
-        message: content || getDefaultMessage(rawInsight),
-      };
+/**
+ * Given the AI's response content (or null on failure) plus the original
+ * rawInsight, produce the full PlanningInsightData ready for saveInsight().
+ * Used by both sync and batch paths.
+ */
+export function hydrateInsightFromResponse(
+  rawInsight: RawInsight,
+  responseContent: string | null,
+): PlanningInsightData {
+  let parsed: { title: string; message: string };
+  try {
+    parsed = JSON.parse(responseContent || '{}');
+    if (!parsed.title || !parsed.message) {
+      throw new Error('missing title/message');
     }
+  } catch {
+    parsed = {
+      title: getDefaultTitle(rawInsight.type),
+      message: responseContent?.trim() || getDefaultMessage(rawInsight),
+    };
+  }
 
-    // Log successful API call
+  return {
+    groupId: rawInsight.groupId,
+    memberId: rawInsight.memberId,
+    insightType: rawInsight.type,
+    severity: rawInsight.severity,
+    audienceType: rawInsight.audienceType,
+    title: parsed.title,
+    message: parsed.message,
+    metadata: {
+      ...rawInsight.metadata,
+      deduplicationKey: rawInsight.deduplicationKey,
+    },
+    actionType: rawInsight.suggestedAction?.type,
+    actionTaken: 'none',
+    actionDetails: rawInsight.suggestedAction?.params,
+    actionUrl: buildActionUrl(rawInsight),
+    actionLabel: buildActionLabel(rawInsight),
+    expiresAt: rawInsight.expiresAt,
+  };
+}
+
+/**
+ * Generate a friendly message for an insight using LLM (synchronous path).
+ * Kept as a fallback for callers that need an immediate result.
+ */
+export async function generateInsightMessage(
+  rawInsight: RawInsight
+): Promise<PlanningInsightData> {
+  const startTime = Date.now();
+  const payload = buildInsightRequestPayload(rawInsight);
+
+  try {
+    const response = await openai.chat.completions.create(payload as any);
+    const content = response.choices[0]?.message?.content ?? null;
+
     await logApiCall({
       service: 'openai',
       method: 'generateInsightMessage',
@@ -80,29 +118,10 @@ Output format: JSON with "title" and "message"`,
       parameters: { insightType: rawInsight.type },
     });
 
-    return {
-      groupId: rawInsight.groupId,
-      memberId: rawInsight.memberId,
-      insightType: rawInsight.type,
-      severity: rawInsight.severity,
-      audienceType: rawInsight.audienceType,
-      title: parsed.title,
-      message: parsed.message,
-      metadata: {
-        ...rawInsight.metadata,
-        deduplicationKey: rawInsight.deduplicationKey,
-      },
-      actionType: rawInsight.suggestedAction?.type,
-      actionTaken: 'none',
-      actionDetails: rawInsight.suggestedAction?.params,
-      actionUrl: buildActionUrl(rawInsight),
-      actionLabel: buildActionLabel(rawInsight),
-      expiresAt: rawInsight.expiresAt,
-    };
+    return hydrateInsightFromResponse(rawInsight, content);
   } catch (error) {
     console.error('[Message Generator] LLM error, using fallback:', error);
 
-    // Log failed API call
     await logApiCall({
       service: 'openai',
       method: 'generateInsightMessage',
@@ -112,26 +131,7 @@ Output format: JSON with "title" and "message"`,
       parameters: { insightType: rawInsight.type },
     });
 
-    // Return with fallback message
-    return {
-      groupId: rawInsight.groupId,
-      memberId: rawInsight.memberId,
-      insightType: rawInsight.type,
-      severity: rawInsight.severity,
-      audienceType: rawInsight.audienceType,
-      title: getDefaultTitle(rawInsight.type),
-      message: getDefaultMessage(rawInsight),
-      metadata: {
-        ...rawInsight.metadata,
-        deduplicationKey: rawInsight.deduplicationKey,
-      },
-      actionType: rawInsight.suggestedAction?.type,
-      actionTaken: 'none',
-      actionDetails: rawInsight.suggestedAction?.params,
-      actionUrl: buildActionUrl(rawInsight),
-      actionLabel: buildActionLabel(rawInsight),
-      expiresAt: rawInsight.expiresAt,
-    };
+    return hydrateInsightFromResponse(rawInsight, null);
   }
 }
 

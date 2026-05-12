@@ -811,6 +811,27 @@ export const apiCallLogs = pgTable("api_call_logs", {
   index("api_call_logs_cache_status_idx").on(table.cacheStatus),
 ]);
 
+// OpenAI Batch API queue — tracks each batched AI request from pending → processed
+export const aiBatchRequests = pgTable("ai_batch_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  callType: text("call_type").notNull(), // e.g. 'planning_insight'
+  status: text("status").notNull().default("pending"), // pending | submitted | completed | failed
+  batchId: text("batch_id"), // OpenAI batch ID once submitted
+  customId: text("custom_id").notNull(), // UUID used inside JSONL to match results back
+  requestPayload: jsonb("request_payload").notNull(), // chat.completions.create body
+  resultPayload: jsonb("result_payload"), // assistant message + usage on completion
+  errorMessage: text("error_message"),
+  context: jsonb("context").notNull().default({}), // call-specific (e.g. {groupId, rawInsight})
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  submittedAt: timestamp("submitted_at"),
+  completedAt: timestamp("completed_at"),
+  processedAt: timestamp("processed_at"),
+}, (table) => [
+  index("ai_batch_requests_status_idx").on(table.status),
+  index("ai_batch_requests_batch_id_idx").on(table.batchId),
+  index("ai_batch_requests_created_at_idx").on(table.createdAt),
+]);
+
 // User saved places - personal favorites not tied to any group
 export const userSavedPlaces = pgTable("user_saved_places", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -1434,6 +1455,16 @@ export type SearchCache = typeof searchCache.$inferSelect;
 
 export type InsertAiCategorizationCache = z.infer<typeof insertAiCategorizationCacheSchema>;
 export type AiCategorizationCache = typeof aiCategorizationCache.$inferSelect;
+
+export const insertAiBatchRequestSchema = createInsertSchema(aiBatchRequests).omit({
+  id: true,
+  createdAt: true,
+  submittedAt: true,
+  completedAt: true,
+  processedAt: true,
+});
+export type InsertAiBatchRequest = z.infer<typeof insertAiBatchRequestSchema>;
+export type AiBatchRequest = typeof aiBatchRequests.$inferSelect;
 
 export type InsertHostAssignment = z.infer<typeof insertHostAssignmentSchema>;
 export type HostAssignment = typeof hostAssignments.$inferSelect;

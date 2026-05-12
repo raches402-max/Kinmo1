@@ -1669,5 +1669,33 @@ export function startReminderScheduler(): void {
   setTimeout(trackedCostReport, 90000); // 1.5 min after startup, after backup
   setInterval(trackedCostReport, COST_REPORT_INTERVAL_MS);
 
+  // OpenAI Batch API workers — submit pending requests, poll/download completed
+  // batches, run registered processors. See server/ai-batch.ts.
+  // Ensure processor registrations import at boot so they're ready before any
+  // batch completes.
+  void import('./planning-agent/batch-processor');
+
+  const BATCH_SUBMIT_INTERVAL_MS = 15 * 60 * 1000; // 15 min
+  const BATCH_POLL_INTERVAL_MS = 10 * 60 * 1000; // 10 min
+
+  const runBatchSubmitter = async () => {
+    const { submitPendingBatches } = await import('./ai-batch');
+    await submitPendingBatches();
+  };
+  const runBatchPollAndProcess = async () => {
+    const { pollAndDownloadBatches, processCompletedBatches } = await import('./ai-batch');
+    await pollAndDownloadBatches();
+    await processCompletedBatches();
+  };
+
+  const trackedBatchSubmitter = createTrackedJob('batchSubmitter', runBatchSubmitter);
+  const trackedBatchPollProcess = createTrackedJob('batchPollProcess', runBatchPollAndProcess);
+
+  // Stagger startup so submitter fires before poller's first tick
+  setTimeout(trackedBatchSubmitter, 120000); // 2 min after startup
+  setInterval(trackedBatchSubmitter, BATCH_SUBMIT_INTERVAL_MS);
+  setTimeout(trackedBatchPollProcess, 180000); // 3 min after startup
+  setInterval(trackedBatchPollProcess, BATCH_POLL_INTERVAL_MS);
+
   console.log('Reminder scheduler started successfully');
 }
