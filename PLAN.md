@@ -1,6 +1,6 @@
 # Kinmo V2 — Master Plan
 
-_Last updated: 2026-05-12 (rev 8 — W3 cost control shipped through tier 4; Batch API **paused** after revert in `6d618ac` per Franky; W6 sub-tracks A/B/C/F done; migration 0014 live on Neon + Railway; migration 0015 table kept in place intentionally)_
+_Last updated: 2026-05-12 (rev 9 — late-day audit cleanup after Franky paused: og-meta dev port + missing env docs (`959a3d5`), events.ts refactor fix for behavior preservation (`9d239d8`), FRANKY.md Lanes & Coordination section (`b83ea95`); Batch API still paused; W6 sub-tracks A/B/C/F done; W6 D/E/G/H still open and currently unowned since Franky paused)_
 
 ## Context
 
@@ -19,7 +19,7 @@ This document is the working plan for getting Kinmo V2 production-ready: off Rep
 | 2 | Finish auth migration | ✅ **DONE** (production OAuth works; Replit script/env cleanup shipped in `9c6fef0`; only manual logout flow test remains) |
 | 3 | API cost control | ✅ **DONE** through tier 4 (`0583809..ccf5928`). Batch API (`ac78be8`) was reverted in `6d618ac` as a scope/coordination rollback (per Franky, not a known bug). **Status: paused, not abandoned.** The `ai_batch_requests` table from migration `0015` is kept on Neon + Railway intentionally — if Batch API is reopened, the migration is reusable as-is. If later abandoned, do it via a tracked DROP migration, not an ad-hoc DB change. **Do not touch this area until explicitly reopened.** |
 | 4 | Architecture cleanup | 🔄 **In progress** — Slice 2 (split routes.ts) **COMMITTED** (`7506c88`); slices 1/3/4 remain |
-| 5 | Code hygiene | 🔄 Ongoing — Sentry on 3 RSVP fire-and-forget catches done (`771f1f7`); frontend Sentry verified by Franky; env validation + advisory lock TTL remain |
+| 5 | Code hygiene | 🔄 Ongoing — Sentry on 3 RSVP fire-and-forget catches done (`771f1f7`); frontend Sentry verified by Franky; events.ts refactor fixed to preserve behavior (`9d239d8`); advisory lock verified OK in 2026-05-12 audit; env validation remains |
 | 6 | Security & data-integrity hardening | 🔄 In progress — sub-tracks A (`67b286f`), B (admin fallback, `771f1f7`), C (vote unique constraints, `0d1b819`), F (`dc8f207`) shipped; D/E/G/H remain |
 
 **Production cost:** ~$10/mo on Railway (app + Postgres). API keys (OpenAI, Resend, Google Places) currently set to placeholders — features depending on them won't work until real keys are added.
@@ -298,7 +298,7 @@ Routes today return three inconsistent shapes: `{ message }`, `{ success: true, 
 - **Fix the OpenAI key.** `.env` is missing a working `OPENAI_API_KEY` — currently every background job throws 401. Either set a real key or guard those features behind a "if no key, skip" check so logs stay clean.
 - **Tighten env validation** in `server/config.ts` — fail loudly at startup if a required key is missing, not silently at runtime.
 - **Fire-and-forget `.catch()` calls** at `server/routes.ts:4961, 4968, 4974` log errors but never report to Sentry. Add `Sentry.captureException(err)` inside each. Same anti-pattern on the client: `CopyGuestInviteLink.tsx:43–44` and `CopyEventInviteLink.tsx:61` silently `console.error` without toasting.
-- **Advisory lock TTL:** `server/auto-scheduler.ts:1213` uses `pg_try_advisory_lock` but if a process dies mid-job the lock can sit for 24+ hours. Either switch to `pg_advisory_lock_shared(lock_id, timeout)` semantics or add a periodic `pg_advisory_unlock_all()` cleanup.
+- ~~**Advisory lock TTL:**~~ ✅ Verified OK by 2026-05-12 audit. The lock at `server/auto-scheduler.ts:1213` is correctly released in a `finally` block (`:1440`), and Postgres session advisory locks auto-release on connection drop — so a dead process doesn't leave the lock stuck.
 - **Sentry not wired on frontend** (`client/src/main.tsx`). Server has it; client doesn't. Add `@sentry/react` init to capture client errors.
 
 ---
@@ -367,7 +367,7 @@ No `/api/user/delete` endpoint exists. Users can't delete their account or data.
 
 ## Quick wins (do this week)
 
-1. ⏭️ **Add real API keys to Railway** — `OPENAI_API_KEY` (replace `stub_not_used`), `RESEND_API_KEY`, `GOOGLE_PLACES_API_KEY`. Stops the log spam, unlocks AI/email/venue features.
+1. ⏭️ **Add real API keys to Railway** — `OPENAI_API_KEY` (replace `stub_not_used`), `RESEND_API_KEY`, `GOOGLE_PLACES_API_KEY`. Stops the log spam, unlocks AI/email/venue features. **Also set `ADMIN_EMAILS=raches402@gmail.com`** (or similar) so admin endpoints don't 403 — required after the hardcoded admin fallback was removed in `771f1f7`.
 2. ✅ ~~Verify Google OAuth login works locally~~ — works in production; localhost support added in `e37fb58`
 3. ✅ ~~Pull 30-day API cost report~~ — done as part of W3 diagnosis (drove the tier 0-4 implementation)
 4. ✅ ~~Spike a Railway deploy~~ — way past spiking, fully deployed
@@ -421,3 +421,4 @@ No `/api/user/delete` endpoint exists. Users can't delete their account or data.
 - **[Franky note] Keep `server/ai-event-agent.ts`** — central to real planning flows; high-risk to remove.
 - **[Franky note] Keep `server/ai-time-picker.ts`** — used across scheduling, rescheduling, reminders; high-risk to remove.
 - **[Franky note] Keep `server/ai-itinerary-naming.ts` and `server/ai-scheduling.ts` for now** — smaller, but still wired into live user-facing flows.
+  - _Stale annotation (Claude, rev 9):_ `ai-itinerary-naming.ts` no longer makes an AI call as of `2038af3` — `generateItineraryName` was swapped to return the existing deterministic `generateFallbackName`. The file is now a thin wrapper; could be inlined into callers or kept as the export boundary if any callers rely on the function name. No AI cost from this module anymore._

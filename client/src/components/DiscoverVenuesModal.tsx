@@ -243,7 +243,6 @@ export function DiscoverVenuesModal({
       // CRITICAL: Check if groupId changed while we were waiting for the response
       // If it did, discard this response to prevent cross-group data contamination
       if (groupIdRef.current !== requestGroupId) {
-        console.log(`[DiscoverVenuesModal] Discarding stale category response for group ${requestGroupId}, current group is ${groupIdRef.current}`);
         return;
       }
 
@@ -293,7 +292,6 @@ export function DiscoverVenuesModal({
       // CRITICAL: Check if groupId changed while we were waiting for the response
       // If it did, discard this response to prevent cross-group data contamination
       if (groupIdRef.current !== requestGroupId) {
-        console.log(`[DiscoverVenuesModal] Discarding stale response for group ${requestGroupId}, current group is ${groupIdRef.current}`);
         return;
       }
 
@@ -336,7 +334,6 @@ export function DiscoverVenuesModal({
 
       // Only update UI if we're still on the same group
       if (groupIdRef.current !== requestGroupId) {
-        console.log(`[DiscoverVenuesModal] Discarding stale search add for group ${requestGroupId}, current group is ${groupIdRef.current}`);
         return;
       }
 

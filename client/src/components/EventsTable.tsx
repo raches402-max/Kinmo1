@@ -25,6 +25,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { getRsvpColor } from "@/lib/tokens";
 import { cn } from "@/lib/utils";
+import { isWithinFeedbackWindow } from "@/lib/events";
 
 // Helper function to convert hex color to rgba
 function hexToRgba(hex: string, alpha: number): string {
@@ -366,9 +367,6 @@ export default function EventsTable({
 
       // If no itineraryId exists (virtual event), create one first
       if (!itineraryId) {
-        console.log('[DecideNow] No itineraryId - creating itinerary first');
-        console.log('[DecideNow] Params:', JSON.stringify(params, null, 2));
-
         const requestBody = {
           groupId: params.groupId,
           name: params.eventName || "Upcoming Event",
@@ -376,22 +374,16 @@ export default function EventsTable({
           status: "draft",
           proposedOrder: [] // Required field - empty array for new itinerary
         };
-        console.log('[DecideNow] Request body:', JSON.stringify(requestBody, null, 2));
 
         try {
           const createResponse = await apiRequest("POST", "/api/itineraries", requestBody);
           itineraryId = createResponse.id;
-          console.log('[DecideNow] Created itinerary:', itineraryId);
         } catch (createError: any) {
-          console.error('[DecideNow] Failed to create itinerary:', createError);
-          // Re-throw with more context
           const errorDetails = createError.details ? `: ${JSON.stringify(createError.details)}` : '';
           throw new Error(`Failed to create event${errorDetails}`);
         }
       }
 
-      // Now run decide-now on the itinerary
-      console.log('[DecideNow] Calling decide-now for itinerary:', itineraryId);
       return await apiRequest("POST", `/api/itineraries/${itineraryId}/decide-now`, {});
     },
     onSuccess: (data: any) => {
@@ -1238,7 +1230,7 @@ export default function EventsTable({
 
                 {/* Actions Column - Expand Arrow & Delete */}
                 <div className="flex items-center gap-1 justify-end">
-                  {isPastEvents && onLeaveFeedback && (event.rsvp?.response === 'yes' || event.isOrganizer) && !(event.rsvp as any)?.postEventFeedback && (
+                  {isPastEvents && onLeaveFeedback && (event.rsvp?.response === 'yes' || event.isOrganizer) && !(event.rsvp as any)?.postEventFeedback && isWithinFeedbackWindow(event) && (
                     <Button
                       variant="ghost"
                       size="sm"

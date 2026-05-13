@@ -66,9 +66,7 @@ export function SwipeSessionWithDeck({
       // CRITICAL: Filter deck to only include venues that belong to current group
       // This prevents cross-group data contamination if old deck data persists
       const filteredDeck = initialDeck.filter(venue => {
-        // If venue has groupId, verify it matches current group
         if (venue.groupId && venue.groupId !== groupId) {
-          console.log(`[SwipeSessionWithDeck] Filtering out venue ${venue.title} - belongs to group ${venue.groupId}, current group is ${groupId}`);
           return false;
         }
         return true;
