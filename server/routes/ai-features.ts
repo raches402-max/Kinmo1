@@ -46,7 +46,7 @@ import {
 } from "../openai";
 import {
   searchPlaces,
-  searchNearbyPlaces,
+  searchNearbyByTypes,
   getBestVenueType,
   getBestVenueTypeSync,
 } from "../google-places";
@@ -1463,17 +1463,15 @@ router.post("/groups/:groupId/nearby-suggestions", isAuthenticated, requireGroup
     const centerLocation = validLocations[0]!.location;
     const selectedPlaceIds = validLocations.map(v => v!.placeId);
 
-    // Search for various types of nearby venues
-    const searchQueries = ['restaurant', 'cafe', 'bar', 'dessert', 'ice cream'];
-    const allNearbyPlaces = await Promise.all(
-      searchQueries.map(query =>
-        searchNearbyPlaces(query, centerLocation, 805, 4.0) // 0.5 miles = 805 meters, 4.0+ rating
-      )
+    // Search for various types of nearby venues — single batched API call
+    const allNearbyPlaces = await searchNearbyByTypes(
+      ['restaurant', 'cafe', 'bar', 'bakery', 'ice_cream_shop'],
+      centerLocation, 805, 4.0 // 0.5 miles = 805 meters, 4.0+ rating
     );
 
-    // Flatten and deduplicate
+    // Deduplicate
     const uniquePlaces = new Map();
-    allNearbyPlaces.flat().forEach(place => {
+    allNearbyPlaces.forEach(place => {
       // Skip if it's one of the selected venues
       if (selectedPlaceIds.includes(place.placeId)) return;
 
@@ -1511,17 +1509,15 @@ router.post("/groups/:groupId/venue-nearby-suggestions", async (req, res) => {
     const location = { lat: parseFloat(lat), lng: parseFloat(lng) };
     const excludeIds = new Set([placeId, ...(excludePlaceIds || [])]);
 
-    // Search for various types of nearby venues
-    const searchQueries = ['restaurant', 'cafe', 'bar', 'dessert', 'ice cream'];
-    const allNearbyPlaces = await Promise.all(
-      searchQueries.map(query =>
-        searchNearbyPlaces(query, location, 805, 4.0) // 0.5 miles = 805 meters, 4.0+ rating
-      )
+    // Search for various types of nearby venues — single batched API call
+    const allNearbyPlaces = await searchNearbyByTypes(
+      ['restaurant', 'cafe', 'bar', 'bakery', 'ice_cream_shop'],
+      location, 805, 4.0 // 0.5 miles = 805 meters, 4.0+ rating
     );
 
-    // Flatten and deduplicate
+    // Deduplicate
     const uniquePlaces = new Map();
-    allNearbyPlaces.flat().forEach(place => {
+    allNearbyPlaces.forEach(place => {
       if (excludeIds.has(place.placeId)) return;
       if (!uniquePlaces.has(place.placeId)) {
         uniquePlaces.set(place.placeId, place);

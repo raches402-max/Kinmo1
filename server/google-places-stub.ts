@@ -58,6 +58,11 @@ export async function searchNearbyPlaces(): Promise<PlaceResult[]> {
   return [];
 }
 
+export async function searchNearbyByTypes(): Promise<PlaceResult[]> {
+  console.log("[google-places-stub] searchNearbyByTypes called — stub mode, returning []");
+  return [];
+}
+
 export async function geocodeLocation(_location: string): Promise<GeocodeResult | null> {
   console.log("[google-places-stub] geocodeLocation called — stub mode, returning null");
   return null;

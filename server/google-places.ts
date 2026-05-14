@@ -1147,19 +1147,45 @@ async function searchCuratedVenues(
       // Don't slice yet - we'll shuffle first for variety, then slice
     }
 
-    // Convert to PlaceResult format and fetch photos on-demand
-    const placeResults: PlaceResult[] = await Promise.all(results.map(async (venue) => {
+    // VARIETY OPTIMIZATION: Separate fresh vs seen venues, randomize both, prioritize
+    // fresh — done on the raw DB rows so we slice to maxResults BEFORE fetching photos
+    // (photos are then only fetched for venues we actually return).
+    let selectedRows = results;
+    if (seenVenues && seenVenues.length > 0) {
+      const seenVenuesLower = new Set(seenVenues.map(v => v.toLowerCase()));
+
+      // Separate into fresh (unseen) and seen venues
+      const freshVenues = results.filter(v => !seenVenuesLower.has(v.name.toLowerCase()));
+      const seenVenuesList = results.filter(v => seenVenuesLower.has(v.name.toLowerCase()));
+
+      console.log(`[Curated Search] Found ${results.length} venues: ${freshVenues.length} fresh, ${seenVenuesList.length} seen`);
+
+      // Randomize both groups, prioritize fresh, limit to maxResults
+      const shuffledFresh = shuffleArray(freshVenues);
+      const shuffledSeen = shuffleArray(seenVenuesList);
+      selectedRows = [...shuffledFresh, ...shuffledSeen].slice(0, maxResults);
+
+      console.log(`[Curated Search] Returning ${selectedRows.length} venues (${Math.min(shuffledFresh.length, maxResults)} fresh prioritized)`);
+    } else {
+      // No seen venues tracking, just randomize for variety
+      selectedRows = shuffleArray(results).slice(0, maxResults);
+      console.log(`[Curated Search] Found ${selectedRows.length} curated venues (randomized for variety)`);
+    }
+
+    // Convert to PlaceResult format and fetch photos on-demand — only for the
+    // sliced-down set we're actually returning.
+    const placeResults: PlaceResult[] = await Promise.all(selectedRows.map(async (venue) => {
       let photoUrl = venue.photoUrl || undefined;
-      
+
       // If no photo URL cached, fetch from Google Places API
       if (!photoUrl && venue.googlePlaceId) {
         try {
           console.log(`[Curated Search] Fetching photo for ${venue.name} (${venue.googlePlaceId})`);
           const placeDetails = await getPlaceDetails(venue.googlePlaceId);
-          
+
           if (placeDetails?.photoUrl) {
             photoUrl = placeDetails.photoUrl;
-            
+
             // Update the database with the photo URL for future use
             await db
               .update(curatedVenues)
@@ -1171,7 +1197,7 @@ async function searchCuratedVenues(
           console.error(`[Curated Search] Failed to fetch photo for ${venue.name}:`, error);
         }
       }
-      
+
       return {
         placeId: venue.googlePlaceId || `curated_${venue.id}`,
         name: venue.name,
@@ -1189,31 +1215,7 @@ async function searchCuratedVenues(
       };
     }));
 
-    // VARIETY OPTIMIZATION: Separate fresh vs seen venues, randomize both, prioritize fresh
-    if (seenVenues && seenVenues.length > 0) {
-      const seenVenuesLower = new Set(seenVenues.map(v => v.toLowerCase()));
-      
-      // Separate into fresh (unseen) and seen venues
-      const freshVenues = placeResults.filter(v => !seenVenuesLower.has(v.name.toLowerCase()));
-      const seenVenuesList = placeResults.filter(v => seenVenuesLower.has(v.name.toLowerCase()));
-      
-      console.log(`[Curated Search] Found ${placeResults.length} venues: ${freshVenues.length} fresh, ${seenVenuesList.length} seen`);
-      
-      // Randomize both groups
-      const shuffledFresh = shuffleArray(freshVenues);
-      const shuffledSeen = shuffleArray(seenVenuesList);
-      
-      // Prioritize fresh venues, use seen as fallback, limit to maxResults
-      const finalResults = [...shuffledFresh, ...shuffledSeen].slice(0, maxResults);
-      
-      console.log(`[Curated Search] Returning ${finalResults.length} venues (${Math.min(shuffledFresh.length, maxResults)} fresh prioritized)`);
-      return finalResults;
-    } else {
-      // No seen venues tracking, just randomize for variety
-      const shuffled = shuffleArray(placeResults);
-      console.log(`[Curated Search] Found ${shuffled.length} curated venues (randomized for variety)`);
-      return shuffled.slice(0, maxResults);
-    }
+    return placeResults;
     
   } catch (error) {
     console.error('[Curated Search] Error:', error);
@@ -2007,33 +2009,135 @@ export async function searchPlaces(
   }
 }
 
-export async function searchNearbyPlaces(
-  query: string,
+// Maps a free-text query hint to Google Places (New) includedTypes.
+const NEARBY_QUERY_TYPE_MAP: Record<string, string[]> = {
+  restaurant: ['restaurant'],
+  cafe: ['cafe'],
+  bar: ['bar'],
+  coffee: ['cafe'],
+  food: ['restaurant', 'cafe'],
+  shopping: ['shopping_mall', 'store'],
+  entertainment: ['movie_theater', 'amusement_park', 'bowling_alley'],
+};
+
+// Parse + filter raw Nearby Search (New) place objects into PlaceResult[].
+function parseNearbyResults(places: any[], minRating: number): PlaceResult[] {
+  const results: PlaceResult[] = [];
+  const MIN_REVIEWS = 50;
+  for (const place of places) {
+    // Filter by minimum rating
+    if (!place.rating || place.rating < minRating) {
+      continue;
+    }
+
+    // Filter by minimum review count (NEW API: userRatingCount)
+    if (!place.userRatingCount || place.userRatingCount < MIN_REVIEWS) {
+      console.log(`[Google Places] Filtering out "${place.displayName?.text || 'Unknown'}" - only ${place.userRatingCount || 0} reviews (minimum: ${MIN_REVIEWS})`);
+      continue;
+    }
+
+    let photoUrl: string | undefined;
+    if (place.photos && place.photos.length > 0) {
+      // NEW API: photos have a 'name' field (resource identifier)
+      const photoName = place.photos[0].name;
+      if (photoName) {
+        photoUrl = `/api/photos/v1/${encodeURIComponent(photoName)}`;
+      }
+    }
+
+    // NEW API: priceLevel is a string enum
+    let priceLevel: string | undefined;
+    if (place.priceLevel) {
+      const levelMap: Record<string, string> = {
+        'PRICE_LEVEL_FREE': 'Free',
+        'PRICE_LEVEL_INEXPENSIVE': '$',
+        'PRICE_LEVEL_MODERATE': '$$',
+        'PRICE_LEVEL_EXPENSIVE': '$$$',
+        'PRICE_LEVEL_VERY_EXPENSIVE': '$$$$',
+      };
+      priceLevel = levelMap[place.priceLevel] || place.priceLevel;
+    }
+
+    const placeLocation = place.location ? {
+      lat: place.location.latitude,
+      lng: place.location.longitude,
+    } : undefined;
+
+    // Extract city from addressComponents
+    const city = extractCityFromAddressComponents(place.addressComponents);
+
+    results.push({
+      placeId: place.id || "",
+      name: place.displayName?.text || "Unknown",
+      address: place.formattedAddress || "",
+      city,
+      rating: place.rating?.toString(),
+      reviewCount: place.userRatingCount,
+      priceLevel,
+      photoUrl,
+      types: place.types || [],
+      location: placeLocation,
+      openingHours: place.currentOpeningHours || undefined,
+      businessStatus: place.businessStatus || undefined,
+    });
+  }
+  return results;
+}
+
+/**
+ * Nearby Search (New) by Google Place types — the cached core behind
+ * searchNearbyPlaces. Combines multiple types into a SINGLE API call rather
+ * than one call per type.
+ *
+ * Caching: request-scoped session cache -> searchCache DB table (24h TTL) -> API.
+ */
+export async function searchNearbyByTypes(
+  includedTypes: string[],
   nearLocation: { lat: number; lng: number },
   radiusMeters: number = 805,
   minRating: number = 3.5
 ): Promise<PlaceResult[]> {
-  // Create cache key from search parameters
-  const cacheKey = `${query}|${nearLocation.lat}|${nearLocation.lng}|${radiusMeters}|${minRating}`;
-  
-  // Check cache first
-  if (sessionCache.nearbyResults.has(cacheKey)) {
-    sessionCache.stats.nearbyHits++;
+  const sortedTypes = includedTypes.slice().sort();
+  const cacheQuery = `nearby:${sortedTypes.join(',')}:r${Math.round(minRating * 10)}`;
+  const cacheLocation = `${nearLocation.lat.toFixed(4)},${nearLocation.lng.toFixed(4)}`;
+  const sessionKey = `${cacheQuery}|${cacheLocation}|${radiusMeters}`;
 
-    const cached = sessionCache.nearbyResults.get(cacheKey)!;
-    // Return deep copy to prevent mutation
+  // Session cache (fastest, request-scoped)
+  if (sessionCache.nearbyResults.has(sessionKey)) {
+    sessionCache.stats.nearbyHits++;
+    const cached = sessionCache.nearbyResults.get(sessionKey)!;
     return cached.map(result => clonePlaceResult(result));
+  }
+
+  // Database cache (persistent, 24-hour TTL)
+  const dbCached = await getSearchResultsFromDB(cacheQuery, cacheLocation, radiusMeters);
+  if (dbCached && dbCached.length > 0) {
+    const results = dbCached.filter((r: any) => r && typeof r !== 'string') as PlaceResult[];
+    sessionCache.nearbyResults.set(sessionKey, results.map(r => clonePlaceResult(r)));
+    sessionCache.stats.nearbyHits++;
+    await logApiCall({
+      service: 'google_places',
+      method: 'nearbySearch',
+      cacheStatus: 'hit',
+      status: 'success',
+      responseTimeMs: 0,
+      costEstimate: 0,
+      parameters: { includedTypes: sortedTypes, location: cacheLocation, radiusMeters, minRating },
+      metadata: { cacheType: 'database', resultCount: results.length },
+    });
+    return results.map(result => clonePlaceResult(result));
   }
 
   sessionCache.stats.nearbyMisses++;
 
+  const startTime = Date.now();
   try {
     const apiKey = getNextApiKey();
 
     // NEW PLACES API: Use Nearby Search endpoint
     const endpoint = 'https://places.googleapis.com/v1/places:searchNearby';
-    
-    const requestBody = {
+
+    const requestBody: any = {
       locationRestriction: {
         circle: {
           center: {
@@ -2046,28 +2150,10 @@ export async function searchNearbyPlaces(
       maxResultCount: 20,
       rankPreference: 'RELEVANCE',
     };
-
-    // Add includedTypes if we can parse the query
-    // This helps narrow down results
-    if (query && query.length > 0) {
-      // Common type mapping for queries
-      const typeMap: Record<string, string[]> = {
-        restaurant: ['restaurant'],
-        cafe: ['cafe'],
-        bar: ['bar'],
-        coffee: ['cafe'],
-        food: ['restaurant', 'cafe'],
-        shopping: ['shopping_mall', 'store'],
-        entertainment: ['movie_theater', 'amusement_park', 'bowling_alley'],
-      };
-      
-      const lowerQuery = query.toLowerCase();
-      for (const [keyword, types] of Object.entries(typeMap)) {
-        if (lowerQuery.includes(keyword)) {
-          (requestBody as any).includedTypes = types;
-          break;
-        }
-      }
+    // An empty types array means an untyped nearby search (prior behavior for
+    // queries that matched no type keyword).
+    if (sortedTypes.length > 0) {
+      requestBody.includedTypes = sortedTypes;
     }
 
     const fieldMask = [
@@ -2106,87 +2192,90 @@ export async function searchNearbyPlaces(
         errorDetails = `${response.status}: ${errorText}`;
       }
       console.error(`[Google Places API] Nearby Search Error:`, errorDetails);
-      sessionCache.nearbyResults.set(cacheKey, []);
+      await logApiCall({
+        service: 'google_places',
+        method: 'nearbySearch',
+        cacheStatus: 'miss',
+        status: 'error',
+        responseTimeMs: Date.now() - startTime,
+        costEstimate: calculateGooglePlacesCost('nearbySearch'),
+        parameters: { includedTypes: sortedTypes, location: cacheLocation, radiusMeters, minRating },
+        errorMessage: errorDetails,
+      });
+      sessionCache.nearbyResults.set(sessionKey, []);
       return [];
     }
 
     const data = await response.json();
 
     if (!data.places || data.places.length === 0) {
-      sessionCache.nearbyResults.set(cacheKey, []);
+      await logApiCall({
+        service: 'google_places',
+        method: 'nearbySearch',
+        cacheStatus: 'miss',
+        status: 'success',
+        responseTimeMs: Date.now() - startTime,
+        costEstimate: calculateGooglePlacesCost('nearbySearch'),
+        parameters: { includedTypes: sortedTypes, location: cacheLocation, radiusMeters, minRating },
+        metadata: { resultCount: 0 },
+      });
+      sessionCache.nearbyResults.set(sessionKey, []);
       return [];
     }
 
-    const results: PlaceResult[] = [];
-    const MIN_REVIEWS = 50;
-    for (const place of data.places) {
-      // Filter by minimum rating
-      if (!place.rating || place.rating < minRating) {
-        continue;
-      }
-      
-      // Filter by minimum review count (NEW API: userRatingCount)
-      if (!place.userRatingCount || place.userRatingCount < MIN_REVIEWS) {
-        console.log(`[Google Places] Filtering out "${place.displayName?.text || 'Unknown'}" - only ${place.userRatingCount || 0} reviews (minimum: ${MIN_REVIEWS})`);
-        continue;
-      }
-      
-      let photoUrl: string | undefined;
-      if (place.photos && place.photos.length > 0) {
-        // NEW API: photos have a 'name' field (resource identifier)
-        const photoName = place.photos[0].name;
-        if (photoName) {
-          photoUrl = `/api/photos/v1/${encodeURIComponent(photoName)}`;
-        }
-      }
+    const results = parseNearbyResults(data.places, minRating);
 
-      // NEW API: priceLevel is a string enum
-      let priceLevel: string | undefined;
-      if (place.priceLevel) {
-        const levelMap: Record<string, string> = {
-          'PRICE_LEVEL_FREE': 'Free',
-          'PRICE_LEVEL_INEXPENSIVE': '$',
-          'PRICE_LEVEL_MODERATE': '$$',
-          'PRICE_LEVEL_EXPENSIVE': '$$$',
-          'PRICE_LEVEL_VERY_EXPENSIVE': '$$$$',
-        };
-        priceLevel = levelMap[place.priceLevel] || place.priceLevel;
-      }
+    await logApiCall({
+      service: 'google_places',
+      method: 'nearbySearch',
+      cacheStatus: 'miss',
+      status: 'success',
+      responseTimeMs: Date.now() - startTime,
+      costEstimate: calculateGooglePlacesCost('nearbySearch'),
+      parameters: { includedTypes: sortedTypes, location: cacheLocation, radiusMeters, minRating },
+      metadata: { resultCount: results.length },
+    });
 
-      const placeLocation = place.location ? {
-        lat: place.location.latitude,
-        lng: place.location.longitude,
-      } : undefined;
-
-      // Extract city from addressComponents
-      const city = extractCityFromAddressComponents(place.addressComponents);
-
-      results.push({
-        placeId: place.id || "",
-        name: place.displayName?.text || query,
-        address: place.formattedAddress || "",
-        city,
-        rating: place.rating?.toString(),
-        reviewCount: place.userRatingCount,
-        priceLevel,
-        photoUrl,
-        types: place.types || [],
-        location: placeLocation,
-        openingHours: place.currentOpeningHours || undefined,
-        businessStatus: place.businessStatus || undefined,
-      });
+    // Persist to DB cache (24h TTL) so repeat requests across sessions are free
+    if (results.length > 0) {
+      await saveSearchResultsToDB(cacheQuery, cacheLocation, radiusMeters, results);
     }
 
     // Cache clones to prevent mutations from affecting cached data
-    sessionCache.nearbyResults.set(cacheKey, results.map(r => clonePlaceResult(r)));
+    sessionCache.nearbyResults.set(sessionKey, results.map(r => clonePlaceResult(r)));
     // Return originals (caller can mutate without affecting cache)
     return results;
   } catch (error) {
     console.error("Error searching nearby places:", error);
     // Cache empty result to avoid retrying failed searches
-    sessionCache.nearbyResults.set(cacheKey, []);
+    sessionCache.nearbyResults.set(sessionKey, []);
     return [];
   }
+}
+
+/**
+ * Nearby Search by free-text query hint. Thin wrapper over searchNearbyByTypes:
+ * resolves the query to includedTypes via NEARBY_QUERY_TYPE_MAP. A query that
+ * matches no keyword falls through to an untyped nearby search, preserving the
+ * prior behavior.
+ */
+export async function searchNearbyPlaces(
+  query: string,
+  nearLocation: { lat: number; lng: number },
+  radiusMeters: number = 805,
+  minRating: number = 3.5
+): Promise<PlaceResult[]> {
+  let includedTypes: string[] = [];
+  if (query && query.length > 0) {
+    const lowerQuery = query.toLowerCase();
+    for (const [keyword, types] of Object.entries(NEARBY_QUERY_TYPE_MAP)) {
+      if (lowerQuery.includes(keyword)) {
+        includedTypes = types;
+        break;
+      }
+    }
+  }
+  return searchNearbyByTypes(includedTypes, nearLocation, radiusMeters, minRating);
 }
 
 // Helper function to create a summary of positive review highlights
