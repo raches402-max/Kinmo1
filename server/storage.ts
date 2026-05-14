@@ -590,7 +590,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getGroupMembers(groupId: string): Promise<Member[]> {
-    return await db.select().from(members).where(eq(members.groupId, groupId));
+    const rows = await db
+      .select()
+      .from(members)
+      .innerJoin(groups, eq(members.groupId, groups.id))
+      .where(and(eq(members.groupId, groupId), isNull(groups.deletedAt)));
+
+    return rows.map(({ members }) => members);
   }
 
   async createMember(insertMember: InsertMember): Promise<Member> {
@@ -896,11 +902,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getGroupMemberByUserId(groupId: string, userId: string): Promise<Member | undefined> {
-    const [member] = await db
+    const [row] = await db
       .select()
       .from(members)
-      .where(and(eq(members.groupId, groupId), eq(members.userId, userId)));
-    return member || undefined;
+      .innerJoin(groups, eq(members.groupId, groups.id))
+      .where(and(
+        eq(members.groupId, groupId),
+        eq(members.userId, userId),
+        isNull(groups.deletedAt)
+      ));
+    return row?.members || undefined;
   }
 
   async updateMember(id: string, updates: UpdateMember): Promise<Member> {
@@ -2606,15 +2617,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getHostingAvailableMembers(groupId: string): Promise<Member[]> {
-    return await db
+    const rows = await db
       .select()
       .from(members)
+      .innerJoin(groups, eq(members.groupId, groups.id))
       .where(
         and(
           eq(members.groupId, groupId),
-          eq(members.openToHosting, true)
+          eq(members.openToHosting, true),
+          isNull(groups.deletedAt)
         )
       );
+
+    return rows.map(({ members }) => members);
   }
 
   // Host Assignments (rotating host system)
@@ -2681,25 +2696,25 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getNextHostVolunteer(groupId: string, excludeMemberIds: string[] = []): Promise<Member | null> {
-    // Get all volunteers for this group, excluding specified members and organizers
     let whereConditions = [
       eq(members.groupId, groupId),
       eq(members.openToHosting, true),
-      eq(members.isOrganizer, false)
+      eq(members.isOrganizer, false),
+      isNull(groups.deletedAt)
     ];
 
     if (excludeMemberIds.length > 0) {
       whereConditions.push(sql`${members.id} NOT IN (${sql.join(excludeMemberIds.map(id => sql`${id}`), sql`, `)})`);
     }
 
-    const volunteers = await db
+    const rows = await db
       .select()
       .from(members)
+      .innerJoin(groups, eq(members.groupId, groups.id))
       .where(and(...whereConditions))
       .orderBy(members.lastHostedAt); // null values come first (never hosted)
 
-    // Return first volunteer (least recently hosted)
-    return volunteers.length > 0 ? volunteers[0] : null;
+    return rows.length > 0 ? rows[0].members : null;
   }
 
   // Category Search History
