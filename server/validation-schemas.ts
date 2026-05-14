@@ -16,20 +16,8 @@ export const importVenuesSchema = z.object({
   })).min(1, "At least one venue is required"),
 });
 
-export const createBackupSchema = z.object({
-  notes: z.string().optional(),
-});
-
 export const switchUserSchema = z.object({
   targetUserId: z.string().min(1, "Target user ID is required"),
-});
-
-export const uploadScrapedVenuesSchema = z.object({
-  venues: z.array(z.any()).min(1, "At least one venue is required"),
-});
-
-export const importScrapedVenuesSchema = z.object({
-  venues: z.array(z.any()).min(1, "At least one venue is required"),
 });
 
 // ========== USER PREFERENCES SCHEMAS ==========
@@ -95,18 +83,6 @@ export const reorderCollectionsSchema = z.object({
     id: z.string(),
     orderIndex: z.number().int().min(0),
   })).min(1, "At least one collection order is required"),
-});
-
-export const updateCollectionAssignmentSchema = z.object({
-  collectionId: z.string().nullable(),
-  orderIndex: z.number().int().min(0).optional(),
-});
-
-export const reorderGroupsSchema = z.object({
-  groupOrders: z.array(z.object({
-    id: z.string(),
-    orderIndex: z.number().int().min(0),
-  })).min(1, "At least one group order is required"),
 });
 
 // ========== GROUP SCHEMAS ==========
@@ -179,17 +155,6 @@ export const joinGroupSchema = z.object({
   ]).optional(),
   inviteToken: z.string().optional(),
   shareableLink: z.string().optional(), // For "I'm not on this list" flow via invite page
-});
-
-export const claimMemberSchema = z.object({
-  claimToken: z.string().min(1, "Claim token is required"),
-});
-
-export const updateMemberRsvpSchema = z.object({
-  rsvpStatus: z.enum(['going', 'maybe', 'not_going'], {
-    errorMap: () => ({ message: "Invalid RSVP status" })
-  }),
-  claimToken: z.string().min(1, "Claim token is required"),
 });
 
 export const updateMemberPreferencesSchema = z.object({
