@@ -14,6 +14,7 @@
  * Migration: extracted from server/routes.ts
  */
 
+import { safeError } from "../lib/safe-error";
 import { Router } from "express";
 import { db } from "../db";
 import { eq, and } from "drizzle-orm";
@@ -105,7 +106,7 @@ router.post("/auto-events/:id/approve", isAuthenticated, async (req: any, res) =
     res.json({ message: "Event approved and sent", event, itinerary });
   } catch (error: any) {
     console.error("Error approving event:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -147,7 +148,7 @@ router.post("/auto-events/:id/skip", isAuthenticated, async (req: any, res) => {
     });
   } catch (error: any) {
     console.error("[Auto-Event Skip] Error:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -197,7 +198,7 @@ router.delete("/auto-events/:id", isAuthenticated, async (req: any, res) => {
     });
   } catch (error: any) {
     console.error("[Auto-Event Delete] Error:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -260,7 +261,7 @@ router.get("/auto-events/:eventId/options", isAuthenticated, async (req: any, re
     });
   } catch (error: any) {
     console.error("[Get Itinerary Options] Error:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -327,7 +328,7 @@ router.post("/auto-events/:eventId/vote", isAuthenticated, async (req: any, res)
     res.json({ success: true, message: "Vote recorded" });
   } catch (error: any) {
     console.error("[Vote for Option] Error:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -372,7 +373,7 @@ router.post("/auto-events/:eventId/select-option", isAuthenticated, async (req: 
     });
   } catch (error: any) {
     console.error("[Select Option] Error:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -471,7 +472,7 @@ router.post(
       });
     } catch (error: any) {
       console.error("[Regenerate Options] Error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   }
 );

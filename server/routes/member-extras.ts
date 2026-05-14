@@ -24,6 +24,7 @@
  * MIGRATED FROM: server/routes.ts
  */
 
+import { safeError } from "../lib/safe-error";
 import { Router } from "express";
 import { eq, sql, and } from "drizzle-orm";
 import { db } from "../db";
@@ -106,7 +107,7 @@ router.get("/members/verify-claim/:inviteToken", async (req, res) => {
     });
   } catch (error: any) {
     console.error("[Verify Invite] Error:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -371,7 +372,7 @@ router.get("/members/:memberId/constraint-analysis", isAuthenticated, async (req
     if (error.message === "Unauthorized") {
       return res.status(403).json({ message: "You don't have access to this member" });
     }
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -433,7 +434,7 @@ router.patch("/members/:memberId/constraints", isAuthenticated, async (req: any,
     if (error.message === "Unauthorized") {
       return res.status(403).json({ message: "You don't have access to this member" });
     }
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -466,7 +467,7 @@ router.patch("/members/:id/profile", isAuthenticated, async (req: any, res) => {
     res.json(updatedMember);
   } catch (error: any) {
     console.error("[Update Member Profile] Error:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -490,7 +491,7 @@ router.get("/members/:memberId/favorites", isAuthenticated, async (req: any, res
     res.json(favorites);
   } catch (error: any) {
     console.error("[Get Member Favorites] Error:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -579,7 +580,7 @@ router.post("/members/:memberId/favorites", isAuthenticated, async (req: any, re
     res.json(favorite);
   } catch (error: any) {
     console.error("[Add Member Favorite] Error:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -601,7 +602,7 @@ router.delete("/members/:memberId/favorites/:placeId", isAuthenticated, async (r
     res.json({ success: true });
   } catch (error: any) {
     console.error("[Remove Member Favorite] Error:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -624,7 +625,7 @@ router.get("/groups/:groupId/my-preferences", isAuthenticated, async (req: any, 
     const preferences = await storage.getMemberGroupPreferences(userId, groupId);
     res.json(preferences || null);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -660,7 +661,7 @@ router.patch("/groups/:groupId/my-preferences", isAuthenticated, async (req: any
 
     res.json(preferences);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -689,7 +690,7 @@ router.get("/groups/:groupId/members-availability", isAuthenticated, async (req:
       totalMembers: membersAvailability.length,
     });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -720,7 +721,7 @@ router.get("/groups/:groupId/members-budgets", isAuthenticated, async (req: any,
       totalMembers: membersBudgets.length,
     });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 

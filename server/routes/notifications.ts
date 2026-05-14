@@ -6,6 +6,7 @@
  * Migrated from server/routes.ts (lines 16520–16590)
  */
 
+import { safeError } from "../lib/safe-error";
 import { Router } from "express";
 import { isAuthenticated } from "../googleAuth";
 import { getUserId } from "../authorization";
@@ -34,7 +35,7 @@ router.get("/notifications", isAuthenticated, async (req: any, res) => {
     res.json(notifications);
   } catch (error: any) {
     console.error("Error fetching notifications:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -46,7 +47,7 @@ router.get("/notifications/unread-count", isAuthenticated, async (req: any, res)
     res.json({ count });
   } catch (error: any) {
     console.error("Error fetching unread count:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -58,7 +59,7 @@ router.post("/notifications/:id/mark-read", isAuthenticated, async (req: any, re
     res.json({ success: true });
   } catch (error: any) {
     console.error("Error marking notification as read:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -70,7 +71,7 @@ router.post("/notifications/mark-all-read", isAuthenticated, async (req: any, re
     res.json({ success: true });
   } catch (error: any) {
     console.error("Error marking all notifications as read:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -82,7 +83,7 @@ router.delete("/notifications/:id", isAuthenticated, async (req: any, res) => {
     res.json({ success: true });
   } catch (error: any) {
     console.error("Error deleting notification:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 

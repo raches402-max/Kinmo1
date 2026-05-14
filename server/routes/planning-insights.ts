@@ -11,6 +11,7 @@
  * Migration: extracted from server/routes.ts
  */
 
+import { safeError } from "../lib/safe-error";
 import { Router } from "express";
 import { isAuthenticated } from "../googleAuth";
 import { storage } from "../storage";
@@ -40,7 +41,7 @@ router.get("/groups/:id/planning-insights", isAuthenticated, async (req: any, re
     res.json(insights);
   } catch (error: any) {
     console.error("Error fetching planning insights:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -55,7 +56,7 @@ router.post("/planning-insights/:id/dismiss", isAuthenticated, async (req: any, 
     res.json({ success: true });
   } catch (error: any) {
     console.error("Error dismissing insight:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -70,7 +71,7 @@ router.post("/planning-insights/:id/acted", isAuthenticated, async (req: any, re
     res.json({ success: true });
   } catch (error: any) {
     console.error("Error marking insight as acted:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -96,7 +97,7 @@ router.post("/groups/:id/analyze", isAuthenticated, async (req: any, res) => {
     });
   } catch (error: any) {
     console.error("Error running planning agent:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 

@@ -12,6 +12,7 @@
  * Migration: extracted from server/routes.ts
  */
 
+import { safeError } from "../lib/safe-error";
 import { Router } from "express";
 import * as Sentry from "@sentry/node";
 import { db } from "../db";
@@ -128,7 +129,7 @@ router.post("/groups/:id/retry-generation", isAuthenticated, async (req: any, re
 
       res.json({ success: true, message: "Activity generation restarted" });
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
     */
   });
@@ -153,7 +154,7 @@ router.post("/groups/:id/activities/cancel-generation", isAuthenticated, async (
 
       res.json({ success: true, message: "Activity generation cancelled" });
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -515,7 +516,7 @@ router.post("/groups/:id/activities/regenerate-category", isAuthenticated, requi
       res.json(newActivities);
     } catch (error: any) {
       console.error("[Category Regen] Error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -1029,7 +1030,7 @@ router.post("/groups/:id/generate-category", isAuthenticated, async (req: any, r
       }
     } catch (error: any) {
       console.error("[Category Generate] Error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -1064,7 +1065,7 @@ router.post("/groups/:id/activities/from-category-result", isAuthenticated, asyn
 
       res.json(votingEvent);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 

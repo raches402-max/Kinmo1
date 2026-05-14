@@ -22,6 +22,7 @@
  * Migration: extracted from server/routes.ts
  */
 
+import { safeError } from "../lib/safe-error";
 import { Router } from "express";
 import { eq, sql } from "drizzle-orm";
 import { db } from "../db";
@@ -245,7 +246,7 @@ router.post("/rsvps", async (req, res) => {
     res.json({ ...rsvp, gangsAllHere, isCompletingVote });
   } catch (error: any) {
     console.error('[RSVP] Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -318,7 +319,7 @@ router.get("/rsvps/itinerary/:itineraryId/member/:memberId", async (req, res) =>
     res.json(rsvps[0]);
   } catch (error: any) {
     console.error('[RSVP] Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -333,7 +334,7 @@ router.get("/rsvps/itinerary/:itineraryId", isAuthenticated, async (req, res) =>
     res.json(rsvps);
   } catch (error: any) {
     console.error('[RSVP] Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -411,7 +412,7 @@ router.post("/itineraries/:itineraryId/organizer-rsvp", isAuthenticated, async (
     res.json(rsvp);
   } catch (error: any) {
     console.error('[Organizer RSVP] Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -454,7 +455,7 @@ router.post("/rsvps/:rsvpId/approve", isAuthenticated, async (req: any, res) => 
     res.json(updated[0]);
   } catch (error: any) {
     console.error('[Approve RSVP] Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -495,7 +496,7 @@ router.post("/rsvps/:rsvpId/deny", isAuthenticated, async (req: any, res) => {
     res.json({ message: "RSVP denied and removed" });
   } catch (error: any) {
     console.error('[Deny RSVP] Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -532,7 +533,7 @@ router.patch("/rsvps/:id", isAuthenticated, async (req: any, res) => {
     res.json(updated);
   } catch (error: any) {
     console.error('[Update RSVP] Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -558,7 +559,7 @@ router.post("/itineraries/:id/rsvps", async (req, res) => {
     });
     res.json(rsvp);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -636,7 +637,7 @@ router.post("/itineraries/:id/rsvp", async (req, res) => {
     res.json(rsvp);
   } catch (error: any) {
     console.error('[Event Invite RSVP] Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -717,7 +718,7 @@ router.post("/itineraries/:id/guest-rsvp", async (req, res) => {
     res.json(rsvp);
   } catch (error: any) {
     console.error('[Guest RSVP] Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -777,7 +778,7 @@ router.get("/guest-rsvp/:guestToken", async (req, res) => {
       group: group ? { name: group.name, emoji: group.emoji } : null,
     });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -809,7 +810,7 @@ router.post("/guest-rsvp/:guestToken", async (req, res) => {
 
     res.json(updated);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -835,7 +836,7 @@ router.patch("/guest-rsvp/:guestToken", async (req, res) => {
 
     res.json(updatedRsvp);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -857,7 +858,7 @@ router.get("/itineraries/:id/rsvps", async (req, res) => {
 
     res.json(enrichedRsvps);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -878,7 +879,7 @@ router.post("/standalone-invite/:inviteToken/rsvp", async (req, res) => {
 
     res.json({ success: true, rsvpStatus: invitee.rsvpStatus });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 

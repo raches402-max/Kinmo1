@@ -18,6 +18,7 @@
  * Migration: extracted from server/routes.ts
  */
 
+import { safeError } from "../lib/safe-error";
 import { Router } from "express";
 import { db } from "../db";
 import { eq, and } from "drizzle-orm";
@@ -80,7 +81,7 @@ router.post("/groups/:groupId/swipe-sessions", isAuthenticated, async (req: any,
     res.json({ sessionId });
   } catch (error: any) {
     console.error("Error creating swipe session:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -103,7 +104,7 @@ router.get("/groups/:groupId/swipe-sessions", isAuthenticated, async (req: any, 
     res.json({ sessions });
   } catch (error: any) {
     console.error("Error fetching swipe sessions:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -140,7 +141,7 @@ router.get("/swipe-sessions/:sessionId", isAuthenticated, async (req: any, res) 
     res.json(session);
   } catch (error: any) {
     console.error("Error fetching swipe session:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -177,7 +178,7 @@ router.post("/swipe-sessions/:sessionId/complete", isAuthenticated, async (req: 
     res.json(result);
   } catch (error: any) {
     console.error("Error completing swipe session:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -289,7 +290,7 @@ router.post(
       });
     } catch (error: any) {
       console.error("Error recording activity swipe:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   }
 );
@@ -383,7 +384,7 @@ router.post(
       });
     } catch (error: any) {
       console.error("Error recording favorite swipe:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   }
 );
@@ -412,7 +413,7 @@ router.get("/groups/:groupId/swipe-progress", isAuthenticated, async (req: any, 
     res.json(progress);
   } catch (error: any) {
     console.error("Error fetching swipe progress:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -440,7 +441,7 @@ router.get("/groups/:groupId/swipe-triggers/status", isAuthenticated, async (req
     res.json(opportunities);
   } catch (error: any) {
     console.error("Error checking swipe triggers:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -494,7 +495,7 @@ router.post("/groups/:groupId/swipe-triggers/manual", isAuthenticated, async (re
     }
   } catch (error: any) {
     console.error("Error triggering manual swipe session:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -536,7 +537,7 @@ router.post(
       }
     } catch (error: any) {
       console.error("Error triggering weekly digest:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   }
 );
@@ -563,7 +564,7 @@ router.post("/cron/weekly-digest", async (req, res) => {
     res.json({ success: true, message: "Weekly digests processed" });
   } catch (error: any) {
     console.error("Error processing weekly digests:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 

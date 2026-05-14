@@ -18,6 +18,7 @@
  * Migration: extracted from server/routes.ts
  */
 
+import { safeError } from "../lib/safe-error";
 import { Router, type Response } from "express";
 import { storage } from "../storage";
 import { db } from "../db";
@@ -96,7 +97,7 @@ router.get("/groups/:id/activities", publicEndpointLimiter, async (req, res) => 
 
     res.json(safeActivities);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -128,7 +129,7 @@ router.patch("/activities/:activityId/feedback", isAuthenticated, async (req: an
 
     res.json(updatedActivity);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -143,7 +144,7 @@ router.delete("/groups/:id/activities", isAuthenticated, requireGroupOwnership()
     await storage.deleteAllGroupActivities(req.params.id);
     res.json({ success: true, message: "All activities cleared" });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -167,7 +168,7 @@ router.delete("/activities/:activityId", isAuthenticated, async (req: any, res: 
     res.json({ success: true, message: "Activity deleted" });
   } catch (error: any) {
     console.error("[Delete Activity] Error:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -210,7 +211,7 @@ router.get("/groups/:groupId/voting-events", isAuthenticated, requireGroupAccess
 
     res.json(eventsWithLikedBy);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -252,7 +253,7 @@ router.delete("/voting-events/:id", isAuthenticated, requireVotingEventAccess(),
     await storage.deleteVotingEvent(req.params.id);
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -285,7 +286,7 @@ router.delete("/voting-events/:id/vote", isAuthenticated, async (req: any, res: 
     await storage.removeVote(req.params.id, userId);
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -295,7 +296,7 @@ router.get("/voting-events/:id/votes", isAuthenticated, requireVotingEventAccess
     const votes = await storage.getEventVotes(req.params.id);
     res.json(votes);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -306,7 +307,7 @@ router.get("/voting-events/:id/my-vote", isAuthenticated, async (req: any, res: 
     const vote = await storage.getUserVote(req.params.id, userId);
     res.json(vote || null);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 

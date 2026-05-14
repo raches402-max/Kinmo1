@@ -21,6 +21,7 @@
  * Migration: extracted from server/routes.ts
  */
 
+import { safeError } from "../lib/safe-error";
 import { Router } from "express";
 import { db } from "../db";
 import { eq, sql } from "drizzle-orm";
@@ -686,7 +687,7 @@ router.post("/groups/:id/schedule-from-prompt", isAuthenticated, async (req: any
     });
   } catch (error: any) {
     console.error("[AI Scheduling] Error:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -746,7 +747,7 @@ router.post("/groups/:id/analyze-patterns", isAuthenticated, requireGroupOwnersh
     res.json({ patterns });
   } catch (error: any) {
     console.error("[AI Insights] Error:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -842,7 +843,7 @@ router.post("/groups/:id/compare-models", isAuthenticated, async (req: any, res)
     res.json(comparison);
   } catch (error: any) {
     console.error("[Model Comparison] Error:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -875,7 +876,7 @@ router.post("/groups/:id/swipe-concepts", isAuthenticated, requireGroupOwnership
     res.json({ concepts });
   } catch (error: any) {
     console.error("Error generating swipe concepts:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -1165,7 +1166,7 @@ router.post("/groups/:id/swipe-feedback", isAuthenticated, requireGroupOwnership
     res.json({ signal });
   } catch (error: any) {
     console.error("Error saving swipe feedback:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -1399,7 +1400,7 @@ router.get("/groups/:id/swipe-deck", isAuthenticated, async (req: any, res) => {
     res.json({ deck: shuffledDeck });
   } catch (error: any) {
     console.error("Error generating swipe deck:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -1493,7 +1494,7 @@ router.post("/groups/:groupId/nearby-suggestions", isAuthenticated, requireGroup
     res.json({ suggestions });
   } catch (error: any) {
     console.error("Error fetching nearby suggestions:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -1539,7 +1540,7 @@ router.post("/groups/:groupId/venue-nearby-suggestions", async (req, res) => {
     res.json({ suggestions });
   } catch (error: any) {
     console.error("Error fetching venue nearby suggestions:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -1728,7 +1729,7 @@ router.post("/itineraries/:id/ai-suggestions", isAuthenticated, requireItinerary
     res.json(result);
   } catch (error: any) {
     console.error("[AI Suggestions] Error:", error);
-    res.status(500).json({ message: error.message || "Failed to get AI suggestions" });
+    res.status(500).json({ message: safeError(error, "Failed to get AI suggestions") });
   }
 });
 
@@ -1837,7 +1838,7 @@ router.post("/itineraries/:id/ai-chat", isAuthenticated, aiChatLimiter, requireI
       res.write(`data: ${JSON.stringify({ type: "error", error: error.message })}\n\n`);
       res.end();
     } else {
-      res.status(500).json({ error: error.message || "Failed to communicate with AI assistant" });
+      res.status(500).json({ error: safeError(error, "Failed to communicate with AI assistant") });
     }
   }
 });
@@ -2056,7 +2057,7 @@ router.post("/itineraries/:id/suggest-time", isAuthenticated, async (req, res) =
     res.json(result);
   } catch (error: any) {
     console.error('[Suggest Time] Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -2090,7 +2091,7 @@ router.get("/itineraries/:id/suggested-schedule", isAuthenticated, async (req, r
 
     res.json(scheduleConfig);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 

@@ -15,6 +15,7 @@
  * Migration: extracted from server/routes.ts
  */
 
+import { safeError } from "../lib/safe-error";
 import { Router } from "express";
 import { isAuthenticated } from "../googleAuth";
 import { storage } from "../storage";
@@ -117,7 +118,7 @@ router.get("/groups/:groupId/learning-insights", isAuthenticated, async (req: an
     });
   } catch (error: any) {
     console.error('[Learning Insights] Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -183,7 +184,7 @@ router.get("/groups/:groupId/confidence-weights", isAuthenticated, async (req: a
     });
   } catch (error: any) {
     console.error('Error fetching confidence weights:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -218,7 +219,7 @@ router.post("/groups/:groupId/calibrate", isAuthenticated, async (req: any, res)
     res.json(result);
   } catch (error: any) {
     console.error('Error running calibration:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -258,7 +259,7 @@ router.delete("/groups/:groupId/rejected-venues", isAuthenticated, async (req: a
     });
   } catch (error: any) {
     console.error('[Remove Rejected Venue] Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -314,7 +315,7 @@ router.get("/groups/:groupId/insights", isAuthenticated, async (req: any, res) =
     });
   } catch (error: any) {
     console.error('[Group Insights] Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -344,7 +345,7 @@ router.post("/groups/:groupId/insights/dismiss", isAuthenticated, async (req: an
     res.json({ success: true });
   } catch (error: any) {
     console.error('[Dismiss Insight] Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -374,7 +375,7 @@ router.patch("/groups/:groupId/insights/:insightType", isAuthenticated, async (r
     res.json({ success: true });
   } catch (error: any) {
     console.error('[Edit Insight] Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 

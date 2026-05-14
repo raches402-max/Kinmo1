@@ -11,6 +11,7 @@
  * Migration: extracted from server/routes.ts
  */
 
+import { safeError } from "../lib/safe-error";
 import { Router } from "express";
 import crypto from "crypto";
 import { db } from "../db";
@@ -56,7 +57,7 @@ router.post("/itineraries/:itineraryId/guest-invites", isAuthenticated, requireI
 
     res.json(guestInvite);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -82,7 +83,7 @@ router.get("/itineraries/:itineraryId/guest-invites", isAuthenticated, async (re
 
     res.json(invites);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -121,7 +122,7 @@ router.patch("/itineraries/:itineraryId/guest-invites/:guestId", isAuthenticated
 
     res.json(updated);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -154,7 +155,7 @@ router.delete("/itineraries/:itineraryId/guest-invites/:guestId", isAuthenticate
 
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 

@@ -22,6 +22,7 @@
  * MIGRATED FROM: server/routes.ts
  */
 
+import { safeError } from "../lib/safe-error";
 import { Router } from "express";
 import { eq, and, desc } from "drizzle-orm";
 import { db } from "../db";
@@ -81,7 +82,7 @@ router.get("/venues/search", isAuthenticated, async (req: any, res) => {
     res.json({ results: suggestions });
   } catch (error: any) {
     console.error("[Venue Search] Error:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -157,7 +158,7 @@ router.post("/venues/suggest-alternatives", isAuthenticated, async (req: any, re
     res.json({ suggestions });
   } catch (error: any) {
     console.error("[AI Venue Suggestions] Error:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -210,7 +211,7 @@ router.get("/places/search", async (req, res) => {
     });
   } catch (error: any) {
     console.error("[Places Search] Error:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -258,7 +259,7 @@ router.get("/groups/:groupId/search-venues", async (req, res) => {
     });
   } catch (error: any) {
     console.error("Error searching venues:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -293,7 +294,7 @@ router.get("/curated-venues", isAuthenticated, async (req: any, res) => {
     res.json(venues);
   } catch (error: any) {
     console.error("[Curated Venues] Error:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -366,7 +367,7 @@ router.post(
       });
     } catch (error: any) {
       console.error("[Photo Refresh] Error:", error);
-      res.status(500).json({ message: error.message || "Failed to refresh photo" });
+      res.status(500).json({ message: safeError(error, "Failed to refresh photo") });
     }
   }
 );
@@ -456,7 +457,7 @@ router.get("/user/all-places", isAuthenticated, async (req: any, res) => {
     });
   } catch (error: any) {
     console.error("[Get All Places] Error:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -538,7 +539,7 @@ router.get("/user/places-swipe-queue", isAuthenticated, async (req: any, res) =>
     });
   } catch (error: any) {
     console.error("[Places Swipe Queue] Error:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -556,7 +557,7 @@ router.get("/user/saved-places", isAuthenticated, async (req: any, res) => {
     res.json(places);
   } catch (error: any) {
     console.error("[Get User Saved Places] Error:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -606,7 +607,7 @@ router.post("/user/saved-places", isAuthenticated, async (req: any, res) => {
     res.json(place);
   } catch (error: any) {
     console.error("[Add User Saved Place] Error:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -624,7 +625,7 @@ router.delete(
       res.json({ success: true });
     } catch (error: any) {
       console.error("[Remove User Saved Place] Error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   }
 );
@@ -649,7 +650,7 @@ router.get(
       res.json(places);
     } catch (error: any) {
       console.error("[Get Group Saved Places] Error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   }
 );
@@ -718,7 +719,7 @@ router.post(
       res.json(place);
     } catch (error: any) {
       console.error("[Add Group Saved Place] Error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   }
 );
@@ -737,7 +738,7 @@ router.delete(
       res.json({ success: true });
     } catch (error: any) {
       console.error("[Remove Group Saved Place] Error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   }
 );

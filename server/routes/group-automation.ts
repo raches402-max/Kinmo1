@@ -10,6 +10,7 @@
  * MIGRATED FROM: server/routes.ts
  */
 
+import { safeError } from "../lib/safe-error";
 import { Router } from "express";
 import { storage } from "../storage";
 import { isAuthenticated } from "../googleAuth";
@@ -119,7 +120,7 @@ router.patch("/groups/:id/invite-link", isAuthenticated, requireGroupOwnership()
       inviteLinkOpen: updatedGroup.inviteLinkOpen,
     });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 

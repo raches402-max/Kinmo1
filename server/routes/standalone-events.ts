@@ -16,6 +16,7 @@
  * Migration: extracted from server/routes.ts
  */
 
+import { safeError } from "../lib/safe-error";
 import { Router } from "express";
 import { db } from "../db";
 import { eq } from "drizzle-orm";
@@ -78,7 +79,7 @@ router.get("/standalone-events", isAuthenticated, async (req: any, res) => {
 
     res.json(eventsWithDetails);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -105,7 +106,7 @@ router.post("/standalone-events", isAuthenticated, async (req: any, res) => {
 
     res.json(event);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -126,7 +127,7 @@ router.get("/standalone-events/:id", isAuthenticated, async (req: any, res) => {
 
     res.json(event);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -153,7 +154,7 @@ router.patch("/standalone-events/:id", isAuthenticated, async (req: any, res) =>
     const updated = await storage.updateStandaloneEvent(req.params.id, updates);
     res.json(updated);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -174,7 +175,7 @@ router.delete("/standalone-events/:id", isAuthenticated, async (req: any, res) =
     await storage.deleteStandaloneEvent(req.params.id);
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -215,7 +216,7 @@ router.post("/standalone-events/:id/invitees", isAuthenticated, async (req: any,
 
     res.json(added);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -241,7 +242,7 @@ router.delete(
       await storage.removeStandaloneEventInvitee(req.params.inviteeId);
       res.json({ success: true });
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   }
 );
@@ -281,7 +282,7 @@ router.post("/standalone-events/:id/send-invites", isAuthenticated, async (req: 
     });
   } catch (error: any) {
     console.error("[Standalone Event Send] Error:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -302,7 +303,7 @@ router.get("/standalone-invite/:inviteToken", async (req, res) => {
       rsvpStatus: result.invitee.rsvpStatus,
     });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 

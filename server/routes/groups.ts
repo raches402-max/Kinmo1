@@ -12,6 +12,7 @@
  * MIGRATED FROM: server/routes.ts
  */
 
+import { safeError } from "../lib/safe-error";
 import { Router } from "express";
 import * as Sentry from "@sentry/node";
 import { storage } from "../storage";
@@ -55,7 +56,7 @@ router.get("/user/groups", isAuthenticated, async (req: any, res) => {
     const groups = await storage.getUserGroups(userId);
     res.json(groups);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -175,7 +176,7 @@ router.get("/groups/:id", async (req, res) => {
 
     res.json({ ...group, memberBudgetStats });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -257,7 +258,7 @@ router.delete("/groups/:id", isAuthenticated, requireGroupOwnership(), async (re
     await storage.softDeleteGroup(req.params.id);
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 

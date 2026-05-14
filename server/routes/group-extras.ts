@@ -13,6 +13,7 @@
  * MIGRATED FROM: server/routes.ts
  */
 
+import { safeError } from "../lib/safe-error";
 import { Router } from "express";
 import { storage } from "../storage";
 import { insertVotingEventSchema } from "@shared/schema";
@@ -51,7 +52,7 @@ router.patch("/groups/:id/collection", isAuthenticated, async (req: any, res) =>
     await storage.updateGroupCollectionAssignment(id, collectionId, orderIndex);
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -74,7 +75,7 @@ router.patch("/groups/reorder", isAuthenticated, async (req: any, res) => {
     await storage.reorderGroupsInCollection(groupOrders);
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -354,7 +355,7 @@ router.post("/groups/:id/quick-event", isAuthenticated, requireGroupOwnership(),
     });
   } catch (error: any) {
     console.error("[Quick Event] Error:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -379,7 +380,7 @@ router.get("/groups/:id/category-search-history", isAuthenticated, async (req: a
     res.json(searches);
   } catch (error: any) {
     console.error("[Category Search History] Error:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -444,7 +445,7 @@ router.post("/groups/:id/add-venues-to-library", isAuthenticated, async (req: an
     });
   } catch (error: any) {
     console.error("[Add Venues] Error:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -494,7 +495,7 @@ Looking forward to planning great activities together!
       message: `Invitations logged for ${emailsSent.length} members. Check server console for details.`
     });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 

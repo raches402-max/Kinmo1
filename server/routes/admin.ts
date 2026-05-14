@@ -34,6 +34,7 @@
  * Migration: extracted from server/routes.ts
  */
 
+import { safeError } from "../lib/safe-error";
 import { Router } from "express";
 import { storage } from "../storage";
 import { db } from "../db";
@@ -211,7 +212,7 @@ router.get("/admin/ai-stats", isAuthenticated, requireAdmin(), async (req, res) 
     });
   } catch (error: any) {
     console.error("[AI Stats] Error:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -223,7 +224,7 @@ router.post("/admin/calibrate-all", isAuthenticated, async (req: any, res) => {
     res.json({ totalGroups: results.length, results });
   } catch (error: any) {
     console.error('Error running calibration:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -261,7 +262,7 @@ router.post("/admin/backfill-coordinates", isAuthenticated, requireAdmin(), asyn
     });
   } catch (error: any) {
     console.error("Error backfilling coordinates:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -276,7 +277,7 @@ router.get("/admin/stats", isAuthenticated, async (req: any, res) => {
     res.json(stats);
   } catch (error: any) {
     console.error("Error fetching admin stats:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -304,7 +305,7 @@ router.get("/admin/job-health", isAuthenticated, async (req: any, res) => {
     });
   } catch (error: any) {
     console.error("Error fetching job health:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -330,7 +331,7 @@ router.post("/admin/create-backup", isAuthenticated, async (req: any, res) => {
     });
   } catch (error: any) {
     console.error("Error creating backup:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -353,7 +354,7 @@ router.get("/admin/backups", isAuthenticated, async (req: any, res) => {
     res.json(backupsList);
   } catch (error: any) {
     console.error("Error fetching backups:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -369,7 +370,7 @@ router.post("/admin/restore/:backupId", isAuthenticated, async (req: any, res) =
     res.json({ message: "Database restored successfully" });
   } catch (error: any) {
     console.error("Error restoring backup:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -383,7 +384,7 @@ router.get("/admin/test-accounts", isAuthenticated, async (req: any, res) => {
     res.json(testAccounts);
   } catch (error: any) {
     console.error("Error fetching test accounts:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -413,7 +414,7 @@ router.post("/admin/switch-user", isAuthenticated, async (req: any, res) => {
     res.json({ success: true, user: targetUser });
   } catch (error: any) {
     console.error("Error switching user:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -509,7 +510,7 @@ router.post("/admin/cache-photos", isAuthenticated, async (req: any, res) => {
     });
   } catch (error: any) {
     console.error("Error in photo caching migration:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -580,7 +581,7 @@ router.post("/admin/backfill-favorites-coordinates", isAuthenticated, async (req
     });
   } catch (error: any) {
     console.error("Error backfilling favorites coordinates:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -626,7 +627,7 @@ router.post("/admin/audit-venue-data", isAuthenticated, async (req: any, res) =>
     });
   } catch (error: any) {
     console.error("Error auditing venue data:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -752,7 +753,7 @@ router.post("/admin/cleanup-curated-venues", isAuthenticated, async (req: any, r
     });
   } catch (error: any) {
     console.error("Error cleaning up curated venues:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -772,7 +773,7 @@ router.get("/admin/deleted-venues", isAuthenticated, async (req: any, res) => {
     res.json({ success: true, deletedVenues: deleted });
   } catch (error: any) {
     console.error("Error fetching deleted venues:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -791,7 +792,7 @@ router.post("/admin/cleanup-orphaned-voting-data", isAuthenticated, async (req: 
     });
   } catch (error: any) {
     console.error("Error cleaning up orphaned voting data:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -817,7 +818,7 @@ router.delete("/admin/groups/:id", isAuthenticated, async (req: any, res) => {
     });
   } catch (error: any) {
     console.error("Error deleting group:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -881,7 +882,7 @@ router.post("/admin/recategorize-venues", isAuthenticated, async (req: any, res)
     });
   } catch (error: any) {
     console.error("Error recategorizing venues:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -902,7 +903,7 @@ router.post("/admin/scraped-venues/upload", isAuthenticated, async (req: any, re
     res.json({ success: true, message: `Uploaded ${venues.length} scraped venues for comparison`, count: venues.length });
   } catch (error: any) {
     console.error("Error uploading scraped venues:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -916,7 +917,7 @@ router.get("/admin/scraped-venues/comparison", isAuthenticated, async (req: any,
     res.json({ success: true, ...comparison });
   } catch (error: any) {
     console.error("Error getting scraped venues comparison:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -930,7 +931,7 @@ router.delete("/admin/scraped-venues/clear", isAuthenticated, async (req: any, r
     res.json({ success: true, message: "Cleared all scraped venues" });
   } catch (error: any) {
     console.error("Error clearing scraped venues:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -949,7 +950,7 @@ router.post("/admin/scraped-venues/import", isAuthenticated, async (req: any, re
     res.json({ success: true, imported });
   } catch (error: any) {
     console.error("Error importing scraped venues:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -1000,7 +1001,7 @@ router.get("/admin/venue-analytics", isAuthenticated, async (req: any, res) => {
     });
   } catch (error: any) {
     console.error("Error fetching venue analytics:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -1046,7 +1047,7 @@ router.get("/admin/venues-by-filter", isAuthenticated, async (req: any, res) => 
     });
   } catch (error: any) {
     console.error("Error fetching filtered venues:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -1082,7 +1083,7 @@ router.get("/admin/api-logs", isAuthenticated, async (req: any, res) => {
     res.json({ logs, total, limit: limitNum, offset: offsetNum });
   } catch (error: any) {
     console.error("Error fetching API logs:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -1197,7 +1198,7 @@ router.get("/admin/api-costs", isAuthenticated, async (req: any, res) => {
     });
   } catch (error: any) {
     console.error("Error fetching API costs:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 

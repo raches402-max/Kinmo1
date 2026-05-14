@@ -13,6 +13,7 @@
  * Migration: extracted from server/routes.ts
  */
 
+import { safeError } from "../lib/safe-error";
 import { Router } from "express";
 import { db } from "../db";
 import { eq, sql } from "drizzle-orm";
@@ -90,7 +91,7 @@ router.get("/members/claim/verify/:claimToken", async (req, res) => {
     });
   } catch (error: any) {
     console.error('[Verify Claim Token] Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -139,7 +140,7 @@ router.post("/members/claim", isAuthenticated, async (req: any, res) => {
     });
   } catch (error: any) {
     console.error('[Claim Membership] Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -201,7 +202,7 @@ router.post("/members/register-guest", async (req, res) => {
     });
   } catch (error: any) {
     console.error('[Register Guest] Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -246,7 +247,7 @@ router.post("/members/link-account", isAuthenticated, async (req: any, res) => {
     });
   } catch (error: any) {
     console.error('[Link Account] Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -410,7 +411,7 @@ router.get("/members/me/events", async (req: any, res) => {
     });
   } catch (error: any) {
     console.error('[Get Member Events] Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 

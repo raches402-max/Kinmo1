@@ -14,6 +14,7 @@
  * Migration: extracted from server/routes.ts
  */
 
+import { safeError } from "../lib/safe-error";
 import { Router } from "express";
 import { db } from "../db";
 import { eq } from "drizzle-orm";
@@ -203,7 +204,7 @@ router.post("/groups/:groupId/request-host", isAuthenticated, requireGroupOwners
 
     res.json({ assignment, volunteer: nextVolunteer });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -223,7 +224,7 @@ router.get("/groups/:groupId/pending-host-request", async (req: any, res) => {
     const volunteer = await storage.getMember(assignment.memberId);
     res.json({ assignment, volunteer });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -251,7 +252,7 @@ router.get("/members/:memberId/host-assignments", async (req: any, res) => {
     const assignments = await storage.getMemberHostAssignments(req.params.memberId);
     res.json(assignments);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -334,7 +335,7 @@ router.post("/host-assignments/:assignmentId/respond", requireMemberAccess(), as
 
     res.json({ assignment: updatedAssignment });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 

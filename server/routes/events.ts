@@ -13,6 +13,7 @@
  *   DELETE /api/itineraries/:id                 — delete itinerary
  */
 
+import { safeError } from "../lib/safe-error";
 import { Router } from "express";
 import { and, eq, isNull, isNotNull, or, sql } from "drizzle-orm";
 import { db } from "../db";
@@ -680,7 +681,7 @@ router.get("/user/events", isAuthenticated, async (req: any, res) => {
   } catch (error: any) {
     console.error('[User Events] Error:', error);
     console.error('[User Events] Error stack:', error.stack);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -693,7 +694,7 @@ router.get("/groups/:groupId/itineraries", async (req, res) => {
     const itinerariesList = await storage.getGroupItineraries(req.params.groupId);
     res.json(itinerariesList);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -792,7 +793,7 @@ router.get("/itineraries/:id", async (req, res) => {
       proposedTimeSlots: timeSlotsWithVotes,
     });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -842,7 +843,7 @@ router.post("/itineraries", isAuthenticated, async (req: any, res) => {
     res.json(itinerary);
   } catch (error: any) {
     console.error('[Create Itinerary] Error:', error);
-    res.status(500).json({ message: error.message || "Couldn't create itinerary. Mind giving it another try?" });
+    res.status(500).json({ message: safeError(error, "Couldn't create itinerary. Mind giving it another try?") });
   }
 });
 
@@ -884,7 +885,7 @@ router.patch("/itineraries/:id", isAuthenticated, async (req, res) => {
     res.json(itinerary);
   } catch (error: any) {
     console.error("[Update Itinerary] Error:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -911,7 +912,7 @@ router.patch("/itineraries/:id/order", isAuthenticated, async (req, res) => {
     res.json(updatedItinerary);
   } catch (error: any) {
     console.error("[Update Order] Error:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -977,7 +978,7 @@ router.delete("/itineraries/:id", isAuthenticated, async (req: any, res) => {
     await storage.deleteItinerary(itineraryId);
     res.json({ message: "Itinerary deleted" });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 

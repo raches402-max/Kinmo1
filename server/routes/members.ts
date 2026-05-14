@@ -13,6 +13,7 @@
  * MIGRATED FROM: server/routes.ts
  */
 
+import { safeError } from "../lib/safe-error";
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import { eq } from "drizzle-orm";
@@ -132,7 +133,7 @@ router.get("/groups/:id/members", publicEndpointLimiter, async (req, res) => {
 
     res.json(safeMembers);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -173,7 +174,7 @@ router.get("/members/:id", publicEndpointLimiter, async (req: any, res) => {
 
     res.json(safeMember);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -257,7 +258,7 @@ router.delete("/groups/:groupId/members/:memberId", isAuthenticated, async (req:
     await storage.deleteMember(memberId);
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 

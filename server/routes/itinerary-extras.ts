@@ -29,6 +29,7 @@
  *   GET    /api/itineraries/:id/availability-insights     — get availability insights
  */
 
+import { safeError } from "../lib/safe-error";
 import { Router } from "express";
 import { eq, sql } from "drizzle-orm";
 import { db } from "../db";
@@ -210,7 +211,7 @@ router.delete("/itinerary-invites/:id", isAuthenticated, async (req: any, res) =
     res.json({ message: "Invite removed" });
   } catch (error: any) {
     console.error('[Delete Invite] Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -367,7 +368,7 @@ router.post("/groups/:groupId/itineraries/validate", isAuthenticated, async (req
     });
   } catch (error: any) {
     console.error("Error validating itinerary:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -388,7 +389,7 @@ router.delete("/itinerary-items/:id", isAuthenticated, async (req: any, res) => 
     res.json({ message: "Itinerary item deleted successfully" });
   } catch (error: any) {
     console.error("[Delete Itinerary Item] Error:", error);
-    res.status(500).json({ message: error.message || "Failed to delete itinerary item" });
+    res.status(500).json({ message: safeError(error, "Failed to delete itinerary item") });
   }
 });
 
@@ -422,7 +423,7 @@ router.patch("/itinerary-items/:id", isAuthenticated, async (req: any, res) => {
     res.json(updatedItem);
   } catch (error: any) {
     console.error("[Update Itinerary Item] Error:", error);
-    res.status(500).json({ message: error.message || "Failed to update itinerary item" });
+    res.status(500).json({ message: safeError(error, "Failed to update itinerary item") });
   }
 });
 
@@ -448,7 +449,7 @@ router.post("/itineraries/:id/items", isAuthenticated, requireItineraryAccess(),
     res.json(newItems);
   } catch (error: any) {
     console.error("[Add Itinerary Items] Error:", error);
-    res.status(500).json({ message: error.message || "Failed to add itinerary items" });
+    res.status(500).json({ message: safeError(error, "Failed to add itinerary items") });
   }
 });
 
@@ -628,7 +629,7 @@ router.post("/itineraries/:id/items/ad-hoc", isAuthenticated, requireItineraryAc
     res.json(newItem);
   } catch (error: any) {
     console.error("[Add Ad-hoc Venue] Error:", error);
-    res.status(500).json({ message: error.message || "Failed to add ad-hoc venue" });
+    res.status(500).json({ message: safeError(error, "Failed to add ad-hoc venue") });
   }
 });
 
@@ -662,7 +663,7 @@ router.get("/itineraries/:itineraryId/time-slots", async (req: any, res) => {
 
     res.json(timeSlotsWithVotes);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -693,7 +694,7 @@ router.post("/itineraries/:itineraryId/time-slots", isAuthenticated, requireItin
     const created = await storage.createProposedTimeSlots(timeSlotsToCreate);
     res.json(created);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -746,7 +747,7 @@ router.post("/time-slots/:timeSlotId/vote", async (req: any, res) => {
 
     res.json(vote);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -790,7 +791,7 @@ router.delete("/time-slots/:timeSlotId/vote", async (req: any, res) => {
     await storage.removeTimeSlotVote(timeSlotId, userId, memberId);
     res.json({ message: "Vote removed" });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -837,7 +838,7 @@ router.patch("/time-slots/:timeSlotId/select", isAuthenticated, async (req: any,
 
     res.json(updated);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -847,7 +848,7 @@ router.get("/groups/:groupId/saved-itineraries", async (req, res) => {
     const savedItineraries = await storage.getSavedItineraries(req.params.groupId);
     res.json(savedItineraries);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -912,7 +913,7 @@ router.post("/itineraries/:id/save", isAuthenticated, requireItineraryAccess(), 
 
     res.json(savedItinerary);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -961,7 +962,7 @@ router.post("/itineraries/:id/duplicate", isAuthenticated, requireItineraryAcces
 
     res.json(duplicatedItinerary);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -1230,7 +1231,7 @@ router.post("/itineraries/:id/send", isAuthenticated, requireItineraryAccess(), 
     res.json(updatedItinerary);
   } catch (error: any) {
     console.error("[Send Itinerary] Error:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -1246,7 +1247,7 @@ router.post("/itineraries/:id/send-backup", isAuthenticated, requireItineraryAcc
     const itinerary = await storage.updateItinerary(req.params.id, updates);
     res.json(itinerary);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -1323,7 +1324,7 @@ router.post("/itineraries/:id/finalize", isAuthenticated, requireItineraryAccess
 
     res.json(updatedItinerary);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -1333,7 +1334,7 @@ router.get("/groups/:groupId/proposed-itineraries", async (req, res) => {
     const proposedItineraries = await storage.getProposedItineraries(req.params.groupId);
     res.json(proposedItineraries);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -1355,7 +1356,7 @@ router.get("/itineraries/:id/shareable-token", async (req, res) => {
 
     res.json({ inviteToken: shareableInvite.inviteToken });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -1444,7 +1445,7 @@ router.get("/itineraries/:id/guest-list", async (req, res) => {
     res.json({ guestList, counts });
   } catch (error: any) {
     console.error('[Guest List] Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -1487,7 +1488,7 @@ router.get("/itineraries/:id/invite-summary", isAuthenticated, async (req, res) 
       totalResponses: rsvps.length,
     });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -1518,7 +1519,7 @@ router.get("/itineraries/:id/availability-insights", isAuthenticated, async (req
     res.json(insights);
   } catch (error: any) {
     console.error('[Availability Insights] Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 

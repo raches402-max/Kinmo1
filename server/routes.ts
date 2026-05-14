@@ -1,4 +1,5 @@
 // Reference: javascript_log_in_with_replit blueprint
+import { safeError } from "./lib/safe-error";
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import * as Sentry from "@sentry/node";
@@ -662,7 +663,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (error.message === "Unauthorized") {
         return res.status(403).json({ message: "You don't have access to this member" });
       }
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -723,7 +724,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (error.message === "Unauthorized") {
         return res.status(403).json({ message: "You don't have access to this member" });
       }
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -1499,7 +1500,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         name: error.name,
         userId: req.user?.id
       });
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -1528,7 +1529,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.deleteMember(memberId);
       res.json({ success: true });
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -1597,7 +1598,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: "Event approved and sent", event, itinerary });
     } catch (error: any) {
       console.error('Error approving event:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -1636,7 +1637,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("[Auto-Event Skip] Error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -1684,7 +1685,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("[Auto-Event Delete] Error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -2152,7 +2153,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error('Error triggering auto-schedule:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -2185,7 +2186,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error('Error maintaining event pipeline:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -2215,7 +2216,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error('Error clearing pending events:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -2251,7 +2252,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(safeMembers);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -2285,7 +2286,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(safeActivities);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -2321,7 +2322,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(updatedActivity);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -2367,7 +2368,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ sessionId });
     } catch (error: any) {
       console.error('Error creating swipe session:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -2390,7 +2391,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ sessions });
     } catch (error: any) {
       console.error('Error fetching swipe sessions:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -2427,7 +2428,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(session);
     } catch (error: any) {
       console.error('Error fetching swipe session:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -2464,7 +2465,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(result);
     } catch (error: any) {
       console.error('Error completing swipe session:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -2564,7 +2565,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error('Error recording activity swipe:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -2645,7 +2646,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error('Error recording favorite swipe:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -2673,7 +2674,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(progress);
     } catch (error: any) {
       console.error('Error fetching swipe progress:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -2701,7 +2702,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(opportunities);
     } catch (error: any) {
       console.error('Error checking swipe triggers:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -2753,7 +2754,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     } catch (error: any) {
       console.error('Error triggering manual swipe session:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -2790,7 +2791,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     } catch (error: any) {
       console.error('Error triggering weekly digest:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -2816,7 +2817,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true, message: "Weekly digests processed" });
     } catch (error: any) {
       console.error('Error processing weekly digests:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -2861,7 +2862,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(safeMember);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -2942,7 +2943,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const preferences = await storage.getMemberGroupPreferences(userId, groupId);
       res.json(preferences || null);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -2974,7 +2975,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(preferences);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -3006,7 +3007,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalMembers: membersAvailability.length,
       });
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -3040,7 +3041,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalMembers: membersBudgets.length,
       });
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -3114,7 +3115,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error('[Verify Invite] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -3346,7 +3347,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updatedMember);
     } catch (error: any) {
       console.error('[Update Member Profile] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -3373,7 +3374,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(favorites);
     } catch (error: any) {
       console.error('[Get Member Favorites] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -3477,7 +3478,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(favorite);
     } catch (error: any) {
       console.error('[Add Member Favorite] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -3502,7 +3503,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true });
     } catch (error: any) {
       console.error('[Remove Member Favorite] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -3713,7 +3714,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ assignment, volunteer: nextVolunteer });
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -3735,7 +3736,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const volunteer = await storage.getMember(assignment.memberId);
       res.json({ assignment, volunteer });
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -3766,7 +3767,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const assignments = await storage.getMemberHostAssignments(req.params.memberId);
       res.json(assignments);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -3857,7 +3858,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ assignment: updatedAssignment });
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -3910,7 +3911,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error('[Verify Claim Token] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -3964,7 +3965,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error('[Claim Membership] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -4031,7 +4032,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error('[Register Guest] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -4081,7 +4082,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error('[Link Account] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -4263,7 +4264,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error('[Get Member Events] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -4456,7 +4457,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ ...rsvp, gangsAllHere, isCompletingVote });
     } catch (error: any) {
       console.error('[RSVP] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -4542,7 +4543,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(rsvps[0]);
     } catch (error: any) {
       console.error('[RSVP] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -4557,7 +4558,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(rsvps);
     } catch (error: any) {
       console.error('[RSVP] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -4646,7 +4647,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(rsvp);
     } catch (error: any) {
       console.error('[Organizer RSVP] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -4697,7 +4698,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updated[0]);
     } catch (error: any) {
       console.error('[Approve RSVP] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -4743,7 +4744,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: "RSVP denied and removed" });
     } catch (error: any) {
       console.error('[Deny RSVP] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -4784,7 +4785,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updated);
     } catch (error: any) {
       console.error('[Update RSVP] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -4839,7 +4840,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: "Invite removed" });
     } catch (error: any) {
       console.error('[Delete Invite] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -4885,7 +4886,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(eventsWithLikedBy);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -4933,7 +4934,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.deleteVotingEvent(req.params.id);
       res.json({ success: true });
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -4967,7 +4968,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.removeVote(req.params.id, userId);
       res.json({ success: true });
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -4977,7 +4978,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const votes = await storage.getEventVotes(req.params.id);
       res.json(votes);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -4988,7 +4989,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const vote = await storage.getUserVote(req.params.id, userId);
       res.json(vote || null);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -5059,7 +5060,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ success: true, message: "Activity generation restarted" });
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
     */
   });
@@ -5083,7 +5084,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({ success: true, message: "Activity generation cancelled" });
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -5444,7 +5445,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(newActivities);
     } catch (error: any) {
       console.error("[Category Regen] Error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -5957,7 +5958,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     } catch (error: any) {
       console.error("[Category Generate] Error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -6465,7 +6466,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("[AI Scheduling] Error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -6525,7 +6526,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ patterns });
     } catch (error: any) {
       console.error("[AI Insights] Error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -6621,7 +6622,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(comparison);
     } catch (error: any) {
       console.error("[Model Comparison] Error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -6670,7 +6671,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("[AI Stats] Error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -6685,7 +6686,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.deleteAllGroupActivities(req.params.id);
       res.json({ success: true, message: "All activities cleared" });
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -6711,7 +6712,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true, message: "Activity deleted" });
     } catch (error: any) {
       console.error("[Delete Activity] Error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -6745,7 +6746,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(votingEvent);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -6778,7 +6779,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ concepts });
     } catch (error: any) {
       console.error("Error generating swipe concepts:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -7068,7 +7069,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ signal });
     } catch (error: any) {
       console.error("Error saving swipe feedback:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -7279,7 +7280,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ deck: shuffledDeck });
     } catch (error: any) {
       console.error("Error generating swipe deck:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -7436,7 +7437,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error validating itinerary:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -7530,7 +7531,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ suggestions });
     } catch (error: any) {
       console.error("Error fetching nearby suggestions:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -7576,7 +7577,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ suggestions });
     } catch (error: any) {
       console.error("Error fetching venue nearby suggestions:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -7586,7 +7587,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const itineraries = await storage.getGroupItineraries(req.params.groupId);
       res.json(itineraries);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -7700,7 +7701,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         proposedTimeSlots: timeSlotsWithVotes,
       });
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -7721,7 +7722,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: "Itinerary item deleted successfully" });
     } catch (error: any) {
       console.error("[Delete Itinerary Item] Error:", error);
-      res.status(500).json({ message: error.message || "Failed to delete itinerary item" });
+      res.status(500).json({ message: safeError(error, "Failed to delete itinerary item") });
     }
   });
 
@@ -7755,7 +7756,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updatedItem);
     } catch (error: any) {
       console.error("[Update Itinerary Item] Error:", error);
-      res.status(500).json({ message: error.message || "Failed to update itinerary item" });
+      res.status(500).json({ message: safeError(error, "Failed to update itinerary item") });
     }
   });
 
@@ -7781,7 +7782,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(newItems);
     } catch (error: any) {
       console.error("[Add Itinerary Items] Error:", error);
-      res.status(500).json({ message: error.message || "Failed to add itinerary items" });
+      res.status(500).json({ message: safeError(error, "Failed to add itinerary items") });
     }
   });
 
@@ -7961,7 +7962,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(newItem);
     } catch (error: any) {
       console.error("[Add Ad-hoc Venue] Error:", error);
-      res.status(500).json({ message: error.message || "Failed to add ad-hoc venue" });
+      res.status(500).json({ message: safeError(error, "Failed to add ad-hoc venue") });
     }
   });
 
@@ -8012,7 +8013,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(itinerary);
     } catch (error: any) {
       console.error("[Update Itinerary] Error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -8040,7 +8041,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updatedItinerary);
     } catch (error: any) {
       console.error("[Update Order] Error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -8114,7 +8115,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.deleteItinerary(itineraryId);
       res.json({ message: "Itinerary deleted" });
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -8311,7 +8312,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(result);
     } catch (error: any) {
       console.error("[AI Suggestions] Error:", error);
-      res.status(500).json({ message: error.message || "Failed to get AI suggestions" });
+      res.status(500).json({ message: safeError(error, "Failed to get AI suggestions") });
     }
   });
 
@@ -8432,7 +8433,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.write(`data: ${JSON.stringify({ type: "error", error: error.message })}\n\n`);
         res.end();
       } else {
-        res.status(500).json({ error: error.message || "Failed to communicate with AI assistant" });
+        res.status(500).json({ error: safeError(error, "Failed to communicate with AI assistant") });
       }
     }
   });
@@ -8684,7 +8685,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(timeSlotsWithVotes);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
   
@@ -8715,7 +8716,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const created = await storage.createProposedTimeSlots(timeSlotsToCreate);
       res.json(created);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
   
@@ -8768,7 +8769,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(vote);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
   
@@ -8812,7 +8813,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.removeTimeSlotVote(timeSlotId, userId, memberId);
       res.json({ message: "Vote removed" });
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
   
@@ -8859,7 +8860,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(updated);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -8869,7 +8870,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const savedItineraries = await storage.getSavedItineraries(req.params.groupId);
       res.json(savedItineraries);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -8934,7 +8935,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(savedItinerary);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -8983,7 +8984,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(duplicatedItinerary);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -9048,7 +9049,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(result);
     } catch (error: any) {
       console.error('[Suggest Time] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -9317,7 +9318,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updatedItinerary);
     } catch (error: any) {
       console.error("[Send Itinerary] Error:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -9563,7 +9564,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const itinerary = await storage.updateItinerary(req.params.id, updates);
       res.json(itinerary);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -9597,7 +9598,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(scheduleConfig);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -9674,7 +9675,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(updatedItinerary);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -9684,7 +9685,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const proposedItineraries = await storage.getProposedItineraries(req.params.groupId);
       res.json(proposedItineraries);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -9694,7 +9695,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const events = await storage.getPendingAutoScheduledEvents(req.params.groupId);
       res.json(events);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -9704,7 +9705,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const events = await storage.getAutoScheduledEventsTimeline(req.params.groupId);
       res.json(events);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -9716,7 +9717,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(queue);
     } catch (error: any) {
       console.error('[Auto-Schedule Queue] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -9801,7 +9802,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ events: updatedEvents });
     } catch (error: any) {
       console.error('[Regenerate Queue] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -9863,7 +9864,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error('[Approve Queue] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -9891,7 +9892,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       res.json(rsvp);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -9978,7 +9979,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(rsvp);
     } catch (error: any) {
       console.error('[Event Invite RSVP] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -10068,7 +10069,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(rsvp);
     } catch (error: any) {
       console.error('[Guest RSVP] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -10106,7 +10107,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         group,
       });
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -10136,7 +10137,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(updatedRsvp);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -10165,7 +10166,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(enrichedRsvps);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -10187,7 +10188,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ inviteToken: shareableInvite.inviteToken });
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -10276,7 +10277,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ guestList, counts });
     } catch (error: any) {
       console.error('[Guest List] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -10319,7 +10320,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalResponses: rsvps.length,
       });
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -10350,7 +10351,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(insights);
     } catch (error: any) {
       console.error('[Availability Insights] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -10392,7 +10393,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(guestInvite);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -10421,7 +10422,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(invites);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -10463,7 +10464,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(updated);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -10499,7 +10500,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ success: true });
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -10604,7 +10605,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         attendees,
       });
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -10614,7 +10615,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const pendingEvent = await storage.getPendingAutoScheduledEvent(req.params.groupId);
       res.json(pendingEvent || null);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -10631,7 +10632,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ success: true, message: "Event approved and will be sent to group" });
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -10695,7 +10696,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ success: true });
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -10789,7 +10790,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error('[Learning Insights] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -10857,7 +10858,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error('Error fetching confidence weights:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -10892,7 +10893,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(result);
     } catch (error: any) {
       console.error('Error running calibration:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -10913,7 +10914,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error('Error calibrating all groups:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -10953,7 +10954,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error('[Remove Rejected Venue] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -11028,7 +11029,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error('[Schedule Next Event] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -11087,7 +11088,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error('[Get Itinerary Options] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -11152,7 +11153,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true, message: "Vote recorded" });
     } catch (error: any) {
       console.error('[Vote for Option] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -11197,7 +11198,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error('[Select Option] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -11284,7 +11285,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error('[Regenerate Options] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -11340,7 +11341,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error('[Group Insights] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -11370,7 +11371,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true });
     } catch (error: any) {
       console.error('[Dismiss Insight] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -11400,7 +11401,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true });
     } catch (error: any) {
       console.error('[Edit Insight] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -11451,7 +11452,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error backfilling coordinates:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -11475,7 +11476,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(stats);
     } catch (error: any) {
       console.error("Error fetching admin stats:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -11511,7 +11512,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error fetching job health:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -11543,7 +11544,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error creating backup:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -11572,7 +11573,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(backupsList);
     } catch (error: any) {
       console.error("Error fetching backups:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -11596,7 +11597,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: "Database restored successfully" });
     } catch (error: any) {
       console.error("Error restoring backup:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -11617,7 +11618,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(testAccounts);
     } catch (error: any) {
       console.error("Error fetching test accounts:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -11659,7 +11660,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true, user: targetUser });
     } catch (error: any) {
       console.error("Error switching user:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -11792,7 +11793,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error in photo caching migration:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -11886,7 +11887,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error backfilling favorites coordinates:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -11952,7 +11953,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error auditing venue data:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -12110,7 +12111,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error cleaning up curated venues:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -12141,7 +12142,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error fetching deleted venues:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -12168,7 +12169,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error cleaning up orphaned voting data:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -12201,7 +12202,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error deleting group:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -12321,7 +12322,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error recategorizing venues:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -12353,7 +12354,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error uploading scraped venues:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -12376,7 +12377,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error getting scraped venues comparison:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -12399,7 +12400,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error clearing scraped venues:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -12471,7 +12472,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error fetching venue analytics:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -12525,7 +12526,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error fetching filtered venues:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -12560,7 +12561,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true, count: venues.length });
     } catch (error: any) {
       console.error("Error uploading scraped venues:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -12580,7 +12581,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(comparison);
     } catch (error: any) {
       console.error("Error fetching scraped venues comparison:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -12600,7 +12601,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true });
     } catch (error: any) {
       console.error("Error clearing scraped venues:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -12625,7 +12626,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true, imported });
     } catch (error: any) {
       console.error("Error importing scraped venues:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -12694,7 +12695,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error fetching API logs:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -12947,7 +12948,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error fetching API costs:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -12970,7 +12971,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(notifications);
     } catch (error: any) {
       console.error("Error fetching notifications:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -12982,7 +12983,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ count });
     } catch (error: any) {
       console.error("Error fetching unread count:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -12994,7 +12995,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true });
     } catch (error: any) {
       console.error("Error marking notification as read:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -13006,7 +13007,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true });
     } catch (error: any) {
       console.error("Error marking all notifications as read:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -13018,7 +13019,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true });
     } catch (error: any) {
       console.error("Error deleting notification:", error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 

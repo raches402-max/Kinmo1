@@ -10,6 +10,7 @@
  * Migration: extracted from server/routes.ts
  */
 
+import { safeError } from "../lib/safe-error";
 import { Router } from "express";
 import { db } from "../db";
 import { eq, and, sql } from "drizzle-orm";
@@ -206,7 +207,7 @@ router.post("/itineraries/:id/post-event-feedback", isAuthenticated, async (req:
     res.json(updated[0]);
   } catch (error: any) {
     console.error('[Post Event Feedback] Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -291,7 +292,7 @@ router.get("/groups/:groupId/feedback-summary", isAuthenticated, async (req: any
     });
   } catch (error: any) {
     console.error('[Get Feedback Summary] Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -390,7 +391,7 @@ router.get("/groups/:groupId/post-event-feedback-summary", isAuthenticated, asyn
     });
   } catch (error: any) {
     console.error('[Get Post Event Feedback Summary] Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 

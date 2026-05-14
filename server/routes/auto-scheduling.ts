@@ -19,6 +19,7 @@
  * Migration: extracted from server/routes.ts
  */
 
+import { safeError } from "../lib/safe-error";
 import { Router } from "express";
 import { db } from "../db";
 import { eq, and } from "drizzle-orm";
@@ -495,7 +496,7 @@ router.post("/groups/:id/trigger-auto-schedule", isAuthenticated, requireGroupOw
       });
     } catch (error: any) {
       console.error('Error triggering auto-schedule:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -530,7 +531,7 @@ router.post("/groups/:id/maintain-event-pipeline", isAuthenticated, requireGroup
       });
     } catch (error: any) {
       console.error('Error maintaining event pipeline:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -562,7 +563,7 @@ router.delete("/groups/:id/auto-scheduled-events", isAuthenticated, requireGroup
       });
     } catch (error: any) {
       console.error('Error clearing pending events:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -574,7 +575,7 @@ router.get("/groups/:groupId/auto-scheduled-events", async (req, res) => {
       const events = await storage.getPendingAutoScheduledEvents(req.params.groupId);
       res.json(events);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -584,7 +585,7 @@ router.get("/groups/:groupId/auto-scheduled-events/timeline", async (req, res) =
       const events = await storage.getAutoScheduledEventsTimeline(req.params.groupId);
       res.json(events);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -598,7 +599,7 @@ router.get("/groups/:groupId/auto-schedule-queue", async (req, res) => {
       res.json(queue);
     } catch (error: any) {
       console.error('[Auto-Schedule Queue] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -683,7 +684,7 @@ router.post("/groups/:groupId/auto-schedule-queue/regenerate", isAuthenticated, 
       res.json({ events: updatedEvents });
     } catch (error: any) {
       console.error('[Regenerate Queue] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -745,7 +746,7 @@ router.post("/groups/:groupId/auto-schedule-queue/approve", isAuthenticated, req
       });
     } catch (error: any) {
       console.error('[Approve Queue] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -757,7 +758,7 @@ router.get("/groups/:groupId/pending-auto-event", isAuthenticated, async (req, r
       const pendingEvent = await storage.getPendingAutoScheduledEvent(req.params.groupId);
       res.json(pendingEvent || null);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -774,7 +775,7 @@ router.post("/auto-schedule/:id/approve", isAuthenticated, async (req, res) => {
 
       res.json({ success: true, message: "Event approved and will be sent to group" });
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -840,7 +841,7 @@ router.post("/frequency-feedback", isAuthenticated, async (req, res) => {
 
       res.json({ success: true });
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 
@@ -917,7 +918,7 @@ router.post("/groups/:groupId/schedule-next-event", isAuthenticated, async (req:
       });
     } catch (error: any) {
       console.error('[Schedule Next Event] Error:', error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: safeError(error) });
     }
   });
 

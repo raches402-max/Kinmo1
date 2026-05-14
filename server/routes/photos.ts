@@ -10,6 +10,7 @@
  * MIGRATED FROM: server/routes.ts
  */
 
+import { safeError } from "../lib/safe-error";
 import { Router } from "express";
 import { eq, sql } from "drizzle-orm";
 import { db } from "../db";
@@ -157,7 +158,7 @@ router.get("/geocode", async (req, res) => {
     res.json(result);
   } catch (error: any) {
     console.error("Geocode error:", error);
-    res.status(500).json({ message: error.message || "Failed to geocode location" });
+    res.status(500).json({ message: safeError(error, "Failed to geocode location") });
   }
 });
 

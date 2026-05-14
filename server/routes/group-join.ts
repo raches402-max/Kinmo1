@@ -9,6 +9,7 @@
  * MIGRATED FROM: server/routes.ts
  */
 
+import { safeError } from "../lib/safe-error";
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import { eq, sql } from "drizzle-orm";
@@ -118,7 +119,7 @@ router.get("/groups/by-link/:shareableLink", publicEndpointLimiter, async (req, 
 
     res.json(safeGroup);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -195,7 +196,7 @@ router.get("/groups/join-preview/:shareableLink", publicEndpointLimiter, async (
     });
   } catch (error: any) {
     console.error("[JoinPreview] Error:", error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 

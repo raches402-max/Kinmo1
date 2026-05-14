@@ -12,6 +12,7 @@
  * Migration: extracted from server/routes.ts
  */
 
+import { safeError } from "../lib/safe-error";
 import { Router } from "express";
 import { isAuthenticated } from "../googleAuth";
 import { storage } from "../storage";
@@ -61,7 +62,7 @@ router.get("/groups/:groupId/availability-pulse", isAuthenticated, async (req: a
     });
   } catch (error: any) {
     console.error('[Availability Pulse] Error getting pulse:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -126,7 +127,7 @@ router.post("/groups/:groupId/availability-pulse", isAuthenticated, async (req: 
     });
   } catch (error: any) {
     console.error('[Availability Pulse] Error creating pulse:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -175,7 +176,7 @@ router.post("/availability-pulse/:pulseId/respond", isAuthenticated, async (req:
     });
   } catch (error: any) {
     console.error('[Availability Pulse] Error submitting response:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -223,7 +224,7 @@ router.get("/availability-pulse/:pulseId/respond/:responseToken", async (req, re
     });
   } catch (error: any) {
     console.error('[Availability Pulse] Error getting response page:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
@@ -259,7 +260,7 @@ router.post("/availability-pulse/:pulseId/respond/:responseToken", async (req, r
     });
   } catch (error: any) {
     console.error('[Availability Pulse] Error submitting response by token:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: safeError(error) });
   }
 });
 
