@@ -10,6 +10,7 @@
 import { Router } from "express";
 import { db } from "../db";
 import { users } from "@shared/schema";
+import { getJobHealthStatus } from "../lib/job-tracker";
 
 const router = Router();
 
@@ -19,11 +20,28 @@ router.get("/health", async (req, res) => {
     // Check database connectivity
     await db.select().from(users).limit(1);
 
-    res.status(200).json({
-      status: "healthy",
+    const jobHealth = getJobHealthStatus();
+    const jobs = Object.values(jobHealth);
+    const failingJobs = jobs.filter((job) => job.status === "failing").length;
+    const degradedJobs = jobs.filter((job) => job.status === "degraded").length;
+    const overallStatus = failingJobs > 0 ? "failing" : degradedJobs > 0 ? "degraded" : "healthy";
+
+    res.status(failingJobs > 0 ? 503 : 200).json({
+      status: overallStatus,
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       environment: process.env.NODE_ENV || "development",
+      checks: {
+        database: "healthy",
+        jobs: overallStatus,
+      },
+      jobSummary: {
+        total: jobs.length,
+        healthy: jobs.filter((job) => job.status === "healthy").length,
+        degraded: degradedJobs,
+        failing: failingJobs,
+      },
+      jobs: jobHealth,
     });
   } catch (error) {
     console.error("[Health Check] Database connection failed:", error);

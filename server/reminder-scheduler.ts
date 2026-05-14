@@ -1378,13 +1378,13 @@ export function startReminderScheduler(): void {
   console.log('Starting reminder scheduler with job tracking...');
 
   // Create tracked job runners for all background tasks
-  const trackedReminders = createTrackedJob('scheduledReminders', processScheduledReminders);
-  const trackedAutoScheduling = createTrackedJob('autoScheduling', processAutoScheduling);
-  const trackedAutoSend = createTrackedJob('autoSend', processAutoSend);
-  const trackedAutoApproval = createTrackedJob('autoApproval', checkAndAutoApproveEvents);
-  const trackedAutoSuggestions = createTrackedJob('autoSuggestions', autoProcessSuggestions);
-  const trackedTimeSlots = createTrackedJob('timeSlotSelection', checkAndSelectTimeSlots);
-  const trackedAutoDrafts = createTrackedJob('autoDraftItineraries', processAutoDraftItineraries);
+  const trackedReminders = createTrackedJob('scheduledReminders', processScheduledReminders, { intervalMs: REMINDER_INTERVAL_MS });
+  const trackedAutoScheduling = createTrackedJob('autoScheduling', processAutoScheduling, { intervalMs: AUTO_SCHEDULE_INTERVAL_MS });
+  const trackedAutoSend = createTrackedJob('autoSend', processAutoSend, { intervalMs: AUTO_SEND_INTERVAL_MS });
+  const trackedAutoApproval = createTrackedJob('autoApproval', checkAndAutoApproveEvents, { intervalMs: AUTO_APPROVAL_INTERVAL_MS });
+  const trackedAutoSuggestions = createTrackedJob('autoSuggestions', autoProcessSuggestions, { intervalMs: AUTO_APPROVAL_INTERVAL_MS });
+  const trackedTimeSlots = createTrackedJob('timeSlotSelection', checkAndSelectTimeSlots, { intervalMs: AUTO_SCHEDULE_INTERVAL_MS });
+  const trackedAutoDrafts = createTrackedJob('autoDraftItineraries', processAutoDraftItineraries, { intervalMs: AUTO_SCHEDULE_INTERVAL_MS });
 
   // Run reminders immediately and every 5 minutes
   trackedReminders();
@@ -1426,7 +1426,7 @@ export function startReminderScheduler(): void {
     }
   };
 
-  const trackedWeeklyDigest = createTrackedJob('weeklySwipeDigest', processWeeklySwipeDigest);
+  const trackedWeeklyDigest = createTrackedJob('weeklySwipeDigest', processWeeklySwipeDigest, { intervalMs: AUTO_SCHEDULE_INTERVAL_MS });
   trackedWeeklyDigest();
   setInterval(trackedWeeklyDigest, AUTO_SCHEDULE_INTERVAL_MS);
 
@@ -1438,7 +1438,7 @@ export function startReminderScheduler(): void {
     await refreshStaleActivityPools();
   };
 
-  const trackedActivityRefresh = createTrackedJob('activityRefresh', processActivityRefresh);
+  const trackedActivityRefresh = createTrackedJob('activityRefresh', processActivityRefresh, { intervalMs: ACTIVITY_REFRESH_INTERVAL_MS });
   trackedActivityRefresh();
   setInterval(trackedActivityRefresh, ACTIVITY_REFRESH_INTERVAL_MS);
 
@@ -1490,7 +1490,7 @@ export function startReminderScheduler(): void {
     }
   };
 
-  const trackedEventCleanup = createTrackedJob('eventCleanup', processOldEventCleanup);
+  const trackedEventCleanup = createTrackedJob('eventCleanup', processOldEventCleanup, { intervalMs: CLEANUP_INTERVAL_MS });
   trackedEventCleanup();
   setInterval(trackedEventCleanup, CLEANUP_INTERVAL_MS);
 
@@ -1515,7 +1515,7 @@ export function startReminderScheduler(): void {
     }
   };
 
-  const trackedRejectedDatesCleanup = createTrackedJob('rejectedDatesCleanup', cleanupPastRejectedDates);
+  const trackedRejectedDatesCleanup = createTrackedJob('rejectedDatesCleanup', cleanupPastRejectedDates, { intervalMs: CLEANUP_INTERVAL_MS });
   trackedRejectedDatesCleanup();
   setInterval(trackedRejectedDatesCleanup, CLEANUP_INTERVAL_MS);
 
@@ -1615,7 +1615,7 @@ export function startReminderScheduler(): void {
     }
   };
 
-  const trackedFeedbackRequests = createTrackedJob('feedbackRequests', processPostEventFeedbackRequests);
+  const trackedFeedbackRequests = createTrackedJob('feedbackRequests', processPostEventFeedbackRequests, { intervalMs: FEEDBACK_REQUEST_INTERVAL_MS });
   trackedFeedbackRequests();
   setInterval(trackedFeedbackRequests, FEEDBACK_REQUEST_INTERVAL_MS);
 
@@ -1628,7 +1628,7 @@ export function startReminderScheduler(): void {
     await runPlanningAgent();
   };
 
-  const trackedPlanningAgent = createTrackedJob('planningAgent', runPlanningAgentTask);
+  const trackedPlanningAgent = createTrackedJob('planningAgent', runPlanningAgentTask, { intervalMs: PLANNING_AGENT_INTERVAL_MS });
 
   // Run after a short delay on startup (give other systems time to initialize)
   setTimeout(trackedPlanningAgent, 60000); // 1 minute after startup
@@ -1651,7 +1651,7 @@ export function startReminderScheduler(): void {
     console.log('[Database Backup] ✓ Cleanup complete');
   };
 
-  const trackedDatabaseBackup = createTrackedJob('databaseBackup', processAutoDatabaseBackup);
+  const trackedDatabaseBackup = createTrackedJob('databaseBackup', processAutoDatabaseBackup, { intervalMs: BACKUP_INTERVAL_MS });
 
   // Run after 1 minute on startup, then every 24 hours
   setTimeout(trackedDatabaseBackup, 60000);
@@ -1665,7 +1665,7 @@ export function startReminderScheduler(): void {
     const { generateDailyCostReport } = await import('./cost-report');
     await generateDailyCostReport(24);
   };
-  const trackedCostReport = createTrackedJob('dailyCostReport', runCostReport);
+  const trackedCostReport = createTrackedJob('dailyCostReport', runCostReport, { intervalMs: COST_REPORT_INTERVAL_MS });
   setTimeout(trackedCostReport, 90000); // 1.5 min after startup, after backup
   setInterval(trackedCostReport, COST_REPORT_INTERVAL_MS);
 
