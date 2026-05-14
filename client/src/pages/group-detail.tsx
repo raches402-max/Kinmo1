@@ -28,7 +28,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { getErrorToast } from "@/components/ErrorDisplay";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { isPastDated } from "@/lib/events";
+import { isPastEvent } from "@/lib/events";
 import type { Group, Activity, Member, VotingEvent, Vote } from "@shared/schema";
 import { AvailabilityGrid, createEmptyAvailability } from "@/components/AvailabilityGrid";
 import { ReadOnlyAvailabilityGrid } from "@/components/ReadOnlyAvailabilityGrid";
@@ -1040,7 +1040,7 @@ export default function GroupDetail() {
         if (e.isOrganizer) return isFutureOrTBD;
         return e.rsvp && e.rsvp.response !== 'no' && isFutureOrTBD;
       }),
-      pastEvents: allGroupEvents.filter(e => isPastDated(e, now))
+      pastEvents: allGroupEvents.filter(e => isPastEvent(e, now))
     };
   }, [allGroupEvents]);
 
@@ -1491,34 +1491,6 @@ export default function GroupDetail() {
       toast(getErrorToast(error));
     },
   });
-
-  // ARCHIVED: General AI generation mutation (Nov 2025)
-  // Replaced with category-specific generation
-  /*
-  const retryGenerationMutation = useMutation({
-    mutationFn: async () => {
-      return await apiRequest("POST", `/api/groups/${groupId}/retry-generation`, {
-        tempInstructions: tempInstructions.trim() || undefined
-      });
-    },
-    onSuccess: () => {
-      toast({
-        title: "Retrying generation",
-        description: "AI is creating new activity suggestions...",
-      });
-      setTempInstructions(""); // Clear the temp instructions after use
-      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId] });
-      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "activities"] });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error retrying",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-  */
 
   const generateCategoryMutation = useMutation({
     mutationFn: async ({ categories, location, radius, sortBy, tempInstructions }: { categories: string[]; location?: { address: string; lat: number; lng: number }; radius?: number; sortBy?: 'distance' | 'rating'; tempInstructions?: string }) => {

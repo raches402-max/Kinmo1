@@ -165,61 +165,6 @@ export function parseError(error: any): EnhancedError {
 }
 
 /**
- * Common error messages for specific scenarios
- */
-export const ERROR_MESSAGES = {
-  // Venue-related
-  noVenuesFound: {
-    title: 'No Venues Found',
-    message: 'We couldn\'t find any venues matching your criteria.',
-    action: 'Try expanding your search radius to 10+ miles or adjusting filters',
-  },
-  venueSearchFailed: {
-    title: 'Venue Search Failed',
-    message: 'Unable to search for venues right now.',
-    action: 'Check your internet connection and try again',
-  },
-
-  // Event creation
-  eventCreationFailed: {
-    title: 'Event Creation Failed',
-    message: 'We couldn\'t create the event.',
-    action: 'Please check all required fields and try again',
-  },
-  insufficientMembers: {
-    title: 'More Members Needed',
-    message: 'You need at least 2 members to create an event.',
-    action: 'Invite more members to your group first',
-  },
-
-  // RSVP
-  rsvpFailed: {
-    title: 'RSVP Failed',
-    message: 'Unable to submit your RSVP.',
-    action: 'Try again in a moment',
-  },
-
-  // AI generation
-  aiGenerationFailed: {
-    title: 'AI Generation Failed',
-    message: 'Our AI service encountered an issue.',
-    action: 'This usually resolves in a few seconds. Please try again',
-  },
-  aiGenerationSlow: {
-    title: 'Taking Longer Than Expected',
-    message: 'AI generation is running slower than usual (typically 10-20 seconds).',
-    action: 'Please wait a bit longer, or try again if nothing happens after 30 seconds',
-  },
-
-  // Generic
-  formIncomplete: {
-    title: 'Missing Information',
-    message: 'Please fill in all required fields.',
-    action: 'Check for fields marked with *',
-  },
-};
-
-/**
  * Retry utility with exponential backoff
  */
 export async function retryOperation<T>(
