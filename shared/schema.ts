@@ -202,7 +202,9 @@ export const members = pgTable("members", {
   
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("members_user_id_idx").on(table.userId),
+]);
 
 // Member favorite venues table (venues members have marked as favorites)
 export const memberFavoriteVenues = pgTable("member_favorite_venues", {
@@ -449,7 +451,9 @@ export const rsvps = pgTable("rsvps", {
   numberOfKids: integer("number_of_kids").default(0), // Optional: number of kids attending
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(), // Track when RSVP was last updated
-});
+}, (table) => [
+  index("rsvps_user_id_idx").on(table.userId),
+]);
 
 // Itinerary invites - ties invite tokens to specific itinerary+member pairs for secure RSVPs
 export const itineraryInvites = pgTable("itinerary_invites", {
@@ -690,7 +694,9 @@ export const placesCache = pgTable("places_cache", {
   placeData: jsonb("place_data").notNull(), // Full place details response
   createdAt: timestamp("created_at").defaultNow().notNull(),
   expiresAt: timestamp("expires_at").notNull(), // 30 days from createdAt
-});
+}, (table) => [
+  index("places_cache_expires_at_idx").on(table.expiresAt),
+]);
 
 // Google Places API search cache - cache Text Search results for 24 hours
 export const searchCache = pgTable("search_cache", {
@@ -703,6 +709,7 @@ export const searchCache = pgTable("search_cache", {
   expiresAt: timestamp("expires_at").notNull(), // 24 hours from createdAt
 }, (table) => [
   index("idx_search_query_location").on(table.searchQuery, table.searchLocation, table.searchRadius),
+  index("search_cache_expires_at_idx").on(table.expiresAt),
 ]);
 
 // Google Geocoding API cache - cache geocoding results for 30 days
