@@ -269,29 +269,6 @@ export function mergeAndDeduplicateEvents(
 }
 
 /**
- * Get upcoming events only (not past)
- */
-export function getUpcomingEvents(events: UnifiedEvent[]): UnifiedEvent[] {
-  const now = new Date();
-  return events.filter(e => {
-    if (!e.eventDate) return true; // TBD events are "upcoming"
-    return new Date(e.eventDate) >= now;
-  });
-}
-
-/**
- * Get past events only
- */
-export function getPastEvents(events: UnifiedEvent[], limit?: number): UnifiedEvent[] {
-  const now = new Date();
-  const past = events.filter(e => {
-    if (!e.eventDate) return false;
-    return new Date(e.eventDate) < now;
-  });
-  return limit ? past.slice(0, limit) : past;
-}
-
-/**
  * Check if an event needs user attention
  */
 export function needsAction(event: UnifiedEvent): boolean {

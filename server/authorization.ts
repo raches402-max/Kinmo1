@@ -63,23 +63,6 @@ export async function userIsMemberOfGroup(userId: string, groupId: string): Prom
 }
 
 /**
- * Synchronous version for cases where we just need OAuth sub
- * DEPRECATED: Use getUserId() instead whenever possible
- */
-export function getOAuthSub(req: Request): string {
-  const user = req.user as any;
-  return user?.claims?.sub;
-}
-
-/**
- * Check if a claim token is valid for a specific member
- */
-export async function isValidClaimToken(memberId: string, claimToken: string): Promise<boolean> {
-  const member = await storage.getMember(memberId);
-  return member?.claimToken === claimToken;
-}
-
-/**
  * Middleware: Require group ownership
  * Use this for routes that modify group settings
  */

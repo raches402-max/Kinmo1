@@ -112,29 +112,3 @@ export function checkAIReadiness(
     message,
   };
 }
-
-/**
- * Get a short status label for AI readiness
- */
-export function getAIReadinessLabel(readiness: AIReadiness): string {
-  if (readiness.ready) {
-    return "Ready";
-  }
-  const remaining = readiness.missingItems.length;
-  return `${remaining} step${remaining !== 1 ? "s" : ""} left`;
-}
-
-/**
- * Get badge variant based on readiness
- */
-export function getAIReadinessBadgeVariant(
-  readiness: AIReadiness
-): "default" | "secondary" | "outline" {
-  if (readiness.ready) {
-    return "default";
-  }
-  if (readiness.missingItems.length === 1) {
-    return "secondary";
-  }
-  return "outline";
-}

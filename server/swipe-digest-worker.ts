@@ -52,29 +52,6 @@ export async function processWeeklyDigests(): Promise<void> {
   }
 }
 
-/**
- * Run weekly digest for a specific group
- */
-export async function processWeeklyDigestForGroup(groupId: string): Promise<boolean> {
-  try {
-    const result = await triggerSwipeSession({
-      groupId,
-      triggerType: 'weekly_digest',
-    });
-
-    if (result.triggered) {
-      console.log(`[WeeklyDigest] Triggered for group ${groupId}: ${result.reason}`);
-      return true;
-    } else {
-      console.log(`[WeeklyDigest] Skipped for group ${groupId}: ${result.skippedReason}`);
-      return false;
-    }
-  } catch (error) {
-    console.error(`[WeeklyDigest] Error for group ${groupId}:`, error);
-    return false;
-  }
-}
-
 // If running directly (e.g., via cron: `npx tsx server/swipe-digest-worker.ts`)
 if (import.meta.url === `file://${process.argv[1]}`) {
   processWeeklyDigests()
