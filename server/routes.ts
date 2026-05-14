@@ -2774,72 +2774,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // NOTIFICATION ENDPOINTS
   // ============================================================================
 
-  // Get user's notifications
-  app.get("/api/notifications", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = await getUserId(req);
-      const { limit, offset, unreadOnly } = req.query;
 
-      const notifications = await getUserNotifications(userId, {
-        limit: limit ? parseInt(limit as string) : undefined,
-        offset: offset ? parseInt(offset as string) : undefined,
-        unreadOnly: unreadOnly === 'true',
-      });
 
-      res.json(notifications);
-    } catch (error: any) {
-      console.error("Error fetching notifications:", error);
-      res.status(500).json({ message: safeError(error) });
-    }
-  });
 
-  // Get unread notification count
-  app.get("/api/notifications/unread-count", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = await getUserId(req);
-      const count = await getUnreadCount(userId);
-      res.json({ count });
-    } catch (error: any) {
-      console.error("Error fetching unread count:", error);
-      res.status(500).json({ message: safeError(error) });
-    }
-  });
 
-  // Mark a notification as read
-  app.post("/api/notifications/:id/mark-read", isAuthenticated, async (req: any, res) => {
-    try {
-      const { id } = req.params;
-      await markAsRead(id);
-      res.json({ success: true });
-    } catch (error: any) {
-      console.error("Error marking notification as read:", error);
-      res.status(500).json({ message: safeError(error) });
-    }
-  });
-
-  // Mark all notifications as read
-  app.post("/api/notifications/mark-all-read", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = await getUserId(req);
-      await markAllAsRead(userId);
-      res.json({ success: true });
-    } catch (error: any) {
-      console.error("Error marking all notifications as read:", error);
-      res.status(500).json({ message: safeError(error) });
-    }
-  });
-
-  // Delete a notification
-  app.delete("/api/notifications/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const { id } = req.params;
-      await deleteNotification(id);
-      res.json({ success: true });
-    } catch (error: any) {
-      console.error("Error deleting notification:", error);
-      res.status(500).json({ message: safeError(error) });
-    }
-  });
 
   const httpServer = createServer(app);
 
