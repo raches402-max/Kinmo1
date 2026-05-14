@@ -1230,7 +1230,7 @@ export default function EventsTable({
 
                 {/* Actions Column - Expand Arrow & Delete */}
                 <div className="flex items-center gap-1 justify-end">
-                  {isPastEvents && onLeaveFeedback && (event.rsvp?.response === 'yes' || event.isOrganizer) && !(event.rsvp as any)?.postEventFeedback && isWithinFeedbackWindow(event) && (
+                  {isPastEvents && onLeaveFeedback && (event.rsvp?.response === 'yes' || event.isOrganizer) && !(event.rsvp as any)?.postEventFeedback && isWithinFeedbackWindow(event) && event.status !== 'rejected' && (
                     <Button
                       variant="ghost"
                       size="sm"

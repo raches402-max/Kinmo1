@@ -487,6 +487,7 @@ export default function Dashboard() {
   const pastEventsNeedingFeedback = events.filter(event => {
     if (!isPastDated(event, currentTime)) return false;
     if (!isWithinFeedbackWindow(event, currentTime)) return false;
+    if (event.status === 'rejected') return false;
     const attended = event.rsvp?.response === 'yes';
     const noFeedbackYet = !event.rsvp?.postEventFeedback;
     return attended && noFeedbackYet;
