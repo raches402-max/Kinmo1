@@ -438,34 +438,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Get user's events (all itinerary invites for this user)
 
-  // Leave group (remove member)
-  app.delete("/api/groups/:groupId/members/:memberId", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = await getUserId(req);
-      const { groupId, memberId } = req.params;
-
-      // Get the member to verify it belongs to the requesting user
-      const member = await storage.getMember(memberId);
-      if (!member) {
-        return res.status(404).json({ message: "Member not found" });
-      }
-
-      // Verify the member belongs to the user and group
-      if (member.userId !== userId || member.groupId !== groupId) {
-        return res.status(403).json({ message: "Not authorized to remove this member" });
-      }
-
-      // Cannot leave if you're an organizer
-      if (member.isOrganizer) {
-        return res.status(400).json({ message: "Organizers cannot leave the group. Delete the group instead." });
-      }
-
-      await storage.deleteMember(memberId);
-      res.json({ success: true });
-    } catch (error: any) {
-      res.status(500).json({ message: safeError(error) });
-    }
-  });
 
 
 
@@ -473,41 +445,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
 
-  // Get group members (includes organizer as implicit member)
-  app.get("/api/groups/:id/members", publicEndpointLimiter, async (req, res) => {
-    try {
-      const group = await storage.getGroup(req.params.id);
-      if (!group) {
-        return res.status(404).json({ message: "Group not found" });
-      }
-
-      // Get members including organizer (filters out duplicates)
-      const allMembers = group.userId
-        ? await getGroupMembersWithOrganizer(req.params.id, group.userId)
-        : await storage.getGroupMembers(req.params.id);
-
-      // Filter sensitive fields for public access
-      // Only return data needed for social context (showing who's invited)
-      const safeMembers = allMembers.map(m => ({
-        id: m.id,
-        name: m.name,
-        isOrganizer: m.isOrganizer || false,
-        isGuest: m.isGuest || false,
-        // For organizer, these don't exist on member record
-        rsvpStatus: (m as any).rsvpStatus,
-        hasJoined: (m as any).hasJoined,
-        openToHosting: m.openToHosting || false,
-        // Include userId presence to indicate if member is claimed (but not the actual value for privacy)
-        userId: m.userId ? 'claimed' : null, // Obfuscate actual userId but indicate claimed status
-        // Explicitly exclude: claimToken, email, memberLocation,
-        // memberBudgetMin/Max, memberAvailability, preferences
-      }));
-
-      res.json(safeMembers);
-    } catch (error: any) {
-      res.status(500).json({ message: safeError(error) });
-    }
-  });
 
 
 
@@ -528,105 +465,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Get individual member by ID (public for event invite flow)
   // Returns only safe, non-sensitive fields for public access
-  // Returns additional fields (userId, profile data) for authenticated users
-  app.get("/api/members/:id", publicEndpointLimiter, async (req: any, res) => {
-    try {
-      const member = await storage.getMember(req.params.id);
-      if (!member) {
-        return res.status(404).json({ message: "Member not found" });
-      }
 
-      // Check if user is authenticated
-      let authenticatedUserId: string | null = null;
-      try {
-        authenticatedUserId = await getUserId(req);
-      } catch {
-        // Not authenticated, that's fine for public access
-      }
 
-      // Base safe fields for public access
-      const safeMember: any = {
-        id: member.id,
-        name: member.name,
-        groupId: member.groupId,
-        isOrganizer: member.isOrganizer,
-        openToHosting: member.openToHosting,
-        hasJoined: member.hasJoined,
-      };
-
-      // If authenticated, include userId and profile fields for ownership verification
-      if (authenticatedUserId) {
-        safeMember.userId = member.userId;
-        safeMember.homeBaseLocation = member.homeBaseLocation;
-        safeMember.homeBaseLatitude = member.homeBaseLatitude;
-        safeMember.homeBaseLongitude = member.homeBaseLongitude;
-        safeMember.activityPreferences = member.activityPreferences;
-        safeMember.personalAvailability = member.personalAvailability;
-        safeMember.profileCompleted = member.profileCompleted;
-      }
-
-      res.json(safeMember);
-    } catch (error: any) {
-      res.status(500).json({ message: safeError(error) });
-    }
-  });
-
-  // Update member (requires authentication - user must be group owner OR the member themselves)
-  app.patch("/api/members/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = await getUserId(req);
-      
-      // Get the member to check authorization
-      const member = await storage.getMember(req.params.id);
-      if (!member) {
-        return res.status(404).json({ message: "Member not found" });
-      }
-      
-      // Get the group to check if user is the organizer
-      const group = await storage.getGroup(member.groupId);
-      if (!group) {
-        return res.status(404).json({ message: "Group not found" });
-      }
-      
-      // Authorization: user must be group owner OR the member themselves
-      const isGroupOwner = group.userId === userId;
-      const isMemberOwner = member.userId === userId;
-      
-      if (!isGroupOwner && !isMemberOwner) {
-        return res.status(403).json({ message: "Not authorized to update this member" });
-      }
-      
-      const validatedUpdates = updateMemberSchema.parse(req.body);
-      const updatedMember = await storage.updateMember(req.params.id, validatedUpdates);
-      res.json(updatedMember);
-    } catch (error: any) {
-      res.status(400).json({ message: error.message });
-    }
-  });
-
-  // Delete member
-  app.delete("/api/members/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = await getUserId(req);
-      const member = await storage.getMember(req.params.id);
-
-      if (!member) {
-        return res.status(404).json({ message: "Member not found" });
-      }
-
-      // Verify user owns the group
-      const group = await storage.getGroup(member.groupId);
-      if (!group || group.userId !== userId) {
-        return res.status(403).json({ message: "Forbidden: You don't have access to this member" });
-      }
-
-      await storage.deleteMember(req.params.id);
-      res.json({ success: true });
-    } catch (error: any) {
-      const status = error.message.includes("Cannot delete organizer") ? 400 : 500;
-      res.status(status).json({ message: error.message });
-    }
-  });
 
   // Member Group Preferences Routes
 
