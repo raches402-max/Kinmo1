@@ -18,7 +18,7 @@ This document is the working plan for getting Kinmo V2 production-ready: off Rep
 | 1 | Hosting migration off Replit | ✅ **DONE** (2026-05-12; live on Railway at https://kinmo-production.up.railway.app, Postgres + Google OAuth + 8,800 rows migrated) |
 | 2 | Finish auth migration | ✅ **DONE** (production OAuth works; Replit script/env cleanup shipped in `9c6fef0`; only manual logout flow test remains) |
 | 3 | API cost control | ✅ **DONE** through tier 4 (`0583809..ccf5928`). Batch API (`ac78be8`) was reverted in `6d618ac` as a scope/coordination rollback (per Franky, not a known bug). **Status: paused, not abandoned.** The `ai_batch_requests` table from migration `0015` is kept on Neon + Railway intentionally — if Batch API is reopened, the migration is reusable as-is. If later abandoned, do it via a tracked DROP migration, not an ad-hoc DB change. **Do not touch this area until explicitly reopened.** |
-| 4 | Architecture cleanup | 🔄 **In progress** — Slice 2 (split routes.ts) **COMMITTED** (`7506c88`); slices 1/3/4 remain |
+| 4 | Architecture cleanup | 🔄 **In progress** — Slices 2 (`7506c88`) + 4 (`7dfbe21` safeError sweep on 391 callsites) done; slices 1 (group server/ by domain) + 3 (split storage.ts) remain |
 | 5 | Code hygiene | 🔄 Ongoing — Sentry on 3 RSVP fire-and-forget catches done (`771f1f7`); frontend Sentry verified by Franky; events.ts refactor fixed (`9d239d8`); advisory lock verified OK in 2026-05-12 audit; env validation hardened in `f457eac` (Zod superRefine with NODE_ENV-aware required checks) |
 | 6 | Security & data-integrity hardening | 🔄 In progress — sub-tracks A (`67b286f` + `79292b7` finishing touches), B (`771f1f7`), C (`0d1b819`), D (`920cf6b` + migration 0016 — apply to Railway pending), E (`2a17050` member-read soft-delete fix), F (`dc8f207`) shipped; G/H remain |
 
@@ -284,9 +284,13 @@ Each file exports a `Router`. Main `index.ts` mounts them.
 **Slice 3: Split storage.ts**
 Same pattern — break into `storage/groups.ts`, `storage/events.ts`, etc.
 
-**Slice 4: Standardize error responses**
+**Slice 4: Standardize error responses ✅ Partial (leak-fix done)**
 
-Routes today return three inconsistent shapes: `{ message }`, `{ success: true, data }`, and `{ success: false, error }`. Pick one (recommend `{ success, data?, error? }` since it's already the majority) and add a wrapper middleware. Also stop leaking raw `error.message` in 500 responses — they can include Drizzle SQL fragments (`server/routes.ts:563, 575, 590, 610`).
+**Shipped in `7dfbe21`.** Added `server/lib/safe-error.ts` and swept 391 `res.status(500).json({ message: error.message })` callsites across `routes.ts` and the split `routes/*.ts` files. Production now returns "Internal server error" instead of raw `error.message`; dev still returns the real message for debugging. Errors can opt-in to being client-visible via `(err as any).safe === true`.
+
+Still remaining for this slice:
+- Standardize response shape (`{ success, data?, error? }`) — currently mixed
+- Apply the same leak-fix to 4xx callsites if any leak details (most use static messages or Zod-formatted output)
 
 (Dead code audit and `as any` cleanup were moved to Workstream 0. By the time we reach this workstream, the codebase is already smaller and tighter.)
 
