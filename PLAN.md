@@ -1,6 +1,6 @@
 # Kinmo V2 — Master Plan
 
-_Last updated: 2026-05-12 (rev 9 — late-day audit cleanup after Franky paused: og-meta dev port + missing env docs (`959a3d5`), events.ts refactor fix for behavior preservation (`9d239d8`), FRANKY.md Lanes & Coordination section (`b83ea95`); Batch API still paused; W6 sub-tracks A/B/C/F done; W6 D/E/G/H still open and currently unowned since Franky paused)_
+_Last updated: 2026-05-13 (rev 10 — Tier A audit cleanup (`357a0e1`); reviewed + committed Franky's pending WIP: W5 env validation hardening (`f457eac`), W6-D missing indexes (`920cf6b`, migration 0016), W6-E soft-delete on member reads (`2a17050`), W6-A finishing touches (`79292b7`), feedback window helper (`59ea587`); W6 sub-tracks A/B/C/D/E/F done; G/H still open)_
 
 ## Context
 
@@ -19,8 +19,8 @@ This document is the working plan for getting Kinmo V2 production-ready: off Rep
 | 2 | Finish auth migration | ✅ **DONE** (production OAuth works; Replit script/env cleanup shipped in `9c6fef0`; only manual logout flow test remains) |
 | 3 | API cost control | ✅ **DONE** through tier 4 (`0583809..ccf5928`). Batch API (`ac78be8`) was reverted in `6d618ac` as a scope/coordination rollback (per Franky, not a known bug). **Status: paused, not abandoned.** The `ai_batch_requests` table from migration `0015` is kept on Neon + Railway intentionally — if Batch API is reopened, the migration is reusable as-is. If later abandoned, do it via a tracked DROP migration, not an ad-hoc DB change. **Do not touch this area until explicitly reopened.** |
 | 4 | Architecture cleanup | 🔄 **In progress** — Slice 2 (split routes.ts) **COMMITTED** (`7506c88`); slices 1/3/4 remain |
-| 5 | Code hygiene | 🔄 Ongoing — Sentry on 3 RSVP fire-and-forget catches done (`771f1f7`); frontend Sentry verified by Franky; events.ts refactor fixed to preserve behavior (`9d239d8`); advisory lock verified OK in 2026-05-12 audit; env validation remains |
-| 6 | Security & data-integrity hardening | 🔄 In progress — sub-tracks A (`67b286f`), B (admin fallback, `771f1f7`), C (vote unique constraints, `0d1b819`), F (`dc8f207`) shipped; D/E/G/H remain |
+| 5 | Code hygiene | 🔄 Ongoing — Sentry on 3 RSVP fire-and-forget catches done (`771f1f7`); frontend Sentry verified by Franky; events.ts refactor fixed (`9d239d8`); advisory lock verified OK in 2026-05-12 audit; env validation hardened in `f457eac` (Zod superRefine with NODE_ENV-aware required checks) |
+| 6 | Security & data-integrity hardening | 🔄 In progress — sub-tracks A (`67b286f` + `79292b7` finishing touches), B (`771f1f7`), C (`0d1b819`), D (`920cf6b` + migration 0016 — apply to Railway pending), E (`2a17050` member-read soft-delete fix), F (`dc8f207`) shipped; G/H remain |
 
 **Production cost:** ~$10/mo on Railway (app + Postgres). API keys (OpenAI, Resend, Google Places) currently set to placeholders — features depending on them won't work until real keys are added.
 
@@ -296,7 +296,7 @@ Routes today return three inconsistent shapes: `{ message }`, `{ success: true, 
 
 - **Delete what you don't need.** Every time you open a file to change something, check if neighbors are still used.
 - **Fix the OpenAI key.** `.env` is missing a working `OPENAI_API_KEY` — currently every background job throws 401. Either set a real key or guard those features behind a "if no key, skip" check so logs stay clean.
-- **Tighten env validation** in `server/config.ts` — fail loudly at startup if a required key is missing, not silently at runtime.
+- ~~**Tighten env validation**~~ ✅ Shipped in `f457eac` — `server/config.ts` now uses Zod `superRefine` with NODE_ENV-aware required checks (Google OAuth pair both-or-neither, both required in prod, SENTRY_DSN required when SENTRY_ENABLED=true). New env vars (`VITE_GOOGLE_MAPS_API_KEY`, `ADMIN_EMAILS`, `BASE_URL`, `CRON_SECRET`) typed in the schema; previously unknown to the validator.
 - **Fire-and-forget `.catch()` calls** at `server/routes.ts:4961, 4968, 4974` log errors but never report to Sentry. Add `Sentry.captureException(err)` inside each. Same anti-pattern on the client: `CopyGuestInviteLink.tsx:43–44` and `CopyEventInviteLink.tsx:61` silently `console.error` without toasting.
 - ~~**Advisory lock TTL:**~~ ✅ Verified OK by 2026-05-12 audit. The lock at `server/auto-scheduler.ts:1213` is correctly released in a `finally` block (`:1440`), and Postgres session advisory locks auto-release on connection drop — so a dead process doesn't leave the lock stuck.
 - **Sentry not wired on frontend** (`client/src/main.tsx`). Server has it; client doesn't. Add `@sentry/react` init to capture client errors.
@@ -319,16 +319,17 @@ Routes today return three inconsistent shapes: `{ message }`, `{ success: true, 
 
 **Shipped in `0d1b819` (2026-05-12).** Migration `0014_add_vote_unique_constraints.sql` adds 1 plain + 4 partial unique indexes covering both logged-in (`userId`) and anonymous (`memberId`) voting paths. `castVote()` and `voteForTimeSlot()` converted to race-free upserts. Pre-flight clean on both Neon and Railway; indexes live on both. `memberName`-only votes intentionally not constrained at DB level — see name-resolution feature for the upstream fix.
 
-### Sub-track D: Missing indexes 🟡 Partial
+### Sub-track D: Missing indexes ✅ DONE (code) — pending Railway apply
 
-Vote-table indexes were added in migration `0014` (W6 Sub-track C). Still open:
-- `members.userId` — no index, full-table scans on user lookup
-- `rsvps.userId` — same
-- `deletedAt` columns — only `curatedVenues` has one; add for `groups`, `members`, etc.
+**Shipped in `920cf6b` + migration `0016_add_missing_user_and_cache_indexes.sql`.** Adds 4 indexes: `members.userId`, `rsvps.userId`, `places_cache.expires_at`, `search_cache.expires_at`. Schema + applier script committed; needs to be run against Railway via `railway run --service=Postgres -- bash -c 'DATABASE_URL="$DATABASE_PUBLIC_URL" npx tsx scripts/apply-migration-0016.ts'`.
 
-### Sub-track E: Soft-delete consistency
+`deletedAt` indexes are still **not added** — partial remainder. Only `curatedVenues.deletedAt` is indexed today. Soft-delete checks are infrequent enough that this is low-urgency.
 
-`groups` use `deletedAt` but `storage.getMembers(groupId)` (`server/storage.ts:593`) doesn't filter out members of deleted groups. Audit every `storage.*` function that reads child records to ensure they join against the parent's `deletedAt`.
+### Sub-track E: Soft-delete consistency ✅ DONE (member reads)
+
+**Shipped in `2a17050`.** Four member-read storage functions now `innerJoin groups + isNull(groups.deletedAt)` — `getGroupMembers`, `getGroupMemberByUserId`, `getHostingAvailableMembers`, `getNextHostVolunteer`. Single-member-by-id lookups, admin stats, and backups intentionally left alone (different semantics).
+
+Other child-record reads (rsvps, votes, etc.) have NOT been audited for the same pattern. If/when a soft-deleted group surfaces stale child data, expand here.
 
 ### Sub-track F: Sensitive request bodies in logs
 
