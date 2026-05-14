@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+const optionalUrl = z.string().url().optional();
+const optionalNonEmptyString = z.string().trim().min(1).optional();
+
 /**
  * Environment variable schema validation
  * Validates all required environment variables at startup
@@ -9,29 +12,63 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
 
   // External APIs (optional in development — stub mode if missing)
-  OPENAI_API_KEY: z.string().optional(),
-  GOOGLE_PLACES_API_KEY: z.string().optional(),
-  GOOGLE_PLACES_API_KEY_2: z.string().optional(),
-  RESEND_API_KEY: z.string().optional(),
+  OPENAI_API_KEY: optionalNonEmptyString,
+  GOOGLE_PLACES_API_KEY: optionalNonEmptyString,
+  GOOGLE_PLACES_API_KEY_2: optionalNonEmptyString,
+  VITE_GOOGLE_MAPS_API_KEY: optionalNonEmptyString,
+  RESEND_API_KEY: optionalNonEmptyString,
 
   // Authentication (Google OAuth)
   SESSION_SECRET: z.string().min(32, 'SESSION_SECRET must be at least 32 characters'),
-  GOOGLE_CLIENT_ID: z.string().optional(),
-  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_CLIENT_ID: optionalNonEmptyString,
+  GOOGLE_CLIENT_SECRET: optionalNonEmptyString,
 
-  CUSTOM_DOMAINS: z.string().optional(),
+  CUSTOM_DOMAINS: optionalNonEmptyString,
+  ADMIN_EMAILS: optionalNonEmptyString,
+  CRON_SECRET: optionalNonEmptyString,
 
   // Server Configuration
   PORT: z.string().optional().default('5000'),
   NODE_ENV: z.enum(['development', 'production', 'test']).optional().default('development'),
+  ENABLE_BACKGROUND_JOBS: z.enum(['true', 'false']).optional(),
 
   // CORS and Frontend URLs
-  ALLOWED_ORIGINS: z.string().optional(),
-  FRONTEND_URL: z.string().optional(),
+  ALLOWED_ORIGINS: optionalNonEmptyString,
+  FRONTEND_URL: optionalUrl,
+  BASE_URL: optionalUrl,
 
   // Error Monitoring (optional - Sentry)
-  SENTRY_DSN: z.string().optional(),
-  SENTRY_ENABLED: z.string().optional(), // Set to 'true' to enable in development
+  SENTRY_DSN: optionalUrl,
+  SENTRY_ENABLED: z.enum(['true', 'false']).optional(),
+}).superRefine((env, ctx) => {
+  const hasGoogleClientId = Boolean(env.GOOGLE_CLIENT_ID);
+  const hasGoogleClientSecret = Boolean(env.GOOGLE_CLIENT_SECRET);
+
+  if (hasGoogleClientId !== hasGoogleClientSecret) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['GOOGLE_CLIENT_ID'],
+      message: 'GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set together',
+    });
+  }
+
+  if (env.NODE_ENV === 'production') {
+    if (!hasGoogleClientId || !hasGoogleClientSecret) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['GOOGLE_CLIENT_ID'],
+        message: 'Google OAuth credentials are required in production',
+      });
+    }
+  }
+
+  if (env.SENTRY_ENABLED === 'true' && !env.SENTRY_DSN) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['SENTRY_DSN'],
+      message: 'SENTRY_DSN is required when SENTRY_ENABLED=true',
+    });
+  }
 });
 
 export type Env = z.infer<typeof envSchema>;
