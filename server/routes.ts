@@ -1436,75 +1436,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get group activities
-  app.get("/api/groups/:id/activities", publicEndpointLimiter, async (req, res) => {
-    try {
-      const activities = await storage.getGroupActivities(req.params.id);
 
-      // Filter sensitive AI reasoning that may contain private context
-      const safeActivities = activities.map(a => ({
-        id: a.id,
-        groupId: a.groupId,
-        venueName: a.venueName,
-        venueAddress: a.venueAddress,
-        city: a.city,
-        venueType: a.venueType,
-        description: a.description,
-        googlePlaceId: a.googlePlaceId,
-        latitude: a.latitude,
-        longitude: a.longitude,
-        rating: a.rating,
-        reviewCount: a.reviewCount,
-        priceLevel: a.priceLevel,
-        photoUrl: a.photoUrl,
-        // Exclude: aiReasoning (may contain sensitive context about group dynamics)
-        suggestedDate: a.suggestedDate,
-        suggestedTime: a.suggestedTime,
-        priceEstimate: a.priceEstimate,
-        createdAt: a.createdAt,
-      }));
-
-      res.json(safeActivities);
-    } catch (error: any) {
-      res.status(500).json({ message: safeError(error) });
-    }
-  });
-
-  // Update activity feedback
-  app.patch("/api/activities/:activityId/feedback", isAuthenticated, async (req: any, res) => {
-    try {
-      // Validate request body
-      const validatedData = safeParse(updateActivityFeedbackSchema, req.body, res);
-      if (!validatedData) return;
-
-      const { feedback } = validatedData;
-
-      // Fetch the specific activity by ID (not loading all activities!)
-      const activity = await storage.getActivity(req.params.activityId);
-
-      if (!activity || !activity.groupId) {
-        return res.status(404).json({ message: "Activity not found" });
-      }
-
-      // Verify user owns the group
-      const userId = await getUserId(req);
-      const group = await storage.getGroup(activity.groupId);
-
-      if (!group || group.userId !== userId) {
-        return res.status(403).json({ message: "Forbidden: You don't have access to this activity" });
-      }
-
-      const updatedActivity = await storage.updateActivityFeedback(req.params.activityId, feedback || '');
-
-      if (updatedActivity.groupId) {
-        await trackFeedbackAndMaybeAnalyze(updatedActivity.groupId);
-      }
-
-      res.json(updatedActivity);
-    } catch (error: any) {
-      res.status(500).json({ message: safeError(error) });
-    }
-  });
 
   // ===== SWIPE SESSION MANAGEMENT =====
 
@@ -2894,152 +2826,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Voting Events Routes
 
-  // Get group-specific voting events (top 10 with vote counts)
-  app.get("/api/groups/:groupId/voting-events", isAuthenticated, requireGroupAccess(), async (req: any, res) => {
-    try {
-      // Validate that the group exists and is active
-      const group = await storage.getGroup(req.params.groupId);
-      if (!group) {
-        return res.status(404).json({ message: "Group not found" });
-      }
 
-      const events = await storage.getGroupVotingEvents(req.params.groupId);
-
-      // Get "liked by" member names for each event
-      const groupMembers = await storage.getGroupMembers(req.params.groupId);
-      const memberMap = new Map(groupMembers.map(m => [m.userId, m.name]));
-
-      // Fetch upvotes for each event and map to member names (using Promise.allSettled for resilience)
-      const eventsWithLikedByResults = await Promise.allSettled(events.map(async (event) => {
-        const eventVotes = await storage.getEventVotes(event.id);
-        const upvoters = eventVotes
-          .filter(v => v.voteType === 'upvote')
-          .map(v => memberMap.get(v.userId))
-          .filter((name): name is string => !!name);
-
-        return {
-          ...event,
-          likedBy: upvoters,
-        };
-      }));
-
-      const eventsWithLikedBy = eventsWithLikedByResults
-        .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled')
-        .map(r => r.value);
-
-      const failedVotes = eventsWithLikedByResults.filter(r => r.status === 'rejected');
-      if (failedVotes.length > 0) {
-        console.error(`[Voting Events] ${failedVotes.length}/${events.length} vote fetches failed`);
-      }
-
-      res.json(eventsWithLikedBy);
-    } catch (error: any) {
-      res.status(500).json({ message: safeError(error) });
-    }
-  });
-
-  // Update a voting event (authenticated)
-  app.patch("/api/voting-events/:id", isAuthenticated, requireVotingEventAccess(), async (req: any, res) => {
-    try {
-      const event = await storage.getVotingEvent(req.params.id);
-      if (!event) {
-        return res.status(404).json({ message: "Event not found" });
-      }
-
-      const userId = await getUserId(req);
-      if (event.createdBy !== userId) {
-        return res.status(403).json({ message: "Unauthorized to edit this event" });
-      }
-
-      const validatedUpdates = updateVotingEventSchema.parse(req.body);
-      const updatedEvent = await storage.updateVotingEvent(req.params.id, validatedUpdates);
-      res.json(updatedEvent);
-    } catch (error: any) {
-      res.status(400).json({ message: error.message });
-    }
-  });
 
   // Delete a voting event (authenticated)
-  // Any member of the group can delete a voting event (venue from favorites)
-  app.delete("/api/voting-events/:id", isAuthenticated, requireVotingEventAccess(), async (req: any, res) => {
-    try {
-      const event = await storage.getVotingEvent(req.params.id);
-      if (!event) {
-        return res.status(404).json({ message: "Event not found" });
-      }
 
-      const userId = await getUserId(req);
 
-      // Allow deletion if:
-      // 1. User is the creator, OR
-      // 2. User is a member of the group (verified by requireVotingEventAccess middleware)
-      // The middleware already verified the user has access to this event's group
-      const member = await storage.getGroupMemberByUserId(event.groupId, userId);
-      if (event.createdBy !== userId && !member) {
-        return res.status(403).json({ message: "Unauthorized to delete this event" });
-      }
 
-      await storage.deleteVotingEvent(req.params.id);
-      res.json({ success: true });
-    } catch (error: any) {
-      res.status(500).json({ message: safeError(error) });
-    }
-  });
 
-  // Cast a vote (authenticated)
-  app.post("/api/voting-events/:id/vote", isAuthenticated, async (req: any, res) => {
-    try {
-      // Validate request body
-      const validatedData = safeParse(castVoteSchema, req.body, res);
-      if (!validatedData) return;
-
-      const userId = await getUserId(req);
-      const { voteType } = validatedData;
-
-      const vote = await storage.castVote(req.params.id, userId, voteType);
-      
-      const event = await storage.getVotingEvent(req.params.id);
-      if (event?.groupId) {
-        await trackFeedbackAndMaybeAnalyze(event.groupId);
-      }
-      
-      res.json(vote);
-    } catch (error: any) {
-      res.status(400).json({ message: error.message });
-    }
-  });
-
-  // Remove a vote (authenticated)
-  app.delete("/api/voting-events/:id/vote", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = await getUserId(req);
-      await storage.removeVote(req.params.id, userId);
-      res.json({ success: true });
-    } catch (error: any) {
-      res.status(500).json({ message: safeError(error) });
-    }
-  });
-
-  // Get votes for an event
-  app.get("/api/voting-events/:id/votes", isAuthenticated, requireVotingEventAccess(), async (req: any, res) => {
-    try {
-      const votes = await storage.getEventVotes(req.params.id);
-      res.json(votes);
-    } catch (error: any) {
-      res.status(500).json({ message: safeError(error) });
-    }
-  });
-
-  // Get user's vote for an event (authenticated)
-  app.get("/api/voting-events/:id/my-vote", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = await getUserId(req);
-      const vote = await storage.getUserVote(req.params.id, userId);
-      res.json(vote || null);
-    } catch (error: any) {
-      res.status(500).json({ message: safeError(error) });
-    }
-  });
 
   // ARCHIVED: General AI activity generation (Nov 2025)
   // This endpoint is kept for backward compatibility but is no longer used in the UI.
@@ -4183,46 +3976,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
 
-  // Clear all activities for a group
-  app.delete("/api/groups/:id/activities", isAuthenticated, requireGroupOwnership(), async (req: any, res) => {
-    try {
-      const group = await storage.getGroup(req.params.id);
-      if (!group) {
-        return res.status(404).json({ message: "Group not found" });
-      }
 
-      await storage.deleteAllGroupActivities(req.params.id);
-      res.json({ success: true, message: "All activities cleared" });
-    } catch (error: any) {
-      res.status(500).json({ message: safeError(error) });
-    }
-  });
-
-  // Delete a single activity from the library
-  app.delete("/api/activities/:activityId", isAuthenticated, async (req: any, res) => {
-    try {
-      const { activityId } = req.params;
-      const userId = await getUserId(req);
-
-      // Get the activity to verify it exists and check ownership
-      const activity = await storage.getActivity(activityId);
-      if (!activity) {
-        return res.status(404).json({ message: "Activity not found" });
-      }
-
-      // Verify the user owns the group this activity belongs to
-      const group = await storage.getGroup(activity.groupId);
-      if (!group || group.userId !== userId) {
-        return res.status(403).json({ message: "Not authorized to delete this activity" });
-      }
-
-      await storage.deleteActivity(activityId);
-      res.json({ success: true, message: "Activity deleted" });
-    } catch (error: any) {
-      console.error("[Delete Activity] Error:", error);
-      res.status(500).json({ message: safeError(error) });
-    }
-  });
 
   // Create voting event from category search result (when user hearts a venue)
   app.post("/api/groups/:id/activities/from-category-result", isAuthenticated, async (req: any, res) => {
