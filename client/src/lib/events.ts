@@ -27,3 +27,21 @@ export function isPastDisplayableEvent(e: EventLike, now: Date = new Date()): bo
   if (e.status === "saved" && !e.inviteSentAt) return false;
   return true;
 }
+
+export const FEEDBACK_WINDOW_DAYS = 30;
+
+/**
+ * Post-event feedback prompts only surface within FEEDBACK_WINDOW_DAYS of the
+ * event date. After that, retrospective feedback is unlikely to be useful, so
+ * we stop nagging.
+ */
+export function isWithinFeedbackWindow(
+  e: EventLike,
+  now: Date = new Date(),
+  windowDays: number = FEEDBACK_WINDOW_DAYS,
+): boolean {
+  if (!e.eventDate) return false;
+  const eventMs = new Date(e.eventDate).getTime();
+  if (eventMs > now.getTime()) return false;
+  return now.getTime() - eventMs <= windowDays * 24 * 60 * 60 * 1000;
+}
