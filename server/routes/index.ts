@@ -23,7 +23,7 @@
  *                  DELETE /api/groups/:id/activities, DELETE /api/activities/:activityId,
  *                  GET+PATCH+DELETE /api/voting-events/:id, POST+DELETE /api/voting-events/:id/vote,
  *                  GET /api/voting-events/:id/votes, GET /api/voting-events/:id/my-vote,
- *                  GET /api/voting-events, GET /api/groups/:groupId/voting-events
+ *                  GET /api/groups/:groupId/voting-events
  *   ✅ admin     — POST/GET/DELETE /api/admin/* (import-venues, ai-stats, calibrate-all,
  *                  backfill-coordinates, stats, job-health, create-backup, backups, restore,
  *                  test-accounts, switch-user, cache-photos, backfill-favorites-coordinates,

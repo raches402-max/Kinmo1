@@ -7,7 +7,6 @@
  *   DELETE /api/groups/:id/activities               — clear all group activities (owner only)
  *   DELETE /api/activities/:activityId              — delete single activity (owner only)
  *
- *   GET    /api/voting-events                       — list all voting events
  *   GET    /api/groups/:groupId/voting-events       — list group voting events with likedBy
  *   PATCH  /api/voting-events/:id                   — update voting event (creator only)
  *   DELETE /api/voting-events/:id                   — delete voting event (member/creator)
@@ -26,6 +25,7 @@ import { eq, sql } from "drizzle-orm";
 import { isAuthenticated } from "../googleAuth";
 import {
   requireGroupOwnership,
+  requireGroupAccess,
   requireVotingEventAccess,
   getUserId,
 } from "../authorization";
@@ -175,18 +175,8 @@ router.delete("/activities/:activityId", isAuthenticated, async (req: any, res: 
 // VOTING EVENT ROUTES
 // ============================================================
 
-// List all voting events
-router.get("/voting-events", async (_req, res: Response) => {
-  try {
-    const events = await storage.getVotingEvents();
-    res.json(events);
-  } catch (error: any) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
 // Get group-specific voting events with likedBy member names
-router.get("/groups/:groupId/voting-events", async (req, res: Response) => {
+router.get("/groups/:groupId/voting-events", isAuthenticated, requireGroupAccess(), async (req, res: Response) => {
   try {
     const group = await storage.getGroup(req.params.groupId);
     if (!group) {
@@ -300,7 +290,7 @@ router.delete("/voting-events/:id/vote", isAuthenticated, async (req: any, res: 
 });
 
 // Get votes for an event
-router.get("/voting-events/:id/votes", async (req, res: Response) => {
+router.get("/voting-events/:id/votes", isAuthenticated, requireVotingEventAccess(), async (req, res: Response) => {
   try {
     const votes = await storage.getEventVotes(req.params.id);
     res.json(votes);
