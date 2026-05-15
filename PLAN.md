@@ -1,6 +1,6 @@
 # Kinmo V2 — Master Plan
 
-_Last updated: 2026-05-13 (rev 10 — Tier A audit cleanup (`357a0e1`); reviewed + committed Franky's pending WIP: W5 env validation hardening (`f457eac`), W6-D missing indexes (`920cf6b`, migration 0016), W6-E soft-delete on member reads (`2a17050`), W6-A finishing touches (`79292b7`), feedback window helper (`59ea587`); W6 sub-tracks A/B/C/D/E/F done; G/H still open)_
+_Last updated: 2026-05-15 (rev 12 — W6-G account deletion shipped (`d1d7471`); added quick wins for routes.ts dead helpers, stale CLAUDE.md sizes, and prototype-pages decision)_
 
 ## Context
 
@@ -21,8 +21,41 @@ This document is the working plan for getting Kinmo V2 production-ready: off Rep
 | 4 | Architecture cleanup | 🔄 **In progress** — Slices 2 (`7506c88`) + 4 (`7dfbe21` safeError sweep on 391 callsites) done; slices 1 (group server/ by domain) + 3 (split storage.ts) remain |
 | 5 | Code hygiene | 🔄 Ongoing — Sentry on 3 RSVP fire-and-forget catches done (`771f1f7`); frontend Sentry verified by Franky; events.ts refactor fixed (`9d239d8`); advisory lock verified OK in 2026-05-12 audit; env validation hardened in `f457eac` (Zod superRefine with NODE_ENV-aware required checks) |
 | 6 | Security & data-integrity hardening | 🔄 In progress — sub-tracks A (`67b286f` + `79292b7` finishing touches), B (`771f1f7`), C (`0d1b819`), D (`920cf6b` + migration 0016 — apply to Railway pending), E (`2a17050` member-read soft-delete fix), F (`dc8f207`) shipped; G/H remain |
+| 7 | Quorum & auto-reschedule system | ✅ **DONE** (2026-05-15) — proactive deadline-based quorum checks, adaptive timing by cadence, skip-vs-reschedule by cycle length, check-in flow for partial engagement, notification over-send fixes. See details below. |
 
 **Production cost:** ~$10/mo on Railway (app + Postgres). API keys (OpenAI, Resend, Google Places) currently set to placeholders — features depending on them won't work until real keys are added.
+
+---
+
+## In focus right now
+
+1. **W4 remaining** — Architecture cleanup: Slice 1 (group `server/` by domain), Slice 3 (split `storage.ts`)
+2. **W6 remaining** — Sub-track H (background-job healthchecks). G (account deletion flow) shipped in `d1d7471`.
+3. **W5 ongoing** — Code hygiene: fire-and-forget `.catch()` Sentry wiring, frontend Sentry client init
+4. **Apply migration 0016** to Railway (missing indexes for `members.userId`, `rsvps.userId`, cache tables)
+5. **Add real API keys to Railway** — `OPENAI_API_KEY`, `RESEND_API_KEY`, `GOOGLE_PLACES_API_KEY`, `ADMIN_EMAILS`
+
+---
+
+## Future product considerations
+
+These are product-level decisions to revisit when the time is right — not current priorities.
+
+### Notification channel: SMS / phone numbers
+
+Current approach: email only. This works for the current no-real-users stage.
+
+**The decision when we revisit:** Move to SMS as the primary notification channel for time-sensitive RSVP nudges and event reminders, similar to Partiful. Phone number is a higher-trust ask than email — it should be offered as an optional upgrade after a member has already had a good experience with Kinmo, not required upfront.
+
+**Proposed sequencing:**
+1. Email only through initial launch — prove the product doesn't spam
+2. After members have attended at least one event, offer "add your phone for event reminders as texts" — totally optional
+3. SMS replaces (or augments) email for `day_before` and `gentle_nudge` reminder types
+4. Native app comes even later, only if there's a clear reason beyond notifications — PWA ("add to home screen") is the bridge if needed
+
+**Why not now:** We need to earn trust before asking for phone numbers. The email pipeline also needs to be battle-tested first to ensure notification quality is good before adding a higher-friction channel.
+
+**Implementation note when ready:** Twilio is the obvious choice. The schema already has a `phone_number` column that was dropped from Neon schema drift (noted in W1 gotchas) — will need to be re-added with proper opt-in flow.
 
 ---
 
@@ -34,6 +67,14 @@ We're not rewriting. The schema, product logic, AI prompts, and stack are all wo
 - Before refactoring any file, ask "should this exist at all?" If no, delete it.
 - A working `git revert` and "no live users yet" is permission to delete liberally. Bias toward deletion when in doubt.
 - Don't refactor things on the way out the door. Better to delete than reorganize.
+
+---
+
+---
+
+## Archive — Completed workstreams
+
+_Details kept for reference. See the status snapshot above for current state._
 
 ---
 
@@ -341,11 +382,11 @@ Other child-record reads (rsvps, votes, etc.) have NOT been audited for the same
 
 **Action:** Replace with structured logs that include only IDs and outcomes.
 
-### Sub-track G: Account deletion flow
+### Sub-track G: Account deletion flow ✅ DONE
 
-No `/api/user/delete` endpoint exists. Users can't delete their account or data. Not urgent for solo-dev stage, but should exist before any public exposure (privacy/GDPR posture).
+Shipped in `d1d7471` (2026-05-15). `POST /api/user/delete` requires `{ confirmation: "DELETE" }`, rejects with `ACTIVE_GROUPS_EXIST` if user organizes any non-soft-deleted groups (no transfer-ownership flow in v1 — must delete those groups first), then anonymizes the `users` row (PII → null, email → `deleted-{id}@deleted.kinmo.local`, `deletedAt` → now), deletes `userProfiles` outright, destroys all sessions for that user, and logs them out. Hard-delete was rejected because all user FKs cascade — would destroy groups other members depend on. Migration `0017_add_users_deleted_at.sql` adds the tombstone column with a partial index.
 
-**Action:** Defer until pre-launch. Add endpoint that cascades user → sessions → memberships, or soft-deletes user and anonymizes.
+**Pending:** Apply migration 0017 to Railway (queue with 0016).
 
 ### Sub-track H: Background-job healthchecks
 
@@ -381,6 +422,9 @@ No `/api/user/delete` endpoint exists. Users can't delete their account or data.
 7. ✅ ~~Run `npx knip`~~ — done, drove W0
 8. ✅ ~~Commit the routes.ts split WIP~~ — shipped in `7506c88` (W4 Slice 2)
 9. ⏭️ **Apply 0014 + 0015 migrations whenever a new DB is provisioned** — both are hand-written SQL with idempotent applier scripts (`scripts/apply-migration-0014.ts`, `scripts/apply-migration-0015.ts`). Run via `railway run --service=Postgres -- bash -c 'DATABASE_URL="$DATABASE_PUBLIC_URL" npx tsx scripts/apply-migration-NNNN.ts'`.
+10. ⏭️ **Delete dead duplicate helpers in `server/routes.ts`** (~5 min). Three helpers at the top of `routes.ts` are unused or duplicated elsewhere: `calculateNameSimilarity` (dupe of `server/google-places.ts:354`), `getQualityThresholds` (dupe of `server/routes/generation.ts:54`), `parsePriceLevel` (zero references). Delete leaves `routes.ts` as the `registerRoutes` shim + the `generateAndStoreActivities` worker (legitimately shared by 3 callers).
+11. ⏭️ **Refresh stale CLAUDE.md file-size claims** (~2 min). Lines 30 and 142 still describe `routes.ts` as "~600KB, very large" — outdated since W4 Slice 2 split it down to ~38KB. `storage.ts` size note is still accurate (~130KB / 4156 lines).
+12. ⏭️ **Decide on prototype pages** (decision needed). 14 files in `client/src/pages/prototype-*.tsx` (~700KB of source) wired into `App.tsx` as public routes at `/prototype/*` with no env or auth gate. Originally flagged at line 116. Options: (a) delete entirely, (b) gate behind `NODE_ENV !== "production"`, or (c) move to a separate Vite entry that's not in the prod bundle. Currently shipping in production bundle and reachable by anyone who guesses a URL.
 
 ---
 
@@ -391,6 +435,37 @@ No `/api/user/delete` endpoint exists. Users can't delete their account or data.
 - Public launch / marketing — out of scope until infra is solid.
 - Anything that doesn't reduce risk, cost, or maintenance burden.
 - **Comprehensive test suite.** Acknowledging the gap: there are zero `vitest`/`jest`/`playwright` test files in this repo. We're deferring rather than denying. When the codebase stabilizes post-refactor, add at minimum: scheduler integration tests, auth flow tests, and storage-layer tests.
+
+---
+
+## Workstream 7 — Quorum & auto-reschedule system ✅ DONE
+
+**Completed 2026-05-15.** Fixed the root cause of zero-RSVP events aging past their event date without rescheduling, and redesigned the full quorum/notification lifecycle.
+
+**Root cause fixed:** `checkAndReschedule()` was only called reactively on RSVP submission, with an early return for zero responses. No cron job ever checked "deadline passed, did we get enough yes votes?" Zero-RSVP events silently became past events.
+
+**What was built:**
+
+- **`server/auto-reschedule.ts`** — added `options.forceReschedule` flag to bypass the zero-response early return and the threshold check. Lets the daily quorum cron force a reschedule even with no RSVPs.
+
+- **`server/reminder-scheduler.ts`** — several additions:
+  - `calculateScheduleConfig(meetingFrequency)` — adaptive timing per group cadence (3-day cycle → 3-day invite advance; monthly → 14-day invite advance). Replaces hardcoded `inviteAdvanceDays = 21`.
+  - `processQuorumChecks()` — daily cron: checks deadlines + 24h grace, skips standalone events, routes to check-in flow for 2+ respondents below quorum, skip vs reschedule by cycle length (≤7 days → skip; ≥14 days → reschedule).
+  - `processQuorumCheckinResults()` — daily cron: resolves pending check-ins (majority keep → proceed; majority reschedule → reschedule; tie → keep; no replies → follow default quorum rule).
+  - Notification fixes in `sendReminderEmails`: skip `gentle_nudge`/`final_call` for members who already RSVPed; `day_before` only to yes-RSVPs; rescheduled events skip nudges entirely.
+  - Post-event feedback only sent to yes-RSVP members (not all group members).
+
+- **`server/email-service.ts`** — `sendQuorumCheckinEmail()` — two-button email ("Yeah, I'm in" / "Let's find another time") in Kinmo voice (no guilt, friendly).
+
+- **`server/routes/rsvps.ts`** — `GET /api/itineraries/:id/quorum-checkin/:inviteToken` — no-auth endpoint; validates invite token, records keep/reschedule response, redirects to app.
+
+- **`shared/schema.ts`** — added `quorumCheckinSentAt` (timestamp) and `quorumCheckinResponses` (jsonb) to itineraries table. `db:push` applied.
+
+**Key product rules enforced:**
+- Quorum threshold always reads from `group.defaultQuorumThreshold` — never hardcoded.
+- Standalone events (`isStandalone = true`) are never auto-rescheduled — organizer's deliberate choice.
+- 2+ keep votes beats 1 reschedule vote in a check-in.
+- No guilt language anywhere in notifications.
 
 ---
 
