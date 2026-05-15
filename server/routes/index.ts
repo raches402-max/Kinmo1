@@ -88,7 +88,7 @@
  *                  POST /api/groups/:groupId/schedule-next-event
  *   ✅ generation — POST /api/groups/:id/retry-generation|activities/cancel-generation|
  *                  activities/regenerate-category|generate-category|activities/from-category-result
- *   ✅ ai-features — POST /api/groups/:id/schedule-from-prompt|analyze-patterns|compare-models|
+ *   ✅ ai-features — POST /api/groups/:id/schedule-from-prompt|analyze-patterns|
  *                  swipe-concepts|discover-venues|swipe-feedback, GET /api/groups/:id/swipe-deck,
  *                  POST /api/groups/:groupId/nearby-suggestions|venue-nearby-suggestions,
  *                  POST /api/itineraries/:id/ai-suggestions|ai-chat|decide-now|suggest-time,
@@ -249,7 +249,7 @@ export function registerSubRoutes(app: Express): void {
   app.use("/api", generationRouter);
 
   // AI features: ai-chat, ai-suggestions, decide-now, suggest-time, schedule-from-prompt,
-  //   discover-venues, swipe-deck, nearby-suggestions, compare-models, analyze-patterns
+  //   discover-venues, swipe-deck, nearby-suggestions, analyze-patterns
   app.use("/api", aiFeaturesRouter);
 
   // Group extras: collections, reorder, voting-events, quick-event, send-invitations,

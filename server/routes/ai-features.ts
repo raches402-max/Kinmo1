@@ -5,7 +5,6 @@
  *
  *   POST   /api/groups/:id/schedule-from-prompt     — schedule event from natural language
  *   POST   /api/groups/:id/analyze-patterns         — analyze preference patterns
- *   POST   /api/groups/:id/compare-models           — compare GPT-4o vs mini
  *   POST   /api/groups/:id/swipe-concepts           — generate swipeable concepts
  *   POST   /api/groups/:groupId/discover-venues     — start discovery swipe session
  *   POST   /api/groups/:id/swipe-feedback           — save swipe feedback
@@ -55,6 +54,7 @@ import { safeParse } from "../validation-middleware";
 import { z } from "zod";
 import rateLimit from "express-rate-limit";
 import { format } from "date-fns";
+import { trustFieldsForSource } from "../trust-state";
 
 const router = Router();
 
@@ -601,7 +601,7 @@ router.post("/groups/:id/schedule-from-prompt", isAuthenticated, async (req: any
         photoUrl: place.photoUrl,
         googleReview: place.review || null,
         category: activityCategory,
-      });
+      }, 'google_search');
       createdActivities.push(newActivity);
     }
 
@@ -751,101 +751,6 @@ router.post("/groups/:id/analyze-patterns", isAuthenticated, requireGroupOwnersh
   }
 });
 
-// Compare GPT-4o vs mini side-by-side for a prompt
-router.post("/groups/:id/compare-models", isAuthenticated, async (req: any, res) => {
-  try {
-    const group = await storage.getGroup(req.params.id);
-    if (!group) {
-      return res.status(404).json({ message: "Group not found" });
-    }
-
-    const { prompt } = req.body;
-    if (!prompt || typeof prompt !== 'string') {
-      return res.status(400).json({ message: "Prompt is required" });
-    }
-
-    const groupHistory = {
-      preferenceInsights: group.preferenceInsights as string | null | undefined,
-      schedulingPreferences: group.schedulingPreferences,
-      closenessLevel: group.closenessLevel
-    };
-
-    // Force each model to run once for comparison
-
-    const gpt4oStartTime = Date.now();
-    const gpt4oResult = await parseSchedulingPromptWithHistory(
-      prompt,
-      group.locationBase,
-      groupHistory,
-      'gpt-4o' // Force GPT-4o
-    );
-    const gpt4oTime = Date.now() - gpt4oStartTime;
-
-    const miniStartTime = Date.now();
-    const miniResult = await parseSchedulingPromptWithHistory(
-      prompt,
-      group.locationBase,
-      groupHistory,
-      'gpt-4o-mini' // Force mini
-    );
-    const miniTime = Date.now() - miniStartTime;
-
-    // Compare the results
-    const comparison = {
-      prompt,
-      gpt4o: {
-        ...gpt4oResult,
-        model: 'gpt-4o',
-        responseTimeMs: gpt4oTime,
-      },
-      mini: {
-        ...miniResult,
-        model: 'gpt-4o-mini',
-        responseTimeMs: miniTime,
-      },
-      differences: {
-        contextKeywords: {
-          gpt4oOnly: (gpt4oResult.contextKeywords || []).filter(k => !(miniResult.contextKeywords || []).includes(k)),
-          miniOnly: (miniResult.contextKeywords || []).filter(k => !(gpt4oResult.contextKeywords || []).includes(k)),
-          same: (gpt4oResult.contextKeywords || []).filter(k => (miniResult.contextKeywords || []).includes(k)),
-        },
-        venueAttributes: {
-          gpt4oOnly: (gpt4oResult.venueAttributes || []).filter(k => !(miniResult.venueAttributes || []).includes(k)),
-          miniOnly: (miniResult.venueAttributes || []).filter(k => !(gpt4oResult.venueAttributes || []).includes(k)),
-          same: (gpt4oResult.venueAttributes || []).filter(k => (miniResult.venueAttributes || []).includes(k)),
-        },
-        historyApplied: {
-          gpt4oOnly: (gpt4oResult.historyApplied || []).filter(h => !(miniResult.historyApplied || []).includes(h)),
-          miniOnly: (miniResult.historyApplied || []).filter(h => !(gpt4oResult.historyApplied || []).includes(h)),
-          same: (gpt4oResult.historyApplied || []).filter(h => (miniResult.historyApplied || []).includes(h)),
-        },
-        activityType: gpt4oResult.activityType !== miniResult.activityType ? {
-          gpt4o: gpt4oResult.activityType,
-          mini: miniResult.activityType,
-        } : null,
-        timePreference: gpt4oResult.timePreference !== miniResult.timePreference ? {
-          gpt4o: gpt4oResult.timePreference,
-          mini: miniResult.timePreference,
-        } : null,
-        dayConstraints: gpt4oResult.dayConstraints !== miniResult.dayConstraints ? {
-          gpt4o: gpt4oResult.dayConstraints,
-          mini: miniResult.dayConstraints,
-        } : null,
-        performance: {
-          gpt4oTimeMs: gpt4oTime,
-          miniTimeMs: miniTime,
-          speedupFactor: (gpt4oTime / miniTime).toFixed(2) + 'x',
-        },
-      },
-      costDifference: "GPT-4o costs ~5-7x more than mini per request",
-    };
-
-    res.json(comparison);
-  } catch (error: any) {
-    console.error("[Model Comparison] Error:", error);
-    res.status(500).json({ message: safeError(error) });
-  }
-});
 
 // Generate swipeable concepts for preference refinement
 router.post("/groups/:id/swipe-concepts", isAuthenticated, requireGroupOwnership(), async (req: any, res) => {
@@ -1900,7 +1805,9 @@ router.post("/itineraries/:id/decide-now", isAuthenticated, requireItineraryAcce
       });
     }
 
-    // Create itinerary items from the selected venues
+    // Create itinerary items from the selected venues. These are inherited from existing
+    // activity/voting_event rows (already vetted upstream), so mark trust state accordingly.
+    const inheritedTrust = trustFieldsForSource('inherited');
     const items = topOption.venues.map((venue: any, index: number) => ({
       itineraryId,
       venueName: venue.venueName,
@@ -1918,6 +1825,7 @@ router.post("/itineraries/:id/decide-now", isAuthenticated, requireItineraryAcce
       arrivalTime: null,
       departureTime: null,
       travelNotes: null,
+      ...inheritedTrust,
     }));
 
     // Clear existing items and add new ones
