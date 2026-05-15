@@ -16,6 +16,7 @@
  *   DELETE /api/user/collections/:id
  *   GET    /api/user/dashboard
  *   GET    /api/user/hosting-requests
+ *   POST   /api/user/delete
  *
  * Migration: extracted from server/routes.ts
  */
@@ -38,6 +39,7 @@ import {
 import { updateUserProfileSchema } from "@shared/schema";
 import {
   users,
+  userProfiles,
   groups as groupsTable,
   members as membersTable,
   itineraries,
@@ -515,6 +517,84 @@ router.get("/user/dashboard", isAuthenticated, async (req: any, res) => {
   } catch (error) {
     console.error("Error fetching member dashboard:", error);
     res.status(500).json({ message: "Failed to fetch dashboard data" });
+  }
+});
+
+// ─── account deletion ─────────────────────────────────────────────────────────
+
+// Anonymize-not-delete: we keep the users row as a tombstone (FK integrity for
+// groups/memberships/RSVPs owned or referenced by this user) but wipe all PII.
+// Hard-deleting cascades to other users' data via onDelete:"cascade", which is
+// unacceptable. Precondition: user must not organize any active groups — they
+// must delete those groups first (transfer-ownership is a separate v2 feature).
+router.post("/user/delete", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = await getUserId(req);
+
+    if (req.body?.confirmation !== "DELETE") {
+      return res.status(400).json({
+        success: false,
+        error: "CONFIRMATION_REQUIRED",
+        message: 'Send { "confirmation": "DELETE" } in the request body.',
+      });
+    }
+
+    const activeOwnedGroups = await db
+      .select({ id: groupsTable.id, name: groupsTable.name })
+      .from(groupsTable)
+      .where(and(eq(groupsTable.userId, userId), isNull(groupsTable.deletedAt)));
+
+    if (activeOwnedGroups.length > 0) {
+      return res.status(409).json({
+        success: false,
+        error: "ACTIVE_GROUPS_EXIST",
+        groups: activeOwnedGroups,
+        message: `You organize ${activeOwnedGroups.length} active group(s). Delete them first, then delete your account.`,
+      });
+    }
+
+    const [existing] = await db.select().from(users).where(eq(users.id, userId));
+    if (!existing) {
+      return res.status(404).json({ success: false, error: "USER_NOT_FOUND" });
+    }
+    if (existing.deletedAt) {
+      return res.status(410).json({ success: false, error: "ALREADY_DELETED" });
+    }
+
+    // Destroy sessions for this user BEFORE anonymizing email — connect-pg-simple
+    // stores the email claim in the session JSON, so match by the still-current value.
+    await db.execute(sql`
+      DELETE FROM sessions
+      WHERE sess->'passport'->'user'->'claims'->>'email' = ${existing.email}
+    `);
+
+    await db
+      .update(users)
+      .set({
+        email: `deleted-${userId}@deleted.kinmo.local`,
+        oidcSub: null,
+        googleId: null,
+        legacyOidcSubs: null,
+        firstName: null,
+        lastName: null,
+        profileImageUrl: null,
+        deletedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
+
+    await db.delete(userProfiles).where(eq(userProfiles.userId, userId));
+
+    req.logout?.((err: any) => {
+      if (err) console.error("[AccountDelete] logout error:", err);
+      req.session?.destroy(() => {
+        res.clearCookie("connect.sid");
+        res.json({ success: true });
+      });
+    });
+  } catch (error: any) {
+    console.error("[AccountDelete] Error:", error);
+    res.status(500).json({ success: false, error: safeError(error) });
   }
 });
 

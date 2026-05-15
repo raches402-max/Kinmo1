@@ -27,6 +27,7 @@ export const users = pgTable("users", {
   profileImageUrl: varchar("profile_image_url"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"), // Soft-delete tombstone: set when user deletes their account. PII fields are nulled and email is replaced with a placeholder.
 });
 
 // User profiles table (extended user information + global preferences)
