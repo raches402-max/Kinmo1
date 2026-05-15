@@ -26,6 +26,14 @@ router.get("/health", async (req, res) => {
     const degradedJobs = jobs.filter((job) => job.status === "degraded").length;
     const overallStatus = failingJobs > 0 ? "failing" : degradedJobs > 0 ? "degraded" : "healthy";
 
+    // Public endpoint: omit lastError/lastFailure to avoid leaking raw exception
+    // strings to unauthenticated callers. Full detail is on /api/admin/job-health.
+    const publicJobs: Record<string, Omit<typeof jobHealth[string], "lastError" | "lastFailure">> = {};
+    for (const [name, entry] of Object.entries(jobHealth)) {
+      const { lastError, lastFailure, ...safe } = entry;
+      publicJobs[name] = safe;
+    }
+
     res.status(failingJobs > 0 ? 503 : 200).json({
       status: overallStatus,
       timestamp: new Date().toISOString(),
@@ -41,7 +49,7 @@ router.get("/health", async (req, res) => {
         degraded: degradedJobs,
         failing: failingJobs,
       },
-      jobs: jobHealth,
+      jobs: publicJobs,
     });
   } catch (error) {
     console.error("[Health Check] Database connection failed:", error);
