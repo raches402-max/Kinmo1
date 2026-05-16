@@ -52,6 +52,7 @@ const PrototypePlaces = lazy(() => import("@/pages/prototype-places"));
 const PrototypeAvailabilityGrid = lazy(() => import("@/pages/prototype-availability-grid"));
 const PrototypeTimelineInfo = lazy(() => import("@/pages/prototype-timeline-info"));
 const PrototypeCreateEvent = lazy(() => import("@/pages/prototype-create-event"));
+const PrototypeIndex = lazy(() => import("@/pages/prototype-index"));
 const PrototypeKinmoText = lazy(() => import("@/pages/prototype-kinmo-text"));
 const PrototypeHeadlineLayouts = lazy(() => import("@/pages/prototype-headline-layouts"));
 const BottomNavConcepts = lazy(() => import("@/components/BottomNavConcepts"));
@@ -114,6 +115,33 @@ function Router() {
       <div className="pb-20 md:pb-0">
         <Suspense fallback={<PageLoader />}>
           <Switch>
+            {/* ─── PROTOTYPE ROUTES ───────────────────────────────────────
+                Public mockups with hardcoded data, no auth, no real API
+                calls. Index at /prototype lists them all. To remove the
+                entire prototype surface from prod, delete this block, the
+                imports above, the prototype-*.tsx files, and the
+                prototype-index.tsx file. — added 2026-05
+            */}
+            <Route path="/prototype" component={PrototypeIndex} />
+            <Route path="/prototype/create-event" component={PrototypeCreateEvent} />
+            <Route path="/prototype/dashboard-v2" component={PrototypeDashboardV2} />
+            <Route path="/prototype/dashboard-redesign" component={PrototypeDashboardRedesign} />
+            <Route path="/prototype/feedback-mockup" component={FeedbackMockup} />
+            <Route path="/prototype/headline-layouts" component={PrototypeHeadlineLayouts} />
+            <Route path="/prototype/kinmo-text" component={PrototypeKinmoText} />
+            <Route path="/prototype/nav" component={BottomNavConcepts} />
+            <Route path="/prototype/timeline-info" component={PrototypeTimelineInfo} />
+            <Route path="/prototype/availability-grid" component={PrototypeAvailabilityGrid} />
+            <Route path="/prototype/places" component={PrototypePlaces} />
+            <Route path="/prototype/group-details-desktop" component={PrototypeGroupDetailsDesktop} />
+            <Route path="/prototype/event-details-desktop" component={PrototypeEventDetailsDesktop} />
+            <Route path="/prototype/event-details-mobile" component={PrototypeEventDetailsMobile} />
+            <Route path="/prototype/event-cards" component={PrototypeEventCards} />
+            <Route path="/prototype/group-cards-mobile" component={PrototypeGroupCardsMobile} />
+            <Route path="/prototype/group-cards" component={PrototypeGroupCards} />
+            <Route path="/prototype/group-tiles" component={PrototypeGroupTiles} />
+            {/* ─── END PROTOTYPE ROUTES ──────────────────────────────── */}
+
             {!isAuthenticated ? (
               <>
                 <Route path="/" component={Landing} />
@@ -129,17 +157,6 @@ function Router() {
                 <Route path="/availability/:pulseId/:responseToken" component={AvailabilityPulsePage} />
                 <Route path="/claim/:claimToken" component={ClaimMemberPage} />
                 <Route path="/events" component={MemberEventsPage} />
-                {import.meta.env.DEV && (
-                  <>
-                    <Route path="/prototype/kinmo-text" component={PrototypeKinmoText} />
-                    <Route path="/prototype/headline-layouts" component={PrototypeHeadlineLayouts} />
-                    <Route path="/prototype/group-details-desktop" component={PrototypeGroupDetailsDesktop} />
-                    <Route path="/prototype/feedback-mockup" component={FeedbackMockup} />
-                    <Route path="/prototype/dashboard-redesign" component={PrototypeDashboardRedesign} />
-                    <Route path="/prototype/dashboard-v2" component={PrototypeDashboardV2} />
-                    <Route path="/prototype/create-event" component={PrototypeCreateEvent} />
-                  </>
-                )}
                 <Route path="/privacy" component={Privacy} />
                 <Route path="/terms" component={Terms} />
               </>
@@ -168,27 +185,6 @@ function Router() {
                 <Route path="/event/:id" component={EventDetailsPage} />
                 <Route path="/admin" component={Admin} />
                 <Route path="/places" component={Places} />
-                {import.meta.env.DEV && (
-                  <>
-                    <Route path="/prototype/group-tiles" component={PrototypeGroupTiles} />
-                    <Route path="/prototype/group-cards" component={PrototypeGroupCards} />
-                    <Route path="/prototype/group-cards-mobile" component={PrototypeGroupCardsMobile} />
-                    <Route path="/prototype/event-cards" component={PrototypeEventCards} />
-                    <Route path="/prototype/event-details-mobile" component={PrototypeEventDetailsMobile} />
-                    <Route path="/prototype/event-details-desktop" component={PrototypeEventDetailsDesktop} />
-                    <Route path="/prototype/group-details-desktop" component={PrototypeGroupDetailsDesktop} />
-                    <Route path="/prototype/places" component={PrototypePlaces} />
-                    <Route path="/prototype/availability-grid" component={PrototypeAvailabilityGrid} />
-                    <Route path="/prototype/timeline-info" component={PrototypeTimelineInfo} />
-                    <Route path="/prototype/kinmo-text" component={PrototypeKinmoText} />
-                    <Route path="/prototype/headline-layouts" component={PrototypeHeadlineLayouts} />
-                    <Route path="/prototype/nav" component={BottomNavConcepts} />
-                    <Route path="/prototype/feedback-mockup" component={FeedbackMockup} />
-                    <Route path="/prototype/dashboard-redesign" component={PrototypeDashboardRedesign} />
-                    <Route path="/prototype/dashboard-v2" component={PrototypeDashboardV2} />
-                    <Route path="/prototype/create-event" component={PrototypeCreateEvent} />
-                  </>
-                )}
                 <Route path="/privacy" component={Privacy} />
                 <Route path="/terms" component={Terms} />
               </>
