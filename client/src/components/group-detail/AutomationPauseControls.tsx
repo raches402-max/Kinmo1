@@ -10,37 +10,27 @@
  * Design: Visible but non-intrusive, uses status colors to indicate state.
  */
 
-import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
 import {
   Play,
   Pause,
   ChevronDown,
   CalendarOff,
   Zap,
-  Calendar as CalendarIcon,
   Hash,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getErrorToast } from "@/components/ErrorDisplay";
 import { cn } from "@/lib/utils";
-import { format, addDays } from "date-fns";
+import { format } from "date-fns";
 
 interface AutomationPauseControlsProps {
   groupId: string;
@@ -61,7 +51,6 @@ export function AutomationPauseControls({
 }: AutomationPauseControlsProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [calendarOpen, setCalendarOpen] = useState(false);
 
   // Pause mutation
   const pauseMutation = useMutation({
@@ -134,11 +123,6 @@ export function AutomationPauseControls({
 
   const handlePauseForEvents = (count: number) => {
     pauseMutation.mutate({ pauseType: 'events', value: count });
-  };
-
-  const handlePauseUntil = (date: Date) => {
-    pauseMutation.mutate({ pauseType: 'until', value: date.toISOString() });
-    setCalendarOpen(false);
   };
 
   if (automationPaused) {
@@ -217,24 +201,6 @@ export function AutomationPauseControls({
                 <Hash className="h-4 w-4 mr-2 text-muted-foreground" />
                 Skip next event
               </DropdownMenuItem>
-              <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-                <PopoverTrigger asChild>
-                  <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                    <CalendarIcon className="h-4 w-4 mr-2 text-muted-foreground" />
-                    Pause until date...
-                  </DropdownMenuItem>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="end">
-                  <Calendar
-                    mode="single"
-                    selected={undefined}
-                    onSelect={(date) => date && handlePauseUntil(date)}
-                    disabled={(date) => date < new Date()}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => pauseMutation.mutate({ pauseType: 'indefinite' })}>
                 <CalendarOff className="h-4 w-4 mr-2 text-muted-foreground" />
                 Pause indefinitely
