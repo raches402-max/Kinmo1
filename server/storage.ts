@@ -37,6 +37,14 @@ import { db } from "./db";
 import { eq, desc, sql, and, or, inArray, isNull, isNotNull, gte, asc, lt } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import { geocodeLocation } from "./google-places";
+import {
+  trustFieldsForSource,
+  dirtyingTrustFields,
+  ACTIVITY_DIRTYING_FIELDS,
+  VOTING_EVENT_DIRTYING_FIELDS,
+  ITINERARY_ITEM_DIRTYING_FIELDS,
+  type TrustSource,
+} from "./trust-state";
 
 export interface IStorage {
   // User operations (required for Replit Auth)
@@ -115,7 +123,7 @@ export interface IStorage {
 
   // Itineraries
   createItinerary(itinerary: InsertItinerary, userId: string, items: Array<{sourceType: 'activity' | 'voting_event', sourceId: string}>): Promise<Itinerary>;
-  getGroupItineraries(groupId: string): Promise<Array<Itinerary & { items: ItineraryItem[] }>>;
+  getGroupItineraries(groupId: string): Promise<Array<Itinerary & { items: ItineraryItem[]; rsvpCount: { yes: number; maybe: number; no: number; pending: number } }>>;
   getSavedItineraries(groupId: string): Promise<Array<Itinerary & { items: ItineraryItem[] }>>;
   getProposedItineraries(groupId: string): Promise<Array<Itinerary & { items: ItineraryItem[], rsvps: Rsvp[] }>>;
   getItinerary(id: string): Promise<(Itinerary & { items: ItineraryItem[] }) | undefined>;
@@ -650,20 +658,28 @@ export class DatabaseStorage implements IStorage {
     return activity;
   }
 
-  async createActivity(insertActivity: InsertActivity): Promise<Activity> {
+  async createActivity(
+    insertActivity: InsertActivity,
+    trustSource: TrustSource = "ai_suggestion"
+  ): Promise<Activity> {
+    const trust = trustFieldsForSource(trustSource);
     const [activity] = await db
       .insert(activities)
-      .values(insertActivity)
+      .values({ ...insertActivity, ...trust })
       .returning();
     return activity;
   }
 
-  async createActivities(insertActivities: InsertActivity[]): Promise<Activity[]> {
+  async createActivities(
+    insertActivities: InsertActivity[],
+    trustSource: TrustSource = "ai_suggestion"
+  ): Promise<Activity[]> {
     if (insertActivities.length === 0) return [];
 
+    const trust = trustFieldsForSource(trustSource);
     return await db
       .insert(activities)
-      .values(insertActivities)
+      .values(insertActivities.map((a) => ({ ...a, ...trust })))
       .returning();
   }
 
@@ -1144,10 +1160,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Voting Events operations
-  async createVotingEvent(insertEvent: InsertVotingEvent, userId: string): Promise<VotingEvent> {
+  async createVotingEvent(
+    insertEvent: InsertVotingEvent,
+    userId: string,
+    trustSource: TrustSource = "manual"
+  ): Promise<VotingEvent> {
+    const trust = trustFieldsForSource(trustSource);
     const [event] = await db
       .insert(votingEvents)
-      .values({ ...insertEvent, createdBy: userId })
+      .values({ ...insertEvent, ...trust, createdBy: userId })
       .returning();
 
     // Auto-upvote: Adding a venue implies the creator likes it
@@ -1190,6 +1211,9 @@ export class DatabaseStorage implements IStorage {
         complementaryPlaceRating2: votingEvents.complementaryPlaceRating2,
         swipeConsensus: votingEvents.swipeConsensus,
         createdBy: votingEvents.createdBy,
+        trustState: votingEvents.trustState,
+        verifiedAt: votingEvents.verifiedAt,
+        trustSource: votingEvents.trustSource,
         createdAt: votingEvents.createdAt,
         upvotes: sql<number>`COUNT(CASE WHEN ${votes.voteType} = 'upvote' THEN 1 END)`.as('upvotes'),
         downvotes: sql<number>`COUNT(CASE WHEN ${votes.voteType} = 'downvote' THEN 1 END)`.as('downvotes'),
@@ -1238,6 +1262,9 @@ export class DatabaseStorage implements IStorage {
         complementaryPlaceRating2: votingEvents.complementaryPlaceRating2,
         swipeConsensus: votingEvents.swipeConsensus,
         createdBy: votingEvents.createdBy,
+        trustState: votingEvents.trustState,
+        verifiedAt: votingEvents.verifiedAt,
+        trustSource: votingEvents.trustSource,
         createdAt: votingEvents.createdAt,
         upvotes: sql<number>`COUNT(CASE WHEN ${votes.voteType} = 'upvote' THEN 1 END)`.as('upvotes'),
         downvotes: sql<number>`COUNT(CASE WHEN ${votes.voteType} = 'downvote' THEN 1 END)`.as('downvotes'),
@@ -1262,9 +1289,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateVotingEvent(id: string, updates: UpdateVotingEvent): Promise<VotingEvent> {
+    const dirty = dirtyingTrustFields(updates as Record<string, unknown>, VOTING_EVENT_DIRTYING_FIELDS);
     const [event] = await db
       .update(votingEvents)
-      .set(updates)
+      .set({ ...updates, ...(dirty ?? {}) })
       .where(eq(votingEvents.id, id))
       .returning();
     return event;
@@ -1430,7 +1458,7 @@ export class DatabaseStorage implements IStorage {
     return itinerary;
   }
 
-  async getGroupItineraries(groupId: string): Promise<Array<Itinerary & { items: ItineraryItem[] }>> {
+  async getGroupItineraries(groupId: string): Promise<Array<Itinerary & { items: ItineraryItem[]; rsvpCount: { yes: number; maybe: number; no: number; pending: number } }>> {
     const foundItineraries = await db
       .select()
       .from(itineraries)
@@ -1440,6 +1468,24 @@ export class DatabaseStorage implements IStorage {
       ))
       .orderBy(desc(itineraries.createdAt));
 
+    const itineraryIds = foundItineraries.map(i => i.id);
+    const rsvpCountByItinerary = new Map<string, { yes: number; maybe: number; no: number; pending: number }>();
+    if (itineraryIds.length > 0) {
+      const rsvpRows = await db
+        .select({ itineraryId: rsvps.itineraryId, response: rsvps.response })
+        .from(rsvps)
+        .where(inArray(rsvps.itineraryId, itineraryIds));
+      for (const row of rsvpRows) {
+        const counts = rsvpCountByItinerary.get(row.itineraryId)
+          ?? { yes: 0, maybe: 0, no: 0, pending: 0 };
+        const r = (row.response || "").toLowerCase();
+        if (r === "yes" || r === "going") counts.yes++;
+        else if (r === "maybe" || r === "tentative") counts.maybe++;
+        else if (r === "no" || r === "not_going") counts.no++;
+        rsvpCountByItinerary.set(row.itineraryId, counts);
+      }
+    }
+
     const result = [];
     for (const itinerary of foundItineraries) {
       const items = await db
@@ -1447,7 +1493,9 @@ export class DatabaseStorage implements IStorage {
         .from(itineraryItems)
         .where(eq(itineraryItems.itineraryId, itinerary.id))
         .orderBy(itineraryItems.orderIndex);
-      result.push({ ...itinerary, items });
+      const rsvpCount = rsvpCountByItinerary.get(itinerary.id)
+        ?? { yes: 0, maybe: 0, no: 0, pending: 0 };
+      result.push({ ...itinerary, items, rsvpCount });
     }
     return result;
   }
@@ -1517,6 +1565,9 @@ export class DatabaseStorage implements IStorage {
       let googlePlaceId = null;
       let rating = null;
       let photoUrl = null;
+      // Inherit trust from the source row — if the activity/voting_event was verified,
+      // the itinerary item we copy from it is also verified.
+      let sourceTrustState: 'verified' | 'needs_review' = 'needs_review';
 
       if (item.sourceType === 'activity') {
         const [activity] = await db.select().from(activities).where(eq(activities.id, item.sourceId));
@@ -1527,6 +1578,7 @@ export class DatabaseStorage implements IStorage {
           googlePlaceId = activity.googlePlaceId;
           rating = activity.rating;
           photoUrl = activity.photoUrl;
+          sourceTrustState = activity.trustState === 'verified' ? 'verified' : 'needs_review';
         }
       } else {
         const [votingEvent] = await db.select().from(votingEvents).where(eq(votingEvents.id, item.sourceId));
@@ -1537,6 +1589,7 @@ export class DatabaseStorage implements IStorage {
           googlePlaceId = votingEvent.googlePlaceId;
           rating = votingEvent.rating;
           photoUrl = votingEvent.photoUrl;
+          sourceTrustState = votingEvent.trustState === 'verified' ? 'verified' : 'needs_review';
         }
       }
 
@@ -1548,6 +1601,8 @@ export class DatabaseStorage implements IStorage {
         const query = encodeURIComponent(`${venueName}, ${venueAddress}`);
         googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${query}`;
       }
+
+      const trust = trustFieldsForSource(sourceTrustState === 'verified' ? 'inherited' : 'ai_suggestion');
 
       itemsToInsert.push({
         itineraryId,
@@ -1561,6 +1616,7 @@ export class DatabaseStorage implements IStorage {
         photoUrl,
         googleMapsUrl,
         orderIndex: maxOrderIndex + 1 + i,
+        ...trust,
       });
     }
 
@@ -1587,7 +1643,8 @@ export class DatabaseStorage implements IStorage {
       travelNotes: string | null;
       rating: string | null;
       photoUrl: string | null;
-    }
+    },
+    trustSource: TrustSource = "manual"
   ): Promise<ItineraryItem> {
     // Data integrity checks
     if (venue.googlePlaceId && !venue.googlePlaceId.startsWith('ChIJ')) {
@@ -1614,6 +1671,8 @@ export class DatabaseStorage implements IStorage {
       ? Math.max(...existingItems.map(item => item.orderIndex || 0))
       : -1;
 
+    const trust = trustFieldsForSource(trustSource);
+
     const [newItem] = await db.insert(itineraryItems).values({
       itineraryId,
       sourceType: 'ad_hoc',
@@ -1632,6 +1691,7 @@ export class DatabaseStorage implements IStorage {
       rating: venue.rating,
       photoUrl: venue.photoUrl,
       orderIndex: maxOrderIndex + 1,
+      ...trust,
     }).returning();
 
     return newItem;
@@ -1655,9 +1715,10 @@ export class DatabaseStorage implements IStorage {
       travelNotes?: string;
     }
   ): Promise<ItineraryItem | undefined> {
+    const dirty = dirtyingTrustFields(updates as Record<string, unknown>, ITINERARY_ITEM_DIRTYING_FIELDS);
     const [updatedItem] = await db
       .update(itineraryItems)
-      .set(updates)
+      .set({ ...updates, ...(dirty ?? {}) })
       .where(eq(itineraryItems.id, itemId))
       .returning();
 
@@ -2806,17 +2867,24 @@ export class DatabaseStorage implements IStorage {
       .where(buildFilters(true));
     const totalEvents = Number(eventsResult.count);
 
+    // An event only counts as "held" if it actually happened: not cancelled
+    // and has at least one "yes" RSVP. Mirrors didEventHappen() on the client.
+    const notCancelledSql = sql`${itineraries.status} <> 'rejected'`;
+    const eventHappenedSql = sql`${notCancelledSql} AND EXISTS (SELECT 1 FROM ${rsvps} WHERE ${rsvps.itineraryId} = ${itineraries.id} AND lower(${rsvps.response}) IN ('yes', 'going'))`;
+
     // Events held (past events with confirmed dates from non-test groups)
     const eventsHeldFilter = buildFilters(true);
-    const eventsHeldConditions = eventsHeldFilter 
+    const eventsHeldConditions = eventsHeldFilter
       ? and(
           eventsHeldFilter,
           sql`${itineraries.eventDate} IS NOT NULL`,
-          sql`${itineraries.eventDate} < NOW()`
+          sql`${itineraries.eventDate} < NOW()`,
+          eventHappenedSql
         )
       : and(
           sql`${itineraries.eventDate} IS NOT NULL`,
-          sql`${itineraries.eventDate} < NOW()`
+          sql`${itineraries.eventDate} < NOW()`,
+          eventHappenedSql
         );
     
     const [eventsHeldResult] = await db
@@ -2838,12 +2906,14 @@ export class DatabaseStorage implements IStorage {
           activeGroupsFilter,
           sql`${itineraries.eventDate} IS NOT NULL`,
           sql`${itineraries.eventDate} >= ${sixtyDaysAgo.toISOString()}`,
-          sql`${itineraries.eventDate} <= ${now.toISOString()}`
+          sql`${itineraries.eventDate} <= ${now.toISOString()}`,
+          eventHappenedSql
         )
       : and(
           sql`${itineraries.eventDate} IS NOT NULL`,
           sql`${itineraries.eventDate} >= ${sixtyDaysAgo.toISOString()}`,
-          sql`${itineraries.eventDate} <= ${now.toISOString()}`
+          sql`${itineraries.eventDate} <= ${now.toISOString()}`,
+          eventHappenedSql
         );
     
     const [activeGroupsResult] = await db
@@ -2862,12 +2932,14 @@ export class DatabaseStorage implements IStorage {
           repeatAttendanceFilter,
           eq(rsvps.response, 'yes'),
           sql`${itineraries.eventDate} IS NOT NULL`,
-          sql`${itineraries.eventDate} < NOW()`
+          sql`${itineraries.eventDate} < NOW()`,
+          notCancelledSql
         )
       : and(
           eq(rsvps.response, 'yes'),
           sql`${itineraries.eventDate} IS NOT NULL`,
-          sql`${itineraries.eventDate} < NOW()`
+          sql`${itineraries.eventDate} < NOW()`,
+          notCancelledSql
         );
     
     const usersWithMultipleAttendances = await db

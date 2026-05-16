@@ -44,25 +44,9 @@ import {
   generateCategorySchema,
   regenerateCategorySchema,
 } from "../validation-schemas";
+import { getQualityThresholds } from "../lib/place-quality";
 
 const router = Router();
-
-/**
- * Get consistent quality thresholds based on search radius
- * Consolidates all rating/review filtering logic into one authoritative source
- */
-function getQualityThresholds(searchRadius: number): { minRating: number; minReviews: number } {
-  if (searchRadius <= 2) {
-    // Very local (2-mile radius) - moderate standards
-    return { minRating: 3.5, minReviews: 10 };
-  } else if (searchRadius <= 10) {
-    // Citywide (10-mile radius) - slightly stricter
-    return { minRating: 3.5, minReviews: 15 };
-  } else {
-    // Regional (30-50 mile radius) - more lenient for wider search
-    return { minRating: 3.3, minReviews: 15 };
-  }
-}
 
 // ==================== Retry Generation (Deprecated) ====================
 
@@ -1061,7 +1045,7 @@ router.post("/groups/:id/activities/from-category-result", isAuthenticated, asyn
         rating: activityData.rating ? activityData.rating.toString() : null,
         priceLevel: activityData.priceLevel || null,
         photoUrl: activityData.photoUrl || null,
-      }, userId);
+      }, userId, 'inherited');
 
       res.json(votingEvent);
     } catch (error: any) {

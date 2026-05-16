@@ -8,6 +8,7 @@ import { setupAuth } from "./googleAuth";
 import { db } from "./db";
 import { eq, and, or } from "drizzle-orm";
 import { withTimeout } from "./lib/retry";
+import { getQualityThresholds, parsePriceLevel } from "./lib/place-quality";
 
 /**
  * Calculate similarity score between two strings (0 = no match, 1 = exact match)
@@ -41,48 +42,6 @@ function calculateNameSimilarity(str1: string, str2: string): number {
   return (jaccardScore * 0.7) + (lengthPenalty * 0.3);
 }
 
-/**
- * Get consistent quality thresholds based on search radius
- * Consolidates all rating/review filtering logic into one authoritative source
- */
-function getQualityThresholds(searchRadius: number): { minRating: number; minReviews: number } {
-  if (searchRadius <= 2) {
-    // Very local (2-mile radius) - moderate standards
-    return { minRating: 3.5, minReviews: 10 };
-  } else if (searchRadius <= 10) {
-    // Citywide (10-mile radius) - slightly stricter
-    return { minRating: 3.5, minReviews: 15 };
-  } else {
-    // Regional (30-50 mile radius) - more lenient for wider search
-    return { minRating: 3.3, minReviews: 15 };
-  }
-}
-
-/**
- * Parse Google Places price level (handles both enum strings and legacy numbers)
- * Google's new API returns: "PRICE_LEVEL_FREE", "PRICE_LEVEL_INEXPENSIVE", "PRICE_LEVEL_MODERATE", etc.
- * Legacy API returned: 0, 1, 2, 3, 4
- * @returns number 0-4, or null if unavailable
- */
-function parsePriceLevel(priceLevel: string | number | null | undefined): number | null {
-  if (!priceLevel) return null;
-
-  // If it's already a number, return it
-  if (typeof priceLevel === 'number') return priceLevel;
-
-  // Parse Google's enum strings
-  const priceLevelStr = priceLevel.toString().toUpperCase();
-
-  if (priceLevelStr.includes('FREE')) return 0;
-  if (priceLevelStr.includes('INEXPENSIVE')) return 1;
-  if (priceLevelStr.includes('MODERATE')) return 2;
-  if (priceLevelStr.includes('EXPENSIVE')) return 3;
-  if (priceLevelStr.includes('VERY_EXPENSIVE')) return 4;
-
-  // Try parsing as number for legacy data
-  const parsed = parseInt(priceLevelStr);
-  return isNaN(parsed) ? null : parsed;
-}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Set up authentication (Google OAuth)

@@ -276,6 +276,9 @@ export const activities = pgTable("activities", {
   businessStatus: text("business_status"), // OPERATIONAL, CLOSED_TEMPORARILY, CLOSED_PERMANENTLY
   swipeConsensus: integer("swipe_consensus"), // 0-100% approval rate from group swipes
   archivedAt: timestamp("archived_at"), // Soft-delete for regeneration
+  trustState: text("trust_state").notNull().default("unknown"), // verified | needs_review | unknown
+  verifiedAt: timestamp("verified_at"),
+  trustSource: text("trust_source"), // google_search | ai_suggestion | url_paste | manual | validation_pass
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -310,6 +313,9 @@ export const votingEvents = pgTable("voting_events", {
   complementaryPlaceRating2: text("complementary_place_rating_2"),
   swipeConsensus: integer("swipe_consensus"), // 0-100% approval rate from group swipes
   createdBy: varchar("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+  trustState: text("trust_state").notNull().default("unknown"), // verified | needs_review | unknown
+  verifiedAt: timestamp("verified_at"),
+  trustSource: text("trust_source"), // google_search | ai_suggestion | url_paste | manual | validation_pass
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -386,7 +392,7 @@ export const itineraries = pgTable("itineraries", {
   organizerId: varchar("organizer_id").references(() => users.id, { onDelete: "cascade" }), // Event owner (for standalone events)
   name: text("name"), // Optional name for saved itineraries (e.g., "SF Waterfront Day")
   note: text("note"), // Optional note or description for the event
-  status: text("status").notNull().default("draft"), // draft, saved, proposed, scheduled, rejected
+  status: text("status").notNull().default("draft"), // draft, saved, proposed, scheduled, rejected, cancelled
   isSaved: boolean("is_saved").default(false).notNull(), // Is this a saved template for reuse
   isPrimary: boolean("is_primary").default(false).notNull(), // Is this the primary proposed plan
   backupForItineraryId: varchar("backup_for_itinerary_id"), // If this is a backup plan (self-reference handled separately)
@@ -400,6 +406,8 @@ export const itineraries = pgTable("itineraries", {
   rsvpDeadline: timestamp("rsvp_deadline"), // When RSVPs must be in by
   autoScheduleConfig: jsonb("auto_schedule_config"), // AI-suggested schedule config: {inviteAdvanceDays: 7, rsvpWindowDays: 3, reminders: [{type: "gentle_nudge", daysBeforeDeadline: 2}, ...]}
   rescheduleAttempts: integer("reschedule_attempts").default(0).notNull(), // Track how many times AI has tried to reschedule (max 2)
+  quorumCheckinSentAt: timestamp("quorum_checkin_sent_at"), // When the "still want to meet?" check-in was sent to respondents
+  quorumCheckinResponses: jsonb("quorum_checkin_responses"), // { [memberId]: 'keep' | 'reschedule' }
   
   // Event hosting
   hostMemberId: varchar("host_member_id").references(() => members.id, { onDelete: "set null" }), // Member who volunteered to host this event (null = organizer or AI-hosted)
@@ -428,6 +436,9 @@ export const itineraryItems = pgTable("itinerary_items", {
   departureTime: timestamp("departure_time"), // Optional time to leave this location
   travelNotes: text("travel_notes"), // Optional travel instructions (e.g., "Uber from previous location")
   orderIndex: integer("order_index").notNull(), // Position in itinerary sequence
+  trustState: text("trust_state").notNull().default("unknown"), // verified | needs_review | unknown
+  verifiedAt: timestamp("verified_at"),
+  trustSource: text("trust_source"), // google_search | ai_suggestion | url_paste | manual | validation_pass
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -1199,12 +1210,18 @@ export const insertMemberGroupPreferencesSchema = createInsertSchema(memberGroup
 export const insertActivitySchema = createInsertSchema(activities).omit({
   id: true,
   createdAt: true,
+  trustState: true,
+  verifiedAt: true,
+  trustSource: true,
 });
 
 export const insertVotingEventSchema = createInsertSchema(votingEvents).omit({
   id: true,
   createdBy: true,
   createdAt: true,
+  trustState: true,
+  verifiedAt: true,
+  trustSource: true,
 });
 
 export const insertVoteSchema = createInsertSchema(votes).omit({
@@ -1226,6 +1243,9 @@ export const insertItinerarySchema = createInsertSchema(itineraries).omit({
 export const insertItineraryItemSchema = createInsertSchema(itineraryItems).omit({
   id: true,
   createdAt: true,
+  trustState: true,
+  verifiedAt: true,
+  trustSource: true,
 });
 
 export const insertRsvpSchema = createInsertSchema(rsvps).omit({
