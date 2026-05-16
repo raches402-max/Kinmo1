@@ -137,15 +137,18 @@ router.post("/groups/:id/pause-automation", isAuthenticated, requireGroupOwnersh
     if (!validatedData) return;
     const { pauseType, value } = validatedData;
 
-    const updates: any = { automationPaused: true };
+    const updates: any = {
+      automationPaused: true,
+      automationPauseEventsRemaining: null,
+      automationPausedUntil: null,
+    };
 
     if (pauseType === "events") {
       updates.automationPauseEventsRemaining = value;
-      updates.automationPausedUntil = null;
-    } else {
+    } else if (pauseType === "until") {
       updates.automationPausedUntil = new Date(value as string);
-      updates.automationPauseEventsRemaining = null;
     }
+    // 'indefinite' leaves both nulls — user must explicitly Resume.
 
     const updatedGroup = await storage.updateGroup(req.params.id, updates);
     res.json(updatedGroup);

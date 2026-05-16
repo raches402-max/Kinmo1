@@ -41,15 +41,18 @@ export const updateMemberConstraintsActionSchema = z.object({
 });
 
 export const pauseAutomationSchema = z.object({
-  pauseType: z.enum(['events', 'until'], {
-    errorMap: () => ({ message: "Pause type must be 'events' or 'until'" })
+  pauseType: z.enum(['events', 'until', 'indefinite'], {
+    errorMap: () => ({ message: "Pause type must be 'events', 'until', or 'indefinite'" })
   }),
   value: z.union([
     z.number().int().min(1, "Number of events must be at least 1"),
     z.string().datetime("Invalid date format"),
-  ]),
+  ]).optional(),
 }).refine(
   (data) => {
+    if (data.pauseType === 'indefinite') {
+      return data.value === undefined;
+    }
     if (data.pauseType === 'events') {
       return typeof data.value === 'number';
     }
@@ -58,7 +61,7 @@ export const pauseAutomationSchema = z.object({
     }
     return false;
   },
-  { message: "Value must be a number for 'events' or a date string for 'until'" }
+  { message: "Value must be omitted for 'indefinite', a number for 'events', or a date string for 'until'" }
 );
 
 export const updateRsvpResponseSchema = z.object({

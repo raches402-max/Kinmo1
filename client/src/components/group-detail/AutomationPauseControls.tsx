@@ -65,7 +65,7 @@ export function AutomationPauseControls({
 
   // Pause mutation
   const pauseMutation = useMutation({
-    mutationFn: async (params: { pauseType: 'events' | 'until'; value: number | string }) => {
+    mutationFn: async (params: { pauseType: 'events' | 'until' | 'indefinite'; value?: number | string }) => {
       const response = await fetch(`/api/groups/${groupId}/pause-automation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -129,7 +129,7 @@ export function AutomationPauseControls({
       const until = new Date(automationPausedUntil);
       return `Paused until ${format(until, 'MMM d')}`;
     }
-    return "Paused";
+    return "Paused indefinitely";
   };
 
   const handlePauseForEvents = (count: number) => {
@@ -217,15 +217,6 @@ export function AutomationPauseControls({
                 <Hash className="h-4 w-4 mr-2 text-muted-foreground" />
                 Skip next event
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handlePauseForEvents(2)}>
-                <Hash className="h-4 w-4 mr-2 text-muted-foreground" />
-                Skip next 2 events
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handlePauseForEvents(3)}>
-                <Hash className="h-4 w-4 mr-2 text-muted-foreground" />
-                Skip next 3 events
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
               <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
                 <PopoverTrigger asChild>
                   <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
@@ -244,13 +235,9 @@ export function AutomationPauseControls({
                 </PopoverContent>
               </Popover>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => handlePauseUntil(addDays(new Date(), 7))}>
+              <DropdownMenuItem onClick={() => pauseMutation.mutate({ pauseType: 'indefinite' })}>
                 <CalendarOff className="h-4 w-4 mr-2 text-muted-foreground" />
-                Pause for 1 week
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handlePauseUntil(addDays(new Date(), 30))}>
-                <CalendarOff className="h-4 w-4 mr-2 text-muted-foreground" />
-                Pause for 1 month
+                Pause indefinitely
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
