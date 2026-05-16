@@ -135,27 +135,29 @@ export function PlanningInsightBanner({ groupId }: PlanningInsightBannerProps) {
           <AlertDescription className="text-sm mt-1 opacity-90">
             {insight.message}
           </AlertDescription>
-        </div>
 
-        {/* Action button - inline to the right of content */}
-        {insight.actionUrl && insight.actionLabel && (
-          <Link href={insight.actionUrl} onClick={() => handleAction(insight)} className="flex-shrink-0 self-center">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs gap-1 bg-white/50 hover:bg-white"
-            >
-              {insight.actionLabel}
-              <ChevronRight className="h-3 w-3" />
-            </Button>
-          </Link>
-        )}
+          {/* Action button */}
+          {insight.actionUrl && insight.actionLabel && (
+            <div className="mt-2">
+              <Link href={insight.actionUrl} onClick={() => handleAction(insight)}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs gap-1 bg-white/50 hover:bg-white"
+                >
+                  {insight.actionLabel}
+                  <ChevronRight className="h-3 w-3" />
+                </Button>
+              </Link>
+            </div>
+          )}
+        </div>
 
         {/* Dismiss button */}
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6 opacity-60 hover:opacity-100 flex-shrink-0"
+          className="h-6 w-6 opacity-60 hover:opacity-100"
           onClick={() => handleDismiss(insight.id)}
         >
           <X className="h-3.5 w-3.5" />
