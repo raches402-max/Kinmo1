@@ -23,6 +23,7 @@ import {
   getUserId,
 } from "../authorization";
 import { searchPlaces, calculateNameSimilarity } from "../google-places";
+import type { TrustSource } from "../trust-state";
 
 const router = Router();
 
@@ -199,7 +200,16 @@ router.post("/voting-events", isAuthenticated, requireGroupOwnership(), async (r
       }
     }
 
-    const event = await storage.createVotingEvent(enrichedEvent, userId);
+    // Trust source: if Google enrichment matched a place above the similarity threshold,
+    // the (name, placeId) pair is already vetted by Google → google_search.
+    // Otherwise the user is creating a venue from a placeId/name pair we haven't checked → manual.
+    // Skipped enrichment paths come in with a placeId from the frontend's own search result, so
+    // they're treated as google_search (the placeId arrived alongside the name from Google).
+    const trustSource: TrustSource =
+      enrichmentStatus === 'success' || (skipEnrichmentCheck && req.body.googlePlaceId)
+        ? 'google_search'
+        : 'manual';
+    const event = await storage.createVotingEvent(enrichedEvent, userId, trustSource);
     res.json({ event, enrichmentStatus });
   } catch (error: any) {
     res.status(400).json({ message: error.message });
@@ -432,7 +442,7 @@ router.post("/groups/:id/add-venues-to-library", isAuthenticated, async (req: an
         reviewCount: venue.reviewCount ? Number(venue.reviewCount) : null,
         priceLevel: venue.priceLevel ? String(venue.priceLevel) : null,
         photoUrl: venue.photoUrl || null,
-      });
+      }, 'google_search');
       createdActivities.push(newActivity);
     }
 

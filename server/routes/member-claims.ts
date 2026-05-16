@@ -320,6 +320,14 @@ router.get("/members/me/events", async (req: any, res) => {
       .from(itineraries)
       .where(sql`id IN (${sql.join(itineraryIds.map(id => sql`${id}`), sql`, `)})`);
 
+    // Itineraries with at least one "yes" RSVP from anyone (not just this
+    // member) — used to decide whether a past event actually happened.
+    const yesRsvps = await db
+      .select({ itineraryId: rsvpsTable.itineraryId })
+      .from(rsvpsTable)
+      .where(sql`itinerary_id IN (${sql.join(itineraryIds.map(id => sql`${id}`), sql`, `)}) AND lower(response) IN ('yes', 'going')`);
+    const itinerariesWithYes = new Set(yesRsvps.map(r => r.itineraryId));
+
     const allItems = await db
       .select()
       .from(itineraryItems)
@@ -382,13 +390,17 @@ router.get("/members/me/events", async (req: any, res) => {
         })),
       };
 
+      // A past event only counts if it actually happened: not cancelled and
+      // has at least one "yes" RSVP. Otherwise it's dropped from all buckets.
+      const happened = itinerary.status !== 'rejected' && itinerariesWithYes.has(itinerary.id);
+
       if (!rsvp) {
         pending.push(eventData);
       } else if (itinerary.eventDate && new Date(itinerary.eventDate) < now) {
-        past.push(eventData);
+        if (happened) past.push(eventData);
       } else if (isPositiveRsvp(rsvp.response) || isTentativeRsvp(rsvp.response)) {
         upcoming.push(eventData);
-      } else {
+      } else if (happened) {
         past.push(eventData);
       }
     });

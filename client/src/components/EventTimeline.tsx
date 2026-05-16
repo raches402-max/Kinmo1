@@ -37,6 +37,7 @@ import {
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { getErrorToast } from "@/components/ErrorDisplay";
+import { didEventHappen } from "@/lib/events";
 
 interface ItineraryItem {
   id: string;
@@ -234,8 +235,10 @@ export function EventTimeline({
   const upcomingEvents = sortedItineraries.filter(
     (i) => !i.eventDate || !isPast(new Date(i.eventDate))
   );
+  // Past events only count if they actually happened (>=1 "yes" RSVP, not
+  // cancelled). Past-dated events that didn't happen are dropped entirely.
   const pastEvents = sortedItineraries.filter(
-    (i) => i.eventDate && isPast(new Date(i.eventDate))
+    (i) => i.eventDate && isPast(new Date(i.eventDate)) && didEventHappen(i)
   ).slice(0, 3); // Show only last 3 past events
 
   const renderTimelineItem = (itinerary: Itinerary) => {

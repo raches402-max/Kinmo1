@@ -12,6 +12,7 @@ import { eq, sql, and, isNull, desc, gte } from "drizzle-orm";
 import { votingEvents, activities, itineraryItems, curatedVenues, votes, autoScheduledEvents, itineraries, rsvps, members } from "@shared/schema";
 import { z } from "zod";
 import { suggestMultipleTimeOptions, convertAvailabilityToString } from "./ai-time-picker";
+import { trustFieldsForSource } from "./trust-state";
 
 // RSVP Response Helpers (normalize legacy values)
 function isPositiveRsvp(response: string | null | undefined): boolean {
@@ -700,7 +701,8 @@ async function handleAddVenueToItinerary(args: {
       photoUrl: args.photoUrl || null,
       rating: args.rating || null,
       notes: args.notes || null,
-      orderIndex: nextOrderIndex
+      orderIndex: nextOrderIndex,
+      ...trustFieldsForSource("manual"),
     }).returning();
 
     return JSON.stringify({

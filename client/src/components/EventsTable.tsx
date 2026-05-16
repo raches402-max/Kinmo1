@@ -1245,6 +1245,7 @@ export default function EventsTable({
                     </Button>
                   )}
                   <div
+                    className="w-6 flex items-center justify-center flex-shrink-0"
                     onClick={(e) => {
                       if (hasMultipleVenues) {
                         e.preventDefault();

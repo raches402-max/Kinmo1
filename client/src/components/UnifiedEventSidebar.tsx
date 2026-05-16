@@ -40,6 +40,7 @@ import {
   EventStatus,
   STATUS_CONFIG,
 } from "@/lib/event-utils";
+import { didEventHappen } from "@/lib/events";
 
 export interface UnifiedEventSidebarProps {
   events: UnifiedEvent[];
@@ -273,8 +274,14 @@ export function UnifiedEventSidebar({
     const past: UnifiedEvent[] = [];
 
     events.forEach((event) => {
-      if (event.status === "past" || (event.eventDate && isPast(new Date(event.eventDate)))) {
-        past.push({ ...event, status: "past" });
+      const isPastDated =
+        event.status === "past" || (event.eventDate && isPast(new Date(event.eventDate)));
+      if (isPastDated) {
+        // Only keep past events that actually happened (>=1 "yes" RSVP, not
+        // cancelled). Past-dated events that didn't happen are dropped entirely.
+        if (didEventHappen(event)) {
+          past.push({ ...event, status: "past" });
+        }
       } else {
         future.push(event);
       }

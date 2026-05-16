@@ -24,7 +24,7 @@ import { formatInTimeZone } from "date-fns-tz";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { isPastDated, isPastDisplayableEvent, isWithinFeedbackWindow } from "@/lib/events";
+import { isPastEvent, isPastDisplayableEvent, isWithinFeedbackWindow } from "@/lib/events";
 import { getErrorToast, ErrorDisplay } from "@/components/ErrorDisplay";
 import { LoadingState, SkeletonCard } from "@/components/LoadingState";
 import type { Group, User, UserProfile, GroupCollection, Itinerary, StandaloneEventInvitee } from "@shared/schema";
@@ -485,9 +485,8 @@ export default function Dashboard() {
   // Calculate past events needing feedback
   const currentTime = new Date();
   const pastEventsNeedingFeedback = events.filter(event => {
-    if (!isPastDated(event, currentTime)) return false;
+    if (!isPastEvent(event, currentTime)) return false;
     if (!isWithinFeedbackWindow(event, currentTime)) return false;
-    if (event.status === 'rejected') return false;
     const attended = event.rsvp?.response === 'yes';
     const noFeedbackYet = !event.rsvp?.postEventFeedback;
     return attended && noFeedbackYet;

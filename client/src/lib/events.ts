@@ -3,6 +3,10 @@ export type EventLike = {
   inviteSentAt?: string | Date | null;
   status?: string | null;
   isOrganizer?: boolean;
+  // RSVP signals — different event sources carry different shapes.
+  // /api/user/events events carry rsvpSummary; UnifiedEvent carries rsvpCount.
+  rsvpSummary?: { yes: string[]; maybe: string[]; no: string[] } | null;
+  rsvpCount?: { yes: number; maybe: number; no: number; pending: number } | null;
 };
 
 /**
@@ -15,13 +19,33 @@ export function isPastDated(e: EventLike, now: Date = new Date()): boolean {
 }
 
 /**
+ * Whether an event actually happened: it has at least one "yes" RSVP and was
+ * not cancelled. A past-dated event that nobody confirmed attendance for (or
+ * that was rejected) is treated as never having happened.
+ */
+export function didEventHappen(e: EventLike): boolean {
+  if (e.status === "rejected") return false;
+  const yesCount = e.rsvpSummary?.yes.length ?? e.rsvpCount?.yes ?? 0;
+  return yesCount > 0;
+}
+
+/**
+ * A real past event: past-dated AND it actually happened.
+ */
+export function isPastEvent(e: EventLike, now: Date = new Date()): boolean {
+  return isPastDated(e, now) && didEventHappen(e);
+}
+
+/**
  * Past-list visibility used by the dashboard's main pastEvents filter.
- * Organizers see all past events (including their own drafts). Non-organizers
- * see anything sent (inviteSentAt set) or anything with a status that implies
- * the event actually happened ('proposed', 'scheduled', 'completed', 'rejected').
+ * Only events that actually happened (>=1 "yes" RSVP, not cancelled) qualify.
+ * Beyond that: organizers see all such past events (including their own
+ * drafts); non-organizers additionally need the invite sent or a status that
+ * implies the event happened.
  */
 export function isPastDisplayableEvent(e: EventLike, now: Date = new Date()): boolean {
   if (!isPastDated(e, now)) return false;
+  if (!didEventHappen(e)) return false;
   if (e.isOrganizer) return true;
   if (e.status === "draft" && !e.inviteSentAt) return false;
   if (e.status === "saved" && !e.inviteSentAt) return false;

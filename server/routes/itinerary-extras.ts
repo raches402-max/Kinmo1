@@ -39,6 +39,7 @@ import { storage } from "../storage";
 import { safeParse } from "../validation-middleware";
 import { validateItinerary } from "../itinerary-validation";
 import { searchPlaces, geocodeLocation, detectAndParseGoogleMapsUrl, getBestVenueType } from "../google-places";
+import type { TrustSource } from "../trust-state";
 import { analyzeEventAvailability } from "../availability-analyzer";
 import { notifyEventInvite } from "../notifications";
 import {
@@ -474,6 +475,15 @@ router.post("/itineraries/:id/items/ad-hoc", isAuthenticated, requireItineraryAc
     let photoUrl: string | null = null;
     let rating: string | null = null;
 
+    // Track how the venue identity was established, for trust state on insert.
+    // URL paste takes precedence over a pre-supplied placeId, since URL parsing may overwrite
+    // the placeId below — we'd lose the "this was a verified search result" assumption either way.
+    let trustSource: TrustSource = googleMapsUrl
+      ? 'url_paste'
+      : googlePlaceId
+      ? 'google_search'         // frontend supplied a placeId from its own search result
+      : 'manual';               // pure typed entry
+
     // Handle Google Maps URL parsing
     if (googleMapsUrl) {
       try {
@@ -545,8 +555,12 @@ router.post("/itineraries/:id/items/ad-hoc", isAuthenticated, requireItineraryAc
       }
     }
 
-    // Fetch Google Places details if placeId is provided
-    if (googlePlaceId) {
+    // Fetch Google Places details if placeId is provided.
+    // Trust gating: when the (name, placeId) pair came from a Google search result we just
+    // served (trustSource === 'google_search'), the pair is already consistent by construction
+    // — re-validating only causes false rejections (e.g., search-result name differing
+    // slightly from Place Details canonical name). Skip in that case.
+    if (googlePlaceId && trustSource !== 'google_search') {
       try {
         // Import validation function
         const { validateVenuePlaceId } = await import('../google-places');
@@ -574,6 +588,9 @@ router.post("/itineraries/:id/items/ad-hoc", isAuthenticated, requireItineraryAc
             suggestion: `The Place ID appears to point to "${validation.placeDetails?.name}" instead of "${name}". Please verify the correct venue.`
           });
         }
+
+        // Validation passed — promote trust source so we record the vet.
+        trustSource = 'validation_pass';
 
         const placeDetails = validation.placeDetails;
         if (placeDetails) {
@@ -624,7 +641,7 @@ router.post("/itineraries/:id/items/ad-hoc", isAuthenticated, requireItineraryAc
       travelNotes: null,
       rating,
       photoUrl,
-    });
+    }, trustSource);
 
     res.json(newItem);
   } catch (error: any) {

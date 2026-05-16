@@ -10,7 +10,7 @@ import { Header } from "@/components/Header";
 import { useAuth } from "@/hooks/useAuth";
 import type { User } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { isPastDated } from "@/lib/events";
+import { isPastEvent } from "@/lib/events";
 import { useToast } from "@/hooks/use-toast";
 import { getErrorToast } from "@/components/ErrorDisplay";
 
@@ -123,7 +123,7 @@ export default function MemberEventsPage() {
     if (e.isOrganizer) return isFutureOrTBD;
     return e.rsvp && e.rsvp.response !== 'no' && isFutureOrTBD;
   });
-  const pastEvents = events.filter(e => isPastDated(e, now));
+  const pastEvents = events.filter(e => isPastEvent(e, now));
 
   if (isLoading) {
     return (
