@@ -24,6 +24,5 @@ export { MyPreferencesTab } from './MyPreferencesTab';
 export { BasicInfoAccordion } from './BasicInfoAccordion';
 export { VenueSearchEmptyState } from './VenueSearchEmptyState';
 export { NearbySuggestionsCard } from './NearbySuggestionsCard';
-export { AIPreview } from './AIPreview';
 export { AutomationNudge, useAutomationNudge } from './AutomationNudge';
 export { AutomationPauseControls } from './AutomationPauseControls';
