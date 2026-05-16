@@ -45,7 +45,10 @@ function isNegativeRsvp(response: string | null | undefined): boolean {
 // Main function
 // ---------------------------------------------------------------------------
 
-export async function checkAndReschedule(itineraryId: string): Promise<void> {
+export async function checkAndReschedule(
+  itineraryId: string,
+  options?: { forceReschedule?: boolean },
+): Promise<void> {
   try {
     const itinerary = await storage.getItinerary(itineraryId);
     if (!itinerary || !itinerary.eventDate || !itinerary.groupId) {
@@ -63,20 +66,22 @@ export async function checkAndReschedule(itineraryId: string): Promise<void> {
       .from(rsvpsTable)
       .where(sql`itinerary_id = ${itineraryId} AND (is_guest IS NULL OR is_guest = false)`);
 
-    if (rsvps.length === 0) {
-      return;
-    }
+    if (!options?.forceReschedule) {
+      if (rsvps.length === 0) {
+        return;
+      }
 
-    const yesCount = rsvps.filter(r => isPositiveRsvp(r.response)).length;
-    const maybeCount = rsvps.filter(r => isTentativeRsvp(r.response)).length;
-    const noCount = rsvps.filter(r => isNegativeRsvp(r.response)).length;
-    const totalResponses = rsvps.length;
+      const yesCount = rsvps.filter(r => isPositiveRsvp(r.response)).length;
+      const maybeCount = rsvps.filter(r => isTentativeRsvp(r.response)).length;
+      const noCount = rsvps.filter(r => isNegativeRsvp(r.response)).length;
+      const totalResponses = rsvps.length;
 
-    const negativeResponses = noCount + maybeCount;
-    const shouldReschedule = totalResponses >= 3 && (negativeResponses / totalResponses) > 0.5;
+      const negativeResponses = noCount + maybeCount;
+      const shouldReschedule = totalResponses >= 3 && (negativeResponses / totalResponses) > 0.5;
 
-    if (!shouldReschedule) {
-      return;
+      if (!shouldReschedule) {
+        return;
+      }
     }
 
     // ATOMIC: Try to acquire reschedule lock

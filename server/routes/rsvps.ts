@@ -883,4 +883,55 @@ router.post("/standalone-invite/:inviteToken/rsvp", async (req, res) => {
   }
 });
 
+// GET /api/itineraries/:id/quorum-checkin/:inviteToken?response=keep|reschedule
+// One-tap link from the check-in email — no auth required, token validates the member
+router.get("/itineraries/:id/quorum-checkin/:inviteToken", async (req, res) => {
+  try {
+    const { id: itineraryId, inviteToken } = req.params;
+    const response = req.query.response as string;
+
+    if (response !== 'keep' && response !== 'reschedule') {
+      return res.status(400).send('Invalid response. Use ?response=keep or ?response=reschedule');
+    }
+
+    // Validate the invite token belongs to this itinerary
+    const [invite] = await db
+      .select()
+      .from(itineraryInvites)
+      .where(sql`itinerary_id = ${itineraryId} AND invite_token = ${inviteToken}`)
+      .limit(1);
+
+    if (!invite) {
+      return res.status(404).send('Invite not found');
+    }
+
+    // Load itinerary and verify check-in is active
+    const [itinerary] = await db
+      .select()
+      .from(itineraries)
+      .where(eq(itineraries.id, itineraryId))
+      .limit(1);
+
+    if (!itinerary || !itinerary.quorumCheckinSentAt) {
+      return res.redirect(`https://kinmo.ai/events?checkin=expired`);
+    }
+
+    // Record this member's response
+    const existing = (itinerary.quorumCheckinResponses as Record<string, string>) || {};
+    const memberId = invite.memberId || invite.inviteToken; // fallback key if no memberId
+    const updated = { ...existing, [memberId]: response };
+
+    await db
+      .update(itineraries)
+      .set({ quorumCheckinResponses: updated })
+      .where(eq(itineraries.id, itineraryId));
+
+    // Redirect to a friendly confirmation page
+    const message = response === 'keep' ? 'great' : 'noted';
+    return res.redirect(`https://kinmo.ai/events?checkin=${message}`);
+  } catch (error: any) {
+    res.status(500).send(safeError(error));
+  }
+});
+
 export default router;

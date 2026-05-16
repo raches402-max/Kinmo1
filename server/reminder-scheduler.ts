@@ -1,6 +1,6 @@
 import { db } from './db';
-import { itineraries, members, reminderLogs, groups, autoScheduledEvents, itineraryInvites, rejectedEventDates, type Group } from '../shared/schema';
-import { eq, and, isNull, sql, or, lt } from 'drizzle-orm';
+import { itineraries, members, reminderLogs, groups, autoScheduledEvents, itineraryInvites, rejectedEventDates, rsvps as rsvpsTable, type Group } from '../shared/schema';
+import { eq, and, isNull, sql, or, lt, not, inArray } from 'drizzle-orm';
 import { addDays, differenceInDays } from 'date-fns';
 import {
   sendItineraryInvite,
@@ -13,7 +13,7 @@ import {
   type ReminderData,
 } from './email-service';
 import { storage } from './storage';
-import { selectBestItineraryForAutoSchedule, shouldTriggerAutoSchedule, maintainEventPipeline, calculateTargetEventCount } from './auto-scheduler';
+import { selectBestItineraryForAutoSchedule, shouldTriggerAutoSchedule, maintainEventPipeline, calculateTargetEventCount, calculateCadenceInDays } from './auto-scheduler';
 import { calculateEventConfidence, shouldRequireReview } from './confidence-scoring';
 import { randomBytes } from 'crypto';
 import { createTrackedJob, getJobHealthStatus } from './lib/job-tracker';
@@ -38,6 +38,80 @@ function calculatePulseLeadDays(meetingFrequency: string | null): number {
     default:
       return 10;
   }
+}
+
+interface ScheduleConfig {
+  inviteAdvanceDays: number;
+  rsvpDeadlineDays: number; // days before event
+  rsvpWindowDays: number;
+  reminders: Array<{ type: 'gentle_nudge' | 'final_call' | 'day_before'; daysBeforeDeadline?: number; daysBeforeEvent?: number }>;
+}
+
+/**
+ * Returns adaptive invite/reminder timing based on group cadence.
+ * All windows scale proportionally so high-frequency groups aren't over-notified
+ * and low-frequency groups have enough lead time.
+ *
+ * Tiers (by cycle length):
+ *   ≤4 days  (3x/2x week): invite=3d, deadline=1d
+ *   ≤7 days  (weekly):      invite=7d, deadline=2d
+ *   ≤14 days (biweekly):   invite=10d, deadline=3d, 1 nudge
+ *   ≤30 days (monthly):    invite=14d, deadline=7d, nudge+final_call
+ *   >30 days (quarterly+): invite=30d, deadline=14d, nudge+final_call
+ */
+function calculateScheduleConfig(meetingFrequency: string | null): ScheduleConfig {
+  const cycleDays = meetingFrequency ? calculateCadenceInDays(meetingFrequency) : 30;
+
+  if (cycleDays <= 4) {
+    return {
+      inviteAdvanceDays: 3,
+      rsvpDeadlineDays: 1,
+      rsvpWindowDays: 2,
+      reminders: [{ type: 'day_before', daysBeforeEvent: 1 }],
+    };
+  }
+  if (cycleDays <= 7) {
+    return {
+      inviteAdvanceDays: 7,
+      rsvpDeadlineDays: 2,
+      rsvpWindowDays: 5,
+      reminders: [{ type: 'day_before', daysBeforeEvent: 1 }],
+    };
+  }
+  if (cycleDays <= 14) {
+    return {
+      inviteAdvanceDays: 10,
+      rsvpDeadlineDays: 3,
+      rsvpWindowDays: 7,
+      reminders: [
+        { type: 'gentle_nudge', daysBeforeDeadline: 1 },
+        { type: 'day_before', daysBeforeEvent: 1 },
+      ],
+    };
+  }
+  if (cycleDays <= 30) {
+    return {
+      inviteAdvanceDays: 14,
+      rsvpDeadlineDays: 7,
+      rsvpWindowDays: 7,
+      reminders: [
+        { type: 'gentle_nudge', daysBeforeDeadline: 3 },
+        { type: 'final_call', daysBeforeDeadline: 1 },
+        { type: 'day_before', daysBeforeEvent: 1 },
+      ],
+    };
+  }
+  // quarterly+
+  return {
+    inviteAdvanceDays: 30,
+    rsvpDeadlineDays: 14,
+    rsvpWindowDays: 16,
+    reminders: [
+      { type: 'gentle_nudge', daysBeforeDeadline: 7 },
+      { type: 'final_call', daysBeforeDeadline: 2 },
+      { type: 'day_before', daysBeforeEvent: 1 },
+    ],
+  };
 }
 
 /**
@@ -248,6 +322,15 @@ export async function processScheduledReminders(): Promise<void> {
 
         // Check if reminder should be sent now
         if (now >= sendDate) {
+          // For rescheduled events, skip nudges — the reschedule email already served
+          // as the re-invite. Only the day-before confirmation is worth sending.
+          if (
+            (reminder.type === 'gentle_nudge' || reminder.type === 'final_call') &&
+            (itinerary.rescheduleAttempts ?? 0) > 0
+          ) {
+            continue;
+          }
+
           // Check if this reminder type has already been sent
           const existingLog = await db
             .select()
@@ -393,38 +476,67 @@ async function sendReminderEmails(
     if (reminderType === 'gentle_nudge' || reminderType === 'final_call') {
       try {
         const { notifyRSVPReminder } = await import('./notifications');
-        const memberIds = groupMembers.map(m => m.id);
 
-        // Calculate hours until deadline
-        const rsvpDeadline = itinerary.rsvpDeadline ? new Date(itinerary.rsvpDeadline) : null;
-        const hoursUntilDeadline = rsvpDeadline
-          ? Math.round((rsvpDeadline.getTime() - Date.now()) / (1000 * 60 * 60))
-          : 24;
+        // Fetch RSVPs to suppress in-app nudges for members who already responded
+        const nudgeRsvps = await db
+          .select({ memberId: rsvpsTable.memberId })
+          .from(rsvpsTable)
+          .where(sql`itinerary_id = ${itinerary.id} AND (is_guest IS NULL OR is_guest = false)`);
+        const respondedMemberIds = new Set(nudgeRsvps.map(r => r.memberId).filter(Boolean));
+        const pendingMemberIds = groupMembers
+          .map(m => m.id)
+          .filter(id => !respondedMemberIds.has(id));
 
-        await notifyRSVPReminder({
-          itineraryId: itinerary.id,
-          groupId: group.id,
-          eventName: itinerary.name || 'Upcoming Event',
-          memberIds,
-          hoursUntilDeadline
-        });
-        console.log(`[Notifications] Sent in-app RSVP reminders for ${reminderType}`);
+        if (pendingMemberIds.length > 0) {
+          const rsvpDeadline = itinerary.rsvpDeadline ? new Date(itinerary.rsvpDeadline) : null;
+          const hoursUntilDeadline = rsvpDeadline
+            ? Math.round((rsvpDeadline.getTime() - Date.now()) / (1000 * 60 * 60))
+            : 24;
+
+          await notifyRSVPReminder({
+            itineraryId: itinerary.id,
+            groupId: group.id,
+            eventName: itinerary.name || 'Upcoming Event',
+            memberIds: pendingMemberIds,
+            hoursUntilDeadline
+          });
+          console.log(`[Notifications] Sent in-app RSVP reminders to ${pendingMemberIds.length} non-responders for ${reminderType}`);
+        }
       } catch (notifyError) {
         console.error('[Notifications] Error sending RSVP reminder notifications:', notifyError);
       }
     }
 
-    const membersWithEmails = groupMembers.filter(m => m.email);
+    // Fetch all RSVPs for this itinerary once — used to filter recipients below
+    const existingRsvps = await db
+      .select({ memberId: rsvpsTable.memberId, response: rsvpsTable.response })
+      .from(rsvpsTable)
+      .where(sql`itinerary_id = ${itinerary.id} AND (is_guest IS NULL OR is_guest = false)`);
 
-    if (membersWithEmails.length === 0) {
-      // Log that this reminder was processed (even with no emails) to prevent re-triggering
+    const rsvpByMember = new Map(existingRsvps.map(r => [r.memberId, r.response]));
+
+    let eligibleMembers = groupMembers.filter(m => m.email);
+
+    if (reminderType === 'gentle_nudge' || reminderType === 'final_call') {
+      // Only ping members who haven't responded yet — if you already said yes or no, no more nudges
+      eligibleMembers = eligibleMembers.filter(m => !rsvpByMember.has(m.id));
+    } else if (reminderType === 'day_before') {
+      // Day-before confirmation only goes to people who said yes
+      eligibleMembers = eligibleMembers.filter(m => {
+        const r = rsvpByMember.get(m.id);
+        return r === 'yes' || r === 'going';
+      });
+    }
+
+    if (eligibleMembers.length === 0) {
+      // Log as skipped so it doesn't re-trigger
       await db.insert(reminderLogs).values({
         itineraryId: itinerary.id,
         reminderType,
         recipientEmail: 'no-recipients',
         emailStatus: 'skipped',
       });
-      console.log(`[Reminders] No email recipients for ${reminderType} reminder, logged as skipped`);
+      console.log(`[Reminders] No eligible recipients for ${reminderType} (all already RSVPed or no yes-RSVPs), logged as skipped`);
       return;
     }
 
@@ -434,18 +546,18 @@ async function sendReminderEmails(
     const baseReminderData = {
       groupName: group.name,
       organizerName: group.name,
-      eventDate: eventDate.toLocaleDateString('en-US', { 
-        weekday: 'long', 
-        month: 'long', 
-        day: 'numeric' 
+      eventDate: eventDate.toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric'
       }),
-      eventTime: eventDate.toLocaleTimeString('en-US', { 
-        hour: 'numeric', 
-        minute: '2-digit' 
+      eventTime: eventDate.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit'
       }),
-      rsvpDeadline: rsvpDeadline?.toLocaleDateString('en-US', { 
-        month: 'long', 
-        day: 'numeric' 
+      rsvpDeadline: rsvpDeadline?.toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric'
       }),
     };
 
@@ -462,8 +574,8 @@ async function sendReminderEmails(
         break;
     }
 
-    // Send to each member with their unique RSVP link
-    for (const member of membersWithEmails) {
+    // Send to each eligible member with their unique RSVP link
+    for (const member of eligibleMembers) {
       // Get the invite token for this member and itinerary
       const invites = await db
         .select()
@@ -505,7 +617,7 @@ async function sendReminderEmails(
       });
     }
 
-    console.log(`Sent ${membersWithEmails.length} ${reminderType} reminders for itinerary ${itinerary.id}`);
+    console.log(`Sent ${eligibleMembers.length} ${reminderType} reminders for itinerary ${itinerary.id}`);
   } catch (error) {
     console.error(`Error sending ${reminderType} reminders:`, error);
   }
@@ -1176,23 +1288,19 @@ export async function processAutoSend(): Promise<void> {
 
         console.log(`Event ${event.id} has no volunteer host - AI auto-approving and sending`);
 
-        // Update itinerary to proposed status with event date and schedule config
-        const inviteAdvanceDays = 21; // Increased from 14 to give members more planning time
+        // Update itinerary to proposed status with event date and adaptive schedule config
+        const scheduleConfig = calculateScheduleConfig(group.meetingFrequency);
         const eventDate = new Date(event.proposedDate);
-        const rsvpDeadline = addDays(eventDate, -7); // Increased from 3 to 7 days before event
+        const rsvpDeadline = addDays(eventDate, -scheduleConfig.rsvpDeadlineDays);
 
         await storage.updateItinerary(itinerary.id, {
           status: 'proposed',
           eventDate: event.proposedDate,
           rsvpDeadline,
           autoScheduleConfig: {
-            inviteAdvanceDays,
-            rsvpWindowDays: 14, // Updated from 11 to match new timeline (21 - 7 = 14)
-            reminders: [
-              { type: 'gentle_nudge', daysBeforeDeadline: 7 },
-              { type: 'final_call', daysBeforeDeadline: 1 },
-              { type: 'day_before', daysBeforeEvent: 1 }
-            ]
+            inviteAdvanceDays: scheduleConfig.inviteAdvanceDays,
+            rsvpWindowDays: scheduleConfig.rsvpWindowDays,
+            reminders: scheduleConfig.reminders,
           }
         });
 
@@ -1368,6 +1476,239 @@ async function checkAndAutoApproveEvents() {
   }
 }
 
+/**
+ * Check for events where the RSVP deadline has passed (+ 24h grace) but quorum hasn't been met.
+ *
+ * Decision logic:
+ *   0-1 respondents → default rule (skip if weekly or less, reschedule if biweekly+)
+ *   2+ respondents below quorum → send check-in: "still want to meet?"
+ *   Quorum met → do nothing
+ *   Max reschedule attempts exhausted → cancel
+ *   Standalone events → skipped entirely
+ *
+ * Runs daily.
+ */
+async function processQuorumChecks(): Promise<void> {
+  try {
+    console.log('[Quorum Check] Checking for events past RSVP deadline + 24h grace...');
+
+    // Deadline + 24h grace period must have passed, event still in future, not already resolved
+    const overdueItineraries = await db
+      .select()
+      .from(itineraries)
+      .where(
+        and(
+          sql`${itineraries.rsvpDeadline} IS NOT NULL`,
+          sql`${itineraries.rsvpDeadline} + INTERVAL '24 hours' < NOW()`,
+          sql`${itineraries.eventDate} > NOW()`,
+          not(inArray(itineraries.status, ['rejected', 'cancelled'])),
+          // Skip standalones — organizer's call, never auto-reschedule
+          eq(itineraries.isStandalone, false),
+          // Skip itineraries already in check-in flow
+          sql`${itineraries.quorumCheckinSentAt} IS NULL`,
+        )
+      );
+
+    if (overdueItineraries.length === 0) {
+      console.log('[Quorum Check] No overdue itineraries found');
+      return;
+    }
+
+    console.log(`[Quorum Check] Found ${overdueItineraries.length} itinerary/itineraries to evaluate`);
+
+    const { checkAndReschedule } = await import('./auto-reschedule');
+
+    for (const itinerary of overdueItineraries) {
+      try {
+        if (!itinerary.groupId) continue;
+
+        const group = await storage.getGroup(itinerary.groupId);
+        if (!group) continue;
+
+        // All RSVPs excluding guests
+        const allRsvps = await db
+          .select()
+          .from(rsvpsTable)
+          .where(sql`itinerary_id = ${itinerary.id} AND (is_guest IS NULL OR is_guest = false)`);
+
+        const yesRsvps = allRsvps.filter(r => r.response === 'yes' || r.response === 'going');
+        const yesCount = yesRsvps.length;
+        const totalResponded = allRsvps.length;
+
+        const groupMembers = await storage.getGroupMembers(itinerary.groupId);
+        const memberCount = groupMembers.length;
+        const quorumThreshold = group.defaultQuorumThreshold ?? 50;
+        const requiredYes = Math.max(1, Math.ceil(memberCount * quorumThreshold / 100));
+
+        if (yesCount >= requiredYes) {
+          console.log(`[Quorum Check] ${itinerary.id}: quorum met (${yesCount}/${requiredYes}), skipping`);
+          continue;
+        }
+
+        const rescheduleAttempts = itinerary.rescheduleAttempts || 0;
+        const cycleDays = calculateCadenceInDays(group.meetingFrequency);
+        const shouldSkipByDefault = cycleDays <= 7;
+
+        console.log(`[Quorum Check] ${itinerary.id}: below quorum (${yesCount}/${requiredYes} yes, ${totalResponded} total responded)`);
+
+        // 2+ respondents on a group where rescheduling makes sense → send check-in
+        if (totalResponded >= 2 && !shouldSkipByDefault) {
+          console.log(`[Quorum Check] ${itinerary.id}: sending check-in to ${totalResponded} respondents`);
+          await sendQuorumCheckin(itinerary, group, allRsvps, groupMembers, requiredYes);
+          continue;
+        }
+
+        // Default rule: skip (weekly) or reschedule (biweekly+)
+        if (shouldSkipByDefault) {
+          console.log(`[Quorum Check] ${itinerary.id}: weekly cadence + no quorum → skipping this week`);
+          await storage.updateItinerary(itinerary.id, { status: 'cancelled' });
+          continue;
+        }
+
+        if (rescheduleAttempts >= 2) {
+          console.log(`[Quorum Check] ${itinerary.id}: max reschedule attempts, cancelling`);
+          await storage.updateItinerary(itinerary.id, { status: 'cancelled' });
+          continue;
+        }
+
+        console.log(`[Quorum Check] ${itinerary.id}: rescheduling (attempt ${rescheduleAttempts + 1}/2)`);
+        await checkAndReschedule(itinerary.id, { forceReschedule: true });
+
+      } catch (itineraryError: any) {
+        console.error(`[Quorum Check] Error processing itinerary ${itinerary.id}:`, itineraryError);
+      }
+    }
+
+    console.log('[Quorum Check] Finished');
+  } catch (error: any) {
+    console.error('[Quorum Check] Error in processQuorumChecks:', error);
+  }
+}
+
+/**
+ * Send a soft check-in to respondents asking if they still want to meet despite being below quorum.
+ * Records the timestamp so processQuorumCheckinResults can evaluate after 24h.
+ */
+async function sendQuorumCheckin(
+  itinerary: any,
+  group: any,
+  allRsvps: any[],
+  groupMembers: any[],
+  requiredYes: number,
+): Promise<void> {
+  await storage.updateItinerary(itinerary.id, {
+    quorumCheckinSentAt: new Date(),
+    quorumCheckinResponses: {},
+  });
+
+  const { sendQuorumCheckinEmail } = await import('./email-service');
+
+  for (const rsvp of allRsvps) {
+    const member = rsvp.memberId
+      ? groupMembers.find((m: any) => m.id === rsvp.memberId)
+      : null;
+    if (!member?.email) continue;
+
+    const [invite] = await db
+      .select({ inviteToken: itineraryInvites.inviteToken })
+      .from(itineraryInvites)
+      .where(and(eq(itineraryInvites.itineraryId, itinerary.id), eq(itineraryInvites.memberId, member.id)))
+      .limit(1);
+
+    if (!invite?.inviteToken) continue;
+
+    await sendQuorumCheckinEmail(
+      { email: member.email, name: member.name || 'there' },
+      {
+        groupName: group.name,
+        eventDate: new Date(itinerary.eventDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }),
+        keepLink: `https://kinmo.ai/api/itineraries/${itinerary.id}/quorum-checkin/${invite.inviteToken}?response=keep`,
+        rescheduleLink: `https://kinmo.ai/api/itineraries/${itinerary.id}/quorum-checkin/${invite.inviteToken}?response=reschedule`,
+        respondedCount: allRsvps.length,
+        requiredYes,
+      },
+    ).catch((e: unknown) => console.error(`[Quorum Check] Failed to send check-in to ${member.email}:`, e));
+  }
+}
+
+/**
+ * Evaluate check-in responses 24h after they were sent.
+ * Decision: 2+ say keep → proceed. Tie or majority reschedule → default rule.
+ * Runs daily.
+ */
+async function processQuorumCheckinResults(): Promise<void> {
+  try {
+    console.log('[Quorum Checkin] Evaluating check-in responses...');
+
+    const pendingCheckins = await db
+      .select()
+      .from(itineraries)
+      .where(
+        and(
+          sql`${itineraries.quorumCheckinSentAt} IS NOT NULL`,
+          sql`${itineraries.quorumCheckinSentAt} + INTERVAL '24 hours' < NOW()`,
+          sql`${itineraries.eventDate} > NOW()`,
+          not(inArray(itineraries.status, ['rejected', 'cancelled'])),
+        )
+      );
+
+    if (pendingCheckins.length === 0) {
+      console.log('[Quorum Checkin] No pending check-ins to evaluate');
+      return;
+    }
+
+    const { checkAndReschedule } = await import('./auto-reschedule');
+
+    for (const itinerary of pendingCheckins) {
+      try {
+        if (!itinerary.groupId) continue;
+
+        const group = await storage.getGroup(itinerary.groupId);
+        if (!group) continue;
+
+        const responses = (itinerary.quorumCheckinResponses as Record<string, 'keep' | 'reschedule'>) || {};
+        const keepVotes = Object.values(responses).filter(v => v === 'keep').length;
+        const rescheduleVotes = Object.values(responses).filter(v => v === 'reschedule').length;
+
+        console.log(`[Quorum Checkin] ${itinerary.id}: ${keepVotes} keep, ${rescheduleVotes} reschedule`);
+
+        const cycleDays = calculateCadenceInDays(group.meetingFrequency);
+        const shouldSkipByDefault = cycleDays <= 7;
+        const rescheduleAttempts = itinerary.rescheduleAttempts || 0;
+
+        if (keepVotes >= 2 && keepVotes > rescheduleVotes) {
+          // Enough people want to meet — proceed as-is, clear check-in state
+          console.log(`[Quorum Checkin] ${itinerary.id}: ${keepVotes} want to keep it, proceeding`);
+          await storage.updateItinerary(itinerary.id, {
+            quorumCheckinSentAt: null,
+            quorumCheckinResponses: null,
+          });
+          continue;
+        }
+
+        // Tie, majority reschedule, or no replies → default rule
+        if (shouldSkipByDefault) {
+          console.log(`[Quorum Checkin] ${itinerary.id}: defaulting to skip`);
+          await storage.updateItinerary(itinerary.id, { status: 'cancelled' });
+        } else if (rescheduleAttempts >= 2) {
+          console.log(`[Quorum Checkin] ${itinerary.id}: max attempts reached, cancelling`);
+          await storage.updateItinerary(itinerary.id, { status: 'cancelled' });
+        } else {
+          console.log(`[Quorum Checkin] ${itinerary.id}: rescheduling`);
+          await checkAndReschedule(itinerary.id, { forceReschedule: true });
+        }
+
+      } catch (err: any) {
+        console.error(`[Quorum Checkin] Error processing itinerary ${itinerary.id}:`, err);
+      }
+    }
+
+    console.log('[Quorum Checkin] Finished');
+  } catch (error: any) {
+    console.error('[Quorum Checkin] Error in processQuorumCheckinResults:', error);
+  }
+}
+
 // Run every 5 minutes for reminders, once per day for auto-scheduling
 export function startReminderScheduler(): void {
   const REMINDER_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
@@ -1385,6 +1726,8 @@ export function startReminderScheduler(): void {
   const trackedAutoSuggestions = createTrackedJob('autoSuggestions', autoProcessSuggestions, { intervalMs: AUTO_APPROVAL_INTERVAL_MS });
   const trackedTimeSlots = createTrackedJob('timeSlotSelection', checkAndSelectTimeSlots, { intervalMs: AUTO_SCHEDULE_INTERVAL_MS });
   const trackedAutoDrafts = createTrackedJob('autoDraftItineraries', processAutoDraftItineraries, { intervalMs: AUTO_SCHEDULE_INTERVAL_MS });
+  const trackedQuorumChecks = createTrackedJob('quorumChecks', processQuorumChecks, { intervalMs: AUTO_SCHEDULE_INTERVAL_MS });
+  const trackedQuorumCheckins = createTrackedJob('quorumCheckinResults', processQuorumCheckinResults, { intervalMs: AUTO_SCHEDULE_INTERVAL_MS });
 
   // Run reminders immediately and every 5 minutes
   trackedReminders();
@@ -1413,6 +1756,13 @@ export function startReminderScheduler(): void {
   // Run auto-draft itinerary creation immediately and daily
   trackedAutoDrafts();
   setInterval(trackedAutoDrafts, AUTO_SCHEDULE_INTERVAL_MS);
+
+  // Run quorum checks and check-in evaluation immediately and daily
+  trackedQuorumChecks();
+  setInterval(trackedQuorumChecks, AUTO_SCHEDULE_INTERVAL_MS);
+
+  trackedQuorumCheckins();
+  setInterval(trackedQuorumCheckins, AUTO_SCHEDULE_INTERVAL_MS);
 
   // Run weekly swipe digest (checks every day, only runs on Monday)
   const processWeeklySwipeDigest = async () => {
@@ -1577,13 +1927,25 @@ export function startReminderScheduler(): void {
             continue;
           }
 
-          // Get members who RSVP'd yes (attended)
-          const attendees = await db
-            .select()
-            .from(members)
-            .where(eq(members.groupId, group.id));
+          // Only notify members who actually said yes — no point asking someone
+          // for feedback on an event they didn't attend
+          const yesRsvps = await db
+            .select({ memberId: rsvpsTable.memberId })
+            .from(rsvpsTable)
+            .where(sql`itinerary_id = ${itinerary.id} AND response IN ('yes', 'going') AND member_id IS NOT NULL AND (is_guest IS NULL OR is_guest = false)`);
 
-          const memberIds = attendees.map(m => m.id);
+          const memberIds = yesRsvps.map(r => r.memberId).filter(Boolean) as string[];
+
+          if (memberIds.length === 0) {
+            console.log(`[Feedback Request] No yes-RSVPs for itinerary ${itinerary.id}, skipping`);
+            await db.insert(reminderLogs).values({
+              itineraryId: itinerary.id,
+              reminderType: 'feedback_request',
+              recipientEmail: 'no-attendees',
+              emailStatus: 'skipped',
+            });
+            continue;
+          }
 
           // Send feedback request notifications
           const { notifyFeedbackRequest } = await import('./notifications');

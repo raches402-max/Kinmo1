@@ -892,3 +892,84 @@ export async function sendAvailabilityPulseRequest(
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }
+
+export interface QuorumCheckinData {
+  groupName: string;
+  eventDate: string;
+  keepLink: string;
+  rescheduleLink: string;
+  respondedCount: number;
+  requiredYes: number;
+}
+
+export async function sendQuorumCheckinEmail(
+  recipient: EmailRecipient,
+  data: QuorumCheckinData,
+): Promise<{ success: boolean; error?: string }> {
+  if (!EMAIL_ENABLED) {
+    console.log('[EMAIL DISABLED] Would send quorum check-in to:', recipient.email);
+    return { success: true };
+  }
+  try {
+    await sendEmailWithRetry({
+      from: 'Kinmo.ai <invites@kinmo.ai>',
+      to: recipient.email,
+      subject: `Still on for ${data.eventDate}? — ${data.groupName}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.6; color: #333; background: #f9fafb; margin: 0; padding: 0; }
+              .container { max-width: 560px; margin: 40px auto; padding: 20px; }
+              .card { background: white; border-radius: 12px; padding: 36px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+              .group-name { font-size: 13px; font-weight: 600; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+              h1 { font-size: 22px; font-weight: 600; color: #111; margin: 0 0 8px 0; }
+              .subtext { color: #6b7280; font-size: 15px; margin-bottom: 28px; }
+              .actions { display: flex; gap: 12px; margin-top: 28px; }
+              .btn { display: inline-block; padding: 13px 28px; border-radius: 8px; font-size: 15px; font-weight: 500; text-decoration: none; text-align: center; }
+              .btn-keep { background: #111; color: white; }
+              .btn-reschedule { background: #f3f4f6; color: #374151; }
+              .footer { text-align: center; color: #9ca3af; font-size: 13px; margin-top: 28px; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="card">
+                <div class="group-name">${data.groupName}</div>
+                <h1>Still on for ${data.eventDate}?</h1>
+                <p class="subtext">
+                  Hey ${recipient.name}! A few of you have responded but we haven't quite reached the full crew yet.
+                  Just checking in — are you still down to meet, or would a different time work better?
+                  Either way is totally fine, just helps us figure out the plan.
+                </p>
+                <table width="100%" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td style="padding-right: 8px;">
+                      <a href="${data.keepLink}" class="btn btn-keep" style="display:block; padding:13px 0; background:#111; color:white; border-radius:8px; font-size:15px; font-weight:500; text-decoration:none; text-align:center;">
+                        Yeah, I'm in
+                      </a>
+                    </td>
+                    <td style="padding-left: 8px;">
+                      <a href="${data.rescheduleLink}" class="btn btn-reschedule" style="display:block; padding:13px 0; background:#f3f4f6; color:#374151; border-radius:8px; font-size:15px; font-weight:500; text-decoration:none; text-align:center;">
+                        Let's find another time
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+                <p style="color:#9ca3af; font-size:13px; margin-top:20px;">
+                  No reply? No worries — we'll figure it out automatically.
+                </p>
+              </div>
+              <div class="footer">Kinmo · helping your group stay connected</div>
+            </div>
+          </body>
+        </html>
+      `,
+    });
+    return { success: true };
+  } catch (error) {
+    console.error('Error sending quorum check-in email:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
