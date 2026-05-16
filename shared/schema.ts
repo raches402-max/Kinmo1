@@ -1552,19 +1552,15 @@ export const planningInsights = pgTable("planning_insights", {
   severity: text("severity").notNull().default("info"), // 'info' | 'suggestion' | 'action_needed'
   audienceType: text("audience_type").notNull().default("organizer"), // 'organizer' | 'member' | 'all'
 
-  // Display content (LLM-generated)
-  title: text("title").notNull(),
-  message: text("message").notNull(),
-
-  // Structured data from analyzer
+  // Structured data from analyzer. Display content (title, message,
+  // action URL, action label) is rendered from insight_type + metadata at
+  // read time — see server/planning-agent/message-generator.ts.
   metadata: jsonb("metadata"), // Analyzer-specific data (e.g., {locationCounts: {...}, suggestedArea: "Oakland"})
 
   // Action tracking
   actionType: text("action_type"), // 'suggest_venue' | 'create_draft' | 'send_nudge' | 'adjust_cadence' | null
   actionTaken: text("action_taken").default("none"), // 'none' | 'suggested' | 'auto_acted' | 'user_acted'
   actionDetails: jsonb("action_details"), // What was done (e.g., {venueId: "...", eventCreated: true})
-  actionUrl: text("action_url"), // One-click action URL
-  actionLabel: text("action_label"), // Button label for action
 
   // Lifecycle
   dismissedAt: timestamp("dismissed_at"), // User dismissed this insight

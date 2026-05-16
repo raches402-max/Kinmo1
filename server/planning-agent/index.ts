@@ -18,7 +18,13 @@ import {
 import { LocationFairnessAnalyzer } from './analyzers/location-fairness';
 import { VenueDateGapAnalyzer } from './analyzers/venue-date-gap';
 import { CadenceHealthAnalyzer } from './analyzers/cadence-health';
-import { generateInsightMessage } from './message-generator';
+import {
+  generateInsightMessage,
+  renderInsightTitle,
+  renderInsightMessage,
+  renderActionUrl,
+  renderActionLabel,
+} from './message-generator';
 import { isGroupActive } from '../job-gating';
 
 // Registry of all analyzers
@@ -163,14 +169,10 @@ async function saveInsight(insightData: PlanningInsightData): Promise<void> {
     insightType: insightData.insightType,
     severity: insightData.severity,
     audienceType: insightData.audienceType,
-    title: insightData.title,
-    message: insightData.message,
     metadata: insightData.metadata,
     actionType: insightData.actionType,
     actionTaken: insightData.actionTaken,
     actionDetails: insightData.actionDetails,
-    actionUrl: insightData.actionUrl,
-    actionLabel: insightData.actionLabel,
     expiresAt: insightData.expiresAt,
   });
 }
@@ -233,13 +235,23 @@ export async function getGroupInsights(groupId: string, userId?: string): Promis
     )
     .orderBy(planningInsights.createdAt);
 
-  // Filter by audience
-  return insights.filter((insight) => {
-    if (insight.audienceType === 'all') return true;
-    if (insight.audienceType === 'organizer' && isOrganizer) return true;
-    if (insight.audienceType === 'member' && insight.memberId === memberId) return true;
-    return false;
-  });
+  // Filter by audience, then render display content from the insight type +
+  // metadata. Title/message/actionUrl/actionLabel aren't stored — copy and
+  // URL changes take effect on the next read without backfilling rows.
+  return insights
+    .filter((insight) => {
+      if (insight.audienceType === 'all') return true;
+      if (insight.audienceType === 'organizer' && isOrganizer) return true;
+      if (insight.audienceType === 'member' && insight.memberId === memberId) return true;
+      return false;
+    })
+    .map((insight) => ({
+      ...insight,
+      title: renderInsightTitle(insight.insightType),
+      message: renderInsightMessage(insight.insightType, insight.metadata),
+      actionUrl: renderActionUrl(insight.actionType, insight.groupId),
+      actionLabel: renderActionLabel(insight.actionType),
+    }));
 }
 
 /**

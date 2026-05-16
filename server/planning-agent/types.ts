@@ -68,19 +68,14 @@ export interface PlanningInsightData {
   severity: InsightSeverity;
   audienceType: AudienceType;
 
-  // LLM-generated content
-  title: string;
-  message: string;
-
-  // Structured data
+  // Structured data — display content (title/message/actionUrl/actionLabel)
+  // is rendered from this at read time, not stored.
   metadata: Record<string, any>;
 
   // Action details
   actionType?: ActionType;
   actionTaken: ActionStatus;
   actionDetails?: Record<string, any>;
-  actionUrl?: string;
-  actionLabel?: string;
 
   expiresAt?: Date;
 }
