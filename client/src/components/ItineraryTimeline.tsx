@@ -88,7 +88,9 @@ export function ItineraryTimeline({ items, className }: ItineraryTimelineProps) 
                     {item.venueName}
                     <ExternalLink className="h-3 w-3 text-[hsl(25,15%,55%)]" />
                   </a>
-                  <div className="text-sm text-[hsl(25,20%,40%)]">{item.venueType}</div>
+                  {item.venueType && item.venueType !== 'venue' && (
+                    <div className="text-sm text-[hsl(25,20%,40%)] capitalize">{item.venueType.replace(/_/g, ' ')}</div>
+                  )}
 
                   {item.venueAddress && (
                     <div className="text-xs text-[hsl(25,20%,40%)] flex items-start gap-1 mt-1">

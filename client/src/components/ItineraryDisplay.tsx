@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { iconForVenueType, hasMeaningfulVenueType } from "@/lib/venue-icons";
 
 // ========== TYPES ==========
 
@@ -105,13 +106,23 @@ export function SortableItineraryItem({ item, index, onRemove, editable }: Sorta
           <GripVertical className="h-5 w-5 text-muted-foreground" />
         </div>
       )}
-      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/25 text-primary font-bold">
-        {index + 1}
-      </div>
+      {(() => {
+        const Icon = iconForVenueType(item.venueType);
+        return (
+          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/25 text-primary">
+            <Icon className="h-4 w-4" />
+          </div>
+        );
+      })()}
       <div className="flex-1 min-w-0">
-        <p className="font-medium truncate">{item.venueName}</p>
-        {item.venueType && item.venueType !== 'venue' && (
-          <p className="text-xs text-muted-foreground truncate">{item.venueType}</p>
+        <p className="font-medium truncate">
+          <span className="text-muted-foreground font-normal mr-1">{index + 1}.</span>
+          {item.venueName}
+        </p>
+        {hasMeaningfulVenueType(item.venueType) && (
+          <p className="text-xs text-muted-foreground truncate capitalize">
+            {item.venueType.replace(/_/g, " ")}
+          </p>
         )}
       </div>
       {item.rating && (
