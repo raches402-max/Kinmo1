@@ -69,6 +69,7 @@ export function AddAdHocVenueDialog({ open, onOpenChange, itineraryId, onSuccess
       arrivalTime?: string;
       departureTime?: string;
       travelNotes?: string;
+      googlePlaceTypes?: string[];
     }) => {
       const response = await fetch(`/api/itineraries/${itineraryId}/items/ad-hoc`, {
         method: "POST",
@@ -136,6 +137,7 @@ export function AddAdHocVenueDialog({ open, onOpenChange, itineraryId, onSuccess
       arrivalTime?: string;
       departureTime?: string;
       travelNotes?: string;
+      googlePlaceTypes?: string[];
     } | null = null;
 
     // Common timing data
@@ -179,6 +181,7 @@ export function AddAdHocVenueDialog({ open, onOpenChange, itineraryId, onSuccess
         name: selectedPlace.name,
         address: selectedPlace.address,
         googlePlaceId: selectedPlace.placeId,
+        googlePlaceTypes: selectedPlace.types,
         notes,
         ...timingData,
       };

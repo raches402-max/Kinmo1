@@ -38,7 +38,7 @@ import { requireItineraryAccess, getUserId } from "../authorization";
 import { storage } from "../storage";
 import { safeParse } from "../validation-middleware";
 import { validateItinerary } from "../itinerary-validation";
-import { searchPlaces, geocodeLocation, detectAndParseGoogleMapsUrl, getBestVenueType } from "../google-places";
+import { searchPlaces, geocodeLocation, detectAndParseGoogleMapsUrl, getBestVenueType, getBestVenueTypeSync } from "../google-places";
 import type { TrustSource } from "../trust-state";
 import { analyzeEventAvailability } from "../availability-analyzer";
 import { notifyEventInvite } from "../notifications";
@@ -463,6 +463,17 @@ router.post("/itineraries/:id/items/ad-hoc", isAuthenticated, requireItineraryAc
 
     const itineraryId = req.params.id;
     let { name, address, googlePlaceId, googleMapsUrl, notes, venueType } = validatedData;
+    const googlePlaceTypes = (validatedData as { googlePlaceTypes?: string[] }).googlePlaceTypes;
+
+    // Derive venueType from the types array the frontend forwarded from its search
+    // result — same priority logic the server uses after a Place Details enrichment,
+    // but without the extra API call.
+    if (!venueType && googlePlaceTypes && googlePlaceTypes.length > 0) {
+      const derived = getBestVenueTypeSync(googlePlaceTypes);
+      if (derived && derived !== 'venue') {
+        venueType = derived;
+      }
+    }
 
     // Verify itinerary exists (allow both group events and standalone events)
     const itinerary = await storage.getItinerary(itineraryId);

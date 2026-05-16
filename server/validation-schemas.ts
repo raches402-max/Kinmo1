@@ -473,6 +473,7 @@ export const addAdHocVenueSchema = z.object({
   googleMapsUrl: z.string().optional(),
   notes: z.string().optional(),
   venueType: z.string().optional(),
+  googlePlaceTypes: z.array(z.string()).optional(),
 }).refine(
   (data) => data.address || data.googlePlaceId || data.googleMapsUrl,
   { message: "Either address, googlePlaceId, or googleMapsUrl must be provided" }
