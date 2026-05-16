@@ -1,6 +1,6 @@
 # Kinmo V2 — Master Plan
 
-_Last updated: 2026-05-15 (rev 12 — W6-G account deletion shipped (`d1d7471`); added quick wins for routes.ts dead helpers, stale CLAUDE.md sizes, and prototype-pages decision)_
+_Last updated: 2026-05-15 (rev 13 — added W8 recommendation foundations: outcome instrumentation gap + cache prune. Driven by dev DB analysis showing only 1 completed itinerary, empty `venue_visit_history`, and ~10-15 of 5,300 curated venues with any positive engagement signal.)_
 
 ## Context
 
@@ -22,6 +22,7 @@ This document is the working plan for getting Kinmo V2 production-ready: off Rep
 | 5 | Code hygiene | 🔄 Ongoing — Sentry on 3 RSVP fire-and-forget catches done (`771f1f7`); frontend Sentry verified by Franky; events.ts refactor fixed (`9d239d8`); advisory lock verified OK in 2026-05-12 audit; env validation hardened in `f457eac` (Zod superRefine with NODE_ENV-aware required checks) |
 | 6 | Security & data-integrity hardening | 🔄 In progress — sub-tracks A (`67b286f` + `79292b7` finishing touches), B (`771f1f7`), C (`0d1b819`), D (`920cf6b` + migration 0016 — apply to Railway pending), E (`2a17050` member-read soft-delete fix), F (`dc8f207`) shipped; G/H remain |
 | 7 | Quorum & auto-reschedule system | ✅ **DONE** (2026-05-15) — proactive deadline-based quorum checks, adaptive timing by cadence, skip-vs-reschedule by cycle length, check-in flow for partial engagement, notification over-send fixes. See details below. |
+| 8 | Recommendation foundations | 🆕 **New** (2026-05-15) — close outcome instrumentation gap (itinerary status, `venue_visit_history`, post-event feedback) so the recommender can learn from real group history; then manually curate `curated_venues` down from ~5,300 to a ~100-200/metro starter pool. See W8 below. |
 
 **Production cost:** ~$10/mo on Railway (app + Postgres). API keys (OpenAI, Resend, Google Places) currently set to placeholders — features depending on them won't work until real keys are added.
 
@@ -29,11 +30,12 @@ This document is the working plan for getting Kinmo V2 production-ready: off Rep
 
 ## In focus right now
 
-1. **W4 remaining** — Architecture cleanup: Slice 1 (group `server/` by domain), Slice 3 (split `storage.ts`)
-2. **W6 remaining** — Sub-track H (background-job healthchecks). G (account deletion flow) shipped in `d1d7471`.
-3. **W5 ongoing** — Code hygiene: fire-and-forget `.catch()` Sentry wiring, frontend Sentry client init
-4. **Apply migration 0016** to Railway (missing indexes for `members.userId`, `rsvps.userId`, cache tables)
-5. **Add real API keys to Railway** — `OPENAI_API_KEY`, `RESEND_API_KEY`, `GOOGLE_PLACES_API_KEY`, `ADMIN_EMAILS`
+1. **W8 Sub-track A** — Close the outcome instrumentation gap: itineraries flip to `completed` after events, `venue_visit_history` gets populated, post-event feedback fill rate goes up from 4/50. Unblocks every "learn from group history" recommendation strategy.
+2. **W4 remaining** — Architecture cleanup: Slice 1 (group `server/` by domain), Slice 3 (split `storage.ts`)
+3. **W6 remaining** — Sub-track H (background-job healthchecks). G (account deletion flow) shipped in `d1d7471`.
+4. **W5 ongoing** — Code hygiene: fire-and-forget `.catch()` Sentry wiring, frontend Sentry client init
+5. **Apply migration 0016** to Railway (missing indexes for `members.userId`, `rsvps.userId`, cache tables)
+6. **Add real API keys to Railway** — `OPENAI_API_KEY`, `RESEND_API_KEY`, `GOOGLE_PLACES_API_KEY`, `ADMIN_EMAILS`
 
 ---
 
@@ -425,6 +427,12 @@ Shipped in `d1d7471` (2026-05-15). `POST /api/user/delete` requires `{ confirmat
 10. ⏭️ **Delete dead duplicate helpers in `server/routes.ts`** (~5 min). Three helpers at the top of `routes.ts` are unused or duplicated elsewhere: `calculateNameSimilarity` (dupe of `server/google-places.ts:354`), `getQualityThresholds` (dupe of `server/routes/generation.ts:54`), `parsePriceLevel` (zero references). Delete leaves `routes.ts` as the `registerRoutes` shim + the `generateAndStoreActivities` worker (legitimately shared by 3 callers).
 11. ⏭️ **Refresh stale CLAUDE.md file-size claims** (~2 min). Lines 30 and 142 still describe `routes.ts` as "~600KB, very large" — outdated since W4 Slice 2 split it down to ~38KB. `storage.ts` size note is still accurate (~130KB / 4156 lines).
 12. ⏭️ **Decide on prototype pages** (decision needed). 14 files in `client/src/pages/prototype-*.tsx` (~700KB of source) wired into `App.tsx` as public routes at `/prototype/*` with no env or auth gate. Originally flagged at line 116. Options: (a) delete entirely, (b) gate behind `NODE_ENV !== "production"`, or (c) move to a separate Vite entry that's not in the prod bundle. Currently shipping in production bundle and reachable by anyone who guesses a URL.
+13. ⏭️ **Delete 9 unused `Input` types in `server/validation-schemas.ts:544-552`** (~5 min). `AddAdHocVenueInput`, `CreateCollectionInput`, `CreateGroupInput`, `CreateRsvpInput`, `GenerateCategoryInput`, `ImportVenuesInput`, `PostEventFeedbackInput`, `SendItineraryInput`, `UpdateAutomationInput` — each appears only at its own definition (grep-verified). ~10 lines.
+14. ⏭️ **Archive or delete `server/routes/SPLIT_PLAN.md`** (~2 min). Documents the routes.ts split that W4 Slice 2 completed (13,433 → 864 lines). Stale work-doc, signals "this is still happening" when it isn't.
+15. ⏭️ **Consolidate 6 duplicate prototype `<Route>` registrations in `client/src/App.tsx`** (~5 min). Six prototype paths (`/prototype/kinmo-text`, `/prototype/headline-layouts`, `/prototype/group-details-desktop`, `/prototype/feedback-mockup`, `/prototype/dashboard-redesign`, `/prototype/dashboard-v2`) are registered in *both* the unauth `<Switch>` (lines 133-138) and the auth `<Switch>` (lines 181-186). The other ~15 path-overlaps in App.tsx are intentional dual-tree routing; these 6 prototypes are not. Pairs with #12 — if prototype pages get gated/deleted, this disappears anyway.
+16. ⏭️ **Triage 2 active TODO comments** (~5 min). Decide if real bugs or dead notes:
+    - `server/auto-scheduler.ts:502` — "TODO: Pass actual event date when available"
+    - `server/routes/standalone-events.ts:273` — "TODO: Send actual email notifications to invitees" — this one sounds load-bearing; standalone events may not actually be emailing invitees at all. Investigate before deleting the comment.
 
 ---
 
@@ -434,7 +442,7 @@ Shipped in `d1d7471` (2026-05-15). `POST /api/user/delete` requires `{ confirmat
 - Mobile app / native — out of scope.
 - Public launch / marketing — out of scope until infra is solid.
 - Anything that doesn't reduce risk, cost, or maintenance burden.
-- **Comprehensive test suite.** Acknowledging the gap: there are zero `vitest`/`jest`/`playwright` test files in this repo. We're deferring rather than denying. When the codebase stabilizes post-refactor, add at minimum: scheduler integration tests, auth flow tests, and storage-layer tests.
+- **Comprehensive test suite.** Acknowledging the gap: vitest is configured (`npm test` runs `vitest run`) but only one test file exists today (`server/trust-state.test.ts`). The harness is there, almost nothing uses it. We're deferring rather than denying. When the codebase stabilizes post-refactor, add at minimum: scheduler integration tests, auth flow tests, and storage-layer tests.
 
 ---
 
@@ -466,6 +474,59 @@ Shipped in `d1d7471` (2026-05-15). `POST /api/user/delete` requires `{ confirmat
 - Standalone events (`isStandalone = true`) are never auto-rescheduled — organizer's deliberate choice.
 - 2+ keep votes beats 1 reschedule vote in a check-in.
 - No guilt language anywhere in notifications.
+
+---
+
+## Workstream 8 — Recommendation foundations 🆕 New
+
+**Goal:** Make Kinmo recommend from what groups actually like, not from a 5,300-venue cache the AI keeps recycling the same handful of suggestions from. Per project principle: *build for memory, not discovery* (see `[[kinmo-recommendations-philosophy]]`).
+
+**Why now:** dev DB analysis on 2026-05-15 surfaced four foundational gaps:
+- Only **1 itinerary marked `completed`** out of 54 — events happen but the status never flips.
+- **`venue_visit_history` table is empty** (0 rows) — the "we went here" table exists but isn't being written to.
+- **Post-event feedback was filled 4 times** out of ~50 events — gold-standard signal almost never captured. The form is too easy to skip.
+- `voting_events.trust_source` was backfilled to `'backfill'` for all 101 rows — historical data can't separate user-added from AI-suggested venues. New rows can populate it correctly going forward, but ~544 existing rows are ambiguous.
+
+Net effect: of 5,300 curated venues, only ~10-15 have any positive engagement signal. AI repeatedly surfaces the same venues (Bambu Dessert Drinks appears in 7 proposed itineraries the group never actually went to, Burma Silver Star in 7, Curry Hyuga in 7) because that's all it has signal on.
+
+The right end state for the cache is ~100-200 venues per metro that match patterns from real group data — but the data-driven prune can't run until the outcome signals are actually being collected.
+
+### Sub-track A — Close the outcome instrumentation gap (critical, this week)
+
+The recommendation engine can't learn from history if history isn't recorded. Three concrete fixes:
+
+1. **Itinerary status flip to `completed`** — audit the event lifecycle: where SHOULD status move `scheduled` → `completed`? Likely either (a) automatic after `eventDate` passes with at least one yes RSVP, or (b) a manual "did this happen?" tap from the organizer. Decide and wire it.
+2. **Populate `venue_visit_history`** — when status flips to `completed`, insert one row per `itinerary_items` row into `venue_visit_history`. Backfill from past scheduled itineraries where reasonable.
+3. **Surface post-event feedback consistently** — 4/50+ fill rate means the prompt isn't reaching members or is too easy to dismiss. Make it a low-friction tap (1-tap "did you go? thumbs up/down" beats a multi-field form), and trigger it reliably the morning after every completed event.
+
+### Sub-track B — Manually curate the starter venue pool (important, this month)
+
+`curated_venues` has ~5,300 rows, overwhelmingly Bay Area / Peninsula / East Bay. The path:
+
+1. Filter to the actual served metro (SF, Oakland, Berkeley, Peninsula).
+2. Manual review with Rachel — mark ~100-200 as "yes, this is the kind of place we'd actually go." Combines places she's been to, places she wants to try, and places matching those patterns.
+3. The rest get archived (mirror `server/routes/admin.ts` archive-then-delete pattern: row goes to `deleted_venues` with reason, then hard-delete from `curated_venues`).
+4. Recommendation engine then picks from the curated 100-200 instead of the full 5,300. Diversity problem (AI surfacing the same handful) goes away because the candidate pool is intentional, not "the few venues with any data on them."
+
+The `scripts/validate-curated-venues.ts` tool (built 2026-05-15) supports this manual review with `pull`/`apply` subcommands and an `update` action for fixing renames/moves in-place.
+
+### Sub-track C — Data-driven refinement (nice-to-have, after A + B)
+
+Once new outcomes are flowing AND the cache is sized down to the curated pool:
+
+1. Surface "venues with positive `venue_visit_history` + positive `post_event_feedback`" as the strongest layer of the recommendation candidate set per group.
+2. For new groups, seed recommendations from "venues that similar groups liked" — collaborative filtering on group preference overlap + venue overlap. Works once warm-core data is dense enough.
+3. Treat fresh Google Places API discovery as a rare-fallback path (novelty / no good match in pool), not the default. Lazy refresh of numeric fields (rating/hours/price/photo) on venues users actually view — only Sub-track C work that touches the paid API.
+
+### Out of scope
+- Building a sophisticated discovery engine. The product principle is memory, not discovery.
+- Bulk refreshing numeric fields (rating, hours, price, photo) on the whole cache — those need Google Places API and only make sense for venues users actually see. Defer to lazy-refresh in Sub-track C.
+
+### Done when
+- Itineraries reliably move to `completed` after events happen; `venue_visit_history` has rows for past events.
+- Post-event feedback fill rate is meaningfully higher (target: ≥50% of completed events get any feedback).
+- `curated_venues` is sized to the served-metro starter pool (~100-200 venues per metro), with archived rows accessible in `deleted_venues`.
+- Recommendation flow leans on the curated pool + group history before going to fresh API discovery.
 
 ---
 

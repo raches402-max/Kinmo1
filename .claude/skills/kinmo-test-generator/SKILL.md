@@ -1,675 +1,271 @@
 ---
 name: kinmo-test-generator
-description: Generate integration and unit tests for Kinmo API endpoints, mutations, and components. Use when adding tests to ensure code reliability and prevent regressions.
+description: Generate Vitest tests for Kinmo. Use when adding tests to ensure code reliability and prevent regressions. Covers pure functions, storage (DB-touching), and validation schemas — the patterns that actually run today. Documents what's blocked (API routes, AI, email, components) and why.
 ---
 
-# Kinmo Test Generator Patterns
+# Kinmo Test Generator
 
-When creating tests for Kinmo, follow these patterns. Tests should be practical, focused on real behavior, and catch actual bugs.
+Generates tests that **actually run** in this repo today. If something isn't documented here, it's because the infrastructure to test it doesn't exist yet — see "Blocked categories" at the bottom for what would unblock each.
 
-## File Locations & Structure
+Honest principle: a smaller skill that produces working tests beats a large skill that produces aspirational broken ones.
 
-```
-tests/
-├── api/                    # API endpoint integration tests
-│   ├── groups.test.ts
-│   ├── members.test.ts
-│   ├── itineraries.test.ts
-│   └── auth.test.ts
-├── mutations/              # Frontend mutation tests
-│   └── useGroupMutations.test.ts
-├── utils/                  # Utility function tests
-│   └── validation.test.ts
-├── setup.ts               # Test setup and utilities
-└── fixtures.ts            # Test data factories
+---
+
+## Quick start
+
+```bash
+npm test              # run once
+npm run test:watch    # re-run on save
 ```
 
-## Test Setup File
+Vitest config: `vitest.config.ts`. Setup file: `tests/setup.ts` (loads `.env`).
 
-Create `tests/setup.ts`:
+**File conventions:**
+- **Pure functions** → colocate as `*.test.ts` next to the source file (e.g., `server/trust-state.test.ts` next to `server/trust-state.ts`).
+- **DB-touching** → put in `tests/*.test.ts` (e.g., `tests/storage-trust-state.test.ts`).
+- **Avoid** putting tests under `client/` — vitest is configured to skip that path.
 
-```typescript
-import { db } from "../server/db";
-import { users, groups, members, itineraries } from "@shared/schema";
-import { eq } from "drizzle-orm";
+Tests run **serially** (`fileParallelism: false`) so DB-touching tests don't trample each other against the shared dev DB.
 
-// Test user for authenticated requests
-export const TEST_USER = {
-  id: "test-user-id",
-  email: "test@example.com",
-  oauthProvider: "test",
-  oauthId: "test-oauth-id",
-};
+---
 
-// Create authenticated request helper
-export function createAuthenticatedRequest(userId: string = TEST_USER.id) {
-  return {
-    headers: {
-      "x-test-user-id": userId,
-    },
-  };
-}
+## Pattern 1: Pure-function tests (highest ROI)
 
-// Database cleanup helper
-export async function cleanupTestData(testPrefix: string) {
-  // Delete in reverse dependency order
-  await db.delete(members).where(
-    eq(members.groupId, testPrefix)
-  );
-  await db.delete(groups).where(
-    eq(groups.id, testPrefix)
-  );
-}
+Use for any module with no DB / network / time / randomness — helpers, validators, transformers, calculators.
 
-// Setup test user
-export async function setupTestUser() {
-  const [user] = await db
-    .insert(users)
-    .values(TEST_USER)
-    .onConflictDoNothing()
-    .returning();
-  return user || TEST_USER;
-}
-```
+**Where these live in Kinmo:**
+- `server/trust-state.ts` — already tested
+- `server/lib/safe-error.ts`
+- `server/google-places.ts` → `calculateNameSimilarity`, URL parsers (the pure parts)
+- `client/src/lib/event-utils.ts` — event dedup/merge logic
+- `client/src/lib/utils.ts` — `cn`, timezone formatters
+- `client/src/lib/distance.ts` — geo math
+- `client/src/lib/aiReadinessCheck.ts` — readiness predicate logic
 
-## Test Fixtures File
-
-Create `tests/fixtures.ts`:
-
-```typescript
-import { db } from "../server/db";
-import { groups, members, itineraries, activities } from "@shared/schema";
-
-// Factory functions for creating test data
-export const factories = {
-  group: async (overrides: Partial<typeof groups.$inferInsert> = {}) => {
-    const [group] = await db
-      .insert(groups)
-      .values({
-        name: `Test Group ${Date.now()}`,
-        emoji: "🎉",
-        locationBase: "San Francisco, CA",
-        budgetMin: 20,
-        budgetMax: 60,
-        meetingFrequency: "weekly",
-        closenessLevel: 3,
-        noveltyPreference: 3,
-        ownerId: "test-user-id",
-        ...overrides,
-      })
-      .returning();
-    return group;
-  },
-
-  member: async (groupId: string, overrides: Partial<typeof members.$inferInsert> = {}) => {
-    const [member] = await db
-      .insert(members)
-      .values({
-        groupId,
-        name: `Test Member ${Date.now()}`,
-        email: `test-${Date.now()}@example.com`,
-        isOrganizer: false,
-        hasJoined: true,
-        ...overrides,
-      })
-      .returning();
-    return member;
-  },
-
-  itinerary: async (groupId: string, overrides: Partial<typeof itineraries.$inferInsert> = {}) => {
-    const [itinerary] = await db
-      .insert(itineraries)
-      .values({
-        groupId,
-        name: `Test Itinerary ${Date.now()}`,
-        date: new Date().toISOString().split('T')[0],
-        status: "draft",
-        ...overrides,
-      })
-      .returning();
-    return itinerary;
-  },
-
-  activity: async (groupId: string, overrides: Partial<typeof activities.$inferInsert> = {}) => {
-    const [activity] = await db
-      .insert(activities)
-      .values({
-        groupId,
-        name: `Test Venue ${Date.now()}`,
-        category: "meal",
-        addedBy: "test-user-id",
-        ...overrides,
-      })
-      .returning();
-    return activity;
-  },
-};
-```
-
-## API Endpoint Test Template
-
-Create `tests/api/groups.test.ts`:
-
-```typescript
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { app } from "../../server/index";
-import request from "supertest";
-import { factories } from "../fixtures";
-import { cleanupTestData, setupTestUser, createAuthenticatedRequest } from "../setup";
-
-describe("Groups API", () => {
-  let testUser: any;
-  let testGroup: any;
-
-  beforeAll(async () => {
-    testUser = await setupTestUser();
-  });
-
-  beforeEach(async () => {
-    testGroup = await factories.group({ ownerId: testUser.id });
-  });
-
-  afterAll(async () => {
-    await cleanupTestData("test-");
-  });
-
-  describe("GET /api/groups/:groupId", () => {
-    it("returns group data for authorized user", async () => {
-      const res = await request(app)
-        .get(`/api/groups/${testGroup.id}`)
-        .set(createAuthenticatedRequest(testUser.id).headers);
-
-      expect(res.status).toBe(200);
-      expect(res.body).toMatchObject({
-        id: testGroup.id,
-        name: testGroup.name,
-        emoji: testGroup.emoji,
-      });
-    });
-
-    it("returns 401 for unauthenticated request", async () => {
-      const res = await request(app)
-        .get(`/api/groups/${testGroup.id}`);
-
-      expect(res.status).toBe(401);
-    });
-
-    it("returns 404 for non-existent group", async () => {
-      const res = await request(app)
-        .get("/api/groups/non-existent-id")
-        .set(createAuthenticatedRequest(testUser.id).headers);
-
-      expect(res.status).toBe(404);
-    });
-
-    it("returns 403 for unauthorized user", async () => {
-      const otherUser = await setupTestUser();
-      const res = await request(app)
-        .get(`/api/groups/${testGroup.id}`)
-        .set(createAuthenticatedRequest("other-user-id").headers);
-
-      expect(res.status).toBe(403);
-    });
-  });
-
-  describe("PATCH /api/groups/:groupId", () => {
-    it("updates group name", async () => {
-      const res = await request(app)
-        .patch(`/api/groups/${testGroup.id}`)
-        .set(createAuthenticatedRequest(testUser.id).headers)
-        .send({ name: "Updated Name" });
-
-      expect(res.status).toBe(200);
-      expect(res.body.name).toBe("Updated Name");
-    });
-
-    it("validates budget range", async () => {
-      const res = await request(app)
-        .patch(`/api/groups/${testGroup.id}`)
-        .set(createAuthenticatedRequest(testUser.id).headers)
-        .send({ budgetMin: 100, budgetMax: 50 }); // Invalid: min > max
-
-      expect(res.status).toBe(400);
-      expect(res.body.error).toContain("budget");
-    });
-
-    it("only allows owner to update", async () => {
-      const res = await request(app)
-        .patch(`/api/groups/${testGroup.id}`)
-        .set(createAuthenticatedRequest("other-user-id").headers)
-        .send({ name: "Hacked Name" });
-
-      expect(res.status).toBe(403);
-    });
-  });
-
-  describe("POST /api/groups", () => {
-    it("creates a new group with valid data", async () => {
-      const groupData = {
-        name: "New Test Group",
-        emoji: "🎯",
-        locationBase: "Oakland, CA",
-        budgetMin: 30,
-        budgetMax: 80,
-        meetingFrequency: "biweekly",
-        closenessLevel: 4,
-        noveltyPreference: 3,
-        members: [
-          { name: "Alice", email: "alice@example.com" },
-        ],
-      };
-
-      const res = await request(app)
-        .post("/api/groups")
-        .set(createAuthenticatedRequest(testUser.id).headers)
-        .send(groupData);
-
-      expect(res.status).toBe(201);
-      expect(res.body.group.name).toBe("New Test Group");
-      expect(res.body.members).toHaveLength(2); // Owner + Alice
-    });
-
-    it("rejects invalid meeting frequency", async () => {
-      const res = await request(app)
-        .post("/api/groups")
-        .set(createAuthenticatedRequest(testUser.id).headers)
-        .send({
-          name: "Bad Group",
-          meetingFrequency: "invalid",
-        });
-
-      expect(res.status).toBe(400);
-    });
-  });
-});
-```
-
-## Validation Schema Test Template
-
-Create `tests/utils/validation.test.ts`:
+**Template** (mirrors `server/trust-state.test.ts`):
 
 ```typescript
 import { describe, it, expect } from "vitest";
-import {
-  createGroupSchema,
-  updateGroupSchema,
-  castVoteSchema,
-  pauseAutomationSchema,
-} from "../../server/validation-schemas";
+import { functionUnderTest } from "./module-name";
 
-describe("Validation Schemas", () => {
-  describe("createGroupSchema", () => {
-    it("accepts valid group data", () => {
-      const result = createGroupSchema.safeParse({
-        name: "My Group",
-        emoji: "🎉",
-        locationBase: "San Francisco",
-        budgetMin: 20,
-        budgetMax: 60,
-        meetingFrequency: "weekly",
-        closenessLevel: 3,
-        noveltyPreference: 3,
-        members: [],
-      });
-
-      expect(result.success).toBe(true);
-    });
-
-    it("rejects empty group name", () => {
-      const result = createGroupSchema.safeParse({
-        name: "",
-        locationBase: "SF",
-      });
-
-      expect(result.success).toBe(false);
-      expect(result.error?.issues[0].path).toContain("name");
-    });
-
-    it("enforces closeness level range (1-5)", () => {
-      const tooLow = createGroupSchema.safeParse({
-        name: "Test",
-        closenessLevel: 0,
-      });
-      const tooHigh = createGroupSchema.safeParse({
-        name: "Test",
-        closenessLevel: 6,
-      });
-
-      expect(tooLow.success).toBe(false);
-      expect(tooHigh.success).toBe(false);
-    });
+describe("functionUnderTest", () => {
+  it("handles the common case", () => {
+    expect(functionUnderTest("input")).toBe("expected");
   });
 
-  describe("pauseAutomationSchema", () => {
-    it("accepts pause by events count", () => {
-      const result = pauseAutomationSchema.safeParse({
-        pauseType: "events",
-        value: 3,
-      });
-
-      expect(result.success).toBe(true);
-    });
-
-    it("accepts pause until date", () => {
-      const result = pauseAutomationSchema.safeParse({
-        pauseType: "until",
-        value: "2024-12-31T00:00:00Z",
-      });
-
-      expect(result.success).toBe(true);
-    });
-
-    it("rejects mismatched pauseType and value", () => {
-      const result = pauseAutomationSchema.safeParse({
-        pauseType: "events",
-        value: "2024-12-31T00:00:00Z", // Should be number
-      });
-
-      expect(result.success).toBe(false);
-    });
+  it("handles the edge case (empty input)", () => {
+    expect(functionUnderTest("")).toBeNull();
   });
 
-  describe("castVoteSchema", () => {
-    it("accepts valid vote types", () => {
-      const yes = castVoteSchema.safeParse({ voteType: "yes" });
-      const maybe = castVoteSchema.safeParse({ voteType: "maybe" });
-      const no = castVoteSchema.safeParse({ voteType: "no" });
-
-      expect(yes.success).toBe(true);
-      expect(maybe.success).toBe(true);
-      expect(no.success).toBe(true);
-    });
-
-    it("rejects invalid vote type", () => {
-      const result = castVoteSchema.safeParse({ voteType: "invalid" });
-      expect(result.success).toBe(false);
-    });
+  it("handles the edge case (boundary)", () => {
+    // boundary tests catch the bugs that production exposes
   });
 });
 ```
 
-## Mutation Hook Test Template
+**Coverage checklist for a pure function:**
+- Happy path (typical input)
+- Empty / null / undefined inputs
+- Boundary values (0, max, negative if numeric)
+- Each branch in the function body
 
-Create `tests/mutations/useGroupMutations.test.ts`:
+---
+
+## Pattern 2: Storage / DB-touching tests
+
+Use for any function in `server/storage.ts` or anywhere else that reads/writes the DB.
+
+**The proven pattern** (mirrors `tests/storage-trust-state.test.ts`):
+
+1. In `beforeAll`, find an anchor row (an existing group/itinerary/user) — read-only on the anchor.
+2. In each test, create rows attached to the anchor, push their IDs into a tracking array.
+3. In `afterEach`, delete all tracked rows. The DB ends clean.
+4. Run against the real dev DB via `DATABASE_URL` (loaded by `tests/setup.ts`).
+
+**Template:**
 
 ```typescript
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useGroupMutations } from "../../client/src/hooks/useGroupMutations";
+import { describe, it, expect, beforeAll, afterEach } from "vitest";
+import { db } from "../server/db";
+import { storage } from "../server/storage";
+import { itineraries, itineraryItems } from "@shared/schema";
+import { eq, desc } from "drizzle-orm";
 
-// Mock apiRequest
-vi.mock("@/lib/queryClient", () => ({
-  apiRequest: vi.fn(),
-  queryClient: new QueryClient(),
-}));
+let anchorItineraryId: string;
+const createdIds: string[] = [];
 
-// Mock toast
-vi.mock("@/hooks/use-toast", () => ({
-  useToast: () => ({
-    toast: vi.fn(),
-  }),
-}));
-
-const createWrapper = () => {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
-  });
-
-  return ({ children }: { children: React.ReactNode }) => (
-    <QueryClientProvider client={queryClient}>
-      {children}
-    </QueryClientProvider>
-  );
-};
-
-describe("useGroupMutations", () => {
-  const groupId = "test-group-id";
-  let mockApiRequest: any;
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockApiRequest = require("@/lib/queryClient").apiRequest;
-  });
-
-  describe("updateGroupMutation", () => {
-    it("calls API with correct parameters", async () => {
-      mockApiRequest.mockResolvedValue({ id: groupId, name: "Updated" });
-
-      const { result } = renderHook(
-        () => useGroupMutations({ groupId }),
-        { wrapper: createWrapper() }
-      );
-
-      result.current.updateGroup.mutate({
-        updates: { name: "Updated" },
-        newMembers: [],
-      });
-
-      await waitFor(() => {
-        expect(mockApiRequest).toHaveBeenCalledWith(
-          "PATCH",
-          `/api/groups/${groupId}`,
-          { name: "Updated" }
-        );
-      });
-    });
-
-    it("calls callback on success", async () => {
-      mockApiRequest.mockResolvedValue({ id: groupId });
-      const onSuccess = vi.fn();
-
-      const { result } = renderHook(
-        () => useGroupMutations({
-          groupId,
-          callbacks: { onEditGroupSuccess: onSuccess },
-        }),
-        { wrapper: createWrapper() }
-      );
-
-      result.current.updateGroup.mutate({
-        updates: { name: "Test" },
-        newMembers: [],
-      });
-
-      await waitFor(() => {
-        expect(onSuccess).toHaveBeenCalled();
-      });
-    });
-
-    it("adds new members after group update", async () => {
-      mockApiRequest.mockResolvedValue({ id: groupId });
-
-      const { result } = renderHook(
-        () => useGroupMutations({ groupId }),
-        { wrapper: createWrapper() }
-      );
-
-      result.current.updateGroup.mutate({
-        updates: { name: "Test" },
-        newMembers: [
-          { name: "Alice", email: "alice@test.com" },
-          { name: "Bob", email: "bob@test.com" },
-        ],
-      });
-
-      await waitFor(() => {
-        // Initial PATCH + 2 POST for members
-        expect(mockApiRequest).toHaveBeenCalledTimes(3);
-      });
-    });
-  });
-
-  describe("deleteMemberMutation", () => {
-    it("calls DELETE on correct endpoint", async () => {
-      mockApiRequest.mockResolvedValue({});
-      const memberId = "member-123";
-
-      const { result } = renderHook(
-        () => useGroupMutations({ groupId }),
-        { wrapper: createWrapper() }
-      );
-
-      result.current.deleteMember.mutate(memberId);
-
-      await waitFor(() => {
-        expect(mockApiRequest).toHaveBeenCalledWith(
-          "DELETE",
-          `/api/members/${memberId}`,
-          {}
-        );
-      });
-    });
-  });
+beforeAll(async () => {
+  const [it] = await db.select().from(itineraries).orderBy(desc(itineraries.createdAt)).limit(1);
+  if (!it) throw new Error("No itinerary in DB; can't run.");
+  anchorItineraryId = it.id;
 });
-```
 
-## AI Function Test Template
-
-Create `tests/ai/openai.test.ts`:
-
-```typescript
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { categorizeVenue, generateActivitySuggestions } from "../../server/openai";
-
-// Mock OpenAI client
-vi.mock("openai", () => ({
-  default: vi.fn().mockImplementation(() => ({
-    chat: {
-      completions: {
-        create: vi.fn(),
-      },
-    },
-  })),
-}));
-
-describe("OpenAI Functions", () => {
-  let mockCreate: any;
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockCreate = require("openai").default().chat.completions.create;
-  });
-
-  describe("categorizeVenue", () => {
-    it("returns correct category from AI response", async () => {
-      mockCreate.mockResolvedValue({
-        choices: [{
-          message: {
-            content: JSON.stringify({ category: "meal", confidence: 0.95 }),
-          },
-        }],
-        usage: { prompt_tokens: 100, completion_tokens: 20 },
-      });
-
-      const result = await categorizeVenue("Delfina Restaurant", "Italian restaurant");
-
-      expect(result.category).toBe("meal");
-      expect(result.confidence).toBeGreaterThan(0.9);
-    });
-
-    it("handles invalid JSON response gracefully", async () => {
-      mockCreate.mockResolvedValue({
-        choices: [{
-          message: { content: "not valid json" },
-        }],
-      });
-
-      await expect(categorizeVenue("Test", "Test")).rejects.toThrow();
-    });
-  });
-});
-```
-
-## Test Configuration
-
-Create `vitest.config.ts`:
-
-```typescript
-import { defineConfig } from "vitest/config";
-import path from "path";
-
-export default defineConfig({
-  test: {
-    globals: true,
-    environment: "node",
-    setupFiles: ["./tests/setup.ts"],
-    include: ["tests/**/*.test.ts"],
-    coverage: {
-      reporter: ["text", "html"],
-      exclude: ["node_modules/", "tests/"],
-    },
-  },
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./client/src"),
-      "@shared": path.resolve(__dirname, "./shared"),
-    },
-  },
-});
-```
-
-## Package.json Scripts
-
-Add to `package.json`:
-
-```json
-{
-  "scripts": {
-    "test": "vitest",
-    "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage",
-    "test:ui": "vitest --ui",
-    "test:api": "vitest run tests/api",
-    "test:mutations": "vitest run tests/mutations"
+afterEach(async () => {
+  for (const id of createdIds) {
+    await db.delete(itineraryItems).where(eq(itineraryItems.id, id));
   }
-}
+  createdIds.length = 0;
+});
+
+describe("storage.someFunction", () => {
+  it("creates a row with expected fields", async () => {
+    const item = await storage.someFunction(/* args */);
+    createdIds.push(item.id);
+    expect(item.someField).toBe("expected");
+  });
+});
 ```
 
-## Test Writing Checklist
+**Anchor strategy:**
+- For tests that need a `groupId`: anchor on the most recent group (`groups`).
+- For tests that need an `itineraryId`: anchor on the most recent itinerary.
+- For tests that need a `userId`: anchor on a known dev user (or look one up by email).
+- If the table is empty, the test should `throw` with a clear message — don't try to seed from scratch.
 
-When writing tests, cover these scenarios:
+**Coverage checklist for storage functions:**
+- Happy path returns expected shape.
+- Side effects fire correctly (see "Side-effect warnings" below).
+- Trust state lands as expected (see "Trust state requirement" below).
+- For update functions: identifying-field changes flip `trustState`; non-identifying fields don't.
 
-### API Endpoint Tests
-- [ ] Happy path with valid data
-- [ ] 401 for unauthenticated requests
-- [ ] 403 for unauthorized users (wrong owner, non-member)
-- [ ] 404 for non-existent resources
-- [ ] 400 for invalid request body (validation errors)
-- [ ] Edge cases (empty arrays, boundary values)
+---
 
-### Mutation Tests
-- [ ] Correct API call parameters
-- [ ] Success callback invoked
-- [ ] Error callback invoked on failure
-- [ ] Query invalidation happens
-- [ ] Toast notifications shown
+## Pattern 3: Validation schema tests
 
-### Validation Schema Tests
-- [ ] Valid data passes
-- [ ] Each required field rejects when missing
-- [ ] Type coercion works correctly
-- [ ] Custom refinements validate properly
-- [ ] Error messages are user-friendly
+Use for any Zod schema in `shared/schema.ts` (`insertGroupSchema`, `insertVotingEventSchema`, etc.) or route-specific schemas.
 
-## Testing Commands
+**Template:**
 
-```bash
-# Run all tests
-npm test
+```typescript
+import { describe, it, expect } from "vitest";
+import { insertGroupSchema } from "@shared/schema";
 
-# Run specific test file
-npm test -- tests/api/groups.test.ts
+describe("insertGroupSchema", () => {
+  it("accepts valid input", () => {
+    const result = insertGroupSchema.safeParse({
+      // minimum valid shape
+    });
+    expect(result.success).toBe(true);
+  });
 
-# Run tests matching pattern
-npm test -- --grep "creates a new group"
+  it("rejects missing required field X", () => {
+    const result = insertGroupSchema.safeParse({ /* missing X */ });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0].path).toContain("X");
+    }
+  });
 
-# Run with coverage
-npm run test:coverage
-
-# Watch mode during development
-npm test -- --watch
+  it("enforces refinement / range", () => {
+    // e.g., budgetMin < budgetMax, or enum constraints
+  });
+});
 ```
+
+**Coverage checklist for schemas:**
+- Valid minimum shape passes.
+- Each required field rejects when missing.
+- Each enum / range / refinement rejects when violated.
+- Unexpected extra fields are stripped (or rejected, depending on schema config).
+
+---
+
+## Pitfalls and conventions you must respect
+
+These are non-obvious and have bitten the codebase before. Tests that ignore them will pass while creating bad data.
+
+### Trust state requirement
+
+Venue-bearing tables (`activities`, `voting_events`, `itinerary_items`) carry `trustState` / `trustSource` / `verifiedAt` columns. **Direct `db.insert` calls must include trust fields** or the row lands as `unknown`, which is a smell signal.
+
+Use the storage helpers (which set trust correctly), or import from `server/trust-state.ts`:
+
+```typescript
+import { trustFieldsForSource } from "../server/trust-state";
+
+await db.insert(itineraryItems).values({
+  // ... regular fields ...
+  ...trustFieldsForSource("manual"),
+});
+```
+
+The smoke-test pattern at the bottom of `tests/storage-trust-state.test.ts` asserts the `unknown` default works — that's the safety net you don't want to break.
+
+### Side-effect warnings (storage functions that do more than they look like)
+
+| Function | Side effect |
+|---|---|
+| `storage.createVotingEvent` | Auto-upvotes for the creator (inserts a `votes` row) |
+| `storage.createGroup` | Auto-creates organizer + invited members (`members` rows) |
+| `storage.createItinerary` | Auto-creates RSVP rows for all group members |
+| Updates touching `name`/`address`/`placeId` on venue rows | Flip `trustState` to `needs_review` |
+
+When testing, either assert the side effects fired correctly, or clean them up too.
+
+### Soft deletes
+
+Groups use `deletedAt` (not a hard delete). Many storage queries filter `isNull(deletedAt)`. If a test fixture group "disappears," check whether it was soft-deleted, not removed.
+
+### Tests run against the real dev DB
+
+Not a separate test DB. Be careful with destructive operations — only delete rows your test created, never wipe tables. The cleanup pattern above is the safe default.
+
+---
+
+## Blocked categories (and what would unblock each)
+
+These are *deliberately* not in this skill — the infrastructure to test them doesn't exist yet. Don't generate tests for these without first doing the unblock work, or you'll write code that doesn't run.
+
+### API route tests via HTTP
+
+**Blocked by:** Two things.
+1. `server/index.ts` doesn't export the express `app` instance (it's wrapped in an IIFE that immediately calls `listen`). `supertest` needs `app`.
+2. There's no auth bypass for tests. Real auth uses Passport sessions via `googleAuth.ts`, so you can't just set a header.
+
+**To unblock:** (a) refactor `server/index.ts` to export `app` (or extract `registerRoutes` into a callable that returns `app`); (b) add a TEST_MODE-gated middleware that injects `req.user` from a header or env var. Then `supertest` works.
+
+**Until then:** test routes by exercising their storage functions directly. You lose coverage of the auth/validation/middleware path but get the business logic.
+
+### AI call tests (OpenAI / Anthropic)
+
+**Blocked by:** No mock infrastructure for `openai` or `@anthropic-ai/sdk`. Calling the real APIs in tests is slow and costs money per run. Mock setup is non-trivial because tool use, streaming, and structured outputs each need different mock shapes.
+
+**To unblock:** create `server/ai-mocks.ts` with `vi.mock`-ready stubs for the most common shapes (text completion, JSON output, tool use). Then tests can `vi.mock('openai', () => ...)` consistently.
+
+**Until then:** test the *callers* of AI functions only via dependency injection or by extracting pure helpers (e.g., the prompt-building function vs. the API call).
+
+### Email tests (Resend)
+
+**Blocked by:** `email-service.ts` calls `resend.emails.send()` directly with no injection point. Tests would either spam real emails or need a global `vi.mock('resend')`.
+
+**To unblock:** wrap the Resend client in a thin module that's easy to mock, OR add an `EMAIL_ENABLED=false` env flag that no-ops sends in test environments.
+
+### Cron / background job tests
+
+**Blocked by:** `reminder-scheduler.ts` and `auto-scheduler.ts` start on server boot via `setInterval`. They have no test mode and no way to advance time deterministically.
+
+**To unblock:** decouple the "what should fire now" calculation from the timer that fires it. Test the calculation pure-function-style; leave the timer plumbing untested.
+
+### React component tests
+
+**Blocked by:** `@testing-library/react`, `@testing-library/user-event`, and `jsdom` (or `happy-dom`) are not installed. `vitest.config.ts` excludes `client/**` from test discovery. There's no test wrapper for `QueryClientProvider` / `ThemeProvider` / `Toaster`.
+
+**To unblock:** install the three packages, add a `client/test-utils.tsx` with provider wrappers, change vitest config to include `client/**` and use `jsdom` environment. Then point at the 452 existing `data-testid` markers and start writing.
+
+**Realistic note:** for a solo dev, **Playwright e2e tests** would likely give better return than per-component unit tests, given how modal-heavy and provider-heavy the UI is. The 452 data-testids are already the hardest part of e2e setup. Consider this path before investing in component-test infrastructure.
+
+### React mutation tests
+
+**Blocked by:** Same React testing infrastructure as above, plus you need to mock `apiRequest` from `client/src/lib/queryClient.ts`. Doable once components are testable.
+
+**Until then:** test the server side of each mutation (the storage function it ultimately calls). That covers the actual logic; the mutation itself is just a wrapper around `apiRequest`.
+
+---
+
+## When to ignore this skill
+
+- One-off scripts that run manually — don't bother with tests.
+- Throwaway prototypes — wait until the code stabilizes.
+- Code that's purely about wiring two things together (e.g., a route handler that's literally three lines calling one storage function and returning the result) — the storage function's tests cover it.
+
+Tests are for code that's load-bearing or has subtle behavior. Spending time on the rest is friction without payoff.

@@ -39,3 +39,6 @@ Screenshots for Claude Code
 
 # Design mockups
 client/public/mockups/
+
+# validate-curated-venues.ts work-in-progress batches
+validation/
