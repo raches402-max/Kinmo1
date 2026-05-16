@@ -68,7 +68,7 @@ export function renderInsightMessage(insightType: string, metadata: unknown): st
       if (data?.frequencyDrift === 'too_frequent') {
         return `You've been meeting more often than usual lately. No pressure to keep that pace if it's a lot.`;
       }
-      return `Hey, it might have been a while since last time you met. Is it time to schedule the next one?`;
+      return `It might have been a while since last time you met. Is it time to schedule the next one?`;
     }
 
     default:
