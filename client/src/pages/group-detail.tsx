@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useGroupMutations } from "@/hooks/useGroupMutations";
-import { useRoute, Link, useLocation } from "wouter";
+import { useRoute, Link, useLocation, useSearch } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -748,10 +748,14 @@ export default function GroupDetail() {
   // Event creation modal state
   const [eventCreationModalOpen, setEventCreationModalOpen] = useState(false);
 
-  // Handle URL parameters for actions and tab navigation
+  // Handle URL parameters for actions and tab navigation.
+  // Depends on useSearch() so the effect re-runs when query params change
+  // via in-page navigation (e.g. clicking a planning-insight action button
+  // while already on this group page) — not only on initial mount.
   const [location, setLocation] = useLocation();
+  const searchString = useSearch();
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(searchString);
 
     // Handle ?action=schedule - open event creation modal
     if (params.get('action') === 'schedule') {
@@ -775,7 +779,7 @@ export default function GroupDetail() {
         window.history.replaceState({}, '', `/group/${groupId}`);
       }, 100);
     }
-  }, [groupId]);
+  }, [groupId, searchString]);
 
   // Discover venues modal state
   const [discoverVenuesModalOpen, setDiscoverVenuesModalOpen] = useState(false);
