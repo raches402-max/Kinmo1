@@ -30,7 +30,33 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+
+// Build 15-minute time slots from 7:00 AM through 11:45 PM
+const TIME_SLOTS = (() => {
+  const slots: { value: string; label: string }[] = [];
+  for (let h = 7; h <= 23; h++) {
+    for (const m of [0, 15, 30, 45]) {
+      const hh = String(h).padStart(2, "0");
+      const mm = String(m).padStart(2, "0");
+      const value = `${hh}:${mm}`;
+      const display12h = ((h + 11) % 12) + 1;
+      const period = h < 12 ? "AM" : "PM";
+      const label = `${display12h}:${mm} ${period}`;
+      slots.push({ value, label });
+    }
+  }
+  return slots;
+})();
+
+const GROUP_TIMEZONE_LABEL = "Pacific time (San Francisco)";
 
 // ─── Sample data ──────────────────────────────────────────────────────────
 const GROUP = { name: "Eric & Rachel" };
@@ -72,6 +98,7 @@ export default function PrototypeCreateEvent() {
   const [previewEmpty, setPreviewEmpty] = useState(false); // demo toggle
 
   const [eventDate, setEventDate] = useState("");
+  const [eventTime, setEventTime] = useState("");
   const [venue, setVenue] = useState("");
   const [note, setNote] = useState("");
 
@@ -175,16 +202,34 @@ export default function PrototypeCreateEvent() {
                   disabled={whenPanel.kind !== "closed"}
                 />
               </div>
-              <Input
-                id="create-event-date"
-                type="datetime-local"
-                step={900}
-                value={eventDate}
-                onChange={(e) => setEventDate(e.target.value)}
-                data-testid="input-create-event-date"
-              />
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_180px] gap-2">
+                <Input
+                  id="create-event-date"
+                  type="date"
+                  value={eventDate}
+                  onChange={(e) => setEventDate(e.target.value)}
+                  data-testid="input-create-event-date"
+                />
+                <Select value={eventTime} onValueChange={setEventTime}>
+                  <SelectTrigger
+                    id="create-event-time"
+                    data-testid="select-create-event-time"
+                    className="w-full"
+                  >
+                    <SelectValue placeholder="Pick a time" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    {TIME_SLOTS.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>
+                        {s.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <p className="text-xs text-muted-foreground">
-                Times shown in your local time
+                Times in {GROUP_TIMEZONE_LABEL}. Members in other time zones
+                will see this converted to theirs.
               </p>
 
               <AnimatePresence>
@@ -193,7 +238,8 @@ export default function PrototypeCreateEvent() {
                     state={whenPanel}
                     onClose={() => setWhenPanel({ kind: "closed" })}
                     onPickTime={(_label) => {
-                      setEventDate("2026-05-24T14:00");
+                      setEventDate("2026-05-24");
+                      setEventTime("14:00");
                       setWhenPanel({ kind: "closed" });
                     }}
                     onCheckWithGroup={checkWithGroup}
