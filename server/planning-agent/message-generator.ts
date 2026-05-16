@@ -335,7 +335,7 @@ function getDefaultMessage(insight: RawInsight): string {
       return `A group member hasn't joined recently. Maybe plan something that works for them?`;
 
     case 'cadence_health':
-      return `Your meeting frequency has drifted from your goal. Time to schedule the next one?`;
+      return `Hey, it might have been a while since last time you met. Is it time to schedule the next one?`;
 
     default:
       return `Something to consider for your next group planning.`;
@@ -350,9 +350,9 @@ function buildActionUrl(insight: RawInsight): string | undefined {
 
   switch (insight.suggestedAction.type) {
     case 'suggest_venue':
-      return `/group/${insight.groupId}?action=discover-venues`;
+      return `/group/${insight.groupId}?action=discover`;
     case 'create_draft':
-      return `/group/${insight.groupId}?action=create-event`;
+      return `/group/${insight.groupId}?action=schedule`;
     case 'send_nudge':
       return `/group/${insight.groupId}?tab=members`;
     case 'adjust_cadence':
