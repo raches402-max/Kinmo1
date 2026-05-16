@@ -34,7 +34,7 @@ import {
   type DateSpecificAvailability
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql, and, or, inArray, isNull, isNotNull, gte, asc, lt } from "drizzle-orm";
+import { eq, desc, sql, and, or, inArray, isNull, isNotNull, gt, gte, asc, lt } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import { geocodeLocation } from "./google-places";
 import {
@@ -3941,13 +3941,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getActivePulseForGroup(groupId: string): Promise<AvailabilityPulse | undefined> {
+    // status='active' is set on creation but nothing flips it when the deadline
+    // passes, so an expiresAt check is required — otherwise we surface long-past
+    // pulses as "active", which both shows a stale dashboard card and blocks the
+    // organizer from creating a new pulse.
     const [pulse] = await db
       .select()
       .from(availabilityPulses)
       .where(
         and(
           eq(availabilityPulses.groupId, groupId),
-          eq(availabilityPulses.status, 'active')
+          eq(availabilityPulses.status, 'active'),
+          gt(availabilityPulses.expiresAt, new Date())
         )
       )
       .orderBy(desc(availabilityPulses.createdAt))
