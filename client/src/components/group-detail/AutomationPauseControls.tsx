@@ -83,7 +83,7 @@ export function AutomationPauseControls({
         title: "Automation Paused",
         description: data.message,
       });
-      queryClient.invalidateQueries({ queryKey: [`/api/groups/${groupId}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId] });
     },
     onError: (error: Error) => {
       toast(getErrorToast(error));
@@ -108,7 +108,7 @@ export function AutomationPauseControls({
         title: "Automation Resumed",
         description: "Auto-scheduling is active again.",
       });
-      queryClient.invalidateQueries({ queryKey: [`/api/groups/${groupId}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId] });
     },
     onError: (error: Error) => {
       toast(getErrorToast(error));
