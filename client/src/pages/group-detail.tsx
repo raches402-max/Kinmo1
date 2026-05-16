@@ -6,14 +6,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ResponsiveDialog as Dialog, ResponsiveDialogContent as DialogContent, ResponsiveDialogDescription as DialogDescription, ResponsiveDialogHeader as DialogHeader, ResponsiveDialogTitle as DialogTitle, ResponsiveDialogTrigger as DialogTrigger, ResponsiveDialogFooter as DialogFooter } from "@/components/ui/responsive-dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
@@ -23,7 +19,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, Trash2, UserPlus, Heart, Plus, X, ChevronDown, ChevronRight, ChevronLeft, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell, Edit2, Edit, Compass, Home, UserCheck, MessageCircle, TrendingUp, AlertCircle, Users, Loader2, Map as MapIcon, Info, MoreVertical, Zap, Brain } from "lucide-react";
+import { ArrowLeft, MapPin, Star, DollarSign, Calendar, Mail, Share2, Copy, Check, Sparkles, ExternalLink, Flame, ThumbsUp, ThumbsDown, Clock, Ticket, Settings, Pencil, UserPlus, Heart, X, ChevronDown, ChevronRight, ChevronLeft, Wine, Mic2, Music, Coffee, Trophy, Mountain, PartyPopper, Gamepad2, UtensilsCrossed, ChefHat, Croissant, Beer, ShoppingBasket, Palette, Film, Laugh, GraduationCap, Target, GripVertical, CheckCircle2, Circle, XCircle, ShoppingCart, Search, ArrowUpDown, Save, Send, Bot, Bell, Edit2, Edit, Compass, Home, UserCheck, MessageCircle, TrendingUp, AlertCircle, Users, Loader2, Map as MapIcon, Info, MoreVertical, Zap, Brain } from "lucide-react";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { getErrorToast } from "@/components/ErrorDisplay";
@@ -45,30 +41,15 @@ import { UnifiedEventCreationModal } from "@/components/UnifiedEventCreationModa
 import { DiscoverVenuesModal } from "@/components/DiscoverVenuesModal";
 import { VenueDiscoveryModule, type VenueData } from "@/components/venue-discovery";
 import { AIAssistantModal } from "@/components/AIAssistantModal";
-import { ItineraryDisplay, SortableItineraryItem } from "@/components/ItineraryDisplay";
 import EventsTable from "@/components/EventsTable";
 import { EventTimeline } from "@/components/EventTimeline";
 import { DateFirstEventCreator } from "@/components/DateFirstEventCreator";
 import { UnifiedEventSidebar } from "@/components/UnifiedEventSidebar";
 import { mergeAndDeduplicateEvents, UnifiedEvent, formatVenueTypeForDisplay } from "@/lib/event-utils";
 import { calculateDistance, getDistanceCategory, formatDistance } from "@/lib/distance";
-import { format } from 'date-fns';
-import { toZonedTime, fromZonedTime, formatInTimeZone } from 'date-fns-tz';
+import { toZonedTime } from 'date-fns-tz';
 import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-} from '@dnd-kit/core';
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
   useSortable,
-  verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import EmojiPicker from 'emoji-picker-react';
@@ -76,7 +57,7 @@ import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { PlanningInsightBanner } from "@/components/PlanningInsightBanner";
 import { ProfileCompletionBanner } from "@/components/ProfileCompletionBanner";
 import { HelpTooltip } from "@/components/HelpTooltip";
-import { HomeTab, GroupDetailMobileNav, ActivitiesTab, SelectedVenuesCard, ItineraryCard, AddMoreStopsCard, TimeSelectionTabs, InlineSchedulingCard, SaveItineraryDialog, SendBackupDialog, InviteGuestDialog, AutoSchedulePreviewDialog, EditAvailabilityDialog, RsvpConstraintDialog, AddVenueDialog, EditGroupDialog, MembersSection, AIPreferenceLearning, ColorPaletteSelector, AutomationSettings, ActivityPreferencesAccordion, MyPreferencesTab, BasicInfoAccordion, VenueSearchEmptyState, NearbySuggestionsCard, AIPreview, AutomationPauseControls } from "@/components/group-detail";
+import { HomeTab, GroupDetailMobileNav, ActivitiesTab, SelectedVenuesCard, ItineraryCard, AddMoreStopsCard, TimeSelectionTabs, InlineSchedulingCard, SaveItineraryDialog, SendBackupDialog, InviteGuestDialog, AutoSchedulePreviewDialog, EditAvailabilityDialog, RsvpConstraintDialog, AddVenueDialog, EditItineraryDialog, EditGroupDialog, MembersSection, AIPreferenceLearning, ColorPaletteSelector, AutomationSettings, ActivityPreferencesAccordion, MyPreferencesTab, BasicInfoAccordion, VenueSearchEmptyState, NearbySuggestionsCard, AIPreview, AutomationPauseControls } from "@/components/group-detail";
 import { useItineraryEditor } from "@/hooks/useItineraryEditor";
 import { useVenueSelection } from "@/hooks/useVenueSelection";
 import { handlePhotoError } from "@/hooks/usePhotoRefresh";
@@ -818,13 +799,6 @@ export default function GroupDetail() {
 
   // Auto-refresh state for countdowns
   const [, forceUpdate] = useState(0);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
 
   // Helper function to calculate next event date based on meeting frequency
   const calculateNextEventDate = (lastEventDate: string | null, frequencyNumber: number, frequencyUnit: string): Date => {
@@ -4133,7 +4107,7 @@ export default function GroupDetail() {
         isSending={sendBackupMutation.isPending}
       />
       {/* Edit Itinerary Dialog */}
-      <Dialog
+      <EditItineraryDialog
         open={itineraryEditor.isOpen}
         onOpenChange={(open) => {
           if (!open) {
@@ -4142,227 +4116,22 @@ export default function GroupDetail() {
             itineraryEditor.setIsOpen(open);
           }
         }}
-      >
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="dialog-edit-itinerary">
-          <DialogHeader>
-            <DialogTitle>Edit Plan</DialogTitle>
-            <DialogDescription>
-              Update the plan name, add new venues, reorder, or remove venues
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-6">
-            {/* Name Input */}
-            <div className="space-y-3">
-              <Label htmlFor="edit-itinerary-name">Plan Name</Label>
-              <Input
-                id="edit-itinerary-name"
-                value={editItineraryName}
-                onChange={(e) => setEditItineraryName(e.target.value)}
-                placeholder="Enter plan name"
-                data-testid="input-edit-itinerary-name"
-              />
-            </div>
-
-            {/* Event Date/Time Input */}
-            {editingItinerary?.eventDate && (
-              <div className="space-y-3">
-                <Label htmlFor="edit-event-date">Event Date & Time</Label>
-                <Input
-                  id="edit-event-date"
-                  type="datetime-local"
-                  value={editProposedDate ? (
-                    group?.timezone 
-                      ? formatInTimeZone(new Date(editProposedDate), group.timezone, "yyyy-MM-dd'T'HH:mm")
-                      : format(new Date(editProposedDate), "yyyy-MM-dd'T'HH:mm")
-                  ) : ''}
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      const dateString = e.target.value; // Format: "2025-10-23T19:30"
-                      if (group?.timezone) {
-                        // Parse components from the datetime-local string
-                        const [datePart, timePart] = dateString.split('T');
-                        const [year, month, day] = datePart.split('-').map(Number);
-                        const [hour, minute] = timePart.split(':').map(Number);
-                        
-                        // Create Date with these components - they become the viewer's local time
-                        // but fromZonedTime will use these component values as the group's timezone
-                        const wallTime = new Date(year, month - 1, day, hour, minute);
-                        
-                        // fromZonedTime interprets the Date's local components as being in the specified timezone
-                        const utcTime = fromZonedTime(wallTime, group.timezone);
-                        setEditProposedDate(utcTime.toISOString());
-                      } else {
-                        setEditProposedDate(new Date(dateString).toISOString());
-                      }
-                    } else {
-                      setEditProposedDate('');
-                    }
-                  }}
-                  data-testid="input-edit-event-date"
-                />
-                <p className="text-xs text-muted-foreground">
-                  {group?.timezone ? `Times shown in ${group.timezone.split('/')[1]?.replace('_', ' ') || 'group\'s local'} time` : 'Times shown in your local time'}
-                </p>
-              </div>
-            )}
-
-            {/* Timing Notes Input */}
-            <div className="space-y-3">
-              <Label htmlFor="edit-timing-recommendations">Timing Notes (optional)</Label>
-              <Textarea
-                id="edit-timing-recommendations"
-                value={editTimingRecommendations}
-                onChange={(e) => setEditTimingRecommendations(e.target.value)}
-                placeholder="e.g., 'Best for Saturday lunch, 12:00-2:00 PM'"
-                className="min-h-[80px]"
-                data-testid="textarea-edit-timing-recommendations"
-              />
-            </div>
-
-            {/* Venues List */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label>Venues ({editItineraryItems.length})</Label>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setAddVenueDialogOpen(true)}
-                  data-testid="button-add-venue"
-                >
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add Venue
-                </Button>
-              </div>
-              {editItineraryItems.length === 0 ? (
-                <div className="text-center py-8 text-sm text-muted-foreground">
-                  No venues in this plan
-                </div>
-              ) : (
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={(event: DragEndEvent) => {
-                    const { active, over } = event;
-                    if (over && active.id !== over.id) {
-                      const oldIndex = editItineraryItems.findIndex((item: any) => item.id === active.id);
-                      const newIndex = editItineraryItems.findIndex((item: any) => item.id === over.id);
-                      const newItems = arrayMove(editItineraryItems, oldIndex, newIndex);
-                      setEditItineraryItems(newItems);
-                    }
-                  }}
-                >
-                  <SortableContext
-                    items={editItineraryItems.map((item: any) => item.id)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    <div className="space-y-2">
-                      {editItineraryItems.map((item: any, index: number) => (
-                        <SortableItineraryItem
-                          key={item.id}
-                          item={item}
-                          index={index}
-                          editable={true}
-                          onRemove={() => {
-                            setEditItineraryItems(prev => prev.filter(i => i.id !== item.id));
-                          }}
-                        />
-                      ))}
-                    </div>
-                  </SortableContext>
-                </DndContext>
-              )}
-            </div>
-          </div>
-          <DialogFooter className="gap-2">
-            <div className="flex-1">
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    variant="destructive"
-                    disabled={deleteItineraryMutation.isPending}
-                    data-testid="button-delete-itinerary"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete Event
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent data-testid="dialog-confirm-delete-itinerary">
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Delete Event?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will permanently delete this event. This action cannot be undone.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={() => {
-                        if (editingItinerary) {
-                          deleteItineraryMutation.mutate(editingItinerary.id);
-                        }
-                      }}
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                      data-testid="button-confirm-delete"
-                    >
-                      {deleteItineraryMutation.isPending ? "Deleting..." : "Delete"}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
-            <Button
-              variant="outline"
-              onClick={() => setEditItineraryOpen(false)}
-              data-testid="button-cancel-edit-itinerary"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                if (!editingItinerary) return;
-                if (!editItineraryName.trim()) {
-                  toast({
-                    title: "Name required",
-                    description: "Please enter a name for the plan",
-                    variant: "destructive",
-                  });
-                  return;
-                }
-                if (editItineraryItems.length === 0) {
-                  toast({
-                    title: "No venues",
-                    description: "Please add at least one venue to the plan",
-                    variant: "destructive",
-                  });
-                  return;
-                }
-                
-                // Prepare updates
-                const proposedOrder = editItineraryItems.map((item: any) => item.sourceId);
-                const updates: any = {
-                  name: editItineraryName.trim(),
-                  proposedOrder,
-                  timingRecommendations: editTimingRecommendations.trim() || null,
-                };
-                
-                // Include eventDate if it was edited
-                if (editingItinerary.eventDate && editProposedDate) {
-                  updates.eventDate = editProposedDate;
-                }
-                
-                updateItineraryMutation.mutate({
-                  itineraryId: editingItinerary.id,
-                  updates,
-                });
-              }}
-              disabled={updateItineraryMutation.isPending || !editItineraryName.trim() || editItineraryItems.length === 0}
-              data-testid="button-save-edit-itinerary"
-            >
-              {updateItineraryMutation.isPending ? "Saving..." : "Save Changes"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        itinerary={editingItinerary}
+        groupTimezone={group?.timezone}
+        name={editItineraryName}
+        onNameChange={setEditItineraryName}
+        proposedDate={editProposedDate}
+        onProposedDateChange={setEditProposedDate}
+        timingRecommendations={editTimingRecommendations}
+        onTimingRecommendationsChange={setEditTimingRecommendations}
+        items={editItineraryItems}
+        onItemsChange={setEditItineraryItems}
+        onAddVenue={() => setAddVenueDialogOpen(true)}
+        onDelete={(itineraryId) => deleteItineraryMutation.mutate(itineraryId)}
+        onSave={(payload) => updateItineraryMutation.mutate(payload)}
+        isDeleting={deleteItineraryMutation.isPending}
+        isSaving={updateItineraryMutation.isPending}
+      />
       {/* Add Venue to Itinerary Dialog */}
       <AddVenueDialog
         open={addVenueDialogOpen}

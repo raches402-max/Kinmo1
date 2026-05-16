@@ -13,6 +13,7 @@ export { AutoSchedulePreviewDialog } from './AutoSchedulePreviewDialog';
 export { EditAvailabilityDialog } from './EditAvailabilityDialog';
 export { RsvpConstraintDialog } from './RsvpConstraintDialog';
 export { AddVenueDialog } from './AddVenueDialog';
+export { EditItineraryDialog } from './EditItineraryDialog';
 export { EditGroupDialog } from './EditGroupDialog';
 export { MembersSection, type MemberData, type NewMember, type MemberConstraints } from './MembersSection';
 export { GroupPatterns, AIPreferenceLearning, type PreferenceInsight } from './GroupPatterns';
