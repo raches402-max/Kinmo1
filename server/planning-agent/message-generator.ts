@@ -23,7 +23,7 @@ export function renderInsightTitle(insightType: string): string {
     case 'venue_gap': return 'Venue Needed';
     case 'date_clustering': return 'Scheduling Note';
     case 'member_inclusion': return 'Member Check-in';
-    case 'cadence_health': return 'Meeting Frequency';
+    case 'cadence_health': return "It's been a while...";
     default: return 'Planning Insight';
   }
 }
@@ -68,7 +68,7 @@ export function renderInsightMessage(insightType: string, metadata: unknown): st
       if (data?.frequencyDrift === 'too_frequent') {
         return `You've been meeting more often than usual lately. No pressure to keep that pace if it's a lot.`;
       }
-      return `It might have been a while since last time you met. Is it time to schedule the next one?`;
+      return `Is it time to schedule the next one?`;
     }
 
     default:
