@@ -110,7 +110,9 @@ export function SortableItineraryItem({ item, index, onRemove, editable }: Sorta
       </div>
       <div className="flex-1 min-w-0">
         <p className="font-medium truncate">{item.venueName}</p>
-        <p className="text-xs text-muted-foreground truncate">{item.venueType}</p>
+        {item.venueType && item.venueType !== 'venue' && (
+          <p className="text-xs text-muted-foreground truncate">{item.venueType}</p>
+        )}
       </div>
       {item.rating && (
         <Badge variant="secondary" className="gap-1">
