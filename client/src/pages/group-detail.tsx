@@ -2874,7 +2874,23 @@ export default function GroupDetail() {
 
         {/* Planning Agent Insights Banner */}
         {groupId && isOwner && (
-          <PlanningInsightBanner groupId={groupId} />
+          <PlanningInsightBanner
+            groupId={groupId}
+            onAction={(insight) => {
+              switch (insight.actionType) {
+                case 'create_draft':
+                  setEventCreationModalOpen(true);
+                  break;
+                case 'suggest_venue':
+                  setDiscoverVenuesModalOpen(true);
+                  break;
+                case 'send_nudge':
+                case 'adjust_cadence':
+                  setActiveTab('preferences');
+                  break;
+              }
+            }}
+          />
         )}
 
         {/* Profile completion prompt for members who haven't set preferences */}

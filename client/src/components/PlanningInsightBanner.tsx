@@ -39,6 +39,11 @@ interface PlanningInsight {
 
 interface PlanningInsightBannerProps {
   groupId: string;
+  // Optional handler invoked when the user clicks the action button.
+  // When provided, the button calls this directly instead of navigating
+  // via actionUrl — sidesteps URL-as-message-passing race conditions
+  // when the destination is the same page (e.g. opening a modal).
+  onAction?: (insight: PlanningInsight) => void;
 }
 
 // Icon mapping for insight types
@@ -63,7 +68,7 @@ const ICON_STYLES: Record<string, string> = {
   action_needed: "text-rose-600",
 };
 
-export function PlanningInsightBanner({ groupId }: PlanningInsightBannerProps) {
+export function PlanningInsightBanner({ groupId, onAction }: PlanningInsightBannerProps) {
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
 
   // Fetch insights for this group
@@ -137,18 +142,33 @@ export function PlanningInsightBanner({ groupId }: PlanningInsightBannerProps) {
           </AlertDescription>
 
           {/* Action button */}
-          {insight.actionUrl && insight.actionLabel && (
+          {insight.actionLabel && (insight.actionUrl || onAction) && (
             <div className="mt-2">
-              <Link href={insight.actionUrl} onClick={() => handleAction(insight)}>
+              {onAction ? (
                 <Button
                   variant="outline"
                   size="sm"
                   className="h-7 text-xs gap-1 bg-white/50 hover:bg-white"
+                  onClick={() => {
+                    handleAction(insight);
+                    onAction(insight);
+                  }}
                 >
                   {insight.actionLabel}
                   <ChevronRight className="h-3 w-3" />
                 </Button>
-              </Link>
+              ) : (
+                <Link href={insight.actionUrl!} onClick={() => handleAction(insight)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs gap-1 bg-white/50 hover:bg-white"
+                  >
+                    {insight.actionLabel}
+                    <ChevronRight className="h-3 w-3" />
+                  </Button>
+                </Link>
+              )}
             </div>
           )}
         </div>
