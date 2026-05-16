@@ -295,12 +295,45 @@ router.get("/standalone-invite/:inviteToken", async (req, res) => {
       return res.status(404).json({ message: "Invite not found" });
     }
 
-    // Return limited info for public view
+    const items = await db
+      .select()
+      .from(itineraryItems)
+      .where(eq(itineraryItems.itineraryId, result.event.id))
+      .orderBy(itineraryItems.orderIndex);
+
+    const invitees = await storage.getStandaloneEventInvitees(result.event.id);
+
     res.json({
-      eventName: result.event.name,
-      eventDate: result.event.eventDate,
-      inviteeName: result.invitee.inviteeName,
-      rsvpStatus: result.invitee.rsvpStatus,
+      invitee: {
+        id: result.invitee.id,
+        inviteeName: result.invitee.inviteeName,
+        rsvpStatus: result.invitee.rsvpStatus,
+        inviteToken: result.invitee.inviteToken,
+      },
+      event: {
+        id: result.event.id,
+        name: result.event.name,
+        eventDate: result.event.eventDate,
+        timezone: result.event.timezone,
+      },
+      items: items.map((item) => ({
+        id: item.id,
+        venueName: item.venueName,
+        venueType: item.venueType,
+        venueAddress: item.venueAddress,
+        photoUrl: item.photoUrl,
+        rating: item.rating,
+        googlePlaceId: item.googlePlaceId,
+        googleMapsUrl: item.googleMapsUrl,
+        arrivalTime: item.arrivalTime,
+        departureTime: item.departureTime,
+        travelNotes: item.travelNotes,
+        notes: item.notes,
+      })),
+      attendees: invitees.map((invitee) => ({
+        name: invitee.inviteeName,
+        response: invitee.rsvpStatus,
+      })),
     });
   } catch (error: any) {
     res.status(500).json({ message: safeError(error) });

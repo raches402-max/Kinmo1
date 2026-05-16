@@ -28,6 +28,7 @@ const JoinGroup = lazy(() => import("@/pages/join-group"));
 const RsvpItineraryPage = lazy(() => import("@/pages/rsvp-itinerary"));
 const GuestEventInvitePage = lazy(() => import("@/pages/guest-event-invite"));
 const GuestRsvpPage = lazy(() => import("@/pages/guest-rsvp"));
+const StandaloneInvitePage = lazy(() => import("@/pages/standalone-invite"));
 const AvailabilityPulsePage = lazy(() => import("@/pages/availability-pulse"));
 const ClaimMemberPage = lazy(() => import("@/pages/claim-member"));
 const LinkMemberAccountPage = lazy(() => import("@/pages/link-member-account"));
@@ -120,6 +121,7 @@ function Router() {
                 <Route path="/invite/:token" component={InviteRedirect} />
                 <Route path="/event/:eventId/guest" component={GuestEventInvitePage} />
                 <Route path="/event/:id" component={PublicEventPage} />
+                <Route path="/standalone-invite/:inviteToken" component={StandaloneInvitePage} />
                 <Route path="/rsvp/:itineraryId/:inviteToken" component={RsvpItineraryPage} />
                 <Route path="/rsvp/:itineraryId" component={RsvpItineraryPage} />
                 <Route path="/guest-rsvp/:guestToken" component={GuestRsvpPage} />
@@ -151,6 +153,7 @@ function Router() {
                 <Route path="/join/:shareableLink" component={JoinGroup} />
                 <Route path="/invite/:token" component={InviteRedirect} />
                 <Route path="/event/:eventId/guest" component={GuestEventInvitePage} />
+                <Route path="/standalone-invite/:inviteToken" component={StandaloneInvitePage} />
                 <Route path="/rsvp/:itineraryId/:inviteToken" component={RsvpItineraryPage} />
                 <Route path="/rsvp/:itineraryId" component={RsvpItineraryPage} />
                 <Route path="/guest-rsvp/:guestToken" component={GuestRsvpPage} />
