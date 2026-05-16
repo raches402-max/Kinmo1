@@ -716,7 +716,9 @@ router.post("/groups/:groupId/auto-schedule-queue/approve", isAuthenticated, req
       await deduplicateByDate(groupId, proposedEventDate, 'Approve Queue');
 
       // Create proposed order (just the order they appear in the queue)
-      const proposedOrder = queueEvent.venues.map((v: any) => v.sourceId);
+      const proposedOrder = queueEvent.venues
+        .map((v: any) => v.sourceId)
+        .filter((sourceId: string | null | undefined): sourceId is string => Boolean(sourceId));
 
       // Create the itinerary
       const itinerary = await storage.createItinerary(
@@ -732,6 +734,7 @@ router.post("/groups/:groupId/auto-schedule-queue/approve", isAuthenticated, req
         queueEvent.venues.map((venue: any) => ({
           sourceType: venue.sourceType,
           sourceId: venue.sourceId,
+          adHocData: venue.adHocData,
         }))
       );
 

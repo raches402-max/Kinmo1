@@ -12,12 +12,24 @@ const openai = new OpenAI({
 });
 
 export interface QueueVenue {
-  sourceType: 'voting_event' | 'activity';
+  sourceType: 'voting_event' | 'activity' | 'ad_hoc' | 'google_place';
   sourceId: string;
   venueName: string;
   venueType: string;
   venueAddress?: string | null;
   googlePlaceId?: string | null;
+  googleMapsUrl?: string | null;
+  adHocData?: {
+    name: string;
+    address?: string | null;
+    type?: string | null;
+    googlePlaceId?: string | null;
+    notes?: string | null;
+    googleMapsUrl?: string | null;
+    arrivalTime?: Date | string | null;
+    departureTime?: Date | string | null;
+    travelNotes?: string | null;
+  };
 }
 
 export interface QueueEvent {

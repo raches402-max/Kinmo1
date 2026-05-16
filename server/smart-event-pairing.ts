@@ -15,13 +15,27 @@ import { suggestOptimalTime } from "./ai-time-picker";
 import { inferTimePeriod, calculateDayDensity } from "./availability-utils";
 import { planEventWithAgent, type VenueForAgent } from "./ai-event-agent";
 
+type QueueVenueSourceType = 'voting_event' | 'activity' | 'ad_hoc' | 'google_place';
+
 interface QueueVenue {
-  sourceType: 'voting_event' | 'activity';
+  sourceType: QueueVenueSourceType;
   sourceId: string;
   venueName: string;
   venueType: string;
   venueAddress?: string | null;
   googlePlaceId?: string | null;
+  googleMapsUrl?: string | null;
+  adHocData?: {
+    name: string;
+    address?: string | null;
+    type?: string | null;
+    googlePlaceId?: string | null;
+    notes?: string | null;
+    googleMapsUrl?: string | null;
+    arrivalTime?: Date | string | null;
+    departureTime?: Date | string | null;
+    travelNotes?: string | null;
+  };
 }
 
 interface QueueEvent {
@@ -212,6 +226,40 @@ async function wasVenueVisitedRecently(
     .limit(1);
 
   return recentVisits.length > 0;
+}
+
+function toQueueVenueFromItineraryItem(item: any): QueueVenue {
+  const sourceType: QueueVenueSourceType =
+    item.sourceType === 'activity' || item.sourceType === 'voting_event' ||
+    item.sourceType === 'ad_hoc' || item.sourceType === 'google_place'
+      ? item.sourceType
+      : 'ad_hoc';
+
+  const sourceId = item.sourceId || item.googlePlaceId || `custom-${item.id || item.venueName}`;
+
+  return {
+    sourceType,
+    sourceId,
+    venueName: item.venueName,
+    venueType: item.venueType || 'restaurant',
+    venueAddress: item.venueAddress,
+    googlePlaceId: item.googlePlaceId,
+    googleMapsUrl: item.googleMapsUrl,
+    adHocData:
+      sourceType === 'ad_hoc' || sourceType === 'google_place'
+        ? {
+            name: item.venueName,
+            address: item.venueAddress,
+            type: item.venueType,
+            googlePlaceId: item.googlePlaceId,
+            notes: item.notes,
+            googleMapsUrl: item.googleMapsUrl,
+            arrivalTime: item.arrivalTime,
+            departureTime: item.departureTime,
+            travelNotes: item.travelNotes,
+          }
+        : undefined,
+  };
 }
 
 /**
@@ -466,14 +514,9 @@ export async function generateAutoScheduleQueue(
         const itinerary = savedItineraries[i % savedItineraries.length];
 
         // Convert itinerary items to queue venues
-        const venues: QueueVenue[] = (itinerary.items || []).map((item: any) => ({
-          sourceType: 'voting_event' as const, // See TODO.md: "Flexible Source Types in Smart Event Pairing"
-          sourceId: item.id || `custom-${item.venueName}`,
-          venueName: item.venueName,
-          venueType: item.venueType || 'restaurant',
-          venueAddress: item.venueAddress,
-          googlePlaceId: item.googlePlaceId,
-        }));
+        const venues: QueueVenue[] = (itinerary.items || []).map((item: any) =>
+          toQueueVenueFromItineraryItem(item)
+        );
 
         candidateEvents.push({
           id: `queue-${date.toISOString()}-itinerary-${itinerary.id}`,
