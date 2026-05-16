@@ -51,6 +51,7 @@ const PrototypeGroupDetailsDesktop = lazy(() => import("@/pages/prototype-group-
 const PrototypePlaces = lazy(() => import("@/pages/prototype-places"));
 const PrototypeAvailabilityGrid = lazy(() => import("@/pages/prototype-availability-grid"));
 const PrototypeTimelineInfo = lazy(() => import("@/pages/prototype-timeline-info"));
+const PrototypeCreateEvent = lazy(() => import("@/pages/prototype-create-event"));
 const PrototypeKinmoText = lazy(() => import("@/pages/prototype-kinmo-text"));
 const PrototypeHeadlineLayouts = lazy(() => import("@/pages/prototype-headline-layouts"));
 const BottomNavConcepts = lazy(() => import("@/components/BottomNavConcepts"));
@@ -136,6 +137,7 @@ function Router() {
                     <Route path="/prototype/feedback-mockup" component={FeedbackMockup} />
                     <Route path="/prototype/dashboard-redesign" component={PrototypeDashboardRedesign} />
                     <Route path="/prototype/dashboard-v2" component={PrototypeDashboardV2} />
+                    <Route path="/prototype/create-event" component={PrototypeCreateEvent} />
                   </>
                 )}
                 <Route path="/privacy" component={Privacy} />
@@ -184,6 +186,7 @@ function Router() {
                     <Route path="/prototype/feedback-mockup" component={FeedbackMockup} />
                     <Route path="/prototype/dashboard-redesign" component={PrototypeDashboardRedesign} />
                     <Route path="/prototype/dashboard-v2" component={PrototypeDashboardV2} />
+                    <Route path="/prototype/create-event" component={PrototypeCreateEvent} />
                   </>
                 )}
                 <Route path="/privacy" component={Privacy} />
