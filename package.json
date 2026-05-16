@@ -11,6 +11,8 @@
     "build": "vite build && node scripts/postprocess-index.mjs && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist && cp -r server/fonts dist/fonts",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "db:push": "drizzle-kit push",
     "kill": "pkill -9 node; pkill -9 npm; pkill -9 tsx",
     "kill:port": "fuser -k 5000/tcp 2>/dev/null || true; fuser -k 3000/tcp 2>/dev/null || true",
@@ -107,7 +109,8 @@
     "tailwindcss": "^3.4.17",
     "tsx": "^4.20.5",
     "typescript": "5.6.3",
-    "vite": "^5.4.20"
+    "vite": "^5.4.20",
+    "vitest": "^4.1.6"
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.8"
