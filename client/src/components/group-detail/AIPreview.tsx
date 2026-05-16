@@ -209,25 +209,11 @@ export function AIPreview({
     return null; // Don't show anything if there's an error
   }
 
-  // Empty state - encourage building the pipeline
+  // Empty state — don't render anything. The card has nothing to show
+  // yet, and announcing "AI is ready" before there's any output reads
+  // as spammy filler.
   if (!hasQueue) {
-    return (
-      <Card className="overflow-hidden border-dashed bg-gradient-to-br from-muted/30 via-background to-secondary/5">
-        <CardContent className="p-6">
-          <div className="flex items-start gap-4">
-            <div className="p-2.5 rounded-xl bg-muted/50">
-              <Sparkles className="h-5 w-5 text-muted-foreground" />
-            </div>
-            <div className="flex-1">
-              <h4 className="font-semibold text-sm mb-1">AI Assistant Ready</h4>
-              <p className="text-sm text-muted-foreground">
-                Save some Favorites and I'll start suggesting events for you.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
+    return null;
   }
 
   const confidenceTier = getConfidenceTier(nextEvent.aiValidationScore);
