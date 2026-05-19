@@ -33,7 +33,7 @@ import {
   calculateCenterPoint,
 } from "./venue-distance-utils";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 30_000, maxRetries: 1 });
 
 // Venue type from auto-scheduler (matches existing structure)
 export interface VenueForAgent {

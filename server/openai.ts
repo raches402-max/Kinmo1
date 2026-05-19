@@ -4,7 +4,7 @@ import { db } from "./db";
 import { apiCallLogs, aiCategorizationCache } from "@shared/schema";
 import { eq, gt, sql } from "drizzle-orm";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 30_000, maxRetries: 1 });
 
 /**
  * Log OpenAI API call for cost tracking and monitoring

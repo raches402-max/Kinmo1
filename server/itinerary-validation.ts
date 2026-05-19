@@ -5,6 +5,8 @@ import { toZonedTime } from "date-fns-tz";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
+  timeout: 30_000,
+  maxRetries: 1,
 });
 
 interface SelectedVenue {

@@ -1521,7 +1521,8 @@ export async function detectAndParseGoogleMapsUrl(query: string): Promise<Google
         // Follow the redirect to get the full URL
         const response = await fetch(query, {
           method: 'HEAD',
-          redirect: 'follow'
+          redirect: 'follow',
+          signal: AbortSignal.timeout(30_000),
         });
 
         const fullUrl = response.url;
@@ -1800,6 +1801,7 @@ export async function searchPlaces(
         'X-Goog-FieldMask': fieldMask,
       },
       body: JSON.stringify(requestBody),
+      signal: AbortSignal.timeout(30_000),
     });
     const responseTimeMs = Date.now() - startTime;
 
@@ -2177,6 +2179,7 @@ export async function searchNearbyByTypes(
         'X-Goog-FieldMask': fieldMask,
       },
       body: JSON.stringify(requestBody),
+      signal: AbortSignal.timeout(30_000),
     });
 
     if (!response.ok) {
@@ -2465,6 +2468,7 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceResult | nu
         'X-Goog-Api-Key': apiKey,
         'X-Goog-FieldMask': fieldMask,
       },
+      signal: AbortSignal.timeout(30_000),
     });
     const responseTimeMs = Date.now() - startTime;
 

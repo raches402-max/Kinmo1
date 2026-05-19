@@ -9,6 +9,8 @@ import { logApiCall, calculateOpenAICost, getAICache, setAICache } from './opena
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
+  timeout: 30_000,
+  maxRetries: 1,
 });
 
 export interface QueueVenue {

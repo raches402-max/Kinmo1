@@ -6,7 +6,7 @@
 import OpenAI from "openai";
 import { logApiCall, calculateOpenAICost } from "./openai";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 30_000, maxRetries: 1 });
 
 export type VenueForSelection = {
   type: 'activity' | 'voting_event';
