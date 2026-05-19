@@ -1718,6 +1718,22 @@ export function startReminderScheduler(): void {
 
   console.log('Starting reminder scheduler with job tracking...');
 
+  // Spread job start times so they don't all fire on the same tick. The 2026-05-18
+  // outage hung the web process because ~10 daily jobs all kicked off at :13:00,
+  // exhausting the DB connection pool. Each daily/hourly job waits `offsetMs` before
+  // its first run, then continues on its normal interval — so the offsets persist forever.
+  const scheduleStaggered = (
+    job: () => void,
+    intervalMs: number,
+    offsetMs: number,
+  ): void => {
+    setTimeout(() => {
+      job();
+      setInterval(job, intervalMs);
+    }, offsetMs);
+  };
+  const MINUTE_MS = 60 * 1000;
+
   // Create tracked job runners for all background tasks
   const trackedReminders = createTrackedJob('scheduledReminders', processScheduledReminders, { intervalMs: REMINDER_INTERVAL_MS });
   const trackedAutoScheduling = createTrackedJob('autoScheduling', processAutoScheduling, { intervalMs: AUTO_SCHEDULE_INTERVAL_MS });
@@ -1729,40 +1745,21 @@ export function startReminderScheduler(): void {
   const trackedQuorumChecks = createTrackedJob('quorumChecks', processQuorumChecks, { intervalMs: AUTO_SCHEDULE_INTERVAL_MS });
   const trackedQuorumCheckins = createTrackedJob('quorumCheckinResults', processQuorumCheckinResults, { intervalMs: AUTO_SCHEDULE_INTERVAL_MS });
 
-  // Run reminders immediately and every 5 minutes
+  // Reminders are lightweight (5-min cadence) — leave eager.
   trackedReminders();
   setInterval(trackedReminders, REMINDER_INTERVAL_MS);
 
-  // Run auto-scheduling immediately and daily
-  trackedAutoScheduling();
-  setInterval(trackedAutoScheduling, AUTO_SCHEDULE_INTERVAL_MS);
+  // Daily jobs — staggered 5 minutes apart.
+  scheduleStaggered(trackedAutoScheduling, AUTO_SCHEDULE_INTERVAL_MS, 0 * MINUTE_MS);
+  scheduleStaggered(trackedTimeSlots, AUTO_SCHEDULE_INTERVAL_MS, 5 * MINUTE_MS);
+  scheduleStaggered(trackedAutoDrafts, AUTO_SCHEDULE_INTERVAL_MS, 10 * MINUTE_MS);
+  scheduleStaggered(trackedQuorumChecks, AUTO_SCHEDULE_INTERVAL_MS, 15 * MINUTE_MS);
+  scheduleStaggered(trackedQuorumCheckins, AUTO_SCHEDULE_INTERVAL_MS, 20 * MINUTE_MS);
 
-  // Run auto-send immediately and every hour
-  trackedAutoSend();
-  setInterval(trackedAutoSend, AUTO_SEND_INTERVAL_MS);
-
-  // Run auto-approval check immediately and every hour
-  trackedAutoApproval();
-  setInterval(trackedAutoApproval, AUTO_APPROVAL_INTERVAL_MS);
-
-  // Run auto-process suggestions immediately and every hour
-  trackedAutoSuggestions();
-  setInterval(trackedAutoSuggestions, AUTO_APPROVAL_INTERVAL_MS);
-
-  // Run time slot selection immediately and daily
-  trackedTimeSlots();
-  setInterval(trackedTimeSlots, AUTO_SCHEDULE_INTERVAL_MS);
-
-  // Run auto-draft itinerary creation immediately and daily
-  trackedAutoDrafts();
-  setInterval(trackedAutoDrafts, AUTO_SCHEDULE_INTERVAL_MS);
-
-  // Run quorum checks and check-in evaluation immediately and daily
-  trackedQuorumChecks();
-  setInterval(trackedQuorumChecks, AUTO_SCHEDULE_INTERVAL_MS);
-
-  trackedQuorumCheckins();
-  setInterval(trackedQuorumCheckins, AUTO_SCHEDULE_INTERVAL_MS);
+  // Hourly jobs — staggered 15 minutes apart within the hour.
+  scheduleStaggered(trackedAutoSend, AUTO_SEND_INTERVAL_MS, 0 * MINUTE_MS);
+  scheduleStaggered(trackedAutoApproval, AUTO_APPROVAL_INTERVAL_MS, 15 * MINUTE_MS);
+  scheduleStaggered(trackedAutoSuggestions, AUTO_APPROVAL_INTERVAL_MS, 30 * MINUTE_MS);
 
   // Weekly swipe digests are handled by the dedicated cron endpoint/worker.
   // Do not also run them from the in-process reminder scheduler, or Monday digests can double-fire.
@@ -1776,8 +1773,7 @@ export function startReminderScheduler(): void {
   };
 
   const trackedActivityRefresh = createTrackedJob('activityRefresh', processActivityRefresh, { intervalMs: ACTIVITY_REFRESH_INTERVAL_MS });
-  trackedActivityRefresh();
-  setInterval(trackedActivityRefresh, ACTIVITY_REFRESH_INTERVAL_MS);
+  scheduleStaggered(trackedActivityRefresh, ACTIVITY_REFRESH_INTERVAL_MS, 25 * MINUTE_MS);
 
   // Auto-Cleanup Old Pending Events - runs daily
   const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -1828,8 +1824,7 @@ export function startReminderScheduler(): void {
   };
 
   const trackedEventCleanup = createTrackedJob('eventCleanup', processOldEventCleanup, { intervalMs: CLEANUP_INTERVAL_MS });
-  trackedEventCleanup();
-  setInterval(trackedEventCleanup, CLEANUP_INTERVAL_MS);
+  scheduleStaggered(trackedEventCleanup, CLEANUP_INTERVAL_MS, 30 * MINUTE_MS);
 
   // Cleanup past rejected dates - runs daily alongside event cleanup
   const cleanupPastRejectedDates = async () => {
@@ -1853,8 +1848,7 @@ export function startReminderScheduler(): void {
   };
 
   const trackedRejectedDatesCleanup = createTrackedJob('rejectedDatesCleanup', cleanupPastRejectedDates, { intervalMs: CLEANUP_INTERVAL_MS });
-  trackedRejectedDatesCleanup();
-  setInterval(trackedRejectedDatesCleanup, CLEANUP_INTERVAL_MS);
+  scheduleStaggered(trackedRejectedDatesCleanup, CLEANUP_INTERVAL_MS, 35 * MINUTE_MS);
 
   // Post-Event Feedback Request - runs daily
   const FEEDBACK_REQUEST_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -1965,8 +1959,7 @@ export function startReminderScheduler(): void {
   };
 
   const trackedFeedbackRequests = createTrackedJob('feedbackRequests', processPostEventFeedbackRequests, { intervalMs: FEEDBACK_REQUEST_INTERVAL_MS });
-  trackedFeedbackRequests();
-  setInterval(trackedFeedbackRequests, FEEDBACK_REQUEST_INTERVAL_MS);
+  scheduleStaggered(trackedFeedbackRequests, FEEDBACK_REQUEST_INTERVAL_MS, 40 * MINUTE_MS);
 
   // Planning Agent - runs daily to generate proactive insights
   const PLANNING_AGENT_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -1978,10 +1971,7 @@ export function startReminderScheduler(): void {
   };
 
   const trackedPlanningAgent = createTrackedJob('planningAgent', runPlanningAgentTask, { intervalMs: PLANNING_AGENT_INTERVAL_MS });
-
-  // Run after a short delay on startup (give other systems time to initialize)
-  setTimeout(trackedPlanningAgent, 60000); // 1 minute after startup
-  setInterval(trackedPlanningAgent, PLANNING_AGENT_INTERVAL_MS);
+  scheduleStaggered(trackedPlanningAgent, PLANNING_AGENT_INTERVAL_MS, 45 * MINUTE_MS);
 
   // Database Backup - runs daily
   const BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -2001,10 +1991,7 @@ export function startReminderScheduler(): void {
   };
 
   const trackedDatabaseBackup = createTrackedJob('databaseBackup', processAutoDatabaseBackup, { intervalMs: BACKUP_INTERVAL_MS });
-
-  // Run after 1 minute on startup, then every 24 hours
-  setTimeout(trackedDatabaseBackup, 60000);
-  setInterval(trackedDatabaseBackup, BACKUP_INTERVAL_MS);
+  scheduleStaggered(trackedDatabaseBackup, BACKUP_INTERVAL_MS, 50 * MINUTE_MS);
 
   // Daily API cost report - aggregates api_call_logs and prints a per-service
   // summary. Closes the observability gap so "is the system efficient now?"
@@ -2015,8 +2002,7 @@ export function startReminderScheduler(): void {
     await generateDailyCostReport(24);
   };
   const trackedCostReport = createTrackedJob('dailyCostReport', runCostReport, { intervalMs: COST_REPORT_INTERVAL_MS });
-  setTimeout(trackedCostReport, 90000); // 1.5 min after startup, after backup
-  setInterval(trackedCostReport, COST_REPORT_INTERVAL_MS);
+  scheduleStaggered(trackedCostReport, COST_REPORT_INTERVAL_MS, 55 * MINUTE_MS);
 
   console.log('Reminder scheduler started successfully');
 }
