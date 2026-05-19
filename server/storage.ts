@@ -1754,6 +1754,17 @@ export class DatabaseStorage implements IStorage {
       return;
     }
 
+    const existingVisits = await db
+      .select({ id: venueVisitHistory.id })
+      .from(venueVisitHistory)
+      .where(eq(venueVisitHistory.itineraryId, itineraryId))
+      .limit(1);
+
+    if (existingVisits.length > 0) {
+      console.log(`[Visit Tracking] Itinerary ${itineraryId} already has venue visits logged, skipping duplicate insert`);
+      return;
+    }
+
     const visits: InsertVenueVisitHistory[] = itinerary.items
       .filter(item => item.sourceType !== 'ad_hoc') // Only track actual activities/voting events
       .map(item => ({

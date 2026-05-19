@@ -290,7 +290,8 @@ function calculateOptimalVenueCount(venues: Array<{
  */
 export async function selectBestItineraryForAutoSchedule(
   storage: IStorage,
-  group: Group
+  group: Group,
+  eventDate: Date = new Date()
 ): Promise<{
   itineraryId?: string;
   selectedVenues?: Array<{ sourceType: 'activity' | 'voting_event', sourceId: string }>;
@@ -499,7 +500,7 @@ export async function selectBestItineraryForAutoSchedule(
     // Try new AI agent first (now selects 1 primary venue)
     const agentResult = await planEventWithAgent({
       group,
-      eventDate: new Date(), // TODO: Pass actual event date when available
+      eventDate,
       availableVenues: scoredVenues as VenueForAgent[],
       constraints: {
         maxDistanceMiles: 5,
@@ -1370,7 +1371,7 @@ export async function maintainEventPipeline(
 
       // Generate itinerary options for this event
       // Note: This is expensive but gives users real events with full details
-      const selection = await selectBestItineraryForAutoSchedule(storage, group);
+      const selection = await selectBestItineraryForAutoSchedule(storage, group, eventDate);
 
       if (selection.options && selection.options.length > 0) {
         console.log(`[Event Pipeline] Generated ${selection.options.length} itinerary options`);

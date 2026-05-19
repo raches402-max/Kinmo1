@@ -392,7 +392,7 @@ export const itineraries = pgTable("itineraries", {
   organizerId: varchar("organizer_id").references(() => users.id, { onDelete: "cascade" }), // Event owner (for standalone events)
   name: text("name"), // Optional name for saved itineraries (e.g., "SF Waterfront Day")
   note: text("note"), // Optional note or description for the event
-  status: text("status").notNull().default("draft"), // draft, saved, proposed, scheduled, rejected, cancelled
+  status: text("status").notNull().default("draft"), // draft, saved, proposed, scheduled, completed, rejected, cancelled
   isSaved: boolean("is_saved").default(false).notNull(), // Is this a saved template for reuse
   isPrimary: boolean("is_primary").default(false).notNull(), // Is this the primary proposed plan
   backupForItineraryId: varchar("backup_for_itinerary_id"), // If this is a backup plan (self-reference handled separately)

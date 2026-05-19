@@ -1304,9 +1304,6 @@ export async function processAutoSend(): Promise<void> {
           }
         });
 
-        // Log venue visits for rotation tracking
-        await storage.logVenueVisits(itinerary.id, new Date(event.proposedDate));
-
         // Send initial invites
         await sendInitialInvites(itinerary, group);
 
@@ -1850,8 +1847,86 @@ export function startReminderScheduler(): void {
   const trackedRejectedDatesCleanup = createTrackedJob('rejectedDatesCleanup', cleanupPastRejectedDates, { intervalMs: CLEANUP_INTERVAL_MS });
   scheduleStaggered(trackedRejectedDatesCleanup, CLEANUP_INTERVAL_MS, 35 * MINUTE_MS);
 
-  // Post-Event Feedback Request - runs daily
+  // Event completion + feedback request jobs - run daily
   const FEEDBACK_REQUEST_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+  const processCompletedItineraries = async () => {
+    try {
+      console.log('[Event Completion] Checking for past events that should be marked completed...');
+
+      const now = new Date();
+      const dueItineraries = await db
+        .select({
+          itinerary: itineraries,
+        })
+        .from(itineraries)
+        .where(
+          and(
+            or(
+              eq(itineraries.status, 'scheduled'),
+              eq(itineraries.status, 'proposed')
+            ),
+            lt(itineraries.eventDate, now)
+          )
+        );
+
+      if (dueItineraries.length === 0) {
+        console.log('[Event Completion] No past proposed/scheduled itineraries found');
+        return;
+      }
+
+      console.log(`[Event Completion] Found ${dueItineraries.length} past itinerary(s) to review`);
+
+      const dueItineraryIds = dueItineraries.map(({ itinerary }) => itinerary.id);
+      // Count yes-RSVPs per itinerary. Threshold is >=2 to mark completed:
+      // an event with only one yes-RSVP is more likely a no-show or solo plan
+      // than a real attended event. Group-size-aware percentage thresholds
+      // (group.defaultQuorumThreshold) are deferred — current dogfood groups
+      // are small enough that >=2 is a reasonable universal floor.
+      const COMPLETION_YES_RSVP_THRESHOLD = 2;
+      const yesRsvpCountRows = await db
+        .select({
+          itineraryId: rsvpsTable.itineraryId,
+          yesCount: sql<number>`count(*)::int`,
+        })
+        .from(rsvpsTable)
+        .where(
+          and(
+            inArray(rsvpsTable.itineraryId, dueItineraryIds),
+            sql`${rsvpsTable.response} IN ('yes', 'going')`,
+            or(isNull(rsvpsTable.isGuest), eq(rsvpsTable.isGuest, false))
+          )
+        )
+        .groupBy(rsvpsTable.itineraryId);
+
+      const yesRsvpCountByItinerary = new Map(
+        yesRsvpCountRows.map((row) => [row.itineraryId, row.yesCount])
+      );
+
+      for (const { itinerary } of dueItineraries) {
+        try {
+          const yesCount = yesRsvpCountByItinerary.get(itinerary.id) ?? 0;
+          if (yesCount < COMPLETION_YES_RSVP_THRESHOLD) {
+            console.log(`[Event Completion] Itinerary ${itinerary.id} has ${yesCount} yes-RSVP(s) (need >=${COMPLETION_YES_RSVP_THRESHOLD}), leaving status as ${itinerary.status}`);
+            continue;
+          }
+
+          if (!itinerary.eventDate) {
+            console.log(`[Event Completion] Itinerary ${itinerary.id} is missing eventDate, skipping completion`);
+            continue;
+          }
+
+          await storage.updateItinerary(itinerary.id, { status: 'completed' });
+          await storage.logVenueVisits(itinerary.id, new Date(itinerary.eventDate));
+          console.log(`[Event Completion] Marked itinerary ${itinerary.id} completed and logged venue visits`);
+        } catch (itineraryError) {
+          console.error(`[Event Completion] Error processing itinerary ${itinerary.id}:`, itineraryError);
+        }
+      }
+    } catch (error) {
+      console.error('[Event Completion] Error:', error);
+    }
+  };
 
   const processPostEventFeedbackRequests = async () => {
     try {
@@ -1863,7 +1938,7 @@ export function startReminderScheduler(): void {
       const oneDayAgo = new Date();
       oneDayAgo.setDate(oneDayAgo.getDate() - 1);
 
-      // Find itineraries with events that happened 1-2 days ago
+      // Find completed itineraries with events that happened 1-2 days ago
       const completedItineraries = await db
         .select({
           itinerary: itineraries,
@@ -1873,10 +1948,7 @@ export function startReminderScheduler(): void {
         .innerJoin(groups, eq(itineraries.groupId, groups.id))
         .where(
           and(
-            or(
-              eq(itineraries.status, 'scheduled'),
-              eq(itineraries.status, 'proposed')
-            ),
+            eq(itineraries.status, 'completed'),
             sql`${itineraries.eventDate} < ${oneDayAgo.toISOString()}`,
             sql`${itineraries.eventDate} > ${twoDaysAgo.toISOString()}`
           )
@@ -1957,6 +2029,9 @@ export function startReminderScheduler(): void {
       console.error('[Feedback Request] Error:', error);
     }
   };
+
+  const trackedCompletedItineraries = createTrackedJob('completedItineraries', processCompletedItineraries, { intervalMs: FEEDBACK_REQUEST_INTERVAL_MS });
+  scheduleStaggered(trackedCompletedItineraries, FEEDBACK_REQUEST_INTERVAL_MS, 60 * MINUTE_MS);
 
   const trackedFeedbackRequests = createTrackedJob('feedbackRequests', processPostEventFeedbackRequests, { intervalMs: FEEDBACK_REQUEST_INTERVAL_MS });
   scheduleStaggered(trackedFeedbackRequests, FEEDBACK_REQUEST_INTERVAL_MS, 40 * MINUTE_MS);
