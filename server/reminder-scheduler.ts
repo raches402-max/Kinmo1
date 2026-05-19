@@ -1764,21 +1764,8 @@ export function startReminderScheduler(): void {
   trackedQuorumCheckins();
   setInterval(trackedQuorumCheckins, AUTO_SCHEDULE_INTERVAL_MS);
 
-  // Run weekly swipe digest (checks every day, only runs on Monday)
-  const processWeeklySwipeDigest = async () => {
-    const now = new Date();
-    const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
-
-    // Only run on Mondays
-    if (dayOfWeek === 1) {
-      const { processWeeklyDigests } = await import('./swipe-digest-worker');
-      await processWeeklyDigests();
-    }
-  };
-
-  const trackedWeeklyDigest = createTrackedJob('weeklySwipeDigest', processWeeklySwipeDigest, { intervalMs: AUTO_SCHEDULE_INTERVAL_MS });
-  trackedWeeklyDigest();
-  setInterval(trackedWeeklyDigest, AUTO_SCHEDULE_INTERVAL_MS);
+  // Weekly swipe digests are handled by the dedicated cron endpoint/worker.
+  // Do not also run them from the in-process reminder scheduler, or Monday digests can double-fire.
 
   // Auto-Refresh Stale Activities - runs daily
   const ACTIVITY_REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
