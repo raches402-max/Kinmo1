@@ -59,6 +59,7 @@ export function useGroupMutations({ groupId, callbacks = {} }: UseGroupMutations
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "members"] });
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "auto-scheduled-events"] });
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "auto-scheduled-events", "timeline"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/groups"] });
       callbacks.onEditGroupSuccess?.();
 
       let description = "Your group details have been saved";
@@ -103,6 +104,7 @@ export function useGroupMutations({ groupId, callbacks = {} }: UseGroupMutations
     onSuccess: (data: any) => {
       toast({ title: "Invitations sent!", description: data.message });
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "members"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/groups"] });
     },
     onError: (error: Error) => {
       toast(getErrorToast(error));
@@ -115,6 +117,7 @@ export function useGroupMutations({ groupId, callbacks = {} }: UseGroupMutations
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "members"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/groups"] });
       toast({ title: "Member removed", description: "The member has been removed from the group" });
     },
     onError: (error: Error) => {
@@ -128,6 +131,7 @@ export function useGroupMutations({ groupId, callbacks = {} }: UseGroupMutations
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "members"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/groups"] });
       callbacks.onEditMemberSuccess?.();
       toast({ title: "Member updated", description: "Member details have been updated" });
     },

@@ -3,44 +3,12 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { activities as activitiesTable, activities, votingEvents } from "@shared/schema";
 import { generateActivitySuggestions, categorizeByTime, categorizeVenuesBatch, detectCategory } from "./openai";
-import { searchPlaces, getCacheStats } from "./google-places";
+import { searchPlaces, getCacheStats, calculateNameSimilarity } from "./google-places";
 import { setupAuth } from "./googleAuth";
 import { db } from "./db";
 import { eq, and, or } from "drizzle-orm";
 import { withTimeout } from "./lib/retry";
 import { getQualityThresholds, parsePriceLevel } from "./lib/place-quality";
-
-/**
- * Calculate similarity score between two strings (0 = no match, 1 = exact match)
- * Uses normalized comparison, word overlap, and substring matching
- */
-function calculateNameSimilarity(str1: string, str2: string): number {
-  const normalize = (s: string) => s.toLowerCase().trim()
-    .replace(/[^\w\s]/g, '') // Remove punctuation
-    .replace(/\s+/g, ' '); // Normalize whitespace
-  
-  const a = normalize(str1);
-  const b = normalize(str2);
-  
-  // Exact match
-  if (a === b) return 1.0;
-  
-  // One contains the other
-  if (a.includes(b) || b.includes(a)) return 0.9;
-  
-  // Word overlap scoring
-  const wordsA = new Set(a.split(' '));
-  const wordsB = new Set(b.split(' '));
-  const intersection = new Set([...wordsA].filter(w => wordsB.has(w)));
-  const union = new Set([...wordsA, ...wordsB]);
-  const jaccardScore = intersection.size / union.size;
-  
-  // Levenshtein-like penalty for length difference
-  const lengthPenalty = 1 - Math.abs(a.length - b.length) / Math.max(a.length, b.length);
-  
-  // Combined score
-  return (jaccardScore * 0.7) + (lengthPenalty * 0.3);
-}
 
 
 export async function registerRoutes(app: Express): Promise<Server> {

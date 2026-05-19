@@ -23,9 +23,51 @@ import { eq } from "drizzle-orm";
 import { isAuthenticated } from "../googleAuth";
 import { storage } from "../storage";
 import { getUserId } from "../authorization";
-import { itineraryItems } from "@shared/schema";
+import { itineraryItems, standaloneEventInvitees } from "@shared/schema";
+import { sendItineraryInvite } from "../email-service";
 
 const router = Router();
+
+function formatStandaloneEventDate(date: Date, timezone: string | null) {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone || "America/Los_Angeles",
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatStandaloneEventTime(date: Date, timezone: string | null) {
+  const resolvedTimezone = timezone || "America/Los_Angeles";
+  const time = new Intl.DateTimeFormat("en-US", {
+    timeZone: resolvedTimezone,
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZoneName: "short",
+  }).format(date);
+
+  return time.replace("GMT-7", "PT").replace("GMT-8", "PT");
+}
+
+function buildBaseUrl(req: any) {
+  return req.headers.origin || `${req.protocol}://${req.get("host")}` || "http://localhost:5000";
+}
+
+async function getStandaloneOrganizerName(userId: string) {
+  const organizer = await storage.getUser(userId);
+  const profile = await storage.getUserProfile(userId);
+
+  return (
+    profile?.displayName ||
+    [organizer?.firstName, organizer?.lastName].filter(Boolean).join(" ") ||
+    organizer?.firstName ||
+    (organizer as any)?.username ||
+    organizer?.email?.split("@")[0] ||
+    "Your friend"
+  );
+}
 
 // ==================== Standalone Events ====================
 
@@ -261,24 +303,86 @@ router.post("/standalone-events/:id/send-invites", isAuthenticated, async (req: 
       return res.status(403).json({ message: "Not authorized to send invites for this event" });
     }
 
+    const sentAt = new Date();
+
     // Update the event status to 'scheduled' (sent)
     await storage.updateStandaloneEvent(req.params.id, {
       status: "scheduled",
-      inviteSentAt: new Date(),
+      inviteSentAt: sentAt,
     });
 
     // Get invitees
     const invitees = await storage.getStandaloneEventInvitees(req.params.id);
 
-    // TODO: Send actual email notifications to invitees with email addresses
+    await db
+      .update(standaloneEventInvitees)
+      .set({ inviteSentAt: sentAt })
+      .where(eq(standaloneEventInvitees.itineraryId, req.params.id));
+
+    const inviteesWithEmail = invitees.filter((invitee) => invitee.inviteeEmail);
+    const organizerName = await getStandaloneOrganizerName(userId);
+    const baseUrl = buildBaseUrl(req);
+
+    let emailSentCount = 0;
+    let emailFailureCount = 0;
+
+    for (const invitee of inviteesWithEmail) {
+      try {
+        const rsvpLink = `${baseUrl}/standalone-invite/${invitee.inviteToken}`;
+
+        const emailResult = await sendItineraryInvite(
+          {
+            email: invitee.inviteeEmail!,
+            name: invitee.inviteeName || "Friend",
+          },
+          {
+            groupName: event.name || "Hangout",
+            organizerName,
+            eventDate: event.eventDate
+              ? formatStandaloneEventDate(event.eventDate, event.timezone)
+              : "Date TBD",
+            eventTime: event.eventDate
+              ? formatStandaloneEventTime(event.eventDate, event.timezone)
+              : event.timezone || "Time TBD",
+            venues: event.items.map((item) => ({
+              name: item.venueName || "Venue",
+              type: item.venueType || "Activity",
+              address: item.venueAddress || undefined,
+            })),
+            rsvpDeadline: event.eventDate
+              ? formatStandaloneEventDate(event.eventDate, event.timezone)
+              : "whenever you can",
+            rsvpLink,
+          }
+        );
+
+        if (!emailResult.success) {
+          throw new Error(emailResult.error || "Failed to send standalone invite email");
+        }
+
+        emailSentCount += 1;
+      } catch (emailError) {
+        emailFailureCount += 1;
+        console.error(
+          `[Standalone Event Send] Failed to send invite email to ${invitee.inviteeEmail}:`,
+          emailError
+        );
+      }
+    }
+
     console.log(
-      `[Standalone Event Send] Sent invites to ${invitees.length} invitees for event "${event.name}"`
+      `[Standalone Event Send] Processed ${invitees.length} invitees for event "${event.name}" (${emailSentCount} emails sent, ${emailFailureCount} failed)`
     );
 
     res.json({
       success: true,
       inviteeCount: invitees.length,
-      message: `Invites sent to ${invitees.length} people`,
+      emailedInviteeCount: emailSentCount,
+      emailFailureCount,
+      message:
+        emailSentCount > 0
+          ? `Invites sent to ${invitees.length} people (${emailSentCount} by email)`
+          : `Invites sent to ${invitees.length} people`,
     });
   } catch (error: any) {
     console.error("[Standalone Event Send] Error:", error);

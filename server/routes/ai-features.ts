@@ -1042,7 +1042,7 @@ router.post("/groups/:groupId/discover-venues", isAuthenticated, async (req: any
   } catch (error: any) {
     console.error('[Discover Venues] Error:', error);
     res.status(500).json({
-      message: error.message || "Failed to create discovery session"
+      message: safeError(error)
     });
   }
 });
@@ -1889,13 +1889,11 @@ router.post("/itineraries/:id/decide-now", isAuthenticated, requireItineraryAcce
     console.error('[Decide Now] Error:', error);
     console.error('[Decide Now] Error stack:', error.stack);
     console.error('[Decide Now] Error details:', {
-      message: error.message,
       itineraryId: req.params.id,
-      errorType: error.constructor.name
+      errorType: error.constructor.name,
     });
     res.status(500).json({
-      message: error.message || "We hit a snag. Mind giving it another try?",
-      errorDetails: error.message
+      message: safeError(error)
     });
   }
 });

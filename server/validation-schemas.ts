@@ -544,13 +544,3 @@ export const addGroupSavedPlaceSchema = z.object({
   notes: z.string().optional(),
 });
 
-// Helper type exports for TypeScript inference
-export type ImportVenuesInput = z.infer<typeof importVenuesSchema>;
-export type CreateCollectionInput = z.infer<typeof createCollectionSchema>;
-export type CreateGroupInput = z.infer<typeof createGroupSchema>;
-export type UpdateAutomationInput = z.infer<typeof updateAutomationSchema>;
-export type CreateRsvpInput = z.infer<typeof createRsvpSchema>;
-export type GenerateCategoryInput = z.infer<typeof generateCategorySchema>;
-export type SendItineraryInput = z.infer<typeof sendItinerarySchema>;
-export type PostEventFeedbackInput = z.infer<typeof postEventFeedbackSchema>;
-export type AddAdHocVenueInput = z.infer<typeof addAdHocVenueSchema>;

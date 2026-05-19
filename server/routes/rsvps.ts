@@ -631,7 +631,11 @@ router.post("/itineraries/:id/rsvp", async (req, res) => {
     }
 
     if (rsvpFeedback && (rsvpFeedback.feedbackText || rsvpFeedback.alternativeDays || rsvpFeedback.alternativeTimes)) {
-      console.log(`[Event Invite RSVP] Member ${member.name} (${memberId}) provided feedback for event ${itineraryId}:`, rsvpFeedback);
+      console.log(`[Event Invite RSVP] Member ${member.name} (${memberId}) provided feedback metadata for event ${itineraryId}:`, {
+        hasFeedbackText: Boolean(rsvpFeedback.feedbackText),
+        alternativeDayCount: Array.isArray(rsvpFeedback.alternativeDays) ? rsvpFeedback.alternativeDays.length : 0,
+        alternativeTimeCount: Array.isArray(rsvpFeedback.alternativeTimes) ? rsvpFeedback.alternativeTimes.length : 0,
+      });
     }
 
     res.json(rsvp);
@@ -712,7 +716,11 @@ router.post("/itineraries/:id/guest-rsvp", async (req, res) => {
     }
 
     if (rsvpFeedback && (rsvpFeedback.feedbackText || rsvpFeedback.alternativeDays || rsvpFeedback.alternativeTimes)) {
-      console.log(`[Guest RSVP] Guest ${guestName} provided feedback for event ${itineraryId}:`, rsvpFeedback);
+      console.log(`[Guest RSVP] Guest ${guestName} provided feedback metadata for event ${itineraryId}:`, {
+        hasFeedbackText: Boolean(rsvpFeedback.feedbackText),
+        alternativeDayCount: Array.isArray(rsvpFeedback.alternativeDays) ? rsvpFeedback.alternativeDays.length : 0,
+        alternativeTimeCount: Array.isArray(rsvpFeedback.alternativeTimes) ? rsvpFeedback.alternativeTimes.length : 0,
+      });
     }
 
     res.json(rsvp);
