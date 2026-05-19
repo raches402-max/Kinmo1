@@ -1,6 +1,6 @@
 # Kinmo V2 — Master Plan
 
-_Last updated: 2026-05-15 (rev 13 — added W8 recommendation foundations: outcome instrumentation gap + cache prune. Driven by dev DB analysis showing only 1 completed itinerary, empty `venue_visit_history`, and ~10-15 of 5,300 curated venues with any positive engagement signal.)_
+_Last updated: 2026-05-19 (rev 16 — W9 Sub-track A shipped in `7f33c47..df0f5cf`: removed duplicate WeeklyDigest scheduler, added 30s timeouts on all OpenAI + Google Places calls, staggered 14 background jobs across the hour, and **removed an esbuild-incompatible CLI entrypoint in `swipe-digest-worker.ts` that was the actual root cause of the outage** — its `if (import.meta.url === file://${process.argv[1]})` check evaluated true in bundled production code, calling `process.exit(0)` on every import. Confirmed via Railway HTTP logs: zero external `/api/cron/weekly-digest` traffic, so the "external pinger" suspicion was a red herring.)_
 
 ## Context
 
@@ -23,6 +23,7 @@ This document is the working plan for getting Kinmo V2 production-ready: off Rep
 | 6 | Security & data-integrity hardening | 🔄 In progress — sub-tracks A (`67b286f` + `79292b7` finishing touches), B (`771f1f7`), C (`0d1b819`), D (`920cf6b` + migration 0016 — apply to Railway pending), E (`2a17050` member-read soft-delete fix), F (`dc8f207`) shipped; G/H remain |
 | 7 | Quorum & auto-reschedule system | ✅ **DONE** (2026-05-15) — proactive deadline-based quorum checks, adaptive timing by cadence, skip-vs-reschedule by cycle length, check-in flow for partial engagement, notification over-send fixes. See details below. |
 | 8 | Recommendation foundations | 🆕 **New** (2026-05-15) — close outcome instrumentation gap (itinerary status, `venue_visit_history`, post-event feedback) so the recommender can learn from real group history; then manually curate `curated_venues` down from ~5,300 to a ~100-200/metro starter pool. See W8 below. |
+| 9 | Scheduler reliability | 🔄 **In progress** — Sub-track A done (`7f33c47` dedupe WeeklyDigest, `06c3db9` 30s timeouts on OpenAI + Google Places, `bf3fd29` staggered 14 jobs across the hour, `df0f5cf` removed the esbuild-incompatible CLI block that was the actual outage root cause). Sub-track B (urgent-timeline fix, in-job concurrency caps, scheduler heartbeats) + C (split worker from web) remain. See W9 below. |
 
 **Production cost:** ~$10/mo on Railway (app + Postgres). API keys (OpenAI, Resend, Google Places) currently set to placeholders — features depending on them won't work until real keys are added.
 
@@ -30,12 +31,13 @@ This document is the working plan for getting Kinmo V2 production-ready: off Rep
 
 ## In focus right now
 
-1. **W8 Sub-track A** — Close the outcome instrumentation gap: itineraries flip to `completed` after events, `venue_visit_history` gets populated, post-event feedback fill rate goes up from 4/50. Unblocks every "learn from group history" recommendation strategy.
-2. **W4 remaining** — Architecture cleanup: Slice 1 (group `server/` by domain), Slice 3 (split `storage.ts`)
-3. **W6 remaining** — Sub-track H (background-job healthchecks). G (account deletion flow) shipped in `d1d7471`.
-4. **W5 ongoing** — Code hygiene: fire-and-forget `.catch()` Sentry wiring, frontend Sentry client init
-5. **Apply migration 0016** to Railway (missing indexes for `members.userId`, `rsvps.userId`, cache tables)
-6. **Add real API keys to Railway** — `OPENAI_API_KEY`, `RESEND_API_KEY`, `GOOGLE_PLACES_API_KEY`, `ADMIN_EMAILS`
+1. **W8 Sub-track A** — Close the outcome instrumentation gap: itineraries flip to `completed` after events, `venue_visit_history` gets populated, post-event feedback fill rate goes up from 4/50. Unblocks every "learn from group history" recommendation strategy. Local working tree already has a `processCompletedItineraries` job in `reminder-scheduler.ts` plus a `scripts/backfill-completed-itineraries.ts` — uncommitted. When committing, convert the new `trackedCompletedItineraries` setInterval to `scheduleStaggered(...)` for consistency with W9 #3 (suggest 60min offset).
+2. **Audit for other `import.meta.url === ...` CLI checks in `server/`** — the `swipe-digest-worker.ts` pattern (`if (import.meta.url === file://${process.argv[1]})`) is unsafe in any esbuild-bundled file because both sides resolve to the bundle path. Grep for the pattern; any other hit is a latent landmine that would call `process.exit()` on first import. ~5 min.
+3. **W4 remaining** — Architecture cleanup: Slice 1 (group `server/` by domain), Slice 3 (split `storage.ts`)
+4. **W6 remaining** — Sub-track H (background-job healthchecks). G (account deletion flow) shipped in `d1d7471`. Pairs naturally with W9 — a healthcheck that watches scheduler heartbeats would have surfaced today's hang.
+5. **W5 ongoing** — Code hygiene: fire-and-forget `.catch()` Sentry wiring, frontend Sentry client init
+6. **Apply migration 0016** to Railway (missing indexes for `members.userId`, `rsvps.userId`, cache tables)
+7. **Add real API keys to Railway** — `OPENAI_API_KEY`, `RESEND_API_KEY`, `GOOGLE_PLACES_API_KEY`, `ADMIN_EMAILS`
 
 ---
 
@@ -58,6 +60,55 @@ Current approach: email only. This works for the current no-real-users stage.
 **Why not now:** We need to earn trust before asking for phone numbers. The email pipeline also needs to be battle-tested first to ensure notification quality is good before adding a higher-friction channel.
 
 **Implementation note when ready:** Twilio is the obvious choice. The schema already has a `phone_number` column that was dropped from Neon schema drift (noted in W1 gotchas) — will need to be re-added with proper opt-in flow.
+
+### Rituals: layered cadences for varied event types (brainstorm 2026-05-16)
+
+**The problem this is trying to solve.** AI-generated venue and timing suggestions don't feel that good. The strongest suggestions come from *warm* signal — places the group has been, things members have said they want to do — not cold AI discovery against `curated_venues`. Groups also have multiple "modes" they get together in (family dinners + occasional bar nights + once-in-a-while winery), and today the product treats every event as the same kind of thing, which makes the AI prompts vague and the planner blind to these differences.
+
+**The reframe.** Kinmo's edge isn't smarter AI suggestions — it's better *structured memory* of what this specific group is like. The AI is just a surface on top of that memory. Most groups can be planned for "the middle 80%" without modeling every exception.
+
+**The proposed model: rituals as an additive layer.**
+
+- Every group keeps its current default rhythm (today's behavior — e.g. "dinners, twice a month, walking distance, family-friendly"). This is the primary ritual.
+- Optionally, a group can add **side rituals** on top, each with its own cadence + vibe + who's-usually-in + radius + wishlist + history. Examples: bar nights (every couple months, no kids, loud is fine), winery trips (quarterly, willing to drive).
+- Side rituals are mostly *different flavors of going out*, not different domains. They hit the same venue universe (Google Places) — just with different config. No new external integrations needed for v1.
+- Concerts / live events were considered and **deferred** — they depend on external artist availability and would need a Ticketmaster/Songkick-style integration. Not v1.
+
+**The planner becomes unified, not parallel.** The most important shift. Instead of N independent cadence-triggered schedulers running side by side, there's one planner that:
+
+- Looks at the next ~4-6 weeks
+- Looks at what events already happened recently (don't overload the group's social budget)
+- Draws from the group's menu of ritual templates
+- Proposes 1-2 events that fit, substituting between rituals as needed ("a winery trip this fortnight counts as the dinner; skip the regular Saturday")
+- Cadence is a *target*, not a *trigger* — "roughly 2x/month" means aim for that, allow substitutions, allow skips when life is busy
+
+This matches how a real human planner thinks ("we already did something last weekend, let's give people a break") rather than mechanically firing on schedule.
+
+**Why rituals beats refactoring the whole group model.**
+
+- Zero migration pain — existing groups are unchanged, the side-ritual surface is hidden until used.
+- Onboarding doesn't get heavier — defaults flow from the primary ritual; adding a second is opt-in and ~30 seconds.
+- Matches the "practical over tidy" preference — extension, not restructure.
+- The single-ritual case stays as clean as it is today.
+
+**Decisions still open (to revisit before building):**
+
+1. **Substitution rules.** Does any ritual fire the group's "social budget," or do we tag explicitly which rituals substitute for which? Lean toward the simpler model: all rituals contribute to one shared cadence pool.
+2. **No-candidates behavior.** When a ritual fires but nothing in the venue pool fits the vibe, does Kinmo say "nothing great right now" or loosen the filter? Lean toward "say nothing" to match the no-pressure tone — but worth pressure-testing.
+3. **Per-ritual member subsets.** The bar night excludes the people who can't get a sitter. UX question: how do members opt in/out of a ritual without it feeling like exclusion? Probably the trickiest surface.
+4. **How rituals show in existing surfaces.** Group home tags each proposed event with its ritual; member view shows which rituals each person is in; wishlist entry asks which ritual it belongs to (or Kinmo guesses from text).
+5. **Wishlist as standalone v0.** A "drop an idea" surface could ship *before* ritual support and immediately start collecting warm data the planner uses today. Likely the highest-ROI first step.
+
+**Suggested sequencing if this gets prioritized:**
+
+1. **Wishlist surface first** — attached to the primary group, no ritual concept yet. Lowest risk, immediate value, starts feeding the planner better warm signal regardless of whether rituals ever ship.
+2. **Ritual templates + unified planner** — restructure the auto-scheduler to think "menu of options for the next month" instead of "fire the cadence trigger." This is the real meat of the change. Restaurant-type events only at first; reuses existing venue search.
+3. **Per-ritual member subsets** — the bar-night-excludes-the-parents case. Last because it's the hardest UX.
+4. **Concerts / aspirational external-availability rituals** — much later, only if there's pull. Different problem (Ticketmaster-class integration, fandom data), don't conflate with the rituals-as-config work above.
+
+**Why not now:** Recommendation foundations (W8) need to land first — the planner can't get smarter at picking from group history if `venue_visit_history` is empty and post-event feedback is at 4/50. The wishlist piece could potentially be sequenced alongside W8 Sub-track A since it's also a warm-signal capture surface — worth revisiting when W8 is closer to done.
+
+**Revisit trigger:** When W8 Sub-track A ships (outcome instrumentation gap closed) and the recommender has real history to learn from. At that point, decide whether to start with the wishlist surface (lowest cost), commit to the full unified-planner restructure (highest payoff), or hold for more user signal.
 
 ---
 
@@ -527,6 +578,62 @@ Once new outcomes are flowing AND the cache is sized down to the curated pool:
 - Post-event feedback fill rate is meaningfully higher (target: ≥50% of completed events get any feedback).
 - `curated_venues` is sized to the served-metro starter pool (~100-200 venues per metro), with archived rows accessible in `deleted_venues`.
 - Recommendation flow leans on the curated pool + group history before going to fresh API discovery.
+
+---
+
+## Workstream 9 — Scheduler reliability 🆕 New
+
+**Goal:** Stop cron-burst outages. Web requests should keep being served even when the background scheduler is doing heavy work.
+
+**Triggering incident (2026-05-18, 23:13–23:25 UTC):** kinmo.ai returned Cloudflare 502s for ~12 minutes. Root cause traced through Railway logs:
+
+- At `23:13:00.555` UTC, ~10 cron jobs fired in the same millisecond (Planning Agent, WeeklyDigest ×2, Auto-Draft, Pipeline Gap Detection, Activity Refresh, Database Backup, Event Cleanup, Rejected Dates Cleanup, Time Selection).
+- Pipeline Gap Detection found Golden Girls had 0 future events and synchronously kicked off 4 full event generations (each = chain of OpenAI + Google Places calls).
+- All log output stopped at `23:13:00.561`. No errors, no exits. Process alive but unresponsive.
+- Starting at `23:24:06`, every HTTP request started returning 502 with exactly `15001ms` latency — Railway's edge timeout. Web requests queued behind exhausted DB pool / outbound socket pool.
+- Restarting the Railway service cleared it.
+
+**Why this isn't a one-time thing:** the cron scheduler always fires every job on the same second, there are no timeouts on outbound OpenAI/Google calls, heavy generation work runs inline in the web process, and `WeeklyDigest` is registered twice (visible as duplicate "Starting weekly digest processing…" log lines and duplicate "Complete: 0 triggered, 7 skipped"). With 7 active dogfood groups it was a matter of time; with real users the threshold gets lower.
+
+### Sub-track A — Critical ✅ DONE (2026-05-19)
+
+All three items shipped on the same day as the incident.
+
+1. ✅ ~~**Find and remove the duplicate `WeeklyDigest` registration.**~~ Shipped in `7f33c47`. Removed the in-process scheduler in `reminder-scheduler.ts` (was Monday-gated, mirrored the dedicated cron worker). Detection trick: the production logs showed only ONE `[WeeklyDigest] Job complete` line versus TWO `[WeeklyDigest] Complete: 0 triggered, 7 skipped`, which originally suggested two callers — but see #4: it was actually one trigger that fanned out via an esbuild bundling quirk.
+
+2. ✅ ~~**Add timeouts to outbound OpenAI + Google Places calls.**~~ Shipped in `06c3db9`. All 7 OpenAI client constructors now pass `timeout: 30_000, maxRetries: 1` (SDK default was 10-minute timeout, 2 retries — way too generous). All 4 Google Places `fetch()` call sites in `server/google-places.ts` now pass `signal: AbortSignal.timeout(30_000)`. The OpenAI SDK handles cancellation via AbortController internally; no call-site changes needed. Trade-off as predicted: legitimate slow GPT-4o calls (45-60s on long prompts) will now fail — single retry + loud Sentry logging keeps it observable.
+
+3. ✅ ~~**Stagger cron jobs across the hour.**~~ Shipped in `bf3fd29`. Introduced a `scheduleStaggered(job, intervalMs, offsetMs)` helper in `server/reminder-scheduler.ts` that delays the first run by `offsetMs`, then starts the interval — so offsets persist forever. Daily jobs (11) now spread 0/5/10/.../55 min apart; hourly jobs (3) spread 0/15/30 within the hour. 5-min reminder loop stays eager (lightweight). Also cleaned up a latent bug where `planningAgent`/`databaseBackup`/`costReport` had `setTimeout(60s)` first-run delays but `setInterval` still fired on its own clock — meaning the "delay" only applied to the first run and the actual cadence was unaffected by it.
+
+4. ✅ **Actual root-cause fix — remove the esbuild-incompatible CLI entrypoint in `swipe-digest-worker.ts`.** Shipped in `df0f5cf`. Investigation reveal: there was *no external pinger*. Railway HTTP logs across the outage deployment and several prior had **zero** `/api/cron/weekly-digest` traffic. The duplicate fire was entirely internal — the worker had `if (import.meta.url === file://${process.argv[1]}) { processWeeklyDigests().then(() => process.exit(0)) }` at the bottom, intended as a "run as CLI" entrypoint. In the esbuild bundle, both sides of that comparison resolve to the bundle path, so the check evaluated true on every import. **That's what killed the process on May 18:** the Monday-gated in-process scheduler imported the worker, the bundled CLI block fired `process.exit(0)`, Railway restart-looped until midnight UTC when the Monday gate stopped passing. Items #1-3 were valuable defense-in-depth but didn't touch the actual bug.
+
+**No source-level ordering dependencies found** — jobs share data (groups, itineraries) but didn't require any specific run order. Existing system tolerated full concurrency at startup; staggering just spreads them out.
+
+**Audit follow-up:** grepped the whole `server/` tree for `import.meta.url` — only the `swipe-digest-worker.ts` warning comment remains; no other CLI-check landmines exist.
+
+### Sub-track B — Important (do this month)
+
+4. **Fix "urgent timeline for events in -159 days" logic** in `server/auto-scheduler.ts` (or wherever Auto-Draft / Pipeline Gap decide timeline). Past events shouldn't trigger pipeline work at all — today they do, wasting OpenAI spend and adding load. Verify against `server/event-pipeline.ts` flow.
+5. **Cap concurrency inside heavy jobs.** When Pipeline Gap needs to generate N events for a group, do them sequentially (or `pLimit(2)`), not all at once. Same idea for Activity Refresh across groups. The goal is "no single tick can fully drain the connection pool."
+6. **Pair with W6 Sub-track H (scheduler heartbeats).** A healthcheck that watches "last successful tick per scheduler" and flips `/api/health` to unhealthy on stale heartbeats would have alerted today before users noticed. Worth doing alongside the above so Railway has a signal to act on.
+
+### Sub-track C — Architectural (later, only if A+B aren't enough)
+
+7. **Split the worker from the web server** — run background cron in a second Railway service that reads/writes the same DB. Web stays responsive even under arbitrary scheduler load. This is the "real" fix but it's a meaningful refactor (separate deploy target, careful split of which code each side imports, advisory-lock semantics review). Don't do it until Sub-tracks A and B stop being sufficient — or when onboarding real paying users, whichever comes first.
+
+### Drawbacks to be honest about
+
+- All of Sub-track A is a *mitigation*, not a *fix*. The real architectural problem is "web and worker share a process." After A+B, you'll see fewer total outages but more partial failures (timed-out venue generations instead of full 502s) — net much better, but don't mistake it for solved.
+- Timeout numbers (30s) are best-guess; expect to tune after seeing logs for a week.
+- Staggering changes the mental model — debugging requires looking at multiple times in logs instead of "everything at :13."
+
+### Done when
+
+- One full week passes with no `>=15s` HTTP latency spikes correlating to cron job ticks.
+- No duplicate scheduler registrations (grep-verifiable).
+- All outbound OpenAI / Google Places calls go through a wrapper with a hard timeout.
+- Cron job start times are spread across the hour; cron file is the single source of truth.
+- (Stretch) Scheduler heartbeat surfaces in `/api/health` per W6 Sub-track H.
 
 ---
 
