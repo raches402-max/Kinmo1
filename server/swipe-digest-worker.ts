@@ -52,15 +52,7 @@ export async function processWeeklyDigests(): Promise<void> {
   }
 }
 
-// If running directly (e.g., via cron: `npx tsx server/swipe-digest-worker.ts`)
-if (import.meta.url === `file://${process.argv[1]}`) {
-  processWeeklyDigests()
-    .then(() => {
-      console.log('[WeeklyDigest] Job complete');
-      process.exit(0);
-    })
-    .catch((error) => {
-      console.error('[WeeklyDigest] Job failed:', error);
-      process.exit(1);
-    });
-}
+// NOTE: this file used to have a CLI entrypoint here — `if (import.meta.url === file://${process.argv[1]}) { processWeeklyDigests().then(() => process.exit(0)) }`
+// — intended to let it run standalone via `npx tsx server/swipe-digest-worker.ts`. That check is unsafe in bundled production code:
+// esbuild rewrites both `import.meta.url` and `process.argv[1]` to the same bundle path, so the condition evaluates true on every import
+// and the auto-exit fires. This was the real cause of the 2026-05-18 outage. Trigger production runs via POST /api/cron/weekly-digest only.
