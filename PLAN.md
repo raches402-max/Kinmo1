@@ -1,6 +1,6 @@
 # Kinmo V2 — Master Plan
 
-_Last updated: 2026-05-19 (rev 16 — W9 Sub-track A shipped in `7f33c47..df0f5cf`: removed duplicate WeeklyDigest scheduler, added 30s timeouts on all OpenAI + Google Places calls, staggered 14 background jobs across the hour, and **removed an esbuild-incompatible CLI entrypoint in `swipe-digest-worker.ts` that was the actual root cause of the outage** — its `if (import.meta.url === file://${process.argv[1]})` check evaluated true in bundled production code, calling `process.exit(0)` on every import. Confirmed via Railway HTTP logs: zero external `/api/cron/weekly-digest` traffic, so the "external pinger" suspicion was a red herring.)_
+_Last updated: 2026-05-19 (rev 17 — W8 Sub-track A shipped in `e2bf7ca..03a2e86`: scheduled→completed transition now exists and runs daily, with idempotent venue_visit_history population and a one-time backfill script for historical events. Threshold is ≥2 yes-RSVPs (single-yes events are more likely no-shows than real attended events). Three follow-ups surfaced in today's discussion are documented as new sub-tracks A.5/A.6/A.7 below. W9 Sub-track A was the prior milestone, `7f33c47..df0f5cf`, with the actual root cause being an esbuild-incompatible CLI entrypoint that called process.exit(0) on every import.)_
 
 ## Context
 
@@ -22,7 +22,7 @@ This document is the working plan for getting Kinmo V2 production-ready: off Rep
 | 5 | Code hygiene | 🔄 Ongoing — Sentry on 3 RSVP fire-and-forget catches done (`771f1f7`); frontend Sentry verified by Franky; events.ts refactor fixed (`9d239d8`); advisory lock verified OK in 2026-05-12 audit; env validation hardened in `f457eac` (Zod superRefine with NODE_ENV-aware required checks) |
 | 6 | Security & data-integrity hardening | 🔄 In progress — sub-tracks A (`67b286f` + `79292b7` finishing touches), B (`771f1f7`), C (`0d1b819`), D (`920cf6b` + migration 0016 — apply to Railway pending), E (`2a17050` member-read soft-delete fix), F (`dc8f207`) shipped; G/H remain |
 | 7 | Quorum & auto-reschedule system | ✅ **DONE** (2026-05-15) — proactive deadline-based quorum checks, adaptive timing by cadence, skip-vs-reschedule by cycle length, check-in flow for partial engagement, notification over-send fixes. See details below. |
-| 8 | Recommendation foundations | 🆕 **New** (2026-05-15) — close outcome instrumentation gap (itinerary status, `venue_visit_history`, post-event feedback) so the recommender can learn from real group history; then manually curate `curated_venues` down from ~5,300 to a ~100-200/metro starter pool. See W8 below. |
+| 8 | Recommendation foundations | 🔄 **In progress** — Sub-track A (instrumentation: scheduled→completed + venue_visit_history) shipped in `e2bf7ca` + backfill script in same commit. New follow-ups A.5 (auto-promote proposed→scheduled on quorum), A.6 (per-member past-events view), A.7 (feedback collection rework) surfaced in 2026-05-19 discussion. Sub-track B (manual curation of ~5,300 venues down to ~100-200/metro) + C (data-driven refinement) still ahead. See W8 below. |
 | 9 | Scheduler reliability | 🔄 **In progress** — Sub-track A done (`7f33c47` dedupe WeeklyDigest, `06c3db9` 30s timeouts on OpenAI + Google Places, `bf3fd29` staggered 14 jobs across the hour, `df0f5cf` removed the esbuild-incompatible CLI block that was the actual outage root cause). Sub-track B (urgent-timeline fix, in-job concurrency caps, scheduler heartbeats) + C (split worker from web) remain. See W9 below. |
 
 **Production cost:** ~$10/mo on Railway (app + Postgres). API keys (OpenAI, Resend, Google Places) currently set to placeholders — features depending on them won't work until real keys are added.
@@ -31,13 +31,15 @@ This document is the working plan for getting Kinmo V2 production-ready: off Rep
 
 ## In focus right now
 
-1. **W8 Sub-track A** — Close the outcome instrumentation gap: itineraries flip to `completed` after events, `venue_visit_history` gets populated, post-event feedback fill rate goes up from 4/50. Unblocks every "learn from group history" recommendation strategy. Local working tree already has a `processCompletedItineraries` job in `reminder-scheduler.ts` plus a `scripts/backfill-completed-itineraries.ts` — uncommitted. When committing, convert the new `trackedCompletedItineraries` setInterval to `scheduleStaggered(...)` for consistency with W9 #3 (suggest 60min offset).
-2. **Audit for other `import.meta.url === ...` CLI checks in `server/`** — the `swipe-digest-worker.ts` pattern (`if (import.meta.url === file://${process.argv[1]})`) is unsafe in any esbuild-bundled file because both sides resolve to the bundle path. Grep for the pattern; any other hit is a latent landmine that would call `process.exit()` on first import. ~5 min.
-3. **W4 remaining** — Architecture cleanup: Slice 1 (group `server/` by domain), Slice 3 (split `storage.ts`)
-4. **W6 remaining** — Sub-track H (background-job healthchecks). G (account deletion flow) shipped in `d1d7471`. Pairs naturally with W9 — a healthcheck that watches scheduler heartbeats would have surfaced today's hang.
-5. **W5 ongoing** — Code hygiene: fire-and-forget `.catch()` Sentry wiring, frontend Sentry client init
-6. **Apply migration 0016** to Railway (missing indexes for `members.userId`, `rsvps.userId`, cache tables)
-7. **Add real API keys to Railway** — `OPENAI_API_KEY`, `RESEND_API_KEY`, `GOOGLE_PLACES_API_KEY`, `ADMIN_EMAILS`
+1. **Run the W8 backfill dry-run + apply against prod** — `e2bf7ca` shipped the script. Next step is `railway run --service=Postgres -- bash -c 'DATABASE_URL="$DATABASE_PUBLIC_URL" npx tsx scripts/backfill-completed-itineraries.ts --dry-run'` to see candidate counts, then `--apply` once reviewed. Without this, the recommender stays cold until enough new events flow through.
+2. **W8 Sub-track A.5 — Auto-promote `proposed → scheduled` on quorum met** — today the only proposed→scheduled trigger is the organizer manually calling `POST /api/itineraries/:id/finalize`. User wants the system to flip automatically when `defaultQuorumThreshold` (group setting, percentage) is met by the RSVP deadline. Extend the existing `processQuorumChecks` job in `server/reminder-scheduler.ts` which already evaluates quorum for the negative (cancel) case. ~1-2 hours.
+3. **W8 Sub-track A.6 — Per-member past-events view** — surface only the events each member actually attended. Derive from `rsvps WHERE response='yes'` joined to `itineraries WHERE status='completed'`. No new tables needed. Eventually layer feedback overrides (member can mark "I didn't end up going" to exclude). Server query + UI list. ~2-3 hours.
+4. **W8 Sub-track A.7 — Feedback collection improvements** — post-event feedback fills 4/50 today; needs a lower-friction 1-tap "did you go?" prompt with reliable morning-after trigger for completed events. Feeds the override path in A.6.
+5. **W4 remaining** — Architecture cleanup: Slice 1 (group `server/` by domain), Slice 3 (split `storage.ts`)
+6. **W6 remaining** — Sub-track H (background-job healthchecks). G (account deletion flow) shipped in `d1d7471`. Pairs naturally with W9 — a healthcheck that watches scheduler heartbeats would have surfaced today's hang.
+7. **W5 ongoing** — Code hygiene: fire-and-forget `.catch()` Sentry wiring, frontend Sentry client init
+8. **Apply migration 0016** to Railway (missing indexes for `members.userId`, `rsvps.userId`, cache tables)
+9. **Add real API keys to Railway** — `OPENAI_API_KEY`, `RESEND_API_KEY`, `GOOGLE_PLACES_API_KEY`, `ADMIN_EMAILS`
 
 ---
 
@@ -528,7 +530,7 @@ Shipped in `d1d7471` (2026-05-15). `POST /api/user/delete` requires `{ confirmat
 
 ---
 
-## Workstream 8 — Recommendation foundations 🆕 New
+## Workstream 8 — Recommendation foundations 🔄 In progress
 
 **Goal:** Make Kinmo recommend from what groups actually like, not from a 5,300-venue cache the AI keeps recycling the same handful of suggestions from. Per project principle: *build for memory, not discovery* (see `[[kinmo-recommendations-philosophy]]`).
 
@@ -542,13 +544,44 @@ Net effect: of 5,300 curated venues, only ~10-15 have any positive engagement si
 
 The right end state for the cache is ~100-200 venues per metro that match patterns from real group data — but the data-driven prune can't run until the outcome signals are actually being collected.
 
-### Sub-track A — Close the outcome instrumentation gap (critical, this week)
+### Sub-track A — Close the outcome instrumentation gap ✅ DONE (2026-05-19)
 
-The recommendation engine can't learn from history if history isn't recorded. Three concrete fixes:
+Shipped in `e2bf7ca` (+ adjacent improvements in `03a2e86`). Two of three original items done:
 
-1. **Itinerary status flip to `completed`** — audit the event lifecycle: where SHOULD status move `scheduled` → `completed`? Likely either (a) automatic after `eventDate` passes with at least one yes RSVP, or (b) a manual "did this happen?" tap from the organizer. Decide and wire it.
-2. **Populate `venue_visit_history`** — when status flips to `completed`, insert one row per `itinerary_items` row into `venue_visit_history`. Backfill from past scheduled itineraries where reasonable.
-3. **Surface post-event feedback consistently** — 4/50+ fill rate means the prompt isn't reaching members or is too easy to dismiss. Make it a low-friction tap (1-tap "did you go? thumbs up/down" beats a multi-field form), and trigger it reliably the morning after every completed event.
+1. ✅ **Itinerary status flip to `completed`** — new `processCompletedItineraries` daily job in `server/reminder-scheduler.ts` flips past-eventDate itineraries from `proposed`/`scheduled` to `completed` when they have ≥2 yes-RSVPs. Registered via `scheduleStaggered(..., 60 * MINUTE_MS)` per W9 #3 convention. Threshold rationale: a single yes-RSVP is more likely a no-show or solo plan than a real attended event; group-size-aware percentage thresholds deferred (current dogfood groups are small enough that ≥2 is a reasonable universal floor).
+
+2. ✅ **Populate `venue_visit_history`** — the completion job calls `storage.logVenueVisits` immediately after flipping status. Idempotency guard added to `logVenueVisits` so re-running the job (or the backfill) doesn't double-log. Also removed the *premature* `logVenueVisits` call in `processAutoSend` that was firing on invite-send instead of attendance. One-time backfill script (`scripts/backfill-completed-itineraries.ts`) added with `--dry-run`/`--apply` modes for retroactively populating history from months of dogfood data — **dry-run + apply against prod is the next concrete action** (see "In focus" #1).
+
+3. 🔄 **Surface post-event feedback consistently** — split into its own sub-track A.7 below since it's a UX/UI piece that deserves separate scoping. The instrumentation prerequisite (events being marked `completed`) is now in place.
+
+### Sub-track A.5 — Auto-promote `proposed → scheduled` on quorum met (2026-05-19)
+
+Today the only proposed→scheduled trigger is the organizer manually calling `POST /api/itineraries/:id/finalize` (server/routes/itinerary-extras.ts:1283). No quorum check. User wants the system to flip automatically when `groups.defaultQuorumThreshold` (percentage, 0-100) is met by yes-RSVPs from group members by the RSVP deadline.
+
+The existing `processQuorumChecks` job in `server/reminder-scheduler.ts` already evaluates quorum for the *negative* case (below quorum → cancel or reschedule per W7). Extend it to handle the positive case: above quorum → flip to `scheduled`. Watch out for double-firing with the manual finalize endpoint (probably just update status only if still `proposed`).
+
+Estimate: ~1-2 hours.
+
+### Sub-track A.6 — Per-member past-events view (2026-05-19)
+
+Today's "past events" listing surfaces every group event to every group member. User correctly observed that an event with 3 of 5 members attending should only appear in those 3 members' past-events list, not for the 2 who didn't go.
+
+Data is already there: `rsvps WHERE response='yes'` joined to `itineraries WHERE status='completed'` gives the per-member attendance set. No new tables needed.
+
+Attendance source rule (decided 2026-05-19): start with `RSVP='yes'` as the attendance proxy. Layer post-event-feedback overrides on top — if a member marks "I didn't end up going," exclude them. Feedback stays **optional**: it doesn't block the RSVP=yes default from counting.
+
+Touches: server query (new storage function), UI list (Past Events surface in client).
+
+Estimate: ~2-3 hours.
+
+### Sub-track A.7 — Feedback collection rework (2026-05-19)
+
+Spun out from the original Sub-track A item #3. Post-event feedback fills 4/50 today. Two real problems:
+
+1. **Trigger reliability** — was tied to the broken status='completed' assumption. Now that status flips happen daily, the existing feedback-request job (`processPostEventFeedbackRequests`) will start firing reliably. Watch fill rate for ~2 weeks and decide if it's enough.
+2. **Form friction** — current form is multi-field. User direction: replace with a 1-tap "did you go? 👍/👎" prompt as the default; multi-field details only on opt-in.
+
+Estimate: ~2-3 hours (mostly UI work). Pair this with A.6 since the feedback flow is what feeds the A.6 attendance-override path.
 
 ### Sub-track B — Manually curate the starter venue pool (important, this month)
 
@@ -574,10 +607,12 @@ Once new outcomes are flowing AND the cache is sized down to the curated pool:
 - Bulk refreshing numeric fields (rating, hours, price, photo) on the whole cache — those need Google Places API and only make sense for venues users actually see. Defer to lazy-refresh in Sub-track C.
 
 ### Done when
-- Itineraries reliably move to `completed` after events happen; `venue_visit_history` has rows for past events.
-- Post-event feedback fill rate is meaningfully higher (target: ≥50% of completed events get any feedback).
-- `curated_venues` is sized to the served-metro starter pool (~100-200 venues per metro), with archived rows accessible in `deleted_venues`.
-- Recommendation flow leans on the curated pool + group history before going to fresh API discovery.
+- ✅ Itineraries reliably move to `completed` after events happen; `venue_visit_history` has rows for past events. (Shipped 2026-05-19 in `e2bf7ca`; one-time backfill against prod still pending.)
+- Proposed itineraries auto-promote to scheduled when quorum is met (A.5).
+- Past-events surface is per-member, derived from RSVP=yes minus feedback no-shows (A.6).
+- Post-event feedback fill rate is meaningfully higher (target: ≥50% of completed events get any feedback) (A.7).
+- `curated_venues` is sized to the served-metro starter pool (~100-200 venues per metro), with archived rows accessible in `deleted_venues` (Sub-track B).
+- Recommendation flow leans on the curated pool + group history before going to fresh API discovery (Sub-track C).
 
 ---
 
