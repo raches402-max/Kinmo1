@@ -6,6 +6,7 @@ import { itineraries, rsvps as rsvpsTable, venueVisitHistory } from "../shared/s
 import { and, eq, inArray, isNotNull, lt, or, sql } from "drizzle-orm";
 
 const APPLY = process.argv.includes("--apply");
+const REMOVE = process.argv.includes("--remove");
 
 function getFlagValue(flag: string): string | undefined {
   const index = process.argv.indexOf(flag);
@@ -85,7 +86,64 @@ async function fetchCandidates(): Promise<Candidate[]> {
   }));
 }
 
+async function removeMode() {
+  if (!ITINERARY_ID) {
+    console.error("--remove requires --itinerary <id>");
+    process.exit(1);
+  }
+
+  console.log(`Mode: REMOVE ${APPLY ? "(APPLY)" : "(DRY RUN)"}`);
+  console.log(`Target itinerary: ${ITINERARY_ID}`);
+
+  const [itinerary] = await db
+    .select()
+    .from(itineraries)
+    .where(eq(itineraries.id, ITINERARY_ID))
+    .limit(1);
+
+  if (!itinerary) {
+    console.error(`Itinerary ${ITINERARY_ID} not found`);
+    process.exit(1);
+  }
+
+  const visitRows = await db
+    .select()
+    .from(venueVisitHistory)
+    .where(eq(venueVisitHistory.itineraryId, ITINERARY_ID));
+
+  console.log(`\nCurrent state:`);
+  console.log(`  name:            ${itinerary.name || "(unnamed)"}`);
+  console.log(`  status:          ${itinerary.status}`);
+  console.log(`  eventDate:       ${itinerary.eventDate?.toISOString().slice(0, 10) || "(none)"}`);
+  console.log(`  visit_history:   ${visitRows.length} row(s)`);
+
+  console.log(`\nPlanned actions:`);
+  console.log(`  - set status: ${itinerary.status} -> cancelled`);
+  console.log(`  - delete ${visitRows.length} venue_visit_history row(s) for this itinerary`);
+  console.log(`  - (RSVPs and feedback are NOT touched -- they reflect what people said)`);
+
+  if (!APPLY) {
+    console.log(`\nDry run. Re-run with --apply to commit.`);
+    return;
+  }
+
+  await storage.updateItinerary(ITINERARY_ID, { status: "cancelled" });
+  const deleted = await db
+    .delete(venueVisitHistory)
+    .where(eq(venueVisitHistory.itineraryId, ITINERARY_ID))
+    .returning();
+
+  console.log(`\nRemoved:`);
+  console.log(`  - status set to cancelled`);
+  console.log(`  - deleted ${deleted.length} venue_visit_history row(s)`);
+}
+
 async function main() {
+  if (REMOVE) {
+    await removeMode();
+    return;
+  }
+
   console.log(`Mode: ${APPLY ? "APPLY" : "DRY RUN"}`);
   console.log(`Limit: ${LIMIT}`);
   if (ITINERARY_ID) {
