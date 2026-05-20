@@ -53,6 +53,7 @@ const PrototypeAvailabilityGrid = lazy(() => import("@/pages/prototype-availabil
 const PrototypeTimelineInfo = lazy(() => import("@/pages/prototype-timeline-info"));
 const PrototypeCreateEvent = lazy(() => import("@/pages/prototype-create-event"));
 const PrototypeWaitlist = lazy(() => import("@/pages/prototype-waitlist"));
+const Welcome = lazy(() => import("@/pages/welcome"));
 const PrototypeIndex = lazy(() => import("@/pages/prototype-index"));
 const PrototypeKinmoText = lazy(() => import("@/pages/prototype-kinmo-text"));
 const PrototypeHeadlineLayouts = lazy(() => import("@/pages/prototype-headline-layouts"));
@@ -147,6 +148,7 @@ function Router() {
             {!isAuthenticated ? (
               <>
                 <Route path="/" component={Landing} />
+                <Route path="/welcome" component={Welcome} />
                 <Route path="/join-entry" component={JoinEntry} />
                 <Route path="/join/:shareableLink" component={JoinGroup} />
                 <Route path="/invite/:token" component={InviteRedirect} />

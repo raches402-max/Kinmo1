@@ -1585,3 +1585,42 @@ export const insertPlanningInsightSchema = createInsertSchema(planningInsights).
 
 export type InsertPlanningInsight = z.infer<typeof insertPlanningInsightSchema>;
 export type PlanningInsight = typeof planningInsights.$inferSelect;
+
+// ─── Waitlist / invite codes ──────────────────────────────────────────────
+// Invite-only beta access. Three tables:
+//   - invite_codes: named codes ("frands", "haas") with per-code use caps
+//   - allowed_emails: who is allowed to sign in via Google OAuth
+//   - waitlist_signups: people who asked to be let in without a code
+
+export const inviteCodes = pgTable("invite_codes", {
+  code: varchar("code").primaryKey(), // lowercased, e.g. "frands"
+  label: varchar("label").notNull(), // human label shown to admin, e.g. "Frands"
+  maxUses: integer("max_uses").notNull().default(25),
+  usesCount: integer("uses_count").notNull().default(0),
+  expiresAt: timestamp("expires_at"), // nullable — never expires if null
+  isActive: boolean("is_active").notNull().default(true),
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const allowedEmails = pgTable("allowed_emails", {
+  email: varchar("email").primaryKey(), // lowercased
+  source: varchar("source").notNull(), // 'founder' | 'invite_code' | 'manual'
+  inviteCode: varchar("invite_code").references(() => inviteCodes.code, { onDelete: "set null" }),
+  claimedAt: timestamp("claimed_at"), // set when the email actually signs in
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const waitlistSignups = pgTable("waitlist_signups", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: varchar("email").notNull(),
+  status: varchar("status").notNull().default("pending"), // 'pending' | 'approved' | 'rejected'
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_waitlist_signups_email").on(table.email),
+  index("idx_waitlist_signups_status").on(table.status),
+]);
+
+export type InviteCode = typeof inviteCodes.$inferSelect;
+export type AllowedEmail = typeof allowedEmails.$inferSelect;
+export type WaitlistSignup = typeof waitlistSignups.$inferSelect;

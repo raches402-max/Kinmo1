@@ -354,7 +354,7 @@ export default function Landing() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button
               size="lg"
-              onClick={() => window.location.href = "/api/login"}
+              onClick={() => window.location.href = "/welcome"}
               className="px-10 h-12 text-base font-semibold"
               data-testid="button-get-started"
             >
@@ -513,7 +513,7 @@ export default function Landing() {
           </p>
           <Button
             size="lg"
-            onClick={() => window.location.href = "/api/login"}
+            onClick={() => window.location.href = "/welcome"}
             className="px-10 h-12 text-base font-semibold"
           >
             Get Started

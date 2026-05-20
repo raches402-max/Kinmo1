@@ -4,6 +4,7 @@ import session from "express-session";
 import connectPg from "connect-pg-simple";
 import type { Express, RequestHandler } from "express";
 import { storage } from "./storage";
+import { isEmailAllowed, claimInviteCode, markEmailClaimed } from "./waitlist";
 
 // Custom domains - must match replitAuth.ts for consistent domain handling
 const HARDCODED_CUSTOM_DOMAINS = ["kinmo.ai"];
@@ -95,9 +96,36 @@ export async function setupGoogleAuth(app: Express) {
             clientSecret: clientSecret!,
             callbackURL,
             scope: ["profile", "email"],
+            passReqToCallback: true,
           },
-          async (accessToken, refreshToken, profile, done) => {
+          async (req: any, accessToken: string, refreshToken: string, profile: Profile, done: any) => {
             try {
+              const email = profile.emails?.[0]?.value?.toLowerCase();
+              if (!email) {
+                return done(null, false, { message: "no_email" });
+              }
+
+              // Invite-only gate. Allow if email is already on the allowlist,
+              // OR if there's a pending invite code in session that we can claim.
+              const allowed = await isEmailAllowed(email);
+              if (!allowed) {
+                const pendingCode = req.session?.pendingInviteCode as string | undefined;
+                if (!pendingCode) {
+                  console.log(`[GoogleAuth] Blocked sign-in (not invited): ${email}`);
+                  return done(null, false, { message: "not_invited" });
+                }
+                const claimed = await claimInviteCode(pendingCode, email);
+                if (!claimed) {
+                  console.log(`[GoogleAuth] Code claim failed for ${email}: ${pendingCode}`);
+                  return done(null, false, { message: "code_unavailable" });
+                }
+                console.log(`[GoogleAuth] Code ${pendingCode} claimed by ${email}`);
+                delete req.session.pendingInviteCode;
+              } else {
+                // Best-effort: mark when this email first signed in.
+                await markEmailClaimed(email);
+              }
+
               const user = await upsertGoogleUser(profile);
               // Store tokens and claims in session similar to Replit auth
               const sessionUser = {
@@ -164,12 +192,18 @@ export async function setupGoogleAuth(app: Express) {
       return res.redirect("/?auth_error=not_configured");
     }
 
-    passport.authenticate(`google:${req.hostname}`, (err: any, user: any) => {
+    passport.authenticate(`google:${req.hostname}`, (err: any, user: any, info: any) => {
       if (err) {
         console.error("[GoogleAuth] Authentication error:", err);
         return res.redirect("/?auth_error=auth_failed");
       }
       if (!user) {
+        // Specific blocks from the invite-only gate get their own message so
+        // the welcome page can show appropriate copy.
+        const reason = info?.message;
+        if (reason === "not_invited" || reason === "code_unavailable" || reason === "no_email") {
+          return res.redirect(`/welcome?auth_error=${reason}`);
+        }
         return res.redirect("/?auth_error=no_user");
       }
 

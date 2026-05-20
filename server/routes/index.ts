@@ -138,6 +138,7 @@ import groupJoinRouter from "./group-join";
 import groupAutomationRouter from "./group-automation";
 import memberExtrasRouter from "./member-extras";
 import hostingRouter from "./hosting";
+import { waitlistRouter } from "./waitlist";
 import memberClaimsRouter from "./member-claims";
 import guestInvitesRouter from "./guest-invites";
 import feedbackRouter from "./feedback";
@@ -161,6 +162,9 @@ export function registerSubRoutes(app: Express): void {
   // Auth routes: /api/auth/*
   // Note: Google OAuth (login/callback/logout) is handled by setupAuth() in googleAuth.ts
   app.use("/api/auth", authRouter);
+
+  // Waitlist & invite code redemption (public, no auth)
+  app.use("/api/waitlist", waitlistRouter);
 
   // Groups CRUD: /api/groups/* and /api/user/groups
   // Router paths are prefixed with /groups or /user/groups internally
