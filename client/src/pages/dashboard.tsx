@@ -24,7 +24,7 @@ import { formatInTimeZone } from "date-fns-tz";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { isPastEvent, isPastDisplayableEvent, isWithinFeedbackWindow } from "@/lib/events";
+import { isPastEvent, isPastDisplayableEvent, isWithinFeedbackWindow, userAttendedEvent } from "@/lib/events";
 import { getErrorToast, ErrorDisplay } from "@/components/ErrorDisplay";
 import { LoadingState, SkeletonCard } from "@/components/LoadingState";
 import type { Group, User, UserProfile, GroupCollection, Itinerary, StandaloneEventInvitee } from "@shared/schema";
@@ -1022,7 +1022,7 @@ export default function Dashboard() {
   const { events: displayedUpcomingEvents, hiddenCount: hiddenEventsCount } = limitEventsPerGroup(upcomingEvents);
 
   const pastEvents = events
-    .filter(e => isPastDisplayableEvent(e, now))
+    .filter(e => isPastDisplayableEvent(e, now) && userAttendedEvent(e))
     .sort((a, b) => {
       const dateA = a.eventDate ? new Date(a.eventDate).getTime() : 0;
       const dateB = b.eventDate ? new Date(b.eventDate).getTime() : 0;
@@ -1482,7 +1482,7 @@ export default function Dashboard() {
                       onClick={() => setIsPastEventsExpanded(!isPastEventsExpanded)}
                       className="flex items-center gap-2 hover:opacity-70 transition-opacity"
                     >
-                      <h3 className="text-xl font-bold">Past Events ({pastEvents.length})</h3>
+                      <h3 className="text-xl font-bold">Events you went to ({pastEvents.length})</h3>
                       {isPastEventsExpanded ? (
                         <ChevronUp className="h-5 w-5" />
                       ) : (

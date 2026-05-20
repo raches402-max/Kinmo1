@@ -7,6 +7,9 @@ export type EventLike = {
   // /api/user/events events carry rsvpSummary; UnifiedEvent carries rsvpCount.
   rsvpSummary?: { yes: string[]; maybe: string[]; no: string[] } | null;
   rsvpCount?: { yes: number; maybe: number; no: number; pending: number } | null;
+  // The current user's own RSVP on this event, if known. Populated by
+  // /api/user/events; absent on UnifiedEvent-shaped sources.
+  rsvp?: { response?: string | null } | null;
 };
 
 /**
@@ -50,6 +53,22 @@ export function isPastDisplayableEvent(e: EventLike, now: Date = new Date()): bo
   if (e.status === "draft" && !e.inviteSentAt) return false;
   if (e.status === "saved" && !e.inviteSentAt) return false;
   return true;
+}
+
+/**
+ * Did the *current user* attend this event? Today, "attended" = their RSVP
+ * was 'yes' or 'going'. Eventually post-event feedback can override this
+ * ("I didn't end up going" → false, "I went after all" → true), but feedback
+ * collection isn't reliable enough yet (~4/50 fill rate) so RSVP=yes is
+ * treated as the authoritative attendance signal.
+ *
+ * Only meaningful on event shapes that carry the current user's `rsvp` —
+ * /api/user/events does, UnifiedEvent shapes do not. Returns false when
+ * the field is absent, so callers should only use this in user-scoped views.
+ */
+export function userAttendedEvent(e: EventLike): boolean {
+  const response = e.rsvp?.response;
+  return response === "yes" || response === "going";
 }
 
 export const FEEDBACK_WINDOW_DAYS = 30;
