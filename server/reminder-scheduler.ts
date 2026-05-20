@@ -1538,7 +1538,12 @@ async function processQuorumChecks(): Promise<void> {
         const requiredYes = Math.max(1, Math.ceil(memberCount * quorumThreshold / 100));
 
         if (yesCount >= requiredYes) {
-          console.log(`[Quorum Check] ${itinerary.id}: quorum met (${yesCount}/${requiredYes}), skipping`);
+          if (itinerary.status === 'proposed') {
+            console.log(`[Quorum Check] ${itinerary.id}: quorum met (${yesCount}/${requiredYes}), auto-promoting proposed → scheduled`);
+            await promoteProposedToScheduled(itinerary, group);
+          } else {
+            console.log(`[Quorum Check] ${itinerary.id}: quorum met (${yesCount}/${requiredYes}), already ${itinerary.status}`);
+          }
           continue;
         }
 
@@ -1625,6 +1630,39 @@ async function sendQuorumCheckin(
         requiredYes,
       },
     ).catch((e: unknown) => console.error(`[Quorum Check] Failed to send check-in to ${member.email}:`, e));
+  }
+}
+
+/**
+ * Promote a proposed itinerary to scheduled once quorum is met without organizer action.
+ * Mirrors POST /api/itineraries/:id/finalize minus the venue-hours UX guard
+ * (auto-promotion shouldn't silently drop events on closed-venue warnings).
+ */
+async function promoteProposedToScheduled(itinerary: any, group: Group): Promise<void> {
+  try {
+    await storage.updateItinerary(itinerary.id, { status: 'scheduled' });
+
+    if (itinerary.eventDate) {
+      await storage.logVenueVisits(itinerary.id, new Date(itinerary.eventDate));
+
+      const eventDate = new Date(itinerary.eventDate);
+      const frequencyDays: Record<string, number> = {
+        weekly: 7,
+        biweekly: 14,
+        monthly: 30,
+        bimonthly: 60,
+      };
+      const daysToAdd = frequencyDays[group.meetingFrequency || 'monthly'] || 30;
+
+      await storage.updateGroup(itinerary.groupId, {
+        lastEventDate: eventDate,
+        nextEventDueDate: addDays(eventDate, daysToAdd),
+      });
+
+      await maintainEventPipeline(itinerary.groupId, storage);
+    }
+  } catch (error: any) {
+    console.error(`[Quorum Check] Failed to auto-promote ${itinerary.id}:`, error);
   }
 }
 
