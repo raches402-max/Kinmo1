@@ -259,6 +259,11 @@ export function PostEventFeedbackDialog({
   // Step management
   const [step, setStep] = useState(0);
 
+  // A.7: one-tap mode is the default. allowDetails lets a power user opt
+  // into the multi-step wizard so the Yes/No buttons just *select* instead
+  // of auto-submitting.
+  const [allowDetails, setAllowDetails] = useState(false);
+
   // Form state
   const [attended, setAttended] = useState<boolean | null>(null);
   const [didNotAttendReason, setDidNotAttendReason] = useState<string>("");
@@ -275,6 +280,7 @@ export function PostEventFeedbackDialog({
 
   const resetForm = () => {
     setStep(0);
+    setAllowDetails(false);
     setAttended(null);
     setDidNotAttendReason("");
     setOverallRating(0);
@@ -349,6 +355,17 @@ export function PostEventFeedbackDialog({
       timingRating: attended && timingRating > 0 ? timingRating : undefined,
       frequencyPreference: attended ? frequencyPreference : undefined,
       notes: attended && notes ? notes : undefined,
+    });
+  };
+
+  // A.7: in default (one-tap) mode, picking yes/no submits immediately.
+  // In allowDetails mode, picking just selects and the user advances via Continue.
+  const handleAttendancePick = (value: boolean) => {
+    setAttended(value);
+    if (allowDetails || !event) return;
+    feedbackMutation.mutate({
+      itineraryId: event.itineraryId,
+      actuallyAttended: value,
     });
   };
 
@@ -467,14 +484,14 @@ export function PostEventFeedbackDialog({
                     Did you make it?
                   </h2>
                   <p className="text-[hsl(25,15%,50%)] text-sm">
-                    Quick check-in about the event
+                    {allowDetails ? "Pick one — you can share more on the next step" : "One tap and you're done"}
                   </p>
                 </div>
 
                 <div className="flex gap-4 justify-center pt-4">
                   <motion.button
                     type="button"
-                    onClick={() => setAttended(true)}
+                    onClick={() => handleAttendancePick(true)}
                     className={cn(
                       "w-28 h-28 rounded-3xl border-3 flex flex-col items-center justify-center gap-2 transition-all duration-200",
                       attended === true
@@ -502,7 +519,7 @@ export function PostEventFeedbackDialog({
 
                   <motion.button
                     type="button"
-                    onClick={() => setAttended(false)}
+                    onClick={() => handleAttendancePick(false)}
                     className={cn(
                       "w-28 h-28 rounded-3xl border-3 flex flex-col items-center justify-center gap-2 transition-all duration-200",
                       attended === false
@@ -528,6 +545,18 @@ export function PostEventFeedbackDialog({
                     </span>
                   </motion.button>
                 </div>
+
+                {!allowDetails && (
+                  <div className="text-center pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setAllowDetails(true)}
+                      className="text-sm text-[hsl(25,15%,50%)] underline underline-offset-2 hover:text-[hsl(25,30%,14%)] transition-colors"
+                    >
+                      I'd like to share more details first
+                    </button>
+                  </div>
+                )}
               </motion.div>
             )}
 

@@ -294,8 +294,8 @@ export async function notifyFeedbackRequest(params: {
   // Title: "How was Marufuku?" or "How was dinner?"
   const title = venueName ? `How was ${venueName}?` : 'How was the event?';
 
-  // Message: "Your feedback helps pick better spots"
-  const message = 'Quick rating helps us pick better spots next time';
+  // Message: one-tap framing matches the dialog's default mode (A.7)
+  const message = 'One tap to let us know how it went';
 
   const memberData = await db.query.members.findMany({
     where: (members, { inArray }) => inArray(members.id, memberIds),
