@@ -246,7 +246,6 @@ export default function Dashboard() {
   const [openCollections, setOpenCollections] = useState<Set<string>>(new Set());
   const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
   const [isPastEventsExpanded, setIsPastEventsExpanded] = useState(false);
-  const [showArchivedEvents, setShowArchivedEvents] = useState(false);
   const [selectedEvents, setSelectedEvents] = useState<Set<string>>(new Set());
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
@@ -1022,18 +1021,13 @@ export default function Dashboard() {
 
   const { events: displayedUpcomingEvents, hiddenCount: hiddenEventsCount } = limitEventsPerGroup(upcomingEvents);
 
-  const pastEvents = events.filter(e => isPastDisplayableEvent(e, now));
-
-  // Split past events into recent (last 90 days) and archived (older)
-  const ninetyDaysAgo = new Date();
-  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-  const recentPastEvents = pastEvents.filter(event =>
-    event.eventDate && new Date(event.eventDate) >= ninetyDaysAgo
-  );
-  const archivedPastEvents = pastEvents.filter(event =>
-    event.eventDate && new Date(event.eventDate) < ninetyDaysAgo
-  );
-  const displayedPastEvents = showArchivedEvents ? pastEvents : recentPastEvents;
+  const pastEvents = events
+    .filter(e => isPastDisplayableEvent(e, now))
+    .sort((a, b) => {
+      const dateA = a.eventDate ? new Date(a.eventDate).getTime() : 0;
+      const dateB = b.eventDate ? new Date(b.eventDate).getTime() : 0;
+      return dateB - dateA;
+    });
 
   // Organize groups by collection
   const uncategorizedGroups = groups.filter(g => !g.collectionId);
@@ -1495,39 +1489,17 @@ export default function Dashboard() {
                         <ChevronDown className="h-5 w-5" />
                       )}
                     </button>
-                    {isPastEventsExpanded && archivedPastEvents.length > 0 && (
-                      <span className="text-sm text-muted-foreground">
-                        {showArchivedEvents
-                          ? `Showing all ${pastEvents.length} events`
-                          : `Showing ${recentPastEvents.length} recent • ${archivedPastEvents.length} archived`
-                        }
-                      </span>
-                    )}
                   </div>
                   {isPastEventsExpanded && (
-                    <>
-                      <div className="opacity-75">
-                        <EventsTable
-                          events={displayedPastEvents as any}
-                          expandedEvents={expandedEvents}
-                          onToggleExpand={toggleEventExpand}
-                          isPastEvents={true}
-                          onLeaveFeedback={handlePostEventFeedback as any}
-                        />
-                      </div>
-                      {!showArchivedEvents && archivedPastEvents.length > 0 && (
-                        <div className="mt-4 text-center">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setShowArchivedEvents(true)}
-                            className="text-sm text-muted-foreground hover:text-foreground"
-                          >
-                            View all past events ({archivedPastEvents.length} older) →
-                          </Button>
-                        </div>
-                      )}
-                    </>
+                    <div className="opacity-75">
+                      <EventsTable
+                        events={pastEvents as any}
+                        expandedEvents={expandedEvents}
+                        onToggleExpand={toggleEventExpand}
+                        isPastEvents={true}
+                        onLeaveFeedback={handlePostEventFeedback as any}
+                      />
+                    </div>
                   )}
                 </div>
               )}

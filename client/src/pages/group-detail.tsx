@@ -1018,7 +1018,13 @@ export default function GroupDetail() {
         if (e.isOrganizer) return isFutureOrTBD;
         return e.rsvp && e.rsvp.response !== 'no' && isFutureOrTBD;
       }),
-      pastEvents: allGroupEvents.filter(e => isPastEvent(e, now))
+      pastEvents: allGroupEvents
+        .filter(e => isPastEvent(e, now))
+        .sort((a, b) => {
+          const dateA = a.eventDate ? new Date(a.eventDate).getTime() : 0;
+          const dateB = b.eventDate ? new Date(b.eventDate).getTime() : 0;
+          return dateB - dateA;
+        })
     };
   }, [allGroupEvents]);
 
