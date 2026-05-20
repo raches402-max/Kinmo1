@@ -139,6 +139,7 @@ import groupAutomationRouter from "./group-automation";
 import memberExtrasRouter from "./member-extras";
 import hostingRouter from "./hosting";
 import { waitlistRouter } from "./waitlist";
+import { adminWaitlistRouter } from "./admin-waitlist";
 import memberClaimsRouter from "./member-claims";
 import guestInvitesRouter from "./guest-invites";
 import feedbackRouter from "./feedback";
@@ -165,6 +166,9 @@ export function registerSubRoutes(app: Express): void {
 
   // Waitlist & invite code redemption (public, no auth)
   app.use("/api/waitlist", waitlistRouter);
+
+  // Admin: waitlist signups, invite codes, allowlist management
+  app.use("/api", adminWaitlistRouter);
 
   // Groups CRUD: /api/groups/* and /api/user/groups
   // Router paths are prefixed with /groups or /user/groups internally

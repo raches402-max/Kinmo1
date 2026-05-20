@@ -11,7 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from "recharts";
-import { Users, Calendar, TrendingUp, MapPin, Repeat, ArrowLeft, DollarSign, Database, Download, RefreshCw, FileText, BarChart3, Upload, Trash2 } from "lucide-react";
+import { Users, Calendar, TrendingUp, MapPin, Repeat, ArrowLeft, DollarSign, Database, Download, RefreshCw, FileText, BarChart3, Upload, Trash2, UserPlus } from "lucide-react";
+import WaitlistAdmin from "@/components/admin/WaitlistAdmin";
 import { format } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -785,6 +786,10 @@ export default function Admin() {
       <Tabs defaultValue="overview" className="space-y-6">
         <TabsList>
           <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
+          <TabsTrigger value="waitlist" data-testid="tab-waitlist">
+            <UserPlus className="h-4 w-4 mr-2" />
+            Waitlist
+          </TabsTrigger>
           <TabsTrigger value="analytics" data-testid="tab-analytics">
             <BarChart3 className="h-4 w-4 mr-2" />
             Analytics
@@ -1249,6 +1254,10 @@ export default function Admin() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="waitlist" className="space-y-6">
+          <WaitlistAdmin />
         </TabsContent>
 
         <TabsContent value="analytics" className="space-y-6">
