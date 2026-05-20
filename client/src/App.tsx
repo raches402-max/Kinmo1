@@ -52,6 +52,7 @@ const PrototypePlaces = lazy(() => import("@/pages/prototype-places"));
 const PrototypeAvailabilityGrid = lazy(() => import("@/pages/prototype-availability-grid"));
 const PrototypeTimelineInfo = lazy(() => import("@/pages/prototype-timeline-info"));
 const PrototypeCreateEvent = lazy(() => import("@/pages/prototype-create-event"));
+const PrototypeWaitlist = lazy(() => import("@/pages/prototype-waitlist"));
 const PrototypeIndex = lazy(() => import("@/pages/prototype-index"));
 const PrototypeKinmoText = lazy(() => import("@/pages/prototype-kinmo-text"));
 const PrototypeHeadlineLayouts = lazy(() => import("@/pages/prototype-headline-layouts"));
@@ -123,6 +124,7 @@ function Router() {
                 prototype-index.tsx file. — added 2026-05
             */}
             <Route path="/prototype" component={PrototypeIndex} />
+            <Route path="/prototype/waitlist" component={PrototypeWaitlist} />
             <Route path="/prototype/create-event" component={PrototypeCreateEvent} />
             <Route path="/prototype/dashboard-v2" component={PrototypeDashboardV2} />
             <Route path="/prototype/dashboard-redesign" component={PrototypeDashboardRedesign} />

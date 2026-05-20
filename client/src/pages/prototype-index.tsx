@@ -20,6 +20,7 @@ interface PrototypeEntry {
 
 const PROTOTYPES: PrototypeEntry[] = [
   // Most recent first
+  { path: "/prototype/waitlist", title: "Waitlist / invite code", note: "code redemption + waitlist signup states", added: "2026-05" },
   { path: "/prototype/create-event", title: "Create Event (redesigned)", note: "single-screen editor, contextual AI helpers", added: "2026-05" },
   { path: "/prototype/dashboard-v2", title: "Dashboard v2" },
   { path: "/prototype/dashboard-redesign", title: "Dashboard redesign" },
