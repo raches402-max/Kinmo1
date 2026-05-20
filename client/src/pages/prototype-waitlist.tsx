@@ -26,7 +26,7 @@ import { KinmoIcon } from "@/components/KinmoLogo";
 const VALID_CODES: Record<string, { label: string; remaining: number }> = {
   frands: { label: "Frands", remaining: 18 },
   gold24: { label: "Gold list 2024", remaining: 7 },
-  hass: { label: "Hass family", remaining: 42 },
+  haas: { label: "Haas family", remaining: 42 },
 };
 
 type View = "code" | "no-code" | "success" | "submitted-waitlist";
@@ -403,7 +403,7 @@ function PrototypeControls({
           </button>
         ))}
         <span className="text-muted-foreground/50 ml-auto hidden sm:inline">
-          try codes: frands · gold24 · hass
+          try codes: frands · gold24 · haas
         </span>
       </div>
     </div>
