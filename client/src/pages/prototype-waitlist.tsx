@@ -79,10 +79,10 @@ export default function PrototypeWaitlist() {
             >
               <Eyebrow>Private beta</Eyebrow>
               <Headline>
-                You're <em className="not-italic" style={{ color: "#F5C030" }}>almost</em> in.
+                We're so <em className="not-italic" style={{ color: "#F5C030" }}>glad</em> you're here.
               </Headline>
               <Subhead>
-                Kinmo is invite-only for now. Pop in the code a friend sent you and you're good to go.
+                Drop in your invite code and we'll help you get started.
               </Subhead>
 
               <div className="mt-10 space-y-5">
@@ -177,7 +177,7 @@ export default function PrototypeWaitlist() {
                 onClick={() => setView("no-code")}
                 className="text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
-                Don't have a code? <span className="underline underline-offset-2">Ask to be let in</span>
+                Don't have a code yet? <span className="underline underline-offset-2">Add yourself to the waitlist</span>
               </button>
 
               <p className="mt-8 text-xs text-muted-foreground/70">
