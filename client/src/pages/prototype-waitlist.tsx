@@ -82,7 +82,7 @@ export default function PrototypeWaitlist() {
                 We're so <em className="not-italic" style={{ color: "#F5C030" }}>glad</em> you're here.
               </Headline>
               <Subhead>
-                Drop in your invite code and we'll help you get started.
+                Drop in your invite code and we'll help you get&nbsp;started.
               </Subhead>
 
               <div className="mt-10 space-y-5">
@@ -177,7 +177,7 @@ export default function PrototypeWaitlist() {
                 onClick={() => setView("no-code")}
                 className="text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
-                Don't have a code yet? <span className="underline underline-offset-2">Add yourself to the waitlist</span>
+                Don't have a code yet? <span className="underline underline-offset-2">Here's our waitlist</span>
               </button>
 
               <p className="mt-8 text-xs text-muted-foreground/70">
